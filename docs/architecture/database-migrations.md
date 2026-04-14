@@ -23,8 +23,8 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
 ## Current Bootstrap State
 
 - the initial migration is `001_baseline`
-- it is intentionally a no-op bootstrap migration
-- business tables will be introduced in later issues
+- `001_baseline` is an intentional no-op bootstrap migration
+- `002_users` introduces the canonical user identity table
 
 ## Runtime Input
 
