@@ -1,0 +1,77 @@
+name: Modification Task
+description: Create an implementation task that follows the repository's issue-based workflow.
+title: "[AWM] "
+labels:
+  - type:task
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for any repository modification work.
+
+        Workflow rules:
+        - Start from an issue before changing code or docs.
+        - Keep the change atomic and dependency-aware.
+        - Reference the relevant architecture and planning documents.
+        - Preserve EmDash-first constraints and Mini scope boundaries.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: State the exact change to be made.
+      placeholder: Implement the smallest correct change.
+    validations:
+      required: true
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Rationale
+      description: Explain why this work is needed and which planning document or issue it comes from.
+      placeholder: Derived from AWM backlog item or follow-up issue.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: List what is in scope and explicitly note exclusions.
+      placeholder: |
+        In scope:
+        - ...
+
+        Out of scope:
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: List blocking issues, related issues, or required prerequisites.
+      placeholder: |
+        Blocks:
+        - none
+
+        Depends on:
+        - #123
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Define concrete completion conditions.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+      description: Define how the change should be verified.
+      placeholder: |
+        - Unit tests
+        - Integration test
+        - Manual UI smoke test
+    validations:
+      required: true

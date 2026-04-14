@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: AWCMS Mini Implementation Plan
+    url: https://github.com/ahliweb/awcms-mini/blob/main/awcms_mini_implementation_plan.md
+    about: Review the canonical implementation planning brief before creating work.
+  - name: AWCMS Mini Atomic Backlog
+    url: https://github.com/ahliweb/awcms-mini/blob/main/awcms_mini_atomic_backlog.md
+    about: Review the atomic backlog and reuse existing tasks before opening new issues.
