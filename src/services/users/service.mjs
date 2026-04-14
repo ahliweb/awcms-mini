@@ -24,6 +24,7 @@ export function createUserService(options = {}) {
           status: input.status ?? "active",
           must_reset_password: input.must_reset_password ?? false,
           is_protected: input.is_protected ?? false,
+          email_verified: input.email_verified ?? true,
         });
       });
     },
@@ -37,6 +38,7 @@ export function createUserService(options = {}) {
           status: "invited",
           must_reset_password: input.must_reset_password ?? true,
           is_protected: input.is_protected ?? false,
+          email_verified: false,
         });
       });
     },

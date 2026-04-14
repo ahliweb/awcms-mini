@@ -15,6 +15,12 @@ const USER_COLUMNS = [
   "deleted_at",
   "deleted_by_user_id",
   "delete_reason",
+  "name",
+  "avatar_url",
+  "role",
+  "email_verified",
+  "disabled",
+  "data",
   "created_at",
   "updated_at",
 ];
@@ -46,6 +52,8 @@ function normalizeUser(row) {
     ...row,
     must_reset_password: normalizeBoolean(row.must_reset_password),
     is_protected: normalizeBoolean(row.is_protected),
+    email_verified: normalizeBoolean(row.email_verified),
+    disabled: normalizeBoolean(row.disabled),
   };
 }
 
@@ -97,6 +105,12 @@ export function createUserRepository(executor = getDatabase()) {
           deleted_at: null,
           deleted_by_user_id: null,
           delete_reason: null,
+          name: input.name ?? input.display_name ?? null,
+          avatar_url: input.avatar_url ?? null,
+          role: input.role ?? 10,
+          email_verified: input.email_verified ?? input.status === "active",
+          disabled: ["disabled", "locked", "deleted"].includes(input.status ?? "invited"),
+          data: input.data ? JSON.stringify(input.data) : null,
         })
         .execute();
 
@@ -150,6 +164,7 @@ export function createUserRepository(executor = getDatabase()) {
         .updateTable("users")
         .set({
           status,
+          disabled: ["disabled", "locked", "deleted"].includes(status),
           updated_at: sql`CURRENT_TIMESTAMP`,
         })
         .where("id", "=", id)
@@ -164,6 +179,7 @@ export function createUserRepository(executor = getDatabase()) {
         .updateTable("users")
         .set({
           status: "deleted",
+          disabled: true,
           deleted_at: options.deleted_at ?? sql`CURRENT_TIMESTAMP`,
           deleted_by_user_id: options.deleted_by_user_id ?? null,
           delete_reason: options.delete_reason ?? null,
@@ -181,6 +197,7 @@ export function createUserRepository(executor = getDatabase()) {
         .updateTable("users")
         .set({
           status: options.status ?? "disabled",
+          disabled: ["disabled", "locked", "deleted"].includes(options.status ?? "disabled"),
           deleted_at: null,
           deleted_by_user_id: null,
           delete_reason: null,

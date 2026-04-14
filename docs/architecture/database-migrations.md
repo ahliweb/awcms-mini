@@ -29,6 +29,7 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
 - `004_sessions` introduces active and historical authenticated session tracking
 - `005_login_security_events` introduces append-only login and auth attempt history
 - `006_soft_delete_identity_records` adds soft delete markers for mutable identity records
+- `007_emdash_auth_compatibility` adds minimum compatibility columns needed by EmDash auth middleware
 
 ## Runtime Input
 

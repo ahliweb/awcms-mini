@@ -3,6 +3,7 @@ import react from "@astrojs/react";
 import { defineConfig } from "astro/config";
 import emdash from "emdash/astro";
 import { postgres } from "emdash/db";
+import miniAuthIntegration from "./src/integrations/mini-auth.mjs";
 import { getRuntimeConfig } from "./src/config/runtime.mjs";
 
 const runtimeConfig = getRuntimeConfig();
@@ -17,6 +18,7 @@ export default defineConfig({
   },
   integrations: [
     react(),
+    miniAuthIntegration(),
     emdash({
       database: postgres({
         connectionString: runtimeConfig.databaseUrl,
