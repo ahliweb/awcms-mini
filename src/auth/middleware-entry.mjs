@@ -1,4 +1,5 @@
 import { defineMiddleware } from "astro:middleware";
+import { runWithContext } from "emdash";
 
 import { getDatabase } from "../db/index.mjs";
 import { handleAuthLogin } from "./handlers/login.mjs";
@@ -6,12 +7,14 @@ import { handleAuthMe } from "./handlers/me.mjs";
 import { handleAuthLogout } from "./handlers/logout.mjs";
 import { createSessionService } from "../services/sessions/service.mjs";
 
-export const onRequest = defineMiddleware(async (context, next) => {
+async function handleMiniAuthRequest(context, next) {
+  const database = getDatabase();
+
   if (context.url.pathname === "/_emdash/api/auth/login" && context.request.method === "POST") {
     return handleAuthLogin({
       request: context.request,
       session: context.session,
-      db: getDatabase(),
+      db: database,
     });
   }
 
@@ -20,14 +23,14 @@ export const onRequest = defineMiddleware(async (context, next) => {
       request: context.request,
       session: context.session,
       url: context.url,
-      db: getDatabase(),
+      db: database,
     });
   }
 
   if (context.url.pathname === "/_emdash/api/auth/me" && context.request.method === "GET") {
     return handleAuthMe({
       session: context.session,
-      db: getDatabase(),
+      db: database,
     });
   }
 
@@ -39,11 +42,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
       return response;
     }
 
-    const sessions = createSessionService({ database: getDatabase() });
+    const sessions = createSessionService({ database });
     await sessions.refreshSession(sessionRecord.id, new Date().toISOString());
   } catch {
     // Do not block responses on best-effort session refresh.
   }
 
   return response;
+}
+
+export const onRequest = defineMiddleware(async (context, next) => {
+  return runWithContext({ editMode: false, db: getDatabase() }, () => handleMiniAuthRequest(context, next));
 });

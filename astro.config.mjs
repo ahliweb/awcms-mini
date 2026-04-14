@@ -4,6 +4,7 @@ import { defineConfig } from "astro/config";
 import emdash from "emdash/astro";
 import { postgres } from "emdash/db";
 import miniAuthIntegration from "./src/integrations/mini-auth.mjs";
+import { awcmsUsersAdminPlugin } from "./src/plugins/awcms-users-admin/index.mjs";
 import { getRuntimeConfig } from "./src/config/runtime.mjs";
 
 const runtimeConfig = getRuntimeConfig();
@@ -23,6 +24,7 @@ export default defineConfig({
       database: postgres({
         connectionString: runtimeConfig.databaseUrl,
       }),
+      plugins: [awcmsUsersAdminPlugin()],
     }),
   ],
   devToolbar: { enabled: false },
