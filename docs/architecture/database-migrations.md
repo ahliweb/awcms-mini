@@ -33,6 +33,7 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
 - `008_emdash_runtime_bootstrap` adds EmDash runtime support tables needed by the shared admin/setup path without replaying EmDash's incompatible auth migrations over Mini's `users` table
 - `009_user_invite_tokens` adds repo-owned invite activation token storage for invited-user activation
 - `010_roles` adds the RBAC role catalog with `staff_level`, protection metadata, unique role slug, and soft-delete markers
+- `011_permissions` adds the RBAC permission catalog with unique permission codes, protected markers, and code-format enforcement
 
 ## Runtime Input
 
