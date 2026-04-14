@@ -17,6 +17,9 @@ importers:
       astro:
         specifier: ^6.1.6
         version: 6.1.6(@types/node@24.12.2)(rollup@4.60.1)(typescript@5.9.3)(yaml@2.8.3)
+      better-sqlite3:
+        specifier: ^12.9.0
+        version: 12.9.0
       emdash:
         specifier: 0.4.0
         version: 0.4.0(b141d4550f86326fffddb664bbe68b8a)

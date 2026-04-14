@@ -8,9 +8,15 @@ const { Pool } = pg;
 export function createPostgresPool() {
   const { databaseUrl } = getRuntimeConfig();
 
-  return new Pool({
+  const pool = new Pool({
     connectionString: databaseUrl,
   });
+
+  pool.on("error", (error) => {
+    console.error("[db] idle client error", error);
+  });
+
+  return pool;
 }
 
 export function createDatabase() {
