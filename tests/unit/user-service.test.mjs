@@ -252,6 +252,11 @@ test("user service activate/disable/lock/updateProfile flows are explicit", asyn
   const restored = await service.restoreUser("user_1", { status: "disabled" });
   assert.equal(restored.status, "disabled");
   assert.equal(restored.deleted_at, null);
+
+  state.sessions[0].revoked_at = null;
+  const afterRevoke = await service.revokeUserSessions("user_1", "2026-01-22T00:00:00.000Z");
+  assert.equal(afterRevoke.id, "user_1");
+  assert.equal(state.sessions[0].revoked_at, "2026-01-22T00:00:00.000Z");
 });
 
 test("user service createInvite and activateInvite enforce token activation", async () => {

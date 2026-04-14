@@ -33,6 +33,10 @@ class FakeUsersQuery {
     return this;
   }
 
+  groupBy() {
+    return this;
+  }
+
   limit(value) {
     this.limitValue = value;
     return this;
@@ -70,8 +74,10 @@ function createFakeDb(rows) {
       assert.equal(table, "users");
       const query = new FakeUsersQuery(rows);
       query.leftJoin = (tableName, callback) => {
-        assert.equal(tableName, "user_profiles");
-        callback(createJoinBuilder());
+        assert.ok(["user_profiles", "sessions"].includes(tableName));
+        if (typeof callback === "function") {
+          callback(createJoinBuilder());
+        }
         return query;
       };
       return query;
@@ -100,6 +106,7 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
     profile_avatar_media_id: null,
     profile_created_at: "2026-04-01T10:00:00.000Z",
     profile_updated_at: "2026-04-10T10:00:00.000Z",
+    active_session_count: 1,
   };
   const fakeDb = createFakeDb([row]);
   setUserAdminDatabaseGetter(() => fakeDb);
@@ -159,6 +166,95 @@ test("awcms users admin plugin exposes invite route", async () => {
     assert.equal(capturedInput.display_name, "Invite User");
     assert.equal(body.invite.activationUrl, "http://example.test/activate?token=token-id.secret");
   } finally {
+    resetUserAdminServiceFactory();
+  }
+});
+
+test("awcms users admin plugin exposes lifecycle action routes", async () => {
+  const plugin = createPlugin();
+  const row = {
+    id: "user_1",
+    email: "user@example.com",
+    username: "user1",
+    display_name: "User One",
+    status: "disabled",
+    last_login_at: "2026-04-14T10:00:00.000Z",
+    must_reset_password: false,
+    is_protected: false,
+    deleted_at: null,
+    created_at: "2026-04-01T10:00:00.000Z",
+    updated_at: "2026-04-10T10:00:00.000Z",
+    profile_phone: null,
+    profile_timezone: null,
+    profile_locale: null,
+    profile_notes: null,
+    profile_avatar_media_id: null,
+    profile_created_at: null,
+    profile_updated_at: null,
+    active_session_count: 0,
+  };
+  let disabledUserId;
+  let lockedUserId;
+  let revokedUserId;
+
+  setUserAdminDatabaseGetter(() => ({
+    selectFrom(table) {
+      assert.equal(table, "users");
+      const query = new FakeUsersQuery([row]);
+      query.leftJoin = (tableName, callback) => {
+        assert.ok(["user_profiles", "sessions"].includes(tableName));
+        if (typeof callback === "function") {
+          callback(createJoinBuilder());
+        }
+        return query;
+      };
+      query.select = () => query;
+      query.groupBy = () => query;
+      return query;
+    },
+  }));
+  setUserAdminServiceFactory(() => ({
+    async disableUser(userId) {
+      disabledUserId = userId;
+    },
+    async lockUser(userId) {
+      lockedUserId = userId;
+    },
+    async revokeUserSessions(userId) {
+      revokedUserId = userId;
+    },
+  }));
+
+  try {
+    const disableBody = await plugin.routes["users/disable"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/disable", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: "user_1" }),
+      }),
+    });
+    assert.equal(disabledUserId, "user_1");
+    assert.equal(disableBody.item.id, "user_1");
+
+    await plugin.routes["users/lock"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/lock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: "user_1" }),
+      }),
+    });
+    assert.equal(lockedUserId, "user_1");
+
+    await plugin.routes["users/revoke-sessions"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/revoke-sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: "user_1" }),
+      }),
+    });
+    assert.equal(revokedUserId, "user_1");
+  } finally {
+    resetUserAdminDatabaseGetter();
     resetUserAdminServiceFactory();
   }
 });

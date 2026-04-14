@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { handleAuthMe } from "../../src/auth/handlers/me.mjs";
 import { handleAuthLogin } from "../../src/auth/handlers/login.mjs";
 import { hashPassword } from "../../src/auth/passwords.mjs";
 
@@ -129,6 +130,9 @@ function createFakeSession() {
     get(key) {
       return values.get(key);
     },
+    destroy() {
+      values.clear();
+    },
   };
 }
 
@@ -195,4 +199,47 @@ test("handleAuthLogin allows active users", async () => {
   assert.equal(body.success, true);
   assert.equal(state.sessions.length, 1);
   assert.deepEqual(session.get("user"), { id: "user_active" });
+});
+
+test("handleAuthMe rejects revoked identity sessions promptly", async () => {
+  const { database, state } = createFakeDatabase();
+  const session = createFakeSession();
+
+  state.users.push({
+    id: "user_active",
+    email: "active@example.com",
+    password_hash: hashPassword("very-secure-password"),
+    status: "active",
+    deleted_at: null,
+    must_reset_password: false,
+    is_protected: false,
+    email_verified: true,
+    disabled: false,
+    role: 10,
+    name: "Active User",
+    display_name: "Active User",
+  });
+
+  state.sessions.push({
+    id: "session_active",
+    user_id: "user_active",
+    session_token_hash: "hash_1",
+    trusted_device: false,
+    expires_at: "2026-02-01T00:00:00.000Z",
+    revoked_at: "2026-01-20T00:00:00.000Z",
+    created_at: "2026-01-01T00:00:00.000Z",
+  });
+
+  session.set("user", { id: "user_active" });
+  session.set("identitySession", { id: "session_active" });
+
+  const response = await handleAuthMe({
+    session,
+    db: database,
+  });
+
+  const body = await response.json();
+  assert.equal(response.status, 401);
+  assert.equal(body.error.code, "NOT_AUTHENTICATED");
+  assert.equal(session.get("user"), undefined);
 });

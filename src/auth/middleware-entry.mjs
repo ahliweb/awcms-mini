@@ -43,7 +43,11 @@ async function handleMiniAuthRequest(context, next) {
     }
 
     const sessions = createSessionService({ database });
-    await sessions.refreshSession(sessionRecord.id, new Date().toISOString());
+    const refreshed = await sessions.refreshSession(sessionRecord.id, new Date().toISOString());
+
+    if (!refreshed) {
+      context.session?.destroy?.();
+    }
   } catch {
     // Do not block responses on best-effort session refresh.
   }

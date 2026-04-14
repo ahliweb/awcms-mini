@@ -27,7 +27,20 @@ export function createSessionService(options = {}) {
     async refreshSession(sessionId, lastSeenAt) {
       return withTransaction(database, async (trx) => {
         const deps = createSessionServiceDependencies(trx);
+        const session = await deps.sessions.getSessionById(sessionId);
+
+        if (!session || session.revoked_at) {
+          return undefined;
+        }
+
         return deps.sessions.updateSessionLastSeen(sessionId, lastSeenAt);
+      });
+    },
+
+    async getSession(sessionId) {
+      return withTransaction(database, async (trx) => {
+        const deps = createSessionServiceDependencies(trx);
+        return deps.sessions.getSessionById(sessionId);
       });
     },
 

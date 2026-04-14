@@ -32,20 +32,18 @@ function normalizeProfileRow(row) {
       createdAt: row.profile_created_at,
       updatedAt: row.profile_updated_at,
     },
+    activeSessionCount: Number(row.active_session_count ?? 0),
   };
 }
 
-async function listUsersHandler(ctx) {
-  const db = userAdminDatabaseGetter();
-  const search = new URL(ctx.request.url).searchParams;
-  const limit = Number.parseInt(search.get("limit") ?? "25", 10);
-  const includeDeleted = search.get("includeDeleted") === "true";
-  const status = search.get("status") ?? undefined;
-
-  let query = db
+async function getUserSummaryRow(db, userId) {
+  return db
     .selectFrom("users")
     .leftJoin("user_profiles", (join) =>
       join.onRef("user_profiles.user_id", "=", "users.id").on("user_profiles.deleted_at", "is", null),
+    )
+    .leftJoin("sessions", (join) =>
+      join.onRef("sessions.user_id", "=", "users.id").on("sessions.revoked_at", "is", null),
     )
     .select([
       "users.id as id",
@@ -66,6 +64,67 @@ async function listUsersHandler(ctx) {
       "user_profiles.avatar_media_id as profile_avatar_media_id",
       "user_profiles.created_at as profile_created_at",
       "user_profiles.updated_at as profile_updated_at",
+      (eb) => eb.fn.count("sessions.id").as("active_session_count"),
+    ])
+    .where("users.id", "=", userId)
+    .groupBy([
+      "users.id",
+      "users.email",
+      "users.username",
+      "users.display_name",
+      "users.status",
+      "users.last_login_at",
+      "users.must_reset_password",
+      "users.is_protected",
+      "users.deleted_at",
+      "users.created_at",
+      "users.updated_at",
+      "user_profiles.phone",
+      "user_profiles.timezone",
+      "user_profiles.locale",
+      "user_profiles.notes",
+      "user_profiles.avatar_media_id",
+      "user_profiles.created_at",
+      "user_profiles.updated_at",
+    ])
+    .executeTakeFirst();
+}
+
+async function listUsersHandler(ctx) {
+  const db = userAdminDatabaseGetter();
+  const search = new URL(ctx.request.url).searchParams;
+  const limit = Number.parseInt(search.get("limit") ?? "25", 10);
+  const includeDeleted = search.get("includeDeleted") === "true";
+  const status = search.get("status") ?? undefined;
+
+  let query = db
+    .selectFrom("users")
+    .leftJoin("user_profiles", (join) =>
+      join.onRef("user_profiles.user_id", "=", "users.id").on("user_profiles.deleted_at", "is", null),
+    )
+    .leftJoin("sessions", (join) =>
+      join.onRef("sessions.user_id", "=", "users.id").on("sessions.revoked_at", "is", null),
+    )
+    .select([
+      "users.id as id",
+      "users.email as email",
+      "users.username as username",
+      "users.display_name as display_name",
+      "users.status as status",
+      "users.last_login_at as last_login_at",
+      "users.must_reset_password as must_reset_password",
+      "users.is_protected as is_protected",
+      "users.deleted_at as deleted_at",
+      "users.created_at as created_at",
+      "users.updated_at as updated_at",
+      "user_profiles.phone as profile_phone",
+      "user_profiles.timezone as profile_timezone",
+      "user_profiles.locale as profile_locale",
+      "user_profiles.notes as profile_notes",
+      "user_profiles.avatar_media_id as profile_avatar_media_id",
+      "user_profiles.created_at as profile_created_at",
+      "user_profiles.updated_at as profile_updated_at",
+      (eb) => eb.fn.count("sessions.id").as("active_session_count"),
     ])
     .orderBy("users.created_at", "desc")
     .orderBy("users.email", "asc");
@@ -78,7 +137,29 @@ async function listUsersHandler(ctx) {
     query = query.where("users.status", "=", status);
   }
 
-  const rows = await query.limit(Number.isFinite(limit) && limit > 0 ? Math.min(limit, 100) : 25).execute();
+  const rows = await query
+    .groupBy([
+      "users.id",
+      "users.email",
+      "users.username",
+      "users.display_name",
+      "users.status",
+      "users.last_login_at",
+      "users.must_reset_password",
+      "users.is_protected",
+      "users.deleted_at",
+      "users.created_at",
+      "users.updated_at",
+      "user_profiles.phone",
+      "user_profiles.timezone",
+      "user_profiles.locale",
+      "user_profiles.notes",
+      "user_profiles.avatar_media_id",
+      "user_profiles.created_at",
+      "user_profiles.updated_at",
+    ])
+    .limit(Number.isFinite(limit) && limit > 0 ? Math.min(limit, 100) : 25)
+    .execute();
 
   return {
     items: rows.map(normalizeProfileRow),
@@ -94,33 +175,7 @@ async function getUserDetailHandler(ctx) {
     throw PluginRouteError.badRequest("Missing required user id");
   }
 
-  const row = await db
-    .selectFrom("users")
-    .leftJoin("user_profiles", (join) =>
-      join.onRef("user_profiles.user_id", "=", "users.id").on("user_profiles.deleted_at", "is", null),
-    )
-    .select([
-      "users.id as id",
-      "users.email as email",
-      "users.username as username",
-      "users.display_name as display_name",
-      "users.status as status",
-      "users.last_login_at as last_login_at",
-      "users.must_reset_password as must_reset_password",
-      "users.is_protected as is_protected",
-      "users.deleted_at as deleted_at",
-      "users.created_at as created_at",
-      "users.updated_at as updated_at",
-      "user_profiles.phone as profile_phone",
-      "user_profiles.timezone as profile_timezone",
-      "user_profiles.locale as profile_locale",
-      "user_profiles.notes as profile_notes",
-      "user_profiles.avatar_media_id as profile_avatar_media_id",
-      "user_profiles.created_at as profile_created_at",
-      "user_profiles.updated_at as profile_updated_at",
-    ])
-    .where("users.id", "=", userId)
-    .executeTakeFirst();
+  const row = await getUserSummaryRow(db, userId);
 
   if (!row) {
     throw PluginRouteError.notFound(`User not found: ${userId}`);
@@ -166,6 +221,44 @@ async function createInviteHandler(ctx) {
   };
 }
 
+async function updateLifecycleHandler(ctx, action) {
+  let body;
+
+  try {
+    body = await ctx.request.json();
+  } catch {
+    throw PluginRouteError.badRequest("Expected JSON body");
+  }
+
+  const userId = typeof body?.userId === "string" ? body.userId.trim() : "";
+
+  if (!userId) {
+    throw PluginRouteError.badRequest("User id is required");
+  }
+
+  const users = userAdminServiceFactory(userAdminDatabaseGetter());
+
+  if (action === "disable") {
+    await users.disableUser(userId);
+  } else if (action === "lock") {
+    await users.lockUser(userId);
+  } else if (action === "revoke-sessions") {
+    await users.revokeUserSessions(userId);
+  } else {
+    throw PluginRouteError.badRequest(`Unsupported lifecycle action: ${action}`);
+  }
+
+  const row = await getUserSummaryRow(userAdminDatabaseGetter(), userId);
+
+  if (!row) {
+    throw PluginRouteError.notFound(`User not found: ${userId}`);
+  }
+
+  return {
+    item: normalizeProfileRow(row),
+  };
+}
+
 export function createPlugin() {
   return definePlugin({
     id: "awcms-users-admin",
@@ -180,6 +273,15 @@ export function createPlugin() {
       },
       "users/invite": {
         handler: createInviteHandler,
+      },
+      "users/disable": {
+        handler: (ctx) => updateLifecycleHandler(ctx, "disable"),
+      },
+      "users/lock": {
+        handler: (ctx) => updateLifecycleHandler(ctx, "lock"),
+      },
+      "users/revoke-sessions": {
+        handler: (ctx) => updateLifecycleHandler(ctx, "revoke-sessions"),
       },
     },
     admin: {

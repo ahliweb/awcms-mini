@@ -1,4 +1,5 @@
 import { createUserRepository } from "../../db/repositories/users.mjs";
+import { createSessionService } from "../../services/sessions/service.mjs";
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -9,7 +10,21 @@ function json(body, status = 200) {
 
 export async function handleAuthMe({ session, db }) {
   const sessionUser = await session?.get("user");
+  const identitySession = await session?.get("identitySession");
   if (!sessionUser?.id) {
+    return json({ error: { code: "NOT_AUTHENTICATED", message: "Not authenticated" } }, 401);
+  }
+
+  if (!identitySession?.id) {
+    session?.destroy?.();
+    return json({ error: { code: "NOT_AUTHENTICATED", message: "Not authenticated" } }, 401);
+  }
+
+  const sessions = createSessionService({ database: db });
+  const activeSession = await sessions.getSession(identitySession.id);
+
+  if (!activeSession || activeSession.revoked_at) {
+    session?.destroy?.();
     return json({ error: { code: "NOT_AUTHENTICATED", message: "Not authenticated" } }, 401);
   }
 

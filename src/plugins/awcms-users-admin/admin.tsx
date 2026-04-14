@@ -24,6 +24,11 @@ interface UserListItem {
     createdAt: string | null;
     updatedAt: string | null;
   };
+  activeSessionCount: number;
+}
+
+interface LifecycleResult {
+  item: UserListItem;
 }
 
 function formatDateTime(value: string | null) {
@@ -204,6 +209,12 @@ function useUserDetail() {
   const [item, setItem] = React.useState<UserListItem | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [submitting, setSubmitting] = React.useState<string | null>(null);
+
+  const fetchUser = React.useCallback(async (userId: string) => {
+    const response = await apiFetch(`${API_BASE}/users/detail?id=${encodeURIComponent(userId)}`);
+    return parseApiResponse<{ item: UserListItem }>(response, "Failed to load user");
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -220,8 +231,7 @@ function useUserDetail() {
 
     async function load() {
       try {
-        const response = await apiFetch(`${API_BASE}/users/detail?id=${encodeURIComponent(id)}`);
-        const data = await parseApiResponse<{ item: UserListItem }>(response, "Failed to load user");
+        const data = await fetchUser(id);
         if (!cancelled) {
           setItem(data.item);
           setError(null);
@@ -242,9 +252,41 @@ function useUserDetail() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [fetchUser]);
 
-  return { item, loading, error };
+  const runAction = React.useCallback(
+    async (action: "disable" | "lock" | "revoke-sessions") => {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get("id");
+
+      if (!id) {
+        setError("Missing required user id");
+        return;
+      }
+
+      setSubmitting(action);
+      setError(null);
+
+      try {
+        const response = await apiFetch(`${API_BASE}/users/${action}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ userId: id }),
+        });
+        const data = await parseApiResponse<LifecycleResult>(response, `Failed to ${action} user`);
+        setItem(data.item);
+      } catch (nextError) {
+        setError(nextError instanceof Error ? nextError.message : `Failed to ${action} user`);
+      } finally {
+        setSubmitting(null);
+      }
+    },
+    [],
+  );
+
+  return { item, loading, error, submitting, runAction };
 }
 
 function PageFrame({ title, children }: { title: string; children?: React.ReactNode }) {
@@ -322,6 +364,9 @@ function UsersListPage() {
                     <div style={{ color: "#71717a", marginTop: 4, fontSize: 13 }}>
                       {item.isProtected ? "Protected user" : "Standard user"}
                     </div>
+                    <div style={{ color: "#71717a", marginTop: 4, fontSize: 13 }}>
+                      {item.activeSessionCount} active sessions
+                    </div>
                   </td>
                   <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
                     <div>{item.profile.locale || "No locale"}</div>
@@ -353,7 +398,7 @@ function DetailField({ label, value }: { label: string; value: React.ReactNode }
 }
 
 function UserDetailPage() {
-  const { item, loading, error } = useUserDetail();
+  const { item, loading, error, submitting, runAction } = useUserDetail();
 
   return (
     <PageFrame title="User Detail">
@@ -363,23 +408,63 @@ function UserDetailPage() {
       {loading ? <Message>Loading user...</Message> : null}
       {!loading && error ? <Message>{error}</Message> : null}
       {!loading && !error && item ? (
-        <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-          <DetailField label="Email" value={item.email} />
-          <DetailField label="Display Name" value={item.displayName || "Not set"} />
-          <DetailField label="Username" value={item.username ? `@${item.username}` : "Not set"} />
-          <DetailField label="Status" value={item.status} />
-          <DetailField label="Last Login" value={formatDateTime(item.lastLoginAt)} />
-          <DetailField label="Created" value={formatDateTime(item.createdAt)} />
-          <DetailField label="Updated" value={formatDateTime(item.updatedAt)} />
-          <DetailField label="Phone" value={item.profile.phone || "Not set"} />
-          <DetailField label="Locale" value={item.profile.locale || "Not set"} />
-          <DetailField label="Timezone" value={item.profile.timezone || "Not set"} />
-          <DetailField label="Avatar Media" value={item.profile.avatarMediaId || "Not set"} />
-          <DetailField label="Soft Deleted" value={item.deletedAt ? formatDateTime(item.deletedAt) : "No"} />
-          <DetailField label="Password Reset Required" value={item.mustResetPassword ? "Yes" : "No"} />
-          <DetailField label="Protected" value={item.isProtected ? "Yes" : "No"} />
-          <DetailField label="Notes" value={item.profile.notes || "No notes"} />
-        </div>
+        <>
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              flexWrap: "wrap",
+              marginBottom: 16,
+              padding: 16,
+              border: "1px solid #e4e4e7",
+              borderRadius: 16,
+              background: "#fff",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => runAction("disable")}
+              disabled={submitting !== null || item.status === "disabled"}
+              style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#7f1d1d", color: "#fff", fontWeight: 600 }}
+            >
+              {submitting === "disable" ? "Disabling..." : "Disable user"}
+            </button>
+            <button
+              type="button"
+              onClick={() => runAction("lock")}
+              disabled={submitting !== null || item.status === "locked"}
+              style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#991b1b", color: "#fff", fontWeight: 600 }}
+            >
+              {submitting === "lock" ? "Locking..." : "Lock user"}
+            </button>
+            <button
+              type="button"
+              onClick={() => runAction("revoke-sessions")}
+              disabled={submitting !== null || item.activeSessionCount === 0}
+              style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#0f172a", color: "#fff", fontWeight: 600 }}
+            >
+              {submitting === "revoke-sessions" ? "Revoking..." : `Revoke sessions (${item.activeSessionCount})`}
+            </button>
+          </div>
+          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+            <DetailField label="Email" value={item.email} />
+            <DetailField label="Display Name" value={item.displayName || "Not set"} />
+            <DetailField label="Username" value={item.username ? `@${item.username}` : "Not set"} />
+            <DetailField label="Status" value={item.status} />
+            <DetailField label="Active Sessions" value={String(item.activeSessionCount)} />
+            <DetailField label="Last Login" value={formatDateTime(item.lastLoginAt)} />
+            <DetailField label="Created" value={formatDateTime(item.createdAt)} />
+            <DetailField label="Updated" value={formatDateTime(item.updatedAt)} />
+            <DetailField label="Phone" value={item.profile.phone || "Not set"} />
+            <DetailField label="Locale" value={item.profile.locale || "Not set"} />
+            <DetailField label="Timezone" value={item.profile.timezone || "Not set"} />
+            <DetailField label="Avatar Media" value={item.profile.avatarMediaId || "Not set"} />
+            <DetailField label="Soft Deleted" value={item.deletedAt ? formatDateTime(item.deletedAt) : "No"} />
+            <DetailField label="Password Reset Required" value={item.mustResetPassword ? "Yes" : "No"} />
+            <DetailField label="Protected" value={item.isProtected ? "Yes" : "No"} />
+            <DetailField label="Notes" value={item.profile.notes || "No notes"} />
+          </div>
+        </>
       ) : null}
     </PageFrame>
   );

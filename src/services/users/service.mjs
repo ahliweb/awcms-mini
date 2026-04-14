@@ -247,6 +247,14 @@ export function createUserService(options = {}) {
       });
     },
 
+    async revokeUserSessions(userId, revokedAt) {
+      return withTransaction(database, async (trx) => {
+        const deps = createUserServiceDependencies(trx);
+        await deps.sessions.revokeAllSessionsForUser(userId, revokedAt);
+        return deps.users.getUserById(userId, { includeDeleted: true });
+      });
+    },
+
     async updateProfile(userId, profileInput) {
       return withTransaction(database, async (trx) => {
         const deps = createUserServiceDependencies(trx);

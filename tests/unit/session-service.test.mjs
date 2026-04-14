@@ -155,6 +155,28 @@ test("session service issues and refreshes sessions with trusted-device flag", a
   assert.equal(state.transactions, 2);
 });
 
+test("session service does not refresh revoked sessions and can fetch session state", async () => {
+  const { database, state } = createFakeDatabase();
+  const service = createSessionService({ database });
+
+  state.sessions.push({
+    id: "session_revoked",
+    user_id: "user_1",
+    session_token_hash: "hash_revoked",
+    trusted_device: false,
+    expires_at: "2026-02-01T00:00:00.000Z",
+    revoked_at: "2026-01-20T00:00:00.000Z",
+    created_at: "2026-01-01T00:00:00.000Z",
+  });
+
+  const session = await service.getSession("session_revoked");
+  assert.equal(session.id, "session_revoked");
+
+  const refreshed = await service.refreshSession("session_revoked", "2026-01-21T00:00:00.000Z");
+  assert.equal(refreshed, undefined);
+  assert.equal(state.sessions[0].last_seen_at, undefined);
+});
+
 test("session service supports revoke, revoke-all, and list-active", async () => {
   const { database, state } = createFakeDatabase();
   const service = createSessionService({ database });
