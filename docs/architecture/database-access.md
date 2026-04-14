@@ -17,6 +17,8 @@ This document defines the shared database access surface for services in AWCMS M
 - services should use `withTransaction(...)` for multi-step writes
 - nested transaction intent must be explicit through strategy selection
 - error handling should classify database failures through `classifyDatabaseError(...)`
+- repositories should filter `deleted_at is null` by default for soft-deletable entities
+- repositories should expose explicit soft-delete, restore, or include-deleted paths instead of mixing deleted rows into normal reads
 
 ## Transaction Strategy
 

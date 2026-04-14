@@ -17,6 +17,9 @@ class FakeExecutor {
           this.users.push({
             created_at: values.created_at ?? "2026-01-01T00:00:00.000Z",
             updated_at: values.updated_at ?? "2026-01-01T00:00:00.000Z",
+            deleted_at: values.deleted_at ?? null,
+            deleted_by_user_id: values.deleted_by_user_id ?? null,
+            delete_reason: values.delete_reason ?? null,
             ...values,
           });
         },
@@ -37,7 +40,13 @@ class FakeExecutor {
       let rows = [...this.users];
 
       for (const clause of state.where) {
-        rows = rows.filter((row) => row[clause.column] === clause.value);
+        if (clause.operator === "=") {
+          rows = rows.filter((row) => row[clause.column] === clause.value);
+        } else if (clause.operator === "is") {
+          rows = rows.filter((row) => row[clause.column] === clause.value);
+        } else if (clause.operator === "is not") {
+          rows = rows.filter((row) => row[clause.column] !== clause.value);
+        }
       }
 
       rows.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)) || String(a.email).localeCompare(String(b.email)));
@@ -56,8 +65,7 @@ class FakeExecutor {
     const query = {
       select: () => query,
       where: (column, operator, value) => {
-        assert.equal(operator, "=");
-        state.where.push({ column, value });
+        state.where.push({ column, operator, value });
         return query;
       },
       orderBy: () => query,
@@ -81,30 +89,37 @@ class FakeExecutor {
 
     const state = {
       values: undefined,
-      where: undefined,
+      where: [],
     };
 
     return {
       set: (values) => {
         state.values = values;
-        return {
+        const chain = {
           where: (column, operator, value) => {
-            assert.equal(operator, "=");
-            state.where = { column, value };
+            state.where.push({ column, operator, value });
 
-            return {
-              execute: async () => {
-                for (const row of this.users) {
-                  if (row[column] === value) {
-                    for (const [key, nextValue] of Object.entries(state.values)) {
-                      row[key] = typeof nextValue === "object" ? "2026-01-02T00:00:00.000Z" : nextValue;
-                    }
-                  }
-                }
-              },
-            };
+            return chain;
+          },
+          execute: async () => {
+            for (const row of this.users) {
+              const matches = state.where.every((clause) => {
+                if (clause.operator === "=") return row[clause.column] === clause.value;
+                if (clause.operator === "is") return row[clause.column] === clause.value;
+                if (clause.operator === "is not") return row[clause.column] !== clause.value;
+                return false;
+              });
+
+              if (!matches) continue;
+
+              for (const [key, nextValue] of Object.entries(state.values)) {
+                row[key] = nextValue !== null && typeof nextValue === "object" ? "2026-01-02T00:00:00.000Z" : nextValue;
+              }
+            }
           },
         };
+
+        return chain;
       },
     };
   }
@@ -165,6 +180,28 @@ test("user repository supports create/get/list/update/status change", async () =
   const activeUsers = await repo.listUsers({ status: "active" });
   assert.equal(activeUsers.length, 1);
   assert.equal(activeUsers[0].email, "admin@example.com");
+
+  const softDeleted = await repo.softDeleteUser("user_2", {
+    deleted_by_user_id: "user_1",
+    delete_reason: "cleanup",
+  });
+
+  assert.equal(softDeleted.status, "deleted");
+  assert.equal(softDeleted.deleted_by_user_id, "user_1");
+  assert.equal(softDeleted.delete_reason, "cleanup");
+
+  const hidden = await repo.getUserById("user_2");
+  assert.equal(hidden, undefined);
+
+  const visibleDeleted = await repo.getUserById("user_2", { includeDeleted: true });
+  assert.equal(visibleDeleted.status, "deleted");
+
+  const listedWithoutDeleted = await repo.listUsers();
+  assert.equal(listedWithoutDeleted.some((user) => user.id === "user_2"), false);
+
+  const restored = await repo.restoreUser("user_2", { status: "disabled" });
+  assert.equal(restored.status, "disabled");
+  assert.equal(restored.deleted_at, null);
 });
 
 test("user repository works with injected transaction executors", async () => {

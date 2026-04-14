@@ -20,6 +20,9 @@ function createFakeDatabase() {
               state.users.push({
                 created_at: values.created_at ?? "2026-01-01T00:00:00.000Z",
                 updated_at: values.updated_at ?? "2026-01-01T00:00:00.000Z",
+                deleted_at: values.deleted_at ?? null,
+                deleted_by_user_id: values.deleted_by_user_id ?? null,
+                delete_reason: values.delete_reason ?? null,
                 ...values,
               });
             }
@@ -56,7 +59,11 @@ function createFakeDatabase() {
         let rows = [...source];
 
         for (const clause of stateful.where) {
-          rows = rows.filter((row) => row[clause.column] === clause.value);
+          if (clause.operator === "=" || clause.operator === "is") {
+            rows = rows.filter((row) => row[clause.column] === clause.value);
+          } else if (clause.operator === "is not") {
+            rows = rows.filter((row) => row[clause.column] !== clause.value);
+          }
         }
 
         if (stateful.offset !== undefined) rows = rows.slice(stateful.offset);
@@ -101,10 +108,14 @@ function createFakeDatabase() {
             },
             execute: async () => {
               for (const row of source) {
-                const matches = updateState.where.every((clause) => row[clause.column] === clause.value);
+                const matches = updateState.where.every((clause) => {
+                  if (clause.operator === "=" || clause.operator === "is") return row[clause.column] === clause.value;
+                  if (clause.operator === "is not") return row[clause.column] !== clause.value;
+                  return false;
+                });
                 if (!matches) continue;
                 for (const [key, nextValue] of Object.entries(updateState.values)) {
-                  row[key] = typeof nextValue === "object" ? "2026-01-02T00:00:00.000Z" : nextValue;
+                  row[key] = nextValue !== null && typeof nextValue === "object" ? "2026-01-02T00:00:00.000Z" : nextValue;
                 }
               }
             },
@@ -180,6 +191,9 @@ test("user service activate/disable/lock/updateProfile flows are explicit", asyn
     status: "invited",
     must_reset_password: false,
     is_protected: false,
+    deleted_at: null,
+    deleted_by_user_id: null,
+    delete_reason: null,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
   });
@@ -209,4 +223,15 @@ test("user service activate/disable/lock/updateProfile flows are explicit", asyn
   const locked = await service.lockUser("user_1");
   assert.equal(locked.status, "locked");
   assert.equal(state.sessions[0].revoked_at, "2026-01-02T00:00:00.000Z");
+
+  const softDeleted = await service.softDeleteUser("user_1", {
+    deleted_by_user_id: "admin_1",
+    delete_reason: "retention cleanup",
+  });
+  assert.equal(softDeleted.status, "deleted");
+  assert.equal(softDeleted.deleted_by_user_id, "admin_1");
+
+  const restored = await service.restoreUser("user_1", { status: "disabled" });
+  assert.equal(restored.status, "disabled");
+  assert.equal(restored.deleted_at, null);
 });

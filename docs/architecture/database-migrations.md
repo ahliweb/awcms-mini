@@ -28,6 +28,7 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
 - `003_user_profiles` introduces the one-to-one non-auth user profile table
 - `004_sessions` introduces active and historical authenticated session tracking
 - `005_login_security_events` introduces append-only login and auth attempt history
+- `006_soft_delete_identity_records` adds soft delete markers for mutable identity records
 
 ## Runtime Input
 

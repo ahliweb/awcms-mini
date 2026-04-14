@@ -215,10 +215,12 @@ Examples:
 - `user_id`
 - `role_id`
 - `supervisor_user_id`
+- `deleted_by_user_id`
 - `created_at`
 - `updated_at`
 - `verified_at`
 - `disabled_at`
+- `deleted_at`
 - `is_primary`
 - `is_protected`
 - `staff_level`
@@ -228,6 +230,20 @@ Examples:
 - prefer event timestamps like `revoked_at` over paired state booleans like `is_revoked` when timing matters
 - prefer explicit names such as `session_token_hash` over generic names such as `token`
 - use `path` for hierarchy lineage only when it represents a materialized path
+
+## Soft Delete Naming
+
+Use these names consistently when soft delete is supported:
+
+- `deleted_at`: timestamp marking logical deletion
+- `deleted_by_user_id`: optional actor who performed the deletion
+- `delete_reason`: optional operator-visible deletion reason
+
+Rules:
+
+- prefer `deleted_at` over `is_deleted`
+- prefer nullable timestamps over parallel boolean-plus-timestamp pairs
+- repositories should use `includeDeleted` for explicit read paths that need deleted rows
 
 ## Service Naming
 

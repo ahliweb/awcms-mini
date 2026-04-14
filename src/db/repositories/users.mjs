@@ -12,6 +12,9 @@ const USER_COLUMNS = [
   "last_login_at",
   "must_reset_password",
   "is_protected",
+  "deleted_at",
+  "deleted_by_user_id",
+  "delete_reason",
   "created_at",
   "updated_at",
 ];
@@ -68,6 +71,14 @@ function baseUserQuery(executor) {
   return executor.selectFrom("users").select(USER_COLUMNS);
 }
 
+function applyActiveUserFilter(query, options = {}) {
+  if (options.includeDeleted === true) {
+    return query;
+  }
+
+  return query.where("deleted_at", "is", null);
+}
+
 export function createUserRepository(executor = getDatabase()) {
   return {
     async createUser(input) {
@@ -83,24 +94,29 @@ export function createUserRepository(executor = getDatabase()) {
           last_login_at: input.last_login_at ?? null,
           must_reset_password: input.must_reset_password ?? false,
           is_protected: input.is_protected ?? false,
+          deleted_at: null,
+          deleted_by_user_id: null,
+          delete_reason: null,
         })
         .execute();
 
       return this.getUserById(input.id);
     },
 
-    async getUserById(id) {
-      const row = await baseUserQuery(executor).where("id", "=", id).executeTakeFirst();
+    async getUserById(id, options = {}) {
+      const row = await applyActiveUserFilter(baseUserQuery(executor).where("id", "=", id), options).executeTakeFirst();
       return normalizeUser(row);
     },
 
-    async getUserByEmail(email) {
-      const row = await baseUserQuery(executor).where("email", "=", email).executeTakeFirst();
+    async getUserByEmail(email, options = {}) {
+      const row = await applyActiveUserFilter(baseUserQuery(executor).where("email", "=", email), options).executeTakeFirst();
       return normalizeUser(row);
     },
 
     async listUsers(options = {}) {
-      let query = baseUserQuery(executor).orderBy("created_at", "desc").orderBy("email", "asc");
+      let query = applyActiveUserFilter(baseUserQuery(executor), options)
+        .orderBy("created_at", "desc")
+        .orderBy("email", "asc");
 
       if (options.status) {
         query = query.where("status", "=", options.status);
@@ -122,11 +138,11 @@ export function createUserRepository(executor = getDatabase()) {
       const values = buildUserPatch(patch);
 
       if (!values) {
-        return this.getUserById(id);
+        return this.getUserById(id, { includeDeleted: true });
       }
 
-      await executor.updateTable("users").set(values).where("id", "=", id).execute();
-      return this.getUserById(id);
+      await executor.updateTable("users").set(values).where("id", "=", id).where("deleted_at", "is", null).execute();
+      return this.getUserById(id, { includeDeleted: true });
     },
 
     async changeUserStatus(id, status) {
@@ -137,11 +153,46 @@ export function createUserRepository(executor = getDatabase()) {
           updated_at: sql`CURRENT_TIMESTAMP`,
         })
         .where("id", "=", id)
+        .where("deleted_at", "is", null)
         .execute();
 
-      return this.getUserById(id);
+      return this.getUserById(id, { includeDeleted: true });
+    },
+
+    async softDeleteUser(id, options = {}) {
+      await executor
+        .updateTable("users")
+        .set({
+          status: "deleted",
+          deleted_at: options.deleted_at ?? sql`CURRENT_TIMESTAMP`,
+          deleted_by_user_id: options.deleted_by_user_id ?? null,
+          delete_reason: options.delete_reason ?? null,
+          updated_at: sql`CURRENT_TIMESTAMP`,
+        })
+        .where("id", "=", id)
+        .where("deleted_at", "is", null)
+        .execute();
+
+      return this.getUserById(id, { includeDeleted: true });
+    },
+
+    async restoreUser(id, options = {}) {
+      await executor
+        .updateTable("users")
+        .set({
+          status: options.status ?? "disabled",
+          deleted_at: null,
+          deleted_by_user_id: null,
+          delete_reason: null,
+          updated_at: sql`CURRENT_TIMESTAMP`,
+        })
+        .where("id", "=", id)
+        .where("deleted_at", "is not", null)
+        .execute();
+
+      return this.getUserById(id, { includeDeleted: true });
     },
   };
 }
 
-export { USER_COLUMNS, buildUserPatch, normalizeUser };
+export { USER_COLUMNS, applyActiveUserFilter, buildUserPatch, normalizeUser };

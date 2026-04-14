@@ -62,8 +62,34 @@ PostgreSQL plus Kysely is the correct data foundation because it preserves SQL t
 - Fixed scope before dynamic expansion: secure users, permissions, jobs, regions, and audit before optional features.
 - Data model clarity: separate identity, authorization, governance, content, and audit concerns.
 - Additive rollout safety: schema and enforcement changes should land incrementally with reversibility.
+- Retention-aware deletes: mutable entities should prefer soft delete; append-only and effective-dated records should not.
 
-## 4. Allowed vs Forbidden Design Rules
+## 4. Soft Delete Strategy
+
+Mini should use a selective soft delete model rather than universal hard delete or universal soft delete.
+
+Use soft delete for:
+
+- mutable identity records such as users,
+- mutable profile/catalog records where audit context should be preserved,
+- future governance entities such as non-system roles, job catalogs, and region catalogs when removal should remain reversible.
+
+Do not use soft delete for:
+
+- append-only security and audit records,
+- sessions and token history,
+- recovery codes and password reset tokens,
+- relationship/history tables that already use `expires_at`, `ends_at`, or equivalent effective dating.
+
+Implementation rules:
+
+- the canonical soft delete marker is `deleted_at`,
+- when operator attribution matters, add `deleted_by_user_id` and `delete_reason`,
+- repositories should exclude soft-deleted rows by default,
+- services should expose explicit soft delete and restore flows,
+- normal application behavior should avoid hard delete.
+
+## 5. Allowed vs Forbidden Design Rules
 
 | Rule Area | Allowed | Forbidden | Rationale |
 | --- | --- | --- | --- |
@@ -74,13 +100,13 @@ PostgreSQL plus Kysely is the correct data foundation because it preserves SQL t
 | Plugins | Internal plugins using EmDash hooks, routes, settings, and service guards | Plugin APIs that bypass governance services or write DB state arbitrarily | Governance must remain enforceable |
 | Admin Screens | Extend EmDash admin navigation and pages | Build a second standalone admin app | Avoids split UX and duplicated enforcement |
 | Region Handling | Maintain separate logical and administrative hierarchies | Collapse both hierarchies into a single table or semantics layer | They solve different governance problems |
-| Schema Design | PostgreSQL tables modeled around EmDash data plus governance overlays | Multi-tenant columns, platform catalogs, or universal soft-delete for every support table without need | Keep schema lean and single-tenant |
+| Schema Design | PostgreSQL tables modeled around EmDash data plus governance overlays, with selective soft delete for mutable entities | Multi-tenant columns, platform catalogs, or universal soft-delete for append-only/history tables | Keep schema lean and single-tenant |
 | Transaction Logic | Use Kysely transactions for multi-step writes and sensitive state changes | Ad hoc partial writes across users, roles, jobs, regions, and sessions | Prevents inconsistent policy state |
 | Reporting | Read from audit and support tables through explicit queries/views | Add warehouse-grade analytics subsystems in v1 | Reporting should remain operational, not enterprise BI |
 | Job Hierarchy | Separate job levels/titles/assignments from roles | Use job titles as permission grants | Prevents organizational metadata from becoming hidden auth truth |
 | Role Hierarchy | Use explicit role levels and protected role rules | Infer authority from job seniority or region placement alone | Keeps authorization predictable |
 
-## 5. Foundation Architecture Map
+## 6. Foundation Architecture Map
 
 ### Host Layer
 
@@ -135,7 +161,7 @@ The admin layer should be the EmDash admin extended carefully with governance sc
 
 The public layer should continue to follow EmDash's content rendering model. Governance overlays may affect who can manage or publish content, but should not redefine the public rendering architecture.
 
-## 6. Module and Capability Inventory
+## 7. Module and Capability Inventory
 
 | Capability | Type | Mandatory v1 | Governance Overlay | Implementation Boundaries |
 | --- | --- | --- | --- | --- |
@@ -155,30 +181,30 @@ The public layer should continue to follow EmDash's content rendering model. Gov
 | Security Events | Extension | Yes | Yes | Auth, 2FA, lockouts, resets, privileged changes |
 | Permission Matrix | Extension | Yes | Yes | Admin management surface over permission catalog |
 
-## 7. Data Model Planning
+## 8. Data Model Planning
 
 The data model should be split into core identity/auth, authorization, governance, and supporting controls. EmDash-native tables should remain authoritative for content and core CMS data. Mini-specific tables should be additive.
 
-### 7.1 Core Identity and Auth Tables
+### 8.1 Core Identity and Auth Tables
 
 #### `users`
 
 - Purpose: canonical user identity account.
-- Key columns: `id`, `email`, `username`, `display_name`, `password_hash`, `status`, `last_login_at`, `must_reset_password`, `is_protected`, `created_at`, `updated_at`.
+- Key columns: `id`, `email`, `username`, `display_name`, `password_hash`, `status`, `last_login_at`, `must_reset_password`, `is_protected`, `deleted_at`, `deleted_by_user_id`, `delete_reason`, `created_at`, `updated_at`.
 - Relationships: one-to-many to sessions, login events, user roles, user jobs, region assignments, 2FA credentials, audit events.
-- Constraints: unique `email`; allowed `status` enum such as `invited`, `active`, `disabled`, `locked`.
+- Constraints: unique `email`; allowed `status` enum such as `invited`, `active`, `disabled`, `locked`, `deleted`.
 - Indexes: unique on `email`; index on `status`; index on `last_login_at`.
-- Soft delete: avoid for user identity in v1; prefer disabled/locked states for audit clarity.
+- Soft delete: yes; use `deleted_at` with optional `deleted_by_user_id` and `delete_reason`. Soft-deleted identities should be excluded from normal reads by default.
 - Classification: EmDash-native support table if upstream-compatible, otherwise Mini overlay extension.
 
 #### `user_profiles`
 
 - Purpose: non-auth profile attributes for admin and self-service.
-- Key columns: `user_id`, `phone`, `avatar_media_id`, `timezone`, `locale`, `notes`, `created_at`, `updated_at`.
+- Key columns: `user_id`, `phone`, `avatar_media_id`, `timezone`, `locale`, `notes`, `deleted_at`, `created_at`, `updated_at`.
 - Relationships: one-to-one with users.
-- Constraints: foreign key to users with `ON DELETE CASCADE` only if users can be hard-deleted in maintenance scenarios.
+- Constraints: foreign key to users; if hard delete exists for maintenance-only paths, `ON DELETE CASCADE` is acceptable.
 - Indexes: primary key on `user_id`.
-- Soft delete: no.
+- Soft delete: yes; use `deleted_at` to mirror the user lifecycle without physically removing profile data during normal operations.
 - Classification: governance support overlay.
 
 #### `sessions`
@@ -188,7 +214,7 @@ The data model should be split into core identity/auth, authorization, governanc
 - Relationships: many-to-one to users.
 - Constraints: token stored only as hash; revoked sessions retained.
 - Indexes: unique on `session_token_hash`; indexes on `user_id`, `expires_at`, `revoked_at`.
-- Soft delete: no.
+- Soft delete: no; sessions are retained history and should use `revoked_at` plus expiry rather than logical deletion.
 - Classification: EmDash auth support extended.
 
 #### `login_security_events`
@@ -198,7 +224,7 @@ The data model should be split into core identity/auth, authorization, governanc
 - Relationships: optional many-to-one to users.
 - Constraints: immutable append-only rows.
 - Indexes: `user_id, occurred_at desc`; `email_attempted`; `event_type, occurred_at desc`.
-- Soft delete: no.
+- Soft delete: no; the table is append-only.
 - Classification: governance security overlay.
 
 #### `totp_credentials`
@@ -231,7 +257,7 @@ The data model should be split into core identity/auth, authorization, governanc
 - Soft delete: no.
 - Classification: governance security overlay.
 
-### 7.2 Authorization Tables
+### 8.2 Authorization Tables
 
 #### `roles`
 
@@ -240,7 +266,7 @@ The data model should be split into core identity/auth, authorization, governanc
 - Relationships: one-to-many to user_roles and role_permissions.
 - Constraints: unique `slug`; `staff_level` constrained to 1-10 or mapped authority scale.
 - Indexes: unique `slug`; index on `staff_level`.
-- Soft delete: use `is_active` or deny deletion if assigned; avoid soft delete complexity in v1.
+- Soft delete: yes for non-system roles; prefer `deleted_at` and default filtering over physical removal.
 - Classification: governance overlay.
 
 #### `permissions`
@@ -250,7 +276,7 @@ The data model should be split into core identity/auth, authorization, governanc
 - Relationships: one-to-many to role_permissions.
 - Constraints: unique `code`; `code` format `scope.resource.action`.
 - Indexes: unique `code`; index on `domain`.
-- Soft delete: no.
+- Soft delete: no; permission codes are a stable catalog and should not disappear from historical mappings.
 - Classification: governance overlay.
 
 #### `role_permissions`
@@ -283,7 +309,7 @@ The data model should be split into core identity/auth, authorization, governanc
 - Soft delete: no.
 - Classification: governance overlay support.
 
-### 7.3 Governance Tables
+### 8.3 Governance Tables
 
 #### `job_levels`
 
@@ -292,7 +318,7 @@ The data model should be split into core identity/auth, authorization, governanc
 - Relationships: one-to-many to job_titles and user_jobs.
 - Constraints: unique `code`; unique `rank_order`.
 - Indexes: unique `code`; unique `rank_order`.
-- Soft delete: no; deactivate instead.
+- Soft delete: soft delete or deactivate is acceptable, but the preferred default is `deleted_at` for operator-managed catalogs that should remain reversible.
 - Classification: governance overlay.
 
 #### `job_titles`
@@ -302,7 +328,7 @@ The data model should be split into core identity/auth, authorization, governanc
 - Relationships: many-to-one to job_levels; one-to-many to user_jobs.
 - Constraints: unique `code`.
 - Indexes: `job_level_id`; unique `code`.
-- Soft delete: no.
+- Soft delete: yes; use `deleted_at` if titles should be retired without losing historical references.
 - Classification: governance overlay.
 
 #### `user_jobs`
@@ -322,7 +348,7 @@ The data model should be split into core identity/auth, authorization, governanc
 - Relationships: self-referential tree; one-to-many to user_region_assignments.
 - Constraints: unique `code`; max depth 10.
 - Indexes: unique `code`; `parent_id`; `path`; `level`.
-- Soft delete: no; disable and reassign.
+- Soft delete: yes for catalog rows; prefer `deleted_at` plus reassignment rules instead of hard delete.
 - Classification: governance overlay.
 
 #### `administrative_regions`
@@ -332,7 +358,7 @@ The data model should be split into core identity/auth, authorization, governanc
 - Relationships: self-referential tree; one-to-many to user_administrative_region_assignments.
 - Constraints: `type` in `province`, `regency_city`, `district`, `village`; unique code per node.
 - Indexes: `parent_id`; `path`; `type`; unique `code`.
-- Soft delete: no.
+- Soft delete: yes for catalog rows; preserve legal hierarchy history if records are retired or superseded.
 - Classification: governance overlay.
 
 #### `user_region_assignments`
@@ -365,7 +391,7 @@ The data model should be split into core identity/auth, authorization, governanc
 - Soft delete: no.
 - Classification: governance overlay, optional v1 if workflow gating is needed.
 
-### 7.4 Supporting Controls
+### 8.4 Supporting Controls
 
 #### `audit_logs`
 
@@ -374,7 +400,7 @@ The data model should be split into core identity/auth, authorization, governanc
 - Relationships: optional actor user.
 - Constraints: immutable append-only.
 - Indexes: `actor_user_id, occurred_at desc`; `entity_type, entity_id`; `action_code, occurred_at desc`.
-- Soft delete: no.
+- Soft delete: no; append-only.
 - Classification: governance overlay.
 
 #### `security_events`
@@ -384,7 +410,7 @@ The data model should be split into core identity/auth, authorization, governanc
 - Relationships: optional many-to-one to users.
 - Constraints: immutable append-only.
 - Indexes: `user_id`; `event_type, occurred_at desc`; `severity, occurred_at desc`.
-- Soft delete: no.
+- Soft delete: no; append-only.
 - Classification: governance overlay.
 
 #### `rate_limit_counters`

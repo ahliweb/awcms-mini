@@ -12,6 +12,7 @@ This backlog converts `awcms_mini_implementation_plan.md` into issue-sized imple
 - Preserve EmDash-first architecture in every implementation decision.
 - Do not introduce Supabase, multi-tenant logic, or a competing admin shell.
 - Treat AWCMS concepts as overlays only.
+- Apply the repository-wide soft delete strategy: mutable entities use soft delete by default, append-only/history tables do not.
 
 ## Status Legend
 
@@ -180,6 +181,7 @@ Each issue below includes:
 - Acceptance Criteria:
   - unique email constraint exists
   - status and protection fields exist
+  - soft delete columns exist for user lifecycle retention
   - indexes align with the plan
 - Suggested Validation:
   - migration test on empty db
@@ -194,6 +196,7 @@ Each issue below includes:
 - Acceptance Criteria:
   - one-to-one profile relationship is enforced
   - profile data excludes auth secrets
+  - profile soft delete marker aligns with the user lifecycle model
 - Suggested Validation:
   - migration test and schema inspection
 
@@ -228,11 +231,12 @@ Each issue below includes:
 - Goal: create the canonical persistence layer for user identity data.
 - Scope: repository methods only.
 - Deliverables:
-  - create/get/list/update/status-change repository methods
+  - create/get/list/update/status-change/soft-delete/restore repository methods
 - Dependencies: AWM-009, AWM-010
 - Acceptance Criteria:
   - repository does not embed authorization logic
   - repository is transaction-compatible
+  - soft-deleted users are excluded from normal reads by default
 - Suggested Validation:
   - repository unit tests
 
@@ -265,7 +269,7 @@ Each issue below includes:
 ### AWM-016: Implement User Service Core Flows
 
 - Goal: provide user lifecycle orchestration.
-- Scope: create, invite, activate, disable, lock, update profile.
+- Scope: create, invite, activate, disable, lock, soft delete, restore, update profile.
 - Deliverables:
   - user service methods
   - transaction boundaries for lifecycle operations
@@ -273,6 +277,7 @@ Each issue below includes:
 - Acceptance Criteria:
   - lifecycle state changes are explicit
   - no role/job/region logic is mixed in yet beyond extension hooks
+  - soft delete and restore flows are explicit and revoke sessions where appropriate
 - Suggested Validation:
   - service tests for each lifecycle flow
 

@@ -118,6 +118,16 @@ The implementation must not introduce:
 - hidden database policy dependence as the main authorization layer,
 - architecture that makes Kysely secondary or optional for core data access.
 
+## Soft Delete Constraints
+
+- mutable identity and governance entities should prefer soft delete over hard delete
+- the canonical soft delete marker is `deleted_at`
+- when operator attribution matters, add `deleted_by_user_id` and `delete_reason`
+- repositories should exclude soft-deleted rows by default unless an explicit include-deleted path is requested
+- append-only security, audit, token, and event tables should not use soft delete
+- effective-dated relationship/history tables should prefer `expires_at` or `ends_at` rather than `deleted_at`
+- hard delete should be reserved for maintenance-only workflows, not normal application behavior
+
 ## Authorization Constraints
 
 Mini should use hybrid RBAC plus ABAC.

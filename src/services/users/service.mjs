@@ -85,5 +85,30 @@ export function createUserService(options = {}) {
         });
       });
     },
+
+    async softDeleteUser(userId, options = {}) {
+      return withTransaction(database, async (trx) => {
+        const deps = createUserServiceDependencies(trx);
+
+        const user = await deps.users.softDeleteUser(userId, {
+          deleted_by_user_id: options.deleted_by_user_id,
+          delete_reason: options.delete_reason,
+          deleted_at: options.deleted_at,
+        });
+
+        if (options.revokeSessions !== false) {
+          await deps.sessions.revokeAllSessionsForUser(userId);
+        }
+
+        return user;
+      });
+    },
+
+    async restoreUser(userId, options = {}) {
+      return withTransaction(database, async (trx) => {
+        const deps = createUserServiceDependencies(trx);
+        return deps.users.restoreUser(userId, { status: options.status });
+      });
+    },
   };
 }
