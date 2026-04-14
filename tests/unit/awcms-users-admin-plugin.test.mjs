@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import {
   createPlugin,
   resetUserAdminDatabaseGetter,
+  resetUserAdminServiceFactory,
   setUserAdminDatabaseGetter,
+  setUserAdminServiceFactory,
 } from "../../src/plugins/awcms-users-admin/index.mjs";
 
 class FakeUsersQuery {
@@ -126,5 +128,37 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
     assert.equal(detailResult.item.email, "user@example.com");
   } finally {
     resetUserAdminDatabaseGetter();
+  }
+});
+
+test("awcms users admin plugin exposes invite route", async () => {
+  const plugin = createPlugin();
+  let capturedInput;
+
+  setUserAdminServiceFactory(() => ({
+    async createInvite(input) {
+      capturedInput = input;
+      return {
+        user: { id: "user_invited", email: input.email },
+        token: "token-id.secret",
+        expires_at: "2026-04-22T10:00:00.000Z",
+      };
+    },
+  }));
+
+  try {
+    const body = await plugin.routes["users/invite"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "invite@example.com", displayName: "Invite User" }),
+      }),
+    });
+
+    assert.equal(capturedInput.email, "invite@example.com");
+    assert.equal(capturedInput.display_name, "Invite User");
+    assert.equal(body.invite.activationUrl, "http://example.test/activate?token=token-id.secret");
+  } finally {
+    resetUserAdminServiceFactory();
   }
 });

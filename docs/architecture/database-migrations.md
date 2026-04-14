@@ -31,6 +31,7 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
 - `006_soft_delete_identity_records` adds soft delete markers for mutable identity records
 - `007_emdash_auth_compatibility` adds minimum compatibility columns needed by EmDash auth middleware
 - `008_emdash_runtime_bootstrap` adds EmDash runtime support tables needed by the shared admin/setup path without replaying EmDash's incompatible auth migrations over Mini's `users` table
+- `009_user_invite_tokens` adds repo-owned invite activation token storage for invited-user activation
 
 ## Runtime Input
 

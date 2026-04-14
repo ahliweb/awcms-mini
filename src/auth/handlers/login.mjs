@@ -58,9 +58,10 @@ export async function handleAuthLogin({ request, session, db }) {
     return json({ error: { code: "ACCOUNT_DELETED", message: "Account deleted" } }, 403);
   }
 
-  if (["disabled", "locked"].includes(user.status)) {
+  if (user.status !== "active") {
+    const code = ["disabled", "locked"].includes(user.status) ? "ACCOUNT_DISABLED" : "ACCOUNT_NOT_ACTIVE";
     await appendEvent({ user_id: user.id, outcome: "failure", reason: `user_${user.status}` });
-    return json({ error: { code: "ACCOUNT_DISABLED", message: "Account is not available" } }, 403);
+    return json({ error: { code, message: "Account is not available" } }, 403);
   }
 
   if (!verifyPassword(password, user.password_hash)) {

@@ -1,8 +1,10 @@
 import { definePlugin, PluginRouteError } from "emdash";
 
 import { getDatabase } from "../../db/index.mjs";
+import { createUserService } from "../../services/users/service.mjs";
 
 let userAdminDatabaseGetter = () => getDatabase();
+let userAdminServiceFactory = (database) => createUserService({ database });
 
 function normalizeProfileRow(row) {
   if (!row) {
@@ -129,6 +131,41 @@ async function getUserDetailHandler(ctx) {
   };
 }
 
+async function createInviteHandler(ctx) {
+  let body;
+
+  try {
+    body = await ctx.request.json();
+  } catch {
+    throw PluginRouteError.badRequest("Expected JSON body");
+  }
+
+  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+  const displayName = typeof body?.displayName === "string" ? body.displayName.trim() : "";
+
+  if (!email) {
+    throw PluginRouteError.badRequest("Email is required");
+  }
+
+  const users = userAdminServiceFactory(userAdminDatabaseGetter());
+  const invite = await users.createInvite({
+    email,
+    display_name: displayName || null,
+  });
+
+  const activationUrl = new URL("/activate", ctx.request.url);
+  activationUrl.searchParams.set("token", invite.token);
+
+  return {
+    invite: {
+      userId: invite.user.id,
+      email: invite.user.email,
+      expiresAt: invite.expires_at,
+      activationUrl: activationUrl.toString(),
+    },
+  };
+}
+
 export function createPlugin() {
   return definePlugin({
     id: "awcms-users-admin",
@@ -140,6 +177,9 @@ export function createPlugin() {
       },
       "users/detail": {
         handler: getUserDetailHandler,
+      },
+      "users/invite": {
+        handler: createInviteHandler,
       },
     },
     admin: {
@@ -172,6 +212,14 @@ export function setUserAdminDatabaseGetter(getter) {
 
 export function resetUserAdminDatabaseGetter() {
   userAdminDatabaseGetter = () => getDatabase();
+}
+
+export function setUserAdminServiceFactory(factory) {
+  userAdminServiceFactory = factory;
+}
+
+export function resetUserAdminServiceFactory() {
+  userAdminServiceFactory = (database) => createUserService({ database });
 }
 
 export default createPlugin;

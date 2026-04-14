@@ -47,6 +47,19 @@ function useUserList() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
+  const load = React.useCallback(async () => {
+    try {
+      const response = await apiFetch(`${API_BASE}/users/list`);
+      const data = await parseApiResponse<{ items: UserListItem[] }>(response, "Failed to load users");
+      setItems(data.items);
+      setError(null);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Failed to load users");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     let cancelled = false;
 
@@ -76,7 +89,115 @@ function useUserList() {
     };
   }, []);
 
-  return { items, loading, error };
+  return { items, loading, error, reload: load };
+}
+
+interface InviteResult {
+  invite: {
+    userId: string;
+    email: string;
+    expiresAt: string;
+    activationUrl: string;
+  };
+}
+
+function InviteUserCard({ onCreated }: { onCreated: () => Promise<void> | void }) {
+  const [email, setEmail] = React.useState("");
+  const [displayName, setDisplayName] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [result, setResult] = React.useState<InviteResult["invite"] | null>(null);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const response = await apiFetch(`${API_BASE}/users/invite`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          displayName,
+        }),
+      });
+      const data = await parseApiResponse<InviteResult>(response, "Failed to create invite");
+      setResult(data.invite);
+      setEmail("");
+      setDisplayName("");
+      await onCreated();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Failed to create invite");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleEmailChange(event: React.ChangeEvent<HTMLInputElement>) {
+    setEmail(event.target.value);
+  }
+
+  function handleDisplayNameChange(event: React.ChangeEvent<HTMLInputElement>) {
+    setDisplayName(event.target.value);
+  }
+
+  return (
+    <div
+      style={{
+        border: "1px solid #e4e4e7",
+        borderRadius: 16,
+        background: "#fff",
+        padding: 16,
+        marginBottom: 16,
+      }}
+    >
+      <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>Invite user</h2>
+      <p style={{ margin: "0 0 16px", color: "#52525b" }}>Create an invited account and copy its activation link.</p>
+      <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+        <label style={{ display: "grid", gap: 6 }}>
+          <span>Email</span>
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={handleEmailChange}
+            style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }}
+          />
+        </label>
+        <label style={{ display: "grid", gap: 6 }}>
+          <span>Display name</span>
+          <input
+            type="text"
+            value={displayName}
+            onChange={handleDisplayNameChange}
+            style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }}
+          />
+        </label>
+        <div style={{ display: "flex", alignItems: "end" }}>
+          <button
+            type="submit"
+            disabled={submitting}
+            style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#111827", color: "#fff", fontWeight: 600 }}
+          >
+            {submitting ? "Creating..." : "Create invite"}
+          </button>
+        </div>
+      </form>
+      {error ? <div style={{ marginTop: 12, color: "#b91c1c" }}>{error}</div> : null}
+      {result ? (
+        <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: "#f8fafc", color: "#334155" }}>
+          <div style={{ fontWeight: 600 }}>{result.email}</div>
+          <div style={{ marginTop: 6, wordBreak: "break-all" }}>{result.activationUrl}</div>
+          <div style={{ marginTop: 6, fontSize: 13, color: "#64748b" }}>
+            Expires {formatDateTime(result.expiresAt)}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function useUserDetail() {
@@ -151,10 +272,11 @@ function Message({ children }: { children?: React.ReactNode }) {
 }
 
 function UsersListPage() {
-  const { items, loading, error } = useUserList();
+  const { items, loading, error, reload } = useUserList();
 
   return (
     <PageFrame title="Users">
+      <InviteUserCard onCreated={reload} />
       {loading ? <Message>Loading users...</Message> : null}
       {!loading && error ? <Message>{error}</Message> : null}
       {!loading && !error ? (

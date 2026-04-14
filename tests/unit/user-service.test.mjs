@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { verifyPassword } from "../../src/auth/passwords.mjs";
 import { createUserService } from "../../src/services/users/service.mjs";
 
 function createFakeDatabase() {
@@ -8,6 +9,7 @@ function createFakeDatabase() {
     users: [],
     sessions: [],
     loginEvents: [],
+    inviteTokens: [],
     transactions: 0,
   };
 
@@ -40,6 +42,16 @@ function createFakeDatabase() {
                 ...values,
               });
             }
+
+            if (table === "user_invite_tokens") {
+              state.inviteTokens.push({
+                created_at: values.created_at ?? "2026-01-01T00:00:00.000Z",
+                consumed_at: values.consumed_at ?? null,
+                revoked_at: values.revoked_at ?? null,
+                created_by_user_id: values.created_by_user_id ?? null,
+                ...values,
+              });
+            }
           },
         }),
       };
@@ -53,7 +65,13 @@ function createFakeDatabase() {
       };
 
       const source =
-        table === "users" ? state.users : table === "sessions" ? state.sessions : state.loginEvents;
+        table === "users"
+          ? state.users
+          : table === "sessions"
+            ? state.sessions
+            : table === "login_security_events"
+              ? state.loginEvents
+              : state.inviteTokens;
 
       const apply = () => {
         let rows = [...source];
@@ -95,7 +113,7 @@ function createFakeDatabase() {
     },
 
     updateTable(table) {
-      const source = table === "users" ? state.users : state.sessions;
+      const source = table === "users" ? state.users : table === "sessions" ? state.sessions : state.inviteTokens;
       const updateState = { values: undefined, where: [] };
 
       return {
@@ -234,4 +252,35 @@ test("user service activate/disable/lock/updateProfile flows are explicit", asyn
   const restored = await service.restoreUser("user_1", { status: "disabled" });
   assert.equal(restored.status, "disabled");
   assert.equal(restored.deleted_at, null);
+});
+
+test("user service createInvite and activateInvite enforce token activation", async () => {
+  const { database, state } = createFakeDatabase();
+  const service = createUserService({ database });
+
+  const invite = await service.createInvite({
+    id: "user_invited",
+    email: "invited@example.com",
+    display_name: "Invited User",
+    created_by_user_id: "admin_1",
+  });
+
+  assert.equal(invite.user.status, "invited");
+  assert.equal(state.inviteTokens.length, 1);
+  assert.equal(state.inviteTokens[0].user_id, "user_invited");
+
+  const activation = await service.getInviteActivation(invite.token);
+  assert.equal(activation.user.email, "invited@example.com");
+
+  const activated = await service.activateInvite({
+    token: invite.token,
+    display_name: "Activated User",
+    password: "very-secure-password",
+  });
+
+  assert.equal(activated.status, "active");
+  assert.equal(activated.must_reset_password, false);
+  assert.equal(activated.email_verified, true);
+  assert.equal(verifyPassword("very-secure-password", activated.password_hash), true);
+  assert.notEqual(state.inviteTokens[0].consumed_at, null);
 });

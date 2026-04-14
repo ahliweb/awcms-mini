@@ -29,10 +29,12 @@ const MUTABLE_USER_FIELDS = new Set([
   "email",
   "username",
   "display_name",
+  "name",
   "password_hash",
   "last_login_at",
   "must_reset_password",
   "is_protected",
+  "email_verified",
 ]);
 
 function normalizeBoolean(value) {
