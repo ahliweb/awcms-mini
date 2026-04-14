@@ -10,6 +10,7 @@
     "preview": "astro preview",
     "start": "node ./dist/server/entry.mjs",
     "typecheck": "astro check",
+    "test:unit": "node --test tests/unit/**/*.test.mjs",
     "db:migrate": "node ./scripts/db-migrate.mjs latest",
     "db:migrate:down": "node ./scripts/db-migrate.mjs down",
     "db:migrate:status": "node ./scripts/db-migrate.mjs status"
