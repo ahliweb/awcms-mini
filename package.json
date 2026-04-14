@@ -22,7 +22,7 @@
     "astro": "^6.1.6",
     "better-sqlite3": "^12.9.0",
     "emdash": "0.4.0",
-    "kysely": "^0.28.8",
+    "kysely": "^0.28.16",
     "pg": "^8.16.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
@@ -32,5 +32,10 @@
     "@types/node": "^24.7.2",
     "@types/pg": "^8.15.6",
     "typescript": "^5.9.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "kysely": "0.28.16"
+    }
   }
 }

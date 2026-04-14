@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  kysely: 0.28.16
+
 importers:
 
   .:
@@ -24,7 +27,7 @@ importers:
         specifier: 0.4.0
         version: 0.4.0(b141d4550f86326fffddb664bbe68b8a)
       kysely:
-        specifier: ^0.28.8
+        specifier: 0.28.16
         version: 0.28.16
       pg:
         specifier: ^8.16.3
@@ -274,7 +277,7 @@ packages:
     resolution: {integrity: sha512-z7bTnjCeZDH6Ymh6n+nbcCWmfTO52j+8PLcnW7PRC54qvI4oN7v52iCXNsLUon2lWz/YnzZLp3HD8ypD9L45vw==}
     peerDependencies:
       astro: '>=6.0.0-beta.0'
-      kysely: ^0.27.0
+      kysely: 0.28.16
     peerDependenciesMeta:
       kysely:
         optional: true
@@ -677,7 +680,7 @@ packages:
   '@libsql/kysely-libsql@0.4.1':
     resolution: {integrity: sha512-mCTa6OWgoME8LNu22COM6XjKBmcMAvNtIO6DYM10jSAFq779fVlrTKQEmXIB8TwJVU65dA5jGCpT8gkDdWS0HQ==}
     peerDependencies:
-      kysely: '*'
+      kysely: 0.28.16
 
   '@libsql/linux-arm64-gnu@0.3.19':
     resolution: {integrity: sha512-mgeAUU1oqqh57k7I3cQyU6Trpdsdt607eFyEmH5QO7dv303ti+LjUvh1pp21QWV6WX7wZyjeJV1/VzEImB+jRg==}
@@ -2085,10 +2088,6 @@ packages:
   kleur@4.1.5:
     resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==}
     engines: {node: '>=6'}
-
-  kysely@0.27.6:
-    resolution: {integrity: sha512-FIyV/64EkKhJmjgC0g2hygpBv5RNWVPyNCqSAD7eTCv6eFWNIi4PN1UvdSJGicN/o35bnevgis4Y0UDC0qi8jQ==}
-    engines: {node: '>=14.0.0'}
 
   kysely@0.28.16:
     resolution: {integrity: sha512-3i5pmOiZvMDj00qhrIVbH0AnioVTx22DMP7Vn5At4yJO46iy+FM8Y/g61ltenLVSo3fiO8h8Q3QOFgf/gQ72ww==}
@@ -3748,7 +3747,7 @@ snapshots:
       - echarts
       - zod
 
-  '@emdash-cms/auth@0.4.0(astro@6.1.6(@types/node@24.12.2)(rollup@4.60.1)(typescript@5.9.3)(yaml@2.8.3))(kysely@0.27.6)':
+  '@emdash-cms/auth@0.4.0(astro@6.1.6(@types/node@24.12.2)(rollup@4.60.1)(typescript@5.9.3)(yaml@2.8.3))(kysely@0.28.16)':
     dependencies:
       '@oslojs/crypto': 1.0.1
       '@oslojs/encoding': 1.1.0
@@ -3757,7 +3756,7 @@ snapshots:
       ulidx: 2.4.1
       zod: 4.3.6
     optionalDependencies:
-      kysely: 0.27.6
+      kysely: 0.28.16
 
   '@emdash-cms/blocks@0.4.0(@date-fns/tz@1.4.1)(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(zod@4.3.6)':
     dependencies:
@@ -4077,10 +4076,10 @@ snapshots:
       - utf-8-validate
     optional: true
 
-  '@libsql/kysely-libsql@0.4.1(kysely@0.27.6)':
+  '@libsql/kysely-libsql@0.4.1(kysely@0.28.16)':
     dependencies:
       '@libsql/client': 0.8.1
-      kysely: 0.27.6
+      kysely: 0.28.16
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -5173,7 +5172,7 @@ snapshots:
     dependencies:
       '@astrojs/react': 5.0.3(@types/node@24.12.2)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(yaml@2.8.3)
       '@emdash-cms/admin': 0.4.0(@date-fns/tz@1.4.1)(@floating-ui/dom@1.7.6)(@tiptap/extension-collaboration@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3)(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30))(yjs@13.6.30))(@tiptap/extensions@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(date-fns@4.1.0)(echarts@6.0.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(zod@4.3.6)
-      '@emdash-cms/auth': 0.4.0(astro@6.1.6(@types/node@24.12.2)(rollup@4.60.1)(typescript@5.9.3)(yaml@2.8.3))(kysely@0.27.6)
+      '@emdash-cms/auth': 0.4.0(astro@6.1.6(@types/node@24.12.2)(rollup@4.60.1)(typescript@5.9.3)(yaml@2.8.3))(kysely@0.28.16)
       '@emdash-cms/gutenberg-to-portable-text': 0.4.0
       '@floating-ui/react': 0.27.19(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
@@ -5203,7 +5202,7 @@ snapshots:
       image-size: 2.0.2
       jose: 6.2.2
       jpeg-js: 0.4.4
-      kysely: 0.27.6
+      kysely: 0.28.16
       mime: 4.1.0
       modern-tar: 0.7.6
       picocolors: 1.1.1
@@ -5215,7 +5214,7 @@ snapshots:
       upng-js: 2.1.0
       zod: 4.3.6
     optionalDependencies:
-      '@libsql/kysely-libsql': 0.4.1(kysely@0.27.6)
+      '@libsql/kysely-libsql': 0.4.1(kysely@0.28.16)
       pg: 8.20.0
     transitivePeerDependencies:
       - '@cfworker/json-schema'
@@ -5657,8 +5656,6 @@ snapshots:
   jsonc-parser@3.3.1: {}
 
   kleur@4.1.5: {}
-
-  kysely@0.27.6: {}
 
   kysely@0.28.16: {}
 
