@@ -2,6 +2,7 @@ node_modules/
 dist/
 .astro/
 .env
+.env.local
 emdash-env.d.ts
 uploads/
 npm-debug.log*
