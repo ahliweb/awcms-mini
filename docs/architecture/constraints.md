@@ -1,0 +1,221 @@
+# AWCMS Mini Architecture Constraints
+
+## Purpose
+
+This document freezes the execution constraints for AWCMS Mini implementation. It is the repository-local architecture guardrail for all follow-on issues and pull requests.
+
+This document is derived from:
+
+- `awcms_mini_implementation_plan.md`
+- `awcms_mini_atomic_backlog.md`
+- `docs/process/github-issue-workflow.md`
+
+If an implementation choice conflicts with this document, the implementation should stop and the conflict should be resolved through a new GitHub issue before work continues.
+
+## Core Rule
+
+AWCMS Mini is EmDash-first.
+
+This means:
+
+- EmDash is the canonical host architecture.
+- EmDash owns the CMS structure, runtime shape, admin baseline, content architecture, auth boundary, and plugin model.
+- AWCMS concepts may be used only as non-conflicting governance overlays.
+- If EmDash and AWCMS concepts conflict, EmDash wins.
+
+## Canonical Technical Direction
+
+The implementation should assume the following are fixed unless a later issue explicitly changes them:
+
+- Host architecture: EmDash
+- Database: PostgreSQL
+- Query and migration layer: Kysely
+- System model: single-tenant only
+- Extension model: EmDash-compatible internal plugins
+- Admin model: EmDash admin extended carefully
+- Public rendering model: EmDash public/content architecture
+- Security model: backend and service-layer enforcement first
+
+## Scope Guardrails
+
+### Allowed
+
+- EmDash core features used as the foundation
+- PostgreSQL-backed EmDash deployment
+- Kysely-based migrations, queries, and transactions
+- Governance overlay tables and services for:
+  - roles hierarchy
+  - permissions
+  - ABAC refinement
+  - job hierarchy
+  - logical/detail regions
+  - administrative regions
+  - 2FA and security controls
+  - audit and security event logging
+- EmDash-compatible plugin extensions that consume shared governance services
+- EmDash admin extensions for governance screens
+
+### Forbidden
+
+- Supabase in any core runtime, database, auth, or migration role
+- multi-tenant logic of any kind
+- tenant-scoped data model patterns such as `tenant_id`
+- direct porting of AWCMS modules/resources outside the EmDash host/plugin model
+- a separate competing admin shell outside EmDash
+- visual editor work in v1
+- universal PostgreSQL RLS as the primary authorization mechanism
+- collapsing role hierarchy into job hierarchy
+- collapsing logical/detail regions into administrative regions
+- expanding Mini into a general ERP platform
+
+## EmDash-First Rules
+
+The following rules are mandatory for all implementation work:
+
+- Prefer extending EmDash through supported runtime, admin, service, and plugin seams.
+- Do not recreate core CMS primitives that EmDash already provides.
+- Do not bypass EmDash's admin or plugin model to introduce a second platform core.
+- Keep Mini-specific code additive wherever possible.
+- Prefer shapes that could coexist with upstream EmDash rather than diverge from it.
+
+## Governance Overlay Rules
+
+AWCMS concepts are overlays, not platform ownership.
+
+Allowed overlay behavior:
+
+- add policy metadata,
+- add hierarchy metadata,
+- add assignment structures,
+- add security controls,
+- add audit discipline,
+- add service-layer authorization rules.
+
+Forbidden overlay behavior:
+
+- replacing EmDash content architecture,
+- replacing EmDash plugin architecture,
+- replacing EmDash admin with a second admin platform,
+- importing AWCMS multi-tenant assumptions into Mini,
+- treating jobs or regions as hidden permission systems.
+
+## Data Layer Constraints
+
+PostgreSQL plus Kysely is the canonical data foundation.
+
+This implies:
+
+- all first-party application data should live in PostgreSQL,
+- all schema changes should be expressed through Kysely-compatible migrations,
+- all multi-step writes should use explicit transaction boundaries,
+- SQL behavior should stay visible and reviewable,
+- schema design should remain single-tenant and operationally simple.
+
+The implementation must not introduce:
+
+- Supabase-managed migrations,
+- Supabase Auth,
+- hidden database policy dependence as the main authorization layer,
+- architecture that makes Kysely secondary or optional for core data access.
+
+## Authorization Constraints
+
+Mini should use hybrid RBAC plus ABAC.
+
+Required rules:
+
+- RBAC is the explicit baseline grant model.
+- Permissions should use `scope.resource.action` naming.
+- ABAC refines access using user, resource, region, job, and session context.
+- Authorization should be enforced in backend services and route guards.
+- UI visibility checks are convenience only, not authority.
+
+Forbidden rules:
+
+- ABAC-only authorization with no explicit permission catalog,
+- job title or job level as direct permission grants,
+- region assignment as automatic unrestricted write authority,
+- PostgreSQL RLS as the main v1 policy engine.
+
+## Hierarchy Constraints
+
+### Role Hierarchy
+
+- Roles are authorization constructs.
+- Roles may carry `staff_level` metadata.
+- Role level may constrain who can administer whom.
+- Protected roles must remain explicitly protected.
+
+### Job Hierarchy
+
+- Jobs are organizational constructs.
+- Jobs must remain separate from roles.
+- Job data may influence ABAC context but must not replace explicit permissions.
+
+### Region Hierarchy
+
+- Logical/detail regions and administrative regions are separate systems.
+- Logical regions are for operational/business scope.
+- Administrative regions are for legal/geographic scope.
+- The two hierarchies must not be collapsed into one model.
+
+## Plugin Constraints
+
+Plugins should remain EmDash-compatible.
+
+Required rules:
+
+- plugin permissions should register into the shared permission model,
+- plugin routes should use shared authorization helpers,
+- plugin business logic should use shared governance services,
+- plugin changes that affect policy or security should be auditable.
+
+Forbidden rules:
+
+- plugins directly bypassing governance services,
+- plugins writing arbitrary policy state without shared validation,
+- marketplace-grade trust assumptions in v1.
+
+## Admin Constraints
+
+- Governance screens should be implemented as EmDash admin extensions.
+- User, role, permission, job, region, security, and audit screens should stay inside the EmDash admin experience.
+- Mini must not create a second standalone admin architecture.
+
+## Security Constraints
+
+- TOTP is the v1 2FA mechanism.
+- Protected actions should support step-up authentication.
+- Password hashing should use a strong modern algorithm such as Argon2id.
+- Rate limiting, lockouts, audit logs, and security events are mandatory concerns.
+- WebAuthn/passkeys are phase 2, not v1 baseline.
+
+## Delivery Constraints
+
+- Work should begin from a GitHub issue.
+- Each issue should stay atomic and dependency-aware.
+- Scope expansion should be split into follow-up issues rather than absorbed silently.
+- Changes should be validated against the issue acceptance criteria and the implementation plan.
+- When a task is blocked by architecture ambiguity, stop and resolve it through a new issue.
+
+## Non-Goals
+
+The following are explicitly not goals for AWCMS Mini v1:
+
+- becoming full AWCMS,
+- reproducing AWCMS multi-tenant platform behavior,
+- delivering the visual editor,
+- becoming a generic ERP platform,
+- building a broad third-party plugin marketplace trust model.
+
+## Decision Priority
+
+When multiple documents or assumptions appear to conflict, use this order:
+
+1. GitHub issue scope and acceptance criteria for the active task
+2. `docs/architecture/constraints.md`
+3. `awcms_mini_implementation_plan.md`
+4. `awcms_mini_atomic_backlog.md`
+5. `docs/process/github-issue-workflow.md`
+
+If a conflict remains unresolved after applying this order, open a new issue before implementing further changes.
