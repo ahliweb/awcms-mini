@@ -3,8 +3,9 @@ import react from "@astrojs/react";
 import { defineConfig } from "astro/config";
 import emdash from "emdash/astro";
 import { postgres } from "emdash/db";
+import { getRuntimeConfig } from "./src/config/runtime.mjs";
 
-const databaseUrl = process.env.DATABASE_URL || "postgres://localhost:5432/awcms_mini_dev";
+const runtimeConfig = getRuntimeConfig();
 
 export default defineConfig({
   output: "server",
@@ -18,7 +19,7 @@ export default defineConfig({
     react(),
     emdash({
       database: postgres({
-        connectionString: databaseUrl,
+        connectionString: runtimeConfig.databaseUrl,
       }),
     }),
   ],
