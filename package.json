@@ -9,13 +9,17 @@
     "build": "astro build",
     "preview": "astro preview",
     "start": "node ./dist/server/entry.mjs",
-    "typecheck": "astro check"
+    "typecheck": "astro check",
+    "db:migrate": "node ./scripts/db-migrate.mjs latest",
+    "db:migrate:down": "node ./scripts/db-migrate.mjs down",
+    "db:migrate:status": "node ./scripts/db-migrate.mjs status"
   },
   "dependencies": {
     "@astrojs/node": "^10.0.4",
     "@astrojs/react": "^5.0.3",
     "astro": "^6.1.6",
     "emdash": "0.4.0",
+    "kysely": "^0.28.8",
     "pg": "^8.16.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
@@ -23,6 +27,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.4",
     "@types/node": "^24.7.2",
+    "@types/pg": "^8.15.6",
     "typescript": "^5.9.3"
   }
 }
