@@ -26,6 +26,7 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
 - `001_baseline` is an intentional no-op bootstrap migration
 - `002_users` introduces the canonical user identity table
 - `003_user_profiles` introduces the one-to-one non-auth user profile table
+- `004_sessions` introduces active and historical authenticated session tracking
 
 ## Runtime Input
 
