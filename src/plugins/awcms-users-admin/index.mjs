@@ -2,10 +2,12 @@ import { definePlugin, PluginRouteError } from "emdash";
 
 import { getDatabase } from "../../db/index.mjs";
 import { createRolePermissionRepository } from "../../db/repositories/role-permissions.mjs";
+import { createAuthorizationService } from "../../services/authorization/service.mjs";
 import { createUserService } from "../../services/users/service.mjs";
 
 let userAdminDatabaseGetter = () => getDatabase();
 let userAdminServiceFactory = (database) => createUserService({ database });
+let userAdminAuthorizationServiceFactory = (database) => createAuthorizationService({ database });
 
 function normalizeProfileRow(row) {
   if (!row) {
@@ -34,6 +36,20 @@ function normalizeProfileRow(row) {
       updatedAt: row.profile_updated_at,
     },
     activeSessionCount: Number(row.active_session_count ?? 0),
+  };
+}
+
+function normalizeAuthorizationUserRow(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    status: row.status,
+    isProtected: Boolean(row.is_protected),
+    deletedAt: row.deleted_at,
+    activeRoleStaffLevel: Number(row.active_role_staff_level ?? 0),
   };
 }
 
@@ -132,7 +148,58 @@ async function loadPermissionMatrixSnapshot(db) {
   };
 }
 
-async function listPermissionMatrixHandler() {
+async function resolveAdminActor(db, request) {
+  const actorUserId = request.headers.get("x-actor-user-id")?.trim() ?? "";
+
+  if (!actorUserId) {
+    throw PluginRouteError.unauthorized("Missing admin actor context.");
+  }
+
+  const actor = normalizeAuthorizationUserRow(await getUserSummaryRow(db, actorUserId));
+
+  if (!actor || actor.deletedAt || actor.status === "deleted") {
+    throw PluginRouteError.unauthorized("Admin actor is not available.");
+  }
+
+  return actor;
+}
+
+async function requireAdminAuthorization(ctx, options) {
+  const db = userAdminDatabaseGetter();
+  const actor = await resolveAdminActor(db, ctx.request);
+  const authorization = userAdminAuthorizationServiceFactory(db);
+  const result = await authorization.evaluate({
+    subject: {
+      kind: "user",
+      user_id: actor.id,
+      status: actor.status,
+      is_protected: actor.isProtected,
+      staff_level: actor.activeRoleStaffLevel,
+    },
+    resource: options.resource,
+    context: {
+      permission_code: options.permissionCode,
+      action: options.action,
+      session_id: ctx.request.headers.get("x-session-id")?.trim() ?? null,
+    },
+  });
+
+  if (!result.allowed) {
+    throw PluginRouteError.forbidden(result.reason?.code ?? "Forbidden");
+  }
+
+  return result;
+}
+
+async function listPermissionMatrixHandler(ctx) {
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "admin.permissions.read",
+    action: "read",
+    resource: {
+      kind: "permission",
+    },
+  });
+
   return loadPermissionMatrixSnapshot(userAdminDatabaseGetter());
 }
 
@@ -155,6 +222,14 @@ function parseMatrixBody(body) {
 }
 
 async function applyPermissionMatrixHandler(ctx) {
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "admin.permissions.update",
+    action: "update",
+    resource: {
+      kind: "permission",
+    },
+  });
+
   let body;
 
   try {
@@ -245,6 +320,10 @@ async function getUserSummaryRow(db, userId) {
     .leftJoin("user_profiles", (join) =>
       join.onRef("user_profiles.user_id", "=", "users.id").on("user_profiles.deleted_at", "is", null),
     )
+    .leftJoin("user_roles", (join) =>
+      join.onRef("user_roles.user_id", "=", "users.id").on("user_roles.expires_at", "is", null),
+    )
+    .leftJoin("roles", (join) => join.onRef("roles.id", "=", "user_roles.role_id").on("roles.deleted_at", "is", null))
     .leftJoin("sessions", (join) =>
       join.onRef("sessions.user_id", "=", "users.id").on("sessions.revoked_at", "is", null),
     )
@@ -267,6 +346,7 @@ async function getUserSummaryRow(db, userId) {
       "user_profiles.avatar_media_id as profile_avatar_media_id",
       "user_profiles.created_at as profile_created_at",
       "user_profiles.updated_at as profile_updated_at",
+      (eb) => eb.fn.max("roles.staff_level").as("active_role_staff_level"),
       (eb) => eb.fn.count("sessions.id").as("active_session_count"),
     ])
     .where("users.id", "=", userId)
@@ -294,6 +374,11 @@ async function getUserSummaryRow(db, userId) {
 }
 
 async function listUsersHandler(ctx) {
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "admin.users.read",
+    action: "read",
+  });
+
   const db = userAdminDatabaseGetter();
   const search = new URL(ctx.request.url).searchParams;
   const limit = Number.parseInt(search.get("limit") ?? "25", 10);
@@ -384,12 +469,30 @@ async function getUserDetailHandler(ctx) {
     throw PluginRouteError.notFound(`User not found: ${userId}`);
   }
 
+  const target = normalizeAuthorizationUserRow(row);
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "admin.users.read",
+    action: "read",
+    resource: {
+      kind: "user",
+      target_user_id: target.id,
+      target_staff_level: target.activeRoleStaffLevel,
+      is_protected: target.isProtected,
+    },
+  });
+
   return {
     item: normalizeProfileRow(row),
   };
 }
 
 async function listRolesHandler(ctx) {
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "admin.roles.read",
+    action: "read",
+  });
+
   const db = userAdminDatabaseGetter();
   const search = new URL(ctx.request.url).searchParams;
   const limit = Number.parseInt(search.get("limit") ?? "50", 10);
@@ -459,6 +562,11 @@ async function createInviteHandler(ctx) {
     throw PluginRouteError.badRequest("Email is required");
   }
 
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "admin.users.invite",
+    action: "create",
+  });
+
   const users = userAdminServiceFactory(userAdminDatabaseGetter());
   const invite = await users.createInvite({
     email,
@@ -493,6 +601,27 @@ async function updateLifecycleHandler(ctx, action) {
     throw PluginRouteError.badRequest("User id is required");
   }
 
+  const db = userAdminDatabaseGetter();
+  const targetRow = await getUserSummaryRow(db, userId);
+
+  if (!targetRow) {
+    throw PluginRouteError.notFound(`User not found: ${userId}`);
+  }
+
+  const target = normalizeAuthorizationUserRow(targetRow);
+  const permissionCode = action === "revoke-sessions" ? "security.sessions.revoke" : "admin.users.disable";
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode,
+    action: action === "revoke-sessions" ? "revoke" : "update",
+    resource: {
+      kind: "user",
+      target_user_id: target.id,
+      target_staff_level: target.activeRoleStaffLevel,
+      is_protected: target.isProtected,
+    },
+  });
+
   const users = userAdminServiceFactory(userAdminDatabaseGetter());
 
   if (action === "disable") {
@@ -505,14 +634,8 @@ async function updateLifecycleHandler(ctx, action) {
     throw PluginRouteError.badRequest(`Unsupported lifecycle action: ${action}`);
   }
 
-  const row = await getUserSummaryRow(userAdminDatabaseGetter(), userId);
-
-  if (!row) {
-    throw PluginRouteError.notFound(`User not found: ${userId}`);
-  }
-
   return {
-    item: normalizeProfileRow(row),
+    item: normalizeProfileRow(await getUserSummaryRow(userAdminDatabaseGetter(), userId)),
   };
 }
 
@@ -592,6 +715,14 @@ export function setUserAdminServiceFactory(factory) {
 
 export function resetUserAdminServiceFactory() {
   userAdminServiceFactory = (database) => createUserService({ database });
+}
+
+export function setUserAdminAuthorizationServiceFactory(factory) {
+  userAdminAuthorizationServiceFactory = factory;
+}
+
+export function resetUserAdminAuthorizationServiceFactory() {
+  userAdminAuthorizationServiceFactory = (database) => createAuthorizationService({ database });
 }
 
 export default createPlugin;

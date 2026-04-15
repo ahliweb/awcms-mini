@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 
 import {
   createPlugin,
+  resetUserAdminAuthorizationServiceFactory,
   resetUserAdminDatabaseGetter,
   resetUserAdminServiceFactory,
+  setUserAdminAuthorizationServiceFactory,
   setUserAdminDatabaseGetter,
   setUserAdminServiceFactory,
 } from "../../src/plugins/awcms-users-admin/index.mjs";
@@ -165,13 +167,57 @@ function createJoinBuilder() {
   };
 }
 
+function createAllowingAuthorizationFactory(calls = []) {
+  return () => ({
+    async evaluate(input) {
+      calls.push(input);
+      return {
+        allowed: true,
+        reason: { code: "ALLOW_RBAC_PERMISSION", message: "allowed" },
+      };
+    },
+  });
+}
+
+function createAdminHeaders(extra = {}) {
+  return {
+    "x-actor-user-id": "admin_actor",
+    ...extra,
+  };
+}
+
+function createAdminActorRow() {
+  return {
+    id: "admin_actor",
+    email: "admin@example.com",
+    username: "admin",
+    display_name: "Admin Actor",
+    status: "active",
+    last_login_at: "2026-04-14T09:00:00.000Z",
+    must_reset_password: false,
+    is_protected: false,
+    deleted_at: null,
+    created_at: "2026-04-01T09:00:00.000Z",
+    updated_at: "2026-04-10T09:00:00.000Z",
+    profile_phone: null,
+    profile_timezone: null,
+    profile_locale: null,
+    profile_notes: null,
+    profile_avatar_media_id: null,
+    profile_created_at: null,
+    profile_updated_at: null,
+    active_session_count: 1,
+    active_role_staff_level: 9,
+  };
+}
+
 function createFakeDb(rows) {
   return {
     selectFrom(table) {
       assert.equal(table, "users");
       const query = new FakeUsersQuery(rows);
       query.leftJoin = (tableName, callback) => {
-        assert.ok(["user_profiles", "sessions"].includes(tableName));
+        assert.ok(["user_profiles", "user_roles", "roles", "sessions"].includes(tableName));
         if (typeof callback === "function") {
           callback(createJoinBuilder());
         }
@@ -185,6 +231,18 @@ function createFakeDb(rows) {
 function createFakeRolesDb(rows) {
   return {
     selectFrom(table) {
+      if (table === "users") {
+        const query = new FakeUsersQuery([createAdminActorRow()]);
+        query.leftJoin = (tableName, callback) => {
+          assert.ok(["user_profiles", "user_roles", "roles", "sessions"].includes(tableName));
+          if (typeof callback === "function") {
+            callback(createJoinBuilder());
+          }
+          return query;
+        };
+        return query;
+      }
+
       assert.equal(table, "roles");
       const query = new FakeRolesQuery(rows);
       query.leftJoin = (tableName, callback) => {
@@ -201,6 +259,7 @@ function createFakeRolesDb(rows) {
 
 function createFakeMatrixDb({ roles, permissions, rolePermissions }) {
   const state = {
+    users: [createAdminActorRow()],
     roles: [...roles],
     permissions: [...permissions],
     role_permissions: [...rolePermissions],
@@ -209,6 +268,18 @@ function createFakeMatrixDb({ roles, permissions, rolePermissions }) {
   return {
     state,
     selectFrom(table) {
+      if (table === "users") {
+        const query = new FakeUsersQuery(state.users);
+        query.leftJoin = (tableName, callback) => {
+          assert.ok(["user_profiles", "user_roles", "roles", "sessions"].includes(tableName));
+          if (typeof callback === "function") {
+            callback(createJoinBuilder());
+          }
+          return query;
+        };
+        return query;
+      }
+
       assert.ok(["roles", "permissions", "role_permissions"].includes(table));
       return new FakeMatrixQuery(state[table]);
     },
@@ -251,6 +322,7 @@ function createFakeMatrixDb({ roles, permissions, rolePermissions }) {
 
 test("awcms users admin plugin exposes admin pages and read-only routes", async () => {
   const plugin = createPlugin();
+  const authorizationCalls = [];
   const row = {
     id: "user_1",
     email: "user@example.com",
@@ -271,9 +343,11 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
     profile_created_at: "2026-04-01T10:00:00.000Z",
     profile_updated_at: "2026-04-10T10:00:00.000Z",
     active_session_count: 1,
+    active_role_staff_level: 5,
   };
   const fakeDb = createFakeDb([row]);
   setUserAdminDatabaseGetter(() => fakeDb);
+  setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory(authorizationCalls));
 
   try {
     assert.equal(plugin.id, "awcms-users-admin");
@@ -285,7 +359,9 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
     ]);
 
     const ctx = {
-      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/list?limit=10"),
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/list?limit=10", {
+        headers: createAdminHeaders({ "x-actor-user-id": "user_1" }),
+      }),
     };
 
     const listResult = await plugin.routes["users/list"].handler(ctx);
@@ -293,19 +369,25 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
     assert.equal(listResult.items[0].profile.locale, "en");
 
     const detailCtx = {
-      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/detail?id=user_1"),
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/detail?id=user_1", {
+        headers: createAdminHeaders({ "x-actor-user-id": "user_1" }),
+      }),
     };
 
     const detailResult = await plugin.routes["users/detail"].handler(detailCtx);
     assert.equal(detailResult.item.id, "user_1");
     assert.equal(detailResult.item.email, "user@example.com");
+    assert.equal(authorizationCalls.length, 2);
+    assert.equal(authorizationCalls[0].context.permission_code, "admin.users.read");
   } finally {
     resetUserAdminDatabaseGetter();
+    resetUserAdminAuthorizationServiceFactory();
   }
 });
 
 test("awcms users admin plugin exposes permission matrix routes and applies staged changes", async () => {
   const plugin = createPlugin();
+  const authorizationCalls = [];
   const fakeDb = createFakeMatrixDb({
     roles: [
       { id: "role_owner", slug: "owner", name: "Owner", staff_level: 10, is_assignable: false, is_protected: true, deleted_at: null },
@@ -321,10 +403,11 @@ test("awcms users admin plugin exposes permission matrix routes and applies stag
     ],
   });
   setUserAdminDatabaseGetter(() => fakeDb);
+  setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory(authorizationCalls));
 
   try {
     const snapshot = await plugin.routes["permissions/matrix"].handler({
-      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/permissions/matrix"),
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/permissions/matrix", { headers: createAdminHeaders() }),
     });
 
     assert.deepEqual(snapshot.roles.map((role) => role.slug), ["owner", "editor"]);
@@ -336,7 +419,7 @@ test("awcms users admin plugin exposes permission matrix routes and applies stag
         plugin.routes["permissions/matrix/apply"].handler({
           request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/permissions/matrix/apply", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
             body: JSON.stringify({
               rolePermissionIdsByRoleId: {
                 role_owner: [],
@@ -352,7 +435,7 @@ test("awcms users admin plugin exposes permission matrix routes and applies stag
         plugin.routes["permissions/matrix/apply"].handler({
           request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/permissions/matrix/apply", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
             body: JSON.stringify({
               rolePermissionIdsByRoleId: {
                 role_owner: ["perm_content_posts_read"],
@@ -367,7 +450,7 @@ test("awcms users admin plugin exposes permission matrix routes and applies stag
     const applied = await plugin.routes["permissions/matrix/apply"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/permissions/matrix/apply", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({
           rolePermissionIdsByRoleId: {
             role_owner: ["perm_admin_roles_assign", "perm_content_posts_read"],
@@ -382,13 +465,17 @@ test("awcms users admin plugin exposes permission matrix routes and applies stag
     assert.equal(applied.applied, true);
     assert.equal(applied.snapshot.rows[1].grantsByRoleId.role_owner, true);
     assert.equal(fakeDb.state.role_permissions.some((entry) => entry.role_id === "role_owner" && entry.permission_id === "perm_content_posts_read"), true);
+    assert.equal(authorizationCalls[0].context.permission_code, "admin.permissions.read");
+    assert.equal(authorizationCalls.at(-1).context.permission_code, "admin.permissions.update");
   } finally {
     resetUserAdminDatabaseGetter();
+    resetUserAdminAuthorizationServiceFactory();
   }
 });
 
 test("awcms users admin plugin exposes roles route with protection and staff level data", async () => {
   const plugin = createPlugin();
+  const authorizationCalls = [];
   const fakeDb = createFakeRolesDb([
     {
       id: "role_owner",
@@ -420,10 +507,11 @@ test("awcms users admin plugin exposes roles route with protection and staff lev
     },
   ]);
   setUserAdminDatabaseGetter(() => fakeDb);
+  setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory(authorizationCalls));
 
   try {
     const body = await plugin.routes["roles/list"].handler({
-      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/roles/list?limit=10"),
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/roles/list?limit=10", { headers: createAdminHeaders() }),
     });
 
     assert.equal(body.items.length, 2);
@@ -443,8 +531,10 @@ test("awcms users admin plugin exposes roles route with protection and staff lev
     });
     assert.equal(body.items[1].staffLevel, 6);
     assert.equal(body.items[1].isProtected, false);
+    assert.equal(authorizationCalls[0].context.permission_code, "admin.roles.read");
   } finally {
     resetUserAdminDatabaseGetter();
+    resetUserAdminAuthorizationServiceFactory();
   }
 });
 
@@ -452,6 +542,8 @@ test("awcms users admin plugin exposes invite route", async () => {
   const plugin = createPlugin();
   let capturedInput;
 
+  setUserAdminDatabaseGetter(() => createFakeDb([createAdminActorRow()]));
+  setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory());
   setUserAdminServiceFactory(() => ({
     async createInvite(input) {
       capturedInput = input;
@@ -467,7 +559,7 @@ test("awcms users admin plugin exposes invite route", async () => {
     const body = await plugin.routes["users/invite"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/invite", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ email: "invite@example.com", displayName: "Invite User" }),
       }),
     });
@@ -476,7 +568,9 @@ test("awcms users admin plugin exposes invite route", async () => {
     assert.equal(capturedInput.display_name, "Invite User");
     assert.equal(body.invite.activationUrl, "http://example.test/activate?token=token-id.secret");
   } finally {
+    resetUserAdminDatabaseGetter();
     resetUserAdminServiceFactory();
+    resetUserAdminAuthorizationServiceFactory();
   }
 });
 
@@ -502,6 +596,7 @@ test("awcms users admin plugin exposes lifecycle action routes", async () => {
     profile_created_at: null,
     profile_updated_at: null,
     active_session_count: 0,
+    active_role_staff_level: 5,
   };
   let disabledUserId;
   let lockedUserId;
@@ -510,9 +605,9 @@ test("awcms users admin plugin exposes lifecycle action routes", async () => {
   setUserAdminDatabaseGetter(() => ({
     selectFrom(table) {
       assert.equal(table, "users");
-      const query = new FakeUsersQuery([row]);
+      const query = new FakeUsersQuery([createAdminActorRow(), row]);
       query.leftJoin = (tableName, callback) => {
-        assert.ok(["user_profiles", "sessions"].includes(tableName));
+        assert.ok(["user_profiles", "user_roles", "roles", "sessions"].includes(tableName));
         if (typeof callback === "function") {
           callback(createJoinBuilder());
         }
@@ -523,6 +618,7 @@ test("awcms users admin plugin exposes lifecycle action routes", async () => {
       return query;
     },
   }));
+  setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory());
   setUserAdminServiceFactory(() => ({
     async disableUser(userId) {
       disabledUserId = userId;
@@ -539,7 +635,7 @@ test("awcms users admin plugin exposes lifecycle action routes", async () => {
     const disableBody = await plugin.routes["users/disable"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/disable", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ userId: "user_1" }),
       }),
     });
@@ -549,7 +645,7 @@ test("awcms users admin plugin exposes lifecycle action routes", async () => {
     await plugin.routes["users/lock"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/lock", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ userId: "user_1" }),
       }),
     });
@@ -558,7 +654,7 @@ test("awcms users admin plugin exposes lifecycle action routes", async () => {
     await plugin.routes["users/revoke-sessions"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/revoke-sessions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ userId: "user_1" }),
       }),
     });
@@ -566,5 +662,36 @@ test("awcms users admin plugin exposes lifecycle action routes", async () => {
   } finally {
     resetUserAdminDatabaseGetter();
     resetUserAdminServiceFactory();
+    resetUserAdminAuthorizationServiceFactory();
+  }
+});
+
+test("awcms users admin plugin fails unauthorized admin requests consistently", async () => {
+  const plugin = createPlugin();
+  const db = createFakeDb([createAdminActorRow()]);
+
+  setUserAdminDatabaseGetter(() => db);
+  setUserAdminAuthorizationServiceFactory(() => ({
+    async evaluate() {
+      return {
+        allowed: false,
+        reason: { code: "DENY_PERMISSION_MISSING", message: "denied" },
+      };
+    },
+  }));
+
+  try {
+    await assert.rejects(
+      () =>
+        plugin.routes["users/list"].handler({
+          request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/list", {
+            headers: createAdminHeaders(),
+          }),
+        }),
+      (error) => error instanceof Error && error.message.includes("DENY_PERMISSION_MISSING"),
+    );
+  } finally {
+    resetUserAdminDatabaseGetter();
+    resetUserAdminAuthorizationServiceFactory();
   }
 });
