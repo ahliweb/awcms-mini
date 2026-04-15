@@ -148,6 +148,62 @@ test("authorization service marks owned content actions through an ownership rul
   assert.equal(deniedResult.reason.code, "DENY_PERMISSION_MISSING");
 });
 
+test("authorization service denies peer or higher protected targets by default", async () => {
+  const service = createAuthorizationService({
+    permissionResolver: {
+      async getEffectivePermissions() {
+        return {
+          user_id: "user_admin",
+          permission_codes: ["admin.users.update"],
+        };
+      },
+    },
+  });
+
+  const peerResult = await service.evaluate({
+    subject: { kind: "user", user_id: "user_admin", staff_level: 8 },
+    resource: { kind: "user", target_user_id: "user_target", target_staff_level: 8, is_protected: true },
+    context: { permission_code: "admin.users.update", action: "update" },
+  });
+
+  const lowerResult = await service.evaluate({
+    subject: { kind: "user", user_id: "user_admin", staff_level: 7 },
+    resource: { kind: "role", target_role_id: "role_owner", target_staff_level: 10, is_protected: true },
+    context: { permission_code: "admin.users.update", action: "update" },
+  });
+
+  assert.equal(peerResult.allowed, false);
+  assert.equal(peerResult.reason.code, "DENY_PROTECTED_TARGET");
+  assert.equal(lowerResult.allowed, false);
+  assert.equal(lowerResult.matched_rule, "staff-level:protected-target");
+});
+
+test("authorization service allows override path for protected targets when explicit override is supplied", async () => {
+  const service = createAuthorizationService({
+    permissionResolver: {
+      async getEffectivePermissions() {
+        return {
+          user_id: "user_super_admin",
+          permission_codes: ["admin.roles.assign"],
+        };
+      },
+    },
+  });
+
+  const result = await service.evaluate({
+    subject: { kind: "user", user_id: "user_super_admin", staff_level: 9 },
+    resource: { kind: "role", target_role_id: "role_owner", target_staff_level: 10, is_protected: true },
+    context: {
+      permission_code: "admin.roles.assign",
+      action: "assign",
+      override_target_protection: true,
+    },
+  });
+
+  assert.equal(result.allowed, true);
+  assert.equal(result.reason.code, "ALLOW_RBAC_PERMISSION");
+});
+
 test("authorization service rejects evaluations without a permission code", async () => {
   const service = createAuthorizationService({
     permissionResolver: {

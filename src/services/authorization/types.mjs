@@ -105,6 +105,7 @@ function normalizeAuthorizationContext(input = {}) {
     ip_address: normalizeNullableString(input.ip_address),
     ip_reputation: normalizeNullableString(input.ip_reputation),
     occurred_at: normalizeNullableString(input.occurred_at),
+    override_target_protection: normalizeBoolean(input.override_target_protection),
   };
 }
 

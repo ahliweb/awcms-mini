@@ -4,7 +4,7 @@ import {
   createAuthorizationEvaluationInput,
   createAuthorizationResult,
 } from "./types.mjs";
-import { evaluateScopedAllowRules } from "./rules.mjs";
+import { evaluateScopedAllowRules, evaluateStaffLevelDenyRule } from "./rules.mjs";
 
 function createPermissionMissingResult(permissionCode) {
   return createAuthorizationResult({
@@ -82,6 +82,12 @@ export function createAuthorizationService(options = {}) {
 
       if (!resolved.permission_codes.includes(permissionCode)) {
         return createPermissionMissingResult(permissionCode);
+      }
+
+      const explicitDeny = evaluateStaffLevelDenyRule(evaluation);
+
+      if (explicitDeny) {
+        return explicitDeny;
       }
 
       return evaluateScopedAllowRules(evaluation) ?? createPermissionAllowedResult(permissionCode);

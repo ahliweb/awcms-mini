@@ -20,6 +20,44 @@ function createScopedAllowResult(permissionCode, matchedRule, scope) {
   });
 }
 
+function createExplicitDenyResult(permissionCode, matchedRule, details) {
+  return createAuthorizationResult({
+    allowed: false,
+    permission_code: permissionCode,
+    matched_rule: matchedRule,
+    reason: {
+      code: "DENY_PROTECTED_TARGET",
+      message: "The target is protected by staff-level authorization rules.",
+      details,
+    },
+  });
+}
+
+function evaluateStaffLevelDenyRule(evaluation) {
+  if (!evaluation.resource.is_protected) {
+    return null;
+  }
+
+  if (!new Set(["user", "role"]).has(evaluation.resource.kind)) {
+    return null;
+  }
+
+  if (evaluation.context.override_target_protection === true) {
+    return null;
+  }
+
+  if (evaluation.subject.staff_level > evaluation.resource.target_staff_level) {
+    return null;
+  }
+
+  return createExplicitDenyResult(evaluation.context.permission_code, "staff-level:protected-target", {
+    actor_staff_level: evaluation.subject.staff_level,
+    target_staff_level: evaluation.resource.target_staff_level,
+    resource_kind: evaluation.resource.kind,
+    override_available: true,
+  });
+}
+
 function isSelfTarget(evaluation) {
   const subjectUserId = evaluation.subject.user_id;
 
@@ -70,4 +108,4 @@ function evaluateScopedAllowRules(evaluation) {
   return evaluateSelfServiceRule(evaluation) ?? evaluateOwnershipRule(evaluation) ?? null;
 }
 
-export { evaluateOwnershipRule, evaluateScopedAllowRules, evaluateSelfServiceRule };
+export { evaluateOwnershipRule, evaluateScopedAllowRules, evaluateSelfServiceRule, evaluateStaffLevelDenyRule };
