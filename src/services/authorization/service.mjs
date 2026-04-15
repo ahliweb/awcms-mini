@@ -1,5 +1,11 @@
 import { getDatabase } from "../../db/index.mjs";
 import { createPermissionResolutionService } from "../permissions/service.mjs";
+import {
+  createAuthorizationCacheEntry,
+  createAuthorizationCacheKey,
+  createNoopAuthorizationCache,
+  isAuthorizationCacheEntryFresh,
+} from "./cache.mjs";
 import { createAuthorizationEvaluationInput, createAuthorizationResult } from "./types.mjs";
 import { createStandardAuthorizationReason } from "./reasons.mjs";
 import { evaluateScopedAllowRules, evaluateStaffLevelDenyRule } from "./rules.mjs";
@@ -28,20 +34,36 @@ function createPermissionAllowedResult(permissionCode) {
 
 export function createAuthorizationService(options = {}) {
   const database = options.database ?? getDatabase();
+  const cache = options.cache ?? createNoopAuthorizationCache();
   const permissionResolver =
     options.permissionResolver ??
     createPermissionResolutionService({
       database,
       hooks: options.permissionCacheHooks,
+      cache,
     });
 
   return {
     async evaluate(input = {}) {
       const evaluation = createAuthorizationEvaluationInput(input);
       const permissionCode = evaluation.context.permission_code;
+      const cacheKey = createAuthorizationCacheKey({
+        scope: "evaluation",
+        user_id: evaluation.subject.user_id,
+        session_id: evaluation.context.session_id,
+        permission_code: permissionCode,
+      });
+
+      const cacheEntry = await cache.get(cacheKey);
+
+      if (isAuthorizationCacheEntryFresh(cacheEntry)) {
+        return cacheEntry.value;
+      }
+
+      let result;
 
       if (!evaluation.subject.user_id) {
-        return createAuthorizationResult({
+        result = createAuthorizationResult({
           allowed: false,
           permission_code: permissionCode,
           matched_rule: "authorization-entry",
@@ -49,10 +71,12 @@ export function createAuthorizationService(options = {}) {
             permission_code: permissionCode,
           }),
         });
+        await cache.set(cacheKey, createAuthorizationCacheEntry(result));
+        return result;
       }
 
       if (!permissionCode) {
-        return createAuthorizationResult({
+        result = createAuthorizationResult({
           allowed: false,
           permission_code: null,
           matched_rule: "authorization-entry",
@@ -62,21 +86,28 @@ export function createAuthorizationService(options = {}) {
             { message: "Authorization evaluation requires a permission code." },
           ),
         });
+        await cache.set(cacheKey, createAuthorizationCacheEntry(result));
+        return result;
       }
 
       const resolved = await permissionResolver.getEffectivePermissions(evaluation.subject.user_id);
 
       if (!resolved.permission_codes.includes(permissionCode)) {
-        return createPermissionMissingResult(permissionCode);
+        result = createPermissionMissingResult(permissionCode);
+        await cache.set(cacheKey, createAuthorizationCacheEntry(result));
+        return result;
       }
 
       const explicitDeny = evaluateStaffLevelDenyRule(evaluation);
 
       if (explicitDeny) {
+        await cache.set(cacheKey, createAuthorizationCacheEntry(explicitDeny));
         return explicitDeny;
       }
 
-      return evaluateScopedAllowRules(evaluation) ?? createPermissionAllowedResult(permissionCode);
+      result = evaluateScopedAllowRules(evaluation) ?? createPermissionAllowedResult(permissionCode);
+      await cache.set(cacheKey, createAuthorizationCacheEntry(result));
+      return result;
     },
 
     async hasPermission(input = {}) {

@@ -2,6 +2,12 @@ import { getDatabase, withTransaction } from "../../db/index.mjs";
 import { normalizePermission } from "../../db/repositories/permissions.mjs";
 import { normalizeRole } from "../../db/repositories/roles.mjs";
 import { createUserRepository } from "../../db/repositories/users.mjs";
+import {
+  createAuthorizationCacheEntry,
+  createAuthorizationCacheKey,
+  createNoopAuthorizationCache,
+  isAuthorizationCacheEntryFresh,
+} from "../authorization/cache.mjs";
 
 const USER_ROLE_COLUMNS = [
   "id",
@@ -162,9 +168,24 @@ async function resolveEffectivePermissions(executor, userId) {
 export function createPermissionResolutionService(options = {}) {
   const database = options.database ?? getDatabase();
   const hooks = options.hooks ?? {};
+  const cache = options.cache ?? createNoopAuthorizationCache();
 
   return {
     async getEffectivePermissions(userId) {
+      const cacheKey = createAuthorizationCacheKey({
+        scope: "effective_permissions",
+        user_id: userId,
+      });
+
+      const cacheEntry = await cache.get(cacheKey);
+
+      if (isAuthorizationCacheEntryFresh(cacheEntry)) {
+        return {
+          ...cacheEntry.value,
+          cache_hit: true,
+        };
+      }
+
       if (typeof hooks.getCachedPermissions === "function") {
         const cached = await hooks.getCachedPermissions({ user_id: userId });
 
@@ -177,6 +198,8 @@ export function createPermissionResolutionService(options = {}) {
       }
 
       const resolved = await withTransaction(database, async (trx) => resolveEffectivePermissions(trx, userId));
+
+      await cache.set(cacheKey, createAuthorizationCacheEntry(resolved));
 
       if (typeof hooks.storeResolvedPermissions === "function") {
         await hooks.storeResolvedPermissions(resolved);
