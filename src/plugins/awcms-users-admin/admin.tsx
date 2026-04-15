@@ -46,6 +46,31 @@ interface RoleListItem {
   activeAssignmentCount: number;
 }
 
+interface PermissionMatrixRole {
+  id: string;
+  slug: string;
+  name: string;
+  staffLevel: number;
+  isAssignable: boolean;
+  isProtected: boolean;
+}
+
+interface PermissionMatrixRow {
+  id: string;
+  code: string;
+  domain: string;
+  resource: string;
+  action: string;
+  description: string | null;
+  isProtected: boolean;
+  grantsByRoleId: Record<string, boolean>;
+}
+
+interface PermissionMatrixSnapshot {
+  roles: PermissionMatrixRole[];
+  rows: PermissionMatrixRow[];
+}
+
 function formatDateTime(value: string | null) {
   if (!value) {
     return "Never";
@@ -66,6 +91,50 @@ function roleTone(item: RoleListItem) {
   if (item.isProtected) return { background: "#fee2e2", color: "#991b1b", border: "1px solid #fecaca" };
   if (!item.isAssignable) return { background: "#ede9fe", color: "#5b21b6", border: "1px solid #ddd6fe" };
   return { background: "#ecfeff", color: "#155e75", border: "1px solid #a5f3fc" };
+}
+
+function permissionTone(row: PermissionMatrixRow) {
+  if (row.isProtected) {
+    return { background: "#fef2f2", color: "#991b1b", border: "1px solid #fecaca" };
+  }
+
+  return { background: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0" };
+}
+
+function buildDraftByRoleId(snapshot: PermissionMatrixSnapshot) {
+  return Object.fromEntries(
+    snapshot.roles.map((role) => [
+      role.id,
+      snapshot.rows.filter((row) => row.grantsByRoleId[role.id]).map((row) => row.id),
+    ]),
+  );
+}
+
+function countPendingMatrixChanges(snapshot: PermissionMatrixSnapshot, draftByRoleId: Record<string, string[]>) {
+  return snapshot.rows.reduce(
+    (count, row) =>
+      count +
+      snapshot.roles.reduce((roleCount, role) => {
+        const current = row.grantsByRoleId[role.id] === true;
+        const next = (draftByRoleId[role.id] ?? []).includes(row.id);
+        return roleCount + (current === next ? 0 : 1);
+      }, 0),
+    0,
+  );
+}
+
+function hasProtectedMatrixChanges(snapshot: PermissionMatrixSnapshot, draftByRoleId: Record<string, string[]>) {
+  return snapshot.rows.some((row) => {
+    if (!row.isProtected) {
+      return false;
+    }
+
+    return snapshot.roles.some((role) => {
+      const current = row.grantsByRoleId[role.id] === true;
+      const next = (draftByRoleId[role.id] ?? []).includes(row.id);
+      return current !== next;
+    });
+  });
 }
 
 function useUserList() {
@@ -153,6 +222,116 @@ function useRoleList() {
   }, []);
 
   return { items, loading, error };
+}
+
+function usePermissionMatrix() {
+  const [snapshot, setSnapshot] = React.useState<PermissionMatrixSnapshot | null>(null);
+  const [draftByRoleId, setDraftByRoleId] = React.useState<Record<string, string[]>>({});
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [saving, setSaving] = React.useState(false);
+  const [confirmProtectedChanges, setConfirmProtectedChanges] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const response = await apiFetch(`${API_BASE}/permissions/matrix`);
+        const data = await parseApiResponse<PermissionMatrixSnapshot>(response, "Failed to load permission matrix");
+        if (!cancelled) {
+          setSnapshot(data);
+          setDraftByRoleId(buildDraftByRoleId(data));
+          setError(null);
+        }
+      } catch (nextError) {
+        if (!cancelled) {
+          setError(nextError instanceof Error ? nextError.message : "Failed to load permission matrix");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggleGrant = React.useCallback((roleId: string, permissionId: string) => {
+    setDraftByRoleId((current) => {
+      const currentPermissionIds = current[roleId] ?? [];
+      const nextPermissionIds = currentPermissionIds.includes(permissionId)
+        ? currentPermissionIds.filter((value) => value !== permissionId)
+        : [...currentPermissionIds, permissionId].sort((left, right) => left.localeCompare(right));
+
+      return {
+        ...current,
+        [roleId]: nextPermissionIds,
+      };
+    });
+  }, []);
+
+  const resetDraft = React.useCallback(() => {
+    if (!snapshot) {
+      return;
+    }
+
+    setDraftByRoleId(buildDraftByRoleId(snapshot));
+    setConfirmProtectedChanges(false);
+  }, [snapshot]);
+
+  const applyDraft = React.useCallback(async () => {
+    if (!snapshot) {
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const response = await apiFetch(`${API_BASE}/permissions/matrix/apply`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          rolePermissionIdsByRoleId: draftByRoleId,
+          confirmProtectedChanges,
+        }),
+      });
+      const data = await parseApiResponse<{ snapshot: PermissionMatrixSnapshot }>(response, "Failed to apply permission matrix");
+      setSnapshot(data.snapshot);
+      setDraftByRoleId(buildDraftByRoleId(data.snapshot));
+      setConfirmProtectedChanges(false);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Failed to apply permission matrix");
+    } finally {
+      setSaving(false);
+    }
+  }, [confirmProtectedChanges, draftByRoleId, snapshot]);
+
+  const pendingChanges = snapshot ? countPendingMatrixChanges(snapshot, draftByRoleId) : 0;
+  const protectedChanges = snapshot ? hasProtectedMatrixChanges(snapshot, draftByRoleId) : false;
+
+  return {
+    snapshot,
+    draftByRoleId,
+    loading,
+    error,
+    saving,
+    pendingChanges,
+    protectedChanges,
+    confirmProtectedChanges,
+    setConfirmProtectedChanges,
+    toggleGrant,
+    resetDraft,
+    applyDraft,
+  };
 }
 
 interface InviteResult {
@@ -522,6 +701,139 @@ function RolesListPage() {
   );
 }
 
+function PermissionMatrixPage() {
+  const {
+    snapshot,
+    draftByRoleId,
+    loading,
+    error,
+    saving,
+    pendingChanges,
+    protectedChanges,
+    confirmProtectedChanges,
+    setConfirmProtectedChanges,
+    toggleGrant,
+    resetDraft,
+    applyDraft,
+  } = usePermissionMatrix();
+
+  return (
+    <PageFrame title="Permission Matrix">
+      <div style={{ marginBottom: 16, color: "#52525b", maxWidth: 900 }}>
+        Columns are roles and rows are explicit permissions. Edits stay staged locally until you apply them.
+      </div>
+      {loading ? <Message>Loading permission matrix...</Message> : null}
+      {!loading && error ? <Message>{error}</Message> : null}
+      {!loading && !error && snapshot ? (
+        <>
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              flexWrap: "wrap",
+              alignItems: "center",
+              marginBottom: 16,
+              padding: 16,
+              border: "1px solid #e4e4e7",
+              borderRadius: 16,
+              background: "#fff",
+            }}
+          >
+            <div style={{ fontWeight: 700 }}>{pendingChanges} staged changes</div>
+            <button
+              type="button"
+              disabled={saving || pendingChanges === 0}
+              onClick={resetDraft}
+              style={{ border: "1px solid #d4d4d8", borderRadius: 999, padding: "10px 16px", background: "#fff", fontWeight: 600 }}
+            >
+              Reset staged edits
+            </button>
+            <button
+              type="button"
+              disabled={saving || pendingChanges === 0 || (protectedChanges && !confirmProtectedChanges)}
+              onClick={() => void applyDraft()}
+              style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#111827", color: "#fff", fontWeight: 600 }}
+            >
+              {saving ? "Applying..." : "Apply staged changes"}
+            </button>
+            {protectedChanges ? (
+              <label style={{ display: "flex", alignItems: "center", gap: 8, color: "#991b1b", fontWeight: 600 }}>
+                <input
+                  type="checkbox"
+                  checked={confirmProtectedChanges}
+                  onChange={(event) => setConfirmProtectedChanges(event.target.checked)}
+                />
+                Confirm protected permission changes
+              </label>
+            ) : null}
+          </div>
+          <div style={{ overflowX: "auto", border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1180 }}>
+              <thead>
+                <tr style={{ textAlign: "left", background: "#fafafa" }}>
+                  <th style={{ padding: 12, minWidth: 320 }}>Permission</th>
+                  {snapshot.roles.map((role) => (
+                    <th key={role.id} style={{ padding: 12, minWidth: 140, verticalAlign: "bottom" }}>
+                      <div style={{ fontWeight: 700 }}>{role.name}</div>
+                      <div style={{ color: "#71717a", marginTop: 4, fontSize: 13 }}>/ {role.slug}</div>
+                      <div style={{ color: "#71717a", marginTop: 4, fontSize: 13 }}>Level {role.staffLevel}</div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {snapshot.rows.map((row) => {
+                  const tone = permissionTone(row);
+
+                  return (
+                    <tr key={row.id} style={{ borderTop: "1px solid #e4e4e7" }}>
+                      <td style={{ padding: 12, verticalAlign: "top" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                          <div style={{ fontWeight: 700 }}>{row.code}</div>
+                          <span
+                            style={{
+                              display: "inline-block",
+                              padding: "4px 8px",
+                              borderRadius: 999,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              ...tone,
+                            }}
+                          >
+                            {row.isProtected ? "Protected" : row.domain}
+                          </span>
+                        </div>
+                        <div style={{ marginTop: 6, color: "#52525b" }}>{row.description || "No description"}</div>
+                        <div style={{ marginTop: 6, color: "#71717a", fontSize: 13 }}>
+                          {row.resource} / {row.action}
+                        </div>
+                      </td>
+                      {snapshot.roles.map((role) => {
+                        const checked = (draftByRoleId[role.id] ?? []).includes(row.id);
+
+                        return (
+                          <td key={`${row.id}:${role.id}`} style={{ padding: 12, textAlign: "center", verticalAlign: "middle" }}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleGrant(role.id, row.id)}
+                              aria-label={`${role.name} ${row.code}`}
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+    </PageFrame>
+  );
+}
+
 function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div style={{ padding: 16, border: "1px solid #e4e4e7", borderRadius: 12, background: "#fff" }}>
@@ -606,6 +918,7 @@ function UserDetailPage() {
 
 export const pages = {
   "/": UsersListPage,
+  "/permissions": PermissionMatrixPage,
   "/roles": RolesListPage,
   "/user": UserDetailPage,
 };

@@ -1,6 +1,7 @@
 import { definePlugin, PluginRouteError } from "emdash";
 
 import { getDatabase } from "../../db/index.mjs";
+import { createRolePermissionRepository } from "../../db/repositories/role-permissions.mjs";
 import { createUserService } from "../../services/users/service.mjs";
 
 let userAdminDatabaseGetter = () => getDatabase();
@@ -54,6 +55,182 @@ function normalizeRoleRow(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     activeAssignmentCount: Number(row.active_assignment_count ?? 0),
+  };
+}
+
+function normalizeMatrixRoleRow(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    staffLevel: Number(row.staff_level),
+    isAssignable: Boolean(row.is_assignable),
+    isProtected: Boolean(row.is_protected),
+  };
+}
+
+function normalizeMatrixPermissionRow(row, roles, grantedRoleIds) {
+  if (!row) {
+    return null;
+  }
+
+  const granted = new Set(grantedRoleIds);
+
+  return {
+    id: row.id,
+    code: row.code,
+    domain: row.domain,
+    resource: row.resource,
+    action: row.action,
+    description: row.description,
+    isProtected: Boolean(row.is_protected),
+    grantsByRoleId: Object.fromEntries(roles.map((role) => [role.id, granted.has(role.id)])),
+  };
+}
+
+async function loadPermissionMatrixSnapshot(db) {
+  const roles = (await db
+    .selectFrom("roles")
+    .select(["id", "slug", "name", "staff_level", "is_assignable", "is_protected", "deleted_at"])
+    .where("deleted_at", "is", null)
+    .orderBy("staff_level", "desc")
+    .orderBy("slug", "asc")
+    .execute())
+    .map(normalizeMatrixRoleRow);
+
+  const permissions = await db
+    .selectFrom("permissions")
+    .select(["id", "code", "domain", "resource", "action", "description", "is_protected"])
+    .orderBy("domain", "asc")
+    .orderBy("code", "asc")
+    .execute();
+
+  const rolePermissions = await db
+    .selectFrom("role_permissions")
+    .select(["role_id", "permission_id"])
+    .execute();
+
+  const grantedRoleIdsByPermissionId = new Map();
+
+  for (const entry of rolePermissions) {
+    if (!grantedRoleIdsByPermissionId.has(entry.permission_id)) {
+      grantedRoleIdsByPermissionId.set(entry.permission_id, []);
+    }
+
+    grantedRoleIdsByPermissionId.get(entry.permission_id).push(entry.role_id);
+  }
+
+  return {
+    roles,
+    rows: permissions.map((permission) =>
+      normalizeMatrixPermissionRow(permission, roles, grantedRoleIdsByPermissionId.get(permission.id) ?? []),
+    ),
+  };
+}
+
+async function listPermissionMatrixHandler() {
+  return loadPermissionMatrixSnapshot(userAdminDatabaseGetter());
+}
+
+function parseMatrixBody(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw PluginRouteError.badRequest("Expected JSON object body");
+  }
+
+  const matrix = body.rolePermissionIdsByRoleId;
+
+  if (!matrix || typeof matrix !== "object" || Array.isArray(matrix)) {
+    throw PluginRouteError.badRequest("Expected rolePermissionIdsByRoleId map");
+  }
+
+  return {
+    confirmProtectedChanges: body.confirmProtectedChanges === true,
+    rolePermissionIdsByRoleId: matrix,
+  };
+}
+
+async function applyPermissionMatrixHandler(ctx) {
+  let body;
+
+  try {
+    body = await ctx.request.json();
+  } catch {
+    throw PluginRouteError.badRequest("Expected JSON body");
+  }
+
+  const parsed = parseMatrixBody(body);
+  const db = userAdminDatabaseGetter();
+  const snapshot = await loadPermissionMatrixSnapshot(db);
+  const validRoleIds = new Set(snapshot.roles.map((role) => role.id));
+  const validPermissionIds = new Set(snapshot.rows.map((row) => row.id));
+  const currentByRoleId = Object.fromEntries(snapshot.roles.map((role) => [role.id, []]));
+
+  for (const row of snapshot.rows) {
+    for (const role of snapshot.roles) {
+      if (row.grantsByRoleId[role.id]) {
+        currentByRoleId[role.id].push(row.id);
+      }
+    }
+  }
+
+  const nextByRoleId = {};
+
+  for (const role of snapshot.roles) {
+    const rawPermissionIds = parsed.rolePermissionIdsByRoleId[role.id] ?? currentByRoleId[role.id];
+
+    if (!Array.isArray(rawPermissionIds)) {
+      throw PluginRouteError.badRequest(`Expected permission id array for role ${role.id}`);
+    }
+
+    nextByRoleId[role.id] = [...new Set(rawPermissionIds.map((value) => String(value)))];
+
+    for (const permissionId of nextByRoleId[role.id]) {
+      if (!validPermissionIds.has(permissionId)) {
+        throw PluginRouteError.badRequest(`Unknown permission id: ${permissionId}`);
+      }
+    }
+  }
+
+  for (const roleId of Object.keys(parsed.rolePermissionIdsByRoleId)) {
+    if (!validRoleIds.has(roleId)) {
+      throw PluginRouteError.badRequest(`Unknown role id: ${roleId}`);
+    }
+  }
+
+  const protectedChangeCount = snapshot.rows.reduce((count, row) => {
+    if (!row.isProtected) {
+      return count;
+    }
+
+    const changed = snapshot.roles.some((role) => {
+      const current = row.grantsByRoleId[role.id] === true;
+      const next = nextByRoleId[role.id].includes(row.id);
+      return current !== next;
+    });
+
+    return changed ? count + 1 : count;
+  }, 0);
+
+  if (protectedChangeCount > 0 && parsed.confirmProtectedChanges !== true) {
+    throw PluginRouteError.badRequest("Protected permission changes require explicit confirmation.");
+  }
+
+  const repo = createRolePermissionRepository(db);
+  const diffs = {};
+
+  for (const role of snapshot.roles) {
+    diffs[role.id] = await repo.syncRolePermissionIds(role.id, nextByRoleId[role.id]);
+  }
+
+  return {
+    applied: true,
+    protectedChangeCount,
+    diffs,
+    snapshot: await loadPermissionMatrixSnapshot(db),
   };
 }
 
@@ -346,6 +523,12 @@ export function createPlugin() {
       "roles/list": {
         handler: listRolesHandler,
       },
+      "permissions/matrix": {
+        handler: listPermissionMatrixHandler,
+      },
+      "permissions/matrix/apply": {
+        handler: applyPermissionMatrixHandler,
+      },
       "users/detail": {
         handler: getUserDetailHandler,
       },
@@ -367,6 +550,7 @@ export function createPlugin() {
       pages: [
         { path: "/", label: "Users", icon: "users" },
         { path: "/roles", label: "Roles", icon: "shield" },
+        { path: "/permissions", label: "Permission Matrix", icon: "grid" },
         { path: "/user", label: "User Detail", icon: "user" },
       ],
     },
@@ -383,6 +567,7 @@ export function awcmsUsersAdminPlugin() {
     adminPages: [
       { path: "/", label: "Users", icon: "users" },
       { path: "/roles", label: "Roles", icon: "shield" },
+      { path: "/permissions", label: "Permission Matrix", icon: "grid" },
       { path: "/user", label: "User Detail", icon: "user" },
     ],
   };

@@ -103,6 +103,57 @@ class FakeRolesQuery {
   }
 }
 
+class FakeMatrixQuery {
+  constructor(rows) {
+    this.rows = rows;
+    this.whereClauses = [];
+    this.limitValue = undefined;
+  }
+
+  leftJoin() {
+    return this;
+  }
+
+  select() {
+    return this;
+  }
+
+  where(column, operator, value) {
+    this.whereClauses.push({ column, operator, value });
+    return this;
+  }
+
+  orderBy() {
+    return this;
+  }
+
+  groupBy() {
+    return this;
+  }
+
+  limit(value) {
+    this.limitValue = value;
+    return this;
+  }
+
+  async execute() {
+    return this.rows
+      .filter((row) =>
+        this.whereClauses.every((clause) => {
+          const key = clause.column.split(".").at(-1);
+          if (clause.operator === "=") return row[key] === clause.value;
+          if (clause.operator === "is") return row[key] === clause.value;
+          return true;
+        }),
+      )
+      .slice(0, this.limitValue ?? this.rows.length);
+  }
+
+  async executeTakeFirst() {
+    return (await this.execute())[0];
+  }
+}
+
 function createJoinBuilder() {
   return {
     onRef() {
@@ -148,6 +199,56 @@ function createFakeRolesDb(rows) {
   };
 }
 
+function createFakeMatrixDb({ roles, permissions, rolePermissions }) {
+  const state = {
+    roles: [...roles],
+    permissions: [...permissions],
+    role_permissions: [...rolePermissions],
+  };
+
+  return {
+    state,
+    selectFrom(table) {
+      assert.ok(["roles", "permissions", "role_permissions"].includes(table));
+      return new FakeMatrixQuery(state[table]);
+    },
+    insertInto(table) {
+      assert.equal(table, "role_permissions");
+      return {
+        values: (values) => ({
+          execute: async () => {
+            state.role_permissions.push({
+              granted_by_user_id: values.granted_by_user_id ?? null,
+              granted_at: values.granted_at ?? "2026-04-10T10:00:00.000Z",
+              ...values,
+            });
+          },
+        }),
+      };
+    },
+    deleteFrom(table) {
+      assert.equal(table, "role_permissions");
+      const whereClauses = [];
+      const chain = {
+        where(column, operator, value) {
+          whereClauses.push({ column, operator, value });
+          return chain;
+        },
+        execute: async () => {
+          for (let index = state.role_permissions.length - 1; index >= 0; index -= 1) {
+            const row = state.role_permissions[index];
+            const matches = whereClauses.every((clause) => row[clause.column] === clause.value);
+            if (matches) {
+              state.role_permissions.splice(index, 1);
+            }
+          }
+        },
+      };
+      return chain;
+    },
+  };
+}
+
 test("awcms users admin plugin exposes admin pages and read-only routes", async () => {
   const plugin = createPlugin();
   const row = {
@@ -179,6 +280,7 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
     assert.deepEqual(plugin.admin.pages, [
       { path: "/", label: "Users", icon: "users" },
       { path: "/roles", label: "Roles", icon: "shield" },
+      { path: "/permissions", label: "Permission Matrix", icon: "grid" },
       { path: "/user", label: "User Detail", icon: "user" },
     ]);
 
@@ -197,6 +299,71 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
     const detailResult = await plugin.routes["users/detail"].handler(detailCtx);
     assert.equal(detailResult.item.id, "user_1");
     assert.equal(detailResult.item.email, "user@example.com");
+  } finally {
+    resetUserAdminDatabaseGetter();
+  }
+});
+
+test("awcms users admin plugin exposes permission matrix routes and applies staged changes", async () => {
+  const plugin = createPlugin();
+  const fakeDb = createFakeMatrixDb({
+    roles: [
+      { id: "role_owner", slug: "owner", name: "Owner", staff_level: 10, is_assignable: false, is_protected: true, deleted_at: null },
+      { id: "role_editor", slug: "editor", name: "Editor", staff_level: 6, is_assignable: true, is_protected: false, deleted_at: null },
+    ],
+    permissions: [
+      { id: "perm_admin_roles_assign", code: "admin.roles.assign", domain: "admin", resource: "roles", action: "assign", description: "Assign roles", is_protected: true },
+      { id: "perm_content_posts_read", code: "content.posts.read", domain: "content", resource: "posts", action: "read", description: "Read posts", is_protected: false },
+    ],
+    rolePermissions: [
+      { role_id: "role_owner", permission_id: "perm_admin_roles_assign", granted_by_user_id: null, granted_at: "2026-04-10T10:00:00.000Z" },
+      { role_id: "role_editor", permission_id: "perm_content_posts_read", granted_by_user_id: null, granted_at: "2026-04-10T10:00:00.000Z" },
+    ],
+  });
+  setUserAdminDatabaseGetter(() => fakeDb);
+
+  try {
+    const snapshot = await plugin.routes["permissions/matrix"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/permissions/matrix"),
+    });
+
+    assert.deepEqual(snapshot.roles.map((role) => role.slug), ["owner", "editor"]);
+    assert.equal(snapshot.rows[0].grantsByRoleId.role_owner, true);
+    assert.equal(snapshot.rows[1].grantsByRoleId.role_editor, true);
+
+    await assert.rejects(
+      () =>
+        plugin.routes["permissions/matrix/apply"].handler({
+          request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/permissions/matrix/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              rolePermissionIdsByRoleId: {
+                role_owner: [],
+                role_editor: ["perm_content_posts_read"],
+              },
+            }),
+          }),
+        }),
+    );
+
+    const applied = await plugin.routes["permissions/matrix/apply"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/permissions/matrix/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rolePermissionIdsByRoleId: {
+            role_owner: ["perm_admin_roles_assign", "perm_content_posts_read"],
+            role_editor: ["perm_content_posts_read"],
+          },
+          confirmProtectedChanges: true,
+        }),
+      }),
+    });
+
+    assert.equal(applied.applied, true);
+    assert.equal(applied.snapshot.rows[1].grantsByRoleId.role_owner, true);
+    assert.equal(fakeDb.state.role_permissions.some((entry) => entry.role_id === "role_owner" && entry.permission_id === "perm_content_posts_read"), true);
   } finally {
     resetUserAdminDatabaseGetter();
   }
