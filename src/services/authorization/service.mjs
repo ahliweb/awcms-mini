@@ -1,9 +1,7 @@
 import { getDatabase } from "../../db/index.mjs";
 import { createPermissionResolutionService } from "../permissions/service.mjs";
-import {
-  createAuthorizationEvaluationInput,
-  createAuthorizationResult,
-} from "./types.mjs";
+import { createAuthorizationEvaluationInput, createAuthorizationResult } from "./types.mjs";
+import { createStandardAuthorizationReason } from "./reasons.mjs";
 import { evaluateScopedAllowRules, evaluateStaffLevelDenyRule } from "./rules.mjs";
 
 function createPermissionMissingResult(permissionCode) {
@@ -11,13 +9,9 @@ function createPermissionMissingResult(permissionCode) {
     allowed: false,
     permission_code: permissionCode,
     matched_rule: "rbac-baseline",
-    reason: {
-      code: "DENY_PERMISSION_MISSING",
-      message: "The active role set does not grant the required permission.",
-      details: {
-        permission_code: permissionCode,
-      },
-    },
+    reason: createStandardAuthorizationReason("DENY_PERMISSION_MISSING", {
+      permission_code: permissionCode,
+    }),
   });
 }
 
@@ -26,13 +20,9 @@ function createPermissionAllowedResult(permissionCode) {
     allowed: true,
     permission_code: permissionCode,
     matched_rule: "rbac-baseline",
-    reason: {
-      code: "ALLOW_RBAC_PERMISSION",
-      message: "The active role set grants the required permission.",
-      details: {
-        permission_code: permissionCode,
-      },
-    },
+    reason: createStandardAuthorizationReason("ALLOW_RBAC_PERMISSION", {
+      permission_code: permissionCode,
+    }),
   });
 }
 
@@ -55,13 +45,9 @@ export function createAuthorizationService(options = {}) {
           allowed: false,
           permission_code: permissionCode,
           matched_rule: "authorization-entry",
-          reason: {
-            code: "DENY_UNAUTHENTICATED",
-            message: "Authorization requires an authenticated subject.",
-            details: {
-              permission_code: permissionCode,
-            },
-          },
+          reason: createStandardAuthorizationReason("DENY_UNAUTHENTICATED", {
+            permission_code: permissionCode,
+          }),
         });
       }
 
@@ -70,11 +56,11 @@ export function createAuthorizationService(options = {}) {
           allowed: false,
           permission_code: null,
           matched_rule: "authorization-entry",
-          reason: {
-            code: "DENY_EXPLICIT_RULE",
-            message: "Authorization evaluation requires a permission code.",
-            details: {},
-          },
+          reason: createStandardAuthorizationReason(
+            "DENY_EXPLICIT_RULE",
+            {},
+            { message: "Authorization evaluation requires a permission code." },
+          ),
         });
       }
 

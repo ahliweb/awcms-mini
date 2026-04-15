@@ -121,6 +121,9 @@ function createAuthorizationReason(input = {}) {
   return {
     code: assertAllowedValue(input.code, AUTHORIZATION_REASON_CODES, "authorization reason code"),
     message: String(input.message ?? ""),
+    effect: normalizeNullableString(input.effect),
+    category: normalizeNullableString(input.category),
+    security_relevant: normalizeBoolean(input.security_relevant),
     details: input.details && typeof input.details === "object" && !Array.isArray(input.details) ? input.details : {},
   };
 }

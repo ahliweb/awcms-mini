@@ -1,4 +1,5 @@
 import { createAuthorizationResult } from "./types.mjs";
+import { createStandardAuthorizationReason } from "./reasons.mjs";
 
 const SELF_USER_ACTIONS = new Set(["read", "update", "manage"]);
 const SELF_SESSION_ACTIONS = new Set(["read", "revoke", "manage"]);
@@ -9,14 +10,10 @@ function createScopedAllowResult(permissionCode, matchedRule, scope) {
     allowed: true,
     permission_code: permissionCode,
     matched_rule: matchedRule,
-    reason: {
-      code: "ALLOW_ABAC_RULE",
-      message: "The request is allowed by a scoped authorization rule.",
-      details: {
-        permission_code: permissionCode,
-        scope,
-      },
-    },
+    reason: createStandardAuthorizationReason("ALLOW_ABAC_RULE", {
+      permission_code: permissionCode,
+      scope,
+    }),
   });
 }
 
@@ -25,11 +22,7 @@ function createExplicitDenyResult(permissionCode, matchedRule, details) {
     allowed: false,
     permission_code: permissionCode,
     matched_rule: matchedRule,
-    reason: {
-      code: "DENY_PROTECTED_TARGET",
-      message: "The target is protected by staff-level authorization rules.",
-      details,
-    },
+    reason: createStandardAuthorizationReason("DENY_PROTECTED_TARGET", details),
   });
 }
 

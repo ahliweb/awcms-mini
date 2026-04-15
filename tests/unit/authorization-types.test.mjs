@@ -70,6 +70,7 @@ test("authorization reason structure is explicit and machine-readable", () => {
 
   assert.equal(AUTHORIZATION_REASON_CODES.includes(reason.code), true);
   assert.equal(reason.code, "DENY_STEP_UP_REQUIRED");
+  assert.equal(reason.effect, null);
   assert.equal(reason.details.required_session_strength, "step_up");
 });
 
