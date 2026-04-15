@@ -34,6 +34,7 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
 - `009_user_invite_tokens` adds repo-owned invite activation token storage for invited-user activation
 - `010_roles` adds the RBAC role catalog with `staff_level`, protection metadata, unique role slug, and soft-delete markers
 - `011_permissions` adds the RBAC permission catalog with unique permission codes, protected markers, and code-format enforcement
+- `012_role_permissions` adds the RBAC role-to-permission mapping with composite uniqueness and grant metadata
 
 ## Runtime Input
 
