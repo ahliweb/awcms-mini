@@ -4,6 +4,7 @@ import {
   createAuthorizationEvaluationInput,
   createAuthorizationResult,
 } from "./types.mjs";
+import { evaluateScopedAllowRules } from "./rules.mjs";
 
 function createPermissionMissingResult(permissionCode) {
   return createAuthorizationResult({
@@ -79,9 +80,11 @@ export function createAuthorizationService(options = {}) {
 
       const resolved = await permissionResolver.getEffectivePermissions(evaluation.subject.user_id);
 
-      return resolved.permission_codes.includes(permissionCode)
-        ? createPermissionAllowedResult(permissionCode)
-        : createPermissionMissingResult(permissionCode);
+      if (!resolved.permission_codes.includes(permissionCode)) {
+        return createPermissionMissingResult(permissionCode);
+      }
+
+      return evaluateScopedAllowRules(evaluation) ?? createPermissionAllowedResult(permissionCode);
     },
 
     async hasPermission(input = {}) {

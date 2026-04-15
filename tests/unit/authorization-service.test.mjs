@@ -73,6 +73,81 @@ test("authorization service allows requests when the RBAC baseline grants the pe
   assert.equal(result.reason.code, "ALLOW_RBAC_PERMISSION");
 });
 
+test("authorization service marks self-service user actions through a scoped allow rule", async () => {
+  const service = createAuthorizationService({
+    permissionResolver: {
+      async getEffectivePermissions() {
+        return {
+          user_id: "user_4",
+          permission_codes: ["admin.users.update"],
+        };
+      },
+    },
+  });
+
+  const result = await service.evaluate({
+    subject: { kind: "user", user_id: "user_4" },
+    resource: { kind: "user", target_user_id: "user_4" },
+    context: { permission_code: "admin.users.update", action: "update" },
+  });
+
+  assert.equal(result.allowed, true);
+  assert.equal(result.matched_rule, "self-service:user");
+  assert.equal(result.reason.code, "ALLOW_ABAC_RULE");
+});
+
+test("authorization service marks self-session actions through a scoped allow rule", async () => {
+  const service = createAuthorizationService({
+    permissionResolver: {
+      async getEffectivePermissions() {
+        return {
+          user_id: "user_5",
+          permission_codes: ["security.sessions.revoke"],
+        };
+      },
+    },
+  });
+
+  const result = await service.evaluate({
+    subject: { kind: "user", user_id: "user_5" },
+    resource: { kind: "session", owner_user_id: "user_5", resource_id: "session_1" },
+    context: { permission_code: "security.sessions.revoke", action: "revoke" },
+  });
+
+  assert.equal(result.allowed, true);
+  assert.equal(result.matched_rule, "self-service:session");
+});
+
+test("authorization service marks owned content actions through an ownership rule without elevating beyond baseline", async () => {
+  const service = createAuthorizationService({
+    permissionResolver: {
+      async getEffectivePermissions(userId) {
+        return {
+          user_id: userId,
+          permission_codes: userId === "user_6" ? ["content.posts.update"] : [],
+        };
+      },
+    },
+  });
+
+  const ownedResult = await service.evaluate({
+    subject: { kind: "user", user_id: "user_6" },
+    resource: { kind: "content", owner_user_id: "user_6", resource_id: "post_1" },
+    context: { permission_code: "content.posts.update", action: "update" },
+  });
+
+  const deniedResult = await service.evaluate({
+    subject: { kind: "user", user_id: "user_7" },
+    resource: { kind: "content", owner_user_id: "user_7", resource_id: "post_2" },
+    context: { permission_code: "content.posts.update", action: "update" },
+  });
+
+  assert.equal(ownedResult.allowed, true);
+  assert.equal(ownedResult.matched_rule, "ownership:content");
+  assert.equal(deniedResult.allowed, false);
+  assert.equal(deniedResult.reason.code, "DENY_PERMISSION_MISSING");
+});
+
 test("authorization service rejects evaluations without a permission code", async () => {
   const service = createAuthorizationService({
     permissionResolver: {
