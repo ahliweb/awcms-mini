@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+
 import { createLoginSecurityEventRepository } from "../../db/repositories/login-security-events.mjs";
 import { createUserRepository } from "../../db/repositories/users.mjs";
 import { createSessionService } from "../../services/sessions/service.mjs";
@@ -72,7 +74,7 @@ export async function handleAuthLogin({ request, session, db }) {
   const issued = await sessions.issueSession({
     id: crypto.randomUUID(),
     user_id: user.id,
-    session_token_hash: hashPassword(`${user.id}:${Date.now()}:${Math.random()}`),
+    session_token_hash: hashPassword(`${user.id}:${Date.now()}:${randomBytes(32).toString("base64url")}`),
     ip_address: ipAddress,
     user_agent: userAgent,
     trusted_device: false,
