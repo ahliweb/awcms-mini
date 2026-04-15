@@ -1,4 +1,7 @@
 import { getDatabase } from "../../db/index.mjs";
+import { createJobLevelRepository } from "../../db/repositories/job-levels.mjs";
+import { createJobTitleRepository } from "../../db/repositories/job-titles.mjs";
+import { createUserJobRepository } from "../../db/repositories/user-jobs.mjs";
 import { createPermissionResolutionService } from "../permissions/service.mjs";
 import {
   createAuthorizationCacheEntry,
@@ -32,9 +35,50 @@ function createPermissionAllowedResult(permissionCode) {
   });
 }
 
+function createAuthorizationJobContextResolver(database) {
+  const jobLevels = createJobLevelRepository(database);
+  const jobTitles = createJobTitleRepository(database);
+  const userJobs = createUserJobRepository(database);
+
+  return async function resolveCurrentJobContext(subject) {
+    if (!subject?.user_id) {
+      return subject;
+    }
+
+    if (subject.current_job_id || subject.current_job_level_id || subject.current_job_title_id || subject.supervisor_user_id) {
+      return subject;
+    }
+
+    const activeJobs = await userJobs.listUserJobsByUserId(subject.user_id, { activeOnly: true });
+    const currentJob = activeJobs.find((job) => job.is_primary) ?? activeJobs[0] ?? null;
+
+    if (!currentJob) {
+      return subject;
+    }
+
+    const jobLevel = await jobLevels.getJobLevelById(currentJob.job_level_id, { includeDeleted: false });
+    const jobTitle = currentJob.job_title_id
+      ? await jobTitles.getJobTitleById(currentJob.job_title_id, { includeDeleted: false })
+      : null;
+
+    return {
+      ...subject,
+      current_job_id: currentJob.id,
+      current_job_level_id: currentJob.job_level_id,
+      current_job_title_id: currentJob.job_title_id ?? null,
+      supervisor_user_id: currentJob.supervisor_user_id ?? null,
+      job_level_rank: subject.job_level_rank > 0 ? subject.job_level_rank : Number(jobLevel?.rank_order ?? 0),
+      current_job_level_code: jobLevel?.code ?? null,
+      current_job_title_code: jobTitle?.code ?? null,
+    };
+  };
+}
+
 export function createAuthorizationService(options = {}) {
   const database = options.database ?? getDatabase();
   const cache = options.cache ?? createNoopAuthorizationCache();
+  const resolveCurrentJobContext =
+    options.jobContextResolver ?? (options.database ? createAuthorizationJobContextResolver(database) : async (subject) => subject);
   const permissionResolver =
     options.permissionResolver ??
     createPermissionResolutionService({
@@ -46,6 +90,7 @@ export function createAuthorizationService(options = {}) {
   return {
     async evaluate(input = {}) {
       const evaluation = createAuthorizationEvaluationInput(input);
+      evaluation.subject = await resolveCurrentJobContext(evaluation.subject);
       const permissionCode = evaluation.context.permission_code;
       const cacheKey = createAuthorizationCacheKey({
         scope: "evaluation",
@@ -117,4 +162,4 @@ export function createAuthorizationService(options = {}) {
   };
 }
 
-export { createPermissionAllowedResult, createPermissionMissingResult };
+export { createAuthorizationJobContextResolver, createPermissionAllowedResult, createPermissionMissingResult };

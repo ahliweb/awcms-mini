@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createAuthorizationService } from "../../src/services/authorization/service.mjs";
+import { createAuthorizationJobContextResolver, createAuthorizationService } from "../../src/services/authorization/service.mjs";
 
 test("authorization service denies unauthenticated subjects before permission resolution", async () => {
   const service = createAuthorizationService({
@@ -71,6 +71,125 @@ test("authorization service allows requests when the RBAC baseline grants the pe
   assert.equal(allowed, true);
   assert.equal(result.allowed, true);
   assert.equal(result.reason.code, "ALLOW_RBAC_PERMISSION");
+});
+
+test("authorization job context resolver hydrates the current active primary job cheaply", async () => {
+  const state = {
+    user_jobs: [
+      {
+        id: "job_1",
+        user_id: "user_1",
+        job_level_id: "level_manager",
+        job_title_id: "title_ops_manager",
+        supervisor_user_id: "user_9",
+        employment_status: "active",
+        starts_at: "2026-01-01T00:00:00.000Z",
+        ends_at: null,
+        is_primary: true,
+        assigned_by_user_id: null,
+        notes: null,
+        created_at: "2026-01-01T00:00:00.000Z",
+      },
+    ],
+    job_levels: [
+      {
+        id: "level_manager",
+        code: "manager",
+        name: "Manager",
+        rank_order: 7,
+        description: null,
+        is_system: true,
+        deleted_at: null,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z",
+      },
+    ],
+    job_titles: [
+      {
+        id: "title_ops_manager",
+        job_level_id: "level_manager",
+        code: "ops_manager",
+        name: "Ops Manager",
+        description: null,
+        is_active: true,
+        deleted_at: null,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z",
+      },
+    ],
+  };
+  const database = {
+    selectFrom(table) {
+      const source = state[table];
+      const filters = [];
+      const query = {
+        select: () => query,
+        where: (column, operator, value) => {
+          filters.push({ column, operator, value });
+          return query;
+        },
+        orderBy: () => query,
+        limit: () => query,
+        offset: () => query,
+        execute: async () =>
+          source.filter((row) =>
+            filters.every((filter) => {
+              if (filter.operator === "=" || filter.operator === "is") return row[filter.column] === filter.value;
+              if (filter.operator === "is not") return row[filter.column] !== filter.value;
+              return false;
+            }),
+          ),
+        executeTakeFirst: async () =>
+          source.find((row) =>
+            filters.every((filter) => {
+              if (filter.operator === "=" || filter.operator === "is") return row[filter.column] === filter.value;
+              if (filter.operator === "is not") return row[filter.column] !== filter.value;
+              return false;
+            }),
+          ),
+      };
+      return query;
+    },
+  };
+
+  const resolveCurrentJobContext = createAuthorizationJobContextResolver(database);
+  const subject = await resolveCurrentJobContext({ kind: "user", user_id: "user_1", job_level_rank: 0 });
+
+  assert.equal(subject.current_job_id, "job_1");
+  assert.equal(subject.current_job_level_id, "level_manager");
+  assert.equal(subject.current_job_title_id, "title_ops_manager");
+  assert.equal(subject.supervisor_user_id, "user_9");
+  assert.equal(subject.job_level_rank, 7);
+  assert.equal(subject.current_job_level_code, "manager");
+  assert.equal(subject.current_job_title_code, "ops_manager");
+});
+
+test("authorization service does not grant access from job context alone", async () => {
+  const service = createAuthorizationService({
+    jobContextResolver: async (subject) => ({
+      ...subject,
+      current_job_id: "job_1",
+      current_job_level_id: "level_director",
+      job_level_rank: 9,
+    }),
+    permissionResolver: {
+      async getEffectivePermissions() {
+        return {
+          user_id: "user_8",
+          permission_codes: [],
+        };
+      },
+    },
+  });
+
+  const result = await service.evaluate({
+    subject: { kind: "user", user_id: "user_8" },
+    resource: { kind: "job", target_user_id: "user_9" },
+    context: { permission_code: "governance.jobs.assign", action: "assign" },
+  });
+
+  assert.equal(result.allowed, false);
+  assert.equal(result.reason.code, "DENY_PERMISSION_MISSING");
 });
 
 test("authorization service marks self-service user actions through a scoped allow rule", async () => {
