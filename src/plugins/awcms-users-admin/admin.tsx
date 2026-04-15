@@ -74,6 +74,40 @@ interface JobTitleListItem {
   updatedAt: string;
 }
 
+interface UserJobAssignmentItem {
+  id: string;
+  userId: string;
+  jobLevelId: string;
+  jobLevelCode: string | null;
+  jobLevelName: string | null;
+  jobLevelRankOrder: number;
+  jobTitleId: string | null;
+  jobTitleCode: string | null;
+  jobTitleName: string | null;
+  supervisorUserId: string | null;
+  supervisorDisplayName: string | null;
+  employmentStatus: string;
+  startsAt: string;
+  endsAt: string | null;
+  isPrimary: boolean;
+  assignedByUserId: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+interface SupervisorCandidate {
+  id: string;
+  displayName: string;
+  email: string;
+}
+
+interface UserJobsSnapshot {
+  assignments: UserJobAssignmentItem[];
+  jobLevels: JobLevelListItem[];
+  jobTitles: JobTitleListItem[];
+  supervisorCandidates: SupervisorCandidate[];
+}
+
 interface PermissionMatrixRole {
   id: string;
   slug: string;
@@ -558,6 +592,7 @@ function InviteUserCard({ onCreated }: { onCreated: () => Promise<void> | void }
 
 function useUserDetail() {
   const [item, setItem] = React.useState<UserListItem | null>(null);
+  const [jobsSnapshot, setJobsSnapshot] = React.useState<UserJobsSnapshot | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState<string | null>(null);
@@ -565,6 +600,11 @@ function useUserDetail() {
   const fetchUser = React.useCallback(async (userId: string) => {
     const response = await apiFetch(`${API_BASE}/users/detail?id=${encodeURIComponent(userId)}`);
     return parseApiResponse<{ item: UserListItem }>(response, "Failed to load user");
+  }, []);
+
+  const fetchJobs = React.useCallback(async (userId: string) => {
+    const response = await apiFetch(`${API_BASE}/users/jobs?id=${encodeURIComponent(userId)}`);
+    return parseApiResponse<UserJobsSnapshot>(response, "Failed to load jobs");
   }, []);
 
   React.useEffect(() => {
@@ -583,8 +623,10 @@ function useUserDetail() {
     async function load() {
       try {
         const data = await fetchUser(id);
+        const jobs = await fetchJobs(id);
         if (!cancelled) {
           setItem(data.item);
+          setJobsSnapshot(jobs);
           setError(null);
         }
       } catch (nextError) {
@@ -603,7 +645,7 @@ function useUserDetail() {
     return () => {
       cancelled = true;
     };
-  }, [fetchUser]);
+  }, [fetchJobs, fetchUser]);
 
   const runAction = React.useCallback(
     async (action: "disable" | "lock" | "revoke-sessions") => {
@@ -637,7 +679,190 @@ function useUserDetail() {
     [],
   );
 
-  return { item, loading, error, submitting, runAction };
+  const assignJob = React.useCallback(
+    async (input: {
+      userId: string;
+      jobLevelId: string;
+      jobTitleId: string;
+      supervisorUserId: string;
+      employmentStatus: string;
+      startsAt: string;
+      notes: string;
+    }) => {
+      setSubmitting("assign-job");
+      setError(null);
+
+      try {
+        const response = await apiFetch(`${API_BASE}/users/jobs/assign`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userId: input.userId,
+            jobLevelId: input.jobLevelId,
+            jobTitleId: input.jobTitleId,
+            supervisorUserId: input.supervisorUserId,
+            employmentStatus: input.employmentStatus,
+            startsAt: input.startsAt,
+            notes: input.notes,
+            isPrimary: true,
+          }),
+        });
+        const data = await parseApiResponse<UserJobsSnapshot>(response, "Failed to assign job");
+        setJobsSnapshot(data);
+      } catch (nextError) {
+        setError(nextError instanceof Error ? nextError.message : "Failed to assign job");
+      } finally {
+        setSubmitting(null);
+      }
+    },
+    [],
+  );
+
+  return { item, jobsSnapshot, loading, error, submitting, runAction, assignJob };
+}
+
+function UserJobsPanel({ userId, snapshot, submitting, onAssign }: {
+  userId: string;
+  snapshot: UserJobsSnapshot | null;
+  submitting: string | null;
+  onAssign: (input: {
+    userId: string;
+    jobLevelId: string;
+    jobTitleId: string;
+    supervisorUserId: string;
+    employmentStatus: string;
+    startsAt: string;
+    notes: string;
+  }) => Promise<void>;
+}) {
+  const [jobLevelId, setJobLevelId] = React.useState("");
+  const [jobTitleId, setJobTitleId] = React.useState("");
+  const [supervisorUserId, setSupervisorUserId] = React.useState("");
+  const [employmentStatus, setEmploymentStatus] = React.useState("active");
+  const [startsAt, setStartsAt] = React.useState("");
+  const [notes, setNotes] = React.useState("");
+
+  const filteredTitles = React.useMemo(
+    () => (snapshot?.jobTitles ?? []).filter((title) => !jobLevelId || title.jobLevelId === jobLevelId),
+    [jobLevelId, snapshot?.jobTitles],
+  );
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    await onAssign({
+      userId,
+      jobLevelId,
+      jobTitleId,
+      supervisorUserId,
+      employmentStatus,
+      startsAt,
+      notes,
+    });
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 16, marginTop: 24 }}>
+      <div style={{ padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+        <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>Assign Job</h2>
+        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span>Job level</span>
+            <select value={jobLevelId} onChange={(event) => { setJobLevelId(event.target.value); setJobTitleId(""); }} required style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }}>
+              <option value="">Select level</option>
+              {(snapshot?.jobLevels ?? []).map((level) => (
+                <option key={level.id} value={level.id}>{level.name} (rank {level.rankOrder})</option>
+              ))}
+            </select>
+          </label>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span>Job title</span>
+            <select value={jobTitleId} onChange={(event) => setJobTitleId(event.target.value)} style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }}>
+              <option value="">No title</option>
+              {filteredTitles.map((title) => (
+                <option key={title.id} value={title.id}>{title.name}</option>
+              ))}
+            </select>
+          </label>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span>Supervisor</span>
+            <select value={supervisorUserId} onChange={(event) => setSupervisorUserId(event.target.value)} style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }}>
+              <option value="">No supervisor</option>
+              {(snapshot?.supervisorCandidates ?? []).map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>{candidate.displayName}</option>
+              ))}
+            </select>
+          </label>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span>Status</span>
+            <select value={employmentStatus} onChange={(event) => setEmploymentStatus(event.target.value)} style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }}>
+              <option value="active">Active</option>
+              <option value="probation">Probation</option>
+              <option value="temporary">Temporary</option>
+            </select>
+          </label>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span>Starts at</span>
+            <input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }} />
+          </label>
+          <label style={{ display: "grid", gap: 6, gridColumn: "1 / -1" }}>
+            <span>Notes</span>
+            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }} />
+          </label>
+          <div style={{ display: "flex", alignItems: "end" }}>
+            <button type="submit" disabled={submitting !== null || !jobLevelId} style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#111827", color: "#fff", fontWeight: 600 }}>
+              {submitting === "assign-job" ? "Assigning..." : "Assign primary job"}
+            </button>
+          </div>
+        </form>
+      </div>
+      <div style={{ padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+        <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>Job Assignments</h2>
+        {!(snapshot?.assignments?.length) ? <div style={{ color: "#71717a" }}>No job assignments yet.</div> : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 920 }}>
+              <thead>
+                <tr style={{ textAlign: "left", background: "#fafafa" }}>
+                  <th style={{ padding: 12 }}>Job</th>
+                  <th style={{ padding: 12 }}>Supervisor</th>
+                  <th style={{ padding: 12 }}>Status</th>
+                  <th style={{ padding: 12 }}>Effective Dates</th>
+                </tr>
+              </thead>
+              <tbody>
+                {snapshot.assignments.map((assignment) => (
+                  <tr key={assignment.id} style={{ borderTop: "1px solid #e4e4e7" }}>
+                    <td style={{ padding: 12, verticalAlign: "top" }}>
+                      <div style={{ fontWeight: 700 }}>{assignment.jobTitleName || assignment.jobLevelName || "Unspecified job"}</div>
+                      <div style={{ color: "#52525b", marginTop: 6 }}>
+                        {assignment.jobLevelName || "Unknown level"} ({assignment.jobLevelRankOrder})
+                      </div>
+                      <div style={{ color: "#71717a", marginTop: 6, fontSize: 13 }}>
+                        {assignment.isPrimary ? "Primary assignment" : "Secondary/history entry"}
+                      </div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
+                      {assignment.supervisorDisplayName || "No supervisor"}
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top" }}>
+                      <div style={{ fontWeight: 700 }}>{assignment.employmentStatus}</div>
+                      <div style={{ color: "#71717a", marginTop: 6, fontSize: 13 }}>{assignment.endsAt ? "Historical" : "Active"}</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
+                      <div>Starts {formatDateTime(assignment.startsAt)}</div>
+                      <div style={{ marginTop: 6 }}>{assignment.endsAt ? `Ends ${formatDateTime(assignment.endsAt)}` : "No end date"}</div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function PageFrame({ title, children }: { title: string; children?: React.ReactNode }) {
@@ -1096,7 +1321,7 @@ function DetailField({ label, value }: { label: string; value: React.ReactNode }
 }
 
 function UserDetailPage() {
-  const { item, loading, error, submitting, runAction } = useUserDetail();
+  const { item, jobsSnapshot, loading, error, submitting, runAction, assignJob } = useUserDetail();
 
   return (
     <PageFrame title="User Detail">
@@ -1162,6 +1387,7 @@ function UserDetailPage() {
             <DetailField label="Protected" value={item.isProtected ? "Yes" : "No"} />
             <DetailField label="Notes" value={item.profile.notes || "No notes"} />
           </div>
+          <UserJobsPanel userId={item.id} snapshot={jobsSnapshot} submitting={submitting} onAssign={assignJob} />
         </>
       ) : null}
     </PageFrame>

@@ -4,11 +4,14 @@ import { getDatabase } from "../../db/index.mjs";
 import { createJobLevelRepository } from "../../db/repositories/job-levels.mjs";
 import { createJobTitleRepository } from "../../db/repositories/job-titles.mjs";
 import { createRolePermissionRepository } from "../../db/repositories/role-permissions.mjs";
+import { createUserJobRepository } from "../../db/repositories/user-jobs.mjs";
 import { createAuthorizationService } from "../../services/authorization/service.mjs";
+import { createJobsService } from "../../services/jobs/service.mjs";
 import { createUserService } from "../../services/users/service.mjs";
 
 let userAdminDatabaseGetter = () => getDatabase();
 let userAdminServiceFactory = (database) => createUserService({ database });
+let userAdminJobsServiceFactory = (database) => createJobsService({ database });
 let userAdminAuthorizationServiceFactory = (database) => createAuthorizationService({ database });
 
 function normalizeProfileRow(row) {
@@ -113,6 +116,33 @@ function normalizeJobTitleRow(row) {
     deletedAt: row.deleted_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function normalizeUserJobAssignmentRow(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    jobLevelId: row.job_level_id,
+    jobLevelCode: row.job_level_code,
+    jobLevelName: row.job_level_name,
+    jobLevelRankOrder: Number(row.job_level_rank_order ?? 0),
+    jobTitleId: row.job_title_id,
+    jobTitleCode: row.job_title_code,
+    jobTitleName: row.job_title_name,
+    supervisorUserId: row.supervisor_user_id,
+    supervisorDisplayName: row.supervisor_display_name,
+    employmentStatus: row.employment_status,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    isPrimary: Boolean(row.is_primary),
+    assignedByUserId: row.assigned_by_user_id,
+    notes: row.notes,
+    createdAt: row.created_at,
   };
 }
 
@@ -689,6 +719,162 @@ async function listJobTitlesHandler(ctx) {
   };
 }
 
+async function listSupervisorCandidates(db, excludedUserId) {
+  const rows = await db
+    .selectFrom("users")
+    .select(["id", "email", "display_name", "status", "deleted_at"])
+    .where("deleted_at", "is", null)
+    .where("status", "=", "active")
+    .orderBy("display_name", "asc")
+    .orderBy("email", "asc")
+    .execute();
+
+  return rows
+    .filter((row) => row.id !== excludedUserId)
+    .map((row) => ({
+      id: row.id,
+      displayName: row.display_name || row.email,
+      email: row.email,
+    }));
+}
+
+async function listUserJobsHandler(ctx) {
+  const search = new URL(ctx.request.url).searchParams;
+  const userId = search.get("id");
+
+  if (!userId) {
+    throw PluginRouteError.badRequest("Missing required user id");
+  }
+
+  const db = userAdminDatabaseGetter();
+  const targetRow = await getUserSummaryRow(db, userId);
+
+  if (!targetRow) {
+    throw PluginRouteError.notFound(`User not found: ${userId}`);
+  }
+
+  const target = normalizeAuthorizationUserRow(targetRow);
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "governance.jobs.read",
+    action: "read",
+    resource: {
+      kind: "job",
+      target_user_id: target.id,
+      target_staff_level: target.activeRoleStaffLevel,
+      is_protected: target.isProtected,
+    },
+  });
+
+  const jobRepo = createUserJobRepository(db);
+  const levelRepo = createJobLevelRepository(db);
+  const titleRepo = createJobTitleRepository(db);
+  const assignments = await jobRepo.listUserJobsByUserId(userId, { activeOnly: false });
+
+  const levels = await levelRepo.listJobLevels({ includeDeleted: false, limit: 200 });
+  const titles = await titleRepo.listJobTitles({ includeDeleted: false, limit: 200 });
+  const levelsById = new Map(levels.map((level) => [level.id, level]));
+  const titlesById = new Map(titles.map((title) => [title.id, title]));
+  const supervisorsById = new Map();
+
+  for (const assignment of assignments) {
+    if (assignment.supervisor_user_id && !supervisorsById.has(assignment.supervisor_user_id)) {
+      supervisorsById.set(assignment.supervisor_user_id, await getUserSummaryRow(db, assignment.supervisor_user_id));
+    }
+  }
+
+  return {
+    assignments: assignments.map((assignment) => {
+      const level = levelsById.get(assignment.job_level_id);
+      const title = assignment.job_title_id ? titlesById.get(assignment.job_title_id) : null;
+      const supervisor = assignment.supervisor_user_id ? supervisorsById.get(assignment.supervisor_user_id) : null;
+
+      return normalizeUserJobAssignmentRow({
+        ...assignment,
+        job_level_code: level?.code ?? null,
+        job_level_name: level?.name ?? null,
+        job_level_rank_order: level?.rank_order ?? 0,
+        job_title_code: title?.code ?? null,
+        job_title_name: title?.name ?? null,
+        supervisor_display_name: supervisor?.display_name || supervisor?.email || null,
+      });
+    }),
+    jobLevels: levels.map(normalizeJobLevelRow),
+    jobTitles: titles.map((title) =>
+      normalizeJobTitleRow({
+        ...title,
+        level_code: levelsById.get(title.job_level_id)?.code ?? null,
+        level_name: levelsById.get(title.job_level_id)?.name ?? null,
+        level_rank_order: levelsById.get(title.job_level_id)?.rank_order ?? 0,
+      }),
+    ),
+    supervisorCandidates: await listSupervisorCandidates(db, userId),
+  };
+}
+
+async function assignUserJobHandler(ctx) {
+  let body;
+
+  try {
+    body = await ctx.request.json();
+  } catch {
+    throw PluginRouteError.badRequest("Expected JSON body");
+  }
+
+  const userId = typeof body?.userId === "string" ? body.userId.trim() : "";
+  const jobLevelId = typeof body?.jobLevelId === "string" ? body.jobLevelId.trim() : "";
+  const jobTitleId = typeof body?.jobTitleId === "string" ? body.jobTitleId.trim() : "";
+  const supervisorUserId = typeof body?.supervisorUserId === "string" ? body.supervisorUserId.trim() : "";
+  const employmentStatus = typeof body?.employmentStatus === "string" ? body.employmentStatus.trim() : "";
+  const startsAt = typeof body?.startsAt === "string" ? body.startsAt.trim() : "";
+  const notes = typeof body?.notes === "string" ? body.notes.trim() : "";
+
+  if (!userId || !jobLevelId) {
+    throw PluginRouteError.badRequest("User id and job level id are required");
+  }
+
+  const db = userAdminDatabaseGetter();
+  const targetRow = await getUserSummaryRow(db, userId);
+
+  if (!targetRow) {
+    throw PluginRouteError.notFound(`User not found: ${userId}`);
+  }
+
+  const target = normalizeAuthorizationUserRow(targetRow);
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "governance.jobs.assign",
+    action: "assign",
+    resource: {
+      kind: "job",
+      target_user_id: target.id,
+      target_staff_level: target.activeRoleStaffLevel,
+      is_protected: target.isProtected,
+    },
+  });
+
+  const actorUserId = ctx.request.headers.get("x-actor-user-id")?.trim() ?? null;
+  const jobs = userAdminJobsServiceFactory(db);
+  await jobs.assignJob({
+    user_id: userId,
+    job_level_id: jobLevelId,
+    job_title_id: jobTitleId || null,
+    supervisor_user_id: supervisorUserId || null,
+    employment_status: employmentStatus || "active",
+    starts_at: startsAt || undefined,
+    is_primary: body?.isPrimary !== false,
+    assigned_by_user_id: actorUserId,
+    notes: notes || null,
+  });
+
+  return listUserJobsHandler({
+    ...ctx,
+    request: new Request(`http://example.test/_emdash/api/plugins/awcms-users-admin/users/jobs?id=${encodeURIComponent(userId)}`, {
+      headers: ctx.request.headers,
+    }),
+  });
+}
+
 async function createInviteHandler(ctx) {
   let body;
 
@@ -794,6 +980,12 @@ export function createPlugin() {
       "roles/list": {
         handler: listRolesHandler,
       },
+      "users/jobs": {
+        handler: listUserJobsHandler,
+      },
+      "users/jobs/assign": {
+        handler: assignUserJobHandler,
+      },
       "jobs/levels/list": {
         handler: listJobLevelsHandler,
       },
@@ -868,6 +1060,14 @@ export function setUserAdminServiceFactory(factory) {
 
 export function resetUserAdminServiceFactory() {
   userAdminServiceFactory = (database) => createUserService({ database });
+}
+
+export function setUserAdminJobsServiceFactory(factory) {
+  userAdminJobsServiceFactory = factory;
+}
+
+export function resetUserAdminJobsServiceFactory() {
+  userAdminJobsServiceFactory = (database) => createJobsService({ database });
 }
 
 export function setUserAdminAuthorizationServiceFactory(factory) {

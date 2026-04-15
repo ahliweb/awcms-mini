@@ -5,9 +5,11 @@ import {
   createPlugin,
   resetUserAdminAuthorizationServiceFactory,
   resetUserAdminDatabaseGetter,
+  resetUserAdminJobsServiceFactory,
   resetUserAdminServiceFactory,
   setUserAdminAuthorizationServiceFactory,
   setUserAdminDatabaseGetter,
+  setUserAdminJobsServiceFactory,
   setUserAdminServiceFactory,
 } from "../../src/plugins/awcms-users-admin/index.mjs";
 
@@ -402,8 +404,43 @@ function createFakeJobsDb({ levels, titles }) {
         return query;
       }
 
+      if (table === "user_jobs") {
+        return new FakeSimpleQuery([]);
+      }
+
       assert.equal(table, "job_titles");
       return new FakeSimpleQuery(titles);
+    },
+  };
+}
+
+function createFakeUserJobsDb({ users, levels, titles, assignments }) {
+  return {
+    selectFrom(table) {
+      if (table === "users") {
+        const query = new FakeUsersQuery(users);
+        query.leftJoin = (tableName, callback) => {
+          assert.ok(["user_profiles", "user_roles", "roles", "sessions"].includes(tableName));
+          if (typeof callback === "function") {
+            callback(createJoinBuilder());
+          }
+          return query;
+        };
+        query.select = () => query;
+        query.groupBy = () => query;
+        return query;
+      }
+
+      if (table === "job_levels") {
+        return new FakeSimpleQuery(levels);
+      }
+
+      if (table === "job_titles") {
+        return new FakeSimpleQuery(titles);
+      }
+
+      assert.equal(table, "user_jobs");
+      return new FakeSimpleQuery(assignments);
     },
   };
 }
@@ -839,5 +876,98 @@ test("awcms users admin plugin fails unauthorized admin requests consistently", 
   } finally {
     resetUserAdminDatabaseGetter();
     resetUserAdminAuthorizationServiceFactory();
+  }
+});
+
+test("awcms users admin plugin exposes user job history and assignment routes", async () => {
+  const plugin = createPlugin();
+  let assignedInput;
+  const authorizationCalls = [];
+  const fakeDb = createFakeUserJobsDb({
+    users: [
+      createAdminActorRow(),
+      {
+        id: "user_1",
+        email: "user@example.com",
+        username: "user1",
+        display_name: "User One",
+        status: "active",
+        last_login_at: null,
+        must_reset_password: false,
+        is_protected: false,
+        deleted_at: null,
+        created_at: "2026-04-01T10:00:00.000Z",
+        updated_at: "2026-04-10T10:00:00.000Z",
+        profile_phone: null,
+        profile_timezone: null,
+        profile_locale: null,
+        profile_notes: null,
+        profile_avatar_media_id: null,
+        profile_created_at: null,
+        profile_updated_at: null,
+        active_session_count: 0,
+        active_role_staff_level: 4,
+      },
+      {
+        ...createAdminActorRow(),
+        id: "supervisor_1",
+        email: "supervisor@example.com",
+        display_name: "Supervisor One",
+      },
+    ],
+    levels: [
+      { id: "level_manager", code: "manager", name: "Manager", rank_order: 7, description: "Ops", is_system: true, deleted_at: null, created_at: "2026-04-01T10:00:00.000Z", updated_at: "2026-04-10T10:00:00.000Z", active_title_count: 1 },
+    ],
+    titles: [
+      { id: "title_ops_manager", job_level_id: "level_manager", code: "ops_manager", name: "Ops Manager", description: "Runs ops", is_active: true, deleted_at: null, created_at: "2026-04-01T10:00:00.000Z", updated_at: "2026-04-10T10:00:00.000Z" },
+    ],
+    assignments: [
+      { id: "job_1", user_id: "user_1", job_level_id: "level_manager", job_title_id: "title_ops_manager", supervisor_user_id: "supervisor_1", employment_status: "active", starts_at: "2026-04-01T10:00:00.000Z", ends_at: null, is_primary: true, assigned_by_user_id: "admin_actor", notes: "Primary", created_at: "2026-04-01T10:00:00.000Z" },
+    ],
+  });
+
+  setUserAdminDatabaseGetter(() => fakeDb);
+  setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory(authorizationCalls));
+  setUserAdminJobsServiceFactory(() => ({
+    async assignJob(input) {
+      assignedInput = input;
+    },
+  }));
+
+  try {
+    const jobsBody = await plugin.routes["users/jobs"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/jobs?id=user_1", { headers: createAdminHeaders() }),
+    });
+
+    assert.equal(jobsBody.assignments.length, 1);
+    assert.equal(jobsBody.assignments[0].jobLevelName, "Manager");
+    assert.equal(jobsBody.supervisorCandidates.length, 2);
+
+    await plugin.routes["users/jobs/assign"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/jobs/assign", {
+        method: "POST",
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: "user_1",
+          jobLevelId: "level_manager",
+          jobTitleId: "title_ops_manager",
+          supervisorUserId: "supervisor_1",
+          employmentStatus: "active",
+          startsAt: "2026-05-01T10:00:00.000Z",
+          notes: "Promoted",
+        }),
+      }),
+    });
+
+    assert.equal(assignedInput.user_id, "user_1");
+    assert.equal(assignedInput.job_level_id, "level_manager");
+    assert.equal(assignedInput.supervisor_user_id, "supervisor_1");
+    assert.equal(authorizationCalls[0].context.permission_code, "governance.jobs.read");
+    assert.equal(authorizationCalls.some((call) => call.context.permission_code === "governance.jobs.assign"), true);
+    assert.equal(authorizationCalls.at(-1).context.permission_code, "governance.jobs.read");
+  } finally {
+    resetUserAdminDatabaseGetter();
+    resetUserAdminAuthorizationServiceFactory();
+    resetUserAdminJobsServiceFactory();
   }
 });
