@@ -171,6 +171,33 @@ async function resolveAssignmentContext(deps, input) {
   };
 }
 
+function requiresProtectedRoleConfirmation(context, desiredPrimary) {
+  if (context.role.is_protected) {
+    return true;
+  }
+
+  if (!desiredPrimary) {
+    return false;
+  }
+
+  return context.activeAssignments.some((assignment) => assignment.is_primary && assignment.role?.is_protected);
+}
+
+function assertProtectedRoleConfirmation(context, desiredPrimary, confirmed) {
+  if (!requiresProtectedRoleConfirmation(context, desiredPrimary)) {
+    return;
+  }
+
+  if (confirmed === true) {
+    return;
+  }
+
+  throw new RoleAssignmentError(
+    "PROTECTED_ROLE_CONFIRMATION_REQUIRED",
+    "Protected role changes require an explicit elevated confirmation flow.",
+  );
+}
+
 export class RoleAssignmentError extends Error {
   constructor(code, message) {
     super(message);
@@ -203,6 +230,8 @@ export function createRoleAssignmentService(options = {}) {
           "ASSIGNMENT_DENIED",
           "Role assignment was denied by a protection hook.",
         );
+
+        assertProtectedRoleConfirmation(context, desiredPrimary, input.confirm_protected_role_change);
 
         if (currentAssignment && currentAssignment.is_primary === desiredPrimary) {
           return hydrateAssignment(deps, currentAssignment);
@@ -258,6 +287,13 @@ export function createRoleAssignmentService(options = {}) {
           "REVOCATION_DENIED",
           "Role revocation was denied by a protection hook.",
         );
+
+        if (context.role.is_protected && input.confirm_protected_role_change !== true) {
+          throw new RoleAssignmentError(
+            "PROTECTED_ROLE_CONFIRMATION_REQUIRED",
+            "Protected role changes require an explicit elevated confirmation flow.",
+          );
+        }
 
         const revoked = await deps.userRoles.expireAssignment(
           assignment.id,

@@ -199,6 +199,18 @@ function seedBaseState(state) {
       created_at: "2026-01-01T00:00:00.000Z",
       updated_at: "2026-01-01T00:00:00.000Z",
     },
+    {
+      id: "role_owner",
+      slug: "owner",
+      name: "Owner",
+      staff_level: 10,
+      is_system: true,
+      is_assignable: false,
+      is_protected: true,
+      deleted_at: null,
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z",
+    },
   );
 }
 
@@ -311,4 +323,38 @@ test("role assignment service exposes pluggable protection hooks", async () => {
     ["assign", "user_1", "editor", true],
     ["revoke", "user_1", "editor"],
   ]);
+});
+
+test("role assignment service requires explicit confirmation for protected role changes", async () => {
+  const { database, state } = createFakeDatabase();
+  seedBaseState(state);
+  const service = createRoleAssignmentService({ database });
+
+  await assert.rejects(
+    () =>
+      service.assignRole({
+        id: "assign_owner",
+        user_id: "user_1",
+        role_id: "role_owner",
+      }),
+    (error) => error instanceof RoleAssignmentError && error.code === "PROTECTED_ROLE_CONFIRMATION_REQUIRED",
+  );
+
+  const assigned = await service.assignRole({
+    id: "assign_owner",
+    user_id: "user_1",
+    role_id: "role_owner",
+    confirm_protected_role_change: true,
+  });
+
+  assert.equal(assigned.role.slug, "owner");
+
+  await assert.rejects(
+    () =>
+      service.revokeRole({
+        user_id: "user_1",
+        role_id: "role_owner",
+      }),
+    (error) => error instanceof RoleAssignmentError && error.code === "PROTECTED_ROLE_CONFIRMATION_REQUIRED",
+  );
 });

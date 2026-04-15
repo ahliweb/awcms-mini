@@ -347,6 +347,23 @@ test("awcms users admin plugin exposes permission matrix routes and applies stag
         }),
     );
 
+    await assert.rejects(
+      () =>
+        plugin.routes["permissions/matrix/apply"].handler({
+          request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/permissions/matrix/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              rolePermissionIdsByRoleId: {
+                role_owner: ["perm_content_posts_read"],
+                role_editor: ["perm_content_posts_read"],
+              },
+              confirmProtectedChanges: true,
+            }),
+          }),
+        }),
+    );
+
     const applied = await plugin.routes["permissions/matrix/apply"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/permissions/matrix/apply", {
         method: "POST",
@@ -357,6 +374,7 @@ test("awcms users admin plugin exposes permission matrix routes and applies stag
             role_editor: ["perm_content_posts_read"],
           },
           confirmProtectedChanges: true,
+          elevatedFlowConfirmed: true,
         }),
       }),
     });

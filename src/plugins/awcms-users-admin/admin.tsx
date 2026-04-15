@@ -231,6 +231,7 @@ function usePermissionMatrix() {
   const [error, setError] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [confirmProtectedChanges, setConfirmProtectedChanges] = React.useState(false);
+  const [elevatedFlowConfirmed, setElevatedFlowConfirmed] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -283,6 +284,7 @@ function usePermissionMatrix() {
 
     setDraftByRoleId(buildDraftByRoleId(snapshot));
     setConfirmProtectedChanges(false);
+    setElevatedFlowConfirmed(false);
   }, [snapshot]);
 
   const applyDraft = React.useCallback(async () => {
@@ -302,18 +304,20 @@ function usePermissionMatrix() {
         body: JSON.stringify({
           rolePermissionIdsByRoleId: draftByRoleId,
           confirmProtectedChanges,
+          elevatedFlowConfirmed,
         }),
       });
       const data = await parseApiResponse<{ snapshot: PermissionMatrixSnapshot }>(response, "Failed to apply permission matrix");
       setSnapshot(data.snapshot);
       setDraftByRoleId(buildDraftByRoleId(data.snapshot));
       setConfirmProtectedChanges(false);
+      setElevatedFlowConfirmed(false);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Failed to apply permission matrix");
     } finally {
       setSaving(false);
     }
-  }, [confirmProtectedChanges, draftByRoleId, snapshot]);
+  }, [confirmProtectedChanges, draftByRoleId, elevatedFlowConfirmed, snapshot]);
 
   const pendingChanges = snapshot ? countPendingMatrixChanges(snapshot, draftByRoleId) : 0;
   const protectedChanges = snapshot ? hasProtectedMatrixChanges(snapshot, draftByRoleId) : false;
@@ -328,6 +332,8 @@ function usePermissionMatrix() {
     protectedChanges,
     confirmProtectedChanges,
     setConfirmProtectedChanges,
+    elevatedFlowConfirmed,
+    setElevatedFlowConfirmed,
     toggleGrant,
     resetDraft,
     applyDraft,
@@ -712,6 +718,8 @@ function PermissionMatrixPage() {
     protectedChanges,
     confirmProtectedChanges,
     setConfirmProtectedChanges,
+    elevatedFlowConfirmed,
+    setElevatedFlowConfirmed,
     toggleGrant,
     resetDraft,
     applyDraft,
@@ -750,7 +758,7 @@ function PermissionMatrixPage() {
             </button>
             <button
               type="button"
-              disabled={saving || pendingChanges === 0 || (protectedChanges && !confirmProtectedChanges)}
+              disabled={saving || pendingChanges === 0 || (protectedChanges && (!confirmProtectedChanges || !elevatedFlowConfirmed))}
               onClick={() => void applyDraft()}
               style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#111827", color: "#fff", fontWeight: 600 }}
             >
@@ -764,6 +772,16 @@ function PermissionMatrixPage() {
                   onChange={(event) => setConfirmProtectedChanges(event.target.checked)}
                 />
                 Confirm protected permission changes
+              </label>
+            ) : null}
+            {protectedChanges ? (
+              <label style={{ display: "flex", alignItems: "center", gap: 8, color: "#7c2d12", fontWeight: 600 }}>
+                <input
+                  type="checkbox"
+                  checked={elevatedFlowConfirmed}
+                  onChange={(event) => setElevatedFlowConfirmed(event.target.checked)}
+                />
+                Elevated confirmation flow completed
               </label>
             ) : null}
           </div>

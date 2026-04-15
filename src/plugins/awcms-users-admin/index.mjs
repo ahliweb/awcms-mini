@@ -149,6 +149,7 @@ function parseMatrixBody(body) {
 
   return {
     confirmProtectedChanges: body.confirmProtectedChanges === true,
+    elevatedFlowConfirmed: body.elevatedFlowConfirmed === true,
     rolePermissionIdsByRoleId: matrix,
   };
 }
@@ -217,6 +218,10 @@ async function applyPermissionMatrixHandler(ctx) {
 
   if (protectedChangeCount > 0 && parsed.confirmProtectedChanges !== true) {
     throw PluginRouteError.badRequest("Protected permission changes require explicit confirmation.");
+  }
+
+  if (protectedChangeCount > 0 && parsed.elevatedFlowConfirmed !== true) {
+    throw PluginRouteError.badRequest("Protected permission changes require an elevated confirmation flow.");
   }
 
   const repo = createRolePermissionRepository(db);
