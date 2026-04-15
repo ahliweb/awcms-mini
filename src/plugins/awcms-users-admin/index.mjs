@@ -36,6 +36,27 @@ function normalizeProfileRow(row) {
   };
 }
 
+function normalizeRoleRow(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    description: row.description,
+    staffLevel: Number(row.staff_level),
+    isSystem: Boolean(row.is_system),
+    isAssignable: Boolean(row.is_assignable),
+    isProtected: Boolean(row.is_protected),
+    deletedAt: row.deleted_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    activeAssignmentCount: Number(row.active_assignment_count ?? 0),
+  };
+}
+
 async function getUserSummaryRow(db, userId) {
   return db
     .selectFrom("users")
@@ -186,6 +207,60 @@ async function getUserDetailHandler(ctx) {
   };
 }
 
+async function listRolesHandler(ctx) {
+  const db = userAdminDatabaseGetter();
+  const search = new URL(ctx.request.url).searchParams;
+  const limit = Number.parseInt(search.get("limit") ?? "50", 10);
+  const includeDeleted = search.get("includeDeleted") === "true";
+
+  let query = db
+    .selectFrom("roles")
+    .leftJoin("user_roles", (join) =>
+      join.onRef("user_roles.role_id", "=", "roles.id").on("user_roles.expires_at", "is", null),
+    )
+    .select([
+      "roles.id as id",
+      "roles.slug as slug",
+      "roles.name as name",
+      "roles.description as description",
+      "roles.staff_level as staff_level",
+      "roles.is_system as is_system",
+      "roles.is_assignable as is_assignable",
+      "roles.is_protected as is_protected",
+      "roles.deleted_at as deleted_at",
+      "roles.created_at as created_at",
+      "roles.updated_at as updated_at",
+      (eb) => eb.fn.count("user_roles.id").as("active_assignment_count"),
+    ])
+    .orderBy("roles.staff_level", "desc")
+    .orderBy("roles.slug", "asc");
+
+  if (!includeDeleted) {
+    query = query.where("roles.deleted_at", "is", null);
+  }
+
+  const rows = await query
+    .groupBy([
+      "roles.id",
+      "roles.slug",
+      "roles.name",
+      "roles.description",
+      "roles.staff_level",
+      "roles.is_system",
+      "roles.is_assignable",
+      "roles.is_protected",
+      "roles.deleted_at",
+      "roles.created_at",
+      "roles.updated_at",
+    ])
+    .limit(Number.isFinite(limit) && limit > 0 ? Math.min(limit, 100) : 50)
+    .execute();
+
+  return {
+    items: rows.map(normalizeRoleRow),
+  };
+}
+
 async function createInviteHandler(ctx) {
   let body;
 
@@ -268,6 +343,9 @@ export function createPlugin() {
       "users/list": {
         handler: listUsersHandler,
       },
+      "roles/list": {
+        handler: listRolesHandler,
+      },
       "users/detail": {
         handler: getUserDetailHandler,
       },
@@ -288,6 +366,7 @@ export function createPlugin() {
       entry: "/src/plugins/awcms-users-admin/admin.tsx",
       pages: [
         { path: "/", label: "Users", icon: "users" },
+        { path: "/roles", label: "Roles", icon: "shield" },
         { path: "/user", label: "User Detail", icon: "user" },
       ],
     },
@@ -303,6 +382,7 @@ export function awcmsUsersAdminPlugin() {
     adminEntry: "/src/plugins/awcms-users-admin/admin.tsx",
     adminPages: [
       { path: "/", label: "Users", icon: "users" },
+      { path: "/roles", label: "Roles", icon: "shield" },
       { path: "/user", label: "User Detail", icon: "user" },
     ],
   };

@@ -31,6 +31,21 @@ interface LifecycleResult {
   item: UserListItem;
 }
 
+interface RoleListItem {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  staffLevel: number;
+  isSystem: boolean;
+  isAssignable: boolean;
+  isProtected: boolean;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  activeAssignmentCount: number;
+}
+
 function formatDateTime(value: string | null) {
   if (!value) {
     return "Never";
@@ -45,6 +60,12 @@ function statusTone(status: string) {
   if (status === "locked" || status === "disabled") return "#991b1b";
   if (status === "deleted") return "#52525b";
   return "#334155";
+}
+
+function roleTone(item: RoleListItem) {
+  if (item.isProtected) return { background: "#fee2e2", color: "#991b1b", border: "1px solid #fecaca" };
+  if (!item.isAssignable) return { background: "#ede9fe", color: "#5b21b6", border: "1px solid #ddd6fe" };
+  return { background: "#ecfeff", color: "#155e75", border: "1px solid #a5f3fc" };
 }
 
 function useUserList() {
@@ -95,6 +116,43 @@ function useUserList() {
   }, []);
 
   return { items, loading, error, reload: load };
+}
+
+function useRoleList() {
+  const [items, setItems] = React.useState<RoleListItem[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const response = await apiFetch(`${API_BASE}/roles/list`);
+        const data = await parseApiResponse<{ items: RoleListItem[] }>(response, "Failed to load roles");
+        if (!cancelled) {
+          setItems(data.items);
+          setError(null);
+        }
+      } catch (nextError) {
+        if (!cancelled) {
+          setError(nextError instanceof Error ? nextError.message : "Failed to load roles");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { items, loading, error };
 }
 
 interface InviteResult {
@@ -388,6 +446,82 @@ function UsersListPage() {
   );
 }
 
+function RolesListPage() {
+  const { items, loading, error } = useRoleList();
+
+  return (
+    <PageFrame title="Roles">
+      <div style={{ marginBottom: 16, color: "#52525b", maxWidth: 840 }}>
+        Review the seeded role hierarchy, staff levels, and protected-role posture before enabling matrix edits.
+      </div>
+      {loading ? <Message>Loading roles...</Message> : null}
+      {!loading && error ? <Message>{error}</Message> : null}
+      {!loading && !error ? (
+        <div style={{ overflowX: "auto", border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
+            <thead>
+              <tr style={{ textAlign: "left", background: "#fafafa" }}>
+                <th style={{ padding: 12 }}>Role</th>
+                <th style={{ padding: 12 }}>Level</th>
+                <th style={{ padding: 12 }}>Protection</th>
+                <th style={{ padding: 12 }}>Assignments</th>
+                <th style={{ padding: 12 }}>Metadata</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => {
+                const tone = roleTone(item);
+
+                return (
+                  <tr key={item.id} style={{ borderTop: "1px solid #e4e4e7" }}>
+                    <td style={{ padding: 12, verticalAlign: "top" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <div style={{ fontWeight: 700 }}>{item.name}</div>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            padding: "4px 8px",
+                            borderRadius: 999,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            ...tone,
+                          }}
+                        >
+                          {item.isProtected ? "Protected" : item.isAssignable ? "Assignable" : "Reserved"}
+                        </span>
+                      </div>
+                      <div style={{ color: "#52525b", marginTop: 6 }}>/{item.slug}</div>
+                      <div style={{ color: "#71717a", marginTop: 6, fontSize: 13 }}>{item.description || "No description"}</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top" }}>
+                      <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1 }}>{item.staffLevel}</div>
+                      <div style={{ marginTop: 6, color: "#71717a", fontSize: 13 }}>Higher numbers carry more authority.</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
+                      <div>{item.isProtected ? "Protected from routine changes" : "Standard governance rules"}</div>
+                      <div style={{ marginTop: 6, fontSize: 13 }}>{item.isSystem ? "System role" : "Custom role"}</div>
+                      <div style={{ marginTop: 6, fontSize: 13 }}>{item.isAssignable ? "Can be assigned" : "Not directly assignable"}</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top" }}>
+                      <div style={{ fontWeight: 700 }}>{item.activeAssignmentCount}</div>
+                      <div style={{ marginTop: 6, color: "#71717a", fontSize: 13 }}>Active user assignments</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
+                      <div>Created {formatDateTime(item.createdAt)}</div>
+                      <div style={{ marginTop: 6 }}>Updated {formatDateTime(item.updatedAt)}</div>
+                      <div style={{ marginTop: 6, fontSize: 13 }}>{item.deletedAt ? `Deleted ${formatDateTime(item.deletedAt)}` : "Active catalog entry"}</div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </PageFrame>
+  );
+}
+
 function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div style={{ padding: 16, border: "1px solid #e4e4e7", borderRadius: 12, background: "#fff" }}>
@@ -472,5 +606,6 @@ function UserDetailPage() {
 
 export const pages = {
   "/": UsersListPage,
+  "/roles": RolesListPage,
   "/user": UserDetailPage,
 };

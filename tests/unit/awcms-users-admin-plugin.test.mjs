@@ -57,6 +57,52 @@ class FakeUsersQuery {
   }
 }
 
+class FakeRolesQuery {
+  constructor(rows) {
+    this.rows = rows;
+    this.limitValue = undefined;
+    this.whereClauses = [];
+  }
+
+  leftJoin() {
+    return this;
+  }
+
+  select() {
+    return this;
+  }
+
+  where(column, operator, value) {
+    this.whereClauses.push({ column, operator, value });
+    return this;
+  }
+
+  orderBy() {
+    return this;
+  }
+
+  groupBy() {
+    return this;
+  }
+
+  limit(value) {
+    this.limitValue = value;
+    return this;
+  }
+
+  async execute() {
+    return this.rows
+      .filter((row) =>
+        this.whereClauses.every((clause) => {
+          if (clause.operator === "=") return row[clause.column.split(".").at(-1)] === clause.value;
+          if (clause.operator === "is") return row[clause.column.split(".").at(-1)] === clause.value;
+          return true;
+        }),
+      )
+      .slice(0, this.limitValue ?? this.rows.length);
+  }
+}
+
 function createJoinBuilder() {
   return {
     onRef() {
@@ -75,6 +121,23 @@ function createFakeDb(rows) {
       const query = new FakeUsersQuery(rows);
       query.leftJoin = (tableName, callback) => {
         assert.ok(["user_profiles", "sessions"].includes(tableName));
+        if (typeof callback === "function") {
+          callback(createJoinBuilder());
+        }
+        return query;
+      };
+      return query;
+    },
+  };
+}
+
+function createFakeRolesDb(rows) {
+  return {
+    selectFrom(table) {
+      assert.equal(table, "roles");
+      const query = new FakeRolesQuery(rows);
+      query.leftJoin = (tableName, callback) => {
+        assert.equal(tableName, "user_roles");
         if (typeof callback === "function") {
           callback(createJoinBuilder());
         }
@@ -115,6 +178,7 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
     assert.equal(plugin.id, "awcms-users-admin");
     assert.deepEqual(plugin.admin.pages, [
       { path: "/", label: "Users", icon: "users" },
+      { path: "/roles", label: "Roles", icon: "shield" },
       { path: "/user", label: "User Detail", icon: "user" },
     ]);
 
@@ -133,6 +197,67 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
     const detailResult = await plugin.routes["users/detail"].handler(detailCtx);
     assert.equal(detailResult.item.id, "user_1");
     assert.equal(detailResult.item.email, "user@example.com");
+  } finally {
+    resetUserAdminDatabaseGetter();
+  }
+});
+
+test("awcms users admin plugin exposes roles route with protection and staff level data", async () => {
+  const plugin = createPlugin();
+  const fakeDb = createFakeRolesDb([
+    {
+      id: "role_owner",
+      slug: "owner",
+      name: "Owner",
+      description: "Emergency control",
+      staff_level: 10,
+      is_system: true,
+      is_assignable: false,
+      is_protected: true,
+      deleted_at: null,
+      created_at: "2026-04-01T10:00:00.000Z",
+      updated_at: "2026-04-10T10:00:00.000Z",
+      active_assignment_count: 1,
+    },
+    {
+      id: "role_editor",
+      slug: "editor",
+      name: "Editor",
+      description: "Editorial management",
+      staff_level: 6,
+      is_system: true,
+      is_assignable: true,
+      is_protected: false,
+      deleted_at: null,
+      created_at: "2026-04-02T10:00:00.000Z",
+      updated_at: "2026-04-10T10:00:00.000Z",
+      active_assignment_count: 4,
+    },
+  ]);
+  setUserAdminDatabaseGetter(() => fakeDb);
+
+  try {
+    const body = await plugin.routes["roles/list"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/roles/list?limit=10"),
+    });
+
+    assert.equal(body.items.length, 2);
+    assert.deepEqual(body.items[0], {
+      id: "role_owner",
+      slug: "owner",
+      name: "Owner",
+      description: "Emergency control",
+      staffLevel: 10,
+      isSystem: true,
+      isAssignable: false,
+      isProtected: true,
+      deletedAt: null,
+      createdAt: "2026-04-01T10:00:00.000Z",
+      updatedAt: "2026-04-10T10:00:00.000Z",
+      activeAssignmentCount: 1,
+    });
+    assert.equal(body.items[1].staffLevel, 6);
+    assert.equal(body.items[1].isProtected, false);
   } finally {
     resetUserAdminDatabaseGetter();
   }
