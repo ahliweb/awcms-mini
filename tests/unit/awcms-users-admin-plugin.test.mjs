@@ -105,6 +105,61 @@ class FakeRolesQuery {
   }
 }
 
+class FakeSimpleQuery {
+  constructor(rows) {
+    this.rows = rows;
+    this.whereClauses = [];
+    this.limitValue = undefined;
+  }
+
+  leftJoin() {
+    return this;
+  }
+
+  select() {
+    return this;
+  }
+
+  where(column, operator, value) {
+    this.whereClauses.push({ column, operator, value });
+    return this;
+  }
+
+  orderBy() {
+    return this;
+  }
+
+  groupBy() {
+    return this;
+  }
+
+  limit(value) {
+    this.limitValue = value;
+    return this;
+  }
+
+  offset() {
+    return this;
+  }
+
+  async execute() {
+    return this.rows
+      .filter((row) =>
+        this.whereClauses.every((clause) => {
+          const key = clause.column.split(".").at(-1);
+          if (clause.operator === "=") return row[key] === clause.value;
+          if (clause.operator === "is") return row[key] === clause.value;
+          return true;
+        }),
+      )
+      .slice(0, this.limitValue ?? this.rows.length);
+  }
+
+  async executeTakeFirst() {
+    return (await this.execute())[0];
+  }
+}
+
 class FakeMatrixQuery {
   constructor(rows) {
     this.rows = rows;
@@ -320,6 +375,39 @@ function createFakeMatrixDb({ roles, permissions, rolePermissions }) {
   };
 }
 
+function createFakeJobsDb({ levels, titles }) {
+  return {
+    selectFrom(table) {
+      if (table === "users") {
+        const query = new FakeUsersQuery([createAdminActorRow()]);
+        query.leftJoin = (tableName, callback) => {
+          assert.ok(["user_profiles", "user_roles", "roles", "sessions"].includes(tableName));
+          if (typeof callback === "function") {
+            callback(createJoinBuilder());
+          }
+          return query;
+        };
+        return query;
+      }
+
+      if (table === "job_levels") {
+        const query = new FakeSimpleQuery(levels);
+        query.leftJoin = (tableName, callback) => {
+          assert.equal(tableName, "job_titles");
+          if (typeof callback === "function") {
+            callback(createJoinBuilder());
+          }
+          return query;
+        };
+        return query;
+      }
+
+      assert.equal(table, "job_titles");
+      return new FakeSimpleQuery(titles);
+    },
+  };
+}
+
 test("awcms users admin plugin exposes admin pages and read-only routes", async () => {
   const plugin = createPlugin();
   const authorizationCalls = [];
@@ -354,6 +442,8 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
     assert.deepEqual(plugin.admin.pages, [
       { path: "/", label: "Users", icon: "users" },
       { path: "/roles", label: "Roles", icon: "shield" },
+      { path: "/jobs/levels", label: "Job Levels", icon: "layers" },
+      { path: "/jobs/titles", label: "Job Titles", icon: "briefcase" },
       { path: "/permissions", label: "Permission Matrix", icon: "grid" },
       { path: "/user", label: "User Detail", icon: "user" },
     ]);
@@ -532,6 +622,62 @@ test("awcms users admin plugin exposes roles route with protection and staff lev
     assert.equal(body.items[1].staffLevel, 6);
     assert.equal(body.items[1].isProtected, false);
     assert.equal(authorizationCalls[0].context.permission_code, "admin.roles.read");
+  } finally {
+    resetUserAdminDatabaseGetter();
+    resetUserAdminAuthorizationServiceFactory();
+  }
+});
+
+test("awcms users admin plugin exposes job level and title routes with ladder metadata", async () => {
+  const plugin = createPlugin();
+  const authorizationCalls = [];
+  const fakeDb = createFakeJobsDb({
+    levels: [
+      {
+        id: "level_director",
+        code: "director",
+        name: "Director",
+        rank_order: 9,
+        description: "Division leadership",
+        is_system: true,
+        deleted_at: null,
+        created_at: "2026-04-01T10:00:00.000Z",
+        updated_at: "2026-04-10T10:00:00.000Z",
+        active_title_count: 2,
+      },
+    ],
+    titles: [
+      {
+        id: "title_division_director",
+        job_level_id: "level_director",
+        code: "division_director",
+        name: "Division Director",
+        description: "Leads a division",
+        is_active: true,
+        deleted_at: null,
+        created_at: "2026-04-01T10:00:00.000Z",
+        updated_at: "2026-04-10T10:00:00.000Z",
+      },
+    ],
+  });
+
+  setUserAdminDatabaseGetter(() => fakeDb);
+  setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory(authorizationCalls));
+
+  try {
+    const levels = await plugin.routes["jobs/levels/list"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/jobs/levels/list", { headers: createAdminHeaders() }),
+    });
+    const titles = await plugin.routes["jobs/titles/list"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/jobs/titles/list", { headers: createAdminHeaders() }),
+    });
+
+    assert.equal(levels.items[0].rankOrder, 9);
+    assert.equal(levels.items[0].activeTitleCount, 2);
+    assert.equal(titles.items[0].levelCode, "director");
+    assert.equal(titles.items[0].levelRankOrder, 9);
+    assert.equal(authorizationCalls[0].context.permission_code, "governance.jobs.read");
+    assert.equal(authorizationCalls[1].context.permission_code, "governance.jobs.read");
   } finally {
     resetUserAdminDatabaseGetter();
     resetUserAdminAuthorizationServiceFactory();

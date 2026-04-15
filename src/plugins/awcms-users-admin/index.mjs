@@ -1,6 +1,8 @@
 import { definePlugin, PluginRouteError } from "emdash";
 
 import { getDatabase } from "../../db/index.mjs";
+import { createJobLevelRepository } from "../../db/repositories/job-levels.mjs";
+import { createJobTitleRepository } from "../../db/repositories/job-titles.mjs";
 import { createRolePermissionRepository } from "../../db/repositories/role-permissions.mjs";
 import { createAuthorizationService } from "../../services/authorization/service.mjs";
 import { createUserService } from "../../services/users/service.mjs";
@@ -71,6 +73,46 @@ function normalizeRoleRow(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     activeAssignmentCount: Number(row.active_assignment_count ?? 0),
+  };
+}
+
+function normalizeJobLevelRow(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    rankOrder: Number(row.rank_order),
+    description: row.description,
+    isSystem: Boolean(row.is_system),
+    deletedAt: row.deleted_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    activeTitleCount: Number(row.active_title_count ?? 0),
+  };
+}
+
+function normalizeJobTitleRow(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    jobLevelId: row.job_level_id,
+    levelCode: row.level_code,
+    levelName: row.level_name,
+    levelRankOrder: Number(row.level_rank_order),
+    code: row.code,
+    name: row.name,
+    description: row.description,
+    isActive: Boolean(row.is_active),
+    deletedAt: row.deleted_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -546,6 +588,107 @@ async function listRolesHandler(ctx) {
   };
 }
 
+async function listJobLevelsHandler(ctx) {
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "governance.jobs.read",
+    action: "read",
+    resource: {
+      kind: "job",
+    },
+  });
+
+  const db = userAdminDatabaseGetter();
+  const search = new URL(ctx.request.url).searchParams;
+  const limit = Number.parseInt(search.get("limit") ?? "50", 10);
+  const includeDeleted = search.get("includeDeleted") === "true";
+
+  let query = db
+    .selectFrom("job_levels")
+    .leftJoin("job_titles", (join) =>
+      join.onRef("job_titles.job_level_id", "=", "job_levels.id").on("job_titles.deleted_at", "is", null),
+    )
+    .select([
+      "job_levels.id as id",
+      "job_levels.code as code",
+      "job_levels.name as name",
+      "job_levels.rank_order as rank_order",
+      "job_levels.description as description",
+      "job_levels.is_system as is_system",
+      "job_levels.deleted_at as deleted_at",
+      "job_levels.created_at as created_at",
+      "job_levels.updated_at as updated_at",
+      (eb) => eb.fn.count("job_titles.id").as("active_title_count"),
+    ])
+    .orderBy("job_levels.rank_order", "desc")
+    .orderBy("job_levels.code", "asc");
+
+  if (!includeDeleted) {
+    query = query.where("job_levels.deleted_at", "is", null);
+  }
+
+  const rows = await query
+    .groupBy([
+      "job_levels.id",
+      "job_levels.code",
+      "job_levels.name",
+      "job_levels.rank_order",
+      "job_levels.description",
+      "job_levels.is_system",
+      "job_levels.deleted_at",
+      "job_levels.created_at",
+      "job_levels.updated_at",
+    ])
+    .limit(Number.isFinite(limit) && limit > 0 ? Math.min(limit, 100) : 50)
+    .execute();
+
+  return {
+    items: rows.map(normalizeJobLevelRow),
+  };
+}
+
+async function listJobTitlesHandler(ctx) {
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "governance.jobs.read",
+    action: "read",
+    resource: {
+      kind: "job",
+    },
+  });
+
+  const search = new URL(ctx.request.url).searchParams;
+  const limit = Number.parseInt(search.get("limit") ?? "50", 10);
+  const includeDeleted = search.get("includeDeleted") === "true";
+  const levelId = search.get("jobLevelId") ?? undefined;
+  const repo = createJobTitleRepository(userAdminDatabaseGetter());
+  const levelRepo = createJobLevelRepository(userAdminDatabaseGetter());
+  const titles = await repo.listJobTitles({
+    job_level_id: levelId,
+    includeDeleted,
+    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 100) : 50,
+  });
+
+  const levelsById = new Map();
+
+  for (const title of titles) {
+    if (!levelsById.has(title.job_level_id)) {
+      levelsById.set(title.job_level_id, await levelRepo.getJobLevelById(title.job_level_id, { includeDeleted: true }));
+    }
+  }
+
+  return {
+    items: titles.map((title) => {
+      const level = levelsById.get(title.job_level_id);
+
+      return normalizeJobTitleRow({
+        ...title,
+        level_code: level?.code ?? null,
+        level_name: level?.name ?? null,
+        level_rank_order: level?.rank_order ?? 0,
+      });
+    }),
+  };
+}
+
 async function createInviteHandler(ctx) {
   let body;
 
@@ -651,6 +794,12 @@ export function createPlugin() {
       "roles/list": {
         handler: listRolesHandler,
       },
+      "jobs/levels/list": {
+        handler: listJobLevelsHandler,
+      },
+      "jobs/titles/list": {
+        handler: listJobTitlesHandler,
+      },
       "permissions/matrix": {
         handler: listPermissionMatrixHandler,
       },
@@ -678,6 +827,8 @@ export function createPlugin() {
       pages: [
         { path: "/", label: "Users", icon: "users" },
         { path: "/roles", label: "Roles", icon: "shield" },
+        { path: "/jobs/levels", label: "Job Levels", icon: "layers" },
+        { path: "/jobs/titles", label: "Job Titles", icon: "briefcase" },
         { path: "/permissions", label: "Permission Matrix", icon: "grid" },
         { path: "/user", label: "User Detail", icon: "user" },
       ],
@@ -695,6 +846,8 @@ export function awcmsUsersAdminPlugin() {
     adminPages: [
       { path: "/", label: "Users", icon: "users" },
       { path: "/roles", label: "Roles", icon: "shield" },
+      { path: "/jobs/levels", label: "Job Levels", icon: "layers" },
+      { path: "/jobs/titles", label: "Job Titles", icon: "briefcase" },
       { path: "/permissions", label: "Permission Matrix", icon: "grid" },
       { path: "/user", label: "User Detail", icon: "user" },
     ],

@@ -46,6 +46,34 @@ interface RoleListItem {
   activeAssignmentCount: number;
 }
 
+interface JobLevelListItem {
+  id: string;
+  code: string;
+  name: string;
+  rankOrder: number;
+  description: string | null;
+  isSystem: boolean;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  activeTitleCount: number;
+}
+
+interface JobTitleListItem {
+  id: string;
+  jobLevelId: string;
+  levelCode: string | null;
+  levelName: string | null;
+  levelRankOrder: number;
+  code: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface PermissionMatrixRole {
   id: string;
   slug: string;
@@ -91,6 +119,12 @@ function roleTone(item: RoleListItem) {
   if (item.isProtected) return { background: "#fee2e2", color: "#991b1b", border: "1px solid #fecaca" };
   if (!item.isAssignable) return { background: "#ede9fe", color: "#5b21b6", border: "1px solid #ddd6fe" };
   return { background: "#ecfeff", color: "#155e75", border: "1px solid #a5f3fc" };
+}
+
+function jobLevelTone(item: JobLevelListItem) {
+  if (item.rankOrder >= 8) return { background: "#ede9fe", color: "#5b21b6", border: "1px solid #ddd6fe" };
+  if (item.rankOrder >= 5) return { background: "#ecfeff", color: "#155e75", border: "1px solid #a5f3fc" };
+  return { background: "#f5f5f4", color: "#57534e", border: "1px solid #e7e5e4" };
 }
 
 function permissionTone(row: PermissionMatrixRow) {
@@ -206,6 +240,80 @@ function useRoleList() {
       } catch (nextError) {
         if (!cancelled) {
           setError(nextError instanceof Error ? nextError.message : "Failed to load roles");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { items, loading, error };
+}
+
+function useJobLevelList() {
+  const [items, setItems] = React.useState<JobLevelListItem[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const response = await apiFetch(`${API_BASE}/jobs/levels/list`);
+        const data = await parseApiResponse<{ items: JobLevelListItem[] }>(response, "Failed to load job levels");
+        if (!cancelled) {
+          setItems(data.items);
+          setError(null);
+        }
+      } catch (nextError) {
+        if (!cancelled) {
+          setError(nextError instanceof Error ? nextError.message : "Failed to load job levels");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { items, loading, error };
+}
+
+function useJobTitleList() {
+  const [items, setItems] = React.useState<JobTitleListItem[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const response = await apiFetch(`${API_BASE}/jobs/titles/list`);
+        const data = await parseApiResponse<{ items: JobTitleListItem[] }>(response, "Failed to load job titles");
+        if (!cancelled) {
+          setItems(data.items);
+          setError(null);
+        }
+      } catch (nextError) {
+        if (!cancelled) {
+          setError(nextError instanceof Error ? nextError.message : "Failed to load job titles");
         }
       } finally {
         if (!cancelled) {
@@ -707,6 +815,132 @@ function RolesListPage() {
   );
 }
 
+function JobLevelsPage() {
+  const { items, loading, error } = useJobLevelList();
+
+  return (
+    <PageFrame title="Job Levels">
+      <div style={{ marginBottom: 16, color: "#52525b", maxWidth: 840 }}>
+        Review the organizational seniority ladder that stays separate from roles and permissions.
+      </div>
+      {loading ? <Message>Loading job levels...</Message> : null}
+      {!loading && error ? <Message>{error}</Message> : null}
+      {!loading && !error ? (
+        <div style={{ overflowX: "auto", border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
+            <thead>
+              <tr style={{ textAlign: "left", background: "#fafafa" }}>
+                <th style={{ padding: 12 }}>Level</th>
+                <th style={{ padding: 12 }}>Rank</th>
+                <th style={{ padding: 12 }}>Mapped Titles</th>
+                <th style={{ padding: 12 }}>Metadata</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => {
+                const tone = jobLevelTone(item);
+
+                return (
+                  <tr key={item.id} style={{ borderTop: "1px solid #e4e4e7" }}>
+                    <td style={{ padding: 12, verticalAlign: "top" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <div style={{ fontWeight: 700 }}>{item.name}</div>
+                        <span style={{ display: "inline-block", padding: "4px 8px", borderRadius: 999, fontSize: 12, fontWeight: 700, ...tone }}>
+                          {item.isSystem ? "System" : "Custom"}
+                        </span>
+                      </div>
+                      <div style={{ color: "#52525b", marginTop: 6 }}>/{item.code}</div>
+                      <div style={{ color: "#71717a", marginTop: 6, fontSize: 13 }}>{item.description || "No description"}</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top" }}>
+                      <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1 }}>{item.rankOrder}</div>
+                      <div style={{ marginTop: 6, color: "#71717a", fontSize: 13 }}>Higher rank means more senior organizational context.</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top" }}>
+                      <div style={{ fontWeight: 700 }}>{item.activeTitleCount}</div>
+                      <div style={{ marginTop: 6, color: "#71717a", fontSize: 13 }}>Active titles mapped to this level</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
+                      <div>Created {formatDateTime(item.createdAt)}</div>
+                      <div style={{ marginTop: 6 }}>Updated {formatDateTime(item.updatedAt)}</div>
+                      <div style={{ marginTop: 6, fontSize: 13 }}>{item.deletedAt ? `Deleted ${formatDateTime(item.deletedAt)}` : "Active catalog entry"}</div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </PageFrame>
+  );
+}
+
+function JobTitlesPage() {
+  const { items, loading, error } = useJobTitleList();
+
+  return (
+    <PageFrame title="Job Titles">
+      <div style={{ marginBottom: 16, color: "#52525b", maxWidth: 840 }}>
+        Review the concrete titles mapped to the job level ladder before assignment workflows are expanded.
+      </div>
+      {loading ? <Message>Loading job titles...</Message> : null}
+      {!loading && error ? <Message>{error}</Message> : null}
+      {!loading && !error ? (
+        <div style={{ overflowX: "auto", border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 920 }}>
+            <thead>
+              <tr style={{ textAlign: "left", background: "#fafafa" }}>
+                <th style={{ padding: 12 }}>Title</th>
+                <th style={{ padding: 12 }}>Mapped Level</th>
+                <th style={{ padding: 12 }}>Status</th>
+                <th style={{ padding: 12 }}>Metadata</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id} style={{ borderTop: "1px solid #e4e4e7" }}>
+                  <td style={{ padding: 12, verticalAlign: "top" }}>
+                    <div style={{ fontWeight: 700 }}>{item.name}</div>
+                    <div style={{ color: "#52525b", marginTop: 6 }}>/{item.code}</div>
+                    <div style={{ color: "#71717a", marginTop: 6, fontSize: 13 }}>{item.description || "No description"}</div>
+                  </td>
+                  <td style={{ padding: 12, verticalAlign: "top" }}>
+                    <div style={{ fontWeight: 700 }}>{item.levelName || "Unknown level"}</div>
+                    <div style={{ marginTop: 6, color: "#52525b" }}>{item.levelCode ? `/${item.levelCode}` : "No mapped code"}</div>
+                    <div style={{ marginTop: 6, color: "#71717a", fontSize: 13 }}>Rank {item.levelRankOrder}</div>
+                  </td>
+                  <td style={{ padding: 12, verticalAlign: "top" }}>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        padding: "4px 8px",
+                        borderRadius: 999,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        background: item.isActive ? "#ecfdf5" : "#f5f5f4",
+                        color: item.isActive ? "#166534" : "#57534e",
+                        border: item.isActive ? "1px solid #bbf7d0" : "1px solid #e7e5e4",
+                      }}
+                    >
+                      {item.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </td>
+                  <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
+                    <div>Created {formatDateTime(item.createdAt)}</div>
+                    <div style={{ marginTop: 6 }}>Updated {formatDateTime(item.updatedAt)}</div>
+                    <div style={{ marginTop: 6, fontSize: 13 }}>{item.deletedAt ? `Deleted ${formatDateTime(item.deletedAt)}` : "Active catalog entry"}</div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </PageFrame>
+  );
+}
+
 function PermissionMatrixPage() {
   const {
     snapshot,
@@ -936,6 +1170,8 @@ function UserDetailPage() {
 
 export const pages = {
   "/": UsersListPage,
+  "/jobs/levels": JobLevelsPage,
+  "/jobs/titles": JobTitlesPage,
   "/permissions": PermissionMatrixPage,
   "/roles": RolesListPage,
   "/user": UserDetailPage,
