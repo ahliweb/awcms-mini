@@ -74,6 +74,20 @@ interface JobTitleListItem {
   updatedAt: string;
 }
 
+interface RegionListItem {
+  id: string;
+  code: string;
+  name: string;
+  parentId: string | null;
+  level: number;
+  path: string;
+  sortOrder: number;
+  isActive: boolean;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface UserJobAssignmentItem {
   id: string;
   userId: string;
@@ -480,6 +494,103 @@ function usePermissionMatrix() {
     resetDraft,
     applyDraft,
   };
+}
+
+function useLogicalRegions() {
+  const [items, setItems] = React.useState<RegionListItem[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [submitting, setSubmitting] = React.useState<string | null>(null);
+
+  const load = React.useCallback(async () => {
+    try {
+      const response = await apiFetch(`${API_BASE}/regions/list`);
+      const data = await parseApiResponse<{ items: RegionListItem[] }>(response, "Failed to load logical regions");
+      setItems(data.items);
+      setError(null);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Failed to load logical regions");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void load();
+  }, [load]);
+
+  const createRegion = React.useCallback(async (input: { code: string; name: string; parentId: string; sortOrder: string }) => {
+    setSubmitting("create");
+    setError(null);
+
+    try {
+      const response = await apiFetch(`${API_BASE}/regions/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: input.code,
+          name: input.name,
+          parentId: input.parentId,
+          sortOrder: input.sortOrder ? Number.parseInt(input.sortOrder, 10) : 0,
+        }),
+      });
+      const data = await parseApiResponse<{ items: RegionListItem[] }>(response, "Failed to create logical region");
+      setItems(data.items);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Failed to create logical region");
+    } finally {
+      setSubmitting(null);
+    }
+  }, []);
+
+  const updateRegion = React.useCallback(async (input: { regionId: string; code: string; name: string; sortOrder: string }) => {
+    setSubmitting(`update:${input.regionId}`);
+    setError(null);
+
+    try {
+      const response = await apiFetch(`${API_BASE}/regions/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          regionId: input.regionId,
+          code: input.code,
+          name: input.name,
+          sortOrder: input.sortOrder ? Number.parseInt(input.sortOrder, 10) : 0,
+          isActive: true,
+        }),
+      });
+      const data = await parseApiResponse<{ items: RegionListItem[] }>(response, "Failed to update logical region");
+      setItems(data.items);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Failed to update logical region");
+    } finally {
+      setSubmitting(null);
+    }
+  }, []);
+
+  const reparentRegion = React.useCallback(async (input: { regionId: string; parentId: string }) => {
+    setSubmitting(`reparent:${input.regionId}`);
+    setError(null);
+
+    try {
+      const response = await apiFetch(`${API_BASE}/regions/reparent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          regionId: input.regionId,
+          parentId: input.parentId,
+        }),
+      });
+      const data = await parseApiResponse<{ items: RegionListItem[] }>(response, "Failed to reparent logical region");
+      setItems(data.items);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Failed to reparent logical region");
+    } finally {
+      setSubmitting(null);
+    }
+  }, []);
+
+  return { items, loading, error, submitting, createRegion, updateRegion, reparentRegion };
 }
 
 interface InviteResult {
@@ -1166,6 +1277,128 @@ function JobTitlesPage() {
   );
 }
 
+function LogicalRegionsPage() {
+  const { items, loading, error, submitting, createRegion, updateRegion, reparentRegion } = useLogicalRegions();
+  const [createCode, setCreateCode] = React.useState("");
+  const [createName, setCreateName] = React.useState("");
+  const [createParentId, setCreateParentId] = React.useState("");
+  const [createSortOrder, setCreateSortOrder] = React.useState("0");
+  const [editCodeById, setEditCodeById] = React.useState<Record<string, string>>({});
+  const [editNameById, setEditNameById] = React.useState<Record<string, string>>({});
+  const [editSortOrderById, setEditSortOrderById] = React.useState<Record<string, string>>({});
+  const [parentById, setParentById] = React.useState<Record<string, string>>({});
+
+  React.useEffect(() => {
+    setEditCodeById(Object.fromEntries(items.map((item) => [item.id, item.code])));
+    setEditNameById(Object.fromEntries(items.map((item) => [item.id, item.name])));
+    setEditSortOrderById(Object.fromEntries(items.map((item) => [item.id, String(item.sortOrder)])));
+    setParentById(Object.fromEntries(items.map((item) => [item.id, item.parentId ?? ""])));
+  }, [items]);
+
+  return (
+    <PageFrame title="Logical Regions">
+      <div style={{ marginBottom: 16, color: "#52525b", maxWidth: 860 }}>
+        Manage the operational region tree. Depth is shown explicitly so create, edit, and reparent changes stay visible before user-assignment flows are added.
+      </div>
+      <div style={{ padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff", marginBottom: 16 }}>
+        <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>Create Region</h2>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void createRegion({ code: createCode, name: createName, parentId: createParentId, sortOrder: createSortOrder });
+          }}
+          style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
+        >
+          <label style={{ display: "grid", gap: 6 }}><span>Code</span><input value={createCode} onChange={(event) => setCreateCode(event.target.value)} required style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span>Name</span><input value={createName} onChange={(event) => setCreateName(event.target.value)} required style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }} /></label>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span>Parent</span>
+            <select value={createParentId} onChange={(event) => setCreateParentId(event.target.value)} style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }}>
+              <option value="">Root region</option>
+              {items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </label>
+          <label style={{ display: "grid", gap: 6 }}><span>Sort Order</span><input value={createSortOrder} onChange={(event) => setCreateSortOrder(event.target.value)} inputMode="numeric" style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }} /></label>
+          <div style={{ display: "flex", alignItems: "end" }}>
+            <button type="submit" disabled={submitting !== null} style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#111827", color: "#fff", fontWeight: 600 }}>
+              {submitting === "create" ? "Creating..." : "Create region"}
+            </button>
+          </div>
+        </form>
+      </div>
+      {loading ? <Message>Loading logical regions...</Message> : null}
+      {!loading && error ? <Message>{error}</Message> : null}
+      {!loading && !error ? (
+        <div style={{ overflowX: "auto", border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1120 }}>
+            <thead>
+              <tr style={{ textAlign: "left", background: "#fafafa" }}>
+                <th style={{ padding: 12 }}>Tree</th>
+                <th style={{ padding: 12 }}>Code / Name</th>
+                <th style={{ padding: 12 }}>Depth</th>
+                <th style={{ padding: 12 }}>Reparent</th>
+                <th style={{ padding: 12 }}>Metadata</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id} style={{ borderTop: "1px solid #e4e4e7" }}>
+                  <td style={{ padding: 12, verticalAlign: "top" }}>
+                    <div style={{ paddingLeft: (item.level - 1) * 18, fontWeight: 700 }}>{item.name}</div>
+                    <div style={{ paddingLeft: (item.level - 1) * 18, color: "#71717a", fontSize: 13, marginTop: 6 }}>{item.path}</div>
+                  </td>
+                  <td style={{ padding: 12, verticalAlign: "top" }}>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      <input value={editCodeById[item.id] ?? item.code} onChange={(event) => setEditCodeById((current) => ({ ...current, [item.id]: event.target.value }))} style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }} />
+                      <input value={editNameById[item.id] ?? item.name} onChange={(event) => setEditNameById((current) => ({ ...current, [item.id]: event.target.value }))} style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }} />
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                        <input value={editSortOrderById[item.id] ?? String(item.sortOrder)} onChange={(event) => setEditSortOrderById((current) => ({ ...current, [item.id]: event.target.value }))} inputMode="numeric" style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px", width: 120 }} />
+                        <button
+                          type="button"
+                          disabled={submitting !== null}
+                          onClick={() => void updateRegion({ regionId: item.id, code: editCodeById[item.id] ?? item.code, name: editNameById[item.id] ?? item.name, sortOrder: editSortOrderById[item.id] ?? String(item.sortOrder) })}
+                          style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#0f172a", color: "#fff", fontWeight: 600 }}
+                        >
+                          {submitting === `update:${item.id}` ? "Saving..." : "Save"}
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ padding: 12, verticalAlign: "top" }}>
+                    <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1 }}>{item.level}</div>
+                    <div style={{ marginTop: 6, color: "#71717a", fontSize: 13 }}>{item.parentId ? `Child of ${item.parentId}` : "Root node"}</div>
+                  </td>
+                  <td style={{ padding: 12, verticalAlign: "top" }}>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      <select value={parentById[item.id] ?? ""} onChange={(event) => setParentById((current) => ({ ...current, [item.id]: event.target.value }))} style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }}>
+                        <option value="">Root region</option>
+                        {items.filter((candidate) => candidate.id !== item.id).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
+                      </select>
+                      <button
+                        type="button"
+                        disabled={submitting !== null}
+                        onClick={() => void reparentRegion({ regionId: item.id, parentId: parentById[item.id] ?? "" })}
+                        style={{ border: "1px solid #d4d4d8", borderRadius: 999, padding: "10px 16px", background: "#fff", fontWeight: 600 }}
+                      >
+                        {submitting === `reparent:${item.id}` ? "Moving..." : "Reparent"}
+                      </button>
+                    </div>
+                  </td>
+                  <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
+                    <div>{item.isActive ? "Active" : "Inactive"}</div>
+                    <div style={{ marginTop: 6 }}>Created {formatDateTime(item.createdAt)}</div>
+                    <div style={{ marginTop: 6 }}>Updated {formatDateTime(item.updatedAt)}</div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </PageFrame>
+  );
+}
+
 function PermissionMatrixPage() {
   const {
     snapshot,
@@ -1399,6 +1632,7 @@ export const pages = {
   "/jobs/levels": JobLevelsPage,
   "/jobs/titles": JobTitlesPage,
   "/permissions": PermissionMatrixPage,
+  "/regions": LogicalRegionsPage,
   "/roles": RolesListPage,
   "/user": UserDetailPage,
 };

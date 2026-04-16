@@ -6,10 +6,12 @@ import {
   resetUserAdminAuthorizationServiceFactory,
   resetUserAdminDatabaseGetter,
   resetUserAdminJobsServiceFactory,
+  resetUserAdminRegionServiceFactory,
   resetUserAdminServiceFactory,
   setUserAdminAuthorizationServiceFactory,
   setUserAdminDatabaseGetter,
   setUserAdminJobsServiceFactory,
+  setUserAdminRegionServiceFactory,
   setUserAdminServiceFactory,
 } from "../../src/plugins/awcms-users-admin/index.mjs";
 
@@ -445,6 +447,29 @@ function createFakeUserJobsDb({ users, levels, titles, assignments }) {
   };
 }
 
+function createFakeRegionsDb({ users, regions }) {
+  return {
+    selectFrom(table) {
+      if (table === "users") {
+        const query = new FakeUsersQuery(users);
+        query.leftJoin = (tableName, callback) => {
+          assert.ok(["user_profiles", "user_roles", "roles", "sessions"].includes(tableName));
+          if (typeof callback === "function") {
+            callback(createJoinBuilder());
+          }
+          return query;
+        };
+        query.select = () => query;
+        query.groupBy = () => query;
+        return query;
+      }
+
+      assert.equal(table, "regions");
+      return new FakeSimpleQuery(regions);
+    },
+  };
+}
+
 test("awcms users admin plugin exposes admin pages and read-only routes", async () => {
   const plugin = createPlugin();
   const authorizationCalls = [];
@@ -479,6 +504,7 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
     assert.deepEqual(plugin.admin.pages, [
       { path: "/", label: "Users", icon: "users" },
       { path: "/roles", label: "Roles", icon: "shield" },
+      { path: "/regions", label: "Logical Regions", icon: "map" },
       { path: "/jobs/levels", label: "Job Levels", icon: "layers" },
       { path: "/jobs/titles", label: "Job Titles", icon: "briefcase" },
       { path: "/permissions", label: "Permission Matrix", icon: "grid" },
@@ -718,6 +744,106 @@ test("awcms users admin plugin exposes job level and title routes with ladder me
   } finally {
     resetUserAdminDatabaseGetter();
     resetUserAdminAuthorizationServiceFactory();
+  }
+});
+
+test("awcms users admin plugin exposes logical region routes and mutation handlers", async () => {
+  const plugin = createPlugin();
+  const authorizationCalls = [];
+  let createdInput;
+  let updatedInput;
+  let reparentedInput;
+  const fakeDb = createFakeRegionsDb({
+    users: [createAdminActorRow()],
+    regions: [
+      {
+        id: "region_root",
+        code: "root",
+        name: "Root",
+        parent_id: null,
+        level: 1,
+        path: "region_root",
+        sort_order: 0,
+        is_active: true,
+        deleted_at: null,
+        created_at: "2026-04-01T10:00:00.000Z",
+        updated_at: "2026-04-10T10:00:00.000Z",
+      },
+      {
+        id: "region_branch",
+        code: "branch",
+        name: "Branch",
+        parent_id: "region_root",
+        level: 2,
+        path: "region_root/region_branch",
+        sort_order: 1,
+        is_active: true,
+        deleted_at: null,
+        created_at: "2026-04-02T10:00:00.000Z",
+        updated_at: "2026-04-10T10:00:00.000Z",
+      },
+    ],
+  });
+
+  setUserAdminDatabaseGetter(() => fakeDb);
+  setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory(authorizationCalls));
+  setUserAdminRegionServiceFactory(() => ({
+    async createRegion(input) {
+      createdInput = input;
+    },
+    async updateRegion(input) {
+      updatedInput = input;
+    },
+    async reparentRegion(input) {
+      reparentedInput = input;
+    },
+  }));
+
+  try {
+    const listBody = await plugin.routes["regions/list"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/regions/list", { headers: createAdminHeaders() }),
+    });
+
+    assert.equal(listBody.items.length, 2);
+    assert.equal(listBody.items[1].level, 2);
+    assert.equal(listBody.items[1].path, "region_root/region_branch");
+
+    await plugin.routes["regions/create"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/regions/create", {
+        method: "POST",
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ code: "cluster", name: "Cluster", parentId: "region_root", sortOrder: 2 }),
+      }),
+    });
+    assert.equal(createdInput.code, "cluster");
+    assert.equal(createdInput.parent_id, "region_root");
+
+    await plugin.routes["regions/update"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/regions/update", {
+        method: "POST",
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ regionId: "region_branch", code: "branch-updated", name: "Branch Updated", sortOrder: 3, isActive: true }),
+      }),
+    });
+    assert.equal(updatedInput.region_id, "region_branch");
+    assert.equal(updatedInput.code, "branch-updated");
+
+    await plugin.routes["regions/reparent"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/regions/reparent", {
+        method: "POST",
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ regionId: "region_branch", parentId: "" }),
+      }),
+    });
+    assert.equal(reparentedInput.region_id, "region_branch");
+    assert.equal(reparentedInput.parent_id, null);
+
+    assert.equal(authorizationCalls[0].context.permission_code, "governance.regions.read");
+    assert.equal(authorizationCalls.some((call) => call.context.permission_code === "governance.regions.read" && call.context.action === "update"), true);
+  } finally {
+    resetUserAdminDatabaseGetter();
+    resetUserAdminAuthorizationServiceFactory();
+    resetUserAdminRegionServiceFactory();
   }
 });
 

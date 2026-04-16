@@ -3,15 +3,18 @@ import { definePlugin, PluginRouteError } from "emdash";
 import { getDatabase } from "../../db/index.mjs";
 import { createJobLevelRepository } from "../../db/repositories/job-levels.mjs";
 import { createJobTitleRepository } from "../../db/repositories/job-titles.mjs";
+import { createRegionRepository } from "../../db/repositories/regions.mjs";
 import { createRolePermissionRepository } from "../../db/repositories/role-permissions.mjs";
 import { createUserJobRepository } from "../../db/repositories/user-jobs.mjs";
 import { createAuthorizationService } from "../../services/authorization/service.mjs";
 import { createJobsService } from "../../services/jobs/service.mjs";
+import { createRegionService } from "../../services/regions/service.mjs";
 import { createUserService } from "../../services/users/service.mjs";
 
 let userAdminDatabaseGetter = () => getDatabase();
 let userAdminServiceFactory = (database) => createUserService({ database });
 let userAdminJobsServiceFactory = (database) => createJobsService({ database });
+let userAdminRegionServiceFactory = (database) => createRegionService({ database });
 let userAdminAuthorizationServiceFactory = (database) => createAuthorizationService({ database });
 
 function normalizeProfileRow(row) {
@@ -143,6 +146,26 @@ function normalizeUserJobAssignmentRow(row) {
     assignedByUserId: row.assigned_by_user_id,
     notes: row.notes,
     createdAt: row.created_at,
+  };
+}
+
+function normalizeRegionRow(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    parentId: row.parent_id,
+    level: Number(row.level),
+    path: row.path,
+    sortOrder: Number(row.sort_order ?? 0),
+    isActive: Boolean(row.is_active),
+    deletedAt: row.deleted_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -719,6 +742,139 @@ async function listJobTitlesHandler(ctx) {
   };
 }
 
+async function listRegionsHandler(ctx) {
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "governance.regions.read",
+    action: "read",
+    resource: {
+      kind: "region",
+    },
+  });
+
+  const search = new URL(ctx.request.url).searchParams;
+  const limit = Number.parseInt(search.get("limit") ?? "200", 10);
+  const includeDeleted = search.get("includeDeleted") === "true";
+  const repo = createRegionRepository(userAdminDatabaseGetter());
+  const items = await repo.listRegions({
+    includeDeleted,
+    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 500) : 200,
+  });
+
+  return {
+    items: items.map(normalizeRegionRow),
+  };
+}
+
+async function createRegionHandler(ctx) {
+  let body;
+
+  try {
+    body = await ctx.request.json();
+  } catch {
+    throw PluginRouteError.badRequest("Expected JSON body");
+  }
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "governance.regions.read",
+    action: "update",
+    resource: {
+      kind: "region",
+    },
+  });
+
+  const regions = userAdminRegionServiceFactory(userAdminDatabaseGetter());
+  await regions.createRegion({
+    code: typeof body?.code === "string" ? body.code.trim() : "",
+    name: typeof body?.name === "string" ? body.name.trim() : "",
+    parent_id: typeof body?.parentId === "string" && body.parentId.trim() ? body.parentId.trim() : null,
+    sort_order: body?.sortOrder,
+  });
+
+  return listRegionsHandler({
+    ...ctx,
+    request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/regions/list", {
+      headers: ctx.request.headers,
+    }),
+  });
+}
+
+async function updateRegionHandler(ctx) {
+  let body;
+
+  try {
+    body = await ctx.request.json();
+  } catch {
+    throw PluginRouteError.badRequest("Expected JSON body");
+  }
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "governance.regions.read",
+    action: "update",
+    resource: {
+      kind: "region",
+    },
+  });
+
+  const regionId = typeof body?.regionId === "string" ? body.regionId.trim() : "";
+
+  if (!regionId) {
+    throw PluginRouteError.badRequest("Region id is required");
+  }
+
+  const regions = userAdminRegionServiceFactory(userAdminDatabaseGetter());
+  await regions.updateRegion({
+    region_id: regionId,
+    code: typeof body?.code === "string" ? body.code.trim() : undefined,
+    name: typeof body?.name === "string" ? body.name.trim() : undefined,
+    sort_order: body?.sortOrder,
+    is_active: body?.isActive,
+  });
+
+  return listRegionsHandler({
+    ...ctx,
+    request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/regions/list", {
+      headers: ctx.request.headers,
+    }),
+  });
+}
+
+async function reparentRegionHandler(ctx) {
+  let body;
+
+  try {
+    body = await ctx.request.json();
+  } catch {
+    throw PluginRouteError.badRequest("Expected JSON body");
+  }
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "governance.regions.read",
+    action: "update",
+    resource: {
+      kind: "region",
+    },
+  });
+
+  const regionId = typeof body?.regionId === "string" ? body.regionId.trim() : "";
+
+  if (!regionId) {
+    throw PluginRouteError.badRequest("Region id is required");
+  }
+
+  const regions = userAdminRegionServiceFactory(userAdminDatabaseGetter());
+  await regions.reparentRegion({
+    region_id: regionId,
+    parent_id: typeof body?.parentId === "string" && body.parentId.trim() ? body.parentId.trim() : null,
+  });
+
+  return listRegionsHandler({
+    ...ctx,
+    request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/regions/list", {
+      headers: ctx.request.headers,
+    }),
+  });
+}
+
 async function listSupervisorCandidates(db, excludedUserId) {
   const rows = await db
     .selectFrom("users")
@@ -992,6 +1148,18 @@ export function createPlugin() {
       "jobs/titles/list": {
         handler: listJobTitlesHandler,
       },
+      "regions/list": {
+        handler: listRegionsHandler,
+      },
+      "regions/create": {
+        handler: createRegionHandler,
+      },
+      "regions/update": {
+        handler: updateRegionHandler,
+      },
+      "regions/reparent": {
+        handler: reparentRegionHandler,
+      },
       "permissions/matrix": {
         handler: listPermissionMatrixHandler,
       },
@@ -1016,12 +1184,13 @@ export function createPlugin() {
     },
     admin: {
       entry: "/src/plugins/awcms-users-admin/admin.tsx",
-      pages: [
-        { path: "/", label: "Users", icon: "users" },
-        { path: "/roles", label: "Roles", icon: "shield" },
-        { path: "/jobs/levels", label: "Job Levels", icon: "layers" },
-        { path: "/jobs/titles", label: "Job Titles", icon: "briefcase" },
-        { path: "/permissions", label: "Permission Matrix", icon: "grid" },
+        pages: [
+          { path: "/", label: "Users", icon: "users" },
+          { path: "/roles", label: "Roles", icon: "shield" },
+          { path: "/regions", label: "Logical Regions", icon: "map" },
+          { path: "/jobs/levels", label: "Job Levels", icon: "layers" },
+          { path: "/jobs/titles", label: "Job Titles", icon: "briefcase" },
+          { path: "/permissions", label: "Permission Matrix", icon: "grid" },
         { path: "/user", label: "User Detail", icon: "user" },
       ],
     },
@@ -1038,6 +1207,7 @@ export function awcmsUsersAdminPlugin() {
     adminPages: [
       { path: "/", label: "Users", icon: "users" },
       { path: "/roles", label: "Roles", icon: "shield" },
+      { path: "/regions", label: "Logical Regions", icon: "map" },
       { path: "/jobs/levels", label: "Job Levels", icon: "layers" },
       { path: "/jobs/titles", label: "Job Titles", icon: "briefcase" },
       { path: "/permissions", label: "Permission Matrix", icon: "grid" },
@@ -1068,6 +1238,14 @@ export function setUserAdminJobsServiceFactory(factory) {
 
 export function resetUserAdminJobsServiceFactory() {
   userAdminJobsServiceFactory = (database) => createJobsService({ database });
+}
+
+export function setUserAdminRegionServiceFactory(factory) {
+  userAdminRegionServiceFactory = factory;
+}
+
+export function resetUserAdminRegionServiceFactory() {
+  userAdminRegionServiceFactory = (database) => createRegionService({ database });
 }
 
 export function setUserAdminAuthorizationServiceFactory(factory) {
