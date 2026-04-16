@@ -6,8 +6,10 @@ import { createJobTitleRepository } from "../../db/repositories/job-titles.mjs";
 import { createRegionRepository } from "../../db/repositories/regions.mjs";
 import { createRolePermissionRepository } from "../../db/repositories/role-permissions.mjs";
 import { createUserJobRepository } from "../../db/repositories/user-jobs.mjs";
+import { createUserRegionAssignmentRepository } from "../../db/repositories/user-region-assignments.mjs";
 import { createAuthorizationService } from "../../services/authorization/service.mjs";
 import { createJobsService } from "../../services/jobs/service.mjs";
+import { createRegionAssignmentService } from "../../services/regions/assignments.mjs";
 import { createRegionService } from "../../services/regions/service.mjs";
 import { createUserService } from "../../services/users/service.mjs";
 
@@ -15,6 +17,7 @@ let userAdminDatabaseGetter = () => getDatabase();
 let userAdminServiceFactory = (database) => createUserService({ database });
 let userAdminJobsServiceFactory = (database) => createJobsService({ database });
 let userAdminRegionServiceFactory = (database) => createRegionService({ database });
+let userAdminRegionAssignmentServiceFactory = (database) => createRegionAssignmentService({ database });
 let userAdminAuthorizationServiceFactory = (database) => createAuthorizationService({ database });
 
 function normalizeProfileRow(row) {
@@ -166,6 +169,28 @@ function normalizeRegionRow(row) {
     deletedAt: row.deleted_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function normalizeUserRegionAssignmentRow(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    regionId: row.region_id,
+    regionCode: row.region_code,
+    regionName: row.region_name,
+    regionLevel: Number(row.region_level ?? 0),
+    regionPath: row.region_path,
+    assignmentType: row.assignment_type,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    isPrimary: Boolean(row.is_primary),
+    assignedByUserId: row.assigned_by_user_id,
+    createdAt: row.created_at,
   };
 }
 
@@ -968,6 +993,113 @@ async function listUserJobsHandler(ctx) {
   };
 }
 
+async function listUserRegionsHandler(ctx) {
+  const search = new URL(ctx.request.url).searchParams;
+  const userId = search.get("id");
+
+  if (!userId) {
+    throw PluginRouteError.badRequest("Missing required user id");
+  }
+
+  const db = userAdminDatabaseGetter();
+  const targetRow = await getUserSummaryRow(db, userId);
+
+  if (!targetRow) {
+    throw PluginRouteError.notFound(`User not found: ${userId}`);
+  }
+
+  const target = normalizeAuthorizationUserRow(targetRow);
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "governance.regions.read",
+    action: "read",
+    resource: {
+      kind: "region",
+      target_user_id: target.id,
+      target_staff_level: target.activeRoleStaffLevel,
+      is_protected: target.isProtected,
+    },
+  });
+
+  const assignmentRepo = createUserRegionAssignmentRepository(db);
+  const regionRepo = createRegionRepository(db);
+  const assignments = await assignmentRepo.listUserRegionAssignmentsByUserId(userId, { activeOnly: false });
+  const regions = await regionRepo.listRegions({ includeDeleted: false, is_active: true, limit: 500 });
+  const regionsById = new Map(regions.map((region) => [region.id, region]));
+
+  return {
+    assignments: assignments.map((assignment) => {
+      const region = regionsById.get(assignment.region_id);
+
+      return normalizeUserRegionAssignmentRow({
+        ...assignment,
+        region_code: region?.code ?? null,
+        region_name: region?.name ?? null,
+        region_level: region?.level ?? 0,
+        region_path: region?.path ?? null,
+      });
+    }),
+    regions: regions.map(normalizeRegionRow),
+  };
+}
+
+async function assignUserRegionHandler(ctx) {
+  let body;
+
+  try {
+    body = await ctx.request.json();
+  } catch {
+    throw PluginRouteError.badRequest("Expected JSON body");
+  }
+
+  const userId = typeof body?.userId === "string" ? body.userId.trim() : "";
+  const regionId = typeof body?.regionId === "string" ? body.regionId.trim() : "";
+  const assignmentType = typeof body?.assignmentType === "string" ? body.assignmentType.trim() : "";
+  const startsAt = typeof body?.startsAt === "string" ? body.startsAt.trim() : "";
+
+  if (!userId || !regionId) {
+    throw PluginRouteError.badRequest("User id and region id are required");
+  }
+
+  const db = userAdminDatabaseGetter();
+  const targetRow = await getUserSummaryRow(db, userId);
+
+  if (!targetRow) {
+    throw PluginRouteError.notFound(`User not found: ${userId}`);
+  }
+
+  const target = normalizeAuthorizationUserRow(targetRow);
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "governance.regions.read",
+    action: "assign",
+    resource: {
+      kind: "region",
+      target_user_id: target.id,
+      target_staff_level: target.activeRoleStaffLevel,
+      is_protected: target.isProtected,
+    },
+  });
+
+  const actorUserId = ctx.request.headers.get("x-actor-user-id")?.trim() ?? null;
+  const regionAssignments = userAdminRegionAssignmentServiceFactory(db);
+  await regionAssignments.assignRegion({
+    user_id: userId,
+    region_id: regionId,
+    assignment_type: assignmentType || "member",
+    starts_at: startsAt || undefined,
+    is_primary: body?.isPrimary !== false,
+    assigned_by_user_id: actorUserId,
+  });
+
+  return listUserRegionsHandler({
+    ...ctx,
+    request: new Request(`http://example.test/_emdash/api/plugins/awcms-users-admin/users/regions?id=${encodeURIComponent(userId)}`, {
+      headers: ctx.request.headers,
+    }),
+  });
+}
+
 async function assignUserJobHandler(ctx) {
   let body;
 
@@ -1142,6 +1274,12 @@ export function createPlugin() {
       "users/jobs/assign": {
         handler: assignUserJobHandler,
       },
+      "users/regions": {
+        handler: listUserRegionsHandler,
+      },
+      "users/regions/assign": {
+        handler: assignUserRegionHandler,
+      },
       "jobs/levels/list": {
         handler: listJobLevelsHandler,
       },
@@ -1246,6 +1384,14 @@ export function setUserAdminRegionServiceFactory(factory) {
 
 export function resetUserAdminRegionServiceFactory() {
   userAdminRegionServiceFactory = (database) => createRegionService({ database });
+}
+
+export function setUserAdminRegionAssignmentServiceFactory(factory) {
+  userAdminRegionAssignmentServiceFactory = factory;
+}
+
+export function resetUserAdminRegionAssignmentServiceFactory() {
+  userAdminRegionAssignmentServiceFactory = (database) => createRegionAssignmentService({ database });
 }
 
 export function setUserAdminAuthorizationServiceFactory(factory) {

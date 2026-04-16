@@ -5,11 +5,13 @@ import {
   createPlugin,
   resetUserAdminAuthorizationServiceFactory,
   resetUserAdminDatabaseGetter,
+  resetUserAdminRegionAssignmentServiceFactory,
   resetUserAdminJobsServiceFactory,
   resetUserAdminRegionServiceFactory,
   resetUserAdminServiceFactory,
   setUserAdminAuthorizationServiceFactory,
   setUserAdminDatabaseGetter,
+  setUserAdminRegionAssignmentServiceFactory,
   setUserAdminJobsServiceFactory,
   setUserAdminRegionServiceFactory,
   setUserAdminServiceFactory,
@@ -466,6 +468,33 @@ function createFakeRegionsDb({ users, regions }) {
 
       assert.equal(table, "regions");
       return new FakeSimpleQuery(regions);
+    },
+  };
+}
+
+function createFakeUserRegionsDb({ users, regions, assignments }) {
+  return {
+    selectFrom(table) {
+      if (table === "users") {
+        const query = new FakeUsersQuery(users);
+        query.leftJoin = (tableName, callback) => {
+          assert.ok(["user_profiles", "user_roles", "roles", "sessions"].includes(tableName));
+          if (typeof callback === "function") {
+            callback(createJoinBuilder());
+          }
+          return query;
+        };
+        query.select = () => query;
+        query.groupBy = () => query;
+        return query;
+      }
+
+      if (table === "regions") {
+        return new FakeSimpleQuery(regions);
+      }
+
+      assert.equal(table, "user_region_assignments");
+      return new FakeSimpleQuery(assignments);
     },
   };
 }
@@ -1095,5 +1124,122 @@ test("awcms users admin plugin exposes user job history and assignment routes", 
     resetUserAdminDatabaseGetter();
     resetUserAdminAuthorizationServiceFactory();
     resetUserAdminJobsServiceFactory();
+  }
+});
+
+test("awcms users admin plugin exposes user logical region history and assignment routes", async () => {
+  const plugin = createPlugin();
+  let assignedInput;
+  const authorizationCalls = [];
+  const fakeDb = createFakeUserRegionsDb({
+    users: [
+      createAdminActorRow(),
+      {
+        id: "user_1",
+        email: "user@example.com",
+        username: "user1",
+        display_name: "User One",
+        status: "active",
+        last_login_at: null,
+        must_reset_password: false,
+        is_protected: false,
+        deleted_at: null,
+        created_at: "2026-04-01T10:00:00.000Z",
+        updated_at: "2026-04-10T10:00:00.000Z",
+        profile_phone: null,
+        profile_timezone: null,
+        profile_locale: null,
+        profile_notes: null,
+        profile_avatar_media_id: null,
+        profile_created_at: null,
+        profile_updated_at: null,
+        active_session_count: 0,
+        active_role_staff_level: 4,
+      },
+    ],
+    regions: [
+      {
+        id: "region_root",
+        code: "root",
+        name: "Root",
+        parent_id: null,
+        level: 1,
+        path: "region_root",
+        sort_order: 0,
+        is_active: true,
+        deleted_at: null,
+        created_at: "2026-04-01T10:00:00.000Z",
+        updated_at: "2026-04-10T10:00:00.000Z",
+      },
+      {
+        id: "region_branch",
+        code: "branch",
+        name: "Branch",
+        parent_id: "region_root",
+        level: 2,
+        path: "region_root/region_branch",
+        sort_order: 1,
+        is_active: true,
+        deleted_at: null,
+        created_at: "2026-04-01T10:00:00.000Z",
+        updated_at: "2026-04-10T10:00:00.000Z",
+      },
+    ],
+    assignments: [
+      {
+        id: "region_assignment_1",
+        user_id: "user_1",
+        region_id: "region_branch",
+        assignment_type: "manager",
+        is_primary: true,
+        starts_at: "2026-04-01T10:00:00.000Z",
+        ends_at: null,
+        assigned_by_user_id: "admin_actor",
+        created_at: "2026-04-01T10:00:00.000Z",
+      },
+    ],
+  });
+
+  setUserAdminDatabaseGetter(() => fakeDb);
+  setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory(authorizationCalls));
+  setUserAdminRegionAssignmentServiceFactory(() => ({
+    async assignRegion(input) {
+      assignedInput = input;
+    },
+  }));
+
+  try {
+    const regionsBody = await plugin.routes["users/regions"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/regions?id=user_1", { headers: createAdminHeaders() }),
+    });
+
+    assert.equal(regionsBody.assignments.length, 1);
+    assert.equal(regionsBody.assignments[0].regionName, "Branch");
+    assert.equal(regionsBody.assignments[0].regionLevel, 2);
+    assert.equal(regionsBody.regions.length, 2);
+
+    await plugin.routes["users/regions/assign"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/regions/assign", {
+        method: "POST",
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: "user_1",
+          regionId: "region_root",
+          assignmentType: "member",
+          startsAt: "2026-05-01T10:00:00.000Z",
+        }),
+      }),
+    });
+
+    assert.equal(assignedInput.user_id, "user_1");
+    assert.equal(assignedInput.region_id, "region_root");
+    assert.equal(assignedInput.assignment_type, "member");
+    assert.equal(authorizationCalls[0].context.permission_code, "governance.regions.read");
+    assert.equal(authorizationCalls.some((call) => call.context.permission_code === "governance.regions.read" && call.context.action === "assign"), true);
+    assert.equal(authorizationCalls.at(-1).context.permission_code, "governance.regions.read");
+  } finally {
+    resetUserAdminDatabaseGetter();
+    resetUserAdminAuthorizationServiceFactory();
+    resetUserAdminRegionAssignmentServiceFactory();
   }
 });
