@@ -1,5 +1,6 @@
 import { getDatabase, withTransaction } from "../../db/index.mjs";
 import { createRegionRepository, splitRegionPath } from "../../db/repositories/regions.mjs";
+import { createAuditService } from "../audit/service.mjs";
 
 const MAX_REGION_DEPTH = 10;
 
@@ -14,7 +15,21 @@ export class RegionHierarchyError extends Error {
 function createRegionServiceDependencies(executor) {
   return {
     regions: createRegionRepository(executor),
+    audit: createAuditService({ database: executor }),
   };
+}
+
+async function appendRegionAudit(deps, input) {
+  await deps.audit.append({
+    actor_user_id: input.actor_user_id ?? null,
+    action: input.action,
+    entity_type: "region",
+    entity_id: input.entity_id ?? null,
+    summary: input.summary,
+    before_payload: input.before_payload ?? null,
+    after_payload: input.after_payload ?? null,
+    metadata: input.metadata ?? {},
+  });
 }
 
 function normalizeString(value) {
@@ -92,7 +107,7 @@ export function createRegionService(options = {}) {
         const level = buildRegionLevel(parent);
         assertDepthLimit(level);
 
-        return deps.regions.createRegion({
+        const region = await deps.regions.createRegion({
           id,
           code,
           name,
@@ -103,6 +118,21 @@ export function createRegionService(options = {}) {
           is_active: input.is_active ?? true,
           deleted_at: input.deleted_at ?? null,
         });
+
+        await appendRegionAudit(deps, {
+          action: "region.create",
+          entity_id: region.id,
+          summary: "Created logical region.",
+          after_payload: {
+            code: region.code,
+            name: region.name,
+            parent_id: region.parent_id,
+            level: region.level,
+            path: region.path,
+          },
+        });
+
+        return region;
       });
     },
 
@@ -115,7 +145,7 @@ export function createRegionService(options = {}) {
           throw new RegionHierarchyError("REGION_NOT_FOUND", "Region id is required.");
         }
 
-        await getActiveRegionOrThrow(deps, regionId, "REGION_NOT_FOUND", "Region is not available.");
+        const existing = await getActiveRegionOrThrow(deps, regionId, "REGION_NOT_FOUND", "Region is not available.");
 
         const patch = {};
 
@@ -147,7 +177,27 @@ export function createRegionService(options = {}) {
           patch.is_active = input.is_active;
         }
 
-        return deps.regions.updateRegion(regionId, patch);
+        const region = await deps.regions.updateRegion(regionId, patch);
+
+        await appendRegionAudit(deps, {
+          action: "region.update",
+          entity_id: region.id,
+          summary: "Updated logical region.",
+          before_payload: {
+            code: existing.code,
+            name: existing.name,
+            sort_order: existing.sort_order,
+            is_active: existing.is_active,
+          },
+          after_payload: {
+            code: region.code,
+            name: region.name,
+            sort_order: region.sort_order,
+            is_active: region.is_active,
+          },
+        });
+
+        return region;
       });
     },
 
@@ -195,7 +245,28 @@ export function createRegionService(options = {}) {
           });
         }
 
-        return deps.regions.listRegionSubtree(region.id, { includeDeleted: true });
+        const updatedSubtree = await deps.regions.listRegionSubtree(region.id, { includeDeleted: true });
+
+        await appendRegionAudit(deps, {
+          action: "region.reparent",
+          entity_id: region.id,
+          summary: "Reparented logical region subtree.",
+          before_payload: {
+            parent_id: region.parent_id,
+            level: region.level,
+            path: region.path,
+          },
+          after_payload: {
+            parent_id: nextParent?.id ?? null,
+            level: nextLevel,
+            path: nextPath,
+          },
+          metadata: {
+            subtree_region_ids: updatedSubtree.map((entry) => entry.id),
+          },
+        });
+
+        return updatedSubtree;
       });
     },
   };

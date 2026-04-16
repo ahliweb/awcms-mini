@@ -3,6 +3,7 @@ import { createJobLevelRepository } from "../../db/repositories/job-levels.mjs";
 import { createJobTitleRepository } from "../../db/repositories/job-titles.mjs";
 import { createUserJobRepository } from "../../db/repositories/user-jobs.mjs";
 import { createUserRepository } from "../../db/repositories/users.mjs";
+import { createAuditService } from "../audit/service.mjs";
 
 export class JobAssignmentError extends Error {
   constructor(code, message) {
@@ -18,8 +19,23 @@ function createJobServiceDependencies(executor) {
     jobLevels: createJobLevelRepository(executor),
     jobTitles: createJobTitleRepository(executor),
     userJobs: createUserJobRepository(executor),
+    audit: createAuditService({ database: executor }),
     executor,
   };
+}
+
+async function appendJobAudit(deps, input) {
+  await deps.audit.append({
+    actor_user_id: input.actor_user_id ?? null,
+    action: input.action,
+    entity_type: "job_assignment",
+    entity_id: input.entity_id ?? null,
+    target_user_id: input.target_user_id ?? null,
+    summary: input.summary,
+    before_payload: input.before_payload ?? null,
+    after_payload: input.after_payload ?? null,
+    metadata: input.metadata ?? {},
+  });
 }
 
 async function updateUserJobEndsAt(executor, id, endsAt) {
@@ -136,7 +152,7 @@ export function createJobsService(options = {}) {
 
         await expireExistingPrimaryIfNeeded(deps, context.user.id, desiredPrimary, effectiveAt);
 
-        return deps.userJobs.createUserJob({
+        const assignment = await deps.userJobs.createUserJob({
           id: input.id ?? crypto.randomUUID(),
           user_id: context.user.id,
           job_level_id: context.jobLevel.id,
@@ -149,6 +165,22 @@ export function createJobsService(options = {}) {
           assigned_by_user_id: input.assigned_by_user_id ?? null,
           notes: input.notes ?? null,
         });
+
+        await appendJobAudit(deps, {
+          actor_user_id: input.assigned_by_user_id ?? null,
+          action: "job.assign",
+          entity_id: assignment.id,
+          target_user_id: context.user.id,
+          summary: "Assigned job to user.",
+          after_payload: {
+            job_level_id: assignment.job_level_id,
+            job_title_id: assignment.job_title_id,
+            supervisor_user_id: assignment.supervisor_user_id,
+            is_primary: assignment.is_primary,
+          },
+        });
+
+        return assignment;
       });
     },
 
@@ -180,7 +212,7 @@ export function createJobsService(options = {}) {
         const desiredPrimary = input.is_primary ?? existing.is_primary;
         await expireExistingPrimaryIfNeeded(deps, context.user.id, desiredPrimary, effectiveAt, existing.id);
 
-        return deps.userJobs.createUserJob({
+        const assignment = await deps.userJobs.createUserJob({
           id: input.id ?? crypto.randomUUID(),
           user_id: context.user.id,
           job_level_id: context.jobLevel.id,
@@ -193,6 +225,30 @@ export function createJobsService(options = {}) {
           assigned_by_user_id: input.assigned_by_user_id ?? existing.assigned_by_user_id ?? null,
           notes: input.notes ?? existing.notes ?? null,
         });
+
+        await appendJobAudit(deps, {
+          actor_user_id: input.assigned_by_user_id ?? existing.assigned_by_user_id ?? null,
+          action: "job.change",
+          entity_id: assignment.id,
+          target_user_id: context.user.id,
+          summary: "Changed user job assignment.",
+          before_payload: {
+            job_id: existing.id,
+            job_level_id: existing.job_level_id,
+            job_title_id: existing.job_title_id,
+            supervisor_user_id: existing.supervisor_user_id,
+            is_primary: existing.is_primary,
+          },
+          after_payload: {
+            job_id: assignment.id,
+            job_level_id: assignment.job_level_id,
+            job_title_id: assignment.job_title_id,
+            supervisor_user_id: assignment.supervisor_user_id,
+            is_primary: assignment.is_primary,
+          },
+        });
+
+        return assignment;
       });
     },
 
@@ -211,7 +267,19 @@ export function createJobsService(options = {}) {
 
         const endsAt = input.ends_at ?? new Date().toISOString();
         await updateUserJobEndsAt(deps.executor, existing.id, endsAt);
-        return deps.userJobs.getUserJobById(existing.id);
+        const ended = await deps.userJobs.getUserJobById(existing.id);
+
+        await appendJobAudit(deps, {
+          actor_user_id: input.assigned_by_user_id ?? existing.assigned_by_user_id ?? null,
+          action: "job.end",
+          entity_id: ended.id,
+          target_user_id: ended.user_id,
+          summary: "Ended user job assignment.",
+          before_payload: { ends_at: existing.ends_at ?? null },
+          after_payload: { ends_at: ended.ends_at ?? null },
+        });
+
+        return ended;
       });
     },
 

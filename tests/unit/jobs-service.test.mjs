@@ -9,6 +9,7 @@ function createFakeDatabase() {
     job_levels: [],
     job_titles: [],
     user_jobs: [],
+    audit_logs: [],
     transactions: 0,
   };
 
@@ -187,6 +188,7 @@ test("jobs service assigns the first job as primary and lists active jobs", asyn
 
   const active = await service.listActiveJobs("user_1");
   assert.deepEqual(active.map((job) => job.id), ["job_1"]);
+  assert.deepEqual(state.audit_logs.map((entry) => entry.action), ["job.assign"]);
   assert.equal(state.transactions, 2);
 });
 
@@ -217,6 +219,7 @@ test("jobs service enforces one active primary job when changing the primary ass
 
   const active = await service.listActiveJobs("user_1");
   assert.deepEqual(active.map((job) => job.id), ["job_2"]);
+  assert.deepEqual(state.audit_logs.map((entry) => entry.action), ["job.assign", "job.change"]);
 });
 
 test("jobs service ends active jobs without deleting history", async () => {
@@ -239,6 +242,7 @@ test("jobs service ends active jobs without deleting history", async () => {
 
   assert.equal(ended.ends_at, "2026-03-01T00:00:00.000Z");
   assert.equal((await service.listActiveJobs("user_1")).length, 0);
+  assert.deepEqual(state.audit_logs.map((entry) => entry.action), ["job.assign", "job.end"]);
 });
 
 test("jobs service rejects title-level mismatches and supervisor cycles", async () => {

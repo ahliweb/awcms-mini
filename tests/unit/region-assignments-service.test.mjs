@@ -8,6 +8,7 @@ function createFakeDatabase() {
     users: [],
     regions: [],
     user_region_assignments: [],
+    audit_logs: [],
     transactions: 0,
   };
 
@@ -185,6 +186,7 @@ test("region assignment service assigns the first region as primary and lists ac
 
   const active = await service.listActiveRegions("user_1");
   assert.deepEqual(active.map((entry) => entry.id), ["assignment_1"]);
+  assert.deepEqual(state.audit_logs.map((entry) => entry.action), ["region.assign"]);
   assert.equal(state.transactions, 2);
 });
 
@@ -213,6 +215,7 @@ test("region assignment service enforces one active primary assignment when chan
 
   const active = await service.listActiveRegions("user_1");
   assert.deepEqual(active.map((entry) => entry.id), ["assignment_2"]);
+  assert.deepEqual(state.audit_logs.map((entry) => entry.action), ["region.assign", "region.change"]);
 });
 
 test("region assignment service ends active assignments without deleting history", async () => {
@@ -234,6 +237,7 @@ test("region assignment service ends active assignments without deleting history
 
   assert.equal(ended.ends_at, "2026-03-01T00:00:00.000Z");
   assert.equal((await service.listActiveRegions("user_1")).length, 0);
+  assert.deepEqual(state.audit_logs.map((entry) => entry.action), ["region.assign", "region.end"]);
 });
 
 test("region assignment service rejects unavailable regions and duplicate active signatures on change", async () => {

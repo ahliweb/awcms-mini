@@ -6,6 +6,7 @@ import { createRegionService, MAX_REGION_DEPTH, RegionHierarchyError } from "../
 function createFakeDatabase() {
   const state = {
     regions: [],
+    audit_logs: [],
     transactions: 0,
   };
 
@@ -178,6 +179,7 @@ test("region service creates root and child regions with computed level and path
   assert.equal(root.path, "region_root");
   assert.equal(child.level, 2);
   assert.equal(child.path, "region_root/region_child");
+  assert.deepEqual(state.audit_logs.map((entry) => entry.action), ["region.create", "region.create"]);
   assert.equal(state.transactions, 2);
 });
 
@@ -203,6 +205,7 @@ test("region service reparents a subtree and updates descendant levels and paths
   assert.equal(north.path, "root_b/north");
   assert.equal(jakarta.parent_id, "north");
   assert.equal(jakarta.path, "root_b/north/jakarta");
+  assert.deepEqual(state.audit_logs.map((entry) => entry.action), ["region.reparent"]);
 });
 
 test("region service rejects self-descendant reparent cycles", async () => {
@@ -253,4 +256,17 @@ test("region service enforces the fixed max depth during create and reparent", a
   );
 
   assert.equal(MAX_REGION_DEPTH, 10);
+});
+
+test("region service audits updates", async () => {
+  const { database, state } = createFakeDatabase();
+  const service = createRegionService({ database });
+
+  seedRegion(state, { id: "root", code: "root", name: "Root", parent_id: null, level: 1, path: "root" });
+
+  const updated = await service.updateRegion({ region_id: "root", name: "Root Updated", sort_order: 2, is_active: false });
+
+  assert.equal(updated.name, "Root Updated");
+  assert.equal(updated.is_active, false);
+  assert.deepEqual(state.audit_logs.map((entry) => entry.action), ["region.update"]);
 });
