@@ -474,6 +474,29 @@ function createFakeRegionsDb({ users, regions }) {
   };
 }
 
+function createFakeAdministrativeRegionsDb({ users, regions }) {
+  return {
+    selectFrom(table) {
+      if (table === "users") {
+        const query = new FakeUsersQuery(users);
+        query.leftJoin = (tableName, callback) => {
+          assert.ok(["user_profiles", "user_roles", "roles", "sessions"].includes(tableName));
+          if (typeof callback === "function") {
+            callback(createJoinBuilder());
+          }
+          return query;
+        };
+        query.select = () => query;
+        query.groupBy = () => query;
+        return query;
+      }
+
+      assert.equal(table, "administrative_regions");
+      return new FakeSimpleQuery(regions);
+    },
+  };
+}
+
 function createFakeUserRegionsDb({ users, regions, assignments }) {
   return {
     selectFrom(table) {
@@ -536,6 +559,7 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
       { path: "/", label: "Users", icon: "users" },
       { path: "/roles", label: "Roles", icon: "shield" },
       { path: "/regions", label: "Logical Regions", icon: "map" },
+      { path: "/administrative-regions", label: "Administrative Regions", icon: "globe" },
       { path: "/jobs/levels", label: "Job Levels", icon: "layers" },
       { path: "/jobs/titles", label: "Job Titles", icon: "briefcase" },
       { path: "/permissions", label: "Permission Matrix", icon: "grid" },
@@ -905,6 +929,66 @@ test("awcms users admin plugin exposes logical region routes and mutation handle
     resetUserAdminDatabaseGetter();
     resetUserAdminAuthorizationServiceFactory();
     resetUserAdminRegionServiceFactory();
+  }
+});
+
+test("awcms users admin plugin exposes administrative region inspection route", async () => {
+  const plugin = createPlugin();
+  const authorizationCalls = [];
+  const fakeDb = createFakeAdministrativeRegionsDb({
+    users: [createAdminActorRow()],
+    regions: [
+      {
+        id: "province_jb",
+        code: "province-jb",
+        name: "Jawa Barat",
+        type: "province",
+        parent_id: null,
+        path: "province_jb",
+        province_code: "32",
+        regency_code: null,
+        district_code: null,
+        village_code: null,
+        is_active: true,
+        created_at: "2026-04-01T10:00:00.000Z",
+        updated_at: "2026-04-10T10:00:00.000Z",
+      },
+      {
+        id: "regency_bdg",
+        code: "regency-bdg",
+        name: "Bandung",
+        type: "regency_city",
+        parent_id: "province_jb",
+        path: "province_jb/regency_bdg",
+        province_code: "32",
+        regency_code: "32.04",
+        district_code: null,
+        village_code: null,
+        is_active: true,
+        created_at: "2026-04-02T10:00:00.000Z",
+        updated_at: "2026-04-11T10:00:00.000Z",
+      },
+    ],
+  });
+
+  setUserAdminDatabaseGetter(() => fakeDb);
+  setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory(authorizationCalls));
+
+  try {
+    const body = await plugin.routes["administrative-regions/list"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/administrative-regions/list", { headers: createAdminHeaders() }),
+    });
+
+    assert.equal(body.items.length, 2);
+    assert.equal(body.items[0].type, "province");
+    assert.equal(body.items[1].path, "province_jb/regency_bdg");
+    assert.equal(body.importStatus.source, "src/db/data/administrative-regions.seed.json");
+    assert.equal(body.importStatus.command, "pnpm db:seed:administrative-regions");
+    assert.equal(body.importStatus.latestUpdatedAt, "2026-04-11T10:00:00.000Z");
+    assert.equal(authorizationCalls[0].context.permission_code, "governance.administrative_regions.assign");
+  } finally {
+    resetUserAdminDatabaseGetter();
+    resetUserAdminAuthorizationServiceFactory();
   }
 });
 

@@ -88,6 +88,32 @@ interface RegionListItem {
   updatedAt: string;
 }
 
+interface AdministrativeRegionListItem {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  parentId: string | null;
+  path: string;
+  provinceCode: string | null;
+  regencyCode: string | null;
+  districtCode: string | null;
+  villageCode: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AdministrativeRegionSnapshot {
+  items: AdministrativeRegionListItem[];
+  importStatus: {
+    source: string;
+    command: string;
+    latestUpdatedAt: string | null;
+    total: number;
+  };
+}
+
 interface UserJobAssignmentItem {
   id: string;
   userId: string;
@@ -612,6 +638,43 @@ function useLogicalRegions() {
   }, []);
 
   return { items, loading, error, submitting, createRegion, updateRegion, reparentRegion };
+}
+
+function useAdministrativeRegions() {
+  const [snapshot, setSnapshot] = React.useState<AdministrativeRegionSnapshot | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const response = await apiFetch(`${API_BASE}/administrative-regions/list`);
+        const data = await parseApiResponse<AdministrativeRegionSnapshot>(response, "Failed to load administrative regions");
+        if (!cancelled) {
+          setSnapshot(data);
+          setError(null);
+        }
+      } catch (nextError) {
+        if (!cancelled) {
+          setError(nextError instanceof Error ? nextError.message : "Failed to load administrative regions");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { snapshot, loading, error };
 }
 
 interface InviteResult {
@@ -1566,6 +1629,71 @@ function LogicalRegionsPage() {
   );
 }
 
+function AdministrativeRegionsPage() {
+  const { snapshot, loading, error } = useAdministrativeRegions();
+  const items = snapshot?.items ?? [];
+
+  return (
+    <PageFrame title="Administrative Regions">
+      <div style={{ marginBottom: 16, color: "#52525b", maxWidth: 900 }}>
+        Inspect the legal Indonesian administrative hierarchy used for geographic governance scope. Lineage, region type, and normalized codes are shown directly from the imported dataset.
+      </div>
+      <div style={{ padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff", marginBottom: 16, display: "grid", gap: 8 }}>
+        <div style={{ fontWeight: 700 }}>Import Status</div>
+        <div style={{ color: "#52525b" }}>Source data: <code>{snapshot?.importStatus.source ?? "Unknown"}</code></div>
+        <div style={{ color: "#52525b" }}>Seed command: <code>{snapshot?.importStatus.command ?? "Unknown"}</code></div>
+        <div style={{ color: "#52525b" }}>Latest sync metadata: {snapshot?.importStatus.latestUpdatedAt ? formatDateTime(snapshot.importStatus.latestUpdatedAt) : "No imported rows yet"}</div>
+        <div style={{ color: "#52525b" }}>Loaded rows: {snapshot?.importStatus.total ?? 0}</div>
+      </div>
+      {loading ? <Message>Loading administrative regions...</Message> : null}
+      {!loading && error ? <Message>{error}</Message> : null}
+      {!loading && !error ? (
+        <div style={{ overflowX: "auto", border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1180 }}>
+            <thead>
+              <tr style={{ textAlign: "left", background: "#fafafa" }}>
+                <th style={{ padding: 12 }}>Lineage</th>
+                <th style={{ padding: 12 }}>Type</th>
+                <th style={{ padding: 12 }}>Codes</th>
+                <th style={{ padding: 12 }}>Metadata</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id} style={{ borderTop: "1px solid #e4e4e7" }}>
+                  <td style={{ padding: 12, verticalAlign: "top" }}>
+                    <div style={{ fontWeight: 700 }}>{item.name}</div>
+                    <div style={{ color: "#52525b", marginTop: 6 }}>/{item.code}</div>
+                    <div style={{ color: "#71717a", marginTop: 6, fontSize: 13 }}>{item.path}</div>
+                    <div style={{ color: "#71717a", marginTop: 6, fontSize: 13 }}>{item.parentId ? `Child of ${item.parentId}` : "Root legal region"}</div>
+                  </td>
+                  <td style={{ padding: 12, verticalAlign: "top" }}>
+                    <div style={{ display: "inline-block", padding: "4px 8px", borderRadius: 999, background: "#eff6ff", color: "#1d4ed8", fontSize: 12, fontWeight: 700, border: "1px solid #bfdbfe" }}>
+                      {item.type}
+                    </div>
+                    <div style={{ marginTop: 8, color: "#71717a", fontSize: 13 }}>{item.isActive ? "Active hierarchy row" : "Inactive hierarchy row"}</div>
+                  </td>
+                  <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
+                    <div>Province: {item.provinceCode || "-"}</div>
+                    <div style={{ marginTop: 6 }}>Regency/City: {item.regencyCode || "-"}</div>
+                    <div style={{ marginTop: 6 }}>District: {item.districtCode || "-"}</div>
+                    <div style={{ marginTop: 6 }}>Village: {item.villageCode || "-"}</div>
+                  </td>
+                  <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
+                    <div>Created {formatDateTime(item.createdAt)}</div>
+                    <div style={{ marginTop: 6 }}>Updated {formatDateTime(item.updatedAt)}</div>
+                    <div style={{ marginTop: 6, fontSize: 13 }}>{item.id}</div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </PageFrame>
+  );
+}
+
 function PermissionMatrixPage() {
   const {
     snapshot,
@@ -1797,6 +1925,7 @@ function UserDetailPage() {
 
 export const pages = {
   "/": UsersListPage,
+  "/administrative-regions": AdministrativeRegionsPage,
   "/jobs/levels": JobLevelsPage,
   "/jobs/titles": JobTitlesPage,
   "/permissions": PermissionMatrixPage,

@@ -1,6 +1,7 @@
 import { definePlugin, PluginRouteError } from "emdash";
 
 import { getDatabase } from "../../db/index.mjs";
+import { createAdministrativeRegionRepository } from "../../db/repositories/administrative-regions.mjs";
 import { createJobLevelRepository } from "../../db/repositories/job-levels.mjs";
 import { createJobTitleRepository } from "../../db/repositories/job-titles.mjs";
 import { createRegionRepository } from "../../db/repositories/regions.mjs";
@@ -168,6 +169,28 @@ function normalizeRegionRow(row) {
     sortOrder: Number(row.sort_order ?? 0),
     isActive: Boolean(row.is_active),
     deletedAt: row.deleted_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function normalizeAdministrativeRegionRow(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    type: row.type,
+    parentId: row.parent_id,
+    path: row.path,
+    provinceCode: row.province_code,
+    regencyCode: row.regency_code,
+    districtCode: row.district_code,
+    villageCode: row.village_code,
+    isActive: Boolean(row.is_active),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -791,6 +814,37 @@ async function listRegionsHandler(ctx) {
   };
 }
 
+async function listAdministrativeRegionsHandler(ctx) {
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "governance.administrative_regions.assign",
+    action: "read",
+    resource: {
+      kind: "administrative_region",
+    },
+  });
+
+  const search = new URL(ctx.request.url).searchParams;
+  const limit = Number.parseInt(search.get("limit") ?? "500", 10);
+  const repo = createAdministrativeRegionRepository(userAdminDatabaseGetter());
+  const items = await repo.listAdministrativeRegions({
+    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 1000) : 500,
+  });
+  const latestUpdatedAt = items.reduce(
+    (latest, item) => (!latest || String(item.updated_at ?? "") > String(latest) ? item.updated_at ?? latest : latest),
+    null,
+  );
+
+  return {
+    items: items.map(normalizeAdministrativeRegionRow),
+    importStatus: {
+      source: "src/db/data/administrative-regions.seed.json",
+      command: "pnpm db:seed:administrative-regions",
+      latestUpdatedAt,
+      total: items.length,
+    },
+  };
+}
+
 async function createRegionHandler(ctx) {
   let body;
 
@@ -1299,6 +1353,9 @@ export function createPlugin() {
       "regions/reparent": {
         handler: reparentRegionHandler,
       },
+      "administrative-regions/list": {
+        handler: listAdministrativeRegionsHandler,
+      },
       "permissions/matrix": {
         handler: listPermissionMatrixHandler,
       },
@@ -1327,6 +1384,7 @@ export function createPlugin() {
           { path: "/", label: "Users", icon: "users" },
           { path: "/roles", label: "Roles", icon: "shield" },
           { path: "/regions", label: "Logical Regions", icon: "map" },
+          { path: "/administrative-regions", label: "Administrative Regions", icon: "globe" },
           { path: "/jobs/levels", label: "Job Levels", icon: "layers" },
           { path: "/jobs/titles", label: "Job Titles", icon: "briefcase" },
           { path: "/permissions", label: "Permission Matrix", icon: "grid" },
@@ -1347,6 +1405,7 @@ export function awcmsUsersAdminPlugin() {
       { path: "/", label: "Users", icon: "users" },
       { path: "/roles", label: "Roles", icon: "shield" },
       { path: "/regions", label: "Logical Regions", icon: "map" },
+      { path: "/administrative-regions", label: "Administrative Regions", icon: "globe" },
       { path: "/jobs/levels", label: "Job Levels", icon: "layers" },
       { path: "/jobs/titles", label: "Job Titles", icon: "briefcase" },
       { path: "/permissions", label: "Permission Matrix", icon: "grid" },
