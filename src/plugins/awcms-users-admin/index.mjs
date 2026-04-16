@@ -5,8 +5,10 @@ import { createAdministrativeRegionRepository } from "../../db/repositories/admi
 import { createJobLevelRepository } from "../../db/repositories/job-levels.mjs";
 import { createJobTitleRepository } from "../../db/repositories/job-titles.mjs";
 import { createRegionRepository } from "../../db/repositories/regions.mjs";
+import { createUserAdministrativeRegionAssignmentRepository } from "../../db/repositories/user-administrative-region-assignments.mjs";
 import { createUserJobRepository } from "../../db/repositories/user-jobs.mjs";
 import { createUserRegionAssignmentRepository } from "../../db/repositories/user-region-assignments.mjs";
+import { createAdministrativeRegionAssignmentService } from "../../services/administrative-regions/assignments.mjs";
 import { createAuthorizationService } from "../../services/authorization/service.mjs";
 import { createJobsService } from "../../services/jobs/service.mjs";
 import { createRbacService } from "../../services/rbac/service.mjs";
@@ -19,6 +21,7 @@ let userAdminServiceFactory = (database) => createUserService({ database });
 let userAdminJobsServiceFactory = (database) => createJobsService({ database });
 let userAdminRegionServiceFactory = (database) => createRegionService({ database });
 let userAdminRegionAssignmentServiceFactory = (database) => createRegionAssignmentService({ database });
+let userAdminAdministrativeRegionAssignmentServiceFactory = (database) => createAdministrativeRegionAssignmentService({ database });
 let userAdminRbacServiceFactory = (database) => createRbacService({ database });
 let userAdminAuthorizationServiceFactory = (database) => createAuthorizationService({ database });
 
@@ -209,6 +212,28 @@ function normalizeUserRegionAssignmentRow(row) {
     regionName: row.region_name,
     regionLevel: Number(row.region_level ?? 0),
     regionPath: row.region_path,
+    assignmentType: row.assignment_type,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    isPrimary: Boolean(row.is_primary),
+    assignedByUserId: row.assigned_by_user_id,
+    createdAt: row.created_at,
+  };
+}
+
+function normalizeUserAdministrativeRegionAssignmentRow(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    administrativeRegionId: row.administrative_region_id,
+    administrativeRegionCode: row.administrative_region_code,
+    administrativeRegionName: row.administrative_region_name,
+    administrativeRegionType: row.administrative_region_type,
+    administrativeRegionPath: row.administrative_region_path,
     assignmentType: row.assignment_type,
     startsAt: row.starts_at,
     endsAt: row.ends_at,
@@ -1155,6 +1180,113 @@ async function assignUserRegionHandler(ctx) {
   });
 }
 
+async function listUserAdministrativeRegionsHandler(ctx) {
+  const search = new URL(ctx.request.url).searchParams;
+  const userId = search.get("id");
+
+  if (!userId) {
+    throw PluginRouteError.badRequest("Missing required user id");
+  }
+
+  const db = userAdminDatabaseGetter();
+  const targetRow = await getUserSummaryRow(db, userId);
+
+  if (!targetRow) {
+    throw PluginRouteError.notFound(`User not found: ${userId}`);
+  }
+
+  const target = normalizeAuthorizationUserRow(targetRow);
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "governance.administrative_regions.assign",
+    action: "read",
+    resource: {
+      kind: "administrative_region",
+      target_user_id: target.id,
+      target_staff_level: target.activeRoleStaffLevel,
+      is_protected: target.isProtected,
+    },
+  });
+
+  const assignmentRepo = createUserAdministrativeRegionAssignmentRepository(db);
+  const regionRepo = createAdministrativeRegionRepository(db);
+  const assignments = await assignmentRepo.listUserAdministrativeRegionAssignmentsByUserId(userId, { activeOnly: false });
+  const regions = await regionRepo.listAdministrativeRegions({ is_active: true, limit: 1000 });
+  const regionsById = new Map(regions.map((region) => [region.id, region]));
+
+  return {
+    assignments: assignments.map((assignment) => {
+      const region = regionsById.get(assignment.administrative_region_id);
+
+      return normalizeUserAdministrativeRegionAssignmentRow({
+        ...assignment,
+        administrative_region_code: region?.code ?? null,
+        administrative_region_name: region?.name ?? null,
+        administrative_region_type: region?.type ?? null,
+        administrative_region_path: region?.path ?? null,
+      });
+    }),
+    regions: regions.map(normalizeAdministrativeRegionRow),
+  };
+}
+
+async function assignUserAdministrativeRegionHandler(ctx) {
+  let body;
+
+  try {
+    body = await ctx.request.json();
+  } catch {
+    throw PluginRouteError.badRequest("Expected JSON body");
+  }
+
+  const userId = typeof body?.userId === "string" ? body.userId.trim() : "";
+  const administrativeRegionId = typeof body?.administrativeRegionId === "string" ? body.administrativeRegionId.trim() : "";
+  const assignmentType = typeof body?.assignmentType === "string" ? body.assignmentType.trim() : "";
+  const startsAt = typeof body?.startsAt === "string" ? body.startsAt.trim() : "";
+
+  if (!userId || !administrativeRegionId) {
+    throw PluginRouteError.badRequest("User id and administrative region id are required");
+  }
+
+  const db = userAdminDatabaseGetter();
+  const targetRow = await getUserSummaryRow(db, userId);
+
+  if (!targetRow) {
+    throw PluginRouteError.notFound(`User not found: ${userId}`);
+  }
+
+  const target = normalizeAuthorizationUserRow(targetRow);
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "governance.administrative_regions.assign",
+    action: "assign",
+    resource: {
+      kind: "administrative_region",
+      target_user_id: target.id,
+      target_staff_level: target.activeRoleStaffLevel,
+      is_protected: target.isProtected,
+    },
+  });
+
+  const actorUserId = ctx.request.headers.get("x-actor-user-id")?.trim() ?? null;
+  const administrativeRegionAssignments = userAdminAdministrativeRegionAssignmentServiceFactory(db);
+  await administrativeRegionAssignments.assignAdministrativeRegion({
+    user_id: userId,
+    administrative_region_id: administrativeRegionId,
+    assignment_type: assignmentType || "member",
+    starts_at: startsAt || undefined,
+    is_primary: body?.isPrimary !== false,
+    assigned_by_user_id: actorUserId,
+  });
+
+  return listUserAdministrativeRegionsHandler({
+    ...ctx,
+    request: new Request(`http://example.test/_emdash/api/plugins/awcms-users-admin/users/administrative-regions?id=${encodeURIComponent(userId)}`, {
+      headers: ctx.request.headers,
+    }),
+  });
+}
+
 async function assignUserJobHandler(ctx) {
   let body;
 
@@ -1335,6 +1467,12 @@ export function createPlugin() {
       "users/regions/assign": {
         handler: assignUserRegionHandler,
       },
+      "users/administrative-regions": {
+        handler: listUserAdministrativeRegionsHandler,
+      },
+      "users/administrative-regions/assign": {
+        handler: assignUserAdministrativeRegionHandler,
+      },
       "jobs/levels/list": {
         handler: listJobLevelsHandler,
       },
@@ -1452,6 +1590,14 @@ export function setUserAdminRegionAssignmentServiceFactory(factory) {
 
 export function resetUserAdminRegionAssignmentServiceFactory() {
   userAdminRegionAssignmentServiceFactory = (database) => createRegionAssignmentService({ database });
+}
+
+export function setUserAdminAdministrativeRegionAssignmentServiceFactory(factory) {
+  userAdminAdministrativeRegionAssignmentServiceFactory = factory;
+}
+
+export function resetUserAdminAdministrativeRegionAssignmentServiceFactory() {
+  userAdminAdministrativeRegionAssignmentServiceFactory = (database) => createAdministrativeRegionAssignmentService({ database });
 }
 
 export function setUserAdminAuthorizationServiceFactory(factory) {

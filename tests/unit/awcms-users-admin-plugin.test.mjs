@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   createPlugin,
   resetUserAdminAuthorizationServiceFactory,
+  resetUserAdminAdministrativeRegionAssignmentServiceFactory,
   resetUserAdminDatabaseGetter,
   resetUserAdminRegionAssignmentServiceFactory,
   resetUserAdminJobsServiceFactory,
@@ -11,6 +12,7 @@ import {
   resetUserAdminRegionServiceFactory,
   resetUserAdminServiceFactory,
   setUserAdminAuthorizationServiceFactory,
+  setUserAdminAdministrativeRegionAssignmentServiceFactory,
   setUserAdminDatabaseGetter,
   setUserAdminRegionAssignmentServiceFactory,
   setUserAdminJobsServiceFactory,
@@ -519,6 +521,33 @@ function createFakeUserRegionsDb({ users, regions, assignments }) {
       }
 
       assert.equal(table, "user_region_assignments");
+      return new FakeSimpleQuery(assignments);
+    },
+  };
+}
+
+function createFakeUserAdministrativeRegionsDb({ users, regions, assignments }) {
+  return {
+    selectFrom(table) {
+      if (table === "users") {
+        const query = new FakeUsersQuery(users);
+        query.leftJoin = (tableName, callback) => {
+          assert.ok(["user_profiles", "user_roles", "roles", "sessions"].includes(tableName));
+          if (typeof callback === "function") {
+            callback(createJoinBuilder());
+          }
+          return query;
+        };
+        query.select = () => query;
+        query.groupBy = () => query;
+        return query;
+      }
+
+      if (table === "administrative_regions") {
+        return new FakeSimpleQuery(regions);
+      }
+
+      assert.equal(table, "user_administrative_region_assignments");
       return new FakeSimpleQuery(assignments);
     },
   };
@@ -1357,5 +1386,125 @@ test("awcms users admin plugin exposes user logical region history and assignmen
     resetUserAdminDatabaseGetter();
     resetUserAdminAuthorizationServiceFactory();
     resetUserAdminRegionAssignmentServiceFactory();
+  }
+});
+
+test("awcms users admin plugin exposes user administrative region history and assignment routes", async () => {
+  const plugin = createPlugin();
+  let assignedInput;
+  const authorizationCalls = [];
+  const fakeDb = createFakeUserAdministrativeRegionsDb({
+    users: [
+      createAdminActorRow(),
+      {
+        id: "user_1",
+        email: "user@example.com",
+        username: "user1",
+        display_name: "User One",
+        status: "active",
+        last_login_at: null,
+        must_reset_password: false,
+        is_protected: false,
+        deleted_at: null,
+        created_at: "2026-04-01T10:00:00.000Z",
+        updated_at: "2026-04-10T10:00:00.000Z",
+        profile_phone: null,
+        profile_timezone: null,
+        profile_locale: null,
+        profile_notes: null,
+        profile_avatar_media_id: null,
+        profile_created_at: null,
+        profile_updated_at: null,
+        active_session_count: 0,
+        active_role_staff_level: 4,
+      },
+    ],
+    regions: [
+      {
+        id: "province_jb",
+        code: "province-jb",
+        name: "Jawa Barat",
+        type: "province",
+        parent_id: null,
+        path: "province_jb",
+        province_code: "32",
+        regency_code: null,
+        district_code: null,
+        village_code: null,
+        is_active: true,
+        created_at: "2026-04-01T10:00:00.000Z",
+        updated_at: "2026-04-10T10:00:00.000Z",
+      },
+      {
+        id: "regency_bdg",
+        code: "regency-bdg",
+        name: "Bandung",
+        type: "regency_city",
+        parent_id: "province_jb",
+        path: "province_jb/regency_bdg",
+        province_code: "32",
+        regency_code: "32.04",
+        district_code: null,
+        village_code: null,
+        is_active: true,
+        created_at: "2026-04-01T10:00:00.000Z",
+        updated_at: "2026-04-10T10:00:00.000Z",
+      },
+    ],
+    assignments: [
+      {
+        id: "administrative_assignment_1",
+        user_id: "user_1",
+        administrative_region_id: "regency_bdg",
+        assignment_type: "manager",
+        is_primary: true,
+        starts_at: "2026-04-01T10:00:00.000Z",
+        ends_at: null,
+        assigned_by_user_id: "admin_actor",
+        created_at: "2026-04-01T10:00:00.000Z",
+      },
+    ],
+  });
+
+  setUserAdminDatabaseGetter(() => fakeDb);
+  setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory(authorizationCalls));
+  setUserAdminAdministrativeRegionAssignmentServiceFactory(() => ({
+    async assignAdministrativeRegion(input) {
+      assignedInput = input;
+    },
+  }));
+
+  try {
+    const body = await plugin.routes["users/administrative-regions"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/administrative-regions?id=user_1", { headers: createAdminHeaders() }),
+    });
+
+    assert.equal(body.assignments.length, 1);
+    assert.equal(body.assignments[0].administrativeRegionName, "Bandung");
+    assert.equal(body.assignments[0].administrativeRegionType, "regency_city");
+    assert.equal(body.regions.length, 2);
+
+    await plugin.routes["users/administrative-regions/assign"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/administrative-regions/assign", {
+        method: "POST",
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: "user_1",
+          administrativeRegionId: "province_jb",
+          assignmentType: "member",
+          startsAt: "2026-05-01T10:00:00.000Z",
+        }),
+      }),
+    });
+
+    assert.equal(assignedInput.user_id, "user_1");
+    assert.equal(assignedInput.administrative_region_id, "province_jb");
+    assert.equal(assignedInput.assignment_type, "member");
+    assert.equal(authorizationCalls[0].context.permission_code, "governance.administrative_regions.assign");
+    assert.equal(authorizationCalls.some((call) => call.context.permission_code === "governance.administrative_regions.assign" && call.context.action === "assign"), true);
+  } finally {
+    resetUserAdminDatabaseGetter();
+    resetUserAdminAuthorizationServiceFactory();
+    resetUserAdminAdministrativeRegionAssignmentServiceFactory();
   }
 });

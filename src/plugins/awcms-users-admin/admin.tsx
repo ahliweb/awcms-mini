@@ -104,6 +104,27 @@ interface AdministrativeRegionListItem {
   updatedAt: string;
 }
 
+interface UserAdministrativeRegionAssignmentItem {
+  id: string;
+  userId: string;
+  administrativeRegionId: string;
+  administrativeRegionCode: string | null;
+  administrativeRegionName: string | null;
+  administrativeRegionType: string | null;
+  administrativeRegionPath: string | null;
+  assignmentType: string;
+  startsAt: string;
+  endsAt: string | null;
+  isPrimary: boolean;
+  assignedByUserId: string | null;
+  createdAt: string;
+}
+
+interface UserAdministrativeRegionsSnapshot {
+  assignments: UserAdministrativeRegionAssignmentItem[];
+  regions: AdministrativeRegionListItem[];
+}
+
 interface AdministrativeRegionSnapshot {
   items: AdministrativeRegionListItem[];
   importStatus: {
@@ -789,6 +810,7 @@ function useUserDetail() {
   const [item, setItem] = React.useState<UserListItem | null>(null);
   const [jobsSnapshot, setJobsSnapshot] = React.useState<UserJobsSnapshot | null>(null);
   const [regionsSnapshot, setRegionsSnapshot] = React.useState<UserRegionsSnapshot | null>(null);
+  const [administrativeRegionsSnapshot, setAdministrativeRegionsSnapshot] = React.useState<UserAdministrativeRegionsSnapshot | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState<string | null>(null);
@@ -806,6 +828,11 @@ function useUserDetail() {
   const fetchRegions = React.useCallback(async (userId: string) => {
     const response = await apiFetch(`${API_BASE}/users/regions?id=${encodeURIComponent(userId)}`);
     return parseApiResponse<UserRegionsSnapshot>(response, "Failed to load logical regions");
+  }, []);
+
+  const fetchAdministrativeRegions = React.useCallback(async (userId: string) => {
+    const response = await apiFetch(`${API_BASE}/users/administrative-regions?id=${encodeURIComponent(userId)}`);
+    return parseApiResponse<UserAdministrativeRegionsSnapshot>(response, "Failed to load administrative regions");
   }, []);
 
   React.useEffect(() => {
@@ -826,10 +853,12 @@ function useUserDetail() {
         const data = await fetchUser(id);
         const jobs = await fetchJobs(id);
         const regions = await fetchRegions(id);
+        const administrativeRegions = await fetchAdministrativeRegions(id);
         if (!cancelled) {
           setItem(data.item);
           setJobsSnapshot(jobs);
           setRegionsSnapshot(regions);
+          setAdministrativeRegionsSnapshot(administrativeRegions);
           setError(null);
         }
       } catch (nextError) {
@@ -848,7 +877,7 @@ function useUserDetail() {
     return () => {
       cancelled = true;
     };
-  }, [fetchJobs, fetchRegions, fetchUser]);
+  }, [fetchAdministrativeRegions, fetchJobs, fetchRegions, fetchUser]);
 
   const runAction = React.useCallback(
     async (action: "disable" | "lock" | "revoke-sessions") => {
@@ -958,7 +987,54 @@ function useUserDetail() {
     [],
   );
 
-  return { item, jobsSnapshot, regionsSnapshot, loading, error, submitting, runAction, assignJob, assignRegion };
+  const assignAdministrativeRegion = React.useCallback(
+    async (input: {
+      userId: string;
+      administrativeRegionId: string;
+      assignmentType: string;
+      startsAt: string;
+    }) => {
+      setSubmitting("assign-administrative-region");
+      setError(null);
+
+      try {
+        const response = await apiFetch(`${API_BASE}/users/administrative-regions/assign`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userId: input.userId,
+            administrativeRegionId: input.administrativeRegionId,
+            assignmentType: input.assignmentType,
+            startsAt: input.startsAt,
+            isPrimary: true,
+          }),
+        });
+        const data = await parseApiResponse<UserAdministrativeRegionsSnapshot>(response, "Failed to assign administrative region");
+        setAdministrativeRegionsSnapshot(data);
+      } catch (nextError) {
+        setError(nextError instanceof Error ? nextError.message : "Failed to assign administrative region");
+      } finally {
+        setSubmitting(null);
+      }
+    },
+    [],
+  );
+
+  return {
+    item,
+    jobsSnapshot,
+    regionsSnapshot,
+    administrativeRegionsSnapshot,
+    loading,
+    error,
+    submitting,
+    runAction,
+    assignJob,
+    assignRegion,
+    assignAdministrativeRegion,
+  };
 }
 
 function UserJobsPanel({ userId, snapshot, submitting, onAssign }: {
@@ -1190,6 +1266,109 @@ function UserRegionsPanel({ userId, snapshot, submitting, onAssign }: {
                     <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
                       <div>Level {assignment.regionLevel}</div>
                       <div style={{ marginTop: 6, fontSize: 13 }}>{assignment.regionPath || "No path"}</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
+                      <div>Starts {formatDateTime(assignment.startsAt)}</div>
+                      <div style={{ marginTop: 6 }}>{assignment.endsAt ? `Ends ${formatDateTime(assignment.endsAt)}` : "No end date"}</div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function UserAdministrativeRegionsPanel({ userId, snapshot, submitting, onAssign }: {
+  userId: string;
+  snapshot: UserAdministrativeRegionsSnapshot | null;
+  submitting: string | null;
+  onAssign: (input: {
+    userId: string;
+    administrativeRegionId: string;
+    assignmentType: string;
+    startsAt: string;
+  }) => Promise<void>;
+}) {
+  const [administrativeRegionId, setAdministrativeRegionId] = React.useState("");
+  const [assignmentType, setAssignmentType] = React.useState("member");
+  const [startsAt, setStartsAt] = React.useState("");
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    await onAssign({
+      userId,
+      administrativeRegionId,
+      assignmentType,
+      startsAt,
+    });
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 16, marginTop: 24 }}>
+      <div style={{ padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+        <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>Assign Administrative Region</h2>
+        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span>Administrative region</span>
+            <select value={administrativeRegionId} onChange={(event) => setAdministrativeRegionId(event.target.value)} required style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }}>
+              <option value="">Select region</option>
+              {(snapshot?.regions ?? []).map((region) => (
+                <option key={region.id} value={region.id}>{`${region.name} (${region.type})`}</option>
+              ))}
+            </select>
+          </label>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span>Assignment type</span>
+            <select value={assignmentType} onChange={(event) => setAssignmentType(event.target.value)} style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }}>
+              <option value="member">Member</option>
+              <option value="manager">Manager</option>
+              <option value="observer">Observer</option>
+            </select>
+          </label>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span>Starts at</span>
+            <input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }} />
+          </label>
+          <div style={{ display: "flex", alignItems: "end" }}>
+            <button type="submit" disabled={submitting !== null || !administrativeRegionId} style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#111827", color: "#fff", fontWeight: 600 }}>
+              {submitting === "assign-administrative-region" ? "Assigning..." : "Assign primary administrative region"}
+            </button>
+          </div>
+        </form>
+      </div>
+      <div style={{ padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+        <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>Administrative Region Assignments</h2>
+        {!(snapshot?.assignments?.length) ? <div style={{ color: "#71717a" }}>No administrative region assignments yet.</div> : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 920 }}>
+              <thead>
+                <tr style={{ textAlign: "left", background: "#fafafa" }}>
+                  <th style={{ padding: 12 }}>Region</th>
+                  <th style={{ padding: 12 }}>Type</th>
+                  <th style={{ padding: 12 }}>Lineage</th>
+                  <th style={{ padding: 12 }}>Effective Dates</th>
+                </tr>
+              </thead>
+              <tbody>
+                {snapshot.assignments.map((assignment) => (
+                  <tr key={assignment.id} style={{ borderTop: "1px solid #e4e4e7" }}>
+                    <td style={{ padding: 12, verticalAlign: "top" }}>
+                      <div style={{ fontWeight: 700 }}>{assignment.administrativeRegionName || "Unknown region"}</div>
+                      <div style={{ color: "#52525b", marginTop: 6 }}>{assignment.administrativeRegionCode ? `/${assignment.administrativeRegionCode}` : "No region code"}</div>
+                      <div style={{ color: "#71717a", marginTop: 6, fontSize: 13 }}>{assignment.isPrimary ? "Primary assignment" : "Secondary/history entry"}</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top" }}>
+                      <div style={{ fontWeight: 700 }}>{assignment.assignmentType}</div>
+                      <div style={{ color: "#71717a", marginTop: 6, fontSize: 13 }}>{assignment.administrativeRegionType || "Unknown type"}</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
+                      <div>{assignment.administrativeRegionPath || "No path"}</div>
+                      <div style={{ marginTop: 6, fontSize: 13 }}>{assignment.endsAt ? "Historical" : "Active"}</div>
                     </td>
                     <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
                       <div>Starts {formatDateTime(assignment.startsAt)}</div>
@@ -1849,7 +2028,19 @@ function DetailField({ label, value }: { label: string; value: React.ReactNode }
 }
 
 function UserDetailPage() {
-  const { item, jobsSnapshot, regionsSnapshot, loading, error, submitting, runAction, assignJob, assignRegion } = useUserDetail();
+  const {
+    item,
+    jobsSnapshot,
+    regionsSnapshot,
+    administrativeRegionsSnapshot,
+    loading,
+    error,
+    submitting,
+    runAction,
+    assignJob,
+    assignRegion,
+    assignAdministrativeRegion,
+  } = useUserDetail();
 
   return (
     <PageFrame title="User Detail">
@@ -1917,6 +2108,12 @@ function UserDetailPage() {
           </div>
           <UserJobsPanel userId={item.id} snapshot={jobsSnapshot} submitting={submitting} onAssign={assignJob} />
           <UserRegionsPanel userId={item.id} snapshot={regionsSnapshot} submitting={submitting} onAssign={assignRegion} />
+          <UserAdministrativeRegionsPanel
+            userId={item.id}
+            snapshot={administrativeRegionsSnapshot}
+            submitting={submitting}
+            onAssign={assignAdministrativeRegion}
+          />
         </>
       ) : null}
     </PageFrame>
