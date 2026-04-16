@@ -14,7 +14,8 @@
     "healthcheck": "node ./scripts/healthcheck.mjs",
     "db:migrate": "node ./scripts/db-migrate.mjs latest",
     "db:migrate:down": "node ./scripts/db-migrate.mjs down",
-    "db:migrate:status": "node ./scripts/db-migrate.mjs status"
+    "db:migrate:status": "node ./scripts/db-migrate.mjs status",
+    "db:seed:administrative-regions": "node ./scripts/db-seed-administrative-regions.mjs"
   },
   "dependencies": {
     "@astrojs/node": "^10.0.4",

@@ -1,0 +1,43 @@
+[
+  {
+    "code": "province-jb",
+    "name": "Jawa Barat",
+    "type": "province",
+    "province_code": "32"
+  },
+  {
+    "code": "regency-bdg",
+    "name": "Bandung",
+    "type": "regency_city",
+    "parent_code": "province-jb",
+    "province_code": "32",
+    "regency_code": "32.04"
+  },
+  {
+    "code": "district-coblong",
+    "name": "Coblong",
+    "type": "district",
+    "parent_code": "regency-bdg",
+    "province_code": "32",
+    "regency_code": "32.04",
+    "district_code": "32.04.10"
+  },
+  {
+    "code": "village-dago",
+    "name": "Dago",
+    "type": "village",
+    "parent_code": "district-coblong",
+    "province_code": "32",
+    "regency_code": "32.04",
+    "district_code": "32.04.10",
+    "village_code": "32.04.10.1001"
+  },
+  {
+    "code": "regency-bgr",
+    "name": "Bogor",
+    "type": "regency_city",
+    "parent_code": "province-jb",
+    "province_code": "32",
+    "regency_code": "32.01"
+  }
+]
