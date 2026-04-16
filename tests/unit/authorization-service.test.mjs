@@ -1,7 +1,47 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createAuthorizationJobContextResolver, createAuthorizationService } from "../../src/services/authorization/service.mjs";
+import {
+  createAuthorizationJobContextResolver,
+  createAuthorizationLogicalRegionContextResolver,
+  createAuthorizationService,
+} from "../../src/services/authorization/service.mjs";
+
+function createAuthorizationContextDatabase(state) {
+  return {
+    selectFrom(table) {
+      const source = state[table];
+      const filters = [];
+      const query = {
+        select: () => query,
+        where: (column, operator, value) => {
+          filters.push({ column, operator, value });
+          return query;
+        },
+        orderBy: () => query,
+        limit: () => query,
+        offset: () => query,
+        execute: async () =>
+          source.filter((row) =>
+            filters.every((filter) => {
+              if (filter.operator === "=" || filter.operator === "is") return row[filter.column] === filter.value;
+              if (filter.operator === "is not") return row[filter.column] !== filter.value;
+              return false;
+            }),
+          ),
+        executeTakeFirst: async () =>
+          source.find((row) =>
+            filters.every((filter) => {
+              if (filter.operator === "=" || filter.operator === "is") return row[filter.column] === filter.value;
+              if (filter.operator === "is not") return row[filter.column] !== filter.value;
+              return false;
+            }),
+          ),
+      };
+      return query;
+    },
+  };
+}
 
 test("authorization service denies unauthenticated subjects before permission resolution", async () => {
   const service = createAuthorizationService({
@@ -118,39 +158,7 @@ test("authorization job context resolver hydrates the current active primary job
       },
     ],
   };
-  const database = {
-    selectFrom(table) {
-      const source = state[table];
-      const filters = [];
-      const query = {
-        select: () => query,
-        where: (column, operator, value) => {
-          filters.push({ column, operator, value });
-          return query;
-        },
-        orderBy: () => query,
-        limit: () => query,
-        offset: () => query,
-        execute: async () =>
-          source.filter((row) =>
-            filters.every((filter) => {
-              if (filter.operator === "=" || filter.operator === "is") return row[filter.column] === filter.value;
-              if (filter.operator === "is not") return row[filter.column] !== filter.value;
-              return false;
-            }),
-          ),
-        executeTakeFirst: async () =>
-          source.find((row) =>
-            filters.every((filter) => {
-              if (filter.operator === "=" || filter.operator === "is") return row[filter.column] === filter.value;
-              if (filter.operator === "is not") return row[filter.column] !== filter.value;
-              return false;
-            }),
-          ),
-      };
-      return query;
-    },
-  };
+  const database = createAuthorizationContextDatabase(state);
 
   const resolveCurrentJobContext = createAuthorizationJobContextResolver(database);
   const subject = await resolveCurrentJobContext({ kind: "user", user_id: "user_1", job_level_rank: 0 });
@@ -162,6 +170,30 @@ test("authorization job context resolver hydrates the current active primary job
   assert.equal(subject.job_level_rank, 7);
   assert.equal(subject.current_job_level_code, "manager");
   assert.equal(subject.current_job_title_code, "ops_manager");
+});
+
+test("authorization logical region context resolver hydrates actor scope and target user scope from assignments", async () => {
+  const state = {
+    regions: [
+      { id: "region_root", code: "root", name: "Root", parent_id: null, level: 1, path: "region_root", sort_order: 0, is_active: true, deleted_at: null, created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z" },
+      { id: "region_north", code: "north", name: "North", parent_id: "region_root", level: 2, path: "region_root/region_north", sort_order: 0, is_active: true, deleted_at: null, created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z" },
+      { id: "region_south", code: "south", name: "South", parent_id: "region_root", level: 2, path: "region_root/region_south", sort_order: 0, is_active: true, deleted_at: null, created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z" },
+    ],
+    user_region_assignments: [
+      { id: "assignment_actor", user_id: "user_actor", region_id: "region_root", assignment_type: "manager", is_primary: true, starts_at: "2026-01-01T00:00:00.000Z", ends_at: null, assigned_by_user_id: null, created_at: "2026-01-01T00:00:00.000Z" },
+      { id: "assignment_target", user_id: "user_target", region_id: "region_north", assignment_type: "member", is_primary: true, starts_at: "2026-01-01T00:00:00.000Z", ends_at: null, assigned_by_user_id: null, created_at: "2026-01-01T00:00:00.000Z" },
+    ],
+  };
+  const resolveLogicalRegionContext = createAuthorizationLogicalRegionContextResolver(createAuthorizationContextDatabase(state));
+
+  const evaluation = await resolveLogicalRegionContext({
+    subject: { kind: "user", user_id: "user_actor", logical_region_ids: [] },
+    resource: { kind: "user", target_user_id: "user_target", logical_region_ids: [] },
+    context: { permission_code: "admin.users.read", action: "read", session_id: null },
+  });
+
+  assert.deepEqual(evaluation.subject.logical_region_ids, ["region_north", "region_root", "region_south"]);
+  assert.deepEqual(evaluation.resource.logical_region_ids, ["region_north"]);
 });
 
 test("authorization service does not grant access from job context alone", async () => {
@@ -190,6 +222,73 @@ test("authorization service does not grant access from job context alone", async
 
   assert.equal(result.allowed, false);
   assert.equal(result.reason.code, "DENY_PERMISSION_MISSING");
+});
+
+test("authorization service denies requests when target logical region falls outside actor subtree scope", async () => {
+  const service = createAuthorizationService({
+    logicalRegionContextResolver: async (evaluation) => ({
+      ...evaluation,
+      subject: {
+        ...evaluation.subject,
+        logical_region_ids: ["region_root", "region_north"],
+      },
+      resource: {
+        ...evaluation.resource,
+        logical_region_ids: ["region_south"],
+      },
+    }),
+    permissionResolver: {
+      async getEffectivePermissions() {
+        return {
+          user_id: "user_manager",
+          permission_codes: ["admin.users.read"],
+        };
+      },
+    },
+  });
+
+  const result = await service.evaluate({
+    subject: { kind: "user", user_id: "user_manager" },
+    resource: { kind: "user", target_user_id: "user_target" },
+    context: { permission_code: "admin.users.read", action: "read" },
+  });
+
+  assert.equal(result.allowed, false);
+  assert.equal(result.matched_rule, "logical-region:scope");
+  assert.equal(result.reason.code, "DENY_REGION_SCOPE_MISMATCH");
+});
+
+test("authorization service allows requests when target logical region falls within actor subtree scope", async () => {
+  const service = createAuthorizationService({
+    logicalRegionContextResolver: async (evaluation) => ({
+      ...evaluation,
+      subject: {
+        ...evaluation.subject,
+        logical_region_ids: ["region_root", "region_north"],
+      },
+      resource: {
+        ...evaluation.resource,
+        logical_region_ids: ["region_north"],
+      },
+    }),
+    permissionResolver: {
+      async getEffectivePermissions() {
+        return {
+          user_id: "user_manager",
+          permission_codes: ["admin.users.read"],
+        };
+      },
+    },
+  });
+
+  const result = await service.evaluate({
+    subject: { kind: "user", user_id: "user_manager" },
+    resource: { kind: "user", target_user_id: "user_target" },
+    context: { permission_code: "admin.users.read", action: "read" },
+  });
+
+  assert.equal(result.allowed, true);
+  assert.equal(result.reason.code, "ALLOW_RBAC_PERMISSION");
 });
 
 test("authorization service marks self-service user actions through a scoped allow rule", async () => {

@@ -26,6 +26,15 @@ function createExplicitDenyResult(permissionCode, matchedRule, details) {
   });
 }
 
+function createRegionScopeDenyResult(permissionCode, matchedRule, details) {
+  return createAuthorizationResult({
+    allowed: false,
+    permission_code: permissionCode,
+    matched_rule: matchedRule,
+    reason: createStandardAuthorizationReason("DENY_REGION_SCOPE_MISMATCH", details),
+  });
+}
+
 function evaluateStaffLevelDenyRule(evaluation) {
   if (!evaluation.resource.is_protected) {
     return null;
@@ -48,6 +57,26 @@ function evaluateStaffLevelDenyRule(evaluation) {
     target_staff_level: evaluation.resource.target_staff_level,
     resource_kind: evaluation.resource.kind,
     override_available: true,
+  });
+}
+
+function evaluateLogicalRegionScopeDenyRule(evaluation) {
+  const targetRegionIds = evaluation.resource.logical_region_ids ?? [];
+
+  if (targetRegionIds.length === 0) {
+    return null;
+  }
+
+  const actorRegionScopeIds = new Set(evaluation.subject.logical_region_ids ?? []);
+
+  if (targetRegionIds.some((regionId) => actorRegionScopeIds.has(regionId))) {
+    return null;
+  }
+
+  return createRegionScopeDenyResult(evaluation.context.permission_code, "logical-region:scope", {
+    actor_logical_region_ids: [...actorRegionScopeIds].sort((left, right) => left.localeCompare(right)),
+    target_logical_region_ids: [...targetRegionIds].sort((left, right) => left.localeCompare(right)),
+    resource_kind: evaluation.resource.kind,
   });
 }
 
@@ -101,4 +130,10 @@ function evaluateScopedAllowRules(evaluation) {
   return evaluateSelfServiceRule(evaluation) ?? evaluateOwnershipRule(evaluation) ?? null;
 }
 
-export { evaluateOwnershipRule, evaluateScopedAllowRules, evaluateSelfServiceRule, evaluateStaffLevelDenyRule };
+export {
+  evaluateLogicalRegionScopeDenyRule,
+  evaluateOwnershipRule,
+  evaluateScopedAllowRules,
+  evaluateSelfServiceRule,
+  evaluateStaffLevelDenyRule,
+};

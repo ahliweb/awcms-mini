@@ -1,7 +1,9 @@
 import { getDatabase } from "../../db/index.mjs";
 import { createJobLevelRepository } from "../../db/repositories/job-levels.mjs";
 import { createJobTitleRepository } from "../../db/repositories/job-titles.mjs";
+import { createRegionRepository } from "../../db/repositories/regions.mjs";
 import { createUserJobRepository } from "../../db/repositories/user-jobs.mjs";
+import { createUserRegionAssignmentRepository } from "../../db/repositories/user-region-assignments.mjs";
 import { createPermissionResolutionService } from "../permissions/service.mjs";
 import {
   createAuthorizationCacheEntry,
@@ -11,7 +13,7 @@ import {
 } from "./cache.mjs";
 import { createAuthorizationEvaluationInput, createAuthorizationResult } from "./types.mjs";
 import { createStandardAuthorizationReason } from "./reasons.mjs";
-import { evaluateScopedAllowRules, evaluateStaffLevelDenyRule } from "./rules.mjs";
+import { evaluateLogicalRegionScopeDenyRule, evaluateScopedAllowRules, evaluateStaffLevelDenyRule } from "./rules.mjs";
 
 function createPermissionMissingResult(permissionCode) {
   return createAuthorizationResult({
@@ -74,11 +76,76 @@ function createAuthorizationJobContextResolver(database) {
   };
 }
 
+async function listUserLogicalRegionScopeIds(regionAssignments, regions, userId) {
+  if (!userId) {
+    return [];
+  }
+
+  const assignments = await regionAssignments.listUserRegionAssignmentsByUserId(userId, { activeOnly: true });
+  const scopeIds = new Set();
+
+  for (const assignment of assignments) {
+    const subtree = await regions.listRegionSubtree(assignment.region_id, { includeDeleted: false, is_active: true });
+
+    if (subtree.length === 0) {
+      scopeIds.add(assignment.region_id);
+      continue;
+    }
+
+    for (const region of subtree) {
+      scopeIds.add(region.id);
+    }
+  }
+
+  return [...scopeIds].sort((left, right) => left.localeCompare(right));
+}
+
+function createAuthorizationLogicalRegionContextResolver(database) {
+  const regions = createRegionRepository(database);
+  const regionAssignments = createUserRegionAssignmentRepository(database);
+
+  return async function resolveLogicalRegionContext(evaluation) {
+    const nextSubjectLogicalRegionIds =
+      evaluation.subject.logical_region_ids.length > 0
+        ? evaluation.subject.logical_region_ids
+        : await listUserLogicalRegionScopeIds(regionAssignments, regions, evaluation.subject.user_id);
+
+    let nextResourceLogicalRegionIds = evaluation.resource.logical_region_ids;
+
+    if (nextResourceLogicalRegionIds.length === 0 && evaluation.resource.target_user_id) {
+      nextResourceLogicalRegionIds = await listUserLogicalRegionScopeIds(
+        regionAssignments,
+        regions,
+        evaluation.resource.target_user_id,
+      );
+    }
+
+    if (nextResourceLogicalRegionIds.length === 0 && evaluation.resource.kind === "region" && evaluation.resource.resource_id) {
+      nextResourceLogicalRegionIds = [evaluation.resource.resource_id];
+    }
+
+    return {
+      ...evaluation,
+      subject: {
+        ...evaluation.subject,
+        logical_region_ids: nextSubjectLogicalRegionIds,
+      },
+      resource: {
+        ...evaluation.resource,
+        logical_region_ids: nextResourceLogicalRegionIds,
+      },
+    };
+  };
+}
+
 export function createAuthorizationService(options = {}) {
   const database = options.database ?? getDatabase();
   const cache = options.cache ?? createNoopAuthorizationCache();
   const resolveCurrentJobContext =
     options.jobContextResolver ?? (options.database ? createAuthorizationJobContextResolver(database) : async (subject) => subject);
+  const resolveLogicalRegionContext =
+    options.logicalRegionContextResolver ??
+    (options.database ? createAuthorizationLogicalRegionContextResolver(database) : async (evaluation) => evaluation);
   const permissionResolver =
     options.permissionResolver ??
     createPermissionResolutionService({
@@ -89,8 +156,9 @@ export function createAuthorizationService(options = {}) {
 
   return {
     async evaluate(input = {}) {
-      const evaluation = createAuthorizationEvaluationInput(input);
+      let evaluation = createAuthorizationEvaluationInput(input);
       evaluation.subject = await resolveCurrentJobContext(evaluation.subject);
+      evaluation = await resolveLogicalRegionContext(evaluation);
       const permissionCode = evaluation.context.permission_code;
       const cacheKey = createAuthorizationCacheKey({
         scope: "evaluation",
@@ -150,6 +218,13 @@ export function createAuthorizationService(options = {}) {
         return explicitDeny;
       }
 
+      const regionScopeDeny = evaluateLogicalRegionScopeDenyRule(evaluation);
+
+      if (regionScopeDeny) {
+        await cache.set(cacheKey, createAuthorizationCacheEntry(regionScopeDeny));
+        return regionScopeDeny;
+      }
+
       result = evaluateScopedAllowRules(evaluation) ?? createPermissionAllowedResult(permissionCode);
       await cache.set(cacheKey, createAuthorizationCacheEntry(result));
       return result;
@@ -162,4 +237,9 @@ export function createAuthorizationService(options = {}) {
   };
 }
 
-export { createAuthorizationJobContextResolver, createPermissionAllowedResult, createPermissionMissingResult };
+export {
+  createAuthorizationJobContextResolver,
+  createAuthorizationLogicalRegionContextResolver,
+  createPermissionAllowedResult,
+  createPermissionMissingResult,
+};
