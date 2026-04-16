@@ -8,6 +8,7 @@ function createFakeDatabase() {
     roles: [],
     user_roles: [],
     users: [],
+    audit_logs: [],
     transactions: 0,
   };
 
@@ -24,6 +25,16 @@ function createFakeDatabase() {
                 ...values,
               });
             }
+
+            if (table === "audit_logs") {
+              state.audit_logs.push({
+                occurred_at: values.occurred_at ?? "2026-01-01T00:00:00.000Z",
+                metadata: values.metadata ?? {},
+                before_payload: values.before_payload ?? null,
+                after_payload: values.after_payload ?? null,
+                ...values,
+              });
+            }
           },
         }),
       };
@@ -37,7 +48,7 @@ function createFakeDatabase() {
         orderBy: [],
       };
 
-      const source = table === "users" ? state.users : table === "roles" ? state.roles : state.user_roles;
+      const source = table === "users" ? state.users : table === "roles" ? state.roles : table === "audit_logs" ? state.audit_logs : state.user_roles;
 
       const apply = () => {
         let rows = [...source];
@@ -232,6 +243,7 @@ test("role assignment service assigns and lists active roles with automatic prim
   const active = await service.listActiveRoles("user_1");
   assert.equal(active.length, 1);
   assert.equal(active[0].role.slug, "editor");
+  assert.deepEqual(state.audit_logs.map((entry) => entry.action), ["role.assign"]);
   assert.equal(state.transactions, 2);
 });
 
@@ -285,6 +297,7 @@ test("role assignment service revokes active assignments by expiring them", asyn
 
   const active = await service.listActiveRoles("user_1");
   assert.equal(active.length, 0);
+  assert.deepEqual(state.audit_logs.map((entry) => entry.action), ["role.assign", "role.revoke"]);
 });
 
 test("role assignment service exposes pluggable protection hooks", async () => {

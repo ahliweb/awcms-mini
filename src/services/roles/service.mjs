@@ -1,6 +1,7 @@
 import { getDatabase, withTransaction } from "../../db/index.mjs";
 import { createRoleRepository } from "../../db/repositories/roles.mjs";
 import { createUserRepository } from "../../db/repositories/users.mjs";
+import { createAuditService } from "../audit/service.mjs";
 
 const USER_ROLE_COLUMNS = [
   "id",
@@ -132,6 +133,7 @@ function createRoleAssignmentServiceDependencies(executor) {
   return {
     users: createUserRepository(executor),
     roles: createRoleRepository(executor),
+    audit: createAuditService({ database: executor }),
     userRoles: {
       createAssignment(input) {
         return createUserRoleAssignment(executor, input);
@@ -147,6 +149,20 @@ function createRoleAssignmentServiceDependencies(executor) {
       },
     },
   };
+}
+
+async function appendRoleAudit(deps, input) {
+  await deps.audit.append({
+    actor_user_id: input.actor_user_id ?? null,
+    action: input.action,
+    entity_type: input.entity_type ?? "role_assignment",
+    entity_id: input.entity_id ?? null,
+    target_user_id: input.target_user_id ?? null,
+    summary: input.summary,
+    before_payload: input.before_payload ?? null,
+    after_payload: input.after_payload ?? null,
+    metadata: input.metadata ?? {},
+  });
 }
 
 async function resolveAssignmentContext(deps, input) {
@@ -261,6 +277,24 @@ export function createRoleAssignmentService(options = {}) {
           is_primary: desiredPrimary,
         });
 
+        await appendRoleAudit(deps, {
+          actor_user_id: input.assigned_by_user_id ?? null,
+          action: "role.assign",
+          entity_id: assignment.id,
+          target_user_id: context.user.id,
+          summary: "Assigned role to user.",
+          before_payload: {
+            previous_primary_role_ids: context.activeAssignments.filter((entry) => entry.is_primary).map((entry) => entry.role_id),
+          },
+          after_payload: {
+            role_id: assignment.role_id,
+            is_primary: assignment.is_primary,
+          },
+          metadata: {
+            role_slug: context.role.slug,
+          },
+        });
+
         return hydrateAssignment(deps, assignment);
       });
     },
@@ -299,6 +333,25 @@ export function createRoleAssignmentService(options = {}) {
           assignment.id,
           input.expires_at ?? new Date().toISOString(),
         );
+
+        await appendRoleAudit(deps, {
+          actor_user_id: input.revoked_by_user_id ?? null,
+          action: "role.revoke",
+          entity_id: revoked.id,
+          target_user_id: context.user.id,
+          summary: "Revoked role from user.",
+          before_payload: {
+            role_id: assignment.role_id,
+            expires_at: assignment.expires_at ?? null,
+          },
+          after_payload: {
+            role_id: revoked.role_id,
+            expires_at: revoked.expires_at ?? null,
+          },
+          metadata: {
+            role_slug: context.role.slug,
+          },
+        });
 
         return hydrateAssignment(deps, revoked);
       });

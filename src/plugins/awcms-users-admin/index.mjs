@@ -4,11 +4,11 @@ import { getDatabase } from "../../db/index.mjs";
 import { createJobLevelRepository } from "../../db/repositories/job-levels.mjs";
 import { createJobTitleRepository } from "../../db/repositories/job-titles.mjs";
 import { createRegionRepository } from "../../db/repositories/regions.mjs";
-import { createRolePermissionRepository } from "../../db/repositories/role-permissions.mjs";
 import { createUserJobRepository } from "../../db/repositories/user-jobs.mjs";
 import { createUserRegionAssignmentRepository } from "../../db/repositories/user-region-assignments.mjs";
 import { createAuthorizationService } from "../../services/authorization/service.mjs";
 import { createJobsService } from "../../services/jobs/service.mjs";
+import { createRbacService } from "../../services/rbac/service.mjs";
 import { createRegionAssignmentService } from "../../services/regions/assignments.mjs";
 import { createRegionService } from "../../services/regions/service.mjs";
 import { createUserService } from "../../services/users/service.mjs";
@@ -18,6 +18,7 @@ let userAdminServiceFactory = (database) => createUserService({ database });
 let userAdminJobsServiceFactory = (database) => createJobsService({ database });
 let userAdminRegionServiceFactory = (database) => createRegionService({ database });
 let userAdminRegionAssignmentServiceFactory = (database) => createRegionAssignmentService({ database });
+let userAdminRbacServiceFactory = (database) => createRbacService({ database });
 let userAdminAuthorizationServiceFactory = (database) => createAuthorizationService({ database });
 
 function normalizeProfileRow(row) {
@@ -419,12 +420,12 @@ async function applyPermissionMatrixHandler(ctx) {
     throw PluginRouteError.badRequest("Protected permission changes require an elevated confirmation flow.");
   }
 
-  const repo = createRolePermissionRepository(db);
-  const diffs = {};
-
-  for (const role of snapshot.roles) {
-    diffs[role.id] = await repo.syncRolePermissionIds(role.id, nextByRoleId[role.id]);
-  }
+  const actorUserId = ctx.request.headers.get("x-actor-user-id")?.trim() ?? null;
+  const rbac = userAdminRbacServiceFactory(db);
+  const diffs = await rbac.applyPermissionMatrix({
+    actor_user_id: actorUserId,
+    rolePermissionIdsByRoleId: Object.fromEntries(snapshot.roles.map((role) => [role.id, nextByRoleId[role.id]])),
+  });
 
   return {
     applied: true,
@@ -1400,6 +1401,14 @@ export function setUserAdminAuthorizationServiceFactory(factory) {
 
 export function resetUserAdminAuthorizationServiceFactory() {
   userAdminAuthorizationServiceFactory = (database) => createAuthorizationService({ database });
+}
+
+export function setUserAdminRbacServiceFactory(factory) {
+  userAdminRbacServiceFactory = factory;
+}
+
+export function resetUserAdminRbacServiceFactory() {
+  userAdminRbacServiceFactory = (database) => createRbacService({ database });
 }
 
 export default createPlugin;

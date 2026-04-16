@@ -7,12 +7,14 @@ import {
   resetUserAdminDatabaseGetter,
   resetUserAdminRegionAssignmentServiceFactory,
   resetUserAdminJobsServiceFactory,
+  resetUserAdminRbacServiceFactory,
   resetUserAdminRegionServiceFactory,
   resetUserAdminServiceFactory,
   setUserAdminAuthorizationServiceFactory,
   setUserAdminDatabaseGetter,
   setUserAdminRegionAssignmentServiceFactory,
   setUserAdminJobsServiceFactory,
+  setUserAdminRbacServiceFactory,
   setUserAdminRegionServiceFactory,
   setUserAdminServiceFactory,
 } from "../../src/plugins/awcms-users-admin/index.mjs";
@@ -570,6 +572,7 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
 test("awcms users admin plugin exposes permission matrix routes and applies staged changes", async () => {
   const plugin = createPlugin();
   const authorizationCalls = [];
+  const rbacCalls = [];
   const fakeDb = createFakeMatrixDb({
     roles: [
       { id: "role_owner", slug: "owner", name: "Owner", staff_level: 10, is_assignable: false, is_protected: true, deleted_at: null },
@@ -586,6 +589,33 @@ test("awcms users admin plugin exposes permission matrix routes and applies stag
   });
   setUserAdminDatabaseGetter(() => fakeDb);
   setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory(authorizationCalls));
+  setUserAdminRbacServiceFactory(() => ({
+    async applyPermissionMatrix(input) {
+      rbacCalls.push(input);
+      fakeDb.state.role_permissions = [
+        { role_id: "role_owner", permission_id: "perm_admin_roles_assign", granted_by_user_id: null, granted_at: "2026-04-10T10:00:00.000Z" },
+        { role_id: "role_owner", permission_id: "perm_content_posts_read", granted_by_user_id: null, granted_at: "2026-04-10T10:00:00.000Z" },
+        { role_id: "role_editor", permission_id: "perm_content_posts_read", granted_by_user_id: null, granted_at: "2026-04-10T10:00:00.000Z" },
+      ];
+
+      return {
+        role_owner: {
+          currentPermissionIds: ["perm_admin_roles_assign"],
+          nextPermissionIds: ["perm_admin_roles_assign", "perm_content_posts_read"],
+          addPermissionIds: ["perm_content_posts_read"],
+          removePermissionIds: [],
+          unchangedPermissionIds: ["perm_admin_roles_assign"],
+        },
+        role_editor: {
+          currentPermissionIds: ["perm_content_posts_read"],
+          nextPermissionIds: ["perm_content_posts_read"],
+          addPermissionIds: [],
+          removePermissionIds: [],
+          unchangedPermissionIds: ["perm_content_posts_read"],
+        },
+      };
+    },
+  }));
 
   try {
     const snapshot = await plugin.routes["permissions/matrix"].handler({
@@ -646,12 +676,14 @@ test("awcms users admin plugin exposes permission matrix routes and applies stag
 
     assert.equal(applied.applied, true);
     assert.equal(applied.snapshot.rows[1].grantsByRoleId.role_owner, true);
-    assert.equal(fakeDb.state.role_permissions.some((entry) => entry.role_id === "role_owner" && entry.permission_id === "perm_content_posts_read"), true);
+    assert.equal(rbacCalls.length, 1);
+    assert.deepEqual(rbacCalls[0].rolePermissionIdsByRoleId.role_owner, ["perm_admin_roles_assign", "perm_content_posts_read"]);
     assert.equal(authorizationCalls[0].context.permission_code, "admin.permissions.read");
     assert.equal(authorizationCalls.at(-1).context.permission_code, "admin.permissions.update");
   } finally {
     resetUserAdminDatabaseGetter();
     resetUserAdminAuthorizationServiceFactory();
+    resetUserAdminRbacServiceFactory();
   }
 });
 
