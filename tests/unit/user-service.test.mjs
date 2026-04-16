@@ -10,6 +10,7 @@ function createFakeDatabase() {
     sessions: [],
     loginEvents: [],
     inviteTokens: [],
+    auditLogs: [],
     transactions: 0,
   };
 
@@ -52,6 +53,16 @@ function createFakeDatabase() {
                 ...values,
               });
             }
+
+            if (table === "audit_logs") {
+              state.auditLogs.push({
+                occurred_at: values.occurred_at ?? "2026-01-01T00:00:00.000Z",
+                metadata: values.metadata ?? {},
+                before_payload: values.before_payload ?? null,
+                after_payload: values.after_payload ?? null,
+                ...values,
+              });
+            }
           },
         }),
       };
@@ -71,7 +82,9 @@ function createFakeDatabase() {
             ? state.sessions
             : table === "login_security_events"
               ? state.loginEvents
-              : state.inviteTokens;
+              : table === "audit_logs"
+                ? state.auditLogs
+                : state.inviteTokens;
 
       const apply = () => {
         let rows = [...source];
@@ -113,7 +126,7 @@ function createFakeDatabase() {
     },
 
     updateTable(table) {
-      const source = table === "users" ? state.users : table === "sessions" ? state.sessions : state.inviteTokens;
+      const source = table === "users" ? state.users : table === "sessions" ? state.sessions : table === "user_invite_tokens" ? state.inviteTokens : state.auditLogs;
       const updateState = { values: undefined, where: [] };
 
       return {
@@ -195,6 +208,7 @@ test("user service creates and invites users with explicit lifecycle states", as
   assert.equal(created.status, "active");
   assert.equal(invited.status, "invited");
   assert.equal(invited.must_reset_password, true);
+  assert.deepEqual(state.auditLogs.map((entry) => entry.action), ["user.create", "user.invite.prepare"]);
   assert.equal(state.transactions, 2);
 });
 
@@ -257,6 +271,14 @@ test("user service activate/disable/lock/updateProfile flows are explicit", asyn
   const afterRevoke = await service.revokeUserSessions("user_1", "2026-01-22T00:00:00.000Z");
   assert.equal(afterRevoke.id, "user_1");
   assert.equal(state.sessions[0].revoked_at, "2026-01-22T00:00:00.000Z");
+  assert.deepEqual(state.auditLogs.map((entry) => entry.action), [
+    "user.activate",
+    "user.disable",
+    "user.lock",
+    "user.soft_delete",
+    "user.restore",
+    "session.revoke_all_for_user",
+  ]);
 });
 
 test("user service createInvite and activateInvite enforce token activation", async () => {
@@ -288,4 +310,5 @@ test("user service createInvite and activateInvite enforce token activation", as
   assert.equal(activated.email_verified, true);
   assert.equal(verifyPassword("very-secure-password", activated.password_hash), true);
   assert.notEqual(state.inviteTokens[0].consumed_at, null);
+  assert.deepEqual(state.auditLogs.map((entry) => entry.action), ["user.invite.create", "user.invite.activate"]);
 });

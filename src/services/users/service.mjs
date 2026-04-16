@@ -3,6 +3,7 @@ import { createLoginSecurityEventRepository } from "../../db/repositories/login-
 import { createSessionRepository } from "../../db/repositories/sessions.mjs";
 import { createUserInviteTokenRepository } from "../../db/repositories/user-invite-tokens.mjs";
 import { createUserRepository } from "../../db/repositories/users.mjs";
+import { createAuditService } from "../audit/service.mjs";
 import { hashPassword, verifyPassword } from "../../auth/passwords.mjs";
 
 const INVITE_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7;
@@ -13,7 +14,23 @@ function createUserServiceDependencies(executor) {
     sessions: createSessionRepository(executor),
     loginSecurityEvents: createLoginSecurityEventRepository(executor),
     inviteTokens: createUserInviteTokenRepository(executor),
+    audit: createAuditService({ database: executor }),
   };
+}
+
+async function appendUserAudit(deps, input) {
+  await deps.audit.append({
+    actor_user_id: input.actor_user_id ?? null,
+    action: input.action,
+    entity_type: input.entity_type ?? "user",
+    entity_id: input.entity_id ?? null,
+    target_user_id: input.target_user_id ?? null,
+    summary: input.summary,
+    before_payload: input.before_payload ?? null,
+    after_payload: input.after_payload ?? null,
+    metadata: input.metadata ?? {},
+    occurred_at: input.occurred_at ?? undefined,
+  });
 }
 
 function createInviteTokenValue() {
@@ -105,13 +122,24 @@ export function createUserService(options = {}) {
       return withTransaction(database, async (trx) => {
         const deps = createUserServiceDependencies(trx);
 
-        return deps.users.createUser({
+        const user = await deps.users.createUser({
           ...input,
           status: input.status ?? "active",
           must_reset_password: input.must_reset_password ?? false,
           is_protected: input.is_protected ?? false,
           email_verified: input.email_verified ?? true,
         });
+
+        await appendUserAudit(deps, {
+          actor_user_id: input.created_by_user_id ?? null,
+          action: "user.create",
+          entity_id: user.id,
+          target_user_id: user.id,
+          summary: "Created user account.",
+          after_payload: { status: user.status, email: user.email },
+        });
+
+        return user;
       });
     },
 
@@ -119,13 +147,24 @@ export function createUserService(options = {}) {
       return withTransaction(database, async (trx) => {
         const deps = createUserServiceDependencies(trx);
 
-        return deps.users.createUser({
+        const user = await deps.users.createUser({
           ...input,
           status: "invited",
           must_reset_password: input.must_reset_password ?? true,
           is_protected: input.is_protected ?? false,
           email_verified: false,
         });
+
+        await appendUserAudit(deps, {
+          actor_user_id: input.created_by_user_id ?? null,
+          action: "user.invite.prepare",
+          entity_id: user.id,
+          target_user_id: user.id,
+          summary: "Prepared invited user account.",
+          after_payload: { status: user.status, email: user.email },
+        });
+
+        return user;
       });
     },
 
@@ -162,11 +201,22 @@ export function createUserService(options = {}) {
           expires_at: expiresAt,
         });
 
-        return {
+        const invite = {
           user,
           token: inviteToken.value,
           expires_at: expiresAt,
         };
+
+        await appendUserAudit(deps, {
+          actor_user_id: input.created_by_user_id ?? null,
+          action: "user.invite.create",
+          entity_id: user.id,
+          target_user_id: user.id,
+          summary: "Created activation invite.",
+          after_payload: { status: user.status, expires_at: expiresAt },
+        });
+
+        return invite;
       });
     },
 
@@ -186,7 +236,19 @@ export function createUserService(options = {}) {
     async activateUser(userId) {
       return withTransaction(database, async (trx) => {
         const deps = createUserServiceDependencies(trx);
-        return deps.users.changeUserStatus(userId, "active");
+        const before = await deps.users.getUserById(userId, { includeDeleted: true });
+        const user = await deps.users.changeUserStatus(userId, "active");
+
+        await appendUserAudit(deps, {
+          action: "user.activate",
+          entity_id: user.id,
+          target_user_id: user.id,
+          summary: "Activated user account.",
+          before_payload: { status: before?.status ?? null },
+          after_payload: { status: user.status },
+        });
+
+        return user;
       });
     },
 
@@ -215,6 +277,15 @@ export function createUserService(options = {}) {
         const parsedToken = parseInviteToken(input.token);
         await deps.inviteTokens.consumeInviteToken(parsedToken.id);
 
+        await appendUserAudit(deps, {
+          action: "user.invite.activate",
+          entity_id: user.id,
+          target_user_id: user.id,
+          summary: "Activated invited user account.",
+          before_payload: { status: activation.user.status },
+          after_payload: { status: user.status, email_verified: user.email_verified },
+        });
+
         return user;
       });
     },
@@ -222,12 +293,23 @@ export function createUserService(options = {}) {
     async disableUser(userId, options = {}) {
       return withTransaction(database, async (trx) => {
         const deps = createUserServiceDependencies(trx);
+        const before = await deps.users.getUserById(userId, { includeDeleted: true });
 
         const user = await deps.users.changeUserStatus(userId, "disabled");
 
         if (options.revokeSessions !== false) {
           await deps.sessions.revokeAllSessionsForUser(userId);
         }
+
+        await appendUserAudit(deps, {
+          actor_user_id: options.actor_user_id ?? null,
+          action: "user.disable",
+          entity_id: user.id,
+          target_user_id: user.id,
+          summary: "Disabled user account.",
+          before_payload: { status: before?.status ?? null },
+          after_payload: { status: user.status },
+        });
 
         return user;
       });
@@ -236,12 +318,23 @@ export function createUserService(options = {}) {
     async lockUser(userId, options = {}) {
       return withTransaction(database, async (trx) => {
         const deps = createUserServiceDependencies(trx);
+        const before = await deps.users.getUserById(userId, { includeDeleted: true });
 
         const user = await deps.users.changeUserStatus(userId, "locked");
 
         if (options.revokeSessions !== false) {
           await deps.sessions.revokeAllSessionsForUser(userId);
         }
+
+        await appendUserAudit(deps, {
+          actor_user_id: options.actor_user_id ?? null,
+          action: "user.lock",
+          entity_id: user.id,
+          target_user_id: user.id,
+          summary: "Locked user account.",
+          before_payload: { status: before?.status ?? null },
+          after_payload: { status: user.status },
+        });
 
         return user;
       });
@@ -251,7 +344,18 @@ export function createUserService(options = {}) {
       return withTransaction(database, async (trx) => {
         const deps = createUserServiceDependencies(trx);
         await deps.sessions.revokeAllSessionsForUser(userId, revokedAt);
-        return deps.users.getUserById(userId, { includeDeleted: true });
+        const user = await deps.users.getUserById(userId, { includeDeleted: true });
+
+        await appendUserAudit(deps, {
+          action: "session.revoke_all_for_user",
+          entity_type: "session",
+          entity_id: userId,
+          target_user_id: userId,
+          summary: "Revoked all sessions for user.",
+          after_payload: { revoked_at: revokedAt ?? null },
+        });
+
+        return user;
       });
     },
 
@@ -268,6 +372,7 @@ export function createUserService(options = {}) {
     async softDeleteUser(userId, options = {}) {
       return withTransaction(database, async (trx) => {
         const deps = createUserServiceDependencies(trx);
+        const before = await deps.users.getUserById(userId, { includeDeleted: true });
 
         const user = await deps.users.softDeleteUser(userId, {
           deleted_by_user_id: options.deleted_by_user_id,
@@ -279,6 +384,17 @@ export function createUserService(options = {}) {
           await deps.sessions.revokeAllSessionsForUser(userId);
         }
 
+        await appendUserAudit(deps, {
+          actor_user_id: options.deleted_by_user_id ?? null,
+          action: "user.soft_delete",
+          entity_id: user.id,
+          target_user_id: user.id,
+          summary: "Soft deleted user account.",
+          before_payload: { status: before?.status ?? null, deleted_at: before?.deleted_at ?? null },
+          after_payload: { status: user.status, deleted_at: user.deleted_at ?? null },
+          metadata: { delete_reason: options.delete_reason ?? null },
+        });
+
         return user;
       });
     },
@@ -286,7 +402,19 @@ export function createUserService(options = {}) {
     async restoreUser(userId, options = {}) {
       return withTransaction(database, async (trx) => {
         const deps = createUserServiceDependencies(trx);
-        return deps.users.restoreUser(userId, { status: options.status });
+        const before = await deps.users.getUserById(userId, { includeDeleted: true });
+        const user = await deps.users.restoreUser(userId, { status: options.status });
+
+        await appendUserAudit(deps, {
+          action: "user.restore",
+          entity_id: user.id,
+          target_user_id: user.id,
+          summary: "Restored soft deleted user account.",
+          before_payload: { status: before?.status ?? null, deleted_at: before?.deleted_at ?? null },
+          after_payload: { status: user.status, deleted_at: user.deleted_at ?? null },
+        });
+
+        return user;
       });
     },
   };

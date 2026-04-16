@@ -6,6 +6,7 @@ import { createSessionService } from "../../src/services/sessions/service.mjs";
 function createFakeDatabase() {
   const state = {
     sessions: [],
+    auditLogs: [],
     transactions: 0,
   };
 
@@ -17,6 +18,16 @@ function createFakeDatabase() {
             if (table === "sessions") {
               state.sessions.push({
                 created_at: values.created_at ?? "2026-01-01T00:00:00.000Z",
+                ...values,
+              });
+            }
+
+            if (table === "audit_logs") {
+              state.auditLogs.push({
+                occurred_at: values.occurred_at ?? "2026-01-01T00:00:00.000Z",
+                metadata: values.metadata ?? {},
+                before_payload: values.before_payload ?? null,
+                after_payload: values.after_payload ?? null,
                 ...values,
               });
             }
@@ -48,7 +59,7 @@ function createFakeDatabase() {
           return query;
         },
         execute: async () => {
-          let rows = [...state.sessions];
+          let rows = [...(table === "audit_logs" ? state.auditLogs : state.sessions)];
 
           for (const clause of local.where) {
             if (clause.operator === "=" || clause.operator === "is") {
@@ -152,6 +163,7 @@ test("session service issues and refreshes sessions with trusted-device flag", a
 
   const refreshed = await service.refreshSession("session_1", "2026-01-15T00:00:00.000Z");
   assert.equal(refreshed.last_seen_at, "2026-01-15T00:00:00.000Z");
+  assert.deepEqual(state.auditLogs.map((entry) => entry.action), ["session.issue"]);
   assert.equal(state.transactions, 2);
 });
 
@@ -223,4 +235,5 @@ test("session service supports revoke, revoke-all, and list-active", async () =>
 
   const activeAfterAll = await service.listActiveSessions("user_1");
   assert.equal(activeAfterAll.length, 0);
+  assert.deepEqual(state.auditLogs.map((entry) => entry.action), ["session.revoke", "session.revoke_all"]);
 });
