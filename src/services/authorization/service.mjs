@@ -1,8 +1,10 @@
 import { getDatabase } from "../../db/index.mjs";
 import { createJobLevelRepository } from "../../db/repositories/job-levels.mjs";
 import { createJobTitleRepository } from "../../db/repositories/job-titles.mjs";
+import { createAdministrativeRegionRepository } from "../../db/repositories/administrative-regions.mjs";
 import { createRegionRepository } from "../../db/repositories/regions.mjs";
 import { createUserJobRepository } from "../../db/repositories/user-jobs.mjs";
+import { createUserAdministrativeRegionAssignmentRepository } from "../../db/repositories/user-administrative-region-assignments.mjs";
 import { createUserRegionAssignmentRepository } from "../../db/repositories/user-region-assignments.mjs";
 import { createPermissionResolutionService } from "../permissions/service.mjs";
 import {
@@ -13,7 +15,12 @@ import {
 } from "./cache.mjs";
 import { createAuthorizationEvaluationInput, createAuthorizationResult } from "./types.mjs";
 import { createStandardAuthorizationReason } from "./reasons.mjs";
-import { evaluateLogicalRegionScopeDenyRule, evaluateScopedAllowRules, evaluateStaffLevelDenyRule } from "./rules.mjs";
+import {
+  evaluateAdministrativeRegionScopeDenyRule,
+  evaluateLogicalRegionScopeDenyRule,
+  evaluateScopedAllowRules,
+  evaluateStaffLevelDenyRule,
+} from "./rules.mjs";
 
 function createPermissionMissingResult(permissionCode) {
   return createAuthorizationResult({
@@ -138,6 +145,76 @@ function createAuthorizationLogicalRegionContextResolver(database) {
   };
 }
 
+async function listUserAdministrativeRegionScopeIds(administrativeRegionAssignments, administrativeRegions, userId) {
+  if (!userId) {
+    return [];
+  }
+
+  const assignments = await administrativeRegionAssignments.listUserAdministrativeRegionAssignmentsByUserId(userId, { activeOnly: true });
+  const scopeIds = new Set();
+
+  for (const assignment of assignments) {
+    const subtree = await administrativeRegions.listAdministrativeRegionSubtree(assignment.administrative_region_id, { is_active: true });
+
+    if (subtree.length === 0) {
+      scopeIds.add(assignment.administrative_region_id);
+      continue;
+    }
+
+    for (const region of subtree) {
+      scopeIds.add(region.id);
+    }
+  }
+
+  return [...scopeIds].sort((left, right) => left.localeCompare(right));
+}
+
+function createAuthorizationAdministrativeRegionContextResolver(database) {
+  const administrativeRegions = createAdministrativeRegionRepository(database);
+  const administrativeRegionAssignments = createUserAdministrativeRegionAssignmentRepository(database);
+
+  return async function resolveAdministrativeRegionContext(evaluation) {
+    const nextSubjectAdministrativeRegionIds =
+      evaluation.subject.administrative_region_ids.length > 0
+        ? evaluation.subject.administrative_region_ids
+        : await listUserAdministrativeRegionScopeIds(
+            administrativeRegionAssignments,
+            administrativeRegions,
+            evaluation.subject.user_id,
+          );
+
+    let nextResourceAdministrativeRegionIds = evaluation.resource.administrative_region_ids;
+
+    if (nextResourceAdministrativeRegionIds.length === 0 && evaluation.resource.target_user_id) {
+      nextResourceAdministrativeRegionIds = await listUserAdministrativeRegionScopeIds(
+        administrativeRegionAssignments,
+        administrativeRegions,
+        evaluation.resource.target_user_id,
+      );
+    }
+
+    if (
+      nextResourceAdministrativeRegionIds.length === 0 &&
+      evaluation.resource.kind === "administrative_region" &&
+      evaluation.resource.resource_id
+    ) {
+      nextResourceAdministrativeRegionIds = [evaluation.resource.resource_id];
+    }
+
+    return {
+      ...evaluation,
+      subject: {
+        ...evaluation.subject,
+        administrative_region_ids: nextSubjectAdministrativeRegionIds,
+      },
+      resource: {
+        ...evaluation.resource,
+        administrative_region_ids: nextResourceAdministrativeRegionIds,
+      },
+    };
+  };
+}
+
 export function createAuthorizationService(options = {}) {
   const database = options.database ?? getDatabase();
   const cache = options.cache ?? createNoopAuthorizationCache();
@@ -146,6 +223,9 @@ export function createAuthorizationService(options = {}) {
   const resolveLogicalRegionContext =
     options.logicalRegionContextResolver ??
     (options.database ? createAuthorizationLogicalRegionContextResolver(database) : async (evaluation) => evaluation);
+  const resolveAdministrativeRegionContext =
+    options.administrativeRegionContextResolver ??
+    (options.database ? createAuthorizationAdministrativeRegionContextResolver(database) : async (evaluation) => evaluation);
   const permissionResolver =
     options.permissionResolver ??
     createPermissionResolutionService({
@@ -159,6 +239,7 @@ export function createAuthorizationService(options = {}) {
       let evaluation = createAuthorizationEvaluationInput(input);
       evaluation.subject = await resolveCurrentJobContext(evaluation.subject);
       evaluation = await resolveLogicalRegionContext(evaluation);
+      evaluation = await resolveAdministrativeRegionContext(evaluation);
       const permissionCode = evaluation.context.permission_code;
       const cacheKey = createAuthorizationCacheKey({
         scope: "evaluation",
@@ -225,6 +306,13 @@ export function createAuthorizationService(options = {}) {
         return regionScopeDeny;
       }
 
+      const administrativeRegionScopeDeny = evaluateAdministrativeRegionScopeDenyRule(evaluation);
+
+      if (administrativeRegionScopeDeny) {
+        await cache.set(cacheKey, createAuthorizationCacheEntry(administrativeRegionScopeDeny));
+        return administrativeRegionScopeDeny;
+      }
+
       result = evaluateScopedAllowRules(evaluation) ?? createPermissionAllowedResult(permissionCode);
       await cache.set(cacheKey, createAuthorizationCacheEntry(result));
       return result;
@@ -239,6 +327,7 @@ export function createAuthorizationService(options = {}) {
 
 export {
   createAuthorizationJobContextResolver,
+  createAuthorizationAdministrativeRegionContextResolver,
   createAuthorizationLogicalRegionContextResolver,
   createPermissionAllowedResult,
   createPermissionMissingResult,

@@ -80,6 +80,26 @@ function evaluateLogicalRegionScopeDenyRule(evaluation) {
   });
 }
 
+function evaluateAdministrativeRegionScopeDenyRule(evaluation) {
+  const targetRegionIds = evaluation.resource.administrative_region_ids ?? [];
+
+  if (targetRegionIds.length === 0) {
+    return null;
+  }
+
+  const actorRegionScopeIds = new Set(evaluation.subject.administrative_region_ids ?? []);
+
+  if (targetRegionIds.some((regionId) => actorRegionScopeIds.has(regionId))) {
+    return null;
+  }
+
+  return createRegionScopeDenyResult(evaluation.context.permission_code, "administrative-region:scope", {
+    actor_administrative_region_ids: [...actorRegionScopeIds].sort((left, right) => left.localeCompare(right)),
+    target_administrative_region_ids: [...targetRegionIds].sort((left, right) => left.localeCompare(right)),
+    resource_kind: evaluation.resource.kind,
+  });
+}
+
 function isSelfTarget(evaluation) {
   const subjectUserId = evaluation.subject.user_id;
 
@@ -131,6 +151,7 @@ function evaluateScopedAllowRules(evaluation) {
 }
 
 export {
+  evaluateAdministrativeRegionScopeDenyRule,
   evaluateLogicalRegionScopeDenyRule,
   evaluateOwnershipRule,
   evaluateScopedAllowRules,

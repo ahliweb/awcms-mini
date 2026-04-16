@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  createAuthorizationAdministrativeRegionContextResolver,
   createAuthorizationJobContextResolver,
   createAuthorizationLogicalRegionContextResolver,
   createAuthorizationService,
@@ -196,6 +197,94 @@ test("authorization logical region context resolver hydrates actor scope and tar
   assert.deepEqual(evaluation.resource.logical_region_ids, ["region_north"]);
 });
 
+test("authorization administrative region context resolver hydrates actor scope and target user scope from assignments", async () => {
+  const state = {
+    administrative_regions: [
+      {
+        id: "province_jb",
+        code: "province-jb",
+        name: "Jawa Barat",
+        type: "province",
+        parent_id: null,
+        path: "province_jb",
+        province_code: "32",
+        regency_code: null,
+        district_code: null,
+        village_code: null,
+        is_active: true,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        id: "regency_bdg",
+        code: "regency-bdg",
+        name: "Bandung",
+        type: "regency_city",
+        parent_id: "province_jb",
+        path: "province_jb/regency_bdg",
+        province_code: "32",
+        regency_code: "32.04",
+        district_code: null,
+        village_code: null,
+        is_active: true,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        id: "regency_bgr",
+        code: "regency-bgr",
+        name: "Bogor",
+        type: "regency_city",
+        parent_id: "province_jb",
+        path: "province_jb/regency_bgr",
+        province_code: "32",
+        regency_code: "32.01",
+        district_code: null,
+        village_code: null,
+        is_active: true,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z",
+      },
+    ],
+    user_administrative_region_assignments: [
+      {
+        id: "assignment_actor",
+        user_id: "user_actor",
+        administrative_region_id: "province_jb",
+        assignment_type: "manager",
+        is_primary: true,
+        starts_at: "2026-01-01T00:00:00.000Z",
+        ends_at: null,
+        assigned_by_user_id: null,
+        created_at: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        id: "assignment_target",
+        user_id: "user_target",
+        administrative_region_id: "regency_bdg",
+        assignment_type: "member",
+        is_primary: true,
+        starts_at: "2026-01-01T00:00:00.000Z",
+        ends_at: null,
+        assigned_by_user_id: null,
+        created_at: "2026-01-01T00:00:00.000Z",
+      },
+    ],
+  };
+  const resolveAdministrativeRegionContext = createAuthorizationAdministrativeRegionContextResolver(
+    createAuthorizationContextDatabase(state),
+  );
+
+  const evaluation = await resolveAdministrativeRegionContext({
+    subject: { kind: "user", user_id: "user_actor", administrative_region_ids: [] },
+    resource: { kind: "user", target_user_id: "user_target", administrative_region_ids: [] },
+    context: { permission_code: "admin.users.read", action: "read", session_id: null },
+  });
+
+  assert.deepEqual(evaluation.subject.administrative_region_ids, ["province_jb", "regency_bdg", "regency_bgr"]);
+  assert.deepEqual(evaluation.resource.administrative_region_ids, ["regency_bdg"]);
+});
+
 test("authorization service does not grant access from job context alone", async () => {
   const service = createAuthorizationService({
     jobContextResolver: async (subject) => ({
@@ -269,6 +358,73 @@ test("authorization service allows requests when target logical region falls wit
       resource: {
         ...evaluation.resource,
         logical_region_ids: ["region_north"],
+      },
+    }),
+    permissionResolver: {
+      async getEffectivePermissions() {
+        return {
+          user_id: "user_manager",
+          permission_codes: ["admin.users.read"],
+        };
+      },
+    },
+  });
+
+  const result = await service.evaluate({
+    subject: { kind: "user", user_id: "user_manager" },
+    resource: { kind: "user", target_user_id: "user_target" },
+    context: { permission_code: "admin.users.read", action: "read" },
+  });
+
+  assert.equal(result.allowed, true);
+  assert.equal(result.reason.code, "ALLOW_RBAC_PERMISSION");
+});
+
+test("authorization service denies requests when target administrative region falls outside actor subtree scope", async () => {
+  const service = createAuthorizationService({
+    administrativeRegionContextResolver: async (evaluation) => ({
+      ...evaluation,
+      subject: {
+        ...evaluation.subject,
+        administrative_region_ids: ["province_jb", "regency_bdg"],
+      },
+      resource: {
+        ...evaluation.resource,
+        administrative_region_ids: ["regency_bgr"],
+      },
+    }),
+    permissionResolver: {
+      async getEffectivePermissions() {
+        return {
+          user_id: "user_manager",
+          permission_codes: ["admin.users.read"],
+        };
+      },
+    },
+  });
+
+  const result = await service.evaluate({
+    subject: { kind: "user", user_id: "user_manager" },
+    resource: { kind: "user", target_user_id: "user_target" },
+    context: { permission_code: "admin.users.read", action: "read" },
+  });
+
+  assert.equal(result.allowed, false);
+  assert.equal(result.matched_rule, "administrative-region:scope");
+  assert.equal(result.reason.code, "DENY_REGION_SCOPE_MISMATCH");
+});
+
+test("authorization service allows requests when target administrative region falls within actor subtree scope", async () => {
+  const service = createAuthorizationService({
+    administrativeRegionContextResolver: async (evaluation) => ({
+      ...evaluation,
+      subject: {
+        ...evaluation.subject,
+        administrative_region_ids: ["province_jb", "regency_bdg"],
+      },
+      resource: {
+        ...evaluation.resource,
+        administrative_region_ids: ["regency_bdg"],
       },
     }),
     permissionResolver: {
