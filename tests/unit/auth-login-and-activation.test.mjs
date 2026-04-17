@@ -341,3 +341,32 @@ test("handleAuthMe rejects revoked identity sessions promptly", async () => {
   assert.equal(body.error.code, "NOT_AUTHENTICATED");
   assert.equal(session.get("user"), undefined);
 });
+
+test("handleAuthLogin blocks accounts that must complete a forced password reset", async () => {
+  const { database, state } = createFakeDatabase();
+  state.users.push({
+    id: "user_reset",
+    email: "reset@example.com",
+    password_hash: hashPassword("very-secure-password"),
+    status: "active",
+    deleted_at: null,
+    must_reset_password: true,
+    is_protected: false,
+    email_verified: true,
+    disabled: false,
+  });
+
+  const response = await handleAuthLogin({
+    request: new Request("http://example.test/_emdash/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "reset@example.com", password: "very-secure-password" }),
+    }),
+    session: createFakeSession(),
+    db: database,
+  });
+
+  const body = await response.json();
+  assert.equal(response.status, 403);
+  assert.equal(body.error.code, "PASSWORD_RESET_REQUIRED");
+});

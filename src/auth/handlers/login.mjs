@@ -68,6 +68,11 @@ export async function handleAuthLogin({ request, session, db }) {
     return json({ error: { code, message: "Account is not available" } }, 403);
   }
 
+  if (user.must_reset_password) {
+    await appendEvent({ user_id: user.id, outcome: "failure", reason: "password_reset_required" });
+    return json({ error: { code: "PASSWORD_RESET_REQUIRED", message: "Password reset is required before continuing" } }, 403);
+  }
+
   if (!verifyPassword(password, user.password_hash)) {
     await appendEvent({ user_id: user.id, outcome: "failure", reason: "invalid_password" });
     return json({ error: { code: "INVALID_CREDENTIALS", message: "Invalid email or password" } }, 401);
