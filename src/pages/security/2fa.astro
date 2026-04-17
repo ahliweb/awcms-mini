@@ -1,0 +1,76 @@
+---
+export const prerender = false;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>2FA Enrollment</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 0; padding: 24px; background: #f8fafc; color: #0f172a; }
+      main { max-width: 760px; margin: 0 auto; display: grid; gap: 16px; }
+      section { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; }
+      code, pre { background: #f1f5f9; padding: 2px 6px; border-radius: 6px; }
+      input, button, textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; }
+      button { background: #0f172a; color: white; font-weight: 600; cursor: pointer; }
+      .muted { color: #475569; }
+      .stack { display: grid; gap: 12px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <h1>Two-Factor Enrollment</h1>
+        <p class="muted">Start enrollment, add the manual key or <code>otpauth://</code> URL to your authenticator app, then verify with the current TOTP code before 2FA is enabled.</p>
+      </section>
+      <section class="stack">
+        <button id="start">Start Enrollment</button>
+        <div><strong>Manual key</strong><div id="manualKey" class="muted">Not started</div></div>
+        <div><strong>OTPAuth URL</strong><div id="otpauth" class="muted">Not started</div></div>
+      </section>
+      <section class="stack">
+        <input id="code" placeholder="123456" inputmode="numeric" />
+        <button id="verify">Verify and Enable 2FA</button>
+        <div><strong>Recovery codes</strong><pre id="recoveryCodes">Not verified</pre></div>
+        <div id="status" class="muted"></div>
+      </section>
+    </main>
+    <script type="module">
+      const manualKey = document.getElementById("manualKey");
+      const otpauth = document.getElementById("otpauth");
+      const recoveryCodes = document.getElementById("recoveryCodes");
+      const status = document.getElementById("status");
+      const code = document.getElementById("code");
+
+      document.getElementById("start").addEventListener("click", async () => {
+        status.textContent = "Starting enrollment...";
+        const response = await fetch("/_emdash/api/auth/2fa/enroll", { method: "POST" });
+        const body = await response.json();
+        if (!response.ok) {
+          status.textContent = body?.error?.message ?? "Failed to start enrollment.";
+          return;
+        }
+        manualKey.textContent = body.manualKey;
+        otpauth.textContent = body.otpauthUrl;
+        status.textContent = "Enrollment created. Enter the current TOTP code to finish.";
+      });
+
+      document.getElementById("verify").addEventListener("click", async () => {
+        status.textContent = "Verifying code...";
+        const response = await fetch("/_emdash/api/auth/2fa/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: code.value }),
+        });
+        const body = await response.json();
+        if (!response.ok) {
+          status.textContent = body?.error?.message ?? "Verification failed.";
+          return;
+        }
+        recoveryCodes.textContent = body.recoveryCodes.join("\n");
+        status.textContent = `2FA enabled at ${body.verifiedAt}`;
+      });
+    </script>
+  </body>
+</html>

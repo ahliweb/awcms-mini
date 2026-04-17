@@ -5,6 +5,7 @@ import { getDatabase } from "../db/index.mjs";
 import { handleAuthLogin } from "./handlers/login.mjs";
 import { handleAuthMe } from "./handlers/me.mjs";
 import { handleAuthLogout } from "./handlers/logout.mjs";
+import { handleAuthTwoFactorEnroll, handleAuthTwoFactorVerify } from "./handlers/two-factor-enroll.mjs";
 import { createSessionService } from "../services/sessions/service.mjs";
 
 async function handleMiniAuthRequest(context, next) {
@@ -29,6 +30,21 @@ async function handleMiniAuthRequest(context, next) {
 
   if (context.url.pathname === "/_emdash/api/auth/me" && context.request.method === "GET") {
     return handleAuthMe({
+      session: context.session,
+      db: database,
+    });
+  }
+
+  if (context.url.pathname === "/_emdash/api/auth/2fa/enroll" && context.request.method === "POST") {
+    return handleAuthTwoFactorEnroll({
+      session: context.session,
+      db: database,
+    });
+  }
+
+  if (context.url.pathname === "/_emdash/api/auth/2fa/verify" && context.request.method === "POST") {
+    return handleAuthTwoFactorVerify({
+      request: context.request,
       session: context.session,
       db: database,
     });
