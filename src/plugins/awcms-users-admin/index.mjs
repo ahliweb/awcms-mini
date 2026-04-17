@@ -14,6 +14,7 @@ import { createAuthorizationService } from "../../services/authorization/service
 import { createAuditService } from "../../services/audit/service.mjs";
 import { createJobsService } from "../../services/jobs/service.mjs";
 import { createRbacService } from "../../services/rbac/service.mjs";
+import { createRoleAssignmentService } from "../../services/roles/service.mjs";
 import { createRegionAssignmentService } from "../../services/regions/assignments.mjs";
 import { createRegionService } from "../../services/regions/service.mjs";
 import { createUserService } from "../../services/users/service.mjs";
@@ -27,6 +28,7 @@ let userAdminRegionAssignmentServiceFactory = (database) => createRegionAssignme
 let userAdminAdministrativeRegionAssignmentServiceFactory = (database) => createAdministrativeRegionAssignmentService({ database });
 let userAdminAdminTwoFactorServiceFactory = (database) => createAdminTwoFactorService({ database });
 let userAdminRbacServiceFactory = (database) => createRbacService({ database });
+let userAdminRoleAssignmentServiceFactory = (database) => createRoleAssignmentService({ database });
 let userAdminAuthorizationServiceFactory = (database) => createAuthorizationService({ database });
 
 function normalizeProfileRow(row) {
@@ -200,6 +202,34 @@ function normalizeAdministrativeRegionRow(row) {
     isActive: Boolean(row.is_active),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function normalizeUserRoleAssignmentRow(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    roleId: row.role_id,
+    assignedByUserId: row.assigned_by_user_id,
+    assignedAt: row.assigned_at,
+    expiresAt: row.expires_at,
+    isPrimary: Boolean(row.is_primary),
+    role: row.role
+      ? {
+          id: row.role.id,
+          slug: row.role.slug,
+          name: row.role.name,
+          description: row.role.description,
+          staffLevel: Number(row.role.staff_level),
+          isSystem: Boolean(row.role.is_system),
+          isAssignable: Boolean(row.role.is_assignable),
+          isProtected: Boolean(row.role.is_protected),
+        }
+      : null,
   };
 }
 
@@ -1177,6 +1207,103 @@ async function listUserJobsHandler(ctx) {
   };
 }
 
+async function listUserRolesHandler(ctx) {
+  const search = new URL(ctx.request.url).searchParams;
+  const userId = search.get("id");
+
+  if (!userId) {
+    throw PluginRouteError.badRequest("Missing required user id");
+  }
+
+  const db = userAdminDatabaseGetter();
+  const targetRow = await getUserSummaryRow(db, userId);
+
+  if (!targetRow) {
+    throw PluginRouteError.notFound(`User not found: ${userId}`);
+  }
+
+  const target = normalizeAuthorizationUserRow(targetRow);
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "admin.roles.read",
+    action: "read",
+    resource: {
+      kind: "role",
+      target_user_id: target.id,
+      target_staff_level: target.activeRoleStaffLevel,
+      is_protected: target.isProtected,
+    },
+  });
+
+  const roles = userAdminRoleAssignmentServiceFactory(db);
+  const availableRoles = (await db
+    .selectFrom("roles")
+    .select(["id", "slug", "name", "description", "staff_level", "is_system", "is_assignable", "is_protected", "deleted_at", "created_at", "updated_at"])
+    .where("deleted_at", "is", null)
+    .orderBy("staff_level", "desc")
+    .orderBy("slug", "asc")
+    .execute()).map(normalizeRoleRow);
+
+  return {
+    assignments: (await roles.listActiveRoles(userId)).map(normalizeUserRoleAssignmentRow),
+    roles: availableRoles,
+  };
+}
+
+async function assignUserRoleHandler(ctx) {
+  let body;
+
+  try {
+    body = await ctx.request.json();
+  } catch {
+    throw PluginRouteError.badRequest("Expected JSON body");
+  }
+
+  const userId = typeof body?.userId === "string" ? body.userId.trim() : "";
+  const roleId = typeof body?.roleId === "string" ? body.roleId.trim() : "";
+
+  if (!userId || !roleId) {
+    throw PluginRouteError.badRequest("User id and role id are required");
+  }
+
+  const db = userAdminDatabaseGetter();
+  const targetRow = await getUserSummaryRow(db, userId);
+
+  if (!targetRow) {
+    throw PluginRouteError.notFound(`User not found: ${userId}`);
+  }
+
+  const target = normalizeAuthorizationUserRow(targetRow);
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "admin.roles.assign",
+    action: "assign",
+    resource: {
+      kind: "role",
+      target_user_id: target.id,
+      target_staff_level: target.activeRoleStaffLevel,
+      is_protected: target.isProtected,
+    },
+  });
+
+  const actorUserId = ctx.request.headers.get("x-actor-user-id")?.trim() ?? null;
+  const roles = userAdminRoleAssignmentServiceFactory(db);
+  await roles.assignRole({
+    user_id: userId,
+    role_id: roleId,
+    assigned_by_user_id: actorUserId,
+    is_primary: body?.isPrimary !== false,
+    confirm_protected_role_change: body?.confirmProtectedRoleChange === true,
+  });
+
+  return listUserRolesHandler({
+    ...ctx,
+    request: new Request(`http://example.test/_emdash/api/plugins/awcms-users-admin/users/roles?id=${encodeURIComponent(userId)}`, {
+      headers: ctx.request.headers,
+    }),
+  });
+}
+
 async function listUserRegionsHandler(ctx) {
   const search = new URL(ctx.request.url).searchParams;
   const userId = search.get("id");
@@ -1645,6 +1772,12 @@ export function createPlugin() {
       "users/jobs": {
         handler: listUserJobsHandler,
       },
+      "users/roles": {
+        handler: listUserRolesHandler,
+      },
+      "users/roles/assign": {
+        handler: assignUserRoleHandler,
+      },
       "users/jobs/assign": {
         handler: assignUserJobHandler,
       },
@@ -1828,6 +1961,14 @@ export function setUserAdminRbacServiceFactory(factory) {
 
 export function resetUserAdminRbacServiceFactory() {
   userAdminRbacServiceFactory = (database) => createRbacService({ database });
+}
+
+export function setUserAdminRoleAssignmentServiceFactory(factory) {
+  userAdminRoleAssignmentServiceFactory = factory;
+}
+
+export function resetUserAdminRoleAssignmentServiceFactory() {
+  userAdminRoleAssignmentServiceFactory = (database) => createRoleAssignmentService({ database });
 }
 
 export default createPlugin;

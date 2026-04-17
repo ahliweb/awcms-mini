@@ -189,6 +189,31 @@ interface UserJobAssignmentItem {
   createdAt: string;
 }
 
+interface UserRoleAssignmentItem {
+  id: string;
+  userId: string;
+  roleId: string;
+  assignedByUserId: string | null;
+  assignedAt: string;
+  expiresAt: string | null;
+  isPrimary: boolean;
+  role: {
+    id: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    staffLevel: number;
+    isSystem: boolean;
+    isAssignable: boolean;
+    isProtected: boolean;
+  } | null;
+}
+
+interface UserRolesSnapshot {
+  assignments: UserRoleAssignmentItem[];
+  roles: RoleListItem[];
+}
+
 interface SupervisorCandidate {
   id: string;
   displayName: string;
@@ -842,6 +867,7 @@ function InviteUserCard({ onCreated }: { onCreated: () => Promise<void> | void }
 function useUserDetail() {
   const [item, setItem] = React.useState<UserListItem | null>(null);
   const [jobsSnapshot, setJobsSnapshot] = React.useState<UserJobsSnapshot | null>(null);
+  const [rolesSnapshot, setRolesSnapshot] = React.useState<UserRolesSnapshot | null>(null);
   const [regionsSnapshot, setRegionsSnapshot] = React.useState<UserRegionsSnapshot | null>(null);
   const [administrativeRegionsSnapshot, setAdministrativeRegionsSnapshot] = React.useState<UserAdministrativeRegionsSnapshot | null>(null);
   const [twoFactorStatus, setTwoFactorStatus] = React.useState<UserTwoFactorStatus | null>(null);
@@ -857,6 +883,11 @@ function useUserDetail() {
   const fetchJobs = React.useCallback(async (userId: string) => {
     const response = await apiFetch(`${API_BASE}/users/jobs?id=${encodeURIComponent(userId)}`);
     return parseApiResponse<UserJobsSnapshot>(response, "Failed to load jobs");
+  }, []);
+
+  const fetchRoles = React.useCallback(async (userId: string) => {
+    const response = await apiFetch(`${API_BASE}/users/roles?id=${encodeURIComponent(userId)}`);
+    return parseApiResponse<UserRolesSnapshot>(response, "Failed to load roles");
   }, []);
 
   const fetchRegions = React.useCallback(async (userId: string) => {
@@ -890,14 +921,16 @@ function useUserDetail() {
     async function load() {
       try {
         const data = await fetchUser(id);
-        const jobs = await fetchJobs(id);
-        const regions = await fetchRegions(id);
+         const jobs = await fetchJobs(id);
+         const roles = await fetchRoles(id);
+         const regions = await fetchRegions(id);
         const administrativeRegions = await fetchAdministrativeRegions(id);
         const twoFactor = await fetchTwoFactorStatus(id);
         if (!cancelled) {
-          setItem(data.item);
-          setJobsSnapshot(jobs);
-          setRegionsSnapshot(regions);
+           setItem(data.item);
+           setJobsSnapshot(jobs);
+           setRolesSnapshot(roles);
+           setRegionsSnapshot(regions);
           setAdministrativeRegionsSnapshot(administrativeRegions);
           setTwoFactorStatus(twoFactor);
           setError(null);
@@ -918,7 +951,7 @@ function useUserDetail() {
     return () => {
       cancelled = true;
     };
-  }, [fetchAdministrativeRegions, fetchJobs, fetchRegions, fetchTwoFactorStatus, fetchUser]);
+  }, [fetchAdministrativeRegions, fetchJobs, fetchRegions, fetchRoles, fetchTwoFactorStatus, fetchUser]);
 
   const runAction = React.useCallback(
     async (action: "disable" | "lock" | "revoke-sessions") => {
@@ -986,6 +1019,35 @@ function useUserDetail() {
         setJobsSnapshot(data);
       } catch (nextError) {
         setError(nextError instanceof Error ? nextError.message : "Failed to assign job");
+      } finally {
+        setSubmitting(null);
+      }
+    },
+    [],
+  );
+
+  const assignRole = React.useCallback(
+    async (input: { userId: string; roleId: string; isPrimary: boolean; confirmProtectedRoleChange: boolean }) => {
+      setSubmitting("assign-role");
+      setError(null);
+
+      try {
+        const response = await apiFetch(`${API_BASE}/users/roles/assign`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userId: input.userId,
+            roleId: input.roleId,
+            isPrimary: input.isPrimary,
+            confirmProtectedRoleChange: input.confirmProtectedRoleChange,
+          }),
+        });
+        const data = await parseApiResponse<UserRolesSnapshot>(response, "Failed to assign role");
+        setRolesSnapshot(data);
+      } catch (nextError) {
+        setError(nextError instanceof Error ? nextError.message : "Failed to assign role");
       } finally {
         setSubmitting(null);
       }
@@ -1091,6 +1153,7 @@ function useUserDetail() {
 
   return {
     item,
+    rolesSnapshot,
     jobsSnapshot,
     regionsSnapshot,
     administrativeRegionsSnapshot,
@@ -1099,11 +1162,101 @@ function useUserDetail() {
     error,
     submitting,
     runAction,
+    assignRole,
     assignJob,
     assignRegion,
     assignAdministrativeRegion,
     resetTwoFactor,
   };
+}
+
+function UserRolesPanel({ userId, snapshot, submitting, onAssign }: {
+  userId: string;
+  snapshot: UserRolesSnapshot | null;
+  submitting: string | null;
+  onAssign: (input: { userId: string; roleId: string; isPrimary: boolean; confirmProtectedRoleChange: boolean }) => Promise<void>;
+}) {
+  const [roleId, setRoleId] = React.useState("");
+  const [confirmProtectedRoleChange, setConfirmProtectedRoleChange] = React.useState(false);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    await onAssign({
+      userId,
+      roleId,
+      isPrimary: true,
+      confirmProtectedRoleChange,
+    });
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 16, marginTop: 24 }}>
+      <div style={{ padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+        <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>Assign Role</h2>
+        <p style={{ margin: "0 0 12px", color: "#52525b" }}>Assign a primary role directly from the user detail surface. Protected-role changes require explicit confirmation.</p>
+        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span>Role</span>
+            <select value={roleId} onChange={(event) => setRoleId(event.target.value)} required style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }}>
+              <option value="">Select role</option>
+              {(snapshot?.roles ?? []).map((role) => (
+                <option key={role.id} value={role.id}>{role.name} ({role.slug})</option>
+              ))}
+            </select>
+          </label>
+          <label style={{ display: "flex", gap: 8, alignItems: "center", color: "#7c2d12", fontWeight: 600 }}>
+            <input type="checkbox" checked={confirmProtectedRoleChange} onChange={(event) => setConfirmProtectedRoleChange(event.target.checked)} />
+            Confirm protected-role change if required
+          </label>
+          <div style={{ display: "flex", alignItems: "end" }}>
+            <button type="submit" disabled={submitting !== null || !roleId} style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#111827", color: "#fff", fontWeight: 600 }}>
+              {submitting === "assign-role" ? "Assigning..." : "Assign primary role"}
+            </button>
+          </div>
+        </form>
+      </div>
+      <div style={{ padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+        <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>Active Roles</h2>
+        {!(snapshot?.assignments?.length) ? <div style={{ color: "#71717a" }}>No active roles yet.</div> : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 920 }}>
+              <thead>
+                <tr style={{ textAlign: "left", background: "#fafafa" }}>
+                  <th style={{ padding: 12 }}>Role</th>
+                  <th style={{ padding: 12 }}>Level</th>
+                  <th style={{ padding: 12 }}>Protection</th>
+                  <th style={{ padding: 12 }}>Assigned</th>
+                </tr>
+              </thead>
+              <tbody>
+                {snapshot.assignments.map((assignment) => (
+                  <tr key={assignment.id} style={{ borderTop: "1px solid #e4e4e7" }}>
+                    <td style={{ padding: 12, verticalAlign: "top" }}>
+                      <div style={{ fontWeight: 700 }}>{assignment.role?.name || "Unknown role"}</div>
+                      <div style={{ color: "#52525b", marginTop: 6 }}>{assignment.role ? `/${assignment.role.slug}` : assignment.roleId}</div>
+                      <div style={{ color: "#71717a", marginTop: 6, fontSize: 13 }}>{assignment.isPrimary ? "Primary assignment" : "Secondary assignment"}</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top" }}>
+                      <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1 }}>{assignment.role?.staffLevel ?? "-"}</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
+                      <div>{assignment.role?.isProtected ? "Protected role" : "Standard role"}</div>
+                      <div style={{ marginTop: 6, fontSize: 13 }}>{assignment.role?.isAssignable ? "Assignable" : "Reserved"}</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
+                      <div>{formatDateTime(assignment.assignedAt)}</div>
+                      <div style={{ marginTop: 6, fontSize: 13 }}>{assignment.assignedByUserId ? `Assigned by ${assignment.assignedByUserId}` : "System assignment"}</div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function useSecuritySettings() {
@@ -2395,6 +2548,7 @@ function UserDetailPlaceholderPanel({ title, description, children }: { title: s
 function UserDetailPage() {
   const {
     item,
+    rolesSnapshot,
     jobsSnapshot,
     regionsSnapshot,
     administrativeRegionsSnapshot,
@@ -2403,6 +2557,7 @@ function UserDetailPage() {
     error,
     submitting,
     runAction,
+    assignRole,
     assignJob,
     assignRegion,
     assignAdministrativeRegion,
@@ -2522,17 +2677,7 @@ function UserDetailPage() {
               <DetailField label="Notes" value={item.profile.notes || "No notes"} />
             </div>
           ) : null}
-          {activeTab === "roles" ? (
-            <UserDetailPlaceholderPanel
-              title="Role Governance"
-              description="This tab anchors role-specific governance work on the user detail surface. Role assignment controls land here in the next follow-up issue so operators keep role, job, region, session, and security management in one place."
-            >
-              <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-                <DetailField label="Protected User" value={item.isProtected ? "Yes" : "No"} />
-                <DetailField label="Lifecycle Status" value={item.status} />
-              </div>
-            </UserDetailPlaceholderPanel>
-          ) : null}
+          {activeTab === "roles" ? <UserRolesPanel userId={item.id} snapshot={rolesSnapshot} submitting={submitting} onAssign={assignRole} /> : null}
           {activeTab === "jobs" ? <UserJobsPanel userId={item.id} snapshot={jobsSnapshot} submitting={submitting} onAssign={assignJob} /> : null}
           {activeTab === "logical-regions" ? <UserRegionsPanel userId={item.id} snapshot={regionsSnapshot} submitting={submitting} onAssign={assignRegion} /> : null}
           {activeTab === "administrative-regions" ? (

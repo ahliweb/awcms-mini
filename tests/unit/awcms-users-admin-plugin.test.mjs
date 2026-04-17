@@ -9,6 +9,7 @@ import {
   resetUserAdminDatabaseGetter,
   resetUserAdminRegionAssignmentServiceFactory,
   resetUserAdminJobsServiceFactory,
+  resetUserAdminRoleAssignmentServiceFactory,
   resetUserAdminRbacServiceFactory,
   resetUserAdminRegionServiceFactory,
   resetUserAdminServiceFactory,
@@ -18,6 +19,7 @@ import {
   setUserAdminDatabaseGetter,
   setUserAdminRegionAssignmentServiceFactory,
   setUserAdminJobsServiceFactory,
+  setUserAdminRoleAssignmentServiceFactory,
   setUserAdminRbacServiceFactory,
   setUserAdminRegionServiceFactory,
   setUserAdminServiceFactory,
@@ -451,6 +453,33 @@ function createFakeUserJobsDb({ users, levels, titles, assignments }) {
       }
 
       assert.equal(table, "user_jobs");
+      return new FakeSimpleQuery(assignments);
+    },
+  };
+}
+
+function createFakeUserRolesDb({ users, roles, assignments }) {
+  return {
+    selectFrom(table) {
+      if (table === "users") {
+        const query = new FakeUsersQuery(users);
+        query.leftJoin = (tableName, callback) => {
+          assert.ok(["user_profiles", "user_roles", "roles", "sessions"].includes(tableName));
+          if (typeof callback === "function") {
+            callback(createJoinBuilder());
+          }
+          return query;
+        };
+        query.select = () => query;
+        query.groupBy = () => query;
+        return query;
+      }
+
+      if (table === "roles") {
+        return new FakeSimpleQuery(roles);
+      }
+
+      assert.equal(table, "user_roles");
       return new FakeSimpleQuery(assignments);
     },
   };
@@ -1386,6 +1415,109 @@ test("awcms users admin plugin exposes user job history and assignment routes", 
     resetUserAdminDatabaseGetter();
     resetUserAdminAuthorizationServiceFactory();
     resetUserAdminJobsServiceFactory();
+  }
+});
+
+test("awcms users admin plugin exposes user role history and assignment routes", async () => {
+  const plugin = createPlugin();
+  let assignedInput;
+  const authorizationCalls = [];
+  const fakeDb = createFakeUserRolesDb({
+    users: [
+      createAdminActorRow(),
+      {
+        id: "user_1",
+        email: "user@example.com",
+        username: "user1",
+        display_name: "User One",
+        status: "active",
+        last_login_at: null,
+        must_reset_password: false,
+        is_protected: false,
+        deleted_at: null,
+        created_at: "2026-04-01T10:00:00.000Z",
+        updated_at: "2026-04-10T10:00:00.000Z",
+        profile_phone: null,
+        profile_timezone: null,
+        profile_locale: null,
+        profile_notes: null,
+        profile_avatar_media_id: null,
+        profile_created_at: null,
+        profile_updated_at: null,
+        active_session_count: 0,
+        active_role_staff_level: 4,
+      },
+    ],
+    roles: [
+      { id: "role_owner", slug: "owner", name: "Owner", description: "Emergency control", staff_level: 10, is_system: true, is_assignable: false, is_protected: true, deleted_at: null, created_at: "2026-04-01T10:00:00.000Z", updated_at: "2026-04-10T10:00:00.000Z", active_assignment_count: 1 },
+      { id: "role_editor", slug: "editor", name: "Editor", description: "Editorial management", staff_level: 6, is_system: true, is_assignable: true, is_protected: false, deleted_at: null, created_at: "2026-04-01T10:00:00.000Z", updated_at: "2026-04-10T10:00:00.000Z", active_assignment_count: 4 },
+    ],
+    assignments: [],
+  });
+
+  setUserAdminDatabaseGetter(() => fakeDb);
+  setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory(authorizationCalls));
+  setUserAdminRoleAssignmentServiceFactory(() => ({
+    async listActiveRoles() {
+      return [
+        {
+          id: "assign_1",
+          user_id: "user_1",
+          role_id: "role_editor",
+          assigned_by_user_id: "admin_actor",
+          assigned_at: "2026-04-01T10:00:00.000Z",
+          expires_at: null,
+          is_primary: true,
+          role: {
+            id: "role_editor",
+            slug: "editor",
+            name: "Editor",
+            description: "Editorial management",
+            staff_level: 6,
+            is_system: true,
+            is_assignable: true,
+            is_protected: false,
+          },
+        },
+      ];
+    },
+    async assignRole(input) {
+      assignedInput = input;
+    },
+  }));
+
+  try {
+    const rolesBody = await plugin.routes["users/roles"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/roles?id=user_1", { headers: createAdminHeaders() }),
+    });
+
+    assert.equal(rolesBody.assignments.length, 1);
+    assert.equal(rolesBody.assignments[0].role.name, "Editor");
+    assert.equal(rolesBody.roles.length, 2);
+
+    await plugin.routes["users/roles/assign"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/roles/assign", {
+        method: "POST",
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: "user_1",
+          roleId: "role_owner",
+          isPrimary: true,
+          confirmProtectedRoleChange: true,
+        }),
+      }),
+    });
+
+    assert.equal(assignedInput.user_id, "user_1");
+    assert.equal(assignedInput.role_id, "role_owner");
+    assert.equal(assignedInput.confirm_protected_role_change, true);
+    assert.equal(authorizationCalls[0].context.permission_code, "admin.roles.read");
+    assert.equal(authorizationCalls.some((call) => call.context.permission_code === "admin.roles.assign"), true);
+    assert.equal(authorizationCalls.at(-1).context.permission_code, "admin.roles.read");
+  } finally {
+    resetUserAdminDatabaseGetter();
+    resetUserAdminAuthorizationServiceFactory();
+    resetUserAdminRoleAssignmentServiceFactory();
   }
 });
 
