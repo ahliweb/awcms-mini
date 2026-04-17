@@ -1,0 +1,49 @@
+---
+export const prerender = false;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Step-Up Verification</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 0; padding: 24px; background: #f8fafc; color: #0f172a; }
+      main { max-width: 680px; margin: 0 auto; display: grid; gap: 16px; }
+      section { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; }
+      input, button { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; }
+      button { background: #0f172a; color: white; font-weight: 600; cursor: pointer; }
+      .muted { color: #475569; }
+      .stack { display: grid; gap: 12px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <h1>Step-Up Verification</h1>
+        <p class="muted">Confirm your identity with a fresh TOTP code or a recovery code before performing a sensitive action.</p>
+      </section>
+      <section class="stack">
+        <input id="code" placeholder="TOTP code" inputmode="numeric" />
+        <input id="recoveryCode" placeholder="Recovery code (optional)" />
+        <button id="verify">Verify</button>
+        <div id="status" class="muted"></div>
+      </section>
+    </main>
+    <script type="module">
+      const status = document.getElementById("status");
+      const code = document.getElementById("code");
+      const recoveryCode = document.getElementById("recoveryCode");
+      document.getElementById("verify").addEventListener("click", async () => {
+        status.textContent = "Verifying...";
+        const response = await fetch("/_emdash/api/auth/2fa/step-up/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: code.value, recoveryCode: recoveryCode.value }),
+        });
+        const body = await response.json();
+        status.textContent = response.ok ? `Step-up verified at ${body.session.stepUpAt}` : (body?.error?.message ?? "Verification failed.");
+      });
+    </script>
+  </body>
+</html>

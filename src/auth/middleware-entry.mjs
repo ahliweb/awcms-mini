@@ -7,6 +7,7 @@ import { handleAuthMe } from "./handlers/me.mjs";
 import { handleAuthLogout } from "./handlers/logout.mjs";
 import { handleAuthTwoFactorChallengeVerify } from "./handlers/two-factor-challenge.mjs";
 import { handleAuthTwoFactorEnroll, handleAuthTwoFactorVerify } from "./handlers/two-factor-enroll.mjs";
+import { handleAuthTwoFactorStepUpVerify } from "./handlers/two-factor-step-up.mjs";
 import { createSessionService } from "../services/sessions/service.mjs";
 
 async function handleMiniAuthRequest(context, next) {
@@ -53,6 +54,14 @@ async function handleMiniAuthRequest(context, next) {
 
   if (context.url.pathname === "/_emdash/api/auth/2fa/challenge/verify" && context.request.method === "POST") {
     return handleAuthTwoFactorChallengeVerify({
+      request: context.request,
+      session: context.session,
+      db: database,
+    });
+  }
+
+  if (context.url.pathname === "/_emdash/api/auth/2fa/step-up/verify" && context.request.method === "POST") {
+    return handleAuthTwoFactorStepUpVerify({
       request: context.request,
       session: context.session,
       db: database,
