@@ -273,6 +273,21 @@ interface PermissionMatrixSnapshot {
   rows: PermissionMatrixRow[];
 }
 
+interface PermissionMatrixDiffItem {
+  id: string;
+  code: string;
+  description: string | null;
+  domain: string;
+  isProtected: boolean;
+  changeType: "add" | "remove";
+}
+
+interface PermissionMatrixDiffGroup {
+  role: PermissionMatrixRole;
+  additions: PermissionMatrixDiffItem[];
+  removals: PermissionMatrixDiffItem[];
+}
+
 function formatDateTime(value: string | null) {
   if (!value) {
     return "Never";
@@ -343,6 +358,45 @@ function hasProtectedMatrixChanges(snapshot: PermissionMatrixSnapshot, draftByRo
       return current !== next;
     });
   });
+}
+
+function buildPermissionMatrixDiffGroups(snapshot: PermissionMatrixSnapshot, draftByRoleId: Record<string, string[]>) {
+  return snapshot.roles
+    .map((role) => {
+      const additions: PermissionMatrixDiffItem[] = [];
+      const removals: PermissionMatrixDiffItem[] = [];
+
+      for (const row of snapshot.rows) {
+        const current = row.grantsByRoleId[role.id] === true;
+        const next = (draftByRoleId[role.id] ?? []).includes(row.id);
+
+        if (current === next) {
+          continue;
+        }
+
+        const item = {
+          id: row.id,
+          code: row.code,
+          description: row.description,
+          domain: row.domain,
+          isProtected: row.isProtected,
+          changeType: next ? "add" : "remove",
+        } satisfies PermissionMatrixDiffItem;
+
+        if (next) {
+          additions.push(item);
+        } else {
+          removals.push(item);
+        }
+      }
+
+      return {
+        role,
+        additions,
+        removals,
+      } satisfies PermissionMatrixDiffGroup;
+    })
+    .filter((group) => group.additions.length > 0 || group.removals.length > 0);
 }
 
 function useUserList() {
@@ -603,6 +657,7 @@ function usePermissionMatrix() {
 
   const pendingChanges = snapshot ? countPendingMatrixChanges(snapshot, draftByRoleId) : 0;
   const protectedChanges = snapshot ? hasProtectedMatrixChanges(snapshot, draftByRoleId) : false;
+  const stagedDiffGroups = snapshot ? buildPermissionMatrixDiffGroups(snapshot, draftByRoleId) : [];
 
   return {
     snapshot,
@@ -612,6 +667,7 @@ function usePermissionMatrix() {
     saving,
     pendingChanges,
     protectedChanges,
+    stagedDiffGroups,
     confirmProtectedChanges,
     setConfirmProtectedChanges,
     elevatedFlowConfirmed,
@@ -2378,6 +2434,7 @@ function PermissionMatrixPage() {
     saving,
     pendingChanges,
     protectedChanges,
+    stagedDiffGroups,
     confirmProtectedChanges,
     setConfirmProtectedChanges,
     elevatedFlowConfirmed,
@@ -2446,6 +2503,64 @@ function PermissionMatrixPage() {
                 Elevated confirmation flow completed
               </label>
             ) : null}
+          </div>
+          <div style={{ marginBottom: 16, padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+              <div>
+                <h2 style={{ margin: "0 0 6px", fontSize: 18 }}>Staged Diff Preview</h2>
+                <div style={{ color: "#52525b" }}>Review exact permission additions and removals before applying the matrix changes.</div>
+              </div>
+              <div style={{ color: "#71717a", fontSize: 13 }}>{pendingChanges === 0 ? "No staged changes" : `${pendingChanges} exact changes queued`}</div>
+            </div>
+            {stagedDiffGroups.length === 0 ? (
+              <div style={{ color: "#71717a" }}>Toggle matrix cells to generate a preview.</div>
+            ) : (
+              <div style={{ display: "grid", gap: 12 }}>
+                {stagedDiffGroups.map((group) => (
+                  <div key={group.role.id} style={{ border: "1px solid #e4e4e7", borderRadius: 14, padding: 14, background: "#fafafa" }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+                      <div style={{ fontWeight: 700 }}>{group.role.name}</div>
+                      <div style={{ color: "#71717a", fontSize: 13 }}>/ {group.role.slug}</div>
+                      <div style={{ color: "#71717a", fontSize: 13 }}>Level {group.role.staffLevel}</div>
+                    </div>
+                    <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+                      <div>
+                        <div style={{ fontWeight: 700, color: "#166534", marginBottom: 8 }}>Additions ({group.additions.length})</div>
+                        {group.additions.length === 0 ? <div style={{ color: "#94a3b8", fontSize: 14 }}>No permission grants added.</div> : (
+                          <div style={{ display: "grid", gap: 8 }}>
+                            {group.additions.map((item) => (
+                              <div key={item.id} style={{ border: "1px solid #bbf7d0", borderRadius: 12, padding: 10, background: "#f0fdf4" }}>
+                                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                                  <div style={{ fontWeight: 700 }}>{item.code}</div>
+                                  {item.isProtected ? <span style={{ fontSize: 12, fontWeight: 700, color: "#991b1b" }}>Protected</span> : null}
+                                </div>
+                                <div style={{ marginTop: 4, color: "#52525b", fontSize: 14 }}>{item.description || "No description"}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, color: "#991b1b", marginBottom: 8 }}>Removals ({group.removals.length})</div>
+                        {group.removals.length === 0 ? <div style={{ color: "#94a3b8", fontSize: 14 }}>No permission grants removed.</div> : (
+                          <div style={{ display: "grid", gap: 8 }}>
+                            {group.removals.map((item) => (
+                              <div key={item.id} style={{ border: "1px solid #fecaca", borderRadius: 12, padding: 10, background: "#fef2f2" }}>
+                                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                                  <div style={{ fontWeight: 700 }}>{item.code}</div>
+                                  {item.isProtected ? <span style={{ fontSize: 12, fontWeight: 700, color: "#991b1b" }}>Protected</span> : null}
+                                </div>
+                                <div style={{ marginTop: 4, color: "#52525b", fontSize: 14 }}>{item.description || "No description"}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div style={{ overflowX: "auto", border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1180 }}>
