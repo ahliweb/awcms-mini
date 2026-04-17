@@ -5,6 +5,7 @@ import {
   createPlugin,
   resetUserAdminAuthorizationServiceFactory,
   resetUserAdminAdministrativeRegionAssignmentServiceFactory,
+  resetUserAdminAdminTwoFactorServiceFactory,
   resetUserAdminDatabaseGetter,
   resetUserAdminRegionAssignmentServiceFactory,
   resetUserAdminJobsServiceFactory,
@@ -13,6 +14,7 @@ import {
   resetUserAdminServiceFactory,
   setUserAdminAuthorizationServiceFactory,
   setUserAdminAdministrativeRegionAssignmentServiceFactory,
+  setUserAdminAdminTwoFactorServiceFactory,
   setUserAdminDatabaseGetter,
   setUserAdminRegionAssignmentServiceFactory,
   setUserAdminJobsServiceFactory,
@@ -20,6 +22,7 @@ import {
   setUserAdminRegionServiceFactory,
   setUserAdminServiceFactory,
 } from "../../src/plugins/awcms-users-admin/index.mjs";
+import { resetSecurityPolicy } from "../../src/security/policy.mjs";
 
 class FakeUsersQuery {
   constructor(rows) {
@@ -589,6 +592,7 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
       { path: "/roles", label: "Roles", icon: "shield" },
       { path: "/regions", label: "Logical Regions", icon: "map" },
       { path: "/administrative-regions", label: "Administrative Regions", icon: "globe" },
+      { path: "/security", label: "Security Settings", icon: "lock" },
       { path: "/jobs/levels", label: "Job Levels", icon: "layers" },
       { path: "/jobs/titles", label: "Job Titles", icon: "briefcase" },
       { path: "/permissions", label: "Permission Matrix", icon: "grid" },
@@ -1506,5 +1510,132 @@ test("awcms users admin plugin exposes user administrative region history and as
     resetUserAdminDatabaseGetter();
     resetUserAdminAuthorizationServiceFactory();
     resetUserAdminAdministrativeRegionAssignmentServiceFactory();
+  }
+});
+
+test("awcms users admin plugin exposes security settings routes and protected 2fa reset flow", async () => {
+  const plugin = createPlugin();
+  const authorizationCalls = [];
+  let resetInput;
+  const fakeDb = {
+    selectFrom(table) {
+      if (table === "users") {
+        const query = new FakeUsersQuery([
+          createAdminActorRow(),
+          {
+            ...createAdminActorRow(),
+            id: "user_1",
+            email: "user@example.com",
+            username: "user1",
+            display_name: "User One",
+            active_role_staff_level: 4,
+            active_session_count: 0,
+            is_protected: false,
+          },
+        ]);
+        query.leftJoin = (tableName, callback) => {
+          assert.ok(["user_profiles", "user_roles", "roles", "sessions"].includes(tableName));
+          if (typeof callback === "function") {
+            callback(createJoinBuilder());
+          }
+          return query;
+        };
+        query.select = () => query;
+        query.groupBy = () => query;
+        return query;
+      }
+
+      if (table === "roles") {
+        const query = new FakeRolesQuery([
+          { id: "role_owner", slug: "owner", name: "Owner", staff_level: 10, is_assignable: true, is_protected: true, deleted_at: null },
+          { id: "role_editor", slug: "editor", name: "Editor", staff_level: 4, is_assignable: true, is_protected: false, deleted_at: null },
+        ]);
+        return query;
+      }
+
+      assert.fail(`Unexpected table ${table}`);
+    },
+  };
+
+  resetSecurityPolicy();
+  setUserAdminDatabaseGetter(() => fakeDb);
+  setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory(authorizationCalls));
+  setUserAdminAdminTwoFactorServiceFactory(() => ({
+    async getUserTwoFactorStatus(userId) {
+      return {
+        userId,
+        enrolled: true,
+        pending: false,
+        verifiedAt: "2026-04-01T10:00:00.000Z",
+        lastUsedAt: "2026-04-02T10:00:00.000Z",
+        recoveryCodeCount: 6,
+      };
+    },
+    async resetUserTwoFactor(input) {
+      resetInput = input;
+      return {
+        userId: input.user_id,
+        enrolled: false,
+        pending: false,
+        verifiedAt: null,
+        lastUsedAt: null,
+        recoveryCodeCount: 0,
+      };
+    },
+  }));
+
+  try {
+    const settingsBody = await plugin.routes["security/settings"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/security/settings", { headers: createAdminHeaders() }),
+    });
+    assert.equal(settingsBody.roles.length, 2);
+    assert.deepEqual(settingsBody.policy.mandatoryTwoFactorRoleIds, []);
+
+    const updated = await plugin.routes["security/settings/update"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/security/settings/update", {
+        method: "POST",
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ mandatoryTwoFactorRoleIds: ["role_owner"] }),
+      }),
+    });
+    assert.deepEqual(updated.policy.mandatoryTwoFactorRoleIds, ["role_owner"]);
+
+    const statusBody = await plugin.routes["users/2fa/status"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/2fa/status?id=user_1", { headers: createAdminHeaders() }),
+    });
+    assert.equal(statusBody.enrolled, true);
+    assert.equal(statusBody.recoveryCodeCount, 6);
+
+    await assert.rejects(
+      () =>
+        plugin.routes["users/2fa/reset"].handler({
+          request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/2fa/reset", {
+            method: "POST",
+            headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: "user_1", reason: "Support recovery" }),
+          }),
+        }),
+      /STEP_UP_REQUIRED/,
+    );
+
+    const resetBody = await plugin.routes["users/2fa/reset"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/2fa/reset", {
+        method: "POST",
+        headers: {
+          ...createAdminHeaders({ "x-session-strength": "step_up", "x-step-up-authenticated": "true" }),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId: "user_1", reason: "Support recovery" }),
+      }),
+    });
+    assert.equal(resetBody.enrolled, false);
+    assert.equal(resetInput.user_id, "user_1");
+    assert.equal(resetInput.reason, "Support recovery");
+    assert.equal(authorizationCalls.some((call) => call.context.permission_code === "security.2fa.reset"), true);
+  } finally {
+    resetUserAdminDatabaseGetter();
+    resetUserAdminAuthorizationServiceFactory();
+    resetUserAdminAdminTwoFactorServiceFactory();
+    resetSecurityPolicy();
   }
 });

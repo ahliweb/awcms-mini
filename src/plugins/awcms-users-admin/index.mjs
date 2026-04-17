@@ -9,12 +9,14 @@ import { createUserAdministrativeRegionAssignmentRepository } from "../../db/rep
 import { createUserJobRepository } from "../../db/repositories/user-jobs.mjs";
 import { createUserRegionAssignmentRepository } from "../../db/repositories/user-region-assignments.mjs";
 import { createAdministrativeRegionAssignmentService } from "../../services/administrative-regions/assignments.mjs";
+import { createAdminTwoFactorService } from "../../services/security/admin-two-factor.mjs";
 import { createAuthorizationService } from "../../services/authorization/service.mjs";
 import { createJobsService } from "../../services/jobs/service.mjs";
 import { createRbacService } from "../../services/rbac/service.mjs";
 import { createRegionAssignmentService } from "../../services/regions/assignments.mjs";
 import { createRegionService } from "../../services/regions/service.mjs";
 import { createUserService } from "../../services/users/service.mjs";
+import { getSecurityPolicy, updateSecurityPolicy } from "../../security/policy.mjs";
 
 let userAdminDatabaseGetter = () => getDatabase();
 let userAdminServiceFactory = (database) => createUserService({ database });
@@ -22,6 +24,7 @@ let userAdminJobsServiceFactory = (database) => createJobsService({ database });
 let userAdminRegionServiceFactory = (database) => createRegionService({ database });
 let userAdminRegionAssignmentServiceFactory = (database) => createRegionAssignmentService({ database });
 let userAdminAdministrativeRegionAssignmentServiceFactory = (database) => createAdministrativeRegionAssignmentService({ database });
+let userAdminAdminTwoFactorServiceFactory = (database) => createAdminTwoFactorService({ database });
 let userAdminRbacServiceFactory = (database) => createRbacService({ database });
 let userAdminAuthorizationServiceFactory = (database) => createAuthorizationService({ database });
 
@@ -870,6 +873,56 @@ async function listAdministrativeRegionsHandler(ctx) {
   };
 }
 
+async function listSecuritySettingsHandler(ctx) {
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "security.2fa.read",
+    action: "read",
+    resource: {
+      kind: "system",
+    },
+  });
+
+  const db = userAdminDatabaseGetter();
+  const roles = (await db
+    .selectFrom("roles")
+    .select(["id", "slug", "name", "staff_level", "is_assignable", "is_protected", "deleted_at"])
+    .where("deleted_at", "is", null)
+    .orderBy("staff_level", "desc")
+    .orderBy("slug", "asc")
+    .execute()).map(normalizeMatrixRoleRow);
+
+  return {
+    policy: getSecurityPolicy(),
+    roles,
+  };
+}
+
+async function updateSecuritySettingsHandler(ctx) {
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "security.2fa.reset",
+    action: "update",
+    resource: {
+      kind: "system",
+    },
+  });
+
+  let body;
+
+  try {
+    body = await ctx.request.json();
+  } catch {
+    throw PluginRouteError.badRequest("Expected JSON body");
+  }
+
+  const policy = updateSecurityPolicy({
+    mandatoryTwoFactorRoleIds: Array.isArray(body?.mandatoryTwoFactorRoleIds) ? body.mandatoryTwoFactorRoleIds : [],
+  });
+
+  return {
+    policy,
+  };
+}
+
 async function createRegionHandler(ctx) {
   let body;
 
@@ -1287,6 +1340,89 @@ async function assignUserAdministrativeRegionHandler(ctx) {
   });
 }
 
+async function listUserTwoFactorStatusHandler(ctx) {
+  const search = new URL(ctx.request.url).searchParams;
+  const userId = search.get("id");
+
+  if (!userId) {
+    throw PluginRouteError.badRequest("Missing required user id");
+  }
+
+  const db = userAdminDatabaseGetter();
+  const targetRow = await getUserSummaryRow(db, userId);
+
+  if (!targetRow) {
+    throw PluginRouteError.notFound(`User not found: ${userId}`);
+  }
+
+  const target = normalizeAuthorizationUserRow(targetRow);
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "security.2fa.read",
+    action: "read",
+    resource: {
+      kind: "user",
+      target_user_id: target.id,
+      target_staff_level: target.activeRoleStaffLevel,
+      is_protected: target.isProtected,
+    },
+  });
+
+  const service = userAdminAdminTwoFactorServiceFactory(db);
+  return service.getUserTwoFactorStatus(userId);
+}
+
+async function resetUserTwoFactorHandler(ctx) {
+  let body;
+
+  try {
+    body = await ctx.request.json();
+  } catch {
+    throw PluginRouteError.badRequest("Expected JSON body");
+  }
+
+  const userId = typeof body?.userId === "string" ? body.userId.trim() : "";
+
+  if (!userId) {
+    throw PluginRouteError.badRequest("Missing required user id");
+  }
+
+  const db = userAdminDatabaseGetter();
+  const targetRow = await getUserSummaryRow(db, userId);
+
+  if (!targetRow) {
+    throw PluginRouteError.notFound(`User not found: ${userId}`);
+  }
+
+  const target = normalizeAuthorizationUserRow(targetRow);
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "security.2fa.reset",
+    action: "reset",
+    resource: {
+      kind: "user",
+      target_user_id: target.id,
+      target_staff_level: target.activeRoleStaffLevel,
+      is_protected: target.isProtected,
+    },
+  });
+
+  const sessionStrength = ctx.request.headers.get("x-session-strength")?.trim() ?? "none";
+  const stepUpAuthenticated = ctx.request.headers.get("x-step-up-authenticated")?.trim() === "true";
+
+  if (sessionStrength !== "step_up" || !stepUpAuthenticated) {
+    throw PluginRouteError.forbidden("STEP_UP_REQUIRED");
+  }
+
+  const actorUserId = ctx.request.headers.get("x-actor-user-id")?.trim() ?? null;
+  const service = userAdminAdminTwoFactorServiceFactory(db);
+  return service.resetUserTwoFactor({
+    user_id: userId,
+    actor_user_id: actorUserId,
+    reason: typeof body?.reason === "string" ? body.reason.trim() : null,
+  });
+}
+
 async function assignUserJobHandler(ctx) {
   let body;
 
@@ -1473,6 +1609,18 @@ export function createPlugin() {
       "users/administrative-regions/assign": {
         handler: assignUserAdministrativeRegionHandler,
       },
+      "users/2fa/status": {
+        handler: listUserTwoFactorStatusHandler,
+      },
+      "users/2fa/reset": {
+        handler: resetUserTwoFactorHandler,
+      },
+      "security/settings": {
+        handler: listSecuritySettingsHandler,
+      },
+      "security/settings/update": {
+        handler: updateSecuritySettingsHandler,
+      },
       "jobs/levels/list": {
         handler: listJobLevelsHandler,
       },
@@ -1523,6 +1671,7 @@ export function createPlugin() {
           { path: "/roles", label: "Roles", icon: "shield" },
           { path: "/regions", label: "Logical Regions", icon: "map" },
           { path: "/administrative-regions", label: "Administrative Regions", icon: "globe" },
+          { path: "/security", label: "Security Settings", icon: "lock" },
           { path: "/jobs/levels", label: "Job Levels", icon: "layers" },
           { path: "/jobs/titles", label: "Job Titles", icon: "briefcase" },
           { path: "/permissions", label: "Permission Matrix", icon: "grid" },
@@ -1544,6 +1693,7 @@ export function awcmsUsersAdminPlugin() {
       { path: "/roles", label: "Roles", icon: "shield" },
       { path: "/regions", label: "Logical Regions", icon: "map" },
       { path: "/administrative-regions", label: "Administrative Regions", icon: "globe" },
+      { path: "/security", label: "Security Settings", icon: "lock" },
       { path: "/jobs/levels", label: "Job Levels", icon: "layers" },
       { path: "/jobs/titles", label: "Job Titles", icon: "briefcase" },
       { path: "/permissions", label: "Permission Matrix", icon: "grid" },
@@ -1598,6 +1748,14 @@ export function setUserAdminAdministrativeRegionAssignmentServiceFactory(factory
 
 export function resetUserAdminAdministrativeRegionAssignmentServiceFactory() {
   userAdminAdministrativeRegionAssignmentServiceFactory = (database) => createAdministrativeRegionAssignmentService({ database });
+}
+
+export function setUserAdminAdminTwoFactorServiceFactory(factory) {
+  userAdminAdminTwoFactorServiceFactory = factory;
+}
+
+export function resetUserAdminAdminTwoFactorServiceFactory() {
+  userAdminAdminTwoFactorServiceFactory = (database) => createAdminTwoFactorService({ database });
 }
 
 export function setUserAdminAuthorizationServiceFactory(factory) {

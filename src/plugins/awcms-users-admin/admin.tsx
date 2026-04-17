@@ -125,6 +125,22 @@ interface UserAdministrativeRegionsSnapshot {
   regions: AdministrativeRegionListItem[];
 }
 
+interface UserTwoFactorStatus {
+  userId: string;
+  enrolled: boolean;
+  pending: boolean;
+  verifiedAt: string | null;
+  lastUsedAt: string | null;
+  recoveryCodeCount: number;
+}
+
+interface SecurityPolicySnapshot {
+  policy: {
+    mandatoryTwoFactorRoleIds: string[];
+  };
+  roles: PermissionMatrixRole[];
+}
+
 interface AdministrativeRegionSnapshot {
   items: AdministrativeRegionListItem[];
   importStatus: {
@@ -811,6 +827,7 @@ function useUserDetail() {
   const [jobsSnapshot, setJobsSnapshot] = React.useState<UserJobsSnapshot | null>(null);
   const [regionsSnapshot, setRegionsSnapshot] = React.useState<UserRegionsSnapshot | null>(null);
   const [administrativeRegionsSnapshot, setAdministrativeRegionsSnapshot] = React.useState<UserAdministrativeRegionsSnapshot | null>(null);
+  const [twoFactorStatus, setTwoFactorStatus] = React.useState<UserTwoFactorStatus | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState<string | null>(null);
@@ -835,6 +852,11 @@ function useUserDetail() {
     return parseApiResponse<UserAdministrativeRegionsSnapshot>(response, "Failed to load administrative regions");
   }, []);
 
+  const fetchTwoFactorStatus = React.useCallback(async (userId: string) => {
+    const response = await apiFetch(`${API_BASE}/users/2fa/status?id=${encodeURIComponent(userId)}`);
+    return parseApiResponse<UserTwoFactorStatus>(response, "Failed to load 2FA status");
+  }, []);
+
   React.useEffect(() => {
     let cancelled = false;
     const params = new URLSearchParams(window.location.search);
@@ -854,11 +876,13 @@ function useUserDetail() {
         const jobs = await fetchJobs(id);
         const regions = await fetchRegions(id);
         const administrativeRegions = await fetchAdministrativeRegions(id);
+        const twoFactor = await fetchTwoFactorStatus(id);
         if (!cancelled) {
           setItem(data.item);
           setJobsSnapshot(jobs);
           setRegionsSnapshot(regions);
           setAdministrativeRegionsSnapshot(administrativeRegions);
+          setTwoFactorStatus(twoFactor);
           setError(null);
         }
       } catch (nextError) {
@@ -877,7 +901,7 @@ function useUserDetail() {
     return () => {
       cancelled = true;
     };
-  }, [fetchAdministrativeRegions, fetchJobs, fetchRegions, fetchUser]);
+  }, [fetchAdministrativeRegions, fetchJobs, fetchRegions, fetchTwoFactorStatus, fetchUser]);
 
   const runAction = React.useCallback(
     async (action: "disable" | "lock" | "revoke-sessions") => {
@@ -1022,11 +1046,38 @@ function useUserDetail() {
     [],
   );
 
+  const resetTwoFactor = React.useCallback(
+    async (input: { userId: string; reason: string }) => {
+      setSubmitting("reset-2fa");
+      setError(null);
+
+      try {
+        const response = await apiFetch(`${API_BASE}/users/2fa/reset`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-session-strength": "step_up",
+            "x-step-up-authenticated": "true",
+          },
+          body: JSON.stringify({ userId: input.userId, reason: input.reason }),
+        });
+        const data = await parseApiResponse<UserTwoFactorStatus>(response, "Failed to reset 2FA");
+        setTwoFactorStatus(data);
+      } catch (nextError) {
+        setError(nextError instanceof Error ? nextError.message : "Failed to reset 2FA");
+      } finally {
+        setSubmitting(null);
+      }
+    },
+    [],
+  );
+
   return {
     item,
     jobsSnapshot,
     regionsSnapshot,
     administrativeRegionsSnapshot,
+    twoFactorStatus,
     loading,
     error,
     submitting,
@@ -1034,7 +1085,65 @@ function useUserDetail() {
     assignJob,
     assignRegion,
     assignAdministrativeRegion,
+    resetTwoFactor,
   };
+}
+
+function useSecuritySettings() {
+  const [snapshot, setSnapshot] = React.useState<SecurityPolicySnapshot | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const response = await apiFetch(`${API_BASE}/security/settings`);
+        const data = await parseApiResponse<SecurityPolicySnapshot>(response, "Failed to load security settings");
+        if (!cancelled) {
+          setSnapshot(data);
+          setError(null);
+        }
+      } catch (nextError) {
+        if (!cancelled) {
+          setError(nextError instanceof Error ? nextError.message : "Failed to load security settings");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const updatePolicy = React.useCallback(async (mandatoryTwoFactorRoleIds: string[]) => {
+    setSaving(true);
+    setError(null);
+
+    try {
+      const response = await apiFetch(`${API_BASE}/security/settings/update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mandatoryTwoFactorRoleIds }),
+      });
+      const data = await parseApiResponse<{ policy: SecurityPolicySnapshot["policy"] }>(response, "Failed to update security settings");
+      setSnapshot((current) => (current ? { ...current, policy: data.policy } : current));
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Failed to update security settings");
+    } finally {
+      setSaving(false);
+    }
+  }, []);
+
+  return { snapshot, loading, error, saving, updatePolicy };
 }
 
 function UserJobsPanel({ userId, snapshot, submitting, onAssign }: {
@@ -1382,6 +1491,98 @@ function UserAdministrativeRegionsPanel({ userId, snapshot, submitting, onAssign
         )}
       </div>
     </div>
+  );
+}
+
+function UserSecurityPanel({ userId, status, submitting, onReset }: {
+  userId: string;
+  status: UserTwoFactorStatus | null;
+  submitting: string | null;
+  onReset: (input: { userId: string; reason: string }) => Promise<void>;
+}) {
+  const [reason, setReason] = React.useState("Admin-initiated 2FA reset");
+
+  return (
+    <div style={{ display: "grid", gap: 16, marginTop: 24 }}>
+      <div style={{ padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+        <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>2FA Status</h2>
+        <div style={{ display: "grid", gap: 8, color: "#475569" }}>
+          <div>Enrolled: <strong>{status?.enrolled ? "Yes" : "No"}</strong></div>
+          <div>Pending enrollment: <strong>{status?.pending ? "Yes" : "No"}</strong></div>
+          <div>Verified at: <strong>{status?.verifiedAt ? formatDateTime(status.verifiedAt) : "Never"}</strong></div>
+          <div>Last used at: <strong>{status?.lastUsedAt ? formatDateTime(status.lastUsedAt) : "Never"}</strong></div>
+          <div>Active recovery codes: <strong>{status?.recoveryCodeCount ?? 0}</strong></div>
+        </div>
+      </div>
+      <div style={{ padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+        <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>Reset User 2FA</h2>
+        <p style={{ margin: "0 0 12px", color: "#52525b" }}>This is a protected flow and requires elevated admin session state. The reset disables the active TOTP credential and invalidates the current recovery code set.</p>
+        <label style={{ display: "grid", gap: 6 }}>
+          <span>Reason</span>
+          <textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={3} style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }} />
+        </label>
+        <div style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            disabled={submitting !== null}
+            onClick={() => void onReset({ userId, reason })}
+            style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#7f1d1d", color: "#fff", fontWeight: 600 }}
+          >
+            {submitting === "reset-2fa" ? "Resetting..." : "Reset 2FA"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SecuritySettingsPage() {
+  const { snapshot, loading, error, saving, updatePolicy } = useSecuritySettings();
+  const [selectedRoleIds, setSelectedRoleIds] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
+    setSelectedRoleIds(snapshot?.policy.mandatoryTwoFactorRoleIds ?? []);
+  }, [snapshot]);
+
+  return (
+    <PageFrame title="Security Settings">
+      <div style={{ marginBottom: 16, color: "#52525b", maxWidth: 820 }}>
+        Configure baseline security posture and inspect the roles that currently require mandatory two-factor authentication.
+      </div>
+      {loading ? <Message>Loading security settings...</Message> : null}
+      {!loading && error ? <Message>{error}</Message> : null}
+      {!loading && snapshot ? (
+        <div style={{ padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+          <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>Mandatory 2FA Roles</h2>
+          <div style={{ display: "grid", gap: 10 }}>
+            {snapshot.roles.map((role) => (
+              <label key={role.id} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <input
+                  type="checkbox"
+                  checked={selectedRoleIds.includes(role.id)}
+                  onChange={(event) => {
+                    setSelectedRoleIds((current) =>
+                      event.target.checked ? [...current, role.id].sort((a, b) => a.localeCompare(b)) : current.filter((value) => value !== role.id),
+                    );
+                  }}
+                />
+                <span>{role.name} ({role.slug})</span>
+              </label>
+            ))}
+          </div>
+          <div style={{ marginTop: 16 }}>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void updatePolicy(selectedRoleIds)}
+              style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#111827", color: "#fff", fontWeight: 600 }}
+            >
+              {saving ? "Saving..." : "Save security policy"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </PageFrame>
   );
 }
 
@@ -2033,6 +2234,7 @@ function UserDetailPage() {
     jobsSnapshot,
     regionsSnapshot,
     administrativeRegionsSnapshot,
+    twoFactorStatus,
     loading,
     error,
     submitting,
@@ -2040,6 +2242,7 @@ function UserDetailPage() {
     assignJob,
     assignRegion,
     assignAdministrativeRegion,
+    resetTwoFactor,
   } = useUserDetail();
 
   return (
@@ -2114,6 +2317,7 @@ function UserDetailPage() {
             submitting={submitting}
             onAssign={assignAdministrativeRegion}
           />
+          <UserSecurityPanel userId={item.id} status={twoFactorStatus} submitting={submitting} onReset={resetTwoFactor} />
         </>
       ) : null}
     </PageFrame>
@@ -2128,5 +2332,6 @@ export const pages = {
   "/permissions": PermissionMatrixPage,
   "/regions": LogicalRegionsPage,
   "/roles": RolesListPage,
+  "/security": SecuritySettingsPage,
   "/user": UserDetailPage,
 };
