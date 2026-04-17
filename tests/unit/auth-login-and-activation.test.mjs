@@ -5,6 +5,7 @@ import { handleAuthMe } from "../../src/auth/handlers/me.mjs";
 import { handleAuthLogin } from "../../src/auth/handlers/login.mjs";
 import { handleAuthTwoFactorChallengeVerify } from "../../src/auth/handlers/two-factor-challenge.mjs";
 import { hashPassword } from "../../src/auth/passwords.mjs";
+import { runtimeRateLimitStore } from "../../src/security/runtime-rate-limits.mjs";
 import { createTwoFactorService } from "../../src/services/security/two-factor.mjs";
 
 function createFakeDatabase() {
@@ -12,6 +13,7 @@ function createFakeDatabase() {
     users: [],
     sessions: [],
     loginEvents: [],
+    security_events: [],
     totp_credentials: [],
     recovery_codes: [],
   };
@@ -31,6 +33,14 @@ function createFakeDatabase() {
             if (table === "login_security_events") {
               state.loginEvents.push({
                 occurred_at: values.occurred_at ?? "2026-01-01T00:00:00.000Z",
+                ...values,
+              });
+            }
+
+            if (table === "security_events") {
+              state.security_events.push({
+                occurred_at: values.occurred_at ?? "2026-01-01T00:00:00.000Z",
+                details_json: values.details_json ?? {},
                 ...values,
               });
             }
@@ -64,9 +74,11 @@ function createFakeDatabase() {
             ? state.sessions
             : table === "login_security_events"
               ? state.loginEvents
-              : table === "totp_credentials"
-                ? state.totp_credentials
-                : state.recovery_codes;
+              : table === "security_events"
+                ? state.security_events
+                : table === "totp_credentials"
+                  ? state.totp_credentials
+                  : state.recovery_codes;
 
       const apply = () => {
         let rows = [...source];
@@ -369,4 +381,48 @@ test("handleAuthLogin blocks accounts that must complete a forced password reset
   const body = await response.json();
   assert.equal(response.status, 403);
   assert.equal(body.error.code, "PASSWORD_RESET_REQUIRED");
+});
+
+test("handleAuthLogin rate limits repeated failures and emits a security lockout event", async () => {
+  const { database, state } = createFakeDatabase();
+  runtimeRateLimitStore.clearAll();
+  state.users.push({
+    id: "user_active",
+    email: "active@example.com",
+    password_hash: hashPassword("very-secure-password"),
+    status: "active",
+    deleted_at: null,
+    must_reset_password: false,
+    is_protected: false,
+    email_verified: true,
+    disabled: false,
+  });
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await handleAuthLogin({
+      request: new Request("http://example.test/_emdash/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "active@example.com", password: "wrong-password" }),
+      }),
+      session: createFakeSession(),
+      db: database,
+    });
+  }
+
+  const lockedResponse = await handleAuthLogin({
+    request: new Request("http://example.test/_emdash/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "active@example.com", password: "wrong-password" }),
+    }),
+    session: createFakeSession(),
+    db: database,
+  });
+
+  const lockedBody = await lockedResponse.json();
+  assert.equal(lockedResponse.status, 429);
+  assert.equal(lockedBody.error.code, "AUTH_LOCKED");
+  assert.equal(state.security_events.some((entry) => entry.event_type === "auth.lockout"), true);
+  runtimeRateLimitStore.clearAll();
 });

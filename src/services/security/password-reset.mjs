@@ -3,6 +3,7 @@ import { createPasswordResetTokenRepository } from "../../db/repositories/passwo
 import { createUserRepository } from "../../db/repositories/users.mjs";
 import { hashPassword, verifyPassword } from "../../auth/passwords.mjs";
 import { createAuditService } from "../audit/service.mjs";
+import { createLockoutService } from "./lockout.mjs";
 import { createSessionService } from "../sessions/service.mjs";
 
 const PASSWORD_RESET_TTL_MS = 1000 * 60 * 60;
@@ -20,6 +21,7 @@ function createPasswordResetServiceDependencies(executor) {
     users: createUserRepository(executor),
     passwordResetTokens: createPasswordResetTokenRepository(executor),
     sessions: createSessionService({ database: executor }),
+    lockout: createLockoutService({ database: executor }),
     audit: createAuditService({ database: executor }),
   };
 }
@@ -164,6 +166,7 @@ export function createPasswordResetService(options = {}) {
         });
         await deps.passwordResetTokens.markPasswordResetTokenUsed(resolved.resetToken.id, now());
         await deps.sessions.revokeAllSessionsForUser(resolved.user.id, now());
+        deps.lockout.resetAccountCounters(resolved.user.email);
 
         await appendPasswordResetAudit(deps, {
           action: "password_reset.consume",

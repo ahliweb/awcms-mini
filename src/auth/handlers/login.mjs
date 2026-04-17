@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import { createLoginSecurityEventRepository } from "../../db/repositories/login-security-events.mjs";
 import { createUserRepository } from "../../db/repositories/users.mjs";
+import { createLockoutService } from "../../services/security/lockout.mjs";
 import { createTwoFactorService } from "../../services/security/two-factor.mjs";
 import { createSessionService } from "../../services/sessions/service.mjs";
 import { hashPassword, verifyPassword } from "../passwords.mjs";
@@ -36,6 +37,7 @@ export async function handleAuthLogin({ request, session, db }) {
   const users = createUserRepository(db);
   const loginEvents = createLoginSecurityEventRepository(db);
   const sessions = createSessionService({ database: db });
+  const lockout = createLockoutService({ database: db });
   const twoFactor = createTwoFactorService({ database: db });
   const ipAddress = normalizeIp(request);
   const userAgent = request.headers.get("user-agent");
@@ -50,9 +52,17 @@ export async function handleAuthLogin({ request, session, db }) {
       ...input,
     });
 
+  const lock = await lockout.assertLoginAllowed({ email, ipAddress });
+
+  if (lock) {
+    await appendEvent({ outcome: "failure", reason: "lockout_active" });
+    return json({ error: { code: lock.code, message: "Too many failed login attempts", lockedUntil: lock.lockedUntil } }, 429);
+  }
+
   const user = await users.getUserByEmail(email, { includeDeleted: true });
 
   if (!user) {
+    await lockout.registerLoginFailure({ email, ipAddress, userAgent, reason: "user_not_found" });
     await appendEvent({ outcome: "failure", reason: "user_not_found" });
     return json({ error: { code: "INVALID_CREDENTIALS", message: "Invalid email or password" } }, 401);
   }
@@ -74,9 +84,12 @@ export async function handleAuthLogin({ request, session, db }) {
   }
 
   if (!verifyPassword(password, user.password_hash)) {
+    await lockout.registerLoginFailure({ email, ipAddress, userId: user.id, userAgent, reason: "invalid_password" });
     await appendEvent({ user_id: user.id, outcome: "failure", reason: "invalid_password" });
     return json({ error: { code: "INVALID_CREDENTIALS", message: "Invalid email or password" } }, 401);
   }
+
+  lockout.resetLoginCounters({ email, ipAddress });
 
   const issued = await sessions.issueSession({
     id: crypto.randomUUID(),
