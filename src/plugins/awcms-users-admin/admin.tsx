@@ -2370,6 +2370,28 @@ function DetailField({ label, value }: { label: string; value: React.ReactNode }
   );
 }
 
+type UserDetailTab = "overview" | "roles" | "jobs" | "logical-regions" | "administrative-regions" | "sessions" | "security";
+
+const USER_DETAIL_TABS: Array<{ id: UserDetailTab; label: string; description: string }> = [
+  { id: "overview", label: "Overview", description: "Identity, lifecycle, and profile state." },
+  { id: "roles", label: "Roles", description: "Role assignments and staff-level posture." },
+  { id: "jobs", label: "Jobs", description: "Organizational job hierarchy and supervisors." },
+  { id: "logical-regions", label: "Logical Regions", description: "Operational region governance scope." },
+  { id: "administrative-regions", label: "Administrative Regions", description: "Legal administrative geography scope." },
+  { id: "sessions", label: "Sessions", description: "Active sessions and login history." },
+  { id: "security", label: "Security", description: "2FA status and security controls." },
+];
+
+function UserDetailPlaceholderPanel({ title, description, children }: { title: string; description: string; children?: React.ReactNode }) {
+  return (
+    <div style={{ marginTop: 24, padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+      <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>{title}</h2>
+      <p style={{ margin: 0, color: "#52525b", maxWidth: 820 }}>{description}</p>
+      {children ? <div style={{ marginTop: 16 }}>{children}</div> : null}
+    </div>
+  );
+}
+
 function UserDetailPage() {
   const {
     item,
@@ -2386,6 +2408,27 @@ function UserDetailPage() {
     assignAdministrativeRegion,
     resetTwoFactor,
   } = useUserDetail();
+  const [activeTab, setActiveTab] = React.useState<UserDetailTab>(() => {
+    if (typeof window === "undefined") {
+      return "overview";
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    return USER_DETAIL_TABS.some((entry) => entry.id === tab) ? (tab as UserDetailTab) : "overview";
+  });
+
+  const selectTab = React.useCallback((tab: UserDetailTab) => {
+    setActiveTab(tab);
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    params.set("tab", tab);
+    const query = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+  }, []);
 
   return (
     <PageFrame title="User Detail">
@@ -2433,33 +2476,85 @@ function UserDetailPage() {
               {submitting === "revoke-sessions" ? "Revoking..." : `Revoke sessions (${item.activeSessionCount})`}
             </button>
           </div>
-          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-            <DetailField label="Email" value={item.email} />
-            <DetailField label="Display Name" value={item.displayName || "Not set"} />
-            <DetailField label="Username" value={item.username ? `@${item.username}` : "Not set"} />
-            <DetailField label="Status" value={item.status} />
-            <DetailField label="Active Sessions" value={String(item.activeSessionCount)} />
-            <DetailField label="Last Login" value={formatDateTime(item.lastLoginAt)} />
-            <DetailField label="Created" value={formatDateTime(item.createdAt)} />
-            <DetailField label="Updated" value={formatDateTime(item.updatedAt)} />
-            <DetailField label="Phone" value={item.profile.phone || "Not set"} />
-            <DetailField label="Locale" value={item.profile.locale || "Not set"} />
-            <DetailField label="Timezone" value={item.profile.timezone || "Not set"} />
-            <DetailField label="Avatar Media" value={item.profile.avatarMediaId || "Not set"} />
-            <DetailField label="Soft Deleted" value={item.deletedAt ? formatDateTime(item.deletedAt) : "No"} />
-            <DetailField label="Password Reset Required" value={item.mustResetPassword ? "Yes" : "No"} />
-            <DetailField label="Protected" value={item.isProtected ? "Yes" : "No"} />
-            <DetailField label="Notes" value={item.profile.notes || "No notes"} />
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+            {USER_DETAIL_TABS.map((tab) => {
+              const selected = tab.id === activeTab;
+
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => selectTab(tab.id)}
+                  style={{
+                    borderRadius: 999,
+                    padding: "10px 16px",
+                    fontWeight: 700,
+                    border: selected ? "1px solid #111827" : "1px solid #d4d4d8",
+                    background: selected ? "#111827" : "#fff",
+                    color: selected ? "#fff" : "#111827",
+                  }}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
-          <UserJobsPanel userId={item.id} snapshot={jobsSnapshot} submitting={submitting} onAssign={assignJob} />
-          <UserRegionsPanel userId={item.id} snapshot={regionsSnapshot} submitting={submitting} onAssign={assignRegion} />
-          <UserAdministrativeRegionsPanel
-            userId={item.id}
-            snapshot={administrativeRegionsSnapshot}
-            submitting={submitting}
-            onAssign={assignAdministrativeRegion}
-          />
-          <UserSecurityPanel userId={item.id} status={twoFactorStatus} submitting={submitting} onReset={resetTwoFactor} />
+          <div style={{ marginBottom: 16, color: "#52525b", maxWidth: 840 }}>
+            {USER_DETAIL_TABS.find((tab) => tab.id === activeTab)?.description}
+          </div>
+          {activeTab === "overview" ? (
+            <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+              <DetailField label="Email" value={item.email} />
+              <DetailField label="Display Name" value={item.displayName || "Not set"} />
+              <DetailField label="Username" value={item.username ? `@${item.username}` : "Not set"} />
+              <DetailField label="Status" value={item.status} />
+              <DetailField label="Active Sessions" value={String(item.activeSessionCount)} />
+              <DetailField label="Last Login" value={formatDateTime(item.lastLoginAt)} />
+              <DetailField label="Created" value={formatDateTime(item.createdAt)} />
+              <DetailField label="Updated" value={formatDateTime(item.updatedAt)} />
+              <DetailField label="Phone" value={item.profile.phone || "Not set"} />
+              <DetailField label="Locale" value={item.profile.locale || "Not set"} />
+              <DetailField label="Timezone" value={item.profile.timezone || "Not set"} />
+              <DetailField label="Avatar Media" value={item.profile.avatarMediaId || "Not set"} />
+              <DetailField label="Soft Deleted" value={item.deletedAt ? formatDateTime(item.deletedAt) : "No"} />
+              <DetailField label="Password Reset Required" value={item.mustResetPassword ? "Yes" : "No"} />
+              <DetailField label="Protected" value={item.isProtected ? "Yes" : "No"} />
+              <DetailField label="Notes" value={item.profile.notes || "No notes"} />
+            </div>
+          ) : null}
+          {activeTab === "roles" ? (
+            <UserDetailPlaceholderPanel
+              title="Role Governance"
+              description="This tab anchors role-specific governance work on the user detail surface. Role assignment controls land here in the next follow-up issue so operators keep role, job, region, session, and security management in one place."
+            >
+              <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+                <DetailField label="Protected User" value={item.isProtected ? "Yes" : "No"} />
+                <DetailField label="Lifecycle Status" value={item.status} />
+              </div>
+            </UserDetailPlaceholderPanel>
+          ) : null}
+          {activeTab === "jobs" ? <UserJobsPanel userId={item.id} snapshot={jobsSnapshot} submitting={submitting} onAssign={assignJob} /> : null}
+          {activeTab === "logical-regions" ? <UserRegionsPanel userId={item.id} snapshot={regionsSnapshot} submitting={submitting} onAssign={assignRegion} /> : null}
+          {activeTab === "administrative-regions" ? (
+            <UserAdministrativeRegionsPanel
+              userId={item.id}
+              snapshot={administrativeRegionsSnapshot}
+              submitting={submitting}
+              onAssign={assignAdministrativeRegion}
+            />
+          ) : null}
+          {activeTab === "sessions" ? (
+            <UserDetailPlaceholderPanel
+              title="Sessions and Login History"
+              description="This tab reserves the user detail surface for active session controls and login-security history. The current lifecycle toolbar already supports session revocation, and the dedicated history view lands in the follow-up session issue."
+            >
+              <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+                <DetailField label="Active Sessions" value={String(item.activeSessionCount)} />
+                <DetailField label="Last Login" value={formatDateTime(item.lastLoginAt)} />
+              </div>
+            </UserDetailPlaceholderPanel>
+          ) : null}
+          {activeTab === "security" ? <UserSecurityPanel userId={item.id} status={twoFactorStatus} submitting={submitting} onReset={resetTwoFactor} /> : null}
         </>
       ) : null}
     </PageFrame>
