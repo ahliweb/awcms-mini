@@ -11,6 +11,8 @@ function createFakeDatabase() {
     users: [],
     totp_credentials: [],
     recovery_codes: [],
+    security_events: [],
+    audit_logs: [],
   };
 
   const executor = {
@@ -27,6 +29,7 @@ function createFakeDatabase() {
                 disabled_at: item.disabled_at ?? null,
                 used_at: item.used_at ?? null,
                 replaced_at: item.replaced_at ?? null,
+                details_json: item.details_json ?? {},
                 ...item,
               });
             }
@@ -144,6 +147,43 @@ test("step-up verify upgrades session to step_up strength", async () => {
     assert.equal(body.session.sessionStrength, "step_up");
     assert.equal(body.session.stepUpAuthenticated, true);
     assert.equal(session.get("identitySession").stepUpAt, "2026-01-05T00:09:00.000Z");
+  } finally {
+    process.env.MINI_TOTP_ENCRYPTION_KEY = previousEncryptionKey;
+  }
+});
+
+test("step-up verify logs audit and security events on failure", async () => {
+  const { database, state } = createFakeDatabase();
+  const session = createFakeSession();
+  const previousEncryptionKey = process.env.MINI_TOTP_ENCRYPTION_KEY;
+  process.env.MINI_TOTP_ENCRYPTION_KEY = "12345678901234567890123456789012";
+  state.users.push({ id: "user_1", email: "user@example.com", status: "active", deleted_at: null, password_hash: hashPassword("very-secure-password") });
+
+  try {
+    const twoFactor = createTwoFactorService({ database, encryptionKey: "12345678901234567890123456789012", now: () => "2026-01-05T00:00:00.000Z" });
+    const enrollment = await twoFactor.beginEnrollment({ user_id: "user_1" });
+    const code = twoFactor.generateCurrentCodeForTesting(enrollment.manualKey, { timestamp: Date.parse("2026-01-05T00:00:00.000Z") });
+    await twoFactor.verifyEnrollment({ user_id: "user_1", code, timestamp: Date.parse("2026-01-05T00:00:00.000Z") });
+
+    session.set("user", { id: "user_1" });
+    session.set("identitySession", { id: "session_1", sessionStrength: "two_factor", twoFactorSatisfied: true, stepUpAuthenticated: false });
+
+    const response = await handleAuthTwoFactorStepUpVerify({
+      request: new Request("http://example.test/_emdash/api/auth/2fa/step-up/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "user-agent": "unit-test", "x-forwarded-for": "127.0.0.1" },
+        body: JSON.stringify({ code: "000000" }),
+      }),
+      session,
+      db: database,
+      now: () => "2026-01-05T00:09:00.000Z",
+    });
+
+    const body = await response.json();
+    assert.equal(response.status, 400);
+    assert.equal(body.error.code, "TOTP_CODE_INVALID");
+    assert.equal(state.audit_logs.some((entry) => entry.action === "auth.step_up.failure"), true);
+    assert.equal(state.security_events.some((entry) => entry.event_type === "auth.step_up.failure"), true);
   } finally {
     process.env.MINI_TOTP_ENCRYPTION_KEY = previousEncryptionKey;
   }

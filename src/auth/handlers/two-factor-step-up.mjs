@@ -1,10 +1,16 @@
 import { createTwoFactorService, TwoFactorChallengeError } from "../../services/security/two-factor.mjs";
+import { createSecurityEventRepository } from "../../db/repositories/security-events.mjs";
+import { createAuditService } from "../../services/audit/service.mjs";
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+function normalizeIp(request) {
+  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
 }
 
 export async function handleAuthTwoFactorStepUpVerify({ request, session, db, now = () => new Date().toISOString() }) {
@@ -31,6 +37,11 @@ export async function handleAuthTwoFactorStepUpVerify({ request, session, db, no
   }
 
   const service = createTwoFactorService({ database: db });
+  const securityEvents = createSecurityEventRepository(db);
+  const audit = createAuditService({ database: db });
+  const ipAddress = normalizeIp(request);
+  const userAgent = request.headers.get("user-agent");
+  const challengeType = recoveryCode ? "recovery_code" : "totp";
 
   try {
     if (recoveryCode) {
@@ -40,6 +51,39 @@ export async function handleAuthTwoFactorStepUpVerify({ request, session, db, no
     }
   } catch (error) {
     if (error instanceof TwoFactorChallengeError) {
+      const occurredAt = now();
+
+      await audit.append({
+        actor_user_id: sessionUser.id,
+        action: "auth.step_up.failure",
+        entity_type: "session",
+        entity_id: identitySession.id,
+        target_user_id: sessionUser.id,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        summary: "Rejected step-up authentication attempt.",
+        metadata: {
+          challenge_type: challengeType,
+          error_code: error.code,
+        },
+        occurred_at: occurredAt,
+      });
+
+      await securityEvents.appendEvent({
+        id: crypto.randomUUID(),
+        user_id: sessionUser.id,
+        event_type: "auth.step_up.failure",
+        severity: "warning",
+        details_json: {
+          session_id: identitySession.id,
+          challenge_type: challengeType,
+          error_code: error.code,
+        },
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        occurred_at: occurredAt,
+      });
+
       return json({ error: { code: error.code, message: error.message } }, 400);
     }
 

@@ -6,6 +6,7 @@ import { createRuntimeRateLimitStore } from "../../src/security/runtime-rate-lim
 
 test("lockout service escalates repeated failures and resets counters", async () => {
   const events = [];
+  const audits = [];
   const rateLimitStore = createRuntimeRateLimitStore({
     policy: {
       maxFailuresPerAccount: 3,
@@ -24,6 +25,11 @@ test("lockout service escalates repeated failures and resets counters", async ()
         events.push(event);
       },
     },
+    audit: {
+      async append(entry) {
+        audits.push(entry);
+      },
+    },
   });
 
   assert.equal(await service.assertLoginAllowed({ email: "user@example.com", ipAddress: "127.0.0.1" }), null);
@@ -34,6 +40,8 @@ test("lockout service escalates repeated failures and resets counters", async ()
   assert.equal(Boolean(third.lockedUntil), true);
   const lock = await service.assertLoginAllowed({ email: "user@example.com", ipAddress: "127.0.0.1" });
   assert.equal(lock.code, "AUTH_LOCKED");
+  assert.equal(audits.length, 1);
+  assert.equal(audits[0].action, "auth.lockout");
   assert.equal(events.length, 1);
   assert.equal(events[0].event_type, "auth.lockout");
 

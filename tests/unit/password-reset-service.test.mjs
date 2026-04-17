@@ -10,6 +10,7 @@ function createFakeDatabase() {
     password_reset_tokens: [],
     sessions: [],
     audit_logs: [],
+    security_events: [],
     transactions: 0,
   };
 
@@ -26,6 +27,7 @@ function createFakeDatabase() {
                 verified_at: item.verified_at ?? null,
                 last_used_at: item.last_used_at ?? null,
                 disabled_at: item.disabled_at ?? null,
+                details_json: item.details_json ?? {},
                 ...item,
               });
             }
@@ -127,6 +129,8 @@ test("password reset service issues expiring single-use tokens and consumes them
   assert.equal(verifyPassword("new-password-123", state.users[0].password_hash), true);
   assert.equal(state.password_reset_tokens[0].used_at, "2026-01-05T00:00:00.000Z");
   assert.equal(state.sessions[0].revoked_at, "2026-01-05T00:00:00.000Z");
+  assert.equal(state.audit_logs.some((entry) => entry.action === "password_reset.consume"), true);
+  assert.equal(state.security_events.some((entry) => entry.event_type === "password_reset.consume"), true);
 
   await assert.rejects(
     () => service.consumePasswordReset({ token: issued.token, password: "new-password-456" }),
@@ -144,6 +148,9 @@ test("password reset service rejects expired tokens and force-reset marks user f
   assert.equal(state.users[0].must_reset_password, true);
   assert.equal(state.sessions[0].revoked_at, "2026-01-05T00:00:00.000Z");
   assert.equal(Boolean(forced.token), true);
+  assert.equal(state.audit_logs.some((entry) => entry.action === "password_reset.force_require"), true);
+  assert.equal(state.security_events.some((entry) => entry.event_type === "password_reset.force_issue"), true);
+  assert.equal(state.security_events.some((entry) => entry.event_type === "password_reset.force_require"), true);
 
   state.password_reset_tokens[0].expires_at = "2026-01-01T00:00:00.000Z";
   await assert.rejects(

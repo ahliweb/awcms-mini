@@ -1,4 +1,5 @@
 import { getDatabase, withTransaction } from "../../db/index.mjs";
+import { createSecurityEventRepository } from "../../db/repositories/security-events.mjs";
 import { createPasswordResetTokenRepository } from "../../db/repositories/password-reset-tokens.mjs";
 import { createUserRepository } from "../../db/repositories/users.mjs";
 import { hashPassword, verifyPassword } from "../../auth/passwords.mjs";
@@ -23,6 +24,7 @@ function createPasswordResetServiceDependencies(executor) {
     sessions: createSessionService({ database: executor }),
     lockout: createLockoutService({ database: executor }),
     audit: createAuditService({ database: executor }),
+    securityEvents: createSecurityEventRepository(executor),
   };
 }
 
@@ -94,6 +96,19 @@ async function appendPasswordResetAudit(deps, input) {
   });
 }
 
+async function appendPasswordResetSecurityEvent(deps, input) {
+  await deps.securityEvents.appendEvent({
+    id: input.id ?? crypto.randomUUID(),
+    user_id: input.user_id ?? null,
+    event_type: input.event_type,
+    severity: input.severity ?? "info",
+    details_json: input.details_json ?? {},
+    ip_address: input.ip_address ?? null,
+    user_agent: input.user_agent ?? null,
+    occurred_at: input.occurred_at ?? undefined,
+  });
+}
+
 export function createPasswordResetService(options = {}) {
   const database = options.database ?? getDatabase();
   const now = options.now ?? (() => new Date().toISOString());
@@ -128,6 +143,19 @@ export function createPasswordResetService(options = {}) {
           summary: input.issued_by_user_id ? "Issued forced password reset token." : "Issued password reset token.",
           after_payload: { expires_at: expiresAt },
         });
+
+        if (input.issued_by_user_id) {
+          await appendPasswordResetSecurityEvent(deps, {
+            user_id: user.id,
+            event_type: "password_reset.force_issue",
+            severity: "warning",
+            details_json: {
+              actor_user_id: input.issued_by_user_id,
+              token_id: token.id,
+              expires_at: expiresAt,
+            },
+          });
+        }
 
         return {
           user,
@@ -177,6 +205,17 @@ export function createPasswordResetService(options = {}) {
           after_payload: { must_reset_password: user.must_reset_password },
         });
 
+        await appendPasswordResetSecurityEvent(deps, {
+          user_id: user.id,
+          event_type: "password_reset.consume",
+          severity: "info",
+          details_json: {
+            token_id: resolved.resetToken.id,
+            must_reset_password_before: before?.must_reset_password ?? null,
+            must_reset_password_after: user.must_reset_password,
+          },
+        });
+
         return user;
       });
     },
@@ -202,6 +241,18 @@ export function createPasswordResetService(options = {}) {
           summary: "Forced password reset requirement for user.",
           before_payload: { must_reset_password: before.must_reset_password },
           after_payload: { must_reset_password: user.must_reset_password },
+        });
+
+        await appendPasswordResetSecurityEvent(deps, {
+          user_id: userId,
+          event_type: "password_reset.force_require",
+          severity: "warning",
+          details_json: {
+            actor_user_id: options.issued_by_user_id ?? null,
+            token_id: issued.token.split(".")[0],
+            must_reset_password_before: before.must_reset_password,
+            must_reset_password_after: user.must_reset_password,
+          },
         });
 
         return issued;
