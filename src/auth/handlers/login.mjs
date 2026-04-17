@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import { createLoginSecurityEventRepository } from "../../db/repositories/login-security-events.mjs";
 import { createUserRepository } from "../../db/repositories/users.mjs";
+import { createTwoFactorService } from "../../services/security/two-factor.mjs";
 import { createSessionService } from "../../services/sessions/service.mjs";
 import { hashPassword, verifyPassword } from "../passwords.mjs";
 
@@ -35,6 +36,7 @@ export async function handleAuthLogin({ request, session, db }) {
   const users = createUserRepository(db);
   const loginEvents = createLoginSecurityEventRepository(db);
   const sessions = createSessionService({ database: db });
+  const twoFactor = createTwoFactorService({ database: db });
   const ipAddress = normalizeIp(request);
   const userAgent = request.headers.get("user-agent");
 
@@ -82,8 +84,35 @@ export async function handleAuthLogin({ request, session, db }) {
     expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString(),
   });
 
+  const twoFactorStatus = await twoFactor.getEnrollmentStatus(user.id);
+
+  if (twoFactorStatus.enrolled) {
+    session?.set("pendingTwoFactor", {
+      userId: user.id,
+      sessionId: issued.id,
+      sessionStrength: "password",
+      twoFactorSatisfied: false,
+    });
+
+    await appendEvent({ user_id: user.id, outcome: "success", reason: "password_login_requires_2fa" });
+
+    return json({
+      success: false,
+      requiresTwoFactor: true,
+      challenge: {
+        type: "totp",
+      },
+      session: {
+        id: issued.id,
+        trusted_device: issued.trusted_device,
+        expires_at: issued.expires_at,
+        sessionStrength: "password",
+      },
+    }, 202);
+  }
+
   session?.set("user", { id: user.id });
-  session?.set("identitySession", { id: issued.id });
+  session?.set("identitySession", { id: issued.id, sessionStrength: "password", twoFactorSatisfied: false });
 
   await users.updateUser(user.id, { last_login_at: new Date().toISOString() });
   await appendEvent({ user_id: user.id, outcome: "success", reason: "password_login" });
@@ -100,6 +129,7 @@ export async function handleAuthLogin({ request, session, db }) {
       id: issued.id,
       trusted_device: issued.trusted_device,
       expires_at: issued.expires_at,
+      sessionStrength: "password",
     },
   });
 }

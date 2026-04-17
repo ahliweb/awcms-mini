@@ -3,13 +3,17 @@ import assert from "node:assert/strict";
 
 import { handleAuthMe } from "../../src/auth/handlers/me.mjs";
 import { handleAuthLogin } from "../../src/auth/handlers/login.mjs";
+import { handleAuthTwoFactorChallengeVerify } from "../../src/auth/handlers/two-factor-challenge.mjs";
 import { hashPassword } from "../../src/auth/passwords.mjs";
+import { createTwoFactorService } from "../../src/services/security/two-factor.mjs";
 
 function createFakeDatabase() {
   const state = {
     users: [],
     sessions: [],
     loginEvents: [],
+    totp_credentials: [],
+    recovery_codes: [],
   };
 
   const executor = {
@@ -30,6 +34,22 @@ function createFakeDatabase() {
                 ...values,
               });
             }
+
+            if (table === "totp_credentials" || table === "recovery_codes") {
+              const target = table === "totp_credentials" ? state.totp_credentials : state.recovery_codes;
+              const items = Array.isArray(values) ? values : [values];
+              for (const item of items) {
+                target.push({
+                  created_at: item.created_at ?? "2026-01-01T00:00:00.000Z",
+                  verified_at: item.verified_at ?? null,
+                  last_used_at: item.last_used_at ?? null,
+                  disabled_at: item.disabled_at ?? null,
+                  used_at: item.used_at ?? null,
+                  replaced_at: item.replaced_at ?? null,
+                  ...item,
+                });
+              }
+            }
           },
         }),
       };
@@ -37,7 +57,16 @@ function createFakeDatabase() {
 
     selectFrom(table) {
       const stateful = { where: [] };
-      const source = table === "users" ? state.users : table === "sessions" ? state.sessions : state.loginEvents;
+      const source =
+        table === "users"
+          ? state.users
+          : table === "sessions"
+            ? state.sessions
+            : table === "login_security_events"
+              ? state.loginEvents
+              : table === "totp_credentials"
+                ? state.totp_credentials
+                : state.recovery_codes;
 
       const apply = () => {
         let rows = [...source];
@@ -64,7 +93,7 @@ function createFakeDatabase() {
     },
 
     updateTable(table) {
-      const source = table === "users" ? state.users : state.sessions;
+      const source = table === "users" ? state.users : table === "sessions" ? state.sessions : table === "totp_credentials" ? state.totp_credentials : state.recovery_codes;
       const updateState = { values: undefined, where: [] };
 
       return {
@@ -199,6 +228,75 @@ test("handleAuthLogin allows active users", async () => {
   assert.equal(body.success, true);
   assert.equal(state.sessions.length, 1);
   assert.deepEqual(session.get("user"), { id: "user_active" });
+});
+
+test("handleAuthLogin challenges enrolled users and upgrades session state after successful 2FA", async () => {
+  const { database, state } = createFakeDatabase();
+  const session = createFakeSession();
+  const previousEncryptionKey = process.env.MINI_TOTP_ENCRYPTION_KEY;
+  process.env.MINI_TOTP_ENCRYPTION_KEY = "12345678901234567890123456789012";
+  state.users.push({
+    id: "user_active",
+    email: "active@example.com",
+    password_hash: hashPassword("very-secure-password"),
+    status: "active",
+    deleted_at: null,
+    must_reset_password: false,
+    is_protected: false,
+    email_verified: true,
+    disabled: false,
+    role: 10,
+    name: "Active User",
+    display_name: "Active User",
+  });
+
+  try {
+    const twoFactor = createTwoFactorService({
+      database,
+      encryptionKey: "12345678901234567890123456789012",
+      now: () => "2026-01-05T00:00:00.000Z",
+    });
+    const enrollment = await twoFactor.beginEnrollment({ user_id: "user_active" });
+    const enrollmentCode = twoFactor.generateCurrentCodeForTesting(enrollment.manualKey, { timestamp: Date.parse("2026-01-05T00:00:00.000Z") });
+    await twoFactor.verifyEnrollment({ user_id: "user_active", code: enrollmentCode, timestamp: Date.parse("2026-01-05T00:00:00.000Z") });
+
+    const loginResponse = await handleAuthLogin({
+      request: new Request("http://example.test/_emdash/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "user-agent": "unit-test" },
+        body: JSON.stringify({ email: "active@example.com", password: "very-secure-password" }),
+      }),
+      session,
+      db: database,
+    });
+
+    const loginBody = await loginResponse.json();
+    assert.equal(loginResponse.status, 202);
+    assert.equal(loginBody.requiresTwoFactor, true);
+    assert.equal(session.get("user"), undefined);
+    assert.equal(Boolean(session.get("pendingTwoFactor")?.sessionId), true);
+
+    const challengeCode = twoFactor.generateCurrentCodeForTesting(enrollment.manualKey);
+    const challengeResponse = await handleAuthTwoFactorChallengeVerify({
+      request: new Request("http://example.test/_emdash/api/auth/2fa/challenge/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: challengeCode }),
+      }),
+      session,
+      db: database,
+    });
+
+    const challengeBody = await challengeResponse.json();
+    assert.equal(challengeResponse.status, 200);
+    assert.equal(challengeBody.success, true);
+    assert.deepEqual(session.get("user"), { id: "user_active" });
+    assert.equal(session.get("identitySession").sessionStrength, "two_factor");
+    assert.equal(session.get("identitySession").twoFactorSatisfied, true);
+    assert.equal(session.get("pendingTwoFactor"), null);
+  } finally {
+    process.env.MINI_TOTP_ENCRYPTION_KEY = previousEncryptionKey;
+  }
 });
 
 test("handleAuthMe rejects revoked identity sessions promptly", async () => {

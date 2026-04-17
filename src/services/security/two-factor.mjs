@@ -22,6 +22,14 @@ export class TwoFactorEnrollmentError extends Error {
   }
 }
 
+export class TwoFactorChallengeError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = "TwoFactorChallengeError";
+    this.code = code;
+  }
+}
+
 function createTwoFactorServiceDependencies(executor) {
   return {
     users: createUserRepository(executor),
@@ -46,7 +54,7 @@ function resolveEncryptionKey(input) {
 
 export function createTwoFactorService(options = {}) {
   const database = options.database ?? getDatabase();
-  const encryptionKey = resolveEncryptionKey(options.encryptionKey);
+  const getEncryptionKey = () => resolveEncryptionKey(options.encryptionKey);
   const issuer = options.issuer ?? "AWCMS Mini";
   const now = options.now ?? (() => new Date().toISOString());
 
@@ -66,7 +74,7 @@ export function createTwoFactorService(options = {}) {
           throw new TwoFactorEnrollmentError("TOTP_ALREADY_ENROLLED", "User already has an active verified TOTP credential.");
         }
 
-        const secret = activeCredential ? decryptTotpSecret(activeCredential.secret_encrypted, encryptionKey) : generateTotpSecret();
+        const secret = activeCredential ? decryptTotpSecret(activeCredential.secret_encrypted, getEncryptionKey()) : generateTotpSecret();
         const label = `${issuer}:${user.email}`;
 
         const credential = activeCredential
@@ -74,7 +82,7 @@ export function createTwoFactorService(options = {}) {
           : await deps.totpCredentials.createTotpCredential({
               id: crypto.randomUUID(),
               user_id: user.id,
-              secret_encrypted: encryptTotpSecret(secret, encryptionKey),
+              secret_encrypted: encryptTotpSecret(secret, getEncryptionKey()),
               issuer,
               label,
             });
@@ -97,7 +105,7 @@ export function createTwoFactorService(options = {}) {
           throw new TwoFactorEnrollmentError("TOTP_ENROLLMENT_NOT_FOUND", "No active TOTP enrollment was found.");
         }
 
-        const secret = decryptTotpSecret(credential.secret_encrypted, encryptionKey);
+        const secret = decryptTotpSecret(credential.secret_encrypted, getEncryptionKey());
 
         if (!verifyTotpCode(secret, input.code, { timestamp: input.timestamp })) {
           throw new TwoFactorEnrollmentError("TOTP_CODE_INVALID", "The supplied TOTP code is invalid.");
@@ -125,6 +133,28 @@ export function createTwoFactorService(options = {}) {
           credential: updatedCredential,
           recoveryCodes: recoveryCodePlaintexts,
         };
+      });
+    },
+
+    async verifyChallenge(input) {
+      return withTransaction(database, async (trx) => {
+        const deps = createTwoFactorServiceDependencies(trx);
+        const credential = await deps.totpCredentials.getActiveTotpCredentialByUserId(input.user_id);
+
+        if (!credential?.verified_at) {
+          throw new TwoFactorChallengeError("TOTP_NOT_ENROLLED", "User does not have a verified TOTP credential.");
+        }
+
+        const secret = decryptTotpSecret(credential.secret_encrypted, getEncryptionKey());
+
+        if (!verifyTotpCode(secret, input.code, { timestamp: input.timestamp })) {
+          throw new TwoFactorChallengeError("TOTP_CODE_INVALID", "The supplied TOTP code is invalid.");
+        }
+
+        const usedAt = now();
+        return deps.totpCredentials.updateTotpCredential(credential.id, {
+          last_used_at: usedAt,
+        });
       });
     },
 
