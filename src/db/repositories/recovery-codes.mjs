@@ -35,6 +35,21 @@ export function createRecoveryCodeRepository(executor = getDatabase()) {
       return query.execute();
     },
 
+    async getRecoveryCodeById(id) {
+      return baseRecoveryCodeQuery(executor).where("id", "=", id).executeTakeFirst();
+    },
+
+    async markRecoveryCodeUsed(id, usedAt) {
+      await executor
+        .updateTable("recovery_codes")
+        .set({ used_at: usedAt })
+        .where("id", "=", id)
+        .where("used_at", "is", null)
+        .execute();
+
+      return this.getRecoveryCodeById(id);
+    },
+
     async replaceActiveRecoveryCodesForUser(userId, replacedAt) {
       await executor
         .updateTable("recovery_codes")

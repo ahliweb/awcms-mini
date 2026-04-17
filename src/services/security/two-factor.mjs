@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import { hashPassword } from "../../auth/passwords.mjs";
+import { hashPassword, verifyPassword } from "../../auth/passwords.mjs";
 import { getDatabase, withTransaction } from "../../db/index.mjs";
 import { createRecoveryCodeRepository } from "../../db/repositories/recovery-codes.mjs";
 import { createTotpCredentialRepository } from "../../db/repositories/totp-credentials.mjs";
@@ -40,6 +40,19 @@ function createTwoFactorServiceDependencies(executor) {
 
 function createRecoveryCodePlaintext() {
   return randomBytes(5).toString("hex").toUpperCase();
+}
+
+function buildRecoveryCodesPayload(userId, verifiedAt) {
+  const recoveryCodePlaintexts = Array.from({ length: 8 }, () => createRecoveryCodePlaintext());
+  return {
+    recoveryCodePlaintexts,
+    recoveryCodeRows: recoveryCodePlaintexts.map((code) => ({
+      id: crypto.randomUUID(),
+      user_id: userId,
+      code_hash: hashPassword(code),
+      created_at: verifiedAt,
+    })),
+  };
 }
 
 function resolveEncryptionKey(input) {
@@ -119,15 +132,8 @@ export function createTwoFactorService(options = {}) {
 
         await deps.recoveryCodes.replaceActiveRecoveryCodesForUser(input.user_id, verifiedAt);
 
-        const recoveryCodePlaintexts = Array.from({ length: 8 }, () => createRecoveryCodePlaintext());
-        await deps.recoveryCodes.createRecoveryCodes(
-          recoveryCodePlaintexts.map((code) => ({
-            id: crypto.randomUUID(),
-            user_id: input.user_id,
-            code_hash: hashPassword(code),
-            created_at: verifiedAt,
-          })),
-        );
+        const { recoveryCodePlaintexts, recoveryCodeRows } = buildRecoveryCodesPayload(input.user_id, verifiedAt);
+        await deps.recoveryCodes.createRecoveryCodes(recoveryCodeRows);
 
         return {
           credential: updatedCredential,
@@ -155,6 +161,58 @@ export function createTwoFactorService(options = {}) {
         return deps.totpCredentials.updateTotpCredential(credential.id, {
           last_used_at: usedAt,
         });
+      });
+    },
+
+    async verifyRecoveryCodeChallenge(input) {
+      return withTransaction(database, async (trx) => {
+        const deps = createTwoFactorServiceDependencies(trx);
+        const normalizedCode = String(input.code ?? "").trim();
+
+        if (!normalizedCode) {
+          throw new TwoFactorChallengeError("RECOVERY_CODE_INVALID", "The supplied recovery code is invalid.");
+        }
+
+        const activeCodes = await deps.recoveryCodes.listRecoveryCodesByUserId(input.user_id, { unusedOnly: true });
+        const matchedCode = activeCodes.find((entry) => verifyPassword(normalizedCode, entry.code_hash));
+
+        if (!matchedCode) {
+          throw new TwoFactorChallengeError("RECOVERY_CODE_INVALID", "The supplied recovery code is invalid.");
+        }
+
+        const usedAt = now();
+        await deps.recoveryCodes.markRecoveryCodeUsed(matchedCode.id, usedAt);
+
+        const credential = await deps.totpCredentials.getActiveTotpCredentialByUserId(input.user_id);
+        if (credential?.verified_at) {
+          await deps.totpCredentials.updateTotpCredential(credential.id, { last_used_at: usedAt });
+        }
+
+        return {
+          usedAt,
+          recoveryCodeId: matchedCode.id,
+        };
+      });
+    },
+
+    async regenerateRecoveryCodes(input) {
+      return withTransaction(database, async (trx) => {
+        const deps = createTwoFactorServiceDependencies(trx);
+        const credential = await deps.totpCredentials.getActiveTotpCredentialByUserId(input.user_id);
+
+        if (!credential?.verified_at) {
+          throw new TwoFactorEnrollmentError("TOTP_NOT_ENROLLED", "User does not have a verified TOTP credential.");
+        }
+
+        const regeneratedAt = now();
+        await deps.recoveryCodes.replaceActiveRecoveryCodesForUser(input.user_id, regeneratedAt);
+        const { recoveryCodePlaintexts, recoveryCodeRows } = buildRecoveryCodesPayload(input.user_id, regeneratedAt);
+        await deps.recoveryCodes.createRecoveryCodes(recoveryCodeRows);
+
+        return {
+          regeneratedAt,
+          recoveryCodes: recoveryCodePlaintexts,
+        };
       });
     },
 

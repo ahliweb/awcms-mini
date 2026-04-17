@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createTwoFactorService, TwoFactorEnrollmentError } from "../../src/services/security/two-factor.mjs";
+import {
+  createTwoFactorService,
+  TwoFactorChallengeError,
+  TwoFactorEnrollmentError,
+} from "../../src/services/security/two-factor.mjs";
 
 function createFakeDatabase() {
   const state = {
@@ -121,5 +125,45 @@ test("two-factor service rejects verification when no enrollment exists or the c
   await assert.rejects(
     () => service.verifyEnrollment({ user_id: "user_1", code: "000000", timestamp: Date.now() }),
     (error) => error instanceof TwoFactorEnrollmentError && error.code === "TOTP_CODE_INVALID",
+  );
+});
+
+test("two-factor service allows one-time recovery code fallback and rejects reuse", async () => {
+  const { database, state } = createFakeDatabase();
+  state.users.push({ id: "user_1", email: "user@example.com", status: "active", deleted_at: null });
+  const service = createTwoFactorService({ database, encryptionKey: "12345678901234567890123456789012", now: () => "2026-01-05T00:00:00.000Z" });
+
+  const enrollment = await service.beginEnrollment({ user_id: "user_1" });
+  const code = service.generateCurrentCodeForTesting(enrollment.manualKey, { timestamp: Date.parse("2026-01-05T00:00:00.000Z") });
+  const verified = await service.verifyEnrollment({ user_id: "user_1", code, timestamp: Date.parse("2026-01-05T00:00:00.000Z") });
+
+  const recoveryCode = verified.recoveryCodes[0];
+  const result = await service.verifyRecoveryCodeChallenge({ user_id: "user_1", code: recoveryCode });
+  assert.equal(result.usedAt, "2026-01-05T00:00:00.000Z");
+  assert.equal(state.recovery_codes.filter((entry) => entry.used_at === "2026-01-05T00:00:00.000Z").length, 1);
+
+  await assert.rejects(
+    () => service.verifyRecoveryCodeChallenge({ user_id: "user_1", code: recoveryCode }),
+    (error) => error instanceof TwoFactorChallengeError && error.code === "RECOVERY_CODE_INVALID",
+  );
+});
+
+test("two-factor service regenerates recovery codes and invalidates the prior set", async () => {
+  const { database, state } = createFakeDatabase();
+  state.users.push({ id: "user_1", email: "user@example.com", status: "active", deleted_at: null });
+  const service = createTwoFactorService({ database, encryptionKey: "12345678901234567890123456789012", now: () => "2026-01-05T00:00:00.000Z" });
+
+  const enrollment = await service.beginEnrollment({ user_id: "user_1" });
+  const code = service.generateCurrentCodeForTesting(enrollment.manualKey, { timestamp: Date.parse("2026-01-05T00:00:00.000Z") });
+  const verified = await service.verifyEnrollment({ user_id: "user_1", code, timestamp: Date.parse("2026-01-05T00:00:00.000Z") });
+  const firstCode = verified.recoveryCodes[0];
+
+  const regenerated = await service.regenerateRecoveryCodes({ user_id: "user_1" });
+  assert.equal(regenerated.recoveryCodes.length, 8);
+  assert.equal(state.recovery_codes.filter((entry) => entry.replaced_at === "2026-01-05T00:00:00.000Z").length, 8);
+
+  await assert.rejects(
+    () => service.verifyRecoveryCodeChallenge({ user_id: "user_1", code: firstCode }),
+    (error) => error instanceof TwoFactorChallengeError && error.code === "RECOVERY_CODE_INVALID",
   );
 });

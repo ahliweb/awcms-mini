@@ -23,15 +23,20 @@ export async function handleAuthTwoFactorChallengeVerify({ request, session, db 
   }
 
   const code = typeof body?.code === "string" ? body.code.trim() : "";
+  const recoveryCode = typeof body?.recoveryCode === "string" ? body.recoveryCode.trim() : "";
 
-  if (!code) {
-    return json({ error: { code: "INVALID_CODE", message: "TOTP code is required" } }, 400);
+  if (!code && !recoveryCode) {
+    return json({ error: { code: "INVALID_CODE", message: "TOTP code or recovery code is required" } }, 400);
   }
 
   const service = createTwoFactorService({ database: db });
 
   try {
-    await service.verifyChallenge({ user_id: pendingTwoFactor.userId, code });
+    if (recoveryCode) {
+      await service.verifyRecoveryCodeChallenge({ user_id: pendingTwoFactor.userId, code: recoveryCode });
+    } else {
+      await service.verifyChallenge({ user_id: pendingTwoFactor.userId, code });
+    }
   } catch (error) {
     if (error instanceof TwoFactorChallengeError) {
       return json({ error: { code: error.code, message: error.message } }, 400);
