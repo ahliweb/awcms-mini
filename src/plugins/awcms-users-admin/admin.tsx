@@ -141,6 +141,23 @@ interface SecurityPolicySnapshot {
   roles: PermissionMatrixRole[];
 }
 
+interface AuditLogItem {
+  id: string;
+  actorUserId: string | null;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  targetUserId: string | null;
+  requestId: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  summary: string | null;
+  beforePayload: unknown;
+  afterPayload: unknown;
+  metadata: Record<string, unknown> | null;
+  occurredAt: string;
+}
+
 interface AdministrativeRegionSnapshot {
   items: AdministrativeRegionListItem[];
   importStatus: {
@@ -1146,6 +1163,52 @@ function useSecuritySettings() {
   return { snapshot, loading, error, saving, updatePolicy };
 }
 
+function useAuditLogs() {
+  const [items, setItems] = React.useState<AuditLogItem[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [filters, setFilters] = React.useState({
+    actorUserId: "",
+    action: "",
+    entityType: "",
+    entityId: "",
+  });
+
+  const load = React.useCallback(async (nextFilters = filters) => {
+    setLoading(true);
+
+    try {
+      const search = new URLSearchParams();
+      if (nextFilters.actorUserId) search.set("actorUserId", nextFilters.actorUserId);
+      if (nextFilters.action) search.set("action", nextFilters.action);
+      if (nextFilters.entityType) search.set("entityType", nextFilters.entityType);
+      if (nextFilters.entityId) search.set("entityId", nextFilters.entityId);
+      const query = search.toString();
+      const response = await apiFetch(`${API_BASE}/audit/logs${query ? `?${query}` : ""}`);
+      const data = await parseApiResponse<{ items: AuditLogItem[] }>(response, "Failed to load audit logs");
+      setItems(data.items);
+      setError(null);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Failed to load audit logs");
+    } finally {
+      setLoading(false);
+    }
+  }, [filters]);
+
+  React.useEffect(() => {
+    void load(filters);
+  }, [filters, load]);
+
+  return {
+    items,
+    loading,
+    error,
+    filters,
+    setFilters,
+    reload: () => load(filters),
+  };
+}
+
 function UserJobsPanel({ userId, snapshot, submitting, onAssign }: {
   userId: string;
   snapshot: UserJobsSnapshot | null;
@@ -1580,6 +1643,85 @@ function SecuritySettingsPage() {
               {saving ? "Saving..." : "Save security policy"}
             </button>
           </div>
+        </div>
+      ) : null}
+    </PageFrame>
+  );
+}
+
+function AuditLogsPage() {
+  const { items, loading, error, filters, setFilters, reload } = useAuditLogs();
+
+  return (
+    <PageFrame title="Audit Logs">
+      <div style={{ marginBottom: 16, color: "#52525b", maxWidth: 900 }}>
+        Review governance and security history with lightweight filters. This is a read-only operational view over the append-only audit trail.
+      </div>
+      <div style={{ padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff", marginBottom: 16 }}>
+        <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span>Actor user id</span>
+            <input value={filters.actorUserId} onChange={(event) => setFilters((current) => ({ ...current, actorUserId: event.target.value }))} style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }} />
+          </label>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span>Action</span>
+            <input value={filters.action} onChange={(event) => setFilters((current) => ({ ...current, action: event.target.value }))} style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }} />
+          </label>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span>Entity type</span>
+            <input value={filters.entityType} onChange={(event) => setFilters((current) => ({ ...current, entityType: event.target.value }))} style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }} />
+          </label>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span>Entity id</span>
+            <input value={filters.entityId} onChange={(event) => setFilters((current) => ({ ...current, entityId: event.target.value }))} style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }} />
+          </label>
+        </div>
+        <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button type="button" onClick={reload} style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#111827", color: "#fff", fontWeight: 600 }}>
+            Refresh logs
+          </button>
+          <button type="button" onClick={() => setFilters({ actorUserId: "", action: "", entityType: "", entityId: "" })} style={{ border: "1px solid #d4d4d8", borderRadius: 999, padding: "10px 16px", background: "#fff", fontWeight: 600 }}>
+            Clear filters
+          </button>
+        </div>
+      </div>
+      {loading ? <Message>Loading audit logs...</Message> : null}
+      {!loading && error ? <Message>{error}</Message> : null}
+      {!loading && !error ? (
+        <div style={{ overflowX: "auto", border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1120 }}>
+            <thead>
+              <tr style={{ textAlign: "left", background: "#fafafa" }}>
+                <th style={{ padding: 12 }}>Actor</th>
+                <th style={{ padding: 12 }}>Action</th>
+                <th style={{ padding: 12 }}>Entity</th>
+                <th style={{ padding: 12 }}>Target</th>
+                <th style={{ padding: 12 }}>Summary</th>
+                <th style={{ padding: 12 }}>Timestamp</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id} style={{ borderTop: "1px solid #e4e4e7" }}>
+                  <td style={{ padding: 12, verticalAlign: "top" }}>
+                    <div style={{ fontWeight: 700 }}>{item.actorUserId || "System"}</div>
+                    <div style={{ marginTop: 6, color: "#71717a", fontSize: 13 }}>{item.ipAddress || "No IP"}</div>
+                  </td>
+                  <td style={{ padding: 12, verticalAlign: "top" }}>
+                    <div style={{ fontWeight: 700 }}>{item.action}</div>
+                    <div style={{ marginTop: 6, color: "#71717a", fontSize: 13 }}>{item.requestId || "No request id"}</div>
+                  </td>
+                  <td style={{ padding: 12, verticalAlign: "top" }}>
+                    <div style={{ fontWeight: 700 }}>{item.entityType}</div>
+                    <div style={{ marginTop: 6, color: "#52525b" }}>{item.entityId || "No entity id"}</div>
+                  </td>
+                  <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>{item.targetUserId || "No target user"}</td>
+                  <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>{item.summary || "No summary"}</td>
+                  <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>{formatDateTime(item.occurredAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : null}
     </PageFrame>
@@ -2327,6 +2469,7 @@ function UserDetailPage() {
 export const pages = {
   "/": UsersListPage,
   "/administrative-regions": AdministrativeRegionsPage,
+  "/audit": AuditLogsPage,
   "/jobs/levels": JobLevelsPage,
   "/jobs/titles": JobTitlesPage,
   "/permissions": PermissionMatrixPage,

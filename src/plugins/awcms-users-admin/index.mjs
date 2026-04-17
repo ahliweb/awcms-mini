@@ -11,6 +11,7 @@ import { createUserRegionAssignmentRepository } from "../../db/repositories/user
 import { createAdministrativeRegionAssignmentService } from "../../services/administrative-regions/assignments.mjs";
 import { createAdminTwoFactorService } from "../../services/security/admin-two-factor.mjs";
 import { createAuthorizationService } from "../../services/authorization/service.mjs";
+import { createAuditService } from "../../services/audit/service.mjs";
 import { createJobsService } from "../../services/jobs/service.mjs";
 import { createRbacService } from "../../services/rbac/service.mjs";
 import { createRegionAssignmentService } from "../../services/regions/assignments.mjs";
@@ -280,6 +281,29 @@ function normalizeMatrixPermissionRow(row, roles, grantedRoleIds) {
   };
 }
 
+function normalizeAuditLogRow(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    actorUserId: row.actor_user_id,
+    action: row.action,
+    entityType: row.entity_type,
+    entityId: row.entity_id,
+    targetUserId: row.target_user_id,
+    requestId: row.request_id,
+    ipAddress: row.ip_address,
+    userAgent: row.user_agent,
+    summary: row.summary,
+    beforePayload: row.before_payload,
+    afterPayload: row.after_payload,
+    metadata: row.metadata,
+    occurredAt: row.occurred_at,
+  };
+}
+
 async function loadPermissionMatrixSnapshot(db) {
   const roles = (await db
     .selectFrom("roles")
@@ -373,6 +397,33 @@ async function listPermissionMatrixHandler(ctx) {
   });
 
   return loadPermissionMatrixSnapshot(userAdminDatabaseGetter());
+}
+
+async function listAuditLogsHandler(ctx) {
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "audit.logs.read",
+    action: "read",
+    resource: {
+      kind: "audit_log",
+    },
+  });
+
+  const search = new URL(ctx.request.url).searchParams;
+  const limit = Number.parseInt(search.get("limit") ?? "50", 10);
+  const audit = createAuditService({ database: userAdminDatabaseGetter() });
+  const items = await audit.list({
+    actor_user_id: search.get("actorUserId") || undefined,
+    target_user_id: search.get("targetUserId") || undefined,
+    action: search.get("action") || undefined,
+    entity_type: search.get("entityType") || undefined,
+    entity_id: search.get("entityId") || undefined,
+    request_id: search.get("requestId") || undefined,
+    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 200) : 50,
+  });
+
+  return {
+    items: items.map(normalizeAuditLogRow),
+  };
 }
 
 function parseMatrixBody(body) {
@@ -1645,6 +1696,9 @@ export function createPlugin() {
       "permissions/matrix": {
         handler: listPermissionMatrixHandler,
       },
+      "audit/logs": {
+        handler: listAuditLogsHandler,
+      },
       "permissions/matrix/apply": {
         handler: applyPermissionMatrixHandler,
       },
@@ -1671,6 +1725,7 @@ export function createPlugin() {
           { path: "/roles", label: "Roles", icon: "shield" },
           { path: "/regions", label: "Logical Regions", icon: "map" },
           { path: "/administrative-regions", label: "Administrative Regions", icon: "globe" },
+          { path: "/audit", label: "Audit Logs", icon: "clipboard-list" },
           { path: "/security", label: "Security Settings", icon: "lock" },
           { path: "/jobs/levels", label: "Job Levels", icon: "layers" },
           { path: "/jobs/titles", label: "Job Titles", icon: "briefcase" },
@@ -1693,6 +1748,7 @@ export function awcmsUsersAdminPlugin() {
       { path: "/roles", label: "Roles", icon: "shield" },
       { path: "/regions", label: "Logical Regions", icon: "map" },
       { path: "/administrative-regions", label: "Administrative Regions", icon: "globe" },
+      { path: "/audit", label: "Audit Logs", icon: "clipboard-list" },
       { path: "/security", label: "Security Settings", icon: "lock" },
       { path: "/jobs/levels", label: "Job Levels", icon: "layers" },
       { path: "/jobs/titles", label: "Job Titles", icon: "briefcase" },

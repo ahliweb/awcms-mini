@@ -556,6 +556,57 @@ function createFakeUserAdministrativeRegionsDb({ users, regions, assignments }) 
   };
 }
 
+function createFakeAuditLogsDb({ users, logs }) {
+  const executor = {
+    selectFrom(table) {
+      if (table === "users") {
+        const query = new FakeUsersQuery(users);
+        query.leftJoin = (tableName, callback) => {
+          assert.ok(["user_profiles", "user_roles", "roles", "sessions"].includes(tableName));
+          if (typeof callback === "function") {
+            callback(createJoinBuilder());
+          }
+          return query;
+        };
+        query.select = () => query;
+        query.groupBy = () => query;
+        return query;
+      }
+
+      assert.equal(table, "audit_logs");
+      return new FakeSimpleQuery(logs);
+    },
+    startTransaction() {
+      return {
+        execute: async () => ({
+          ...executor,
+          commit() {
+            return { execute: async () => {} };
+          },
+          rollback() {
+            return { execute: async () => {} };
+          },
+          savepoint() {
+            return {
+              execute: async () => ({
+                ...executor,
+                releaseSavepoint() {
+                  return { execute: async () => {} };
+                },
+                rollbackToSavepoint() {
+                  return { execute: async () => {} };
+                },
+              }),
+            };
+          },
+        }),
+      };
+    },
+  };
+
+  return executor;
+}
+
 test("awcms users admin plugin exposes admin pages and read-only routes", async () => {
   const plugin = createPlugin();
   const authorizationCalls = [];
@@ -592,6 +643,7 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
       { path: "/roles", label: "Roles", icon: "shield" },
       { path: "/regions", label: "Logical Regions", icon: "map" },
       { path: "/administrative-regions", label: "Administrative Regions", icon: "globe" },
+      { path: "/audit", label: "Audit Logs", icon: "clipboard-list" },
       { path: "/security", label: "Security Settings", icon: "lock" },
       { path: "/jobs/levels", label: "Job Levels", icon: "layers" },
       { path: "/jobs/titles", label: "Job Titles", icon: "briefcase" },
@@ -620,6 +672,67 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
     assert.equal(detailResult.item.email, "user@example.com");
     assert.equal(authorizationCalls.length, 2);
     assert.equal(authorizationCalls[0].context.permission_code, "admin.users.read");
+  } finally {
+    resetUserAdminDatabaseGetter();
+    resetUserAdminAuthorizationServiceFactory();
+  }
+});
+
+test("awcms users admin plugin exposes audit log route with filters", async () => {
+  const plugin = createPlugin();
+  const authorizationCalls = [];
+  const fakeDb = createFakeAuditLogsDb({
+    users: [createAdminActorRow()],
+    logs: [
+      {
+        id: "audit_1",
+        actor_user_id: "admin_actor",
+        action: "security.2fa.reset",
+        entity_type: "2fa",
+        entity_id: "user_1",
+        target_user_id: "user_1",
+        request_id: "req_1",
+        ip_address: "127.0.0.1",
+        user_agent: "unit-test",
+        summary: "Reset user two-factor authentication credentials.",
+        before_payload: null,
+        after_payload: { reset_at: "2026-04-10T10:00:00.000Z" },
+        metadata: {},
+        occurred_at: "2026-04-10T10:00:00.000Z",
+      },
+      {
+        id: "audit_2",
+        actor_user_id: "system",
+        action: "auth.lockout",
+        entity_type: "auth_lockout",
+        entity_id: "account:user@example.com",
+        target_user_id: "user_2",
+        request_id: "req_2",
+        ip_address: "127.0.0.2",
+        user_agent: "worker",
+        summary: "Locked authentication attempts after repeated failures.",
+        before_payload: null,
+        after_payload: { locked_until: "2026-04-10T10:15:00.000Z" },
+        metadata: {},
+        occurred_at: "2026-04-10T10:05:00.000Z",
+      },
+    ],
+  });
+
+  setUserAdminDatabaseGetter(() => fakeDb);
+  setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory(authorizationCalls));
+
+  try {
+    const body = await plugin.routes["audit/logs"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/audit/logs?action=security.2fa.reset", { headers: createAdminHeaders() }),
+    });
+
+    assert.equal(body.items.length, 1);
+    assert.equal(body.items[0].actorUserId, "admin_actor");
+    assert.equal(body.items[0].action, "security.2fa.reset");
+    assert.equal(body.items[0].entityType, "2fa");
+    assert.equal(body.items[0].occurredAt, "2026-04-10T10:00:00.000Z");
+    assert.equal(authorizationCalls[0].context.permission_code, "audit.logs.read");
   } finally {
     resetUserAdminDatabaseGetter();
     resetUserAdminAuthorizationServiceFactory();
