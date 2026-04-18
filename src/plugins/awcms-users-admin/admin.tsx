@@ -214,6 +214,35 @@ interface UserRolesSnapshot {
   roles: RoleListItem[];
 }
 
+interface UserSessionItem {
+  id: string;
+  userId: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  trustedDevice: boolean;
+  lastSeenAt: string | null;
+  expiresAt: string;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
+interface LoginSecurityEventItem {
+  id: string;
+  userId: string | null;
+  emailAttempted: string | null;
+  eventType: string;
+  outcome: string;
+  reason: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  occurredAt: string;
+}
+
+interface UserSessionsSnapshot {
+  sessions: UserSessionItem[];
+  loginEvents: LoginSecurityEventItem[];
+}
+
 interface SupervisorCandidate {
   id: string;
   displayName: string;
@@ -924,6 +953,7 @@ function useUserDetail() {
   const [item, setItem] = React.useState<UserListItem | null>(null);
   const [jobsSnapshot, setJobsSnapshot] = React.useState<UserJobsSnapshot | null>(null);
   const [rolesSnapshot, setRolesSnapshot] = React.useState<UserRolesSnapshot | null>(null);
+  const [sessionsSnapshot, setSessionsSnapshot] = React.useState<UserSessionsSnapshot | null>(null);
   const [regionsSnapshot, setRegionsSnapshot] = React.useState<UserRegionsSnapshot | null>(null);
   const [administrativeRegionsSnapshot, setAdministrativeRegionsSnapshot] = React.useState<UserAdministrativeRegionsSnapshot | null>(null);
   const [twoFactorStatus, setTwoFactorStatus] = React.useState<UserTwoFactorStatus | null>(null);
@@ -944,6 +974,11 @@ function useUserDetail() {
   const fetchRoles = React.useCallback(async (userId: string) => {
     const response = await apiFetch(`${API_BASE}/users/roles?id=${encodeURIComponent(userId)}`);
     return parseApiResponse<UserRolesSnapshot>(response, "Failed to load roles");
+  }, []);
+
+  const fetchSessions = React.useCallback(async (userId: string) => {
+    const response = await apiFetch(`${API_BASE}/users/sessions?id=${encodeURIComponent(userId)}`);
+    return parseApiResponse<UserSessionsSnapshot>(response, "Failed to load sessions and login history");
   }, []);
 
   const fetchRegions = React.useCallback(async (userId: string) => {
@@ -977,16 +1012,18 @@ function useUserDetail() {
     async function load() {
       try {
         const data = await fetchUser(id);
-         const jobs = await fetchJobs(id);
-         const roles = await fetchRoles(id);
-         const regions = await fetchRegions(id);
+        const jobs = await fetchJobs(id);
+        const roles = await fetchRoles(id);
+        const sessions = await fetchSessions(id);
+        const regions = await fetchRegions(id);
         const administrativeRegions = await fetchAdministrativeRegions(id);
         const twoFactor = await fetchTwoFactorStatus(id);
         if (!cancelled) {
-           setItem(data.item);
-           setJobsSnapshot(jobs);
-           setRolesSnapshot(roles);
-           setRegionsSnapshot(regions);
+          setItem(data.item);
+          setJobsSnapshot(jobs);
+          setRolesSnapshot(roles);
+          setSessionsSnapshot(sessions);
+          setRegionsSnapshot(regions);
           setAdministrativeRegionsSnapshot(administrativeRegions);
           setTwoFactorStatus(twoFactor);
           setError(null);
@@ -1007,7 +1044,7 @@ function useUserDetail() {
     return () => {
       cancelled = true;
     };
-  }, [fetchAdministrativeRegions, fetchJobs, fetchRegions, fetchRoles, fetchTwoFactorStatus, fetchUser]);
+  }, [fetchAdministrativeRegions, fetchJobs, fetchRegions, fetchRoles, fetchSessions, fetchTwoFactorStatus, fetchUser]);
 
   const runAction = React.useCallback(
     async (action: "disable" | "lock" | "revoke-sessions") => {
@@ -1032,13 +1069,18 @@ function useUserDetail() {
         });
         const data = await parseApiResponse<LifecycleResult>(response, `Failed to ${action} user`);
         setItem(data.item);
+
+        if (action === "revoke-sessions") {
+          const sessions = await fetchSessions(id);
+          setSessionsSnapshot(sessions);
+        }
       } catch (nextError) {
         setError(nextError instanceof Error ? nextError.message : `Failed to ${action} user`);
       } finally {
         setSubmitting(null);
       }
     },
-    [],
+    [fetchSessions],
   );
 
   const assignJob = React.useCallback(
@@ -1104,6 +1146,34 @@ function useUserDetail() {
         setRolesSnapshot(data);
       } catch (nextError) {
         setError(nextError instanceof Error ? nextError.message : "Failed to assign role");
+      } finally {
+        setSubmitting(null);
+      }
+    },
+    [],
+  );
+
+  const revokeSession = React.useCallback(
+    async (input: { userId: string; sessionId: string }) => {
+      setSubmitting(`revoke-session:${input.sessionId}`);
+      setError(null);
+
+      try {
+        const response = await apiFetch(`${API_BASE}/users/sessions/revoke`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userId: input.userId,
+            sessionId: input.sessionId,
+          }),
+        });
+        const data = await parseApiResponse<UserSessionsSnapshot>(response, "Failed to revoke session");
+        setSessionsSnapshot(data);
+        setItem((current) => (current ? { ...current, activeSessionCount: data.sessions.filter((entry) => !entry.revokedAt).length } : current));
+      } catch (nextError) {
+        setError(nextError instanceof Error ? nextError.message : "Failed to revoke session");
       } finally {
         setSubmitting(null);
       }
@@ -1210,6 +1280,7 @@ function useUserDetail() {
   return {
     item,
     rolesSnapshot,
+    sessionsSnapshot,
     jobsSnapshot,
     regionsSnapshot,
     administrativeRegionsSnapshot,
@@ -1218,6 +1289,7 @@ function useUserDetail() {
     error,
     submitting,
     runAction,
+    revokeSession,
     assignRole,
     assignJob,
     assignRegion,
@@ -1304,6 +1376,111 @@ function UserRolesPanel({ userId, snapshot, submitting, onAssign }: {
                       <div>{formatDateTime(assignment.assignedAt)}</div>
                       <div style={{ marginTop: 6, fontSize: 13 }}>{assignment.assignedByUserId ? `Assigned by ${assignment.assignedByUserId}` : "System assignment"}</div>
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function sessionOutcomeTone(outcome: string) {
+  if (outcome === "success") return { background: "#ecfdf5", color: "#166534", border: "1px solid #bbf7d0" };
+  if (outcome === "failure") return { background: "#fef2f2", color: "#991b1b", border: "1px solid #fecaca" };
+  return { background: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0" };
+}
+
+function UserSessionsPanel({ userId, snapshot, submitting, onRevokeSession, onRevokeAll }: {
+  userId: string;
+  snapshot: UserSessionsSnapshot | null;
+  submitting: string | null;
+  onRevokeSession: (input: { userId: string; sessionId: string }) => Promise<void>;
+  onRevokeAll: () => void;
+}) {
+  const activeSessions = snapshot?.sessions.filter((item) => !item.revokedAt) ?? [];
+
+  return (
+    <div style={{ display: "grid", gap: 16, marginTop: 24 }}>
+      <div style={{ padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+          <div>
+            <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>Active Sessions</h2>
+            <p style={{ margin: 0, color: "#52525b" }}>Inspect active sessions and revoke individual sessions without leaving the user detail surface.</p>
+          </div>
+          <button type="button" onClick={onRevokeAll} disabled={submitting !== null || activeSessions.length === 0} style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#0f172a", color: "#fff", fontWeight: 600 }}>
+            {submitting === "revoke-sessions" ? "Revoking..." : `Revoke all (${activeSessions.length})`}
+          </button>
+        </div>
+        {activeSessions.length === 0 ? <div style={{ color: "#71717a" }}>No active sessions.</div> : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
+              <thead>
+                <tr style={{ textAlign: "left", background: "#fafafa" }}>
+                  <th style={{ padding: 12 }}>Session</th>
+                  <th style={{ padding: 12 }}>Network</th>
+                  <th style={{ padding: 12 }}>Timing</th>
+                  <th style={{ padding: 12 }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeSessions.map((session) => (
+                  <tr key={session.id} style={{ borderTop: "1px solid #e4e4e7" }}>
+                    <td style={{ padding: 12, verticalAlign: "top" }}>
+                      <div style={{ fontWeight: 700 }}>{session.trustedDevice ? "Trusted device" : "Standard device"}</div>
+                      <div style={{ marginTop: 6, color: "#52525b", fontSize: 13 }}>{session.userAgent || "Unknown user agent"}</div>
+                      <div style={{ marginTop: 6, color: "#71717a", fontSize: 13 }}>{session.id}</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
+                      <div>{session.ipAddress || "No IP recorded"}</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
+                      <div>Created {formatDateTime(session.createdAt)}</div>
+                      <div style={{ marginTop: 6 }}>Last seen {formatDateTime(session.lastSeenAt)}</div>
+                      <div style={{ marginTop: 6 }}>Expires {formatDateTime(session.expiresAt)}</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top" }}>
+                      <button type="button" disabled={submitting !== null} onClick={() => void onRevokeSession({ userId, sessionId: session.id })} style={{ border: "1px solid #d4d4d8", borderRadius: 999, padding: "10px 16px", background: "#fff", fontWeight: 600 }}>
+                        {submitting === `revoke-session:${session.id}` ? "Revoking..." : "Revoke session"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      <div style={{ padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
+        <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>Login Security Events</h2>
+        {!(snapshot?.loginEvents.length) ? <div style={{ color: "#71717a" }}>No login events recorded.</div> : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
+              <thead>
+                <tr style={{ textAlign: "left", background: "#fafafa" }}>
+                  <th style={{ padding: 12 }}>Event</th>
+                  <th style={{ padding: 12 }}>Outcome</th>
+                  <th style={{ padding: 12 }}>Network</th>
+                  <th style={{ padding: 12 }}>Timestamp</th>
+                </tr>
+              </thead>
+              <tbody>
+                {snapshot.loginEvents.map((event) => (
+                  <tr key={event.id} style={{ borderTop: "1px solid #e4e4e7" }}>
+                    <td style={{ padding: 12, verticalAlign: "top" }}>
+                      <div style={{ fontWeight: 700 }}>{event.eventType}</div>
+                      <div style={{ marginTop: 6, color: "#52525b", fontSize: 13 }}>{event.reason || event.emailAttempted || "No reason recorded"}</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top" }}>
+                      <span style={{ display: "inline-block", padding: "4px 8px", borderRadius: 999, fontSize: 12, fontWeight: 700, ...sessionOutcomeTone(event.outcome) }}>{event.outcome}</span>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>
+                      <div>{event.ipAddress || "No IP"}</div>
+                      <div style={{ marginTop: 6, fontSize: 13 }}>{event.userAgent || "Unknown agent"}</div>
+                    </td>
+                    <td style={{ padding: 12, verticalAlign: "top", color: "#52525b" }}>{formatDateTime(event.occurredAt)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -2650,20 +2827,11 @@ const USER_DETAIL_TABS: Array<{ id: UserDetailTab; label: string; description: s
   { id: "security", label: "Security", description: "2FA status and security controls." },
 ];
 
-function UserDetailPlaceholderPanel({ title, description, children }: { title: string; description: string; children?: React.ReactNode }) {
-  return (
-    <div style={{ marginTop: 24, padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
-      <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>{title}</h2>
-      <p style={{ margin: 0, color: "#52525b", maxWidth: 820 }}>{description}</p>
-      {children ? <div style={{ marginTop: 16 }}>{children}</div> : null}
-    </div>
-  );
-}
-
 function UserDetailPage() {
   const {
     item,
     rolesSnapshot,
+    sessionsSnapshot,
     jobsSnapshot,
     regionsSnapshot,
     administrativeRegionsSnapshot,
@@ -2672,6 +2840,7 @@ function UserDetailPage() {
     error,
     submitting,
     runAction,
+    revokeSession,
     assignRole,
     assignJob,
     assignRegion,
@@ -2803,17 +2972,7 @@ function UserDetailPage() {
               onAssign={assignAdministrativeRegion}
             />
           ) : null}
-          {activeTab === "sessions" ? (
-            <UserDetailPlaceholderPanel
-              title="Sessions and Login History"
-              description="This tab reserves the user detail surface for active session controls and login-security history. The current lifecycle toolbar already supports session revocation, and the dedicated history view lands in the follow-up session issue."
-            >
-              <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-                <DetailField label="Active Sessions" value={String(item.activeSessionCount)} />
-                <DetailField label="Last Login" value={formatDateTime(item.lastLoginAt)} />
-              </div>
-            </UserDetailPlaceholderPanel>
-          ) : null}
+          {activeTab === "sessions" ? <UserSessionsPanel userId={item.id} snapshot={sessionsSnapshot} submitting={submitting} onRevokeSession={revokeSession} onRevokeAll={() => runAction("revoke-sessions")} /> : null}
           {activeTab === "security" ? <UserSecurityPanel userId={item.id} status={twoFactorStatus} submitting={submitting} onReset={resetTwoFactor} /> : null}
         </>
       ) : null}

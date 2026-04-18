@@ -12,6 +12,7 @@ import {
   resetUserAdminRoleAssignmentServiceFactory,
   resetUserAdminRbacServiceFactory,
   resetUserAdminRegionServiceFactory,
+  resetUserAdminSessionServiceFactory,
   resetUserAdminServiceFactory,
   setUserAdminAuthorizationServiceFactory,
   setUserAdminAdministrativeRegionAssignmentServiceFactory,
@@ -22,6 +23,7 @@ import {
   setUserAdminRoleAssignmentServiceFactory,
   setUserAdminRbacServiceFactory,
   setUserAdminRegionServiceFactory,
+  setUserAdminSessionServiceFactory,
   setUserAdminServiceFactory,
 } from "../../src/plugins/awcms-users-admin/index.mjs";
 import { resetSecurityPolicy } from "../../src/security/policy.mjs";
@@ -481,6 +483,33 @@ function createFakeUserRolesDb({ users, roles, assignments }) {
 
       assert.equal(table, "user_roles");
       return new FakeSimpleQuery(assignments);
+    },
+  };
+}
+
+function createFakeUserSessionsDb({ users, sessions, loginEvents }) {
+  return {
+    selectFrom(table) {
+      if (table === "users") {
+        const query = new FakeUsersQuery(users);
+        query.leftJoin = (tableName, callback) => {
+          assert.ok(["user_profiles", "user_roles", "roles", "sessions"].includes(tableName));
+          if (typeof callback === "function") {
+            callback(createJoinBuilder());
+          }
+          return query;
+        };
+        query.select = () => query;
+        query.groupBy = () => query;
+        return query;
+      }
+
+      if (table === "sessions") {
+        return new FakeSimpleQuery(sessions);
+      }
+
+      assert.equal(table, "login_security_events");
+      return new FakeSimpleQuery(loginEvents);
     },
   };
 }
@@ -1755,6 +1784,82 @@ test("awcms users admin plugin exposes user administrative region history and as
     resetUserAdminDatabaseGetter();
     resetUserAdminAuthorizationServiceFactory();
     resetUserAdminAdministrativeRegionAssignmentServiceFactory();
+  }
+});
+
+test("awcms users admin plugin exposes user session and login history routes", async () => {
+  const plugin = createPlugin();
+  let revokedSessionId;
+  const authorizationCalls = [];
+  const fakeDb = createFakeUserSessionsDb({
+    users: [
+      createAdminActorRow(),
+      {
+        id: "user_1",
+        email: "user@example.com",
+        username: "user1",
+        display_name: "User One",
+        status: "active",
+        last_login_at: "2026-04-10T10:00:00.000Z",
+        must_reset_password: false,
+        is_protected: false,
+        deleted_at: null,
+        created_at: "2026-04-01T10:00:00.000Z",
+        updated_at: "2026-04-10T10:00:00.000Z",
+        profile_phone: null,
+        profile_timezone: null,
+        profile_locale: null,
+        profile_notes: null,
+        profile_avatar_media_id: null,
+        profile_created_at: null,
+        profile_updated_at: null,
+        active_session_count: 2,
+        active_role_staff_level: 4,
+      },
+    ],
+    sessions: [
+      { id: "session_1", user_id: "user_1", session_token_hash: "hash_1", ip_address: "127.0.0.1", user_agent: "Browser A", trusted_device: true, last_seen_at: "2026-04-10T09:55:00.000Z", expires_at: "2026-05-10T10:00:00.000Z", revoked_at: null, created_at: "2026-04-01T10:00:00.000Z" },
+      { id: "session_2", user_id: "user_1", session_token_hash: "hash_2", ip_address: "127.0.0.2", user_agent: "Browser B", trusted_device: false, last_seen_at: "2026-04-10T09:45:00.000Z", expires_at: "2026-05-10T10:00:00.000Z", revoked_at: null, created_at: "2026-04-02T10:00:00.000Z" },
+    ],
+    loginEvents: [
+      { id: "login_event_1", user_id: "user_1", email_attempted: "user@example.com", event_type: "login.password", outcome: "success", reason: null, ip_address: "127.0.0.1", user_agent: "Browser A", occurred_at: "2026-04-10T09:55:00.000Z" },
+      { id: "login_event_2", user_id: "user_1", email_attempted: "user@example.com", event_type: "login.password", outcome: "failure", reason: "INVALID_PASSWORD", ip_address: "127.0.0.3", user_agent: "Browser C", occurred_at: "2026-04-09T10:00:00.000Z" },
+    ],
+  });
+
+  setUserAdminDatabaseGetter(() => fakeDb);
+  setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory(authorizationCalls));
+  setUserAdminSessionServiceFactory(() => ({
+    async revokeSession(sessionId) {
+      revokedSessionId = sessionId;
+    },
+  }));
+
+  try {
+    const body = await plugin.routes["users/sessions"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/sessions?id=user_1", { headers: createAdminHeaders() }),
+    });
+
+    assert.equal(body.sessions.length, 2);
+    assert.equal(body.sessions[0].trustedDevice, true);
+    assert.equal(body.loginEvents.length, 2);
+    assert.equal(body.loginEvents[1].outcome, "failure");
+
+    await plugin.routes["users/sessions/revoke"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/sessions/revoke", {
+        method: "POST",
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: "user_1", sessionId: "session_1" }),
+      }),
+    });
+
+    assert.equal(revokedSessionId, "session_1");
+    assert.equal(authorizationCalls[0].context.permission_code, "security.sessions.read");
+    assert.equal(authorizationCalls.some((call) => call.context.permission_code === "security.sessions.revoke"), true);
+  } finally {
+    resetUserAdminDatabaseGetter();
+    resetUserAdminAuthorizationServiceFactory();
+    resetUserAdminSessionServiceFactory();
   }
 });
 

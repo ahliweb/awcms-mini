@@ -4,7 +4,9 @@ import { getDatabase } from "../../db/index.mjs";
 import { createAdministrativeRegionRepository } from "../../db/repositories/administrative-regions.mjs";
 import { createJobLevelRepository } from "../../db/repositories/job-levels.mjs";
 import { createJobTitleRepository } from "../../db/repositories/job-titles.mjs";
+import { createLoginSecurityEventRepository } from "../../db/repositories/login-security-events.mjs";
 import { createRegionRepository } from "../../db/repositories/regions.mjs";
+import { createSessionRepository } from "../../db/repositories/sessions.mjs";
 import { createUserAdministrativeRegionAssignmentRepository } from "../../db/repositories/user-administrative-region-assignments.mjs";
 import { createUserJobRepository } from "../../db/repositories/user-jobs.mjs";
 import { createUserRegionAssignmentRepository } from "../../db/repositories/user-region-assignments.mjs";
@@ -17,6 +19,7 @@ import { createRbacService } from "../../services/rbac/service.mjs";
 import { createRoleAssignmentService } from "../../services/roles/service.mjs";
 import { createRegionAssignmentService } from "../../services/regions/assignments.mjs";
 import { createRegionService } from "../../services/regions/service.mjs";
+import { createSessionService } from "../../services/sessions/service.mjs";
 import { createUserService } from "../../services/users/service.mjs";
 import { getSecurityPolicy, updateSecurityPolicy } from "../../security/policy.mjs";
 
@@ -29,6 +32,7 @@ let userAdminAdministrativeRegionAssignmentServiceFactory = (database) => create
 let userAdminAdminTwoFactorServiceFactory = (database) => createAdminTwoFactorService({ database });
 let userAdminRbacServiceFactory = (database) => createRbacService({ database });
 let userAdminRoleAssignmentServiceFactory = (database) => createRoleAssignmentService({ database });
+let userAdminSessionServiceFactory = (database) => createSessionService({ database });
 let userAdminAuthorizationServiceFactory = (database) => createAuthorizationService({ database });
 
 function normalizeProfileRow(row) {
@@ -230,6 +234,42 @@ function normalizeUserRoleAssignmentRow(row) {
           isProtected: Boolean(row.role.is_protected),
         }
       : null,
+  };
+}
+
+function normalizeSessionRow(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    ipAddress: row.ip_address,
+    userAgent: row.user_agent,
+    trustedDevice: Boolean(row.trusted_device),
+    lastSeenAt: row.last_seen_at,
+    expiresAt: row.expires_at,
+    revokedAt: row.revoked_at,
+    createdAt: row.created_at,
+  };
+}
+
+function normalizeLoginSecurityEventRow(row) {
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    emailAttempted: row.email_attempted,
+    eventType: row.event_type,
+    outcome: row.outcome,
+    reason: row.reason,
+    ipAddress: row.ip_address,
+    userAgent: row.user_agent,
+    occurredAt: row.occurred_at,
   };
 }
 
@@ -1461,6 +1501,90 @@ async function listUserAdministrativeRegionsHandler(ctx) {
   };
 }
 
+async function listUserSessionsHandler(ctx) {
+  const search = new URL(ctx.request.url).searchParams;
+  const userId = search.get("id");
+
+  if (!userId) {
+    throw PluginRouteError.badRequest("Missing required user id");
+  }
+
+  const db = userAdminDatabaseGetter();
+  const targetRow = await getUserSummaryRow(db, userId);
+
+  if (!targetRow) {
+    throw PluginRouteError.notFound(`User not found: ${userId}`);
+  }
+
+  const target = normalizeAuthorizationUserRow(targetRow);
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "security.sessions.read",
+    action: "read",
+    resource: {
+      kind: "session",
+      target_user_id: target.id,
+      target_staff_level: target.activeRoleStaffLevel,
+      is_protected: target.isProtected,
+    },
+  });
+
+  const sessions = createSessionRepository(db);
+  const loginEvents = createLoginSecurityEventRepository(db);
+
+  return {
+    sessions: (await sessions.listSessionsByUserId(userId, { includeRevoked: true, limit: 50 })).map(normalizeSessionRow),
+    loginEvents: (await loginEvents.listEvents({ userId, limit: 50 })).map(normalizeLoginSecurityEventRow),
+  };
+}
+
+async function revokeUserSessionHandler(ctx) {
+  let body;
+
+  try {
+    body = await ctx.request.json();
+  } catch {
+    throw PluginRouteError.badRequest("Expected JSON body");
+  }
+
+  const userId = typeof body?.userId === "string" ? body.userId.trim() : "";
+  const sessionId = typeof body?.sessionId === "string" ? body.sessionId.trim() : "";
+
+  if (!userId || !sessionId) {
+    throw PluginRouteError.badRequest("User id and session id are required");
+  }
+
+  const db = userAdminDatabaseGetter();
+  const targetRow = await getUserSummaryRow(db, userId);
+
+  if (!targetRow) {
+    throw PluginRouteError.notFound(`User not found: ${userId}`);
+  }
+
+  const target = normalizeAuthorizationUserRow(targetRow);
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "security.sessions.revoke",
+    action: "revoke",
+    resource: {
+      kind: "session",
+      target_user_id: target.id,
+      target_staff_level: target.activeRoleStaffLevel,
+      is_protected: target.isProtected,
+    },
+  });
+
+  const service = userAdminSessionServiceFactory(db);
+  await service.revokeSession(sessionId);
+
+  return listUserSessionsHandler({
+    ...ctx,
+    request: new Request(`http://example.test/_emdash/api/plugins/awcms-users-admin/users/sessions?id=${encodeURIComponent(userId)}`, {
+      headers: ctx.request.headers,
+    }),
+  });
+}
+
 async function assignUserAdministrativeRegionHandler(ctx) {
   let body;
 
@@ -1790,6 +1914,12 @@ export function createPlugin() {
       "users/administrative-regions": {
         handler: listUserAdministrativeRegionsHandler,
       },
+      "users/sessions": {
+        handler: listUserSessionsHandler,
+      },
+      "users/sessions/revoke": {
+        handler: revokeUserSessionHandler,
+      },
       "users/administrative-regions/assign": {
         handler: assignUserAdministrativeRegionHandler,
       },
@@ -1969,6 +2099,14 @@ export function setUserAdminRoleAssignmentServiceFactory(factory) {
 
 export function resetUserAdminRoleAssignmentServiceFactory() {
   userAdminRoleAssignmentServiceFactory = (database) => createRoleAssignmentService({ database });
+}
+
+export function setUserAdminSessionServiceFactory(factory) {
+  userAdminSessionServiceFactory = factory;
+}
+
+export function resetUserAdminSessionServiceFactory() {
+  userAdminSessionServiceFactory = (database) => createSessionService({ database });
 }
 
 export default createPlugin;
