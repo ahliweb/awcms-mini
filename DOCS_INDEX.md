@@ -53,6 +53,7 @@ This file maps the current documentation set for AWCMS Mini.
 - `docs/process/cloudflare-hosted-runtime.md`
 - `docs/process/cloudflare-platform-expansion-plan-2026.md`
 - `docs/process/cloudflare-edge-jwt-permissions-ai-plan-2026.md`
+- `docs/process/cloudflare-hostname-turnstile-r2-automation-plan-2026.md`
 - `docs/process/ai-workflow-planning-templates.md`
 - `docs/process/postgresql-vps-hardening.md`
 - `docs/process/emdash-alignment-and-security-plan-2026.md`
