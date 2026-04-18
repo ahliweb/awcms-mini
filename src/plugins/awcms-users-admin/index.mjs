@@ -23,6 +23,7 @@ import { createSessionService } from "../../services/sessions/service.mjs";
 import { createUserService } from "../../services/users/service.mjs";
 import { getSecurityPolicy, updateSecurityPolicy } from "../../security/policy.mjs";
 import { collectRegisteredPluginPermissions } from "../permission-registration.mjs";
+import { createPluginAuditHelper } from "../audit-helper.mjs";
 import { createAuthorizedPluginRoute } from "../route-authorization.mjs";
 
 const USER_ADMIN_PERMISSION_DECLARATIONS = [
@@ -63,6 +64,7 @@ let userAdminRbacServiceFactory = (database) => createRbacService({ database });
 let userAdminRoleAssignmentServiceFactory = (database) => createRoleAssignmentService({ database });
 let userAdminSessionServiceFactory = (database) => createSessionService({ database });
 let userAdminAuthorizationServiceFactory = (database) => createAuthorizationService({ database });
+let userAdminAuditServiceFactory = (database) => createAuditService({ database });
 
 function normalizeProfileRow(row) {
   if (!row) {
@@ -1057,8 +1059,32 @@ async function updateSecuritySettingsHandler(ctx) {
     throw PluginRouteError.badRequest("Expected JSON body");
   }
 
+  const previousPolicy = getSecurityPolicy();
   const policy = updateSecurityPolicy({
     mandatoryTwoFactorRoleIds: Array.isArray(body?.mandatoryTwoFactorRoleIds) ? body.mandatoryTwoFactorRoleIds : [],
+  });
+
+  const pluginAudit = createPluginAuditHelper({
+    pluginId: "awcms-users-admin",
+    getAuditService: (database) => userAdminAuditServiceFactory(database),
+  });
+
+  await pluginAudit.append({
+    database: userAdminDatabaseGetter(),
+    actorUserId: ctx.request.headers.get("x-actor-user-id")?.trim() ?? null,
+    request: ctx.request,
+    action: "plugin.security.settings.update",
+    entityType: "security_policy",
+    summary: "Updated plugin-managed security settings.",
+    beforePayload: {
+      mandatory_two_factor_role_ids: previousPolicy.mandatoryTwoFactorRoleIds,
+    },
+    afterPayload: {
+      mandatory_two_factor_role_ids: policy.mandatoryTwoFactorRoleIds,
+    },
+    metadata: {
+      plugin_action: "security.settings.update",
+    },
   });
 
   return {
@@ -2141,6 +2167,14 @@ export function setUserAdminAuthorizationServiceFactory(factory) {
 
 export function resetUserAdminAuthorizationServiceFactory() {
   userAdminAuthorizationServiceFactory = (database) => createAuthorizationService({ database });
+}
+
+export function setUserAdminAuditServiceFactory(factory) {
+  userAdminAuditServiceFactory = factory;
+}
+
+export function resetUserAdminAuditServiceFactory() {
+  userAdminAuditServiceFactory = (database) => createAuditService({ database });
 }
 
 export function setUserAdminRbacServiceFactory(factory) {

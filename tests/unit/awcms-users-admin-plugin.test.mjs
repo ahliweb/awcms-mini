@@ -5,6 +5,7 @@ import {
   awcmsUsersAdminPlugin,
   createPlugin,
   USER_ADMIN_PLUGIN_PERMISSIONS,
+  resetUserAdminAuditServiceFactory,
   resetUserAdminAuthorizationServiceFactory,
   resetUserAdminAdministrativeRegionAssignmentServiceFactory,
   resetUserAdminAdminTwoFactorServiceFactory,
@@ -19,6 +20,7 @@ import {
   setUserAdminAuthorizationServiceFactory,
   setUserAdminAdministrativeRegionAssignmentServiceFactory,
   setUserAdminAdminTwoFactorServiceFactory,
+  setUserAdminAuditServiceFactory,
   setUserAdminDatabaseGetter,
   setUserAdminRegionAssignmentServiceFactory,
   setUserAdminJobsServiceFactory,
@@ -1875,6 +1877,7 @@ test("awcms users admin plugin exposes user session and login history routes", a
 test("awcms users admin plugin exposes security settings routes and protected 2fa reset flow", async () => {
   const plugin = createPlugin();
   const authorizationCalls = [];
+  const auditEntries = [];
   let resetInput;
   const fakeDb = {
     selectFrom(table) {
@@ -1919,6 +1922,12 @@ test("awcms users admin plugin exposes security settings routes and protected 2f
   resetSecurityPolicy();
   setUserAdminDatabaseGetter(() => fakeDb);
   setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory(authorizationCalls));
+  setUserAdminAuditServiceFactory(() => ({
+    async append(entry) {
+      auditEntries.push(entry);
+      return entry;
+    },
+  }));
   setUserAdminAdminTwoFactorServiceFactory(() => ({
     async getUserTwoFactorStatus(userId) {
       return {
@@ -1958,6 +1967,15 @@ test("awcms users admin plugin exposes security settings routes and protected 2f
       }),
     });
     assert.deepEqual(updated.policy.mandatoryTwoFactorRoleIds, ["role_owner"]);
+    assert.equal(auditEntries.length, 1);
+    assert.equal(auditEntries[0].action, "plugin.security.settings.update");
+    assert.equal(auditEntries[0].metadata.plugin_id, "awcms-users-admin");
+    assert.deepEqual(auditEntries[0].before_payload, {
+      mandatory_two_factor_role_ids: [],
+    });
+    assert.deepEqual(auditEntries[0].after_payload, {
+      mandatory_two_factor_role_ids: ["role_owner"],
+    });
 
     const statusBody = await plugin.routes["users/2fa/status"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/2fa/status?id=user_1", { headers: createAdminHeaders() }),
@@ -1994,6 +2012,7 @@ test("awcms users admin plugin exposes security settings routes and protected 2f
   } finally {
     resetUserAdminDatabaseGetter();
     resetUserAdminAuthorizationServiceFactory();
+    resetUserAdminAuditServiceFactory();
     resetUserAdminAdminTwoFactorServiceFactory();
     resetSecurityPolicy();
   }
