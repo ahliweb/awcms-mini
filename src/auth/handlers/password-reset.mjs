@@ -7,6 +7,13 @@ function json(body, status = 200) {
   });
 }
 
+function passwordResetRequestAccepted() {
+  return json({
+    success: true,
+    message: "If the account is eligible for password reset, follow the configured recovery channel.",
+  });
+}
+
 export async function handlePasswordResetRequest({ request, db }) {
   let body;
 
@@ -25,10 +32,14 @@ export async function handlePasswordResetRequest({ request, db }) {
   const service = createPasswordResetService({ database: db });
 
   try {
-    const issued = await service.requestPasswordReset({ email });
-    return json({ success: true, expiresAt: issued.expires_at, token: issued.token });
+    await service.requestPasswordReset({ email });
+    return passwordResetRequestAccepted();
   } catch (error) {
     if (error instanceof PasswordResetError) {
+      if (error.code === "INVALID_USER") {
+        return passwordResetRequestAccepted();
+      }
+
       return json({ error: { code: error.code, message: error.message } }, 400);
     }
 

@@ -24,6 +24,7 @@ Mini owns the security-hardening layer:
 - password login with failure tracking
 - lockout response for repeated failures
 - mandatory password reset support
+- public password-reset requests return a generic acceptance response and do not expose live reset tokens in JSON
 - TOTP-based 2FA and recovery codes
 - admin-triggered 2FA reset with step-up enforcement
 - active session inspection and revocation
@@ -34,6 +35,7 @@ Mini owns the security-hardening layer:
 - Mandatory 2FA rollout controls are persisted in the database-backed security policy and managed through the admin settings surface.
 - Treat rollout behavior as an operator-managed control that still requires verification against the live auth path before claiming full enforcement in production.
 - ABAC audit-only flags are intended for controlled rollout safety, not permanent steady-state policy behavior.
+- Public password-reset issuance is a generic request-acceptance surface. Live reset tokens should be delivered through an operator-controlled or other out-of-band recovery channel, not returned to the caller.
 
 ## Deployment Expectations
 

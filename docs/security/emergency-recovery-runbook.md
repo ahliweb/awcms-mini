@@ -105,7 +105,7 @@ Use this when the account password is unknown, expired operationally, or must be
 
 1. Trigger a forced password reset for the affected user.
 2. Ensure the reset is treated as a recovery action, not a normal self-service reset.
-3. Confirm the user receives the reset token or supported recovery handoff.
+3. Confirm the user receives the reset token through the supported recovery handoff or other out-of-band operator-controlled delivery path.
 4. Have the user consume the password reset token and set a new password.
 5. Confirm all prior sessions are revoked after reset consumption.
 
@@ -114,6 +114,7 @@ Expected system effects of the forced reset flow:
 - `must_reset_password` becomes `true`
 - Existing sessions are revoked
 - A forced reset token is issued
+- The public password-reset request API does not return that live token in JSON
 - Audit actions such as `password_reset.force_issue`, `password_reset.force_require`, and `password_reset.consume` are recorded where applicable
 
 Do not set a password directly in the database. That bypasses the recovery flow, skips revocation logic, and weakens incident traceability.
