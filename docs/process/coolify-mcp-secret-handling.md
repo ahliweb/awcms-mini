@@ -45,6 +45,27 @@ COOLIFY_MCP_TOKEN=<local-only-secret>
 
 This variable name is documentation guidance only. The live value must stay outside tracked files.
 
+For direct Coolify API and MCP clients, this repo now uses the live API naming from Coolify tooling:
+
+```text
+COOLIFY_BASE_URL=https://app.coolify.io
+COOLIFY_ACCESS_TOKEN=<local-only-secret>
+```
+
+`https://app.coolify.io` is the Coolify Cloud API base URL.
+
+If the token contains shell-significant characters such as `|`, quote the value in `.env.local` so local wrappers can source it safely.
+
+## Local CLI And MCP Workflow
+
+For Coolify Cloud:
+
+1. store `COOLIFY_BASE_URL` and `COOLIFY_ACCESS_TOKEN` in `.env.local`
+2. run `coolify context set-token cloud "$COOLIFY_ACCESS_TOKEN"` to configure the CLI locally
+3. run `pnpm coolify:mcp` when an MCP client should launch the local wrapper in this repository
+
+The tracked wrapper script reads `.env.local` at runtime and passes the credentials to the MCP server without storing the token in the script itself.
+
 ## Operator Workflow
 
 1. Generate or obtain the smallest-scope Coolify token available for the intended operator task.

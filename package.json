@@ -10,6 +10,7 @@
     "build:node": "MINI_RUNTIME_TARGET=node astro build",
     "preview": "astro preview",
     "start": "node ./dist/server/entry.mjs",
+    "coolify:mcp": "./scripts/coolify-mcp.sh",
     "deploy:cloudflare": "astro build && wrangler deploy",
     "check": "pnpm typecheck && pnpm test:unit && pnpm build && pnpm lint",
     "lint": "pnpm prettier --check README.md DOCS_INDEX.md REQUIREMENTS.md SECURITY.md AGENTS.md docs/**/*.md package.json",

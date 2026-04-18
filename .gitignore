@@ -4,6 +4,8 @@ dist/
 .wrangler/
 .env
 .env.local
+.mcp.json
+.cursor/mcp.json
 emdash-env.d.ts
 uploads/
 npm-debug.log*
