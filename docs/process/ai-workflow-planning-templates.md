@@ -20,6 +20,31 @@ Use these templates as workflow starters, not as authority. The authority order 
 - Document the real repository state, not aspirational completion.
 - Validate with the repo baseline plus any issue-specific checks.
 
+## Atomic And Token-Efficient Workflow Guidance
+
+Use these rules to keep AI-assisted work scoped, reviewable, and efficient.
+
+- Prefer one atomic GitHub issue per focused unit of work.
+- If a task touches multiple independent seams, split the plan into dependency-ordered issues before implementation.
+- Read only the highest-authority and most relevant files first instead of sweeping the whole repository.
+- Prefer bounded searches and focused file reads over broad exploratory context gathering.
+- Summarize confirmed repository state before proposing changes so speculative work does not expand the prompt.
+- Reuse the current repo baseline instead of restating unchanged architecture in every task.
+- Keep implementation prompts tight: describe the issue, the affected seams, the required validation, and any security or operator caveats.
+- Prefer targeted validation first, then the repo baseline, instead of always running the broadest possible command set at the start.
+- Create follow-on issues rather than folding unrelated cleanup into the current task.
+- When a Cloudflare MCP or other external management surface cannot show live inventory, document the caveat explicitly instead of spending extra prompt budget restating the failure repeatedly.
+
+## Recommended Execution Order For AI Tasks
+
+1. Identify or create the atomic issue.
+2. Read only the highest-priority and most task-relevant docs or files.
+3. Confirm the current implementation seam that will change.
+4. State the smallest valid implementation or docs update.
+5. Apply the change.
+6. Run focused validation, then the repo baseline if still needed.
+7. Create follow-on issues only for gaps that should not be folded into the current issue.
+
 ## Current Repository Baseline
 
 Use these as the default current-state assumptions when adapting any template in this document.
@@ -66,6 +91,7 @@ Requirements:
 - Reflect the current split-hostname, Turnstile, R2, and edge-auth baselines when they are relevant to the task.
 - Update index or cross-reference docs when adding a new maintained document.
 - Recommend validation commands and operator impact where relevant.
+- Prefer targeted file reads and avoid repository-wide restatement when a smaller context window is enough.
 
 Output:
 - concise summary of the real-state documentation changes
@@ -98,6 +124,7 @@ Planning tasks:
 - include security, operator, and validation notes
 - align terminology with current EmDash descriptor, plugin, and auth conventions
 - call out Cloudflare-specific runtime assumptions such as custom domains, Turnstile hostname validation, Worker bindings, or `/api/v1/*` edge routes when relevant
+- explicitly identify what should stay out of scope for the first issue so the implementation remains atomic
 
 Output:
 - a concise plan section or document outline
@@ -124,6 +151,8 @@ Workflow rules:
 - use `pnpm lint` for docs/config-only changes
 - keep Cloudflare-hosted runtime assumptions, Coolify-managed PostgreSQL assumptions, and current hostname/edge-auth behavior accurate in any touched docs
 - close the issue only after validation succeeds
+- read only the files needed to complete the scoped issue and avoid broad context pulls once the seam is clear
+- move unrelated cleanup into follow-on issues instead of silently expanding the current task
 
 Output:
 - completed implementation
@@ -172,6 +201,7 @@ Requirements:
 - update any checklist or runbook references affected by the change
 - keep claims aligned with the current implementation state
 - include hostname, Turnstile, R2, or `/api/v1/*` smoke tests when the scoped change touches those surfaces
+- keep the rollout guidance issue-scoped and avoid bundling unrelated operational cleanup into the same release template
 
 Output:
 - the required docs or checklist updates
@@ -185,6 +215,14 @@ Output:
 - runtime/config/doc changes that alter deployment assumptions: `pnpm lint` plus focused smoke-test guidance updates
 - TypeScript, Astro, runtime, service, auth, or route changes: `pnpm check`
 - focused behavioral changes: targeted `node --test ...` or `pnpm test:unit -- ...` in addition to the baseline
+
+## Prompt Construction Tips
+
+- Prefer issue title plus acceptance criteria over long narrative context.
+- Name only the files or docs that are likely to matter first.
+- Include the validation command set up front so the execution path stays bounded.
+- Reuse established repo terms such as EmDash-first, Cloudflare-hosted Worker runtime, Coolify-managed PostgreSQL, `MEDIA_BUCKET`, and `/api/v1/*` instead of re-explaining them.
+- State explicit non-goals when a task could otherwise expand into adjacent Cloudflare, security, or admin work.
 
 ## When To Create Follow-On Issues
 
