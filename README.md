@@ -64,8 +64,10 @@ Recommended public abuse-defense settings:
 - `TURNSTILE_SITE_KEY`
 - `TURNSTILE_SECRET_KEY`
 - optional `TURNSTILE_EXPECTED_HOSTNAME`
+- optional `TURNSTILE_EXPECTED_HOSTNAMES` for split public/admin hostnames
 
 When configured, Turnstile currently protects the public login, password-reset request, and invite-activation flows.
+For split public/admin hostnames, the runtime now derives the expected Turnstile hostnames from `SITE_URL` and `ADMIN_SITE_URL` unless you set `TURNSTILE_EXPECTED_HOSTNAMES` explicitly.
 
 R2 storage baseline when object storage is enabled:
 

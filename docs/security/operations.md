@@ -41,6 +41,7 @@ Mini owns the security-hardening layer:
 - Public password-reset issuance is a generic request-acceptance surface. Live reset tokens should be delivered through an operator-controlled or other out-of-band recovery channel, not returned to the caller.
 - Turnstile validation is server-side only and uses Siteverify with action and hostname checks when configured.
 - Turnstile currently protects login, password-reset request, and invite-activation handlers. It complements, rather than replaces, lockouts and edge rate limiting.
+- For split public/admin hostnames, Turnstile hostname validation should allow only the reviewed hostname set for the deployment, not arbitrary same-account hostnames.
 - The current edge API baseline includes a public health endpoint, JWT-backed token issuance and refresh under `/api/v1/token`, and session self-inspection/self-revocation under `/api/v1/session`.
 - Edge API access tokens are short-lived JWT Bearer tokens signed with `jose` using an explicit issuer, audience, expiration, and algorithm allowlist.
 - Edge API refresh tokens are opaque random values, hashed at rest in PostgreSQL, rotated on use, and revoked when the backing session is revoked.
@@ -67,6 +68,7 @@ Security operations should treat those as separate trust boundaries.
 - Do not treat arbitrary `X-Forwarded-For` values as authoritative unless a deployment explicitly opts into a different trusted proxy mode.
 - Add Cloudflare rate limiting or managed challenge rules for login and other abuse-prone auth endpoints.
 - Store `TURNSTILE_SECRET_KEY` as a Cloudflare-managed secret or equivalent server-only runtime secret.
+- Prefer `TURNSTILE_EXPECTED_HOSTNAMES` for split public/admin hostname deployments so Siteverify accepts only the reviewed hostname set.
 - Store `EDGE_API_JWT_SECRET` as a Cloudflare-managed secret or equivalent server-only runtime secret.
 - Keep `EDGE_API_ALLOWED_ORIGINS` empty unless a reviewed browser-based external client explicitly needs cross-origin access.
 - Prefer host-only cookies unless a reviewed operator workflow requires public/admin cross-host session sharing.

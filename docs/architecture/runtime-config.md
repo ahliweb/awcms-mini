@@ -80,7 +80,14 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 
 - Purpose: optional explicit hostname check for Turnstile Siteverify results.
 - Scope: server-only runtime configuration.
-- Default behavior: falls back to the hostname parsed from `SITE_URL` when omitted.
+- Default behavior: legacy single-host override only. Prefer `TURNSTILE_EXPECTED_HOSTNAMES` for new split-hostname deployments.
+
+### `TURNSTILE_EXPECTED_HOSTNAMES`
+
+- Purpose: explicit allowlist of accepted hostnames for Turnstile Siteverify results.
+- Scope: server-only runtime configuration.
+- Format: comma-separated hostnames.
+- Default behavior: falls back to hostnames derived from `SITE_URL` and `ADMIN_SITE_URL` when omitted.
 
 ### `R2_MEDIA_BUCKET_BINDING`
 
@@ -176,6 +183,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - if `ADMIN_SITE_URL` is configured, treat it as an entry hostname for the same EmDash admin surface rather than a second admin runtime
 - for remote PostgreSQL deployments, prefer TLS-enabled connections and host-level access restriction
 - store Turnstile secrets in Cloudflare-managed secrets or equivalent server-only runtime configuration
+- for split public/admin hostnames, validate Turnstile Siteverify results against an explicit hostname allowlist rather than a single hostname only
 - store `EDGE_API_JWT_SECRET` in Cloudflare-managed secrets or equivalent server-only runtime configuration
 - keep R2 buckets private by default and access them through Cloudflare bindings, not REST calls from runtime code
 - keep object metadata, ownership, and authorization state in PostgreSQL even when object bytes live in R2
@@ -229,6 +237,7 @@ For public auth and recovery abuse defense, also configure:
 - `TURNSTILE_SITE_KEY`
 - `TURNSTILE_SECRET_KEY`
 - optional `TURNSTILE_EXPECTED_HOSTNAME`
+- optional `TURNSTILE_EXPECTED_HOSTNAMES`
 
 For private R2-backed object storage, also configure:
 

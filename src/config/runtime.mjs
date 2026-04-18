@@ -32,22 +32,27 @@ function normalizeOptionalString(value) {
   return next.length > 0 ? next : null;
 }
 
-function normalizeTurnstileExpectedHostname(value, siteUrl) {
-  const explicit = normalizeOptionalString(value);
-
-  if (explicit) {
-    return explicit;
-  }
-
-  if (!siteUrl) {
+function safeHostnameFromUrl(value) {
+  if (!value) {
     return null;
   }
 
   try {
-    return new URL(siteUrl).hostname || null;
+    return new URL(value).hostname || null;
   } catch {
     return null;
   }
+}
+
+function normalizeTurnstileExpectedHostnames(value, siteUrl, adminSiteUrl) {
+  const explicitEntries = normalizeCommaSeparatedList(value, []);
+
+  if (explicitEntries.length > 0) {
+    return [...new Set(explicitEntries)];
+  }
+
+  const derived = [safeHostnameFromUrl(siteUrl), safeHostnameFromUrl(adminSiteUrl)].filter(Boolean);
+  return [...new Set(derived)];
 }
 
 function normalizePositiveInteger(value, fallback) {
@@ -116,7 +121,8 @@ export function getRuntimeConfig() {
       siteKey: turnstileSiteKey,
       secretKey: turnstileSecretKey,
       enabled: Boolean(turnstileSecretKey),
-      expectedHostname: normalizeTurnstileExpectedHostname(process.env.TURNSTILE_EXPECTED_HOSTNAME, siteUrl),
+      expectedHostnames: normalizeTurnstileExpectedHostnames(process.env.TURNSTILE_EXPECTED_HOSTNAMES, siteUrl, adminSiteUrl),
+      expectedHostname: normalizeOptionalString(process.env.TURNSTILE_EXPECTED_HOSTNAME),
     },
     r2: {
       mediaBucketBinding: normalizeOptionalString(process.env.R2_MEDIA_BUCKET_BINDING) || DEFAULT_R2_MEDIA_BUCKET_BINDING,

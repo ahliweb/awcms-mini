@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { getRuntimeConfig } from "../../src/config/runtime.mjs";
 import { TurnstileValidationError, validateTurnstileToken } from "../../src/security/turnstile.mjs";
 
 test("validateTurnstileToken skips validation when Turnstile is disabled", async () => {
@@ -11,6 +12,7 @@ test("validateTurnstileToken skips validation when Turnstile is disabled", async
         turnstile: {
           enabled: false,
           secretKey: null,
+          expectedHostnames: [],
           expectedHostname: null,
         },
       },
@@ -20,7 +22,7 @@ test("validateTurnstileToken skips validation when Turnstile is disabled", async
   assert.deepEqual(result, { enabled: false, success: true });
 });
 
-test("validateTurnstileToken enforces action and hostname checks", async () => {
+test("validateTurnstileToken enforces action and multi-hostname checks", async () => {
   const result = await validateTurnstileToken(
     { token: "token-value", expectedAction: "login", remoteIp: "203.0.113.10" },
     {
@@ -28,7 +30,7 @@ test("validateTurnstileToken enforces action and hostname checks", async () => {
         turnstile: {
           enabled: true,
           secretKey: "secret",
-          expectedHostname: "example.test",
+          expectedHostnames: ["example.test", "admin.example.test"],
         },
       },
       fetchImpl: async () => ({
@@ -61,7 +63,7 @@ test("validateTurnstileToken rejects duplicate or mismatched tokens", async () =
             turnstile: {
               enabled: true,
               secretKey: "secret",
-              expectedHostname: "example.test",
+              expectedHostnames: ["example.test", "admin.example.test"],
             },
           },
           fetchImpl: async () => ({
@@ -86,7 +88,7 @@ test("validateTurnstileToken rejects duplicate or mismatched tokens", async () =
             turnstile: {
               enabled: true,
               secretKey: "secret",
-              expectedHostname: "example.test",
+              expectedHostnames: ["example.test", "admin.example.test"],
             },
           },
           fetchImpl: async () => ({
@@ -102,4 +104,56 @@ test("validateTurnstileToken rejects duplicate or mismatched tokens", async () =
       ),
     (error) => error instanceof TurnstileValidationError && error.code === "TURNSTILE_HOSTNAME_MISMATCH",
   );
+});
+
+test("getRuntimeConfig derives expected Turnstile hostnames from public and admin site URLs", async () => {
+  const previousSiteUrl = process.env.SITE_URL;
+  const previousAdminSiteUrl = process.env.ADMIN_SITE_URL;
+  const previousExpectedHostname = process.env.TURNSTILE_EXPECTED_HOSTNAME;
+  const previousExpectedHostnames = process.env.TURNSTILE_EXPECTED_HOSTNAMES;
+
+  process.env.SITE_URL = "https://awcms-mini.ahlikoding.com";
+  process.env.ADMIN_SITE_URL = "https://awcms-mini-admin.ahlikoding.com";
+  delete process.env.TURNSTILE_EXPECTED_HOSTNAME;
+  delete process.env.TURNSTILE_EXPECTED_HOSTNAMES;
+
+  try {
+    const runtimeConfig = getRuntimeConfig();
+
+    assert.deepEqual(runtimeConfig.turnstile.expectedHostnames, [
+      "awcms-mini.ahlikoding.com",
+      "awcms-mini-admin.ahlikoding.com",
+    ]);
+    assert.equal(runtimeConfig.turnstile.expectedHostname, null);
+  } finally {
+    if (previousSiteUrl === undefined) delete process.env.SITE_URL;
+    else process.env.SITE_URL = previousSiteUrl;
+
+    if (previousAdminSiteUrl === undefined) delete process.env.ADMIN_SITE_URL;
+    else process.env.ADMIN_SITE_URL = previousAdminSiteUrl;
+
+    if (previousExpectedHostname === undefined) delete process.env.TURNSTILE_EXPECTED_HOSTNAME;
+    else process.env.TURNSTILE_EXPECTED_HOSTNAME = previousExpectedHostname;
+
+    if (previousExpectedHostnames === undefined) delete process.env.TURNSTILE_EXPECTED_HOSTNAMES;
+    else process.env.TURNSTILE_EXPECTED_HOSTNAMES = previousExpectedHostnames;
+  }
+});
+
+test("getRuntimeConfig honors explicit multi-hostname Turnstile configuration", async () => {
+  const previousExpectedHostnames = process.env.TURNSTILE_EXPECTED_HOSTNAMES;
+
+  process.env.TURNSTILE_EXPECTED_HOSTNAMES = "awcms-mini.ahlikoding.com, awcms-mini-admin.ahlikoding.com";
+
+  try {
+    const runtimeConfig = getRuntimeConfig();
+
+    assert.deepEqual(runtimeConfig.turnstile.expectedHostnames, [
+      "awcms-mini.ahlikoding.com",
+      "awcms-mini-admin.ahlikoding.com",
+    ]);
+  } finally {
+    if (previousExpectedHostnames === undefined) delete process.env.TURNSTILE_EXPECTED_HOSTNAMES;
+    else process.env.TURNSTILE_EXPECTED_HOSTNAMES = previousExpectedHostnames;
+  }
 });

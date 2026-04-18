@@ -33,9 +33,22 @@ function normalizeErrorCodes(result) {
     : [];
 }
 
+function resolveExpectedHostnames(turnstileConfig) {
+  const configured = Array.isArray(turnstileConfig.expectedHostnames)
+    ? turnstileConfig.expectedHostnames.map((value) => String(value ?? "").trim()).filter(Boolean)
+    : [];
+
+  if (configured.length > 0) {
+    return configured;
+  }
+
+  return turnstileConfig.expectedHostname ? [turnstileConfig.expectedHostname] : [];
+}
+
 export async function validateTurnstileToken(input, options = {}) {
   const runtimeConfig = options.runtimeConfig ?? getRuntimeConfig();
   const turnstileConfig = runtimeConfig.turnstile ?? {};
+  const expectedHostnames = resolveExpectedHostnames(turnstileConfig);
 
   if (!turnstileConfig.enabled || !turnstileConfig.secretKey) {
     return { enabled: false, success: true };
@@ -81,9 +94,9 @@ export async function validateTurnstileToken(input, options = {}) {
       });
     }
 
-    if (turnstileConfig.expectedHostname && result.hostname !== turnstileConfig.expectedHostname) {
+    if (expectedHostnames.length > 0 && !expectedHostnames.includes(result.hostname)) {
       throw new TurnstileValidationError("TURNSTILE_HOSTNAME_MISMATCH", "Turnstile hostname mismatch.", {
-        expectedHostname: turnstileConfig.expectedHostname,
+        expectedHostnames,
         receivedHostname: result.hostname ?? null,
       });
     }
