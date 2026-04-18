@@ -83,6 +83,9 @@ The EmDash-hosted admin surface runs under `/_emdash/admin`.
 ## Common Commands
 
 ```bash
+pnpm check
+pnpm lint
+pnpm format
 pnpm typecheck
 pnpm test:unit
 pnpm build
@@ -92,6 +95,12 @@ pnpm db:migrate:status
 pnpm db:migrate:down
 pnpm db:seed:administrative-regions
 ```
+
+Validation baseline:
+
+- Use `pnpm check` as the default local pre-change validation path.
+- `pnpm lint` and `pnpm format` currently cover the maintained docs/config surface with Prettier.
+- Keep issue-specific validation commands in addition to the baseline when a task requires them.
 
 ## Repository Structure
 

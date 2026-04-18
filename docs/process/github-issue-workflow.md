@@ -19,7 +19,7 @@ This applies to:
 2. Confirm the issue is atomic and has clear acceptance criteria.
 3. Confirm dependencies and sequence relative to other issues.
 4. Implement only the scoped change.
-5. Validate the change using the issue's validation section.
+5. Validate the change using the issue's validation section and the repo baseline such as `pnpm check` when applicable.
 6. Open a pull request that references the issue.
 7. Close the issue only after validation is complete.
 

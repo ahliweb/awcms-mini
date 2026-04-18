@@ -26,3 +26,9 @@ Current planning reference:
 ## Accuracy Rule
 
 These docs should describe the real repository state, not just the intended plan. When implementation and planning diverge, update the docs to match the current code and call out rollout caveats explicitly.
+
+## Validation Baseline
+
+- `pnpm check` is the default aggregate validation path for routine local changes.
+- `pnpm lint` and `pnpm format` currently use Prettier on the maintained docs/config surface, not the entire repository.
+- Keep any issue-specific validation commands in addition to that baseline.

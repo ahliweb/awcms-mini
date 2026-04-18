@@ -114,7 +114,7 @@ Examples:
   - geo
   - territory
   - area
-  when the legal hierarchy is intended
+    when the legal hierarchy is intended
 
 ### Policy
 
