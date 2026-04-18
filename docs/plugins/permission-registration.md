@@ -1,6 +1,6 @@
 # Plugin Permission Registration
 
-Plugins should declare permissions through a manifest-style `permissions` array so plugin-defined capabilities can be normalized into the same catalog shape as core permissions.
+Plugins should declare permissions through the plugin definition and descriptor `permissions` arrays so plugin-defined capabilities can be normalized into the same catalog shape as core permissions.
 
 ## Contract
 
@@ -18,6 +18,7 @@ Each plugin permission declaration should include:
 
 ```js
 import { collectRegisteredPluginPermissions } from "../../src/plugins/permission-registration.mjs";
+import { definePlugin } from "emdash";
 
 const SAMPLE_PLUGIN_PERMISSIONS = collectRegisteredPluginPermissions([
   {
@@ -41,7 +42,18 @@ const SAMPLE_PLUGIN_PERMISSIONS = collectRegisteredPluginPermissions([
     ],
   },
 ]);
+
+export function createPlugin() {
+  return definePlugin({
+    id: "sample-plugin",
+    version: "0.1.0",
+    permissions: SAMPLE_PLUGIN_PERMISSIONS,
+    routes: {},
+  });
+}
 ```
+
+The same normalized permission array should be reused by the plugin definition and the plugin descriptor so route guards and host registration stay aligned.
 
 ## Normalized Shape
 
@@ -63,3 +75,4 @@ The helper also adds `plugin_id` so later contract layers can trace where the de
 - Permission codes must be unique across all registered plugins.
 - Every declaration must provide non-empty `code`, `domain`, `resource`, and `action` values.
 - Plugins should treat this manifest as the source of truth for route guards, service authorization, and audit helpers added in later contract steps.
+- Plugin permissions should remain additive overlays on top of EmDash host conventions, not a second permission system.

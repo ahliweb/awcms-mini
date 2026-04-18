@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the repository module layout for AWCMS Mini before implementation expands. It is the canonical location and ownership map for runtime code, database code, services, policy code, admin extensions, plugins, and documentation.
+This document describes the current repository layout for AWCMS Mini and the ownership boundaries that keep Mini aligned with EmDash-first architecture.
 
 This layout is constrained by:
 
@@ -14,7 +14,7 @@ This layout is constrained by:
 
 - EmDash remains the host architecture.
 - The repository should not introduce a second application shell.
-- Runtime, database, services, policy, admin, and plugin code should be separated by responsibility.
+- Runtime, database, services, security, pages, and plugin code should stay separated by responsibility.
 - Governance overlays should be additive and should not blur into EmDash core responsibilities.
 - Documentation should live alongside implementation but remain clearly separated from runtime code.
 
@@ -22,59 +22,41 @@ This layout is constrained by:
 
 ```text
 .
-|-- .github/
 |-- docs/
+|   |-- admin/
 |   |-- architecture/
-|   |-- process/
-|   |-- security/
 |   |-- governance/
 |   |-- plugins/
-|   `-- admin/
+|   |-- process/
+|   `-- security/
 |-- scripts/
 |-- src/
-|   |-- app/
+|   |-- auth/
 |   |-- config/
 |   |-- db/
-|   |-- auth/
-|   |-- services/
-|   |-- policy/
-|   |-- admin/
+|   |-- integrations/
+|   |-- pages/
 |   |-- plugins/
-|   |-- content/
-|   |-- lib/
-|   `-- types/
+|   |-- security/
+|   |-- services/
+|   `-- live.config.ts
 |-- tests/
-|   |-- unit/
-|   |-- integration/
-|   `-- e2e/
+|   `-- unit/
 |-- awcms_mini_implementation_plan.md
 |-- awcms_mini_atomic_backlog.md
 `-- package.json
 ```
 
-Not every directory needs to exist immediately. This layout defines the target structure that implementation issues should grow into.
-
 ## Directory Ownership
-
-### `.github/`
-
-- Purpose: repository automation, issue templates, PR templates, and workflow metadata.
-- Allowed content:
-  - issue forms
-  - workflow policy docs
-  - CI workflows
-- Must not contain:
-  - business logic
-  - runtime application code
 
 ### `docs/`
 
 - Purpose: architecture, process, operational, and feature documentation.
 - Subdirectories:
-  - `docs/architecture/`: constraints, layout, architecture decisions
-  - `docs/process/`: issue workflow, contribution process, rollout process
-  - `docs/security/`: auth, 2FA, lockouts, audit, recovery guides
-  - `docs/governance/`: roles, jobs, regions, ABAC model
+  - `docs/architecture/`: constraints, layout, runtime, and database guidance
+  - `docs/process/`: issue workflow, rollout, and deployment guidance
+  - `docs/security/`: auth, recovery, lockouts, audit, and security operations
+  - `docs/governance/`: roles, jobs, regions, and authorization guidance
   - `docs/plugins/`: plugin contract and extension guidance
   - `docs/admin/`: admin operating procedures and screen guides
 - Must not contain:
@@ -85,9 +67,9 @@ Not every directory needs to exist immediately. This layout defines the target s
 
 - Purpose: repository automation and operator/developer scripts.
 - Allowed content:
-  - backlog-to-issue automation
   - migration helper wrappers
-  - import or seed orchestration scripts
+  - seed or import orchestration
+  - healthcheck and maintenance helpers
 - Must not become:
   - the primary application runtime
   - a location for hidden business logic required by the app to function
@@ -99,20 +81,9 @@ Not every directory needs to exist immediately. This layout defines the target s
 
 ## `src/` Layout
 
-### `src/app/`
-
-- Purpose: top-level application bootstrapping and EmDash host wiring.
-- Responsibilities:
-  - runtime entrypoints
-  - EmDash integration bootstrap
-  - app-level composition
-- Must not absorb:
-  - domain business rules
-  - database query implementation
-
 ### `src/config/`
 
-- Purpose: typed application configuration.
+- Purpose: runtime configuration parsing and environment mapping.
 - Responsibilities:
   - environment parsing
   - runtime feature flags
@@ -120,32 +91,40 @@ Not every directory needs to exist immediately. This layout defines the target s
 - Must not contain:
   - side-effectful service logic
 
+### `src/integrations/`
+
+- Purpose: integration glue between Astro, EmDash, and Mini-specific runtime hooks.
+- Responsibilities:
+  - EmDash integration bootstrap
+  - runtime registration helpers that belong near framework wiring
+- Must not absorb:
+  - domain service orchestration
+  - broad business logic
+
 ### `src/db/`
 
 - Purpose: database access foundation.
-- Recommended internal shape:
+- Current internal shape:
 
 ```text
 src/db/
 |-- client/
+|-- importers/
 |-- migrations/
-|-- seeds/
 |-- repositories/
-|-- transactions/
-`-- schema/
+|-- errors.mjs
+|-- index.mjs
+`-- transactions.mjs
 ```
 
 - Responsibilities:
   - PostgreSQL connection setup
-  - Kysely dialect and client wiring
-  - migration files
-  - seed files
-  - repository implementations
-  - transaction helpers
-  - schema typing support
+  - Kysely client wiring
+  - migrations and repositories
+  - transaction helpers and database error classification
 - Must not contain:
-  - ABAC policy decisions
   - admin presentation code
+  - plugin UI logic
 
 ### `src/auth/`
 
@@ -153,135 +132,85 @@ src/db/
 - Responsibilities:
   - login/logout handlers
   - session orchestration
-  - password flows
+  - password reset flows
   - TOTP challenge and verification support
   - step-up auth helpers
 - Must not contain:
   - broad business-domain workflows unrelated to identity/security
 
+### `src/pages/`
+
+- Purpose: Astro route entrypoints and public/runtime-facing endpoints.
+- Responsibilities:
+  - API route files such as `src/pages/api/reset-password.js`
+  - route-level entrypoints that hand off to Mini auth or service handlers
+- Constraint:
+  - route files should remain thin and delegate real workflow logic to auth handlers or services
+
+### `src/security/`
+
+- Purpose: reusable security-focused helpers and contracts shared across auth and service code.
+- Responsibilities:
+  - runtime rate-limit coordination
+  - trusted client IP resolution
+  - TOTP and security-policy helpers
+- Must not contain:
+  - plugin-specific UI logic
+  - direct page rendering code
+
 ### `src/services/`
 
 - Purpose: domain orchestration and business operations.
-- Recommended service groups:
+- Current service groups include:
 
 ```text
 src/services/
-|-- users/
-|-- roles/
-|-- permissions/
-|-- jobs/
-|-- regions/
 |-- administrative-regions/
-|-- security/
 |-- audit/
-`-- content/
+|-- authorization/
+|-- jobs/
+|-- permissions/
+|-- rbac/
+|-- regions/
+|-- roles/
+|-- security/
+|-- sessions/
+`-- users/
 ```
 
 - Responsibilities:
   - coordinate repositories
   - enforce transaction boundaries
-  - expose reusable domain operations to admin routes and plugins
+  - expose reusable domain operations to auth handlers and plugins
 - Must not contain:
   - direct UI rendering logic
   - ad hoc route-level authorization duplication
 
-### `src/policy/`
-
-- Purpose: centralized authorization and policy evaluation.
-- Responsibilities:
-  - RBAC resolution helpers
-  - ABAC evaluation engine
-  - actor-target comparison rules
-  - region and job context evaluation helpers
-  - cache/invalidation logic for effective policy state
-- Must not contain:
-  - raw SQL repository logic
-  - page or component rendering logic
-
-### `src/admin/`
-
-- Purpose: EmDash admin extensions for Mini governance functionality.
-- Recommended internal shape:
-
-```text
-src/admin/
-|-- pages/
-|-- routes/
-|-- components/
-|-- forms/
-`-- navigation/
-```
-
-- Responsibilities:
-  - admin pages
-  - admin route handlers/actions
-  - governance forms and UI composition
-  - admin navigation registration
-- Constraint:
-  - this must extend EmDash admin rather than replace it
-
 ### `src/plugins/`
 
 - Purpose: first-party internal plugins and plugin integration support.
-- Recommended internal shape:
-
-```text
-src/plugins/
-|-- core/
-|-- governance/
-|-- registry/
-`-- contracts/
-```
-
 - Responsibilities:
-  - plugin registration
+  - EmDash plugin definitions via `definePlugin(...)`
+  - plugin descriptors used for host registration
   - plugin contracts and helpers
-  - first-party plugin implementation
+  - first-party plugin implementation such as `awcms-users-admin`
 - Constraint:
   - plugin integration should use shared services and policy helpers
 
-### `src/content/`
+### `src/live.config.ts`
 
-- Purpose: content model integration that remains within EmDash's content architecture.
-- Responsibilities:
-  - collection definitions
-  - content-related extension glue
-  - optional content governance hooks
+- Purpose: repository-level live configuration entrypoint when the host runtime expects it.
 - Constraint:
-  - do not recreate a second content framework here
-
-### `src/lib/`
-
-- Purpose: low-level shared helpers that do not belong to a domain service.
-- Allowed content:
-  - pure utilities
-  - shared formatting/parsing helpers
-  - generic infrastructure adapters
-- Constraint:
-  - `src/lib/` should not become a dumping ground for uncategorized business logic
-
-### `src/types/`
-
-- Purpose: shared types that are used across multiple domains.
-- Allowed content:
-  - request context types
-  - shared domain enums/types
-  - integration contract types
-- Constraint:
-  - domain-local types should stay near the owning module when possible
+  - keep runtime-specific configuration close to the framework boundary and out of service code
 
 ## `tests/` Layout
 
 ```text
 tests/
-|-- unit/
-|-- integration/
-`-- e2e/
+`-- unit/
 ```
 
-- `tests/unit/`: repository, service, and policy unit tests
-- `tests/integration/`: database, auth, admin action, and policy integration tests
-- `tests/e2e/`: key admin and security workflows when they exist
+- `tests/unit/`: repository, service, auth-handler, plugin-helper, and admin-route unit coverage
 
 Test layout should mirror `src/` ownership where practical.
 
@@ -289,7 +218,7 @@ Test layout should mirror `src/` ownership where practical.
 
 ### Runtime vs Services
 
-- `src/app/` wires runtime behavior.
+- `src/pages/`, `src/auth/`, and `src/integrations/` provide runtime entrypoints and framework wiring.
 - `src/services/` owns domain operations.
 - runtime code should call services rather than embed workflow logic inline.
 
@@ -299,16 +228,16 @@ Test layout should mirror `src/` ownership where practical.
 - services coordinate repositories and transactions.
 - services should not duplicate low-level query logic across the codebase.
 
-### Services vs Policy
+### Services vs Security And Authorization
 
-- `src/policy/` decides whether actions are allowed.
-- `src/services/` performs the action once policy allows it.
+- authorization logic currently lives under `src/services/authorization/` and related security modules.
+- `src/services/` performs the action once permission and policy checks allow it.
 - admin UI should never be the final authority.
 
 ### Admin vs Plugins
 
-- `src/admin/` owns first-party admin experience.
-- `src/plugins/` owns plugin registration and plugin-specific logic.
+- first-party admin experience currently ships through the `awcms-users-admin` EmDash plugin.
+- `src/plugins/` owns plugin registration, admin route wiring, plugin descriptors, and plugin-specific logic.
 - admin pages for plugin features should still consume shared services and policy helpers.
 
 ## Path Naming Guidance
@@ -316,7 +245,6 @@ Test layout should mirror `src/` ownership where practical.
 - use singular or plural names consistently by domain, not arbitrarily
 - keep path names short and literal
 - prefer `administrative-regions` over vague alternatives like `geo`
-- prefer `policy` over multiple overlapping authz helper folders
 - keep security-sensitive code in `src/auth/` or `src/services/security/`, not scattered
 
 ## Growth Rules
@@ -335,27 +263,12 @@ Test layout should mirror `src/` ownership where practical.
 - multi-tenant foldering patterns such as `tenants/` or `workspace/`
 - generic `misc/`, `helpers/`, or `shared/` directories that accumulate unrelated business logic
 
-## Initial Recommended Creation Order
-
-The repository does not need the full layout immediately. The first concrete implementation issues should typically create these locations in order:
-
-1. `src/app/`
-2. `src/config/`
-3. `src/db/`
-4. `src/auth/`
-5. `src/services/`
-6. `src/admin/`
-7. `tests/unit/`
-8. `tests/integration/`
-
-Later issues should add `src/policy/`, `src/plugins/`, `src/content/`, and governance-specific documentation directories as the implementation reaches those concerns.
-
 ## Decision Rule
 
 If a proposed file placement conflicts with this document, prefer the simplest location that:
 
 - preserves EmDash-first architecture,
-- keeps database, service, policy, and UI concerns separate,
+- keeps database, service, security, and UI concerns separate,
 - avoids introducing a second platform core,
 - stays compatible with the issue-driven workflow.
 

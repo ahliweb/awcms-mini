@@ -35,6 +35,7 @@ Mini owns:
 ## Runtime Stack
 
 - Host runtime: Astro + EmDash
+- Public ingress baseline: Cloudflare proxied hostname to Coolify-managed origin
 - Database: PostgreSQL
 - Query and migration layer: Kysely
 - Extension model: internal EmDash-compatible plugins
@@ -77,6 +78,7 @@ The current contract includes:
 - plugin service authorization helper
 - plugin audit helper
 - plugin region-awareness helper
+- plugin descriptors that register first-party plugins with EmDash
 
 ## Primary Admin Surface
 
@@ -105,10 +107,14 @@ The current implementation is optimized for:
 ## Cross-References
 
 - `docs/architecture/constraints.md`
+- `docs/architecture/runtime-config.md`
+- `docs/architecture/repository-layout.md`
 - `docs/governance/auth-and-authorization.md`
 - `docs/governance/roles.md`
 - `docs/governance/jobs.md`
 - `docs/governance/regions.md`
 - `docs/security/operations.md`
+- `docs/process/cloudflare-coolify-origin-hardening.md`
+- `docs/process/postgresql-vps-hardening.md`
 - `docs/plugins/contract-overview.md`
 - `docs/admin/operations-guide.md`
