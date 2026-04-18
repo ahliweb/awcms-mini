@@ -243,6 +243,17 @@ interface UserSessionsSnapshot {
   loginEvents: LoginSecurityEventItem[];
 }
 
+interface ProtectedActionDialogProps {
+  open: boolean;
+  title: string;
+  description: string;
+  confirmationToken: string;
+  confirmLabel: string;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
 interface SupervisorCandidate {
   id: string;
   displayName: string;
@@ -323,6 +334,54 @@ function formatDateTime(value: string | null) {
   }
 
   return new Date(value).toLocaleString();
+}
+
+function ProtectedActionDialog({ open, title, description, confirmationToken, confirmLabel, busy, onCancel, onConfirm }: ProtectedActionDialogProps) {
+  const [value, setValue] = React.useState("");
+
+  React.useEffect(() => {
+    if (!open) {
+      setValue("");
+    }
+  }, [open]);
+
+  if (!open) {
+    return null;
+  }
+
+  const confirmed = value.trim() === confirmationToken;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15, 23, 42, 0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+        zIndex: 1000,
+      }}
+    >
+      <div style={{ width: "min(560px, 100%)", background: "#fff", borderRadius: 20, border: "1px solid #e4e4e7", padding: 20, boxShadow: "0 20px 60px rgba(15, 23, 42, 0.2)" }}>
+        <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>{title}</h2>
+        <p style={{ margin: "0 0 16px", color: "#52525b", lineHeight: 1.5 }}>{description}</p>
+        <label style={{ display: "grid", gap: 6 }}>
+          <span style={{ fontWeight: 600 }}>Type <code>{confirmationToken}</code> to continue</span>
+          <input value={value} onChange={(event) => setValue(event.target.value)} style={{ border: "1px solid #d4d4d8", borderRadius: 12, padding: "10px 12px" }} />
+        </label>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 18, flexWrap: "wrap" }}>
+          <button type="button" onClick={onCancel} disabled={busy} style={{ border: "1px solid #d4d4d8", borderRadius: 999, padding: "10px 16px", background: "#fff", fontWeight: 600 }}>
+            Cancel
+          </button>
+          <button type="button" onClick={onConfirm} disabled={busy || !confirmed} style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#7f1d1d", color: "#fff", fontWeight: 600 }}>
+            {busy ? "Processing..." : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function statusTone(status: string) {
@@ -1401,6 +1460,7 @@ function UserSessionsPanel({ userId, snapshot, submitting, onRevokeSession, onRe
   onRevokeAll: () => void;
 }) {
   const activeSessions = snapshot?.sessions.filter((item) => !item.revokedAt) ?? [];
+  const [pendingSessionId, setPendingSessionId] = React.useState<string | null>(null);
 
   return (
     <div style={{ display: "grid", gap: 16, marginTop: 24 }}>
@@ -1410,7 +1470,7 @@ function UserSessionsPanel({ userId, snapshot, submitting, onRevokeSession, onRe
             <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>Active Sessions</h2>
             <p style={{ margin: 0, color: "#52525b" }}>Inspect active sessions and revoke individual sessions without leaving the user detail surface.</p>
           </div>
-          <button type="button" onClick={onRevokeAll} disabled={submitting !== null || activeSessions.length === 0} style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#0f172a", color: "#fff", fontWeight: 600 }}>
+          <button type="button" onClick={() => setPendingSessionId("all")} disabled={submitting !== null || activeSessions.length === 0} style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#0f172a", color: "#fff", fontWeight: 600 }}>
             {submitting === "revoke-sessions" ? "Revoking..." : `Revoke all (${activeSessions.length})`}
           </button>
         </div>
@@ -1442,7 +1502,7 @@ function UserSessionsPanel({ userId, snapshot, submitting, onRevokeSession, onRe
                       <div style={{ marginTop: 6 }}>Expires {formatDateTime(session.expiresAt)}</div>
                     </td>
                     <td style={{ padding: 12, verticalAlign: "top" }}>
-                      <button type="button" disabled={submitting !== null} onClick={() => void onRevokeSession({ userId, sessionId: session.id })} style={{ border: "1px solid #d4d4d8", borderRadius: 999, padding: "10px 16px", background: "#fff", fontWeight: 600 }}>
+                      <button type="button" disabled={submitting !== null} onClick={() => setPendingSessionId(session.id)} style={{ border: "1px solid #d4d4d8", borderRadius: 999, padding: "10px 16px", background: "#fff", fontWeight: 600 }}>
                         {submitting === `revoke-session:${session.id}` ? "Revoking..." : "Revoke session"}
                       </button>
                     </td>
@@ -1488,6 +1548,30 @@ function UserSessionsPanel({ userId, snapshot, submitting, onRevokeSession, onRe
           </div>
         )}
       </div>
+      <ProtectedActionDialog
+        open={pendingSessionId !== null}
+        title={pendingSessionId === "all" ? "Confirm session revocation" : "Confirm single-session revocation"}
+        description={pendingSessionId === "all"
+          ? `This will revoke all ${activeSessions.length} active sessions for the user and force re-authentication on every device.`
+          : "This will revoke the selected active session immediately and disconnect that device."}
+        confirmationToken="REVOKE"
+        confirmLabel={pendingSessionId === "all" ? "Revoke all sessions" : "Revoke session"}
+        busy={submitting === "revoke-sessions" || (pendingSessionId !== null && submitting === `revoke-session:${pendingSessionId}`)}
+        onCancel={() => setPendingSessionId(null)}
+        onConfirm={() => {
+          if (pendingSessionId === "all") {
+            onRevokeAll();
+            setPendingSessionId(null);
+            return;
+          }
+
+          if (pendingSessionId) {
+            void onRevokeSession({ userId, sessionId: pendingSessionId });
+          }
+
+          setPendingSessionId(null);
+        }}
+      />
     </div>
   );
 }
@@ -1950,6 +2034,7 @@ function UserSecurityPanel({ userId, status, submitting, onReset }: {
   onReset: (input: { userId: string; reason: string }) => Promise<void>;
 }) {
   const [reason, setReason] = React.useState("Admin-initiated 2FA reset");
+  const [confirmingReset, setConfirmingReset] = React.useState(false);
 
   return (
     <div style={{ display: "grid", gap: 16, marginTop: 24 }}>
@@ -1974,13 +2059,26 @@ function UserSecurityPanel({ userId, status, submitting, onReset }: {
           <button
             type="button"
             disabled={submitting !== null}
-            onClick={() => void onReset({ userId, reason })}
+            onClick={() => setConfirmingReset(true)}
             style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#7f1d1d", color: "#fff", fontWeight: 600 }}
           >
             {submitting === "reset-2fa" ? "Resetting..." : "Reset 2FA"}
           </button>
         </div>
       </div>
+      <ProtectedActionDialog
+        open={confirmingReset}
+        title="Confirm 2FA reset"
+        description="This will disable the current TOTP credential, invalidate the recovery code set, and force the user through re-enrollment before 2FA can be used again."
+        confirmationToken="RESET 2FA"
+        confirmLabel="Reset 2FA"
+        busy={submitting === "reset-2fa"}
+        onCancel={() => setConfirmingReset(false)}
+        onConfirm={() => {
+          void onReset({ userId, reason });
+          setConfirmingReset(false);
+        }}
+      />
     </div>
   );
 }
@@ -2868,6 +2966,38 @@ function UserDetailPage() {
     const query = params.toString();
     window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
   }, []);
+  const [pendingLifecycleAction, setPendingLifecycleAction] = React.useState<"disable" | "lock" | "revoke-sessions" | null>(null);
+
+  const lifecycleActionCopy = React.useMemo(() => {
+    if (pendingLifecycleAction === "disable") {
+      return {
+        title: "Confirm user disable",
+        description: "This prevents the user from continuing normal access and is intended for governance or incident response actions.",
+        token: "DISABLE",
+        label: "Disable user",
+      };
+    }
+
+    if (pendingLifecycleAction === "lock") {
+      return {
+        title: "Confirm user lock",
+        description: "This immediately locks the user account and is intended for security-sensitive interventions.",
+        token: "LOCK",
+        label: "Lock user",
+      };
+    }
+
+    if (pendingLifecycleAction === "revoke-sessions") {
+      return {
+        title: "Confirm global session revocation",
+        description: `This revokes all ${item?.activeSessionCount ?? 0} active sessions for the user and disconnects every signed-in device.`,
+        token: "REVOKE",
+        label: "Revoke sessions",
+      };
+    }
+
+    return null;
+  }, [item?.activeSessionCount, pendingLifecycleAction]);
 
   return (
     <PageFrame title="User Detail">
@@ -2892,7 +3022,7 @@ function UserDetailPage() {
           >
             <button
               type="button"
-              onClick={() => runAction("disable")}
+              onClick={() => setPendingLifecycleAction("disable")}
               disabled={submitting !== null || item.status === "disabled"}
               style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#7f1d1d", color: "#fff", fontWeight: 600 }}
             >
@@ -2900,7 +3030,7 @@ function UserDetailPage() {
             </button>
             <button
               type="button"
-              onClick={() => runAction("lock")}
+              onClick={() => setPendingLifecycleAction("lock")}
               disabled={submitting !== null || item.status === "locked"}
               style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#991b1b", color: "#fff", fontWeight: 600 }}
             >
@@ -2908,7 +3038,7 @@ function UserDetailPage() {
             </button>
             <button
               type="button"
-              onClick={() => runAction("revoke-sessions")}
+              onClick={() => setPendingLifecycleAction("revoke-sessions")}
               disabled={submitting !== null || item.activeSessionCount === 0}
               style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#0f172a", color: "#fff", fontWeight: 600 }}
             >
@@ -2974,6 +3104,23 @@ function UserDetailPage() {
           ) : null}
           {activeTab === "sessions" ? <UserSessionsPanel userId={item.id} snapshot={sessionsSnapshot} submitting={submitting} onRevokeSession={revokeSession} onRevokeAll={() => runAction("revoke-sessions")} /> : null}
           {activeTab === "security" ? <UserSecurityPanel userId={item.id} status={twoFactorStatus} submitting={submitting} onReset={resetTwoFactor} /> : null}
+          <ProtectedActionDialog
+            open={pendingLifecycleAction !== null && lifecycleActionCopy !== null}
+            title={lifecycleActionCopy?.title ?? "Confirm protected action"}
+            description={lifecycleActionCopy?.description ?? "Confirm this protected action before continuing."}
+            confirmationToken={lifecycleActionCopy?.token ?? "CONFIRM"}
+            confirmLabel={lifecycleActionCopy?.label ?? "Continue"}
+            busy={pendingLifecycleAction !== null && submitting === pendingLifecycleAction}
+            onCancel={() => setPendingLifecycleAction(null)}
+            onConfirm={() => {
+              if (!pendingLifecycleAction) {
+                return;
+              }
+
+              void runAction(pendingLifecycleAction);
+              setPendingLifecycleAction(null);
+            }}
+          />
         </>
       ) : null}
     </PageFrame>
