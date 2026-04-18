@@ -21,9 +21,11 @@ The command reports:
 ## Manual Smoke Test
 
 1. Start a PostgreSQL database reachable by `DATABASE_URL`.
-2. Build the app with `pnpm build`.
-3. Run `pnpm healthcheck`.
-4. Confirm:
+2. Set `SITE_URL` to the browser-facing hostname for the environment when validating a deployed-style build.
+3. Set `TRUSTED_PROXY_MODE` for the expected request path.
+4. Build the app with `pnpm build`.
+5. Run `pnpm healthcheck`.
+6. Confirm:
    - `ok` is `true`
    - `checks.app.ok` is `true`
    - `checks.database.ok` is `true`

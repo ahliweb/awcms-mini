@@ -11,6 +11,7 @@ const runtimeConfig = getRuntimeConfig();
 
 export default defineConfig({
   output: "server",
+  ...(runtimeConfig.siteUrl ? { site: runtimeConfig.siteUrl } : {}),
   adapter: node({
     mode: "standalone",
   }),

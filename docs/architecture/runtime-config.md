@@ -20,10 +20,18 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Fallback behavior: the current code falls back to `APP_SECRET` when this value is not provided.
 - Rule: production deployments should set an explicit dedicated value instead of relying on an implicit fallback.
 
-### Public Origin
+### `APP_SECRET`
 
-- Purpose: define the canonical browser-facing origin for login, admin, and other origin-sensitive behavior when running behind Cloudflare and a reverse proxy.
-- Current status: the code and docs need stronger alignment here with current EmDash `siteUrl`-style expectations.
+- Purpose: shared application secret available to the runtime.
+- Scope: server-only runtime configuration.
+- Current Mini usage: fallback for TOTP secret encryption when `MINI_TOTP_ENCRYPTION_KEY` is not set.
+- Rule: do not rely on `APP_SECRET` as the steady-state TOTP key in production when a dedicated `MINI_TOTP_ENCRYPTION_KEY` can be provided.
+
+### `SITE_URL`
+
+- Purpose: define the canonical browser-facing origin for login, admin, canonical links, and other origin-sensitive runtime behavior.
+- Current implementation: `astro.config.mjs` maps this to Astro's `site` setting when present.
+- Format: absolute URL such as `https://cms.example.com`.
 - Rule: deployments behind Cloudflare and Coolify should treat public-origin correctness as a first-class runtime concern.
 
 ### `TRUSTED_PROXY_MODE`
@@ -38,6 +46,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - runtime config module: `src/config/runtime.mjs`
 - Astro integration wiring: `astro.config.mjs`
 - local environment example: `.env.example`
+- TOTP encryption key resolution: `src/services/security/two-factor.mjs`
 
 ## Rules
 
@@ -46,6 +55,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - do not introduce Supabase-specific environment variables
 - treat `DATABASE_URL` as the canonical PostgreSQL runtime input
 - document security-sensitive secrets explicitly when code depends on them
+- prefer a dedicated `MINI_TOTP_ENCRYPTION_KEY` over the `APP_SECRET` fallback for TOTP secret encryption
 - document public-origin and trusted-proxy assumptions explicitly for Cloudflare-fronted deployments
 - for remote PostgreSQL deployments, prefer TLS-enabled connections and host-level access restriction
 
@@ -57,7 +67,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Coolify should be treated as the app deployment and reverse-proxy control plane.
 - The supported baseline production pattern is Cloudflare proxied DNS to the Coolify-managed origin, not direct origin exposure.
 - Cloudflare Tunnel may be used later if operators choose it, but it is not the baseline deployment contract documented for this repository.
-- The configured public origin must match the hostname users reach through Cloudflare, not an internal container or local Coolify address.
+- `SITE_URL` must match the hostname users reach through Cloudflare, not an internal container or local Coolify address.
 - Client IP extraction should trust `CF-Connecting-IP`, not raw `X-Forwarded-For`, for the supported Cloudflare path.
 - Direct origin access should be restricted so routine public traffic cannot bypass Cloudflare.
 
@@ -68,6 +78,17 @@ See `docs/process/cloudflare-coolify-origin-hardening.md` for the supported ingr
 - Production `DATABASE_URL` should point to the intended remote PostgreSQL instance.
 - The database path should be treated as a remote secured dependency, not a localhost-only assumption.
 - Prefer PostgreSQL TLS, restricted ingress, and strong authentication for the application user.
+
+## Deployment Baseline
+
+For the intended production topology, configure at least:
+
+- `DATABASE_URL`
+- `SITE_URL`
+- `MINI_TOTP_ENCRYPTION_KEY`
+- `TRUSTED_PROXY_MODE=cloudflare`
+
+Also set `APP_SECRET` if the host auth/session runtime depends on it or if you need the current Mini fallback path during migration, but do not treat that fallback as the preferred long-term TOTP configuration.
 
 ## Validation
 

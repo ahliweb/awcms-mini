@@ -47,7 +47,16 @@ Known current conditions:
 pnpm install
 ```
 
-2. Set `DATABASE_URL` if you are not using the local default.
+2. Set the runtime environment values you need for the target deployment.
+
+Required production baseline:
+
+- `DATABASE_URL`
+- `SITE_URL`
+- `MINI_TOTP_ENCRYPTION_KEY`
+- `TRUSTED_PROXY_MODE=cloudflare` for the supported Cloudflare plus Coolify path
+
+`APP_SECRET` should also be set when your host auth/session runtime depends on it. Mini currently falls back to `APP_SECRET` only if `MINI_TOTP_ENCRYPTION_KEY` is not set.
 
 3. Apply migrations:
 
