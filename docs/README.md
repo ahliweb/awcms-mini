@@ -22,6 +22,7 @@ This directory contains the maintained architecture, governance, security, plugi
 Current planning reference:
 
 - `process/emdash-alignment-and-security-plan-2026.md` - EmDash alignment and security recommendations backlog source
+- `process/cloudflare-platform-expansion-plan-2026.md` - next-stage Cloudflare platform and feature expansion recommendations
 
 ## Accuracy Rule
 
