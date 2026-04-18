@@ -4,12 +4,20 @@
 
 This document captures the current repository-state review for AWCMS Mini and recommends the next update plan to keep Mini aligned with current EmDash conventions and modern security practice.
 
+This revision assumes the intended production topology is:
+
+- Cloudflare at the edge
+- AWCMS Mini deployed on a VPS through Coolify
+- PostgreSQL hosted on a VPS and reached over a network connection
+
 It is based on:
 
 - current AWCMS Mini core docs, implementation, and scripts
 - current EmDash reference repository docs and package conventions
 - current OWASP guidance for authentication and session management
 - current Cloudflare guidance for origin protection and edge hardening
+- current Coolify platform guidance for reverse proxy and deployment behavior
+- current PostgreSQL TLS guidance for remote TCP connections
 
 ## Current Baseline
 
@@ -18,6 +26,12 @@ It is based on:
 - AWCMS Mini remains structurally aligned with EmDash-first architecture.
 - The installed `emdash` package version is still `0.5.0`, which matches the current EmDash core package version inspected in the reference repo.
 - The main alignment gap is not package-version drift. The bigger gap is operational and architectural maturity around runtime configuration, security controls, and plugin/admin integration conventions.
+
+### Confirmed Target Deployment Shape
+
+- Cloudflare is expected to terminate public traffic and provide edge security controls.
+- Coolify is expected to manage the application deployment and reverse proxy path for the Mini app.
+- PostgreSQL is expected to run outside the app container on a VPS and should be treated as a remote protected dependency, not a local default runtime assumption.
 
 ### Confirmed Strengths
 
@@ -59,6 +73,13 @@ EmDash now documents a broader runtime contract, especially around:
 - deployment-specific operational expectations
 
 Mini should adopt the same style of explicit runtime and deployment guidance.
+
+For this repo, that guidance should explicitly cover:
+
+- Cloudflare public-origin handling
+- Coolify domain and reverse-proxy behavior
+- trusted forwarded-header assumptions
+- remote PostgreSQL connection security and operational dependencies
 
 #### Engineering Workflow Conventions
 
@@ -114,11 +135,16 @@ Move these counters to a shared backend such as Redis or another TTL-capable sto
 
 Direct use of `x-forwarded-for` is not enough. Mini should only trust forwarded client IP headers when the request comes through a trusted proxy path.
 
-For Cloudflare-backed deployments, use a documented origin strategy and either:
+For the intended deployment model, document a Cloudflare-plus-Coolify origin strategy and choose one of these explicit patterns:
 
 - Cloudflare Tunnel
-- Cloudflare allowlisted source ranges plus authenticated origin protections
+- Cloudflare proxied DNS plus origin firewalling and authenticated origin protections where applicable
 - strict origin header validation where applicable
+
+Coolify-specific note:
+
+- Coolify manages the app-side reverse proxy path, so Mini must document which forwarded headers it trusts and under what network assumptions.
+- Do not assume arbitrary user-controlled `x-forwarded-for` or `x-forwarded-host` headers are safe.
 
 #### 5. Harden Sensitive Recovery Paths
 
@@ -153,9 +179,24 @@ Mini already has the right direction on step-up and session revocation, but the 
 #### Cloudflare And Edge Hardening
 
 - Prefer proxied DNS and origin IP concealment.
-- Prefer Cloudflare Tunnel if operationally acceptable.
-- Otherwise block direct origin access as much as possible and validate origin-bound traffic.
+- Prefer Cloudflare Tunnel if operationally acceptable for the Coolify-hosted app.
+- If using standard proxied DNS instead of Tunnel, restrict direct origin access as much as possible and validate origin-bound traffic.
 - Add rate limiting or managed challenge rules at the edge for login, password reset, and other abuse-prone endpoints.
+
+#### Coolify And Origin Behavior
+
+- Treat Coolify as the deployment and reverse-proxy control plane, not as a substitute for edge security.
+- Document the canonical public URL in a way that matches both Cloudflare and Coolify routing.
+- Avoid deployment assumptions that require hand-managed Docker networks if Coolify should own the routing path.
+- Keep application config compatible with Coolify-managed environment variables and domain settings.
+
+#### PostgreSQL On VPS
+
+- Enable PostgreSQL TLS for remote connections.
+- Prefer `hostssl` rules and `scram-sha-256` in `pg_hba.conf` for application access.
+- Restrict database ingress to the application host or private network path only.
+- Avoid using wildcard remote access rules when a narrower allowlist is possible.
+- Consider certificate validation for higher-assurance environments.
 
 ## Recommended Workstreams
 
@@ -166,11 +207,12 @@ Mini already has the right direction on step-up and session revocation, but the 
 3. Move lockout/rate-limit counters to a shared TTL-capable backend.
 4. Formalize trusted-proxy client IP extraction and Cloudflare deployment assumptions.
 5. Harden password-reset exposure and generic recovery behavior before routing the handlers publicly.
+6. Define the trusted Cloudflare-to-Coolify header and ingress model for Mini.
 
 ### P1: EmDash Runtime And Conventions Alignment
 
 1. Expand runtime config to include public-origin and security-secret requirements.
-2. Add deployment docs for Node, reverse proxy, and Cloudflare-backed operation.
+2. Add deployment docs for Cloudflare, Coolify, reverse proxy handling, and PostgreSQL on a VPS.
 3. Add `check`, `lint`, and `format` scripts and define the minimum validation path.
 4. Strengthen architecture docs with EmDash-style API, migration, and database discipline guidance.
 5. Update plugin docs to reflect current EmDash descriptor/definition/admin-route terminology.
@@ -179,8 +221,9 @@ Mini already has the right direction on step-up and session revocation, but the 
 
 1. Add centralized security logging and alerting guidance.
 2. Expand healthcheck and smoke-test guidance for auth and admin readiness.
-3. Add a Cloudflare origin-hardening runbook.
-4. Evaluate phishing-resistant MFA roadmap after core step-up and policy correctness work is complete.
+3. Add a Cloudflare and Coolify origin-hardening runbook.
+4. Add PostgreSQL transport and access-hardening guidance for VPS deployment.
+5. Evaluate phishing-resistant MFA roadmap after core step-up and policy correctness work is complete.
 
 ## Script And Tooling Recommendations
 
@@ -207,6 +250,12 @@ The repository currently includes:
 - `pnpm format`
 - optionally `pnpm test` as a stable alias if the suite grows beyond unit tests
 
+### Deployment Notes For This Topology
+
+- `.env.example` should no longer imply that localhost PostgreSQL is the primary deployment assumption.
+- Runtime docs should explicitly describe a public `siteUrl`-style origin requirement for Cloudflare-fronted operation.
+- Deployment docs should distinguish app-container configuration from database-host configuration.
+
 ### Script-Specific Notes
 
 - `scripts/db-migrate.mjs` is practical and already follows a forward-oriented migration workflow.
@@ -223,6 +272,7 @@ When the issues below are completed, update:
 - `docs/security/emergency-recovery-runbook.md`
 - `docs/security/rate-limit-storage-strategy.md`
 - `docs/process/migration-deployment-checklist.md`
+- `.env.example`
 - plugin docs under `docs/plugins/`
 
 ## Proposed Issue Breakdown
@@ -232,7 +282,7 @@ The recommended execution order is:
 1. Fix trusted admin/session context and centralize step-up enforcement.
 2. Persist security policy and rollout state.
 3. Replace in-memory rate limiting and add trusted-proxy client IP handling.
-4. Expand runtime/deployment configuration and Cloudflare guidance.
+4. Expand runtime/deployment configuration and Cloudflare plus Coolify guidance.
 5. Harden password-reset exposure and recovery behavior.
 6. Add tooling and validation parity with current EmDash conventions.
 7. Refresh plugin and architecture docs after the implementation changes land.
@@ -248,3 +298,5 @@ Use this document as the canonical planning reference for those issues.
 - OWASP Authentication Cheat Sheet
 - OWASP Session Management Cheat Sheet
 - Cloudflare origin protection guidance
+- Coolify deployment and proxy guidance
+- PostgreSQL SSL/TLS guidance for remote TCP connections

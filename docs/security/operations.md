@@ -35,6 +35,31 @@ Mini owns the security-hardening layer:
 - Treat rollout behavior as an operator-managed control that still requires verification against the live auth path before claiming full enforcement in production.
 - ABAC audit-only flags are intended for controlled rollout safety, not permanent steady-state policy behavior.
 
+## Deployment Expectations
+
+For the intended deployment model:
+
+- Cloudflare is the public edge.
+- Coolify manages the application deployment and reverse proxy path.
+- PostgreSQL runs as a protected remote dependency on a VPS.
+
+Security operations should treat those as separate trust boundaries.
+
+## Edge And Origin Guidance
+
+- Prefer proxied Cloudflare DNS for public app traffic.
+- Prefer Cloudflare Tunnel when it is operationally acceptable.
+- If not using Tunnel, restrict direct origin access as much as possible and keep the origin reachable only through the intended path.
+- Document and enforce trusted forwarded-header behavior; do not rely on arbitrary client-supplied proxy headers.
+- Add Cloudflare rate limiting or managed challenge rules for login and other abuse-prone auth endpoints.
+
+## PostgreSQL Guidance
+
+- Prefer TLS-enabled PostgreSQL connections for remote app-to-database traffic.
+- Restrict database ingress to the application host or private network path.
+- Prefer stronger authentication methods such as `scram-sha-256` for application access.
+- Avoid using superuser credentials for the application runtime.
+
 ## Operator Surfaces
 
 Operators currently use:

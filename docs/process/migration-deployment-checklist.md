@@ -19,6 +19,8 @@ Complete these checks before applying migrations or releasing a new build.
 - [ ] `pnpm build` passes
 - [ ] `pnpm healthcheck` passes against the target environment or an equivalent pre-production environment
 - [ ] `DATABASE_URL` points to the intended PostgreSQL instance
+- [ ] The configured public origin matches the Cloudflare-hosted URL, not an internal Coolify address
+- [ ] Required security secrets are present for the target environment
 
 ### Schema Readiness
 
@@ -37,6 +39,19 @@ Complete these checks before applying migrations or releasing a new build.
 
 - [ ] Keep `docs/security/emergency-recovery-runbook.md` available during the deploy window
 - [ ] Confirm at least one operator performing the deploy can complete admin step-up authentication if rollback or recovery actions are required
+
+### Edge And Origin Readiness
+
+- [ ] Cloudflare DNS and proxy settings point to the intended application origin path
+- [ ] Direct origin exposure is reviewed for the current deployment pattern
+- [ ] If using standard proxied origin instead of Tunnel, firewall and origin restrictions are in place
+- [ ] Coolify domain and proxy routing match the intended public host
+
+### PostgreSQL Readiness
+
+- [ ] PostgreSQL access is restricted to the intended application host or private network path
+- [ ] PostgreSQL transport security expectations are confirmed for the target environment
+- [ ] The application user does not rely on superuser credentials
 
 ## Migration Window
 
@@ -70,6 +85,7 @@ Validate the live system in this order.
 - [ ] Invalid password attempts still fail correctly
 - [ ] Lockout behavior still returns the expected blocked response after repeated failures where applicable
 - [ ] Password reset request and consume flows still behave correctly for test users
+- [ ] Client IP logging and lockout behavior reflect the intended proxied request path
 
 ### RBAC
 
@@ -122,11 +138,13 @@ Use these focused checks when the release touches governance or security surface
 - [ ] `/_emdash/admin` loads
 - [ ] User detail tabs load: `Overview`, `Roles`, `Jobs`, `Logical Regions`, `Administrative Regions`, `Sessions`, `Security`
 - [ ] Protected action confirmations still appear for high-risk user-detail actions
+- [ ] Admin routes load correctly through the Cloudflare public hostname
 
 ### Security Settings
 
 - [ ] `Security Settings` can switch between `none`, `protected_roles`, and `custom`
 - [ ] Saving the security policy appends the expected audit entry
+- [ ] Security-sensitive admin actions do not depend on client-supplied authorization headers
 
 ### Sessions And Recovery
 
