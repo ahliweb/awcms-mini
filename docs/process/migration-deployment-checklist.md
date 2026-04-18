@@ -1,0 +1,166 @@
+# Migration And Deployment Validation Checklist
+
+This checklist standardizes pre-deploy and post-deploy validation for AWCMS Mini.
+
+Use it for any deployment that changes schema, authentication, authorization, governance data, admin behavior, or plugin contract behavior.
+
+## Pre-Deploy
+
+Complete these checks before applying migrations or releasing a new build.
+
+### Code Validation
+
+- [ ] `pnpm typecheck` passes
+- [ ] `pnpm test:unit` passes
+- [ ] Any issue-specific validation commands for the current release are complete
+
+### Runtime Validation
+
+- [ ] `pnpm build` passes
+- [ ] `pnpm healthcheck` passes against the target environment or an equivalent pre-production environment
+- [ ] `DATABASE_URL` points to the intended PostgreSQL instance
+
+### Schema Readiness
+
+- [ ] Review pending migrations with `pnpm db:migrate:status`
+- [ ] Confirm the release does not rely on ad hoc schema edits outside Kysely migrations
+- [ ] Confirm rollback impact for the newest migration is understood before deployment
+
+### Rollout Safety
+
+- [ ] Record the currently deployed git commit
+- [ ] Record whether ABAC audit-only flags are enabled
+- [ ] Record the current mandatory 2FA rollout mode: `none`, `protected_roles`, or `custom`
+- [ ] Record the effective mandatory 2FA role ids before the release
+
+### Incident Preparedness
+
+- [ ] Keep `docs/security/emergency-recovery-runbook.md` available during the deploy window
+- [ ] Confirm at least one operator performing the deploy can complete admin step-up authentication if rollback or recovery actions are required
+
+## Migration Window
+
+Perform these steps during the release window.
+
+1. Run `pnpm db:migrate`
+2. Run `pnpm db:migrate:status`
+3. Confirm no unexpected pending migrations remain
+4. Deploy the application build
+5. Run `pnpm healthcheck`
+
+If a migration fails:
+
+- Stop the release
+- Capture the failing migration name and error output
+- Use the recovery runbook before attempting manual intervention
+- Only run `pnpm db:migrate:down` if the migration and operational impact have been reviewed for safe rollback
+
+## Post-Deploy Validation
+
+Validate the live system in this order.
+
+### Schema
+
+- [ ] `pnpm db:migrate:status` shows the expected applied migration state
+- [ ] No unexpected migration drift is present between environments
+
+### Auth
+
+- [ ] Standard password login still succeeds for a known valid account
+- [ ] Invalid password attempts still fail correctly
+- [ ] Lockout behavior still returns the expected blocked response after repeated failures where applicable
+- [ ] Password reset request and consume flows still behave correctly for test users
+
+### RBAC
+
+- [ ] Admin routes still require the expected permissions
+- [ ] A user with baseline RBAC permission can still access intended routes
+- [ ] A user without the baseline permission still receives the expected denial path
+
+### ABAC And Rollout Flags
+
+- [ ] Protected-target rules still deny by default when rollout flags are disabled
+- [ ] If ABAC audit-only flags are enabled intentionally, verify requests return `ALLOW_ABAC_AUDIT_ONLY` instead of silently bypassing policy
+- [ ] Confirm audit-only mode is limited to the intended rollout scope and not left broadly enabled by mistake
+
+### Regions
+
+- [ ] Logical region admin routes still load and authorize correctly
+- [ ] Administrative region admin routes still load and authorize correctly
+- [ ] User detail views still show logical and administrative region assignments
+- [ ] Region-scoped authorization still behaves correctly for in-scope and out-of-scope targets
+
+### Two-Factor Authentication
+
+- [ ] Security settings page loads
+- [ ] Mandatory 2FA rollout mode is the expected value after deployment
+- [ ] If rollout mode is `protected_roles`, verify protected roles resolve as the effective mandatory 2FA set
+- [ ] If rollout mode is `custom`, verify the selected role ids match expectation
+- [ ] Admin 2FA reset still requires step-up authentication
+
+### Audit And Security Events
+
+- [ ] Recovery and security-sensitive actions still append audit entries
+- [ ] Security event flows still append the expected security-event records for relevant paths
+- [ ] Audit log admin screen still loads and filters correctly
+
+### Plugin Contract
+
+- [ ] Plugin permission manifests still normalize correctly
+- [ ] Declarative plugin route authorization still works for protected routes
+- [ ] Plugin service authorization helpers still evaluate declared permissions correctly
+- [ ] Plugin audit helper still appends plugin-tagged audit entries
+- [ ] Plugin region-awareness helper still resolves scope ids for user-targeted resources
+- [ ] The internal governance sample plugin contract test still passes in CI or pre-release validation
+
+## Suggested Manual Validation Targets
+
+Use these focused checks when the release touches governance or security surfaces.
+
+### Admin Plugin
+
+- [ ] `/_emdash/admin` loads
+- [ ] User detail tabs load: `Overview`, `Roles`, `Jobs`, `Logical Regions`, `Administrative Regions`, `Sessions`, `Security`
+- [ ] Protected action confirmations still appear for high-risk user-detail actions
+
+### Security Settings
+
+- [ ] `Security Settings` can switch between `none`, `protected_roles`, and `custom`
+- [ ] Saving the security policy appends the expected audit entry
+
+### Sessions And Recovery
+
+- [ ] Per-session revoke still works
+- [ ] Revoke-all sessions still works
+- [ ] Forced password reset still revokes sessions and clears lockout counters on successful reset consumption
+
+## Rollback Triggers
+
+Roll back or pause the release if any of these occur:
+
+- Migration failure or schema drift cannot be explained immediately
+- Auth login breaks for known valid accounts
+- Protected users can no longer be recovered with the documented flows
+- RBAC or ABAC checks unexpectedly allow high-risk actions
+- Audit entries stop appearing for plugin-managed or security-sensitive actions
+- Mandatory 2FA rollout applies to the wrong role set
+
+## Explicitly Avoid
+
+- Manual schema edits during a standard deployment window
+- Direct SQL updates to recover auth state unless an approved incident path requires it
+- Disabling authorization logic in code as a deploy shortcut
+- Skipping migration status checks after applying migrations
+- Treating audit-only rollout mode as a permanent steady-state configuration
+
+## Minimum Command Set
+
+```bash
+pnpm typecheck
+pnpm test:unit
+pnpm build
+pnpm db:migrate:status
+pnpm db:migrate
+pnpm db:migrate:status
+pnpm healthcheck
+```
