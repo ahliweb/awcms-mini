@@ -7,6 +7,42 @@ import { handleAuthTwoFactorChallengeVerify } from "../../src/auth/handlers/two-
 import { hashPassword } from "../../src/auth/passwords.mjs";
 import { createTwoFactorService } from "../../src/services/security/two-factor.mjs";
 
+const originalFetch = globalThis.fetch;
+
+function withTurnstileEnv(callback) {
+  const previousSecret = process.env.TURNSTILE_SECRET_KEY;
+  const previousSiteUrl = process.env.SITE_URL;
+
+  process.env.TURNSTILE_SECRET_KEY = "turnstile-secret";
+  process.env.SITE_URL = "http://example.test";
+
+  return Promise.resolve(callback()).finally(() => {
+    if (previousSecret === undefined) {
+      delete process.env.TURNSTILE_SECRET_KEY;
+    } else {
+      process.env.TURNSTILE_SECRET_KEY = previousSecret;
+    }
+
+    if (previousSiteUrl === undefined) {
+      delete process.env.SITE_URL;
+    } else {
+      process.env.SITE_URL = previousSiteUrl;
+    }
+  });
+}
+
+function withTurnstileStub(result, callback) {
+  globalThis.fetch = async () => ({
+    async json() {
+      return result;
+    },
+  });
+
+  return Promise.resolve(callback()).finally(() => {
+    globalThis.fetch = originalFetch;
+  });
+}
+
 function createFakeDatabase() {
   const state = {
     users: [],
@@ -243,15 +279,19 @@ test("handleAuthLogin rejects invited users before activation", async () => {
     disabled: false,
   });
 
-  const response = await handleAuthLogin({
-    request: new Request("http://example.test/_emdash/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "invited@example.com", password: "very-secure-password" }),
-    }),
-    session: createFakeSession(),
-    db: database,
-  });
+  const response = await withTurnstileEnv(() =>
+    withTurnstileStub({ success: true, action: "login", hostname: "example.test" }, () =>
+      handleAuthLogin({
+        request: new Request("http://example.test/_emdash/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: "invited@example.com", password: "very-secure-password", turnstileToken: "token" }),
+        }),
+        session: createFakeSession(),
+        db: database,
+      }),
+    ),
+  );
 
   const body = await response.json();
   assert.equal(response.status, 403);
@@ -277,15 +317,19 @@ test("handleAuthLogin allows active users", async () => {
     display_name: "Active User",
   });
 
-  const response = await handleAuthLogin({
-    request: new Request("http://example.test/_emdash/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "user-agent": "unit-test" },
-      body: JSON.stringify({ email: "active@example.com", password: "very-secure-password" }),
-    }),
-    session,
-    db: database,
-  });
+  const response = await withTurnstileEnv(() =>
+    withTurnstileStub({ success: true, action: "login", hostname: "example.test" }, () =>
+      handleAuthLogin({
+        request: new Request("http://example.test/_emdash/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "user-agent": "unit-test" },
+          body: JSON.stringify({ email: "active@example.com", password: "very-secure-password", turnstileToken: "token" }),
+        }),
+        session,
+        db: database,
+      }),
+    ),
+  );
 
   const body = await response.json();
   assert.equal(response.status, 200);
@@ -324,15 +368,19 @@ test("handleAuthLogin challenges enrolled users and upgrades session state after
     const enrollmentCode = twoFactor.generateCurrentCodeForTesting(enrollment.manualKey, { timestamp: Date.parse("2026-01-05T00:00:00.000Z") });
     await twoFactor.verifyEnrollment({ user_id: "user_active", code: enrollmentCode, timestamp: Date.parse("2026-01-05T00:00:00.000Z") });
 
-    const loginResponse = await handleAuthLogin({
-      request: new Request("http://example.test/_emdash/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "user-agent": "unit-test" },
-        body: JSON.stringify({ email: "active@example.com", password: "very-secure-password" }),
-      }),
-      session,
-      db: database,
-    });
+    const loginResponse = await withTurnstileEnv(() =>
+      withTurnstileStub({ success: true, action: "login", hostname: "example.test" }, () =>
+        handleAuthLogin({
+          request: new Request("http://example.test/_emdash/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "user-agent": "unit-test" },
+            body: JSON.stringify({ email: "active@example.com", password: "very-secure-password", turnstileToken: "token" }),
+          }),
+          session,
+          db: database,
+        }),
+      ),
+    );
 
     const loginBody = await loginResponse.json();
     assert.equal(loginResponse.status, 202);
@@ -420,15 +468,19 @@ test("handleAuthLogin blocks accounts that must complete a forced password reset
     disabled: false,
   });
 
-  const response = await handleAuthLogin({
-    request: new Request("http://example.test/_emdash/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "reset@example.com", password: "very-secure-password" }),
-    }),
-    session: createFakeSession(),
-    db: database,
-  });
+  const response = await withTurnstileEnv(() =>
+    withTurnstileStub({ success: true, action: "login", hostname: "example.test" }, () =>
+      handleAuthLogin({
+        request: new Request("http://example.test/_emdash/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: "reset@example.com", password: "very-secure-password", turnstileToken: "token" }),
+        }),
+        session: createFakeSession(),
+        db: database,
+      }),
+    ),
+  );
 
   const body = await response.json();
   assert.equal(response.status, 403);
@@ -453,26 +505,34 @@ test("handleAuthLogin rate limits repeated failures and emits a security lockout
 
   try {
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      await handleAuthLogin({
-        request: new Request("http://example.test/_emdash/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-forwarded-for": "127.0.0.1" },
-          body: JSON.stringify({ email: "active@example.com", password: "wrong-password" }),
-        }),
-        session: createFakeSession(),
-        db: database,
-      });
+      await withTurnstileEnv(() =>
+        withTurnstileStub({ success: true, action: "login", hostname: "example.test" }, () =>
+          handleAuthLogin({
+            request: new Request("http://example.test/_emdash/api/auth/login", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-forwarded-for": "127.0.0.1" },
+              body: JSON.stringify({ email: "active@example.com", password: "wrong-password", turnstileToken: "token" }),
+            }),
+            session: createFakeSession(),
+            db: database,
+          }),
+        ),
+      );
     }
 
-    const lockedResponse = await handleAuthLogin({
-      request: new Request("http://example.test/_emdash/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-forwarded-for": "127.0.0.1" },
-        body: JSON.stringify({ email: "active@example.com", password: "wrong-password" }),
-      }),
-      session: createFakeSession(),
-      db: database,
-    });
+    const lockedResponse = await withTurnstileEnv(() =>
+      withTurnstileStub({ success: true, action: "login", hostname: "example.test" }, () =>
+        handleAuthLogin({
+          request: new Request("http://example.test/_emdash/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-forwarded-for": "127.0.0.1" },
+            body: JSON.stringify({ email: "active@example.com", password: "wrong-password", turnstileToken: "token" }),
+          }),
+          session: createFakeSession(),
+          db: database,
+        }),
+      ),
+    );
 
     const lockedBody = await lockedResponse.json();
     assert.equal(lockedResponse.status, 429);
@@ -486,4 +546,39 @@ test("handleAuthLogin rate limits repeated failures and emits a security lockout
       process.env.TRUSTED_PROXY_MODE = previousTrustedProxyMode;
     }
   }
+});
+
+test("handleAuthLogin rejects requests when Turnstile validation fails", async () => {
+  const { database, state } = createFakeDatabase();
+  state.users.push({
+    id: "user_active",
+    email: "active@example.com",
+    password_hash: hashPassword("very-secure-password"),
+    status: "active",
+    deleted_at: null,
+    must_reset_password: false,
+    is_protected: false,
+    email_verified: true,
+    disabled: false,
+  });
+
+  const response = await withTurnstileEnv(() =>
+    withTurnstileStub({ success: false, "error-codes": ["timeout-or-duplicate"] }, () =>
+      handleAuthLogin({
+        request: new Request("http://example.test/_emdash/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: "active@example.com", password: "very-secure-password", turnstileToken: "bad-token" }),
+        }),
+        session: createFakeSession(),
+        db: database,
+      }),
+    ),
+  );
+
+  const body = await response.json();
+  assert.equal(response.status, 403);
+  assert.equal(body.error.code, "TURNSTILE_INVALID");
+  assert.equal(state.sessions.length, 0);
+  assert.equal(state.loginEvents.at(-1)?.reason, "turnstile_failed");
 });

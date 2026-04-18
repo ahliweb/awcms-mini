@@ -3,6 +3,42 @@ import assert from "node:assert/strict";
 
 import { handlePasswordResetConsume, handlePasswordResetRequest } from "../../src/auth/handlers/password-reset.mjs";
 
+const originalFetch = globalThis.fetch;
+
+function withTurnstileEnv(callback) {
+  const previousSecret = process.env.TURNSTILE_SECRET_KEY;
+  const previousSiteUrl = process.env.SITE_URL;
+
+  process.env.TURNSTILE_SECRET_KEY = "turnstile-secret";
+  process.env.SITE_URL = "http://example.test";
+
+  return Promise.resolve(callback()).finally(() => {
+    if (previousSecret === undefined) {
+      delete process.env.TURNSTILE_SECRET_KEY;
+    } else {
+      process.env.TURNSTILE_SECRET_KEY = previousSecret;
+    }
+
+    if (previousSiteUrl === undefined) {
+      delete process.env.SITE_URL;
+    } else {
+      process.env.SITE_URL = previousSiteUrl;
+    }
+  });
+}
+
+function withTurnstileStub(result, callback) {
+  globalThis.fetch = async () => ({
+    async json() {
+      return result;
+    },
+  });
+
+  return Promise.resolve(callback()).finally(() => {
+    globalThis.fetch = originalFetch;
+  });
+}
+
 function createFakeDatabase() {
   const state = {
     users: [],
@@ -159,14 +195,18 @@ test("handlePasswordResetRequest returns a generic success response without expo
   const { database, state } = createFakeDatabase();
   state.users.push({ id: "user_1", email: "user@example.com", status: "active", deleted_at: null, must_reset_password: false, password_hash: "old_hash" });
 
-  const response = await handlePasswordResetRequest({
-    db: database,
-    request: new Request("http://example.test/api/reset-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "user@example.com" }),
-    }),
-  });
+  const response = await withTurnstileEnv(() =>
+    withTurnstileStub({ success: true, action: "password_reset_request", hostname: "example.test" }, () =>
+      handlePasswordResetRequest({
+        db: database,
+        request: new Request("http://example.test/api/reset-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: "user@example.com", turnstileToken: "token" }),
+        }),
+      }),
+    ),
+  );
 
   assert.equal(response.status, 200);
 
@@ -183,14 +223,18 @@ test("handlePasswordResetRequest does not reveal whether an account exists", asy
   const { database, state } = createFakeDatabase();
   state.users.push({ id: "user_1", email: "user@example.com", status: "active", deleted_at: null, must_reset_password: false, password_hash: "old_hash" });
 
-  const response = await handlePasswordResetRequest({
-    db: database,
-    request: new Request("http://example.test/api/reset-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "missing@example.com" }),
-    }),
-  });
+  const response = await withTurnstileEnv(() =>
+    withTurnstileStub({ success: true, action: "password_reset_request", hostname: "example.test" }, () =>
+      handlePasswordResetRequest({
+        db: database,
+        request: new Request("http://example.test/api/reset-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: "missing@example.com", turnstileToken: "token" }),
+        }),
+      }),
+    ),
+  );
 
   assert.equal(response.status, 200);
 
@@ -223,4 +267,27 @@ test("handlePasswordResetConsume keeps token validation errors generic", async (
       message: "Password reset token is invalid.",
     },
   });
+});
+
+test("handlePasswordResetRequest rejects requests when Turnstile validation fails", async () => {
+  const { database, state } = createFakeDatabase();
+  state.users.push({ id: "user_1", email: "user@example.com", status: "active", deleted_at: null, must_reset_password: false, password_hash: "old_hash" });
+
+  const response = await withTurnstileEnv(() =>
+    withTurnstileStub({ success: false, "error-codes": ["timeout-or-duplicate"] }, () =>
+      handlePasswordResetRequest({
+        db: database,
+        request: new Request("http://example.test/api/reset-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: "user@example.com", turnstileToken: "bad-token" }),
+        }),
+      }),
+    ),
+  );
+
+  const payload = await response.json();
+  assert.equal(response.status, 403);
+  assert.equal(payload.error.code, "TURNSTILE_INVALID");
+  assert.equal(state.password_reset_tokens.length, 0);
 });

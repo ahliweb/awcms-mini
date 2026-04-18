@@ -50,6 +50,24 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Default fallback: `direct`.
 - Rule: Cloudflare plus Coolify deployments should set `TRUSTED_PROXY_MODE=cloudflare` so auth, audit, and lockout flows use `CF-Connecting-IP`.
 
+### `TURNSTILE_SITE_KEY`
+
+- Purpose: public Cloudflare Turnstile site key for clients rendering the widget.
+- Scope: deployment/runtime configuration.
+- Rule: pair this with `TURNSTILE_SECRET_KEY` for protected public flows.
+
+### `TURNSTILE_SECRET_KEY`
+
+- Purpose: server-side secret used for mandatory Turnstile Siteverify validation.
+- Scope: server-only runtime secret.
+- Current rule: Turnstile enforcement activates when this value is configured.
+
+### `TURNSTILE_EXPECTED_HOSTNAME`
+
+- Purpose: optional explicit hostname check for Turnstile Siteverify results.
+- Scope: server-only runtime configuration.
+- Default behavior: falls back to the hostname parsed from `SITE_URL` when omitted.
+
 ## Source of Truth
 
 - runtime config module: `src/config/runtime.mjs`
@@ -57,6 +75,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - local environment example: `.env.example`
 - Cloudflare deployment configuration: `wrangler.jsonc`
 - TOTP encryption key resolution: `src/services/security/two-factor.mjs`
+- Turnstile validation helper: `src/security/turnstile.mjs`
 
 ## Rules
 
@@ -68,6 +87,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - prefer a dedicated `MINI_TOTP_ENCRYPTION_KEY` over the `APP_SECRET` fallback for TOTP secret encryption
 - document public-origin and trusted-proxy assumptions explicitly for Cloudflare-fronted deployments
 - for remote PostgreSQL deployments, prefer TLS-enabled connections and host-level access restriction
+- store Turnstile secrets in Cloudflare-managed secrets or equivalent server-only runtime configuration
 
 ## Deployment Notes
 
@@ -104,6 +124,12 @@ For the intended production topology, configure at least:
 - `SITE_URL`
 - `MINI_TOTP_ENCRYPTION_KEY`
 - `TRUSTED_PROXY_MODE=cloudflare`
+
+For public auth and recovery abuse defense, also configure:
+
+- `TURNSTILE_SITE_KEY`
+- `TURNSTILE_SECRET_KEY`
+- optional `TURNSTILE_EXPECTED_HOSTNAME`
 
 Also set `APP_SECRET` if the host auth/session runtime depends on it or if you need the current Mini fallback path during migration, but do not treat that fallback as the preferred long-term TOTP configuration.
 

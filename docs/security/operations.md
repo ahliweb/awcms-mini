@@ -22,6 +22,7 @@ Mini owns the security-hardening layer:
 ## Current Controls
 
 - password login with failure tracking
+- Cloudflare Turnstile enforcement on public login and password-reset request flows when configured
 - lockout response for repeated failures
 - mandatory password reset support
 - public password-reset requests return a generic acceptance response and do not expose live reset tokens in JSON
@@ -36,6 +37,8 @@ Mini owns the security-hardening layer:
 - Treat rollout behavior as an operator-managed control that still requires verification against the live auth path before claiming full enforcement in production.
 - ABAC audit-only flags are intended for controlled rollout safety, not permanent steady-state policy behavior.
 - Public password-reset issuance is a generic request-acceptance surface. Live reset tokens should be delivered through an operator-controlled or other out-of-band recovery channel, not returned to the caller.
+- Turnstile validation is server-side only and uses Siteverify with action and hostname checks when configured.
+- Turnstile currently protects login and password-reset request handlers. It complements, rather than replaces, lockouts and edge rate limiting.
 
 ## Deployment Expectations
 
@@ -54,6 +57,7 @@ Security operations should treat those as separate trust boundaries.
 - In the supported Cloudflare-hosted path, trust `CF-Connecting-IP` and configure `TRUSTED_PROXY_MODE=cloudflare`.
 - Do not treat arbitrary `X-Forwarded-For` values as authoritative unless a deployment explicitly opts into a different trusted proxy mode.
 - Add Cloudflare rate limiting or managed challenge rules for login and other abuse-prone auth endpoints.
+- Store `TURNSTILE_SECRET_KEY` as a Cloudflare-managed secret or equivalent server-only runtime secret.
 
 See `docs/process/cloudflare-hosted-runtime.md` for the supported Cloudflare runtime and deployment checks.
 

@@ -114,6 +114,11 @@ Security and correctness notes:
 
 Turnstile should be added as an abuse-defense layer for public or abuse-prone endpoints, not as a substitute for authentication or authorization.
 
+Current status:
+
+- server-side Turnstile validation now protects login and password-reset request handlers when `TURNSTILE_SECRET_KEY` is configured
+- follow-on work may still expand Turnstile coverage to additional public onboarding or edge API flows
+
 Recommended first targets:
 
 - login

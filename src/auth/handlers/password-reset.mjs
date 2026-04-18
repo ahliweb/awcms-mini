@@ -1,4 +1,6 @@
 import { createPasswordResetService, PasswordResetError } from "../../services/security/password-reset.mjs";
+import { resolveTrustedClientIp } from "../../security/client-ip.mjs";
+import { TurnstileValidationError, validateTurnstileToken } from "../../security/turnstile.mjs";
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -24,12 +26,27 @@ export async function handlePasswordResetRequest({ request, db }) {
   }
 
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+  const turnstileToken = typeof body?.turnstileToken === "string" ? body.turnstileToken : "";
 
   if (!email) {
     return json({ error: { code: "INVALID_EMAIL", message: "Email is required" } }, 400);
   }
 
   const service = createPasswordResetService({ database: db });
+
+  try {
+    await validateTurnstileToken({
+      token: turnstileToken,
+      expectedAction: "password_reset_request",
+      remoteIp: resolveTrustedClientIp(request),
+    });
+  } catch (error) {
+    if (error instanceof TurnstileValidationError) {
+      return json({ error: { code: error.code, message: "Request verification failed" } }, 403);
+    }
+
+    throw error;
+  }
 
   try {
     await service.requestPasswordReset({ email });

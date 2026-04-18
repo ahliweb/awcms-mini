@@ -6,6 +6,7 @@ import { createLockoutService } from "../../services/security/lockout.mjs";
 import { createTwoFactorService } from "../../services/security/two-factor.mjs";
 import { createSessionService } from "../../services/sessions/service.mjs";
 import { resolveTrustedClientIp } from "../../security/client-ip.mjs";
+import { TurnstileValidationError, validateTurnstileToken } from "../../security/turnstile.mjs";
 import { hashPassword, verifyPassword } from "../passwords.mjs";
 
 function json(body, status = 200) {
@@ -26,6 +27,7 @@ export async function handleAuthLogin({ request, session, db }) {
 
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body?.password === "string" ? body.password : "";
+  const turnstileToken = typeof body?.turnstileToken === "string" ? body.turnstileToken : "";
 
   if (!email || !password) {
     return json({ error: { code: "INVALID_CREDENTIALS", message: "Email and password are required" } }, 400);
@@ -48,6 +50,21 @@ export async function handleAuthLogin({ request, session, db }) {
       user_agent: userAgent,
       ...input,
     });
+
+  try {
+    await validateTurnstileToken({
+      token: turnstileToken,
+      expectedAction: "login",
+      remoteIp: ipAddress,
+    });
+  } catch (error) {
+    if (error instanceof TurnstileValidationError) {
+      await appendEvent({ outcome: "failure", reason: "turnstile_failed" });
+      return json({ error: { code: error.code, message: "Request verification failed" } }, 403);
+    }
+
+    throw error;
+  }
 
   const lock = await lockout.assertLoginAllowed({ email, ipAddress });
 

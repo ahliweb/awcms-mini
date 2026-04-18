@@ -58,6 +58,12 @@ Required production baseline:
 - `MINI_TOTP_ENCRYPTION_KEY`
 - `TRUSTED_PROXY_MODE=cloudflare` for the supported Cloudflare-hosted path
 
+Recommended public abuse-defense settings:
+
+- `TURNSTILE_SITE_KEY`
+- `TURNSTILE_SECRET_KEY`
+- optional `TURNSTILE_EXPECTED_HOSTNAME`
+
 For remote PostgreSQL deployments, `DATABASE_URL` should target the protected VPS host and use a non-superuser application role.
 
 `APP_SECRET` should also be set when your host auth/session runtime depends on it. Mini currently falls back to `APP_SECRET` only if `MINI_TOTP_ENCRYPTION_KEY` is not set.

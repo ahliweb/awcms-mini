@@ -20,6 +20,7 @@ The supported baseline production path is:
 - `TRUSTED_PROXY_MODE=cloudflare`
 - `DATABASE_URL` points to the intended remote PostgreSQL instance
 - `wrangler.jsonc` or equivalent deployment config defines the Worker, assets, observability, and required bindings
+- `TURNSTILE_SECRET_KEY` is stored as a server-only secret when Turnstile protection is enabled
 
 ## Cloudflare Expectations
 
@@ -28,6 +29,7 @@ The supported baseline production path is:
 - Keep observability enabled for production deployment
 - Ensure the adapter's default `SESSION` KV binding or an explicit equivalent binding is available
 - Add edge protections such as rate limiting, managed challenge, or Turnstile on abuse-prone routes as those features land
+- Keep Turnstile hostname expectations aligned with `SITE_URL` or an explicit `TURNSTILE_EXPECTED_HOSTNAME`
 
 ## PostgreSQL Expectations
 
