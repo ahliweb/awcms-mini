@@ -69,8 +69,8 @@ When configured, Turnstile currently protects the public login, password-reset r
 
 R2 storage baseline when object storage is enabled:
 
-- `R2_MEDIA_BUCKET_BINDING`
-- optional `R2_MEDIA_BUCKET_NAME`
+- `R2_MEDIA_BUCKET_BINDING=MEDIA_BUCKET`
+- `R2_MEDIA_BUCKET_NAME=awcms-mini-s3`
 - `R2_MAX_UPLOAD_BYTES`
 - `R2_ALLOWED_CONTENT_TYPES`
 
@@ -127,7 +127,7 @@ Cloudflare-hosted deployment baseline:
 
 - `pnpm build` produces the Worker bundle
 - `pnpm deploy:cloudflare` deploys via Wrangler
-- `wrangler.jsonc` defines the Worker, assets, observability, and optional Hyperdrive binding placeholders
+- `wrangler.jsonc` defines the Worker, assets, observability, the `MEDIA_BUCKET` R2 binding for `awcms-mini-s3`, and optional Hyperdrive binding placeholders
 - Astro's Cloudflare adapter uses the default `SESSION` KV binding for sessions unless you override it explicitly
 
 ## Common Commands

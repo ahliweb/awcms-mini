@@ -48,6 +48,7 @@ Complete these checks before applying migrations or releasing a new build.
 - [ ] Cloudflare DNS for the public hostname is configured for the Cloudflare-hosted application path
 - [ ] If a dedicated admin hostname is used, Cloudflare DNS/custom-domain config points it at the same Worker deployment
 - [ ] `wrangler.jsonc` or equivalent deployment config matches the intended Worker name, assets, and bindings
+- [ ] The `MEDIA_BUCKET` Worker binding points at the intended R2 bucket `awcms-mini-s3`
 - [ ] `TRUSTED_PROXY_MODE=cloudflare` is configured for the supported production path
 - [ ] The adapter's default `SESSION` binding or an explicit equivalent binding is available for the target environment
 

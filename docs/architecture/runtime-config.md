@@ -87,11 +87,13 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Purpose: Cloudflare Worker binding name used for private R2-backed object storage.
 - Scope: server-only runtime configuration.
 - Default fallback: `MEDIA_BUCKET`.
+- Current deployment target: `MEDIA_BUCKET` should map to the Cloudflare R2 bucket `awcms-mini-s3`.
 
 ### `R2_MEDIA_BUCKET_NAME`
 
-- Purpose: optional operator-facing bucket name reference for deployment documentation and binding alignment.
+- Purpose: operator-facing bucket name reference for deployment documentation and binding alignment.
 - Scope: runtime/deployment documentation value.
+- Current deployment target: `awcms-mini-s3`.
 
 ### `R2_MAX_UPLOAD_BYTES`
 
@@ -192,6 +194,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - `ADMIN_SITE_URL`, when configured, should be the Cloudflare-managed admin hostname that redirects into the same `/_emdash/admin` surface.
 - Client IP extraction should trust `CF-Connecting-IP`, not raw `X-Forwarded-For`, for the supported Cloudflare-hosted path.
 - `wrangler.jsonc` should define the Worker, static assets, observability, and any explicit Cloudflare bindings needed for deployment.
+- `wrangler.jsonc` now declares the `MEDIA_BUCKET` R2 binding for `awcms-mini-s3` as the current deployment target.
 - Astro's Cloudflare adapter uses the default `SESSION` KV binding for sessions unless operators override it deliberately.
 - Cloudflare Hyperdrive is the recommended next-step pooling path for PostgreSQL access from edge-hosted runtime code, but the current repo still uses `DATABASE_URL` directly.
 - R2-backed object storage should use a private bucket binding and application-generated object keys.
@@ -230,7 +233,7 @@ For public auth and recovery abuse defense, also configure:
 For private R2-backed object storage, also configure:
 
 - `R2_MEDIA_BUCKET_BINDING`
-- optional `R2_MEDIA_BUCKET_NAME`
+- `R2_MEDIA_BUCKET_NAME`
 - `R2_MAX_UPLOAD_BYTES`
 - `R2_ALLOWED_CONTENT_TYPES`
 

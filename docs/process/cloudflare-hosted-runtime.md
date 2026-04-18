@@ -23,7 +23,7 @@ The supported baseline production path is:
 - `wrangler.jsonc` or equivalent deployment config defines the Worker, assets, observability, and required bindings
 - `TURNSTILE_SECRET_KEY` is stored as a server-only secret when Turnstile protection is enabled
 - `EDGE_API_JWT_SECRET` is stored as a server-only secret when edge API token issuance is enabled
-- `R2_MEDIA_BUCKET_BINDING` maps to a private R2 bucket when object storage is enabled
+- `R2_MEDIA_BUCKET_BINDING=MEDIA_BUCKET` maps to the private R2 bucket `awcms-mini-s3` when object storage is enabled
 - `EDGE_API_ALLOWED_ORIGINS` stays empty unless an approved cross-origin external client needs browser access
 
 ## Cloudflare Expectations
@@ -38,6 +38,7 @@ The supported baseline production path is:
 - Keep Turnstile hostname expectations aligned with `SITE_URL` or an explicit `TURNSTILE_EXPECTED_HOSTNAME`
 - Keep `/api/v1/token` behind Cloudflare rate limiting or equivalent abuse controls before broad external-client rollout
 - Keep R2 buckets private by default and expose downloads through controlled application paths as upload features land
+- Keep the Worker R2 binding aligned with `awcms-mini-s3` unless an explicit reviewed bucket migration occurs
 - Keep versioned external-client APIs under `/api/v1/*` and do not expose `/_emdash/api/*` as the mobile/external API surface
 
 ## PostgreSQL Expectations
@@ -54,6 +55,7 @@ Before deployment:
 
 - Confirm `pnpm build` produces the Cloudflare Worker bundle successfully
 - Confirm `wrangler.jsonc` matches the intended Worker name and bindings
+- Confirm the `MEDIA_BUCKET` binding targets `awcms-mini-s3`
 - Confirm `MINI_RUNTIME_TARGET=cloudflare` in the deployment environment
 - Confirm `SITE_URL`, `TRUSTED_PROXY_MODE`, and security secrets are set correctly
 - Confirm `ADMIN_SITE_URL` and any non-default `ADMIN_ENTRY_PATH` are set correctly when a separate admin hostname is used
@@ -65,6 +67,7 @@ After deployment:
 - Confirm the public hostname responds through the Cloudflare-hosted runtime
 - Confirm admin routes load through the public hostname or, when configured, the dedicated admin hostname
 - Confirm auth logging and lockout behavior reflect the expected Cloudflare client IP source
+- Confirm the runtime can see the `MEDIA_BUCKET` binding for `awcms-mini-s3`
 - Confirm the app can reach PostgreSQL and complete health or smoke tests for the selected environment
 
 ## Cross-References
