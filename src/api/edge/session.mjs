@@ -6,15 +6,16 @@ import {
   enforceEdgeApiMethod,
   enforceEdgeApiOrigin,
   handleEdgeApiCorsPreflight,
-  requireEdgeApiIdentitySession,
+  requireEdgeApiAuthentication,
   requireEdgeApiPermission,
 } from "./v1.mjs";
+import { createEdgeAuthService } from "../../services/edge-auth/service.mjs";
 import { createSessionService } from "../../services/sessions/service.mjs";
 
 export function handleEdgeSessionOptions({ request }) {
   return handleEdgeApiCorsPreflight(request, {
     methods: ["GET", "POST", "OPTIONS"],
-    headers: ["Content-Type"],
+    headers: ["Authorization", "Content-Type"],
   });
 }
 
@@ -28,7 +29,7 @@ export async function handleEdgeSessionGet({ request, session, db }) {
   const acceptError = enforceEdgeApiAccept(request);
   if (acceptError) return acceptError;
 
-  const auth = await requireEdgeApiIdentitySession({ request, session, db });
+  const auth = await requireEdgeApiAuthentication({ request, session, db });
   if (!auth.ok) return auth.response;
 
   const permission = await requireEdgeApiPermission({
@@ -76,7 +77,7 @@ export async function handleEdgeSessionPost({ request, session, db }) {
   const bodyError = enforceEdgeApiJsonBody(request);
   if (bodyError) return bodyError;
 
-  const auth = await requireEdgeApiIdentitySession({ request, session, db });
+  const auth = await requireEdgeApiAuthentication({ request, session, db });
   if (!auth.ok) return auth.response;
 
   const permission = await requireEdgeApiPermission({
@@ -108,6 +109,8 @@ export async function handleEdgeSessionPost({ request, session, db }) {
 
   const sessions = createSessionService({ database: db });
   const revoked = await sessions.revokeSession(auth.activeSession.id);
+  const edgeAuth = createEdgeAuthService({ database: db });
+  await edgeAuth.revokeSessionTokens(auth.activeSession.id, revoked?.revoked_at ?? undefined);
   session?.destroy?.();
 
   return createEdgeApiJsonResponse(request, {

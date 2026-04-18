@@ -103,6 +103,37 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Scope: server-only runtime configuration.
 - Default fallback: `16384` bytes.
 
+### `EDGE_API_JWT_SECRET`
+
+- Purpose: signing and verification secret for JWT access tokens issued by `/api/v1/token`.
+- Scope: server-only runtime secret.
+- Default behavior: falls back to `APP_SECRET` when omitted.
+- Rule: production deployments should set a dedicated value instead of relying on the fallback.
+
+### `EDGE_API_JWT_ISSUER`
+
+- Purpose: expected JWT issuer for edge API Bearer tokens.
+- Scope: server-only runtime configuration.
+- Default behavior: falls back to `SITE_URL + /api/v1` when `SITE_URL` is configured, otherwise `urn:awcms-mini:edge-api`.
+
+### `EDGE_API_JWT_AUDIENCE`
+
+- Purpose: expected JWT audience for edge API Bearer tokens.
+- Scope: server-only runtime configuration.
+- Default fallback: `awcms-mini-edge-api`.
+
+### `EDGE_API_ACCESS_TOKEN_TTL_SECONDS`
+
+- Purpose: TTL for JWT access tokens issued by `/api/v1/token`.
+- Scope: server-only runtime configuration.
+- Default fallback: `900` seconds.
+
+### `EDGE_API_REFRESH_TOKEN_TTL_SECONDS`
+
+- Purpose: TTL for opaque refresh tokens issued by `/api/v1/token`.
+- Scope: server-only runtime configuration.
+- Default fallback: `2592000` seconds.
+
 ## Source of Truth
 
 - runtime config module: `src/config/runtime.mjs`
@@ -113,6 +144,8 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Turnstile validation helper: `src/security/turnstile.mjs`
 - R2 storage helper: `src/services/storage/r2.mjs`
 - Edge API helpers: `src/api/edge/v1.mjs`, `src/api/edge/session.mjs`, `src/api/edge/health.mjs`
+- Edge API token route: `src/api/edge/token.mjs`, `src/pages/api/v1/token.js`
+- Edge auth service: `src/services/edge-auth/service.mjs`
 
 ## Rules
 
@@ -125,10 +158,12 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - document public-origin and trusted-proxy assumptions explicitly for Cloudflare-fronted deployments
 - for remote PostgreSQL deployments, prefer TLS-enabled connections and host-level access restriction
 - store Turnstile secrets in Cloudflare-managed secrets or equivalent server-only runtime configuration
+- store `EDGE_API_JWT_SECRET` in Cloudflare-managed secrets or equivalent server-only runtime configuration
 - keep R2 buckets private by default and access them through Cloudflare bindings, not REST calls from runtime code
 - keep object metadata, ownership, and authorization state in PostgreSQL even when object bytes live in R2
 - keep edge API routes versioned under `/api/v1/*` and separate from EmDash admin/plugin APIs under `/_emdash/api/*`
 - disable cross-origin browser access unless an explicit origin allowlist is configured
+- keep edge API refresh tokens opaque, hashed at rest, and rotation-backed in PostgreSQL
 
 ## Deployment Notes
 
@@ -184,6 +219,11 @@ For the versioned edge API baseline, also configure as needed:
 
 - optional `EDGE_API_ALLOWED_ORIGINS`
 - `EDGE_API_MAX_BODY_BYTES`
+- `EDGE_API_JWT_SECRET`
+- optional `EDGE_API_JWT_ISSUER`
+- optional `EDGE_API_JWT_AUDIENCE`
+- `EDGE_API_ACCESS_TOKEN_TTL_SECONDS`
+- `EDGE_API_REFRESH_TOKEN_TTL_SECONDS`
 
 Also set `APP_SECRET` if the host auth/session runtime depends on it or if you need the current Mini fallback path during migration, but do not treat that fallback as the preferred long-term TOTP configuration.
 

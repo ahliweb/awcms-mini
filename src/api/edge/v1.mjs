@@ -1,4 +1,5 @@
 import { getRuntimeConfig } from "../../config/runtime.mjs";
+import { createEdgeAuthService, EdgeAuthError } from "../../services/edge-auth/service.mjs";
 import { createSessionService } from "../../services/sessions/service.mjs";
 import { createAuthorizationService } from "../../services/authorization/service.mjs";
 import { createUserRepository } from "../../db/repositories/users.mjs";
@@ -115,6 +116,45 @@ export function enforceEdgeApiJsonBody(request, runtimeConfig = getRuntimeConfig
   return null;
 }
 
+function getBearerToken(request) {
+  const authorization = request.headers.get("authorization") ?? "";
+
+  if (!authorization.toLowerCase().startsWith("bearer ")) {
+    return null;
+  }
+
+  const token = authorization.slice(7).trim();
+  return token.length > 0 ? token : null;
+}
+
+export async function requireEdgeApiAuthentication({ request, session, db, runtimeConfig = getRuntimeConfig() }) {
+  const bearerToken = getBearerToken(request);
+
+  if (bearerToken) {
+    const edgeAuth = createEdgeAuthService({ database: db, runtimeConfig });
+
+    try {
+      const authenticated = await edgeAuth.authenticateAccessToken(bearerToken);
+      return {
+        ok: true,
+        ...authenticated,
+        authMethod: "bearer",
+      };
+    } catch (error) {
+      if (error instanceof EdgeAuthError) {
+        return {
+          ok: false,
+          response: createEdgeApiErrorResponse(request, error.code, error.message, error.status, runtimeConfig),
+        };
+      }
+
+      throw error;
+    }
+  }
+
+  return requireEdgeApiIdentitySession({ request, session, db, runtimeConfig });
+}
+
 export async function requireEdgeApiIdentitySession({ request, session, db, runtimeConfig = getRuntimeConfig() }) {
   const sessionUser = await session?.get?.("user");
   const identitySession = await session?.get?.("identitySession");
@@ -152,6 +192,7 @@ export async function requireEdgeApiIdentitySession({ request, session, db, runt
     ok: true,
     user,
     activeSession,
+    authMethod: "session",
   };
 }
 

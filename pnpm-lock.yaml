@@ -29,6 +29,9 @@ importers:
       emdash:
         specifier: 0.5.0
         version: 0.5.0(6efdb8802079419a2db620598b63e0a0)
+      jose:
+        specifier: ^6.2.2
+        version: 6.2.2
       kysely:
         specifier: 0.28.16
         version: 0.28.16

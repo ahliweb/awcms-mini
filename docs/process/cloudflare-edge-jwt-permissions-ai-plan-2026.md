@@ -66,9 +66,9 @@ Mini should move the external/mobile edge API surface from identity-session reus
 
 Current status:
 
-- `/api/v1/health` and `/api/v1/session` exist
-- the authenticated edge baseline still depends on the host identity session
-- no dedicated JWT issuance, refresh, revocation, or verification contract exists yet for external/mobile clients
+- `/api/v1/health`, `/api/v1/token`, and `/api/v1/session` exist
+- protected edge routes now accept JWT Bearer tokens and still keep the host identity session as a compatibility fallback
+- `/api/v1/token` now issues short-lived JWT access tokens plus opaque rotation-backed refresh tokens stored in PostgreSQL
 
 Recommended direction:
 
@@ -83,8 +83,8 @@ Recommended token model:
 - Access tokens:
   - short TTL, preferably 5 to 15 minutes
   - signed with `jose` in a Cloudflare-compatible runtime
-  - prefer asymmetric signing such as `EdDSA` or `ES256` for forward-compatible verification and key rotation
-  - include explicit `kid`, `iss`, `aud`, `sub`, `jti`, `iat`, `nbf`, and `exp`
+- the current implementation uses `HS256` through `jose` with explicit algorithm allowlisting
+- include explicit `iss`, `aud`, `sub`, `iat`, and `exp`
   - include only minimal authorization claims needed for edge enforcement
 - Refresh tokens:
   - opaque, random, high-entropy values
@@ -98,7 +98,6 @@ Recommended verification rules:
 - enforce an explicit allowed algorithm list
 - reject `alg=none` and algorithm confusion paths
 - verify issuer, audience, expiration, not-before, and key id expectations
-- require `jti` so revocation and replay defense can be implemented coherently
 - keep JWT claims minimal and never treat client-supplied role text alone as the full authorization truth
 - treat user status, soft-delete state, and protected-account rules as server-side checks where applicable
 

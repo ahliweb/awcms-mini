@@ -21,6 +21,7 @@ The supported baseline production path is:
 - `DATABASE_URL` points to the intended remote PostgreSQL instance
 - `wrangler.jsonc` or equivalent deployment config defines the Worker, assets, observability, and required bindings
 - `TURNSTILE_SECRET_KEY` is stored as a server-only secret when Turnstile protection is enabled
+- `EDGE_API_JWT_SECRET` is stored as a server-only secret when edge API token issuance is enabled
 - `R2_MEDIA_BUCKET_BINDING` maps to a private R2 bucket when object storage is enabled
 - `EDGE_API_ALLOWED_ORIGINS` stays empty unless an approved cross-origin external client needs browser access
 
@@ -33,6 +34,7 @@ The supported baseline production path is:
 - Add edge protections such as rate limiting, managed challenge, or Turnstile on abuse-prone routes as those features land
 - The current Turnstile-covered public flows are login, password-reset request, and invite activation when the Turnstile secret is configured
 - Keep Turnstile hostname expectations aligned with `SITE_URL` or an explicit `TURNSTILE_EXPECTED_HOSTNAME`
+- Keep `/api/v1/token` behind Cloudflare rate limiting or equivalent abuse controls before broad external-client rollout
 - Keep R2 buckets private by default and expose downloads through controlled application paths as upload features land
 - Keep versioned external-client APIs under `/api/v1/*` and do not expose `/_emdash/api/*` as the mobile/external API surface
 
@@ -52,6 +54,7 @@ Before deployment:
 - Confirm `wrangler.jsonc` matches the intended Worker name and bindings
 - Confirm `MINI_RUNTIME_TARGET=cloudflare` in the deployment environment
 - Confirm `SITE_URL`, `TRUSTED_PROXY_MODE`, and security secrets are set correctly
+- Confirm `EDGE_API_JWT_SECRET` and any non-default `EDGE_API_JWT_*` settings are set correctly when `/api/v1/token` is enabled
 - Confirm `DATABASE_URL` or approved database transport configuration points to the intended PostgreSQL target
 
 After deployment:

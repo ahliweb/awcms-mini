@@ -76,9 +76,21 @@ R2 storage baseline when object storage is enabled:
 Edge API baseline:
 
 - `/api/v1/health` for versioned public health checks
+- `/api/v1/token` for password and refresh-token grants for mobile or external clients
 - `/api/v1/session` for current-session inspection and self-revocation
 - `EDGE_API_ALLOWED_ORIGINS` for any explicit cross-origin browser clients
 - `EDGE_API_MAX_BODY_BYTES` for request-size enforcement
+- `EDGE_API_JWT_SECRET` for Bearer-token signing and verification
+- optional `EDGE_API_JWT_ISSUER` and `EDGE_API_JWT_AUDIENCE`
+- `EDGE_API_ACCESS_TOKEN_TTL_SECONDS` and `EDGE_API_REFRESH_TOKEN_TTL_SECONDS`
+
+Current token behavior:
+
+- `/api/v1/token` supports `password` and `refresh_token` grant types
+- access tokens are short-lived JWT Bearer tokens signed with `jose`
+- refresh tokens are opaque, hashed at rest in PostgreSQL, and rotated on use
+- enrolled 2FA users must satisfy TOTP or recovery-code challenge during the password grant
+- protected `/api/v1/*` routes accept Bearer tokens and still keep the host identity session as a compatibility fallback
 
 For remote PostgreSQL deployments, `DATABASE_URL` should target the protected VPS host and use a non-superuser application role.
 
