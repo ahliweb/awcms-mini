@@ -11,7 +11,7 @@ EmDash provides the host runtime and baseline auth boundary.
 Mini owns the security-hardening layer:
 
 - login security events
-- runtime-backed lockout handling
+- shared lockout counter handling
 - TOTP enrollment and verification
 - recovery codes
 - forced password reset flows
@@ -50,7 +50,8 @@ Security operations should treat those as separate trust boundaries.
 - Prefer proxied Cloudflare DNS for public app traffic.
 - Prefer Cloudflare Tunnel when it is operationally acceptable.
 - If not using Tunnel, restrict direct origin access as much as possible and keep the origin reachable only through the intended path.
-- Document and enforce trusted forwarded-header behavior; do not rely on arbitrary client-supplied proxy headers.
+- In the supported Cloudflare plus Coolify path, trust `CF-Connecting-IP` and configure `TRUSTED_PROXY_MODE=cloudflare`.
+- Do not treat arbitrary `X-Forwarded-For` values as authoritative unless a deployment explicitly opts into a different trusted proxy mode.
 - Add Cloudflare rate limiting or managed challenge rules for login and other abuse-prone auth endpoints.
 
 ## PostgreSQL Guidance

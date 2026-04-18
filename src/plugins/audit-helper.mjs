@@ -1,3 +1,5 @@
+import { resolveTrustedClientIp } from "../security/client-ip.mjs";
+
 function normalizeNullableString(value) {
   if (value === null || value === undefined) {
     return null;
@@ -36,7 +38,7 @@ export function createPluginAuditHelper(options) {
         entity_id: normalizeNullableString(input?.entityId),
         target_user_id: normalizeNullableString(input?.targetUserId),
         request_id: normalizeNullableString(input?.requestId ?? input?.request?.headers?.get?.("x-request-id")),
-        ip_address: normalizeNullableString(input?.ipAddress ?? input?.request?.headers?.get?.("x-forwarded-for")?.split(",")[0]?.trim()),
+        ip_address: normalizeNullableString(input?.ipAddress ?? resolveTrustedClientIp(input?.request)),
         user_agent: normalizeNullableString(input?.userAgent ?? input?.request?.headers?.get?.("user-agent")),
         summary: normalizeNullableString(input?.summary),
         before_payload: input?.beforePayload ?? null,

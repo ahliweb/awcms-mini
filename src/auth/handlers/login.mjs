@@ -5,6 +5,7 @@ import { createUserRepository } from "../../db/repositories/users.mjs";
 import { createLockoutService } from "../../services/security/lockout.mjs";
 import { createTwoFactorService } from "../../services/security/two-factor.mjs";
 import { createSessionService } from "../../services/sessions/service.mjs";
+import { resolveTrustedClientIp } from "../../security/client-ip.mjs";
 import { hashPassword, verifyPassword } from "../passwords.mjs";
 
 function json(body, status = 200) {
@@ -12,10 +13,6 @@ function json(body, status = 200) {
     status,
     headers: { "Content-Type": "application/json" },
   });
-}
-
-function normalizeIp(request) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
 }
 
 export async function handleAuthLogin({ request, session, db }) {
@@ -39,7 +36,7 @@ export async function handleAuthLogin({ request, session, db }) {
   const sessions = createSessionService({ database: db });
   const lockout = createLockoutService({ database: db });
   const twoFactor = createTwoFactorService({ database: db });
-  const ipAddress = normalizeIp(request);
+  const ipAddress = resolveTrustedClientIp(request);
   const userAgent = request.headers.get("user-agent");
 
   const appendEvent = (input) =>
@@ -89,7 +86,7 @@ export async function handleAuthLogin({ request, session, db }) {
     return json({ error: { code: "INVALID_CREDENTIALS", message: "Invalid email or password" } }, 401);
   }
 
-  lockout.resetLoginCounters({ email, ipAddress });
+  await lockout.resetLoginCounters({ email, ipAddress });
 
   const issued = await sessions.issueSession({
     id: crypto.randomUUID(),

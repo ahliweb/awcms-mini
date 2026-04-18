@@ -5,7 +5,6 @@ import { handleAuthMe } from "../../src/auth/handlers/me.mjs";
 import { handleAuthLogin } from "../../src/auth/handlers/login.mjs";
 import { handleAuthTwoFactorChallengeVerify } from "../../src/auth/handlers/two-factor-challenge.mjs";
 import { hashPassword } from "../../src/auth/passwords.mjs";
-import { runtimeRateLimitStore } from "../../src/security/runtime-rate-limits.mjs";
 import { createTwoFactorService } from "../../src/services/security/two-factor.mjs";
 
 function createFakeDatabase() {
@@ -16,6 +15,7 @@ function createFakeDatabase() {
     security_events: [],
     totp_credentials: [],
     recovery_codes: [],
+    rate_limit_counters: [],
   };
 
   const executor = {
@@ -60,6 +60,14 @@ function createFakeDatabase() {
                 });
               }
             }
+
+            if (table === "rate_limit_counters") {
+              state.rate_limit_counters.push({
+                created_at: values.created_at ?? "2026-01-01T00:00:00.000Z",
+                updated_at: values.updated_at ?? "2026-01-01T00:00:00.000Z",
+                ...values,
+              });
+            }
           },
         }),
       };
@@ -78,7 +86,9 @@ function createFakeDatabase() {
                 ? state.security_events
                 : table === "totp_credentials"
                   ? state.totp_credentials
-                  : state.recovery_codes;
+                  : table === "recovery_codes"
+                    ? state.recovery_codes
+                    : state.rate_limit_counters;
 
       const apply = () => {
         let rows = [...source];
@@ -105,7 +115,15 @@ function createFakeDatabase() {
     },
 
     updateTable(table) {
-      const source = table === "users" ? state.users : table === "sessions" ? state.sessions : table === "totp_credentials" ? state.totp_credentials : state.recovery_codes;
+      const source = table === "users"
+        ? state.users
+        : table === "sessions"
+          ? state.sessions
+          : table === "totp_credentials"
+            ? state.totp_credentials
+            : table === "recovery_codes"
+              ? state.recovery_codes
+              : state.rate_limit_counters;
       const updateState = { values: undefined, where: [] };
 
       return {
@@ -129,6 +147,40 @@ function createFakeDatabase() {
           return chain;
         },
       };
+    },
+
+    deleteFrom(table) {
+      const source = table === "rate_limit_counters" ? state.rate_limit_counters : [];
+      const whereClauses = [];
+
+      const chain = {
+        where(column, operator, value) {
+          whereClauses.push({ column, operator, value });
+          return chain;
+        },
+        execute: async () => {
+          for (let index = source.length - 1; index >= 0; index -= 1) {
+            const row = source[index];
+            const matches = whereClauses.every((clause) => {
+              if (clause.operator === "=" || clause.operator === "is") {
+                return row[clause.column] === clause.value;
+              }
+
+              if (clause.operator === "<=") {
+                return String(row[clause.column]) <= String(clause.value);
+              }
+
+              return false;
+            });
+
+            if (matches) {
+              source.splice(index, 1);
+            }
+          }
+        },
+      };
+
+      return chain;
     },
 
     startTransaction() {
@@ -385,7 +437,8 @@ test("handleAuthLogin blocks accounts that must complete a forced password reset
 
 test("handleAuthLogin rate limits repeated failures and emits a security lockout event", async () => {
   const { database, state } = createFakeDatabase();
-  runtimeRateLimitStore.clearAll();
+  const previousTrustedProxyMode = process.env.TRUSTED_PROXY_MODE;
+  process.env.TRUSTED_PROXY_MODE = "forwarded-chain";
   state.users.push({
     id: "user_active",
     email: "active@example.com",
@@ -398,31 +451,39 @@ test("handleAuthLogin rate limits repeated failures and emits a security lockout
     disabled: false,
   });
 
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    await handleAuthLogin({
+  try {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await handleAuthLogin({
+        request: new Request("http://example.test/_emdash/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-forwarded-for": "127.0.0.1" },
+          body: JSON.stringify({ email: "active@example.com", password: "wrong-password" }),
+        }),
+        session: createFakeSession(),
+        db: database,
+      });
+    }
+
+    const lockedResponse = await handleAuthLogin({
       request: new Request("http://example.test/_emdash/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-forwarded-for": "127.0.0.1" },
         body: JSON.stringify({ email: "active@example.com", password: "wrong-password" }),
       }),
       session: createFakeSession(),
       db: database,
     });
+
+    const lockedBody = await lockedResponse.json();
+    assert.equal(lockedResponse.status, 429);
+    assert.equal(lockedBody.error.code, "AUTH_LOCKED");
+    assert.equal(state.security_events.some((entry) => entry.event_type === "auth.lockout"), true);
+    assert.equal(state.rate_limit_counters.length > 0, true);
+  } finally {
+    if (previousTrustedProxyMode === undefined) {
+      delete process.env.TRUSTED_PROXY_MODE;
+    } else {
+      process.env.TRUSTED_PROXY_MODE = previousTrustedProxyMode;
+    }
   }
-
-  const lockedResponse = await handleAuthLogin({
-    request: new Request("http://example.test/_emdash/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "active@example.com", password: "wrong-password" }),
-    }),
-    session: createFakeSession(),
-    db: database,
-  });
-
-  const lockedBody = await lockedResponse.json();
-  assert.equal(lockedResponse.status, 429);
-  assert.equal(lockedBody.error.code, "AUTH_LOCKED");
-  assert.equal(state.security_events.some((entry) => entry.event_type === "auth.lockout"), true);
-  runtimeRateLimitStore.clearAll();
 });

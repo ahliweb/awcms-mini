@@ -11,6 +11,7 @@ function createFakeDatabase() {
     sessions: [],
     audit_logs: [],
     security_events: [],
+    rate_limit_counters: [],
     transactions: 0,
   };
 
@@ -30,6 +31,16 @@ function createFakeDatabase() {
                 details_json: item.details_json ?? {},
                 ...item,
               });
+            }
+
+            if (table === "rate_limit_counters") {
+              for (const item of items) {
+                state.rate_limit_counters.push({
+                  created_at: item.created_at ?? "2026-01-01T00:00:00.000Z",
+                  updated_at: item.updated_at ?? "2026-01-01T00:00:00.000Z",
+                  ...item,
+                });
+              }
             }
           },
         }),
@@ -93,6 +104,34 @@ function createFakeDatabase() {
           return chain;
         },
       };
+    },
+
+    deleteFrom(table) {
+      const source = state[table];
+      const local = { where: [] };
+
+      const chain = {
+        where(column, operator, value) {
+          local.where.push({ column, operator, value });
+          return chain;
+        },
+        execute: async () => {
+          for (let index = source.length - 1; index >= 0; index -= 1) {
+            const row = source[index];
+            const matches = local.where.every((clause) => {
+              if (clause.operator === "=" || clause.operator === "is") return row[clause.column] === clause.value;
+              if (clause.operator === "<=") return String(row[clause.column]) <= String(clause.value);
+              return false;
+            });
+
+            if (matches) {
+              source.splice(index, 1);
+            }
+          }
+        },
+      };
+
+      return chain;
     },
 
     startTransaction() {

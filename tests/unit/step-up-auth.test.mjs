@@ -156,7 +156,9 @@ test("step-up verify logs audit and security events on failure", async () => {
   const { database, state } = createFakeDatabase();
   const session = createFakeSession();
   const previousEncryptionKey = process.env.MINI_TOTP_ENCRYPTION_KEY;
+  const previousTrustedProxyMode = process.env.TRUSTED_PROXY_MODE;
   process.env.MINI_TOTP_ENCRYPTION_KEY = "12345678901234567890123456789012";
+  process.env.TRUSTED_PROXY_MODE = "forwarded-chain";
   state.users.push({ id: "user_1", email: "user@example.com", status: "active", deleted_at: null, password_hash: hashPassword("very-secure-password") });
 
   try {
@@ -186,5 +188,10 @@ test("step-up verify logs audit and security events on failure", async () => {
     assert.equal(state.security_events.some((entry) => entry.event_type === "auth.step_up.failure"), true);
   } finally {
     process.env.MINI_TOTP_ENCRYPTION_KEY = previousEncryptionKey;
+    if (previousTrustedProxyMode === undefined) {
+      delete process.env.TRUSTED_PROXY_MODE;
+    } else {
+      process.env.TRUSTED_PROXY_MODE = previousTrustedProxyMode;
+    }
   }
 });

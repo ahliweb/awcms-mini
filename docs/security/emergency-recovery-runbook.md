@@ -66,7 +66,7 @@ Use this when login attempts are blocked with the lockout response.
 
 Observed behavior in the implementation:
 
-- Lockout counters are stored in runtime rate-limit storage.
+- Lockout counters are stored in the shared `rate_limit_counters` store.
 - Lockout decisions emit `auth.lockout` audit and security-event records.
 - Successful password reset consumption clears account lockout counters.
 
@@ -74,11 +74,11 @@ Recovery steps:
 
 1. Verify the lockout from audit logs or from the login response.
 2. Check whether the user also needs a password reset.
-3. If the user can wait, allow the runtime lockout window to expire naturally.
+3. If the user can wait, allow the lockout window to expire naturally.
 4. If recovery must be immediate, issue a forced password reset and have the user complete the reset flow.
 5. Re-test login after the reset is consumed.
 
-Do not clear runtime lockout state by patching application internals or mutating ad hoc process memory in production. Use the supported password-reset recovery path or let the lockout expire.
+Do not clear lockout state by patching application internals or mutating ad hoc process memory in production. Use the supported password-reset recovery path or let the lockout expire.
 
 ## Two-Factor Recovery
 

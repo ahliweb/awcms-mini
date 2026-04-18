@@ -194,7 +194,7 @@ export function createPasswordResetService(options = {}) {
         });
         await deps.passwordResetTokens.markPasswordResetTokenUsed(resolved.resetToken.id, now());
         await deps.sessions.revokeAllSessionsForUser(resolved.user.id, now());
-        deps.lockout.resetAccountCounters(resolved.user.email);
+        await deps.lockout.resetAccountCounters(resolved.user.email);
 
         await appendPasswordResetAudit(deps, {
           action: "password_reset.consume",

@@ -1,16 +1,13 @@
 import { createTwoFactorService, TwoFactorChallengeError } from "../../services/security/two-factor.mjs";
 import { createSecurityEventRepository } from "../../db/repositories/security-events.mjs";
 import { createAuditService } from "../../services/audit/service.mjs";
+import { resolveTrustedClientIp } from "../../security/client-ip.mjs";
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
   });
-}
-
-function normalizeIp(request) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
 }
 
 export async function handleAuthTwoFactorStepUpVerify({ request, session, db, now = () => new Date().toISOString() }) {
@@ -39,7 +36,7 @@ export async function handleAuthTwoFactorStepUpVerify({ request, session, db, no
   const service = createTwoFactorService({ database: db });
   const securityEvents = createSecurityEventRepository(db);
   const audit = createAuditService({ database: db });
-  const ipAddress = normalizeIp(request);
+  const ipAddress = resolveTrustedClientIp(request);
   const userAgent = request.headers.get("user-agent");
   const challengeType = recoveryCode ? "recovery_code" : "totp";
 

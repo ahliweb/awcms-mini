@@ -26,6 +26,13 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Current status: the code and docs need stronger alignment here with current EmDash `siteUrl`-style expectations.
 - Rule: deployments behind Cloudflare and Coolify should treat public-origin correctness as a first-class runtime concern.
 
+### `TRUSTED_PROXY_MODE`
+
+- Purpose: define which proxy path is trusted for client IP extraction.
+- Supported values: `direct`, `cloudflare`, `forwarded-chain`.
+- Default fallback: `direct`.
+- Rule: Cloudflare plus Coolify deployments should set `TRUSTED_PROXY_MODE=cloudflare` so auth, audit, and lockout flows use `CF-Connecting-IP`.
+
 ## Source of Truth
 
 - runtime config module: `src/config/runtime.mjs`
@@ -49,6 +56,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Cloudflare should be treated as the browser-facing edge.
 - Coolify should be treated as the app deployment and reverse-proxy control plane.
 - The configured public origin must match the hostname users reach through Cloudflare, not an internal container or local Coolify address.
+- Client IP extraction should trust `CF-Connecting-IP`, not raw `X-Forwarded-For`, for the supported Cloudflare path.
 
 ### PostgreSQL On VPS
 

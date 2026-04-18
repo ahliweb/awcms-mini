@@ -6,9 +6,9 @@ import {
   RATE_LIMIT_STORAGE_STRATEGY,
 } from "../../src/security/rate-limit-storage-strategy.mjs";
 
-test("rate-limit storage strategy explicitly delegates counters to runtime storage", () => {
-  assert.equal(RATE_LIMIT_STORAGE_STRATEGY.kind, "runtime-middleware");
-  assert.equal(RATE_LIMIT_STORAGE_STRATEGY.durable_table_required, false);
+test("rate-limit storage strategy explicitly delegates counters to shared durable storage", () => {
+  assert.equal(RATE_LIMIT_STORAGE_STRATEGY.kind, "shared-sql-store");
+  assert.equal(RATE_LIMIT_STORAGE_STRATEGY.durable_table_required, true);
   assert.deepEqual(RATE_LIMIT_STORAGE_STRATEGY.scope_dimensions, ["ip", "account", "route"]);
   assert.deepEqual(RATE_LIMIT_STORAGE_STRATEGY.required_capabilities, ["increment", "read", "reset", "ttl"]);
   assert.equal(RATE_LIMIT_STORAGE_STRATEGY.fallback_behavior, "fail-closed-on-security-sensitive-routes");

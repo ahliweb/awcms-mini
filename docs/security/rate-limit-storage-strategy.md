@@ -1,15 +1,15 @@
 # Rate-Limit Storage Strategy
 
-`AWM-071` chooses the non-database path described as optional in the implementation plan.
+`AWM-071` originally described a non-database path, but the current deployment alignment work now requires shared counters that survive restarts and multi-instance rollout.
 
 Decision:
-- Mini delegates rate-limit and temporary lockout counters to runtime storage.
-- Mini does not create a `rate_limit_counters` SQL table in the current implementation.
+- Mini stores rate-limit and temporary lockout counters in a shared SQL-backed store.
+- Mini uses the dedicated `rate_limit_counters` table for the current implementation.
 
 Why:
-- Counter state is short-lived, high-churn, and window-based.
-- The current repo stores durable governance and audit records in SQL, but rate-limit counters are operational middleware state.
-- This keeps the primary database focused on durable facts while still allowing strict throttling later.
+- Counter state is short-lived and window-based, but it must survive process restarts for the supported deployment path.
+- The current single-tenant PostgreSQL deployment is the simplest shared coordination layer already present in the stack.
+- Durable audit facts still remain separate from counter state even though both use PostgreSQL.
 
 Required runtime capabilities:
 - Atomic increment
@@ -23,10 +23,10 @@ Supported scope dimensions:
 - Route or action key
 
 Expected backends:
-- Edge/runtime middleware state
-- Redis or equivalent TTL-capable cache
-- Another environment-provided counter service with the same semantics
+- Shared SQL-backed counter table for the current repo implementation
+- Redis or equivalent TTL-capable cache in a future revision if the contract changes
+- Another shared counter service with the same semantics
 
 Follow-on implications:
-- `AWM-076` should build lockout logic against the exported strategy contract in `src/security/rate-limit-storage-strategy.mjs`.
-- Durable security outcomes still go to `security_events` and `audit_logs`; only volatile counters stay outside SQL.
+- `AWM-076` lockout logic now uses the shared storage contract implemented by `src/security/runtime-rate-limits.mjs` and `src/db/repositories/rate-limit-counters.mjs`.
+- Durable security outcomes still go to `security_events` and `audit_logs`; counter state remains operational and TTL-bounded even though it is stored in SQL.

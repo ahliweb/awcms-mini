@@ -1,15 +1,12 @@
 import { createLoginSecurityEventRepository } from "../../db/repositories/login-security-events.mjs";
 import { createSessionService } from "../../services/sessions/service.mjs";
+import { resolveTrustedClientIp } from "../../security/client-ip.mjs";
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
   });
-}
-
-function normalizeIp(request) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
 }
 
 export async function handleAuthLogout({ request, session, url, db }) {
@@ -29,7 +26,7 @@ export async function handleAuthLogout({ request, session, url, db }) {
       event_type: "logout",
       outcome: "success",
       reason: "session_logout",
-      ip_address: normalizeIp(request),
+      ip_address: resolveTrustedClientIp(request),
       user_agent: request.headers.get("user-agent"),
     });
   }

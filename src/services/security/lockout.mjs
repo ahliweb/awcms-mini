@@ -1,7 +1,7 @@
 import { getDatabase } from "../../db/index.mjs";
 import { createSecurityEventRepository } from "../../db/repositories/security-events.mjs";
 import { createAuditService } from "../audit/service.mjs";
-import { runtimeRateLimitStore } from "../../security/runtime-rate-limits.mjs";
+import { createRuntimeRateLimitStore } from "../../security/runtime-rate-limits.mjs";
 
 function normalizeScopeSegment(value) {
   return String(value ?? "").trim().toLowerCase();
@@ -19,13 +19,13 @@ export function createLockoutService(options = {}) {
   const database = options.database ?? getDatabase();
   const securityEvents = options.securityEvents ?? createSecurityEventRepository(database);
   const audit = options.audit ?? createAuditService({ database });
-  const rateLimitStore = options.rateLimitStore ?? runtimeRateLimitStore;
+  const rateLimitStore = options.rateLimitStore ?? createRuntimeRateLimitStore({ database });
   const now = options.now ?? (() => Date.now());
 
   return {
     async assertLoginAllowed({ email, ipAddress }) {
-      const account = rateLimitStore.inspect(buildAccountScope(email), now());
-      const ip = rateLimitStore.inspect(buildIpScope(ipAddress), now());
+      const account = await rateLimitStore.inspect(buildAccountScope(email), now());
+      const ip = await rateLimitStore.inspect(buildIpScope(ipAddress), now());
 
       const locked = [account, ip].find((entry) => entry.locked);
 
@@ -42,8 +42,8 @@ export function createLockoutService(options = {}) {
 
     async registerLoginFailure({ email, ipAddress, userId = null, userAgent = null, reason }) {
       const policy = rateLimitStore.getPolicy();
-      const account = rateLimitStore.increment(buildAccountScope(email), policy.maxFailuresPerAccount, now());
-      const ip = rateLimitStore.increment(buildIpScope(ipAddress), policy.maxFailuresPerIp, now());
+      const account = await rateLimitStore.increment(buildAccountScope(email), policy.maxFailuresPerAccount, now());
+      const ip = await rateLimitStore.increment(buildIpScope(ipAddress), policy.maxFailuresPerIp, now());
 
       const locked = [account, ip].find((entry) => entry.locked);
 
@@ -91,13 +91,13 @@ export function createLockoutService(options = {}) {
       };
     },
 
-    resetLoginCounters({ email, ipAddress }) {
-      rateLimitStore.reset(buildAccountScope(email));
-      rateLimitStore.reset(buildIpScope(ipAddress));
+    async resetLoginCounters({ email, ipAddress }) {
+      await rateLimitStore.reset(buildAccountScope(email));
+      await rateLimitStore.reset(buildIpScope(ipAddress));
     },
 
-    resetAccountCounters(email) {
-      rateLimitStore.reset(buildAccountScope(email));
+    async resetAccountCounters(email) {
+      await rateLimitStore.reset(buildAccountScope(email));
     },
   };
 }
