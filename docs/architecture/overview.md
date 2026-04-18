@@ -110,6 +110,7 @@ The current implementation is optimized for:
 - `docs/architecture/runtime-config.md`
 - `docs/architecture/repository-layout.md`
 - `docs/governance/auth-and-authorization.md`
+- `docs/governance/permission-matrix.md`
 - `docs/governance/roles.md`
 - `docs/governance/jobs.md`
 - `docs/governance/regions.md`

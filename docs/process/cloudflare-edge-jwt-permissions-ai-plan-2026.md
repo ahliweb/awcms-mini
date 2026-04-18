@@ -27,7 +27,7 @@ It is based on:
 - The supported runtime baseline is now Cloudflare-hosted, with PostgreSQL remaining the single system of record on a Coolify-managed VPS.
 - The repo already exposes a versioned `/api/v1/*` edge API baseline, but it currently reuses the existing identity session rather than a dedicated JWT-based external/mobile API auth model.
 - The repo already has a permission catalog plus role-permission matrix handling, but coverage is still strongest in the admin and governance surface rather than a single canonical matrix spanning core features, plugins, and edge APIs.
-- The repo currently has one broad planning prompt artifact in `awcms_mini_emdash_implementation_planning_prompt.md`, but it does not yet provide a compact set of workflow-specific prompt templates for common repo tasks.
+- The repo currently has one broad planning prompt artifact in `awcms_mini_emdash_implementation_planning_prompt.md` and now also includes workflow-specific AI planning templates under `docs/process/ai-workflow-planning-templates.md`.
 
 ### Confirmed EmDash Alignment Notes
 
@@ -40,7 +40,7 @@ It is based on:
 
 - External/mobile edge API auth still needs a stateless token model designed for Cloudflare-hosted request handling.
 - Permission coverage still needs a single authoritative matrix that maps core features, plugin routes/services, and edge endpoints to the same canonical permission catalog.
-- AI-assisted planning guidance still needs task-specific templates that reinforce the documented issue-driven workflow, validation rules, and documentation authority order.
+- AI-assisted planning guidance now has task-specific templates, but those templates should continue to expand only through the documented issue-driven workflow and documentation authority order.
 
 ## Planning Goal
 
@@ -118,8 +118,8 @@ Current status:
 
 - core permissions and role-permission matrix support already exist
 - plugin permission registration already normalizes plugin-declared permissions into the same catalog shape
-- edge APIs do not yet fully participate in the same permission declaration and enforcement model
-- repo docs do not yet provide a single feature-to-permission inventory covering core, plugins, and edge functions together
+- edge APIs now have canonical self-service session permissions for the current `/api/v1/session` baseline, but broader edge route coverage still needs to expand as more external/mobile endpoints land
+- repo docs now need to keep a maintained feature-to-permission inventory covering core, plugins, and edge functions together as the surface grows
 
 Recommended direction:
 
@@ -154,7 +154,7 @@ Mini should add compact, reusable prompt templates for common AI-assisted reposi
 Current status:
 
 - `awcms_mini_emdash_implementation_planning_prompt.md` exists as a broad planning artifact
-- the repo does not yet provide focused templates for narrower, recurring workflows such as docs updates, issue-driven feature planning, or implementation execution
+- the repo now provides focused templates for docs updates, issue-driven feature planning, implementation execution, security review, and release-readiness work
 
 Recommended direction:
 

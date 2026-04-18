@@ -1,5 +1,6 @@
 import { getRuntimeConfig } from "../../config/runtime.mjs";
 import { createSessionService } from "../../services/sessions/service.mjs";
+import { createAuthorizationService } from "../../services/authorization/service.mjs";
 import { createUserRepository } from "../../db/repositories/users.mjs";
 
 const JSON_CONTENT_TYPE = "application/json; charset=utf-8";
@@ -151,5 +152,45 @@ export async function requireEdgeApiIdentitySession({ request, session, db, runt
     ok: true,
     user,
     activeSession,
+  };
+}
+
+export async function requireEdgeApiPermission({
+  request,
+  db,
+  user,
+  activeSession,
+  permissionCode,
+  action,
+  resource,
+  runtimeConfig = getRuntimeConfig(),
+}) {
+  const authorization = createAuthorizationService({ database: db });
+  const result = await authorization.evaluate({
+    subject: {
+      kind: "user",
+      user_id: user.id,
+      status: user.status ?? "active",
+      is_protected: user.is_protected === true,
+    },
+    resource,
+    context: {
+      permission_code: permissionCode,
+      action,
+      session_id: activeSession.id,
+    },
+  });
+
+  if (!result.allowed) {
+    return {
+      ok: false,
+      result,
+      response: createEdgeApiErrorResponse(request, "FORBIDDEN", "Forbidden.", 403, runtimeConfig),
+    };
+  }
+
+  return {
+    ok: true,
+    result,
   };
 }

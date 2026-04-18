@@ -24,6 +24,7 @@ This file maps the current documentation set for AWCMS Mini.
 ### Governance
 
 - `docs/governance/auth-and-authorization.md`
+- `docs/governance/permission-matrix.md`
 - `docs/governance/roles.md`
 - `docs/governance/jobs.md`
 - `docs/governance/regions.md`

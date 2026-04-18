@@ -36,6 +36,7 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
 - `011_permissions` adds the RBAC permission catalog with unique permission codes, protected markers, and code-format enforcement
 - `012_role_permissions` adds the RBAC role-to-permission mapping with composite uniqueness and grant metadata
 - `013_user_roles` adds effective-dated user role assignments with primary-role support and partial unique indexes for active-role enforcement
+- `032_edge_api_permissions` adds canonical self-service edge API permission entries and role grants for the current `/api/v1/session` baseline so protected edge routes use the shared authorization model
 - `031_soft_delete_operator_attribution_catalogs` adds `deleted_by_user_id` and `delete_reason` to operator-managed logical-region and job-catalog tables so soft delete attribution matches the established user and role contract
 
 ## Runtime Input

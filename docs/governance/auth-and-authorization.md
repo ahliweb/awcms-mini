@@ -62,9 +62,17 @@ This is intended for controlled rollout and validation, not steady-state policy 
 - Protected-target and region-scope rules should deny normally unless an audit-only rollout flag is intentionally enabled.
 - Step-up protected actions still require fresh two-factor verification.
 
+## Current Permission Coverage
+
+- Core governance and admin features use the canonical permission catalog seeded through the default permission and role-permission migrations.
+- Plugin routes should declare and enforce normalized permission codes through the shared plugin authorization helpers.
+- The current protected `/api/v1/*` session routes now use canonical edge permissions instead of relying on route-local auth checks alone.
+- See `docs/governance/permission-matrix.md` for the maintained first-party inventory.
+
 ## Cross-References
 
 - `src/services/authorization/service.mjs`
 - `src/services/authorization/flags.mjs`
+- `docs/governance/permission-matrix.md`
 - `docs/security/operations.md`
 - `docs/process/migration-deployment-checklist.md`

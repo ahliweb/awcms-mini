@@ -9,6 +9,17 @@ function createFakeDatabase() {
     users: [],
     sessions: [],
     audit_logs: [],
+    user_roles: [],
+    role_permissions: [],
+    permissions: [],
+    roles: [],
+    job_levels: [],
+    job_titles: [],
+    user_jobs: [],
+    regions: [],
+    user_region_assignments: [],
+    administrative_regions: [],
+    user_administrative_region_assignments: [],
   };
 
   const executor = {
@@ -176,7 +187,19 @@ test("edge session endpoint returns the current session and user profile", async
     name: "User Example",
     avatar_url: "https://example.test/avatar.png",
     deleted_at: null,
+    status: "active",
+    is_protected: false,
   });
+  state.roles = [{ id: "role_member", slug: "member", staff_level: 2, deleted_at: null }];
+  state.user_roles = [{ id: "assignment_1", user_id: "user_1", role_id: "role_member", expires_at: null, is_primary: true, assigned_at: "2026-04-18T00:00:00.000Z" }];
+  state.permissions = [
+    { id: "perm_edge_api_session_read", code: "edge.api.session.read", domain: "edge", resource: "api_session", action: "read", is_protected: false },
+    { id: "perm_edge_api_session_revoke", code: "edge.api.session.revoke", domain: "edge", resource: "api_session", action: "revoke", is_protected: false },
+  ];
+  state.role_permissions = [
+    { role_id: "role_member", permission_id: "perm_edge_api_session_read" },
+    { role_id: "role_member", permission_id: "perm_edge_api_session_revoke" },
+  ];
   state.sessions.push({
     id: "session_1",
     user_id: "user_1",
@@ -209,7 +232,19 @@ test("edge session revoke endpoint enforces JSON requests and revokes the active
     name: "User Example",
     avatar_url: null,
     deleted_at: null,
+    status: "active",
+    is_protected: false,
   });
+  state.roles = [{ id: "role_member", slug: "member", staff_level: 2, deleted_at: null }];
+  state.user_roles = [{ id: "assignment_1", user_id: "user_1", role_id: "role_member", expires_at: null, is_primary: true, assigned_at: "2026-04-18T00:00:00.000Z" }];
+  state.permissions = [
+    { id: "perm_edge_api_session_read", code: "edge.api.session.read", domain: "edge", resource: "api_session", action: "read", is_protected: false },
+    { id: "perm_edge_api_session_revoke", code: "edge.api.session.revoke", domain: "edge", resource: "api_session", action: "revoke", is_protected: false },
+  ];
+  state.role_permissions = [
+    { role_id: "role_member", permission_id: "perm_edge_api_session_read" },
+    { role_id: "role_member", permission_id: "perm_edge_api_session_revoke" },
+  ];
   state.sessions.push({
     id: "session_1",
     user_id: "user_1",
@@ -248,4 +283,41 @@ test("edge session revoke endpoint enforces JSON requests and revokes the active
   assert.equal(state.sessions[0].revoked_at, "2026-01-02T00:00:00.000Z");
   assert.deepEqual(session.snapshot(), {});
   assert.equal(state.audit_logs.some((entry) => entry.action === "session.revoke"), true);
+});
+
+test("edge session endpoint denies callers missing canonical edge permissions", async () => {
+  const { database, state } = createFakeDatabase();
+  state.users.push({
+    id: "user_1",
+    email: "user@example.com",
+    display_name: "User Example",
+    name: "User Example",
+    avatar_url: null,
+    deleted_at: null,
+    status: "active",
+    is_protected: false,
+  });
+  state.roles = [{ id: "role_member", slug: "member", staff_level: 2, deleted_at: null }];
+  state.user_roles = [{ id: "assignment_1", user_id: "user_1", role_id: "role_member", expires_at: null, is_primary: true, assigned_at: "2026-04-18T00:00:00.000Z" }];
+  state.permissions = [];
+  state.role_permissions = [];
+  state.sessions.push({
+    id: "session_1",
+    user_id: "user_1",
+    trusted_device: true,
+    last_seen_at: "2026-04-18T00:00:00.000Z",
+    expires_at: "2026-05-18T00:00:00.000Z",
+    revoked_at: null,
+    created_at: "2026-04-18T00:00:00.000Z",
+  });
+
+  const response = await handleEdgeSessionGet({
+    request: new Request("http://example.test/api/v1/session", { headers: { Accept: "application/json" } }),
+    session: createFakeSession({ user: { id: "user_1" }, identitySession: { id: "session_1" } }),
+    db: database,
+  });
+
+  assert.equal(response.status, 403);
+  const body = await response.json();
+  assert.equal(body.error.code, "FORBIDDEN");
 });

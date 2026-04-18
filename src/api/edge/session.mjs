@@ -7,6 +7,7 @@ import {
   enforceEdgeApiOrigin,
   handleEdgeApiCorsPreflight,
   requireEdgeApiIdentitySession,
+  requireEdgeApiPermission,
 } from "./v1.mjs";
 import { createSessionService } from "../../services/sessions/service.mjs";
 
@@ -29,6 +30,22 @@ export async function handleEdgeSessionGet({ request, session, db }) {
 
   const auth = await requireEdgeApiIdentitySession({ request, session, db });
   if (!auth.ok) return auth.response;
+
+  const permission = await requireEdgeApiPermission({
+    request,
+    db,
+    user: auth.user,
+    activeSession: auth.activeSession,
+    permissionCode: "edge.api.session.read",
+    action: "read",
+    resource: {
+      kind: "session",
+      resource_id: auth.activeSession.id,
+      owner_user_id: auth.user.id,
+      target_user_id: auth.user.id,
+    },
+  });
+  if (!permission.ok) return permission.response;
 
   return createEdgeApiJsonResponse(request, {
     user: {
@@ -61,6 +78,22 @@ export async function handleEdgeSessionPost({ request, session, db }) {
 
   const auth = await requireEdgeApiIdentitySession({ request, session, db });
   if (!auth.ok) return auth.response;
+
+  const permission = await requireEdgeApiPermission({
+    request,
+    db,
+    user: auth.user,
+    activeSession: auth.activeSession,
+    permissionCode: "edge.api.session.revoke",
+    action: "revoke",
+    resource: {
+      kind: "session",
+      resource_id: auth.activeSession.id,
+      owner_user_id: auth.user.id,
+      target_user_id: auth.user.id,
+    },
+  });
+  if (!permission.ok) return permission.response;
 
   let body;
   try {
