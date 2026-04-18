@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  awcmsUsersAdminPlugin,
   createPlugin,
+  USER_ADMIN_PLUGIN_PERMISSIONS,
   resetUserAdminAuthorizationServiceFactory,
   resetUserAdminAdministrativeRegionAssignmentServiceFactory,
   resetUserAdminAdminTwoFactorServiceFactory,
@@ -696,6 +698,7 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
 
   try {
     assert.equal(plugin.id, "awcms-users-admin");
+    assert.equal(USER_ADMIN_PLUGIN_PERMISSIONS.some((entry) => entry.code === "security.sessions.revoke"), true);
     assert.deepEqual(plugin.admin.pages, [
       { path: "/", label: "Users", icon: "users" },
       { path: "/roles", label: "Roles", icon: "shield" },
@@ -730,6 +733,10 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
     assert.equal(detailResult.item.email, "user@example.com");
     assert.equal(authorizationCalls.length, 2);
     assert.equal(authorizationCalls[0].context.permission_code, "admin.users.read");
+
+    const manifest = awcmsUsersAdminPlugin();
+    assert.equal(manifest.permissions.length, USER_ADMIN_PLUGIN_PERMISSIONS.length);
+    assert.equal(manifest.permissions.some((entry) => entry.code === "audit.logs.read"), true);
   } finally {
     resetUserAdminDatabaseGetter();
     resetUserAdminAuthorizationServiceFactory();

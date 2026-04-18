@@ -22,6 +22,34 @@ import { createRegionService } from "../../services/regions/service.mjs";
 import { createSessionService } from "../../services/sessions/service.mjs";
 import { createUserService } from "../../services/users/service.mjs";
 import { getSecurityPolicy, updateSecurityPolicy } from "../../security/policy.mjs";
+import { collectRegisteredPluginPermissions } from "../permission-registration.mjs";
+
+const USER_ADMIN_PERMISSION_DECLARATIONS = [
+  { code: "admin.users.read", domain: "admin", resource: "users", action: "read", description: "View user records and profile detail." },
+  { code: "admin.users.invite", domain: "admin", resource: "users", action: "invite", description: "Create invited user accounts." },
+  { code: "admin.users.disable", domain: "admin", resource: "users", action: "disable", description: "Disable or lock user accounts.", is_protected: true },
+  { code: "admin.roles.read", domain: "admin", resource: "roles", action: "read", description: "Inspect role assignments and role metadata." },
+  { code: "admin.roles.assign", domain: "admin", resource: "roles", action: "assign", description: "Assign roles to users.", is_protected: true },
+  { code: "admin.permissions.read", domain: "admin", resource: "permissions", action: "read", description: "View the explicit permission catalog and matrix." },
+  { code: "admin.permissions.update", domain: "admin", resource: "permissions", action: "update", description: "Apply permission matrix changes.", is_protected: true },
+  { code: "governance.jobs.read", domain: "governance", resource: "jobs", action: "read", description: "Inspect user job assignments and ladder metadata." },
+  { code: "governance.jobs.assign", domain: "governance", resource: "jobs", action: "assign", description: "Assign jobs to users.", is_protected: true },
+  { code: "governance.regions.read", domain: "governance", resource: "regions", action: "read", description: "Inspect logical region assignments and hierarchy." },
+  { code: "governance.regions.assign", domain: "governance", resource: "regions", action: "assign", description: "Assign logical regions to users.", is_protected: true },
+  { code: "governance.administrative_regions.assign", domain: "governance", resource: "administrative_regions", action: "assign", description: "Inspect and assign administrative regions.", is_protected: true },
+  { code: "security.2fa.read", domain: "security", resource: "2fa", action: "read", description: "Inspect user two-factor status." },
+  { code: "security.2fa.reset", domain: "security", resource: "2fa", action: "reset", description: "Reset a user's two-factor enrollment.", is_protected: true },
+  { code: "security.sessions.read", domain: "security", resource: "sessions", action: "read", description: "Inspect active sessions and login history." },
+  { code: "security.sessions.revoke", domain: "security", resource: "sessions", action: "revoke", description: "Revoke one or more active sessions.", is_protected: true },
+  { code: "audit.logs.read", domain: "audit", resource: "logs", action: "read", description: "View audit log entries." },
+];
+
+export const USER_ADMIN_PLUGIN_PERMISSIONS = collectRegisteredPluginPermissions([
+  {
+    id: "awcms-users-admin",
+    permissions: USER_ADMIN_PERMISSION_DECLARATIONS,
+  },
+]);
 
 let userAdminDatabaseGetter = () => getDatabase();
 let userAdminServiceFactory = (database) => createUserService({ database });
@@ -1886,6 +1914,7 @@ export function createPlugin() {
     id: "awcms-users-admin",
     version: "0.1.0",
     capabilities: ["read:users"],
+    permissions: USER_ADMIN_PLUGIN_PERMISSIONS,
     routes: {
       "users/list": {
         handler: listUsersHandler,
@@ -2006,6 +2035,7 @@ export function awcmsUsersAdminPlugin() {
     format: "native",
     entrypoint: "/src/plugins/awcms-users-admin/index.mjs",
     adminEntry: "/src/plugins/awcms-users-admin/admin.tsx",
+    permissions: USER_ADMIN_PLUGIN_PERMISSIONS,
     adminPages: [
       { path: "/", label: "Users", icon: "users" },
       { path: "/roles", label: "Roles", icon: "shield" },
