@@ -1,4 +1,5 @@
 import { PluginRouteError } from "emdash";
+import { createPluginServiceAuthorizationHelper } from "./service-authorization.mjs";
 
 function createPermissionIndex(permissions) {
   return new Set((permissions ?? []).map((entry) => entry.code));
@@ -57,31 +58,28 @@ export function createAuthorizedPluginRoute(options) {
 
   const permissionIndex = createPermissionIndex(options.permissions);
   const guard = normalizeGuard(options.guard, permissionIndex, pluginId);
+  const serviceAuthorization = createPluginServiceAuthorizationHelper({
+    pluginId,
+    permissions: options.permissions,
+    getAuthorizationService: options.getAuthorizationService,
+  });
 
   return {
     async handler(ctx) {
       const db = options.getDatabase();
       const actor = await options.resolveActor(db, ctx.request);
-      const authorization = options.getAuthorizationService(db);
       const resource = await resolveRouteResource(guard.resource, {
         ctx,
         db,
         actor,
       });
-      const result = await authorization.evaluate({
-        subject: {
-          kind: "user",
-          user_id: actor.id,
-          status: actor.status,
-          is_protected: actor.isProtected,
-          staff_level: actor.activeRoleStaffLevel,
-        },
+      const result = await serviceAuthorization.authorize({
+        actor,
+        database: db,
+        permissionCode: guard.permissionCode,
+        action: guard.action,
         resource,
-        context: {
-          permission_code: guard.permissionCode,
-          action: guard.action,
-          session_id: ctx.request.headers.get("x-session-id")?.trim() ?? null,
-        },
+        sessionId: ctx.request.headers.get("x-session-id")?.trim() ?? null,
       });
 
       if (!result.allowed) {
