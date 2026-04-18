@@ -1146,6 +1146,8 @@ test("awcms users admin plugin exposes logical region routes and mutation handle
   let createdInput;
   let updatedInput;
   let reparentedInput;
+  let softDeletedInput;
+  let restoredInput;
   const fakeDb = createFakeRegionsDb({
     users: [createAdminActorRow()],
     regions: [
@@ -1189,6 +1191,12 @@ test("awcms users admin plugin exposes logical region routes and mutation handle
     },
     async reparentRegion(input) {
       reparentedInput = input;
+    },
+    async softDeleteRegion(input) {
+      softDeletedInput = input;
+    },
+    async restoreRegion(input) {
+      restoredInput = input;
     },
   }));
 
@@ -1234,6 +1242,27 @@ test("awcms users admin plugin exposes logical region routes and mutation handle
     });
     assert.equal(reparentedInput.region_id, "region_branch");
     assert.equal(reparentedInput.parent_id, null);
+
+    await plugin.routes["regions/soft-delete"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/regions/soft-delete", {
+        method: "POST",
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ regionId: "region_branch", deleteReason: "cleanup" }),
+      }),
+      session: createAdminSession(),
+    });
+    assert.equal(softDeletedInput.region_id, "region_branch");
+    assert.equal(softDeletedInput.delete_reason, "cleanup");
+
+    await plugin.routes["regions/restore"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/regions/restore", {
+        method: "POST",
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ regionId: "region_branch" }),
+      }),
+      session: createAdminSession(),
+    });
+    assert.equal(restoredInput.region_id, "region_branch");
 
     assert.equal(authorizationCalls[0].context.permission_code, "governance.regions.read");
     assert.equal(authorizationCalls.some((call) => call.context.permission_code === "governance.regions.read" && call.context.action === "update"), true);
@@ -1369,6 +1398,8 @@ test("awcms users admin plugin exposes lifecycle action routes", async () => {
   let disabledUserId;
   let lockedUserId;
   let revokedUserId;
+  let softDeletedUserInput;
+  let restoredUserInput;
 
   setUserAdminDatabaseGetter(() => ({
     selectFrom(table) {
@@ -1393,6 +1424,12 @@ test("awcms users admin plugin exposes lifecycle action routes", async () => {
     },
     async lockUser(userId) {
       lockedUserId = userId;
+    },
+    async softDeleteUser(userId, options) {
+      softDeletedUserInput = { userId, ...options };
+    },
+    async restoreUser(userId, options) {
+      restoredUserInput = { userId, ...options };
     },
     async revokeUserSessions(userId) {
       revokedUserId = userId;
@@ -1420,6 +1457,28 @@ test("awcms users admin plugin exposes lifecycle action routes", async () => {
       session: createAdminSession(),
     });
     assert.equal(lockedUserId, "user_1");
+
+    await plugin.routes["users/soft-delete"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/soft-delete", {
+        method: "POST",
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: "user_1", deleteReason: "cleanup" }),
+      }),
+      session: createAdminSession(),
+    });
+    assert.equal(softDeletedUserInput.userId, "user_1");
+    assert.equal(softDeletedUserInput.delete_reason, "cleanup");
+
+    await plugin.routes["users/restore"].handler({
+      request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/restore", {
+        method: "POST",
+        headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: "user_1", status: "disabled" }),
+      }),
+      session: createAdminSession(),
+    });
+    assert.equal(restoredUserInput.userId, "user_1");
+    assert.equal(restoredUserInput.status, "disabled");
 
     await plugin.routes["users/revoke-sessions"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/revoke-sessions", {

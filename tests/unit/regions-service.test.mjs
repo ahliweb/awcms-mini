@@ -19,6 +19,8 @@ function createFakeDatabase() {
               created_at: values.created_at ?? "2026-01-01T00:00:00.000Z",
               updated_at: values.updated_at ?? "2026-01-01T00:00:00.000Z",
               deleted_at: values.deleted_at ?? null,
+              deleted_by_user_id: values.deleted_by_user_id ?? null,
+              delete_reason: values.delete_reason ?? null,
               sort_order: values.sort_order ?? 0,
               is_active: values.is_active ?? true,
               ...values,
@@ -162,6 +164,8 @@ function seedRegion(state, region) {
     created_at: region.created_at ?? "2026-01-01T00:00:00.000Z",
     updated_at: region.updated_at ?? "2026-01-01T00:00:00.000Z",
     deleted_at: region.deleted_at ?? null,
+    deleted_by_user_id: region.deleted_by_user_id ?? null,
+    delete_reason: region.delete_reason ?? null,
     sort_order: region.sort_order ?? 0,
     is_active: region.is_active ?? true,
     ...region,
@@ -269,4 +273,35 @@ test("region service audits updates", async () => {
   assert.equal(updated.name, "Root Updated");
   assert.equal(updated.is_active, false);
   assert.deepEqual(state.audit_logs.map((entry) => entry.action), ["region.update"]);
+});
+
+test("region service soft deletes and restores a leaf region with audit", async () => {
+  const { database, state } = createFakeDatabase();
+  const service = createRegionService({ database });
+
+  seedRegion(state, { id: "root", code: "root", name: "Root", parent_id: null, level: 1, path: "root" });
+  seedRegion(state, { id: "leaf", code: "leaf", name: "Leaf", parent_id: "root", level: 2, path: "root/leaf" });
+
+  const deleted = await service.softDeleteRegion({ region_id: "leaf", deleted_by_user_id: "user_admin", delete_reason: "cleanup" });
+  assert.equal(deleted.deleted_by_user_id, "user_admin");
+  assert.equal(deleted.delete_reason, "cleanup");
+
+  const restored = await service.restoreRegion({ region_id: "leaf" });
+  assert.equal(restored.deleted_at, null);
+  assert.equal(restored.delete_reason, null);
+  assert.deepEqual(state.audit_logs.map((entry) => entry.action), ["region.soft_delete", "region.restore"]);
+});
+
+test("region service rejects soft delete while active child regions remain", async () => {
+  const { database, state } = createFakeDatabase();
+  const service = createRegionService({ database });
+
+  seedRegion(state, { id: "root", code: "root", name: "Root", parent_id: null, level: 1, path: "root" });
+  seedRegion(state, { id: "north", code: "north", name: "North", parent_id: "root", level: 2, path: "root/north" });
+  seedRegion(state, { id: "jakarta", code: "jakarta", name: "Jakarta", parent_id: "north", level: 3, path: "root/north/jakarta" });
+
+  await assert.rejects(
+    () => service.softDeleteRegion({ region_id: "north", deleted_by_user_id: "user_admin" }),
+    (error) => error instanceof RegionHierarchyError && error.code === "REGION_HAS_ACTIVE_CHILDREN",
+  );
 });

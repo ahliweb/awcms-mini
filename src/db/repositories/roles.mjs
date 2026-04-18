@@ -155,6 +155,22 @@ export function createRoleRepository(executor = getDatabase()) {
 
       return this.getRoleById(id, { includeDeleted: true });
     },
+
+    async restoreRole(id) {
+      await executor
+        .updateTable("roles")
+        .set({
+          deleted_at: null,
+          deleted_by_user_id: null,
+          delete_reason: null,
+          updated_at: sql`CURRENT_TIMESTAMP`,
+        })
+        .where("id", "=", id)
+        .where("deleted_at", "is not", null)
+        .execute();
+
+      return this.getRoleById(id, { includeDeleted: true });
+    },
   };
 }
 

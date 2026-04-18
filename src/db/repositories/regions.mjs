@@ -2,8 +2,8 @@ import { sql } from "kysely";
 
 import { getDatabase } from "../index.mjs";
 
-const REGION_COLUMNS = ["id", "code", "name", "parent_id", "level", "path", "sort_order", "is_active", "deleted_at", "created_at", "updated_at"];
-const MUTABLE_REGION_FIELDS = new Set(["code", "name", "parent_id", "level", "path", "sort_order", "is_active", "deleted_at"]);
+const REGION_COLUMNS = ["id", "code", "name", "parent_id", "level", "path", "sort_order", "is_active", "deleted_at", "deleted_by_user_id", "delete_reason", "created_at", "updated_at"];
+const MUTABLE_REGION_FIELDS = new Set(["code", "name", "parent_id", "level", "path", "sort_order", "is_active"]);
 
 function normalizeBoolean(value) {
   if (value === null || value === undefined) {
@@ -76,7 +76,9 @@ export function createRegionRepository(executor = getDatabase()) {
         path: input.path,
         sort_order: input.sort_order ?? 0,
         is_active: input.is_active ?? true,
-        deleted_at: input.deleted_at ?? null,
+        deleted_at: null,
+        deleted_by_user_id: null,
+        delete_reason: null,
       }).execute();
 
       return this.getRegionById(input.id, { includeDeleted: true });
@@ -173,7 +175,39 @@ export function createRegionRepository(executor = getDatabase()) {
         return this.getRegionById(id, { includeDeleted: true });
       }
 
-      await executor.updateTable("regions").set(values).where("id", "=", id).execute();
+      await executor.updateTable("regions").set(values).where("id", "=", id).where("deleted_at", "is", null).execute();
+      return this.getRegionById(id, { includeDeleted: true });
+    },
+
+    async softDeleteRegion(id, options = {}) {
+      await executor
+        .updateTable("regions")
+        .set({
+          deleted_at: options.deleted_at ?? sql`CURRENT_TIMESTAMP`,
+          deleted_by_user_id: options.deleted_by_user_id ?? null,
+          delete_reason: options.delete_reason ?? null,
+          updated_at: sql`CURRENT_TIMESTAMP`,
+        })
+        .where("id", "=", id)
+        .where("deleted_at", "is", null)
+        .execute();
+
+      return this.getRegionById(id, { includeDeleted: true });
+    },
+
+    async restoreRegion(id) {
+      await executor
+        .updateTable("regions")
+        .set({
+          deleted_at: null,
+          deleted_by_user_id: null,
+          delete_reason: null,
+          updated_at: sql`CURRENT_TIMESTAMP`,
+        })
+        .where("id", "=", id)
+        .where("deleted_at", "is not", null)
+        .execute();
+
       return this.getRegionById(id, { includeDeleted: true });
     },
   };

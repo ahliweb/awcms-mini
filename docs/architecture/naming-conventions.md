@@ -244,6 +244,8 @@ Rules:
 - prefer `deleted_at` over `is_deleted`
 - prefer nullable timestamps over parallel boolean-plus-timestamp pairs
 - repositories should use `includeDeleted` for explicit read paths that need deleted rows
+- operator-managed mutable catalogs should add `deleted_by_user_id` and `delete_reason` when admins need deletion attribution or later restoration context
+- restore paths should clear `deleted_at`, `deleted_by_user_id`, and `delete_reason` together so restored rows return to the normal active-state contract
 
 ## Service Naming
 

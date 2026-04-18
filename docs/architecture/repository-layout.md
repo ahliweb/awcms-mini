@@ -182,6 +182,7 @@ src/services/
   - coordinate repositories
   - enforce transaction boundaries
   - expose reusable domain operations to auth handlers and plugins
+  - own explicit soft-delete and restore workflows when lifecycle rules need audit or operator attribution
 - Must not contain:
   - direct UI rendering logic
   - ad hoc route-level authorization duplication

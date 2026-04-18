@@ -230,6 +230,10 @@ test("role repository supports create/get/list/update/delete flows", async () =>
 
   const hidden = await repo.getRoleById("role_1");
   assert.equal(hidden, undefined);
+
+  const restored = await repo.restoreRole("role_1");
+  assert.equal(restored.deleted_at, null);
+  assert.equal(restored.delete_reason, null);
 });
 
 test("permission repository supports create/get/list/update flows", async () => {

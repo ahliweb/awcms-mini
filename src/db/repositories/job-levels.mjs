@@ -2,8 +2,8 @@ import { sql } from "kysely";
 
 import { getDatabase } from "../index.mjs";
 
-const JOB_LEVEL_COLUMNS = ["id", "code", "name", "rank_order", "description", "is_system", "deleted_at", "created_at", "updated_at"];
-const MUTABLE_JOB_LEVEL_FIELDS = new Set(["code", "name", "rank_order", "description", "is_system", "deleted_at"]);
+const JOB_LEVEL_COLUMNS = ["id", "code", "name", "rank_order", "description", "is_system", "deleted_at", "deleted_by_user_id", "delete_reason", "created_at", "updated_at"];
+const MUTABLE_JOB_LEVEL_FIELDS = new Set(["code", "name", "rank_order", "description", "is_system"]);
 
 function normalizeBoolean(value) {
   if (value === null || value === undefined) {
@@ -63,7 +63,9 @@ export function createJobLevelRepository(executor = getDatabase()) {
         rank_order: input.rank_order,
         description: input.description ?? null,
         is_system: input.is_system ?? false,
-        deleted_at: input.deleted_at ?? null,
+        deleted_at: null,
+        deleted_by_user_id: null,
+        delete_reason: null,
       }).execute();
 
       return this.getJobLevelById(input.id, { includeDeleted: true });
@@ -102,7 +104,39 @@ export function createJobLevelRepository(executor = getDatabase()) {
         return this.getJobLevelById(id, { includeDeleted: true });
       }
 
-      await executor.updateTable("job_levels").set(values).where("id", "=", id).execute();
+      await executor.updateTable("job_levels").set(values).where("id", "=", id).where("deleted_at", "is", null).execute();
+      return this.getJobLevelById(id, { includeDeleted: true });
+    },
+
+    async softDeleteJobLevel(id, options = {}) {
+      await executor
+        .updateTable("job_levels")
+        .set({
+          deleted_at: options.deleted_at ?? sql`CURRENT_TIMESTAMP`,
+          deleted_by_user_id: options.deleted_by_user_id ?? null,
+          delete_reason: options.delete_reason ?? null,
+          updated_at: sql`CURRENT_TIMESTAMP`,
+        })
+        .where("id", "=", id)
+        .where("deleted_at", "is", null)
+        .execute();
+
+      return this.getJobLevelById(id, { includeDeleted: true });
+    },
+
+    async restoreJobLevel(id) {
+      await executor
+        .updateTable("job_levels")
+        .set({
+          deleted_at: null,
+          deleted_by_user_id: null,
+          delete_reason: null,
+          updated_at: sql`CURRENT_TIMESTAMP`,
+        })
+        .where("id", "=", id)
+        .where("deleted_at", "is not", null)
+        .execute();
+
       return this.getJobLevelById(id, { includeDeleted: true });
     },
   };

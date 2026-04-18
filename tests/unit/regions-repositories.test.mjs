@@ -24,6 +24,8 @@ class FakeRegionsExecutor {
               created_at: item.created_at ?? "2026-01-01T00:00:00.000Z",
               updated_at: item.updated_at ?? "2026-01-01T00:00:00.000Z",
               deleted_at: item.deleted_at ?? null,
+              deleted_by_user_id: item.deleted_by_user_id ?? null,
+              delete_reason: item.delete_reason ?? null,
               ends_at: item.ends_at ?? null,
               sort_order: item.sort_order ?? 0,
               is_active: item.is_active ?? true,
@@ -172,8 +174,8 @@ test("region repository supports create/get/list/lineage/subtree/update flows", 
     parent_id: "region_root",
     level: 2,
     path: "region_root/region_archived",
-    deleted_at: "2026-01-15T00:00:00.000Z",
   });
+  await repo.softDeleteRegion("region_archived", { deleted_at: "2026-01-15T00:00:00.000Z" });
 
   const byCode = await repo.getRegionByCode("north");
   assert.equal(byCode.id, "region_north");
@@ -199,6 +201,17 @@ test("region repository supports create/get/list/lineage/subtree/update flows", 
 
   const includedArchived = await repo.listRegions({ includeDeleted: true });
   assert.equal(includedArchived.some((entry) => entry.id === "region_archived"), true);
+
+  const deleted = await repo.softDeleteRegion("region_north", { deleted_by_user_id: "user_admin", delete_reason: "merge" });
+  assert.equal(deleted.deleted_by_user_id, "user_admin");
+  assert.equal(deleted.delete_reason, "merge");
+
+  const hidden = await repo.getRegionById("region_north");
+  assert.equal(hidden, undefined);
+
+  const restored = await repo.restoreRegion("region_north");
+  assert.equal(restored.deleted_at, null);
+  assert.equal(restored.delete_reason, null);
 });
 
 test("user region assignment repository supports history and active-primary queries", async () => {

@@ -32,7 +32,7 @@ It is based on:
 
 - The architecture constraints already require soft delete for mutable identity and governance entities.
 - Migrations and repositories already use `deleted_at` across key entities such as users, roles, permissions, job levels, job titles, and regions.
-- Soft delete is not yet documented or enforced as a complete cross-cutting lifecycle standard for all mutable entities and admin flows.
+- Soft delete now has explicit restore/delete lifecycle primitives across the current mutable governance catalogs, but follow-on admin UX work may still be needed where routes exist before full screen affordances do.
 
 ### Current Deployment Gap
 

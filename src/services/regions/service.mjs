@@ -269,6 +269,83 @@ export function createRegionService(options = {}) {
         return updatedSubtree;
       });
     },
+
+    async softDeleteRegion(input) {
+      return withTransaction(database, async (trx) => {
+        const deps = createRegionServiceDependencies(trx);
+        const regionId = normalizeString(input.region_id);
+
+        if (!regionId) {
+          throw new RegionHierarchyError("REGION_NOT_FOUND", "Region id is required.");
+        }
+
+        const region = await getActiveRegionOrThrow(deps, regionId, "REGION_NOT_FOUND", "Region is not available.");
+        const activeChildren = await deps.regions.listRegionChildren(region.id, { includeDeleted: false });
+
+        if (activeChildren.length > 0) {
+          throw new RegionHierarchyError("REGION_HAS_ACTIVE_CHILDREN", "Region must not have active child regions before soft delete.");
+        }
+
+        const deleted = await deps.regions.softDeleteRegion(region.id, {
+          deleted_at: input.deleted_at,
+          deleted_by_user_id: input.deleted_by_user_id,
+          delete_reason: input.delete_reason,
+        });
+
+        await appendRegionAudit(deps, {
+          actor_user_id: input.deleted_by_user_id ?? null,
+          action: "region.soft_delete",
+          entity_id: deleted.id,
+          summary: "Soft deleted logical region.",
+          before_payload: { deleted_at: region.deleted_at ?? null, is_active: region.is_active },
+          after_payload: { deleted_at: deleted.deleted_at ?? null, is_active: deleted.is_active },
+          metadata: { delete_reason: input.delete_reason ?? null },
+        });
+
+        return deleted;
+      });
+    },
+
+    async restoreRegion(input) {
+      return withTransaction(database, async (trx) => {
+        const deps = createRegionServiceDependencies(trx);
+        const regionId = normalizeString(input.region_id);
+
+        if (!regionId) {
+          throw new RegionHierarchyError("REGION_NOT_FOUND", "Region id is required.");
+        }
+
+        const existing = await deps.regions.getRegionById(regionId, { includeDeleted: true });
+
+        if (!existing) {
+          throw new RegionHierarchyError("REGION_NOT_FOUND", "Region is not available.");
+        }
+
+        if (!existing.deleted_at) {
+          return existing;
+        }
+
+        if (existing.parent_id) {
+          const parent = await deps.regions.getRegionById(existing.parent_id, { includeDeleted: true });
+
+          if (!parent || parent.deleted_at) {
+            throw new RegionHierarchyError("PARENT_REGION_NOT_FOUND", "Parent region must be restored before this region can be restored.");
+          }
+        }
+
+        const restored = await deps.regions.restoreRegion(existing.id);
+
+        await appendRegionAudit(deps, {
+          action: "region.restore",
+          entity_id: restored.id,
+          summary: "Restored logical region.",
+          before_payload: { deleted_at: existing.deleted_at ?? null, is_active: existing.is_active },
+          after_payload: { deleted_at: restored.deleted_at ?? null, is_active: restored.is_active },
+        });
+
+        return restored;
+      });
+    },
   };
 }
 

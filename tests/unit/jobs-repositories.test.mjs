@@ -25,6 +25,8 @@ class FakeJobsExecutor {
               created_at: item.created_at ?? "2026-01-01T00:00:00.000Z",
               updated_at: item.updated_at ?? "2026-01-01T00:00:00.000Z",
               deleted_at: item.deleted_at ?? null,
+              deleted_by_user_id: item.deleted_by_user_id ?? null,
+              delete_reason: item.delete_reason ?? null,
               ends_at: item.ends_at ?? null,
               is_system: item.is_system ?? false,
               is_active: item.is_active ?? true,
@@ -156,6 +158,17 @@ test("job level repository supports create/get/list/update flows", async () => {
 
   const listed = await repo.listJobLevels({ is_system: true });
   assert.equal(listed.length, 1);
+
+  const deleted = await repo.softDeleteJobLevel("level_1", { deleted_by_user_id: "user_admin", delete_reason: "cleanup" });
+  assert.equal(deleted.deleted_by_user_id, "user_admin");
+  assert.equal(deleted.delete_reason, "cleanup");
+
+  const hidden = await repo.getJobLevelById("level_1");
+  assert.equal(hidden, undefined);
+
+  const restored = await repo.restoreJobLevel("level_1");
+  assert.equal(restored.deleted_at, null);
+  assert.equal(restored.delete_reason, null);
 });
 
 test("job title repository supports create/get/list/update flows", async () => {
@@ -173,6 +186,17 @@ test("job title repository supports create/get/list/update flows", async () => {
 
   const listed = await repo.listJobTitles({ job_level_id: "level_1" });
   assert.equal(listed.length, 1);
+
+  const deleted = await repo.softDeleteJobTitle("title_1", { deleted_by_user_id: "user_admin", delete_reason: "retired" });
+  assert.equal(deleted.deleted_by_user_id, "user_admin");
+  assert.equal(deleted.delete_reason, "retired");
+
+  const hidden = await repo.getJobTitleById("title_1");
+  assert.equal(hidden, undefined);
+
+  const restored = await repo.restoreJobTitle("title_1");
+  assert.equal(restored.deleted_at, null);
+  assert.equal(restored.delete_reason, null);
 });
 
 test("user job repository supports assignment history and active queries", async () => {

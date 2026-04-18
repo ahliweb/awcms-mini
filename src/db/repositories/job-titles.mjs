@@ -2,8 +2,8 @@ import { sql } from "kysely";
 
 import { getDatabase } from "../index.mjs";
 
-const JOB_TITLE_COLUMNS = ["id", "job_level_id", "code", "name", "description", "is_active", "deleted_at", "created_at", "updated_at"];
-const MUTABLE_JOB_TITLE_FIELDS = new Set(["job_level_id", "code", "name", "description", "is_active", "deleted_at"]);
+const JOB_TITLE_COLUMNS = ["id", "job_level_id", "code", "name", "description", "is_active", "deleted_at", "deleted_by_user_id", "delete_reason", "created_at", "updated_at"];
+const MUTABLE_JOB_TITLE_FIELDS = new Set(["job_level_id", "code", "name", "description", "is_active"]);
 
 function normalizeBoolean(value) {
   if (value === null || value === undefined) {
@@ -63,7 +63,9 @@ export function createJobTitleRepository(executor = getDatabase()) {
         name: input.name,
         description: input.description ?? null,
         is_active: input.is_active ?? true,
-        deleted_at: input.deleted_at ?? null,
+        deleted_at: null,
+        deleted_by_user_id: null,
+        delete_reason: null,
       }).execute();
 
       return this.getJobTitleById(input.id, { includeDeleted: true });
@@ -106,7 +108,39 @@ export function createJobTitleRepository(executor = getDatabase()) {
         return this.getJobTitleById(id, { includeDeleted: true });
       }
 
-      await executor.updateTable("job_titles").set(values).where("id", "=", id).execute();
+      await executor.updateTable("job_titles").set(values).where("id", "=", id).where("deleted_at", "is", null).execute();
+      return this.getJobTitleById(id, { includeDeleted: true });
+    },
+
+    async softDeleteJobTitle(id, options = {}) {
+      await executor
+        .updateTable("job_titles")
+        .set({
+          deleted_at: options.deleted_at ?? sql`CURRENT_TIMESTAMP`,
+          deleted_by_user_id: options.deleted_by_user_id ?? null,
+          delete_reason: options.delete_reason ?? null,
+          updated_at: sql`CURRENT_TIMESTAMP`,
+        })
+        .where("id", "=", id)
+        .where("deleted_at", "is", null)
+        .execute();
+
+      return this.getJobTitleById(id, { includeDeleted: true });
+    },
+
+    async restoreJobTitle(id) {
+      await executor
+        .updateTable("job_titles")
+        .set({
+          deleted_at: null,
+          deleted_by_user_id: null,
+          delete_reason: null,
+          updated_at: sql`CURRENT_TIMESTAMP`,
+        })
+        .where("id", "=", id)
+        .where("deleted_at", "is not", null)
+        .execute();
+
       return this.getJobTitleById(id, { includeDeleted: true });
     },
   };

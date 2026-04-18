@@ -1210,6 +1210,80 @@ async function updateRegionHandler(ctx) {
   });
 }
 
+async function softDeleteRegionHandler(ctx) {
+  let body;
+
+  try {
+    body = await ctx.request.json();
+  } catch {
+    throw PluginRouteError.badRequest("Expected JSON body");
+  }
+
+  const regionId = typeof body?.regionId === "string" ? body.regionId.trim() : "";
+
+  if (!regionId) {
+    throw PluginRouteError.badRequest("Region id is required");
+  }
+
+  const { actor } = await requireAdminAuthorization(ctx, {
+    permissionCode: "governance.regions.read",
+    action: "update",
+    resource: {
+      kind: "region",
+      region_id: regionId,
+    },
+  });
+
+  const regions = userAdminRegionServiceFactory(userAdminDatabaseGetter());
+  await regions.softDeleteRegion({
+    region_id: regionId,
+    deleted_by_user_id: actor.id,
+    delete_reason: typeof body?.deleteReason === "string" ? body.deleteReason.trim() : null,
+  });
+
+  return listRegionsHandler({
+    ...ctx,
+    request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/regions/list?includeDeleted=true", {
+      headers: ctx.request.headers,
+    }),
+  });
+}
+
+async function restoreRegionHandler(ctx) {
+  let body;
+
+  try {
+    body = await ctx.request.json();
+  } catch {
+    throw PluginRouteError.badRequest("Expected JSON body");
+  }
+
+  const regionId = typeof body?.regionId === "string" ? body.regionId.trim() : "";
+
+  if (!regionId) {
+    throw PluginRouteError.badRequest("Region id is required");
+  }
+
+  await requireAdminAuthorization(ctx, {
+    permissionCode: "governance.regions.read",
+    action: "update",
+    resource: {
+      kind: "region",
+      region_id: regionId,
+    },
+  });
+
+  const regions = userAdminRegionServiceFactory(userAdminDatabaseGetter());
+  await regions.restoreRegion({ region_id: regionId });
+
+  return listRegionsHandler({
+    ...ctx,
+    request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/regions/list?includeDeleted=true", {
+      headers: ctx.request.headers,
+    }),
+  });
+}
+
 async function reparentRegionHandler(ctx) {
   let body;
 
@@ -1948,7 +2022,7 @@ async function updateLifecycleHandler(ctx, action) {
   const target = normalizeAuthorizationUserRow(targetRow);
   const permissionCode = action === "revoke-sessions" ? "security.sessions.revoke" : "admin.users.disable";
 
-  await requireAdminAuthorization(ctx, {
+  const { actor } = await requireAdminAuthorization(ctx, {
     permissionCode,
     action: action === "revoke-sessions" ? "revoke" : "update",
     resource: {
@@ -1965,6 +2039,15 @@ async function updateLifecycleHandler(ctx, action) {
     await users.disableUser(userId);
   } else if (action === "lock") {
     await users.lockUser(userId);
+  } else if (action === "soft-delete") {
+    await users.softDeleteUser(userId, {
+      deleted_by_user_id: actor.id,
+      delete_reason: typeof body?.deleteReason === "string" ? body.deleteReason.trim() : null,
+    });
+  } else if (action === "restore") {
+    await users.restoreUser(userId, {
+      status: typeof body?.status === "string" && body.status.trim() ? body.status.trim() : undefined,
+    });
   } else if (action === "revoke-sessions") {
     await users.revokeUserSessions(userId);
   } else {
@@ -2052,6 +2135,12 @@ export function createPlugin() {
       "regions/update": {
         handler: updateRegionHandler,
       },
+      "regions/soft-delete": {
+        handler: softDeleteRegionHandler,
+      },
+      "regions/restore": {
+        handler: restoreRegionHandler,
+      },
       "regions/reparent": {
         handler: reparentRegionHandler,
       },
@@ -2106,6 +2195,12 @@ export function createPlugin() {
       },
       "users/lock": {
         handler: (ctx) => updateLifecycleHandler(ctx, "lock"),
+      },
+      "users/soft-delete": {
+        handler: (ctx) => updateLifecycleHandler(ctx, "soft-delete"),
+      },
+      "users/restore": {
+        handler: (ctx) => updateLifecycleHandler(ctx, "restore"),
       },
       "users/revoke-sessions": {
         handler: (ctx) => updateLifecycleHandler(ctx, "revoke-sessions"),
