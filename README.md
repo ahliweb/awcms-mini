@@ -55,6 +55,7 @@ Required production baseline:
 - `DATABASE_URL`
 - `MINI_RUNTIME_TARGET=cloudflare`
 - `SITE_URL`
+- optional `ADMIN_SITE_URL` for a dedicated admin hostname that still points to the same EmDash admin surface
 - `MINI_TOTP_ENCRYPTION_KEY`
 - `TRUSTED_PROXY_MODE=cloudflare` for the supported Cloudflare-hosted path
 
@@ -115,6 +116,12 @@ pnpm healthcheck
 ```
 
 The EmDash-hosted admin surface runs under `/_emdash/admin`.
+
+Split-hostname note:
+
+- `SITE_URL` remains the canonical public hostname
+- `ADMIN_SITE_URL`, when configured, acts only as a dedicated entry host for the same `/_emdash/admin` surface
+- the current runtime redirects the admin hostname root to `/_emdash/admin` and does not introduce a second admin shell
 
 Cloudflare-hosted deployment baseline:
 

@@ -46,6 +46,7 @@ Mini owns the security-hardening layer:
 - Edge API refresh tokens are opaque random values, hashed at rest in PostgreSQL, rotated on use, and revoked when the backing session is revoked.
 - Password-based token issuance does not bypass current account-state or enrolled-2FA checks.
 - Admin and plugin APIs remain isolated under `/_emdash/api/*` and should not be treated as external-client APIs.
+- If a dedicated admin hostname is configured, it should remain only an entry host for the same EmDash admin surface under `/_emdash/admin`.
 
 ## Deployment Expectations
 
@@ -61,12 +62,14 @@ Security operations should treat those as separate trust boundaries.
 ## Edge And Origin Guidance
 
 - The supported baseline production path is a Cloudflare-hosted runtime serving the public hostname directly.
+- If `ADMIN_SITE_URL` is configured, treat it as a second trusted browser hostname for operator entry only, not as a second app origin with separate auth rules.
 - In the supported Cloudflare-hosted path, trust `CF-Connecting-IP` and configure `TRUSTED_PROXY_MODE=cloudflare`.
 - Do not treat arbitrary `X-Forwarded-For` values as authoritative unless a deployment explicitly opts into a different trusted proxy mode.
 - Add Cloudflare rate limiting or managed challenge rules for login and other abuse-prone auth endpoints.
 - Store `TURNSTILE_SECRET_KEY` as a Cloudflare-managed secret or equivalent server-only runtime secret.
 - Store `EDGE_API_JWT_SECRET` as a Cloudflare-managed secret or equivalent server-only runtime secret.
 - Keep `EDGE_API_ALLOWED_ORIGINS` empty unless a reviewed browser-based external client explicitly needs cross-origin access.
+- Prefer host-only cookies unless a reviewed operator workflow requires public/admin cross-host session sharing.
 
 See `docs/process/cloudflare-hosted-runtime.md` for the supported Cloudflare runtime and deployment checks.
 

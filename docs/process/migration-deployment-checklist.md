@@ -46,6 +46,7 @@ Complete these checks before applying migrations or releasing a new build.
 ### Edge And Origin Readiness
 
 - [ ] Cloudflare DNS for the public hostname is configured for the Cloudflare-hosted application path
+- [ ] If a dedicated admin hostname is used, Cloudflare DNS/custom-domain config points it at the same Worker deployment
 - [ ] `wrangler.jsonc` or equivalent deployment config matches the intended Worker name, assets, and bindings
 - [ ] `TRUSTED_PROXY_MODE=cloudflare` is configured for the supported production path
 - [ ] The adapter's default `SESSION` binding or an explicit equivalent binding is available for the target environment
@@ -145,6 +146,7 @@ Use these focused checks when the release touches governance or security surface
 - [ ] User detail tabs load: `Overview`, `Roles`, `Jobs`, `Logical Regions`, `Administrative Regions`, `Sessions`, `Security`
 - [ ] Protected action confirmations still appear for high-risk user-detail actions
 - [ ] Admin routes load correctly through the Cloudflare public hostname
+- [ ] If `ADMIN_SITE_URL` is configured, the admin hostname root redirects to `/_emdash/admin` and the admin surface still loads correctly there
 
 ### Security Settings
 

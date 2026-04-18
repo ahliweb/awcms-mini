@@ -8,6 +8,7 @@ export const DEFAULT_EDGE_API_JWT_AUDIENCE = "awcms-mini-edge-api";
 export const DEFAULT_EDGE_API_JWT_ISSUER = "urn:awcms-mini:edge-api";
 export const DEFAULT_EDGE_API_ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 export const DEFAULT_EDGE_API_REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30;
+export const DEFAULT_ADMIN_ENTRY_PATH = "/_emdash/admin";
 
 function normalizeSiteUrl(value) {
   if (typeof value !== "string") {
@@ -85,8 +86,19 @@ function normalizeEdgeApiJwtIssuer(value, siteUrl) {
   }
 }
 
+function normalizePathname(value, fallback) {
+  const next = normalizeOptionalString(value);
+
+  if (!next) {
+    return fallback;
+  }
+
+  return next.startsWith("/") ? next : fallback;
+}
+
 export function getRuntimeConfig() {
   const siteUrl = normalizeSiteUrl(process.env.SITE_URL);
+  const adminSiteUrl = normalizeSiteUrl(process.env.ADMIN_SITE_URL);
   const appSecret = normalizeOptionalString(process.env.APP_SECRET);
   const turnstileSecretKey = normalizeOptionalString(process.env.TURNSTILE_SECRET_KEY);
   const turnstileSiteKey = normalizeOptionalString(process.env.TURNSTILE_SITE_KEY);
@@ -96,6 +108,7 @@ export function getRuntimeConfig() {
     databaseUrl: process.env.DATABASE_URL || DEFAULT_DATABASE_URL,
     runtimeTarget: normalizeRuntimeTarget(process.env.MINI_RUNTIME_TARGET),
     siteUrl,
+    adminSiteUrl,
     appSecret,
     miniTotpEncryptionKey: process.env.MINI_TOTP_ENCRYPTION_KEY || null,
     trustedProxyMode: process.env.TRUSTED_PROXY_MODE || DEFAULT_TRUSTED_PROXY_MODE,
@@ -128,6 +141,10 @@ export function getRuntimeConfig() {
           DEFAULT_EDGE_API_REFRESH_TOKEN_TTL_SECONDS,
         ),
       },
+    },
+    adminHostRouting: {
+      enabled: Boolean(siteUrl && adminSiteUrl),
+      adminEntryPath: normalizePathname(process.env.ADMIN_ENTRY_PATH, DEFAULT_ADMIN_ENTRY_PATH),
     },
   };
 }

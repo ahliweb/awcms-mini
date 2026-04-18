@@ -17,6 +17,7 @@ The supported baseline production path is:
 
 - `MINI_RUNTIME_TARGET=cloudflare`
 - `SITE_URL` matches the browser-facing Cloudflare hostname
+- optional `ADMIN_SITE_URL` matches the dedicated Cloudflare admin hostname when split public/admin hostnames are used
 - `TRUSTED_PROXY_MODE=cloudflare`
 - `DATABASE_URL` points to the intended remote PostgreSQL instance
 - `wrangler.jsonc` or equivalent deployment config defines the Worker, assets, observability, and required bindings
@@ -31,6 +32,7 @@ The supported baseline production path is:
 - Keep Worker compatibility flags aligned with the runtime needs of the current codebase
 - Keep observability enabled for production deployment
 - Ensure the adapter's default `SESSION` KV binding or an explicit equivalent binding is available
+- If split hostnames are used, keep the admin hostname pointed at the same Worker deployment and treat it as an entry host for `/_emdash/admin`
 - Add edge protections such as rate limiting, managed challenge, or Turnstile on abuse-prone routes as those features land
 - The current Turnstile-covered public flows are login, password-reset request, and invite activation when the Turnstile secret is configured
 - Keep Turnstile hostname expectations aligned with `SITE_URL` or an explicit `TURNSTILE_EXPECTED_HOSTNAME`
@@ -54,13 +56,14 @@ Before deployment:
 - Confirm `wrangler.jsonc` matches the intended Worker name and bindings
 - Confirm `MINI_RUNTIME_TARGET=cloudflare` in the deployment environment
 - Confirm `SITE_URL`, `TRUSTED_PROXY_MODE`, and security secrets are set correctly
+- Confirm `ADMIN_SITE_URL` and any non-default `ADMIN_ENTRY_PATH` are set correctly when a separate admin hostname is used
 - Confirm `EDGE_API_JWT_SECRET` and any non-default `EDGE_API_JWT_*` settings are set correctly when `/api/v1/token` is enabled
 - Confirm `DATABASE_URL` or approved database transport configuration points to the intended PostgreSQL target
 
 After deployment:
 
 - Confirm the public hostname responds through the Cloudflare-hosted runtime
-- Confirm admin routes load through the public hostname
+- Confirm admin routes load through the public hostname or, when configured, the dedicated admin hostname
 - Confirm auth logging and lockout behavior reflect the expected Cloudflare client IP source
 - Confirm the app can reach PostgreSQL and complete health or smoke tests for the selected environment
 

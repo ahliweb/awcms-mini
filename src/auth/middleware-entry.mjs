@@ -9,9 +9,15 @@ import { handleAuthTwoFactorChallengeVerify } from "./handlers/two-factor-challe
 import { handleAuthTwoFactorEnroll, handleAuthTwoFactorVerify } from "./handlers/two-factor-enroll.mjs";
 import { handleAuthTwoFactorStepUpVerify } from "./handlers/two-factor-step-up.mjs";
 import { createSessionService } from "../services/sessions/service.mjs";
+import { redirectAdminHostEntry } from "./admin-host-routing.mjs";
 
 async function handleMiniAuthRequest(context, next) {
   const database = getDatabase();
+  const hostRedirect = redirectAdminHostEntry(context.url);
+
+  if (hostRedirect) {
+    return hostRedirect;
+  }
 
   if (context.url.pathname === "/_emdash/api/auth/login" && context.request.method === "POST") {
     return handleAuthLogin({

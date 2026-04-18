@@ -43,6 +43,20 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Format: absolute URL such as `https://cms.example.com`.
 - Rule: deployments behind Cloudflare and Coolify should treat public-origin correctness as a first-class runtime concern.
 
+### `ADMIN_SITE_URL`
+
+- Purpose: optional dedicated admin hostname that still resolves to the same EmDash admin surface.
+- Scope: server/runtime configuration.
+- Format: absolute URL such as `https://cms-admin.example.com`.
+- Current behavior: when `SITE_URL` and `ADMIN_SITE_URL` are both configured, requests to the admin hostname root redirect to the configured admin entry path instead of introducing a second admin shell.
+
+### `ADMIN_ENTRY_PATH`
+
+- Purpose: pathname used as the admin-host entry redirect target.
+- Scope: server/runtime configuration.
+- Default fallback: `/_emdash/admin`.
+- Rule: this should remain an EmDash admin path, not a second standalone admin application.
+
 ### `TRUSTED_PROXY_MODE`
 
 - Purpose: define which proxy path is trusted for client IP extraction.
@@ -140,6 +154,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Astro integration wiring: `astro.config.mjs`
 - local environment example: `.env.example`
 - Cloudflare deployment configuration: `wrangler.jsonc`
+- host-aware admin entry middleware: `src/auth/middleware-entry.mjs`
 - TOTP encryption key resolution: `src/services/security/two-factor.mjs`
 - Turnstile validation helper: `src/security/turnstile.mjs`
 - R2 storage helper: `src/services/storage/r2.mjs`
@@ -156,6 +171,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - document security-sensitive secrets explicitly when code depends on them
 - prefer a dedicated `MINI_TOTP_ENCRYPTION_KEY` over the `APP_SECRET` fallback for TOTP secret encryption
 - document public-origin and trusted-proxy assumptions explicitly for Cloudflare-fronted deployments
+- if `ADMIN_SITE_URL` is configured, treat it as an entry hostname for the same EmDash admin surface rather than a second admin runtime
 - for remote PostgreSQL deployments, prefer TLS-enabled connections and host-level access restriction
 - store Turnstile secrets in Cloudflare-managed secrets or equivalent server-only runtime configuration
 - store `EDGE_API_JWT_SECRET` in Cloudflare-managed secrets or equivalent server-only runtime configuration
@@ -173,6 +189,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Coolify should be treated as the operational control plane for the PostgreSQL VPS, not as the primary app hosting path.
 - `MINI_RUNTIME_TARGET=cloudflare` is the supported production setting.
 - `SITE_URL` must match the hostname users reach through Cloudflare.
+- `ADMIN_SITE_URL`, when configured, should be the Cloudflare-managed admin hostname that redirects into the same `/_emdash/admin` surface.
 - Client IP extraction should trust `CF-Connecting-IP`, not raw `X-Forwarded-For`, for the supported Cloudflare-hosted path.
 - `wrangler.jsonc` should define the Worker, static assets, observability, and any explicit Cloudflare bindings needed for deployment.
 - Astro's Cloudflare adapter uses the default `SESSION` KV binding for sessions unless operators override it deliberately.
@@ -199,6 +216,8 @@ For the intended production topology, configure at least:
 - `DATABASE_URL`
 - `MINI_RUNTIME_TARGET=cloudflare`
 - `SITE_URL`
+- optional `ADMIN_SITE_URL`
+- optional `ADMIN_ENTRY_PATH`
 - `MINI_TOTP_ENCRYPTION_KEY`
 - `TRUSTED_PROXY_MODE=cloudflare`
 
