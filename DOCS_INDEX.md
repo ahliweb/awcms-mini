@@ -51,6 +51,8 @@ This file maps the current documentation set for AWCMS Mini.
 - `docs/process/cloudflare-coolify-origin-hardening.md`
 - `docs/process/cloudflare-hosted-runtime.md`
 - `docs/process/cloudflare-platform-expansion-plan-2026.md`
+- `docs/process/cloudflare-edge-jwt-permissions-ai-plan-2026.md`
+- `docs/process/ai-workflow-planning-templates.md`
 - `docs/process/postgresql-vps-hardening.md`
 - `docs/process/emdash-alignment-and-security-plan-2026.md`
 

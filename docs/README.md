@@ -23,6 +23,8 @@ Current planning reference:
 
 - `process/emdash-alignment-and-security-plan-2026.md` - EmDash alignment and security recommendations backlog source
 - `process/cloudflare-platform-expansion-plan-2026.md` - next-stage Cloudflare platform and feature expansion recommendations
+- `process/cloudflare-edge-jwt-permissions-ai-plan-2026.md` - next-stage JWT edge auth, permission matrix, and AI workflow planning recommendations
+- `process/ai-workflow-planning-templates.md` - reusable AI workflow templates for docs, planning, implementation, and review tasks
 
 ## Accuracy Rule
 
