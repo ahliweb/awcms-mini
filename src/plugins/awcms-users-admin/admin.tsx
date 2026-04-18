@@ -1322,8 +1322,6 @@ function useUserDetail() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-session-strength": "step_up",
-            "x-step-up-authenticated": "true",
           },
           body: JSON.stringify({ userId: input.userId, reason: input.reason }),
         });

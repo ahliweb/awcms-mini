@@ -67,7 +67,8 @@ export function createAuthorizedPluginRoute(options) {
   return {
     async handler(ctx) {
       const db = options.getDatabase();
-      const actor = await options.resolveActor(db, ctx.request);
+      const actor = await options.resolveActor(db, ctx);
+      const identitySession = await ctx.session?.get?.("identitySession");
       const resource = await resolveRouteResource(guard.resource, {
         ctx,
         db,
@@ -79,7 +80,7 @@ export function createAuthorizedPluginRoute(options) {
         permissionCode: guard.permissionCode,
         action: guard.action,
         resource,
-        sessionId: ctx.request.headers.get("x-session-id")?.trim() ?? null,
+        sessionId: identitySession?.id ?? null,
       });
 
       if (!result.allowed) {

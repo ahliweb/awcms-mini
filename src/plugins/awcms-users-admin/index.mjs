@@ -21,6 +21,7 @@ import { createRegionAssignmentService } from "../../services/regions/assignment
 import { createRegionService } from "../../services/regions/service.mjs";
 import { createSessionService } from "../../services/sessions/service.mjs";
 import { createUserService } from "../../services/users/service.mjs";
+import { requireFreshTwoFactor } from "../../auth/step-up.mjs";
 import { getSecurityPolicy, updateSecurityPolicy } from "../../security/policy.mjs";
 import { collectRegisteredPluginPermissions } from "../permission-registration.mjs";
 import { createPluginAuditHelper } from "../audit-helper.mjs";
@@ -446,8 +447,22 @@ async function loadPermissionMatrixSnapshot(db) {
   };
 }
 
-async function resolveAdminActor(db, request) {
-  const actorUserId = request.headers.get("x-actor-user-id")?.trim() ?? "";
+async function getAdminSessionContext(ctx) {
+  const sessionUser = await ctx.session?.get?.("user");
+  const identitySession = await ctx.session?.get?.("identitySession");
+
+  if (!sessionUser?.id || !identitySession?.id) {
+    throw PluginRouteError.unauthorized("Missing admin session context.");
+  }
+
+  return {
+    actorUserId: sessionUser.id,
+    identitySession,
+  };
+}
+
+async function resolveAdminActor(db, ctx) {
+  const { actorUserId } = await getAdminSessionContext(ctx);
 
   if (!actorUserId) {
     throw PluginRouteError.unauthorized("Missing admin actor context.");
@@ -464,7 +479,8 @@ async function resolveAdminActor(db, request) {
 
 async function requireAdminAuthorization(ctx, options) {
   const db = userAdminDatabaseGetter();
-  const actor = await resolveAdminActor(db, ctx.request);
+  const { identitySession } = await getAdminSessionContext(ctx);
+  const actor = await resolveAdminActor(db, ctx);
   const authorization = userAdminAuthorizationServiceFactory(db);
   const result = await authorization.evaluate({
     subject: {
@@ -478,7 +494,7 @@ async function requireAdminAuthorization(ctx, options) {
     context: {
       permission_code: options.permissionCode,
       action: options.action,
-      session_id: ctx.request.headers.get("x-session-id")?.trim() ?? null,
+      session_id: identitySession.id,
     },
   });
 
@@ -486,7 +502,11 @@ async function requireAdminAuthorization(ctx, options) {
     throw PluginRouteError.forbidden(result.reason?.code ?? "Forbidden");
   }
 
-  return result;
+  return {
+    actor,
+    identitySession,
+    result,
+  };
 }
 
 function createUserAdminProtectedRoute(options) {
@@ -558,7 +578,7 @@ function parseMatrixBody(body) {
 }
 
 async function applyPermissionMatrixHandler(ctx) {
-  await requireAdminAuthorization(ctx, {
+  const { actor } = await requireAdminAuthorization(ctx, {
     permissionCode: "admin.permissions.update",
     action: "update",
     resource: {
@@ -635,10 +655,9 @@ async function applyPermissionMatrixHandler(ctx) {
     throw PluginRouteError.badRequest("Protected permission changes require an elevated confirmation flow.");
   }
 
-  const actorUserId = ctx.request.headers.get("x-actor-user-id")?.trim() ?? null;
   const rbac = userAdminRbacServiceFactory(db);
   const diffs = await rbac.applyPermissionMatrix({
-    actor_user_id: actorUserId,
+    actor_user_id: actor.id,
     rolePermissionIdsByRoleId: Object.fromEntries(snapshot.roles.map((role) => [role.id, nextByRoleId[role.id]])),
   });
 
@@ -1083,9 +1102,17 @@ async function updateSecuritySettingsHandler(ctx) {
     getAuditService: (database) => userAdminAuditServiceFactory(database),
   });
 
+  const { actor } = await requireAdminAuthorization(ctx, {
+    permissionCode: "security.2fa.read",
+    action: "read",
+    resource: {
+      kind: "security_policy",
+    },
+  });
+
   await pluginAudit.append({
     database: db,
-    actorUserId: ctx.request.headers.get("x-actor-user-id")?.trim() ?? null,
+    actorUserId: actor.id,
     request: ctx.request,
     action: "plugin.security.settings.update",
     entityType: "security_policy",
@@ -1381,7 +1408,7 @@ async function assignUserRoleHandler(ctx) {
 
   const target = normalizeAuthorizationUserRow(targetRow);
 
-  await requireAdminAuthorization(ctx, {
+  const { actor } = await requireAdminAuthorization(ctx, {
     permissionCode: "admin.roles.assign",
     action: "assign",
     resource: {
@@ -1392,12 +1419,11 @@ async function assignUserRoleHandler(ctx) {
     },
   });
 
-  const actorUserId = ctx.request.headers.get("x-actor-user-id")?.trim() ?? null;
   const roles = userAdminRoleAssignmentServiceFactory(db);
   await roles.assignRole({
     user_id: userId,
     role_id: roleId,
-    assigned_by_user_id: actorUserId,
+    assigned_by_user_id: actor.id,
     is_primary: body?.isPrimary !== false,
     confirm_protected_role_change: body?.confirmProtectedRoleChange === true,
   });
@@ -1491,7 +1517,7 @@ async function assignUserRegionHandler(ctx) {
 
   const target = normalizeAuthorizationUserRow(targetRow);
 
-  await requireAdminAuthorization(ctx, {
+  const { actor } = await requireAdminAuthorization(ctx, {
     permissionCode: "governance.regions.read",
     action: "assign",
     resource: {
@@ -1502,7 +1528,6 @@ async function assignUserRegionHandler(ctx) {
     },
   });
 
-  const actorUserId = ctx.request.headers.get("x-actor-user-id")?.trim() ?? null;
   const regionAssignments = userAdminRegionAssignmentServiceFactory(db);
   await regionAssignments.assignRegion({
     user_id: userId,
@@ -1510,7 +1535,7 @@ async function assignUserRegionHandler(ctx) {
     assignment_type: assignmentType || "member",
     starts_at: startsAt || undefined,
     is_primary: body?.isPrimary !== false,
-    assigned_by_user_id: actorUserId,
+    assigned_by_user_id: actor.id,
   });
 
   return listUserRegionsHandler({
@@ -1686,7 +1711,7 @@ async function assignUserAdministrativeRegionHandler(ctx) {
 
   const target = normalizeAuthorizationUserRow(targetRow);
 
-  await requireAdminAuthorization(ctx, {
+  const { actor } = await requireAdminAuthorization(ctx, {
     permissionCode: "governance.administrative_regions.assign",
     action: "assign",
     resource: {
@@ -1697,7 +1722,6 @@ async function assignUserAdministrativeRegionHandler(ctx) {
     },
   });
 
-  const actorUserId = ctx.request.headers.get("x-actor-user-id")?.trim() ?? null;
   const administrativeRegionAssignments = userAdminAdministrativeRegionAssignmentServiceFactory(db);
   await administrativeRegionAssignments.assignAdministrativeRegion({
     user_id: userId,
@@ -1705,7 +1729,7 @@ async function assignUserAdministrativeRegionHandler(ctx) {
     assignment_type: assignmentType || "member",
     starts_at: startsAt || undefined,
     is_primary: body?.isPrimary !== false,
-    assigned_by_user_id: actorUserId,
+    assigned_by_user_id: actor.id,
   });
 
   return listUserAdministrativeRegionsHandler({
@@ -1772,7 +1796,7 @@ async function resetUserTwoFactorHandler(ctx) {
 
   const target = normalizeAuthorizationUserRow(targetRow);
 
-  await requireAdminAuthorization(ctx, {
+  const { actor } = await requireAdminAuthorization(ctx, {
     permissionCode: "security.2fa.reset",
     action: "reset",
     resource: {
@@ -1783,18 +1807,16 @@ async function resetUserTwoFactorHandler(ctx) {
     },
   });
 
-  const sessionStrength = ctx.request.headers.get("x-session-strength")?.trim() ?? "none";
-  const stepUpAuthenticated = ctx.request.headers.get("x-step-up-authenticated")?.trim() === "true";
+  const stepUp = await requireFreshTwoFactor({ session: ctx.session });
 
-  if (sessionStrength !== "step_up" || !stepUpAuthenticated) {
+  if (!stepUp.ok) {
     throw PluginRouteError.forbidden("STEP_UP_REQUIRED");
   }
 
-  const actorUserId = ctx.request.headers.get("x-actor-user-id")?.trim() ?? null;
   const service = userAdminAdminTwoFactorServiceFactory(db);
   return service.resetUserTwoFactor({
     user_id: userId,
-    actor_user_id: actorUserId,
+    actor_user_id: actor.id,
     reason: typeof body?.reason === "string" ? body.reason.trim() : null,
   });
 }
@@ -1829,7 +1851,7 @@ async function assignUserJobHandler(ctx) {
 
   const target = normalizeAuthorizationUserRow(targetRow);
 
-  await requireAdminAuthorization(ctx, {
+  const { actor } = await requireAdminAuthorization(ctx, {
     permissionCode: "governance.jobs.assign",
     action: "assign",
     resource: {
@@ -1840,7 +1862,6 @@ async function assignUserJobHandler(ctx) {
     },
   });
 
-  const actorUserId = ctx.request.headers.get("x-actor-user-id")?.trim() ?? null;
   const jobs = userAdminJobsServiceFactory(db);
   await jobs.assignJob({
     user_id: userId,
@@ -1850,7 +1871,7 @@ async function assignUserJobHandler(ctx) {
     employment_status: employmentStatus || "active",
     starts_at: startsAt || undefined,
     is_primary: body?.isPrimary !== false,
-    assigned_by_user_id: actorUserId,
+    assigned_by_user_id: actor.id,
     notes: notes || null,
   });
 

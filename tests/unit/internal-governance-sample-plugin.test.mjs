@@ -17,6 +17,15 @@ import {
   setSampleRegionAwarenessFactory,
 } from "../../src/plugins/internal-governance-sample/index.mjs";
 
+function createSession(values = {}) {
+  const store = new Map(Object.entries(values));
+  return {
+    async get(key) {
+      return store.get(key);
+    },
+  };
+}
+
 test("internal governance sample plugin exercises the governance contract end to end", async () => {
   const plugin = createPlugin();
   const routeAuthorizationCalls = [];
@@ -71,8 +80,8 @@ test("internal governance sample plugin exercises the governance contract end to
 
     const listBody = await plugin.routes["records/list"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/internal-governance-sample/records/list?userId=user_1", {
-        headers: { "x-actor-user-id": "admin_actor", "x-session-id": "session_1" },
       }),
+      session: createSession({ user: { id: "admin_actor" }, identitySession: { id: "session_1" } }),
     });
 
     assert.equal(listBody.items.length, 1);
@@ -83,8 +92,6 @@ test("internal governance sample plugin exercises the governance contract end to
       request: new Request("http://example.test/_emdash/api/plugins/internal-governance-sample/records/flag", {
         method: "POST",
         headers: {
-          "x-actor-user-id": "admin_actor",
-          "x-session-id": "session_2",
           "x-request-id": "req_1",
           "x-forwarded-for": "127.0.0.1, 10.0.0.1",
           "user-agent": "unit-test",
@@ -92,6 +99,7 @@ test("internal governance sample plugin exercises the governance contract end to
         },
         body: JSON.stringify({ userId: "user_1", recordId: "record_1" }),
       }),
+      session: createSession({ user: { id: "admin_actor" }, identitySession: { id: "session_2" } }),
     });
 
     assert.equal(flagBody.item.status, "flagged");

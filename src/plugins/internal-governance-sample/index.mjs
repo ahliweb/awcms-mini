@@ -52,8 +52,9 @@ let sampleRecordServiceFactory = () => ({
 });
 let sampleRegionAwarenessFactory = () => createPluginRegionAwarenessHelper();
 
-function createSampleActor(request) {
-  const actorUserId = request.headers.get("x-actor-user-id")?.trim() ?? "";
+async function createSampleActor(ctx) {
+  const sessionUser = await ctx.session?.get?.("user");
+  const actorUserId = sessionUser?.id ?? "";
 
   if (!actorUserId) {
     throw PluginRouteError.unauthorized("Missing sample actor context.");
@@ -72,7 +73,7 @@ function createSampleProtectedRoute(options) {
     pluginId: SAMPLE_PLUGIN_ID,
     permissions: SAMPLE_PLUGIN_PERMISSIONS,
     getDatabase: () => sampleDatabaseGetter(),
-    resolveActor: async (_db, request) => createSampleActor(request),
+    resolveActor: async (_db, ctx) => createSampleActor(ctx),
     getAuthorizationService: (database) => sampleAuthorizationServiceFactory(database),
     ...options,
   });
@@ -109,7 +110,7 @@ async function flagRecordHandler(ctx) {
   }
 
   const db = ctx.pluginDb ?? sampleDatabaseGetter();
-  const actor = ctx.pluginActor ?? createSampleActor(ctx.request);
+  const actor = ctx.pluginActor ?? await createSampleActor(ctx);
   const regionAwareness = sampleRegionAwarenessFactory();
   const serviceAuthorization = createPluginServiceAuthorizationHelper({
     pluginId: SAMPLE_PLUGIN_ID,
@@ -133,7 +134,7 @@ async function flagRecordHandler(ctx) {
     permissionCode: "sample.records.flag",
     action: "flag",
     resource: scopedResource,
-    sessionId: ctx.request.headers.get("x-session-id")?.trim() ?? null,
+    sessionId: (await ctx.session?.get?.("identitySession"))?.id ?? null,
   });
 
   if (!authResult.allowed) {

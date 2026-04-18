@@ -257,9 +257,30 @@ function createAllowingAuthorizationFactory(calls = []) {
 
 function createAdminHeaders(extra = {}) {
   return {
-    "x-actor-user-id": "admin_actor",
     ...extra,
   };
+}
+
+function createSession(values = {}) {
+  const store = new Map(Object.entries(values));
+  return {
+    async get(key) {
+      return store.get(key);
+    },
+  };
+}
+
+function createAdminSession(options = {}) {
+  const stepUpAuthenticated = options.stepUpAuthenticated ?? false;
+  return createSession({
+    user: { id: options.userId ?? "admin_actor" },
+    identitySession: {
+      id: options.sessionId ?? "session_admin",
+      twoFactorSatisfied: options.twoFactorSatisfied ?? true,
+      stepUpAuthenticated,
+      stepUpAt: options.stepUpAt ?? (stepUpAuthenticated ? new Date().toISOString() : null),
+    },
+  });
 }
 
 function createAdminActorRow() {
@@ -716,8 +737,9 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
 
     const ctx = {
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/list?limit=10", {
-        headers: createAdminHeaders({ "x-actor-user-id": "user_1" }),
+        headers: createAdminHeaders(),
       }),
+      session: createAdminSession({ userId: "user_1" }),
     };
 
     const listResult = await plugin.routes["users/list"].handler(ctx);
@@ -726,8 +748,9 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
 
     const detailCtx = {
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/detail?id=user_1", {
-        headers: createAdminHeaders({ "x-actor-user-id": "user_1" }),
+        headers: createAdminHeaders(),
       }),
+      session: createAdminSession({ userId: "user_1" }),
     };
 
     const detailResult = await plugin.routes["users/detail"].handler(detailCtx);
@@ -794,6 +817,7 @@ test("awcms users admin plugin exposes audit log route with filters", async () =
   try {
     const body = await plugin.routes["audit/logs"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/audit/logs?action=security.2fa.reset", { headers: createAdminHeaders() }),
+      session: createAdminSession(),
     });
 
     assert.equal(body.items.length, 1);
@@ -859,6 +883,7 @@ test("awcms users admin plugin exposes permission matrix routes and applies stag
   try {
     const snapshot = await plugin.routes["permissions/matrix"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/permissions/matrix", { headers: createAdminHeaders() }),
+      session: createAdminSession(),
     });
 
     assert.deepEqual(snapshot.roles.map((role) => role.slug), ["owner", "editor"]);
@@ -878,6 +903,7 @@ test("awcms users admin plugin exposes permission matrix routes and applies stag
               },
             }),
           }),
+          session: createAdminSession(),
         }),
     );
 
@@ -895,6 +921,7 @@ test("awcms users admin plugin exposes permission matrix routes and applies stag
               confirmProtectedChanges: true,
             }),
           }),
+          session: createAdminSession(),
         }),
     );
 
@@ -911,6 +938,7 @@ test("awcms users admin plugin exposes permission matrix routes and applies stag
           elevatedFlowConfirmed: true,
         }),
       }),
+      session: createAdminSession(),
     });
 
     assert.equal(applied.applied, true);
@@ -965,6 +993,7 @@ test("awcms users admin plugin exposes roles route with protection and staff lev
   try {
     const body = await plugin.routes["roles/list"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/roles/list?limit=10", { headers: createAdminHeaders() }),
+      session: createAdminSession(),
     });
 
     assert.equal(body.items.length, 2);
@@ -1030,9 +1059,11 @@ test("awcms users admin plugin exposes job level and title routes with ladder me
   try {
     const levels = await plugin.routes["jobs/levels/list"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/jobs/levels/list", { headers: createAdminHeaders() }),
+      session: createAdminSession(),
     });
     const titles = await plugin.routes["jobs/titles/list"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/jobs/titles/list", { headers: createAdminHeaders() }),
+      session: createAdminSession(),
     });
 
     assert.equal(levels.items[0].rankOrder, 9);
@@ -1102,6 +1133,7 @@ test("awcms users admin plugin exposes logical region routes and mutation handle
   try {
     const listBody = await plugin.routes["regions/list"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/regions/list", { headers: createAdminHeaders() }),
+      session: createAdminSession(),
     });
 
     assert.equal(listBody.items.length, 2);
@@ -1114,6 +1146,7 @@ test("awcms users admin plugin exposes logical region routes and mutation handle
         headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ code: "cluster", name: "Cluster", parentId: "region_root", sortOrder: 2 }),
       }),
+      session: createAdminSession(),
     });
     assert.equal(createdInput.code, "cluster");
     assert.equal(createdInput.parent_id, "region_root");
@@ -1124,6 +1157,7 @@ test("awcms users admin plugin exposes logical region routes and mutation handle
         headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ regionId: "region_branch", code: "branch-updated", name: "Branch Updated", sortOrder: 3, isActive: true }),
       }),
+      session: createAdminSession(),
     });
     assert.equal(updatedInput.region_id, "region_branch");
     assert.equal(updatedInput.code, "branch-updated");
@@ -1134,6 +1168,7 @@ test("awcms users admin plugin exposes logical region routes and mutation handle
         headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ regionId: "region_branch", parentId: "" }),
       }),
+      session: createAdminSession(),
     });
     assert.equal(reparentedInput.region_id, "region_branch");
     assert.equal(reparentedInput.parent_id, null);
@@ -1192,6 +1227,7 @@ test("awcms users admin plugin exposes administrative region inspection route", 
   try {
     const body = await plugin.routes["administrative-regions/list"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/administrative-regions/list", { headers: createAdminHeaders() }),
+      session: createAdminSession(),
     });
 
     assert.equal(body.items.length, 2);
@@ -1231,6 +1267,7 @@ test("awcms users admin plugin exposes invite route", async () => {
         headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ email: "invite@example.com", displayName: "Invite User" }),
       }),
+      session: createAdminSession(),
     });
 
     assert.equal(capturedInput.email, "invite@example.com");
@@ -1307,6 +1344,7 @@ test("awcms users admin plugin exposes lifecycle action routes", async () => {
         headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ userId: "user_1" }),
       }),
+      session: createAdminSession(),
     });
     assert.equal(disabledUserId, "user_1");
     assert.equal(disableBody.item.id, "user_1");
@@ -1317,6 +1355,7 @@ test("awcms users admin plugin exposes lifecycle action routes", async () => {
         headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ userId: "user_1" }),
       }),
+      session: createAdminSession(),
     });
     assert.equal(lockedUserId, "user_1");
 
@@ -1326,6 +1365,7 @@ test("awcms users admin plugin exposes lifecycle action routes", async () => {
         headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ userId: "user_1" }),
       }),
+      session: createAdminSession(),
     });
     assert.equal(revokedUserId, "user_1");
   } finally {
@@ -1356,6 +1396,7 @@ test("awcms users admin plugin fails unauthorized admin requests consistently", 
           request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/list", {
             headers: createAdminHeaders(),
           }),
+          session: createAdminSession(),
         }),
       (error) => error instanceof Error && error.message.includes("DENY_PERMISSION_MISSING"),
     );
@@ -1423,6 +1464,7 @@ test("awcms users admin plugin exposes user job history and assignment routes", 
   try {
     const jobsBody = await plugin.routes["users/jobs"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/jobs?id=user_1", { headers: createAdminHeaders() }),
+      session: createAdminSession(),
     });
 
     assert.equal(jobsBody.assignments.length, 1);
@@ -1443,6 +1485,7 @@ test("awcms users admin plugin exposes user job history and assignment routes", 
           notes: "Promoted",
         }),
       }),
+      session: createAdminSession(),
     });
 
     assert.equal(assignedInput.user_id, "user_1");
@@ -1529,6 +1572,7 @@ test("awcms users admin plugin exposes user role history and assignment routes",
   try {
     const rolesBody = await plugin.routes["users/roles"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/roles?id=user_1", { headers: createAdminHeaders() }),
+      session: createAdminSession(),
     });
 
     assert.equal(rolesBody.assignments.length, 1);
@@ -1546,6 +1590,7 @@ test("awcms users admin plugin exposes user role history and assignment routes",
           confirmProtectedRoleChange: true,
         }),
       }),
+      session: createAdminSession(),
     });
 
     assert.equal(assignedInput.user_id, "user_1");
@@ -1645,6 +1690,7 @@ test("awcms users admin plugin exposes user logical region history and assignmen
   try {
     const regionsBody = await plugin.routes["users/regions"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/regions?id=user_1", { headers: createAdminHeaders() }),
+      session: createAdminSession(),
     });
 
     assert.equal(regionsBody.assignments.length, 1);
@@ -1663,6 +1709,7 @@ test("awcms users admin plugin exposes user logical region history and assignmen
           startsAt: "2026-05-01T10:00:00.000Z",
         }),
       }),
+      session: createAdminSession(),
     });
 
     assert.equal(assignedInput.user_id, "user_1");
@@ -1767,6 +1814,7 @@ test("awcms users admin plugin exposes user administrative region history and as
   try {
     const body = await plugin.routes["users/administrative-regions"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/administrative-regions?id=user_1", { headers: createAdminHeaders() }),
+      session: createAdminSession(),
     });
 
     assert.equal(body.assignments.length, 1);
@@ -1786,6 +1834,7 @@ test("awcms users admin plugin exposes user administrative region history and as
           startsAt: "2026-05-01T10:00:00.000Z",
         }),
       }),
+      session: createAdminSession(),
     });
 
     assert.equal(assignedInput.user_id, "user_1");
@@ -1851,6 +1900,7 @@ test("awcms users admin plugin exposes user session and login history routes", a
   try {
     const body = await plugin.routes["users/sessions"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/sessions?id=user_1", { headers: createAdminHeaders() }),
+      session: createAdminSession(),
     });
 
     assert.equal(body.sessions.length, 2);
@@ -1864,6 +1914,7 @@ test("awcms users admin plugin exposes user session and login history routes", a
         headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ userId: "user_1", sessionId: "session_1" }),
       }),
+      session: createAdminSession(),
     });
 
     assert.equal(revokedSessionId, "session_1");
@@ -1957,6 +2008,7 @@ test("awcms users admin plugin exposes security settings routes and protected 2f
   try {
     const settingsBody = await plugin.routes["security/settings"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/security/settings", { headers: createAdminHeaders() }),
+      session: createAdminSession(),
     });
     assert.equal(settingsBody.roles.length, 2);
     assert.equal(settingsBody.policy.mandatoryTwoFactorRolloutMode, "none");
@@ -1969,6 +2021,7 @@ test("awcms users admin plugin exposes security settings routes and protected 2f
         headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ mandatoryTwoFactorRolloutMode: "protected_roles" }),
       }),
+      session: createAdminSession(),
     });
     assert.equal(updated.policy.mandatoryTwoFactorRolloutMode, "protected_roles");
     assert.deepEqual(updated.policy.mandatoryTwoFactorRoleIds, ["role_owner"]);
@@ -1989,6 +2042,7 @@ test("awcms users admin plugin exposes security settings routes and protected 2f
 
     const statusBody = await plugin.routes["users/2fa/status"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/2fa/status?id=user_1", { headers: createAdminHeaders() }),
+      session: createAdminSession(),
     });
     assert.equal(statusBody.enrolled, true);
     assert.equal(statusBody.recoveryCodeCount, 6);
@@ -2001,6 +2055,7 @@ test("awcms users admin plugin exposes security settings routes and protected 2f
             headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
             body: JSON.stringify({ userId: "user_1", reason: "Support recovery" }),
           }),
+          session: createAdminSession(),
         }),
       /STEP_UP_REQUIRED/,
     );
@@ -2009,11 +2064,12 @@ test("awcms users admin plugin exposes security settings routes and protected 2f
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/2fa/reset", {
         method: "POST",
         headers: {
-          ...createAdminHeaders({ "x-session-strength": "step_up", "x-step-up-authenticated": "true" }),
+          ...createAdminHeaders(),
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ userId: "user_1", reason: "Support recovery" }),
       }),
+      session: createAdminSession({ stepUpAuthenticated: true }),
     });
     assert.equal(resetBody.enrolled, false);
     assert.equal(resetInput.user_id, "user_1");

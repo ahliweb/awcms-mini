@@ -12,6 +12,15 @@ function createActor() {
   };
 }
 
+function createSession(values = {}) {
+  const store = new Map(Object.entries(values));
+  return {
+    async get(key) {
+      return store.get(key);
+    },
+  };
+}
+
 test("plugin route authorization helper evaluates declared permission before handler", async () => {
   const authorizationCalls = [];
   const route = createAuthorizedPluginRoute({
@@ -40,8 +49,8 @@ test("plugin route authorization helper evaluates declared permission before han
 
   const result = await route.handler({
     request: new Request("http://example.test/plugin/widgets", {
-      headers: { "x-session-id": "session_1" },
     }),
+    session: createSession({ identitySession: { id: "session_1" } }),
   });
 
   assert.equal(result.ok, true);
@@ -79,6 +88,7 @@ test("plugin route authorization helper supports scoped resource resolvers", asy
 
   await route.handler({
     request: new Request("http://example.test/plugin/widgets?id=widget_1"),
+    session: createSession(),
   });
 
   assert.deepEqual(authorizationCalls[0].resource, {
