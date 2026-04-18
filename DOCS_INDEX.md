@@ -48,6 +48,7 @@ This file maps the current documentation set for AWCMS Mini.
 - `docs/process/github-issue-workflow.md`
 - `docs/process/runtime-smoke-test.md`
 - `docs/process/migration-deployment-checklist.md`
+- `docs/process/emdash-alignment-and-security-plan-2026.md`
 
 ### Supporting Reference
 

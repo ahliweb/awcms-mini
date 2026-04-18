@@ -19,6 +19,10 @@ This directory contains the maintained architecture, governance, security, plugi
 - `admin/` - admin operating guidance
 - `process/` - workflow, runtime validation, and deployment docs
 
+Current planning reference:
+
+- `process/emdash-alignment-and-security-plan-2026.md` - EmDash alignment and security recommendations backlog source
+
 ## Accuracy Rule
 
 These docs should describe the real repository state, not just the intended plan. When implementation and planning diverge, update the docs to match the current code and call out rollout caveats explicitly.
