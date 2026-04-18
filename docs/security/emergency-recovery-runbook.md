@@ -129,7 +129,7 @@ Checkpoint order:
 2. Record the current persisted security policy state, especially mandatory 2FA rollout mode and effective role ids.
 3. Record whether ABAC audit-only flags are enabled.
 4. Record any plugin or admin-surface settings changed during the incident window.
-5. Record whether traffic is reaching the app through the supported Cloudflare plus Coolify path or through an unexpected direct origin path.
+5. Record whether traffic is reaching the app through the supported Cloudflare-hosted runtime path or through an unexpected alternate deployment path.
 
 ## Policy Rollback
 

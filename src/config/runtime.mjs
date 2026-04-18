@@ -1,4 +1,5 @@
 export const DEFAULT_DATABASE_URL = "postgres://localhost:5432/awcms_mini_dev";
+export const DEFAULT_RUNTIME_TARGET = "cloudflare";
 export const DEFAULT_TRUSTED_PROXY_MODE = "direct";
 
 function normalizeSiteUrl(value) {
@@ -10,9 +11,14 @@ function normalizeSiteUrl(value) {
   return next.length > 0 ? next : null;
 }
 
+function normalizeRuntimeTarget(value) {
+  return ["cloudflare", "node"].includes(value) ? value : DEFAULT_RUNTIME_TARGET;
+}
+
 export function getRuntimeConfig() {
   return {
     databaseUrl: process.env.DATABASE_URL || DEFAULT_DATABASE_URL,
+    runtimeTarget: normalizeRuntimeTarget(process.env.MINI_RUNTIME_TARGET),
     siteUrl: normalizeSiteUrl(process.env.SITE_URL),
     appSecret: process.env.APP_SECRET || null,
     miniTotpEncryptionKey: process.env.MINI_TOTP_ENCRYPTION_KEY || null,

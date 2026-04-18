@@ -1,3 +1,4 @@
+import cloudflare from "@astrojs/cloudflare";
 import node from "@astrojs/node";
 import react from "@astrojs/react";
 import { defineConfig } from "astro/config";
@@ -8,13 +9,14 @@ import { awcmsUsersAdminPlugin } from "./src/plugins/awcms-users-admin/index.mjs
 import { getRuntimeConfig } from "./src/config/runtime.mjs";
 
 const runtimeConfig = getRuntimeConfig();
+const adapter = runtimeConfig.runtimeTarget === "node"
+  ? node({ mode: "standalone" })
+  : cloudflare({ sessionKVBindingName: "SESSION" });
 
 export default defineConfig({
   output: "server",
   ...(runtimeConfig.siteUrl ? { site: runtimeConfig.siteUrl } : {}),
-  adapter: node({
-    mode: "standalone",
-  }),
+  adapter,
   server: {
     host: true,
   },

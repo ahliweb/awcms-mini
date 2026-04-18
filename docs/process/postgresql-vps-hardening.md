@@ -8,8 +8,8 @@ This runbook defines the supported security posture for AWCMS Mini when PostgreS
 
 The supported baseline is:
 
-1. AWCMS Mini runs in the app environment managed through Coolify.
-2. PostgreSQL runs on a separate protected VPS or equivalent protected host.
+1. AWCMS Mini runs in the supported Cloudflare-hosted runtime.
+2. PostgreSQL runs on a separate protected VPS or equivalent protected host managed through Coolify.
 3. The app connects to PostgreSQL over a restricted network path.
 4. Remote database traffic is protected with TLS.
 

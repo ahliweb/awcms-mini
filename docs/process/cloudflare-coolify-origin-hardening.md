@@ -4,6 +4,10 @@
 
 This runbook defines the supported public ingress pattern for AWCMS Mini when deployed behind Cloudflare and hosted through Coolify.
 
+This is now an alternative or historical app-on-Coolify deployment path.
+
+The current supported baseline for the repository is the Cloudflare-hosted runtime described in `docs/process/cloudflare-hosted-runtime.md`.
+
 ## Supported Production Pattern
 
 The supported baseline production path is:

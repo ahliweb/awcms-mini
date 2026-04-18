@@ -23,7 +23,7 @@ It is based on:
 ### Confirmed Repository State
 
 - AWCMS Mini remains EmDash-first and single-tenant.
-- The repository currently builds with `@astrojs/node`, not `@astrojs/cloudflare`.
+- The repository now exposes a Cloudflare adapter runtime baseline and keeps the Node adapter only as an explicit fallback target during migration.
 - PostgreSQL remains the canonical system of record and Kysely remains the canonical migration/query layer.
 - Soft delete already exists for part of the mutable identity and governance model.
 - Cloudflare Turnstile, R2 integration, and Cloudflare-hosted edge API functions are not yet formalized in the current plan or runtime contract.
@@ -36,9 +36,8 @@ It is based on:
 
 ### Current Deployment Gap
 
-- The current repo still documents and configures a Node-hosted Astro runtime path.
-- The next hosting model needs Cloudflare-hosted application/runtime support while keeping PostgreSQL remote on a Coolify-managed VPS.
-- That change affects adapter choice, runtime bindings, edge trust assumptions, and database connectivity guidance.
+- The repo now documents and configures a Cloudflare-hosted runtime baseline while keeping PostgreSQL remote on a Coolify-managed VPS.
+- The remaining deployment work is follow-on integration detail around bindings, Hyperdrive adoption, and feature-specific Cloudflare services.
 
 ## Planning Goal
 

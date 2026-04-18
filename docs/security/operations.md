@@ -42,22 +42,22 @@ Mini owns the security-hardening layer:
 For the intended deployment model:
 
 - Cloudflare is the public edge.
-- Coolify manages the application deployment and reverse proxy path.
+- Cloudflare hosts the supported application runtime.
 - PostgreSQL runs as a protected remote dependency on a VPS.
+- Coolify manages the PostgreSQL host lifecycle and related operator environment.
 
 Security operations should treat those as separate trust boundaries.
 
 ## Edge And Origin Guidance
 
-- The supported baseline production path is Cloudflare proxied DNS to the Coolify-managed origin.
-- Cloudflare Tunnel is not the baseline deployment contract in the current Mini docs.
-- Keep the public hostname proxied through Cloudflare for normal operator and user traffic.
-- Restrict direct origin access as much as the hosting environment allows so the origin is not a parallel public entrypoint.
-- In the supported Cloudflare plus Coolify path, trust `CF-Connecting-IP` and configure `TRUSTED_PROXY_MODE=cloudflare`.
+- The supported baseline production path is a Cloudflare-hosted runtime serving the public hostname directly.
+- In the supported Cloudflare-hosted path, trust `CF-Connecting-IP` and configure `TRUSTED_PROXY_MODE=cloudflare`.
 - Do not treat arbitrary `X-Forwarded-For` values as authoritative unless a deployment explicitly opts into a different trusted proxy mode.
 - Add Cloudflare rate limiting or managed challenge rules for login and other abuse-prone auth endpoints.
 
-See `docs/process/cloudflare-coolify-origin-hardening.md` for the supported origin path and firewall expectations.
+See `docs/process/cloudflare-hosted-runtime.md` for the supported Cloudflare runtime and deployment checks.
+
+The older `docs/process/cloudflare-coolify-origin-hardening.md` runbook should be treated as an alternative or historical app-on-Coolify deployment path, not the current baseline.
 
 ## PostgreSQL Guidance
 
@@ -92,5 +92,5 @@ These are rollout tools, not permanent substitutes for full enforcement.
 
 - `docs/security/emergency-recovery-runbook.md`
 - `docs/process/migration-deployment-checklist.md`
-- `docs/process/cloudflare-coolify-origin-hardening.md`
+- `docs/process/cloudflare-hosted-runtime.md`
 - `docs/process/postgresql-vps-hardening.md`

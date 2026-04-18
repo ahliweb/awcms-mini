@@ -56,7 +56,7 @@ It is based on:
 ### Already Aligned
 
 - EmDash-first host architecture
-- Astro server runtime with Node adapter
+- Astro server runtime with Node adapter at the time of that review
 - PostgreSQL plus Kysely as the data layer
 - plugin-based admin extension model
 - service-layer authorization emphasis

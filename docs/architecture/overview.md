@@ -35,7 +35,7 @@ Mini owns:
 ## Runtime Stack
 
 - Host runtime: Astro + EmDash
-- Public ingress baseline: Cloudflare proxied hostname to Coolify-managed origin
+- Hosting baseline: Cloudflare-hosted app runtime
 - Database: PostgreSQL
 - Query and migration layer: Kysely
 - Extension model: internal EmDash-compatible plugins

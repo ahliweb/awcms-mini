@@ -6,6 +6,13 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 
 ## Current Runtime Settings
 
+### `MINI_RUNTIME_TARGET`
+
+- Purpose: select the Astro adapter/runtime target for the build.
+- Supported values: `cloudflare`, `node`.
+- Default fallback: `cloudflare`.
+- Current rule: the supported production baseline is Cloudflare-hosted runtime. `node` remains an explicit fallback target during migration and local compatibility work.
+
 ### `DATABASE_URL`
 
 - Purpose: PostgreSQL connection string used by the EmDash database adapter.
@@ -48,6 +55,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - runtime config module: `src/config/runtime.mjs`
 - Astro integration wiring: `astro.config.mjs`
 - local environment example: `.env.example`
+- Cloudflare deployment configuration: `wrangler.jsonc`
 - TOTP encryption key resolution: `src/services/security/two-factor.mjs`
 
 ## Rules
@@ -65,15 +73,16 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 
 ### Cloudflare Plus Coolify
 
-- Cloudflare should be treated as the browser-facing edge.
-- Coolify should be treated as the app deployment and reverse-proxy control plane.
-- The supported baseline production pattern is Cloudflare proxied DNS to the Coolify-managed origin, not direct origin exposure.
-- Cloudflare Tunnel may be used later if operators choose it, but it is not the baseline deployment contract documented for this repository.
-- `SITE_URL` must match the hostname users reach through Cloudflare, not an internal container or local Coolify address.
-- Client IP extraction should trust `CF-Connecting-IP`, not raw `X-Forwarded-For`, for the supported Cloudflare path.
-- Direct origin access should be restricted so routine public traffic cannot bypass Cloudflare.
+- Cloudflare should be treated as both the browser-facing edge and the supported application hosting baseline.
+- Coolify should be treated as the operational control plane for the PostgreSQL VPS, not as the primary app hosting path.
+- `MINI_RUNTIME_TARGET=cloudflare` is the supported production setting.
+- `SITE_URL` must match the hostname users reach through Cloudflare.
+- Client IP extraction should trust `CF-Connecting-IP`, not raw `X-Forwarded-For`, for the supported Cloudflare-hosted path.
+- `wrangler.jsonc` should define the Worker, static assets, observability, and any explicit Cloudflare bindings needed for deployment.
+- Astro's Cloudflare adapter uses the default `SESSION` KV binding for sessions unless operators override it deliberately.
+- Cloudflare Hyperdrive is the recommended next-step pooling path for PostgreSQL access from edge-hosted runtime code, but the current repo still uses `DATABASE_URL` directly.
 
-See `docs/process/cloudflare-coolify-origin-hardening.md` for the supported ingress model and operator checks.
+See `docs/process/cloudflare-hosted-runtime.md` for the supported hosting model and deployment checks.
 
 ### PostgreSQL On VPS
 
@@ -82,6 +91,7 @@ See `docs/process/cloudflare-coolify-origin-hardening.md` for the supported ingr
 - Prefer PostgreSQL TLS, restricted ingress, and strong authentication for the application user.
 - Prefer `hostssl` plus `scram-sha-256` for remote app access where the PostgreSQL host is operator-managed.
 - Restrict remote access to the specific app host or the narrowest private network range available.
+- If the Cloudflare-hosted runtime later adopts Hyperdrive, treat that as a transport and pooling layer over the same PostgreSQL security posture rather than a replacement for PostgreSQL controls.
 
 See `docs/process/postgresql-vps-hardening.md` for the supported VPS transport and access posture.
 
@@ -90,6 +100,7 @@ See `docs/process/postgresql-vps-hardening.md` for the supported VPS transport a
 For the intended production topology, configure at least:
 
 - `DATABASE_URL`
+- `MINI_RUNTIME_TARGET=cloudflare`
 - `SITE_URL`
 - `MINI_TOTP_ENCRYPTION_KEY`
 - `TRUSTED_PROXY_MODE=cloudflare`

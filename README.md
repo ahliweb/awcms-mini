@@ -37,7 +37,8 @@ Known current conditions:
 - EmDash `0.5.0`
 - PostgreSQL
 - Kysely `0.28.16`
-- Node adapter via `@astrojs/node`
+- Cloudflare adapter via `@astrojs/cloudflare`
+- Node adapter via `@astrojs/node` kept only as an explicit fallback build target during migration
 
 ## Quick Start
 
@@ -52,9 +53,10 @@ pnpm install
 Required production baseline:
 
 - `DATABASE_URL`
+- `MINI_RUNTIME_TARGET=cloudflare`
 - `SITE_URL`
 - `MINI_TOTP_ENCRYPTION_KEY`
-- `TRUSTED_PROXY_MODE=cloudflare` for the supported Cloudflare plus Coolify path
+- `TRUSTED_PROXY_MODE=cloudflare` for the supported Cloudflare-hosted path
 
 For remote PostgreSQL deployments, `DATABASE_URL` should target the protected VPS host and use a non-superuser application role.
 
@@ -79,6 +81,13 @@ pnpm healthcheck
 ```
 
 The EmDash-hosted admin surface runs under `/_emdash/admin`.
+
+Cloudflare-hosted deployment baseline:
+
+- `pnpm build` produces the Worker bundle
+- `pnpm deploy:cloudflare` deploys via Wrangler
+- `wrangler.jsonc` defines the Worker, assets, observability, and optional Hyperdrive binding placeholders
+- Astro's Cloudflare adapter uses the default `SESSION` KV binding for sessions unless you override it explicitly
 
 ## Common Commands
 

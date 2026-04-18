@@ -7,8 +7,10 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "build:node": "MINI_RUNTIME_TARGET=node astro build",
     "preview": "astro preview",
     "start": "node ./dist/server/entry.mjs",
+    "deploy:cloudflare": "astro build && wrangler deploy",
     "check": "pnpm typecheck && pnpm test:unit && pnpm build && pnpm lint",
     "lint": "pnpm prettier --check README.md DOCS_INDEX.md REQUIREMENTS.md SECURITY.md AGENTS.md docs/**/*.md package.json",
     "format": "pnpm prettier --write README.md DOCS_INDEX.md REQUIREMENTS.md SECURITY.md AGENTS.md docs/**/*.md package.json",
@@ -21,6 +23,7 @@
     "db:seed:administrative-regions": "node ./scripts/db-seed-administrative-regions.mjs"
   },
   "dependencies": {
+    "@astrojs/cloudflare": "^13.1.10",
     "@astrojs/node": "^10.0.4",
     "@astrojs/react": "^5.0.3",
     "astro": "^6.1.6",
@@ -36,7 +39,8 @@
     "@types/node": "^25.6.0",
     "@types/pg": "^8.15.6",
     "prettier": "^3.8.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wrangler": "^4.39.0"
   },
   "pnpm": {
     "overrides": {

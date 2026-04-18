@@ -1,0 +1,23 @@
+{
+  "main": "@astrojs/cloudflare/entrypoints/server",
+  "name": "awcms-mini",
+  "compatibility_date": "2026-04-18",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist"
+  },
+  "observability": {
+    "enabled": true
+  },
+
+  // Add a Hyperdrive binding when the deployment path is ready to shift
+  // PostgreSQL access from direct DATABASE_URL usage to Cloudflare-managed pooling.
+  //,
+  // "hyperdrive": [
+  //   {
+  //     "binding": "HYPERDRIVE",
+  //     "id": "<HYPERDRIVE_ID>"
+  //   }
+  // ]
+}

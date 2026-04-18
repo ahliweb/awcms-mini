@@ -20,8 +20,9 @@ Complete these checks before applying migrations or releasing a new build.
 
 - [ ] `pnpm build` passes
 - [ ] `pnpm healthcheck` passes against the target environment or an equivalent pre-production environment
+- [ ] `MINI_RUNTIME_TARGET=cloudflare` is set for the supported production path
 - [ ] `DATABASE_URL` points to the intended PostgreSQL instance
-- [ ] The configured public origin matches the Cloudflare-hosted URL, not an internal Coolify address
+- [ ] The configured public origin matches the Cloudflare-hosted URL
 - [ ] Required security secrets are present for the target environment
 
 ### Schema Readiness
@@ -44,16 +45,16 @@ Complete these checks before applying migrations or releasing a new build.
 
 ### Edge And Origin Readiness
 
-- [ ] Cloudflare DNS for the public hostname is proxied and points to the intended Coolify-managed origin path
+- [ ] Cloudflare DNS for the public hostname is configured for the Cloudflare-hosted application path
+- [ ] `wrangler.jsonc` or equivalent deployment config matches the intended Worker name, assets, and bindings
 - [ ] `TRUSTED_PROXY_MODE=cloudflare` is configured for the supported production path
-- [ ] Direct origin exposure is reviewed and reduced so the origin is not a routine public entrypoint
-- [ ] Firewall and origin restrictions are in place for the supported proxied-origin pattern
-- [ ] Coolify domain and proxy routing match the intended public host
+- [ ] The adapter's default `SESSION` binding or an explicit equivalent binding is available for the target environment
 
 ### PostgreSQL Readiness
 
 - [ ] PostgreSQL access is restricted to the intended application host or private network path
 - [ ] PostgreSQL transport security expectations are confirmed for the target environment
+- [ ] If Hyperdrive is used, its binding/configuration points to the intended PostgreSQL target
 - [ ] The remote PostgreSQL access rule uses the narrowest practical source range for the app host or private subnet
 - [ ] `pg_hba.conf` and server config require the intended remote authentication and TLS posture
 - [ ] The application user does not rely on superuser credentials
