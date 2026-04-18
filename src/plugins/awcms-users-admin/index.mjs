@@ -24,6 +24,7 @@ import { createUserService } from "../../services/users/service.mjs";
 import { getSecurityPolicy, updateSecurityPolicy } from "../../security/policy.mjs";
 import { collectRegisteredPluginPermissions } from "../permission-registration.mjs";
 import { createPluginAuditHelper } from "../audit-helper.mjs";
+import { createPluginRegionAwarenessHelper } from "../region-awareness.mjs";
 import { createAuthorizedPluginRoute } from "../route-authorization.mjs";
 
 const USER_ADMIN_PERMISSION_DECLARATIONS = [
@@ -1408,16 +1409,20 @@ async function listUserRegionsHandler(ctx) {
   }
 
   const target = normalizeAuthorizationUserRow(targetRow);
+  const regionAwareness = createPluginRegionAwarenessHelper();
 
   await requireAdminAuthorization(ctx, {
     permissionCode: "governance.regions.read",
     action: "read",
-    resource: {
-      kind: "region",
-      target_user_id: target.id,
-      target_staff_level: target.activeRoleStaffLevel,
-      is_protected: target.isProtected,
-    },
+    resource: await regionAwareness.buildScopedResource({
+      database: db,
+      resource: {
+        kind: "region",
+        target_user_id: target.id,
+        target_staff_level: target.activeRoleStaffLevel,
+        is_protected: target.isProtected,
+      },
+    }),
   });
 
   const assignmentRepo = createUserRegionAssignmentRepository(db);
@@ -1515,16 +1520,20 @@ async function listUserAdministrativeRegionsHandler(ctx) {
   }
 
   const target = normalizeAuthorizationUserRow(targetRow);
+  const regionAwareness = createPluginRegionAwarenessHelper();
 
   await requireAdminAuthorization(ctx, {
     permissionCode: "governance.administrative_regions.assign",
     action: "read",
-    resource: {
-      kind: "administrative_region",
-      target_user_id: target.id,
-      target_staff_level: target.activeRoleStaffLevel,
-      is_protected: target.isProtected,
-    },
+    resource: await regionAwareness.buildScopedResource({
+      database: db,
+      resource: {
+        kind: "administrative_region",
+        target_user_id: target.id,
+        target_staff_level: target.activeRoleStaffLevel,
+        is_protected: target.isProtected,
+      },
+    }),
   });
 
   const assignmentRepo = createUserAdministrativeRegionAssignmentRepository(db);

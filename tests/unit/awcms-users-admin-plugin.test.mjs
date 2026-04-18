@@ -1669,6 +1669,7 @@ test("awcms users admin plugin exposes user logical region history and assignmen
     assert.equal(assignedInput.region_id, "region_root");
     assert.equal(assignedInput.assignment_type, "member");
     assert.equal(authorizationCalls[0].context.permission_code, "governance.regions.read");
+    assert.deepEqual(authorizationCalls[0].resource.logical_region_ids, ["region_branch"]);
     assert.equal(authorizationCalls.some((call) => call.context.permission_code === "governance.regions.read" && call.context.action === "assign"), true);
     assert.equal(authorizationCalls.at(-1).context.permission_code, "governance.regions.read");
   } finally {
@@ -1772,6 +1773,7 @@ test("awcms users admin plugin exposes user administrative region history and as
     assert.equal(body.assignments[0].administrativeRegionName, "Bandung");
     assert.equal(body.assignments[0].administrativeRegionType, "regency_city");
     assert.equal(body.regions.length, 2);
+    assert.deepEqual(authorizationCalls[0].resource.administrative_region_ids, ["regency_bdg"]);
 
     await plugin.routes["users/administrative-regions/assign"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/users/administrative-regions/assign", {
