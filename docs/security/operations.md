@@ -29,6 +29,12 @@ Mini owns the security-hardening layer:
 - active session inspection and revocation
 - staged mandatory 2FA rollout modes: `none`, `protected_roles`, `custom`
 
+## Current Implementation Notes
+
+- Mandatory 2FA rollout controls are present in the policy and admin settings surface.
+- Treat rollout behavior as an operator-managed control that still requires verification against the live auth path before claiming full enforcement in production.
+- ABAC audit-only flags are intended for controlled rollout safety, not permanent steady-state policy behavior.
+
 ## Operator Surfaces
 
 Operators currently use:

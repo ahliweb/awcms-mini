@@ -1,21 +1,34 @@
 # Security Policy
 
-## Supported Versions
+## Supported Version
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+This repository currently supports the active `main` branch only.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+There is no multi-release maintenance policy at this time.
 
-## Reporting a Vulnerability
+## Reporting A Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+Do not open a public GitHub issue for an unpatched security vulnerability.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Instead:
+
+1. Contact the repository owner privately through GitHub-maintainer channels.
+2. Include a clear description, impact, reproduction steps, and any known affected areas.
+3. If the issue affects governance, authorization, recovery, or plugin boundaries, include that context explicitly.
+
+## Repository Security Scope
+
+Security-relevant areas in this repo include:
+
+- authentication and sessions
+- RBAC and ABAC authorization
+- step-up and protected-action enforcement
+- TOTP, recovery codes, and password reset flows
+- lockouts, audit logs, and security events
+- plugin permission, authorization, audit, and region-awareness helpers
+
+## Operational References
+
+- `docs/security/operations.md`
+- `docs/security/emergency-recovery-runbook.md`
+- `docs/process/migration-deployment-checklist.md`

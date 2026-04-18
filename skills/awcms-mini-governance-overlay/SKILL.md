@@ -29,7 +29,9 @@ AWCMS Mini is EmDash-first. Governance features must be added as overlays, not a
 1. `REQUIREMENTS.md`
 2. `docs/architecture/constraints.md`
 3. `docs/architecture/overview.md`
-4. Relevant domain docs under `docs/governance/`, `docs/security/`, `docs/plugins/`, and `docs/admin/`
+4. `README.md`
+5. `DOCS_INDEX.md`
+6. Relevant domain docs under `docs/governance/`, `docs/security/`, `docs/plugins/`, and `docs/admin/`
 
 ## Implementation Guidance
 
@@ -43,6 +45,11 @@ AWCMS Mini is EmDash-first. Governance features must be added as overlays, not a
 - Prefer targeted unit tests first.
 - Run `pnpm typecheck` for UI or TypeScript-adjacent changes.
 - For rollout or security changes, review `docs/process/migration-deployment-checklist.md` and `docs/security/emergency-recovery-runbook.md` for operator impact.
+
+## Current Accuracy Notes
+
+- Do not describe staged mandatory 2FA rollout as fully enforced everywhere unless you have verified the current auth path.
+- Do not describe ABAC audit-only rollout as a permanent policy state.
 
 ## Related Documents
 

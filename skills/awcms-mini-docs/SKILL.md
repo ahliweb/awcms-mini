@@ -16,6 +16,9 @@ This repository now has a compact documentation set that should stay aligned wit
 
 ## Primary Documentation Set
 
+- `README.md`
+- `AGENTS.md`
+- `DOCS_INDEX.md`
 - `REQUIREMENTS.md`
 - `docs/architecture/overview.md`
 - `docs/architecture/constraints.md`
@@ -31,6 +34,7 @@ This repository now has a compact documentation set that should stay aligned wit
 2. Link to operator runbooks or deployment checklists when a feature has operational impact.
 3. Keep the EmDash-first rule explicit for architecture or extension topics.
 4. Avoid promising behavior that is not actually wired in code.
+5. Update the core entry docs when a change materially affects repository usage or navigation.
 
 ## When Adding New Docs
 
