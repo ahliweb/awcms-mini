@@ -1,8 +1,17 @@
 {
+  "$schema": "node_modules/wrangler/config-schema.json",
   "main": "@astrojs/cloudflare/entrypoints/server",
   "name": "awcms-mini",
   "compatibility_date": "2026-04-18",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "vars": {
+    "MINI_RUNTIME_TARGET": "cloudflare",
+    "TRUSTED_PROXY_MODE": "cloudflare",
+    "SITE_URL": "https://awcms-mini.ahlikoding.com",
+    "ADMIN_SITE_URL": "https://awcms-mini-admin.ahlikoding.com",
+    "R2_MEDIA_BUCKET_BINDING": "MEDIA_BUCKET",
+    "R2_MEDIA_BUCKET_NAME": "awcms-mini-s3"
+  },
   "assets": {
     "binding": "ASSETS",
     "directory": "./dist"

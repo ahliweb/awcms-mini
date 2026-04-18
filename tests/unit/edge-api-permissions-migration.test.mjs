@@ -68,8 +68,8 @@ test("edge api permissions migration seeds canonical self-service edge permissio
   await up(db);
 
   assert.deepEqual(EDGE_API_PERMISSIONS.map((permission) => permission.code), [
-    "edge.api.session.read",
-    "edge.api.session.revoke",
+    "edge.api_session.read",
+    "edge.api_session.revoke",
   ]);
   assert.ok(Object.values(EDGE_API_ROLE_PERMISSION_CODES).every((codes) => codes.length === 2));
 

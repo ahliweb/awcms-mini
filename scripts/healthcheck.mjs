@@ -7,7 +7,7 @@ function loadLocalEnvFiles() {
     return;
   }
 
-  for (const file of [".env", ".env.local"]) {
+  for (const file of [".env.local", ".env"]) {
     if (existsSync(file)) {
       process.loadEnvFile(file);
     }

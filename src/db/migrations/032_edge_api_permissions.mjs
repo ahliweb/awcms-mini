@@ -4,7 +4,7 @@ import { DEFAULT_ROLES } from "./015_default_roles.mjs";
 const EDGE_API_PERMISSIONS = [
   {
     id: "perm_edge_api_session_read",
-    code: "edge.api.session.read",
+    code: "edge.api_session.read",
     domain: "edge",
     resource: "api_session",
     action: "read",
@@ -13,7 +13,7 @@ const EDGE_API_PERMISSIONS = [
   },
   {
     id: "perm_edge_api_session_revoke",
-    code: "edge.api.session.revoke",
+    code: "edge.api_session.revoke",
     domain: "edge",
     resource: "api_session",
     action: "revoke",
@@ -26,17 +26,17 @@ const roleIdBySlug = Object.fromEntries(DEFAULT_ROLES.map((role) => [role.slug, 
 const permissionIdByCode = Object.fromEntries([...DEFAULT_PERMISSIONS, ...EDGE_API_PERMISSIONS].map((permission) => [permission.code, permission.id]));
 
 const EDGE_API_ROLE_PERMISSION_CODES = {
-  owner: ["edge.api.session.read", "edge.api.session.revoke"],
-  super_admin: ["edge.api.session.read", "edge.api.session.revoke"],
-  admin: ["edge.api.session.read", "edge.api.session.revoke"],
-  security_admin: ["edge.api.session.read", "edge.api.session.revoke"],
-  region_manager: ["edge.api.session.read", "edge.api.session.revoke"],
-  editor: ["edge.api.session.read", "edge.api.session.revoke"],
-  auditor: ["edge.api.session.read", "edge.api.session.revoke"],
-  author: ["edge.api.session.read", "edge.api.session.revoke"],
-  contributor: ["edge.api.session.read", "edge.api.session.revoke"],
-  member: ["edge.api.session.read", "edge.api.session.revoke"],
-  viewer: ["edge.api.session.read", "edge.api.session.revoke"],
+  owner: ["edge.api_session.read", "edge.api_session.revoke"],
+  super_admin: ["edge.api_session.read", "edge.api_session.revoke"],
+  admin: ["edge.api_session.read", "edge.api_session.revoke"],
+  security_admin: ["edge.api_session.read", "edge.api_session.revoke"],
+  region_manager: ["edge.api_session.read", "edge.api_session.revoke"],
+  editor: ["edge.api_session.read", "edge.api_session.revoke"],
+  auditor: ["edge.api_session.read", "edge.api_session.revoke"],
+  author: ["edge.api_session.read", "edge.api_session.revoke"],
+  contributor: ["edge.api_session.read", "edge.api_session.revoke"],
+  member: ["edge.api_session.read", "edge.api_session.revoke"],
+  viewer: ["edge.api_session.read", "edge.api_session.revoke"],
 };
 
 const EDGE_API_ROLE_PERMISSIONS = Object.entries(EDGE_API_ROLE_PERMISSION_CODES).flatMap(([roleSlug, permissionCodes]) =>

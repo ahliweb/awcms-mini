@@ -190,8 +190,8 @@ function seedEdgeApiMember(state, overrides = {}) {
   state.roles = [{ id: "role_member", slug: "member", staff_level: 2, deleted_at: null }];
   state.user_roles = [{ id: "assignment_1", user_id: "user_1", role_id: "role_member", expires_at: null, is_primary: true, assigned_at: "2026-04-18T00:00:00.000Z" }];
   state.permissions = [
-    { id: "perm_edge_api_session_read", code: "edge.api.session.read", domain: "edge", resource: "api_session", action: "read", is_protected: false },
-    { id: "perm_edge_api_session_revoke", code: "edge.api.session.revoke", domain: "edge", resource: "api_session", action: "revoke", is_protected: false },
+    { id: "perm_edge_api_session_read", code: "edge.api_session.read", domain: "edge", resource: "api_session", action: "read", is_protected: false },
+    { id: "perm_edge_api_session_revoke", code: "edge.api_session.revoke", domain: "edge", resource: "api_session", action: "revoke", is_protected: false },
   ];
   state.role_permissions = [
     { role_id: "role_member", permission_id: "perm_edge_api_session_read" },

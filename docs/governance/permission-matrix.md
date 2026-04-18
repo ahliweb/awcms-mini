@@ -47,8 +47,8 @@ This document defines the current first-party permission inventory for AWCMS Min
 | Edge route             | Permission code           | Notes                             |
 | ---------------------- | ------------------------- | --------------------------------- |
 | `GET /api/v1/health`   | none                      | public health endpoint            |
-| `GET /api/v1/session`  | `edge.api.session.read`   | current authenticated caller only |
-| `POST /api/v1/session` | `edge.api.session.revoke` | current authenticated caller only |
+| `GET /api/v1/session`  | `edge.api_session.read`   | current authenticated caller only |
+| `POST /api/v1/session` | `edge.api_session.revoke` | current authenticated caller only |
 
 The current edge baseline still authenticates via the host identity session. Future JWT-based external/mobile auth should continue to map protected edge routes to canonical permission codes rather than introducing a second permission system.
 

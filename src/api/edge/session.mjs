@@ -37,7 +37,7 @@ export async function handleEdgeSessionGet({ request, session, db }) {
     db,
     user: auth.user,
     activeSession: auth.activeSession,
-    permissionCode: "edge.api.session.read",
+    permissionCode: "edge.api_session.read",
     action: "read",
     resource: {
       kind: "session",
@@ -85,7 +85,7 @@ export async function handleEdgeSessionPost({ request, session, db }) {
     db,
     user: auth.user,
     activeSession: auth.activeSession,
-    permissionCode: "edge.api.session.revoke",
+    permissionCode: "edge.api_session.revoke",
     action: "revoke",
     resource: {
       kind: "session",
