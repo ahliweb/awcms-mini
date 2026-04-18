@@ -30,3 +30,16 @@ test("standard authorization reasons support explicit message overrides without 
   assert.equal(reason.category, "entry");
   assert.equal(reason.security_relevant, true);
 });
+
+test("authorization reasons include explicit audit-only allow metadata", () => {
+  const reason = createStandardAuthorizationReason("ALLOW_ABAC_AUDIT_ONLY", {
+    original_reason_code: "DENY_REGION_SCOPE_MISMATCH",
+  });
+
+  assert.equal(reason.code, "ALLOW_ABAC_AUDIT_ONLY");
+  assert.equal(reason.message, AUTHORIZATION_REASON_DEFINITIONS.ALLOW_ABAC_AUDIT_ONLY.message);
+  assert.equal(reason.effect, "allow");
+  assert.equal(reason.category, "abac");
+  assert.equal(reason.security_relevant, true);
+  assert.equal(reason.details.original_reason_code, "DENY_REGION_SCOPE_MISMATCH");
+});

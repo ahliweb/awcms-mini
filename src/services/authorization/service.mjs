@@ -21,6 +21,7 @@ import {
   evaluateScopedAllowRules,
   evaluateStaffLevelDenyRule,
 } from "./rules.mjs";
+import { normalizeAuthorizationFeatureFlags, shouldUseAuditOnlyMode } from "./flags.mjs";
 
 function createPermissionMissingResult(permissionCode) {
   return createAuthorizationResult({
@@ -42,6 +43,31 @@ function createPermissionAllowedResult(permissionCode) {
       permission_code: permissionCode,
     }),
   });
+}
+
+function createAuditOnlyAllowedResult(permissionCode, deniedResult) {
+  return createAuthorizationResult({
+    allowed: true,
+    permission_code: permissionCode,
+    matched_rule: `${deniedResult.matched_rule}:audit-only`,
+    reason: createStandardAuthorizationReason("ALLOW_ABAC_AUDIT_ONLY", {
+      permission_code: permissionCode,
+      original_reason_code: deniedResult.reason?.code ?? null,
+      original_matched_rule: deniedResult.matched_rule ?? null,
+    }),
+  });
+}
+
+async function reportAuditOnlyDecision(reporter, input) {
+  if (typeof reporter !== "function") {
+    return;
+  }
+
+  try {
+    await reporter(input);
+  } catch {
+    // Audit-only rollout reporting must never block authorization evaluation.
+  }
 }
 
 function createAuthorizationJobContextResolver(database) {
@@ -217,6 +243,7 @@ function createAuthorizationAdministrativeRegionContextResolver(database) {
 
 export function createAuthorizationService(options = {}) {
   const database = options.database ?? getDatabase();
+  const featureFlags = normalizeAuthorizationFeatureFlags(options.featureFlags);
   const cache = options.cache ?? createNoopAuthorizationCache();
   const resolveCurrentJobContext =
     options.jobContextResolver ?? (options.database ? createAuthorizationJobContextResolver(database) : async (subject) => subject);
@@ -295,22 +322,49 @@ export function createAuthorizationService(options = {}) {
       const explicitDeny = evaluateStaffLevelDenyRule(evaluation);
 
       if (explicitDeny) {
-        await cache.set(cacheKey, createAuthorizationCacheEntry(explicitDeny));
-        return explicitDeny;
+        const effectiveResult = shouldUseAuditOnlyMode(featureFlags, explicitDeny)
+          ? createAuditOnlyAllowedResult(permissionCode, explicitDeny)
+          : explicitDeny;
+        await reportAuditOnlyDecision(options.auditOnlyReporter, {
+          evaluation,
+          denied_result: explicitDeny,
+          effective_result: effectiveResult,
+          feature_flags: featureFlags,
+        });
+        await cache.set(cacheKey, createAuthorizationCacheEntry(effectiveResult));
+        return effectiveResult;
       }
 
       const regionScopeDeny = evaluateLogicalRegionScopeDenyRule(evaluation);
 
       if (regionScopeDeny) {
-        await cache.set(cacheKey, createAuthorizationCacheEntry(regionScopeDeny));
-        return regionScopeDeny;
+        const effectiveResult = shouldUseAuditOnlyMode(featureFlags, regionScopeDeny)
+          ? createAuditOnlyAllowedResult(permissionCode, regionScopeDeny)
+          : regionScopeDeny;
+        await reportAuditOnlyDecision(options.auditOnlyReporter, {
+          evaluation,
+          denied_result: regionScopeDeny,
+          effective_result: effectiveResult,
+          feature_flags: featureFlags,
+        });
+        await cache.set(cacheKey, createAuthorizationCacheEntry(effectiveResult));
+        return effectiveResult;
       }
 
       const administrativeRegionScopeDeny = evaluateAdministrativeRegionScopeDenyRule(evaluation);
 
       if (administrativeRegionScopeDeny) {
-        await cache.set(cacheKey, createAuthorizationCacheEntry(administrativeRegionScopeDeny));
-        return administrativeRegionScopeDeny;
+        const effectiveResult = shouldUseAuditOnlyMode(featureFlags, administrativeRegionScopeDeny)
+          ? createAuditOnlyAllowedResult(permissionCode, administrativeRegionScopeDeny)
+          : administrativeRegionScopeDeny;
+        await reportAuditOnlyDecision(options.auditOnlyReporter, {
+          evaluation,
+          denied_result: administrativeRegionScopeDeny,
+          effective_result: effectiveResult,
+          feature_flags: featureFlags,
+        });
+        await cache.set(cacheKey, createAuthorizationCacheEntry(effectiveResult));
+        return effectiveResult;
       }
 
       result = evaluateScopedAllowRules(evaluation) ?? createPermissionAllowedResult(permissionCode);
@@ -329,6 +383,7 @@ export {
   createAuthorizationJobContextResolver,
   createAuthorizationAdministrativeRegionContextResolver,
   createAuthorizationLogicalRegionContextResolver,
+  createAuditOnlyAllowedResult,
   createPermissionAllowedResult,
   createPermissionMissingResult,
 };

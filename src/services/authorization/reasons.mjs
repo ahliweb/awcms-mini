@@ -13,6 +13,12 @@ const AUTHORIZATION_REASON_DEFINITIONS = {
     category: "abac",
     security_relevant: false,
   },
+  ALLOW_ABAC_AUDIT_ONLY: {
+    message: "The request matched an audit-only rollout path and was allowed without enforcement.",
+    effect: "allow",
+    category: "abac",
+    security_relevant: true,
+  },
   DENY_UNAUTHENTICATED: {
     message: "Authorization requires an authenticated subject.",
     effect: "deny",

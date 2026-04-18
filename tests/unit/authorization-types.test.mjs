@@ -60,18 +60,18 @@ test("authorization evaluation input represents roles, jobs, regions, ownership,
 
 test("authorization reason structure is explicit and machine-readable", () => {
   const reason = createAuthorizationReason({
-    code: "DENY_STEP_UP_REQUIRED",
-    message: "Step-up authentication is required for this action.",
+    code: "ALLOW_ABAC_AUDIT_ONLY",
+    message: "The request matched an audit-only rollout path and was allowed without enforcement.",
     details: {
       permission_code: "admin.roles.assign",
-      required_session_strength: "step_up",
+      original_reason_code: "DENY_PROTECTED_TARGET",
     },
   });
 
   assert.equal(AUTHORIZATION_REASON_CODES.includes(reason.code), true);
-  assert.equal(reason.code, "DENY_STEP_UP_REQUIRED");
+  assert.equal(reason.code, "ALLOW_ABAC_AUDIT_ONLY");
   assert.equal(reason.effect, null);
-  assert.equal(reason.details.required_session_strength, "step_up");
+  assert.equal(reason.details.original_reason_code, "DENY_PROTECTED_TARGET");
 });
 
 test("authorization results preserve explicit allow or deny reasoning", () => {

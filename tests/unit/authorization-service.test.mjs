@@ -347,6 +347,49 @@ test("authorization service denies requests when target logical region falls out
   assert.equal(result.reason.code, "DENY_REGION_SCOPE_MISMATCH");
 });
 
+test("authorization service can switch logical region scope denies into audit-only allows", async () => {
+  const auditOnlyReports = [];
+  const service = createAuthorizationService({
+    featureFlags: {
+      abac_region_scope_audit_only: true,
+    },
+    auditOnlyReporter: async (input) => {
+      auditOnlyReports.push(input);
+    },
+    logicalRegionContextResolver: async (evaluation) => ({
+      ...evaluation,
+      subject: {
+        ...evaluation.subject,
+        logical_region_ids: ["region_root", "region_north"],
+      },
+      resource: {
+        ...evaluation.resource,
+        logical_region_ids: ["region_south"],
+      },
+    }),
+    permissionResolver: {
+      async getEffectivePermissions() {
+        return {
+          user_id: "user_manager",
+          permission_codes: ["admin.users.read"],
+        };
+      },
+    },
+  });
+
+  const result = await service.evaluate({
+    subject: { kind: "user", user_id: "user_manager" },
+    resource: { kind: "user", target_user_id: "user_target" },
+    context: { permission_code: "admin.users.read", action: "read" },
+  });
+
+  assert.equal(result.allowed, true);
+  assert.equal(result.reason.code, "ALLOW_ABAC_AUDIT_ONLY");
+  assert.equal(result.reason.details.original_reason_code, "DENY_REGION_SCOPE_MISMATCH");
+  assert.equal(auditOnlyReports.length, 1);
+  assert.equal(auditOnlyReports[0].denied_result.reason.code, "DENY_REGION_SCOPE_MISMATCH");
+});
+
 test("authorization service allows requests when target logical region falls within actor subtree scope", async () => {
   const service = createAuthorizationService({
     logicalRegionContextResolver: async (evaluation) => ({
@@ -550,6 +593,38 @@ test("authorization service denies peer or higher protected targets by default",
   assert.equal(peerResult.reason.code, "DENY_PROTECTED_TARGET");
   assert.equal(lowerResult.allowed, false);
   assert.equal(lowerResult.matched_rule, "staff-level:protected-target");
+});
+
+test("authorization service can switch protected-target denies into audit-only allows", async () => {
+  const auditOnlyReports = [];
+  const service = createAuthorizationService({
+    featureFlags: {
+      abac_protected_target_audit_only: true,
+    },
+    auditOnlyReporter: async (input) => {
+      auditOnlyReports.push(input);
+    },
+    permissionResolver: {
+      async getEffectivePermissions() {
+        return {
+          user_id: "user_admin",
+          permission_codes: ["admin.users.update"],
+        };
+      },
+    },
+  });
+
+  const result = await service.evaluate({
+    subject: { kind: "user", user_id: "user_admin", staff_level: 8 },
+    resource: { kind: "user", target_user_id: "user_target", target_staff_level: 8, is_protected: true },
+    context: { permission_code: "admin.users.update", action: "update" },
+  });
+
+  assert.equal(result.allowed, true);
+  assert.equal(result.reason.code, "ALLOW_ABAC_AUDIT_ONLY");
+  assert.equal(result.reason.details.original_reason_code, "DENY_PROTECTED_TARGET");
+  assert.equal(auditOnlyReports.length, 1);
+  assert.equal(auditOnlyReports[0].denied_result.reason.code, "DENY_PROTECTED_TARGET");
 });
 
 test("authorization service allows override path for protected targets when explicit override is supplied", async () => {
