@@ -1057,7 +1057,7 @@ async function listSecuritySettingsHandler(ctx) {
     .execute()).map(normalizeMatrixRoleRow);
 
   return {
-    policy: getSecurityPolicy({ roles }),
+    policy: await getSecurityPolicy({ database: db, roles }),
     roles,
   };
 }
@@ -1087,15 +1087,15 @@ async function updateSecuritySettingsHandler(ctx) {
     .orderBy("staff_level", "desc")
     .orderBy("slug", "asc")
     .execute()).map(normalizeMatrixRoleRow);
-  const previousPolicy = getSecurityPolicy({ roles });
-  const policy = updateSecurityPolicy({
+  const previousPolicy = await getSecurityPolicy({ database: db, roles });
+  const policy = await updateSecurityPolicy({
     mandatoryTwoFactorRolloutMode: typeof body?.mandatoryTwoFactorRolloutMode === "string" ? body.mandatoryTwoFactorRolloutMode : undefined,
     customMandatoryTwoFactorRoleIds: Array.isArray(body?.customMandatoryTwoFactorRoleIds)
       ? body.customMandatoryTwoFactorRoleIds
       : Array.isArray(body?.mandatoryTwoFactorRoleIds)
         ? body.mandatoryTwoFactorRoleIds
         : [],
-  }, { roles });
+  }, { database: db, roles });
 
   const pluginAudit = createPluginAuditHelper({
     pluginId: "awcms-users-admin",

@@ -283,6 +283,68 @@ function createAdminSession(options = {}) {
   });
 }
 
+function createOptionsQuery(state) {
+  const whereClauses = [];
+
+  const query = {
+    select() {
+      return query;
+    },
+    where(column, operator, value) {
+      whereClauses.push({ column, operator, value });
+      return query;
+    },
+    async executeTakeFirst() {
+      const name = whereClauses.find((clause) => clause.column === "name" && clause.operator === "=")?.value;
+      if (!state.options.has(name)) {
+        return undefined;
+      }
+
+      return {
+        name,
+        value: state.options.get(name),
+      };
+    },
+  };
+
+  return query;
+}
+
+function createOptionsInsertBuilder(state) {
+  return {
+    values(input) {
+      return {
+        async execute() {
+          state.options.set(input.name, input.value);
+        },
+      };
+    },
+  };
+}
+
+function createOptionsUpdateBuilder(state) {
+  let nextName;
+  let nextValue;
+
+  const chain = {
+    set(input) {
+      nextValue = input.value;
+      return chain;
+    },
+    where(column, operator, value) {
+      assert.equal(column, "name");
+      assert.equal(operator, "=");
+      nextName = value;
+      return chain;
+    },
+    async execute() {
+      state.options.set(nextName, nextValue);
+    },
+  };
+
+  return chain;
+}
+
 function createAdminActorRow() {
   return {
     id: "admin_actor",
@@ -1932,8 +1994,15 @@ test("awcms users admin plugin exposes security settings routes and protected 2f
   const authorizationCalls = [];
   const auditEntries = [];
   let resetInput;
+  const state = {
+    options: new Map(),
+  };
   const fakeDb = {
     selectFrom(table) {
+      if (table === "options") {
+        return createOptionsQuery(state);
+      }
+
       if (table === "users") {
         const query = new FakeUsersQuery([
           createAdminActorRow(),
@@ -1970,9 +2039,17 @@ test("awcms users admin plugin exposes security settings routes and protected 2f
 
       assert.fail(`Unexpected table ${table}`);
     },
+    insertInto(table) {
+      assert.equal(table, "options");
+      return createOptionsInsertBuilder(state);
+    },
+    updateTable(table) {
+      assert.equal(table, "options");
+      return createOptionsUpdateBuilder(state);
+    },
   };
 
-  resetSecurityPolicy();
+  await resetSecurityPolicy({ database: fakeDb });
   setUserAdminDatabaseGetter(() => fakeDb);
   setUserAdminAuthorizationServiceFactory(createAllowingAuthorizationFactory(authorizationCalls));
   setUserAdminAuditServiceFactory(() => ({
@@ -2080,6 +2157,6 @@ test("awcms users admin plugin exposes security settings routes and protected 2f
     resetUserAdminAuthorizationServiceFactory();
     resetUserAdminAuditServiceFactory();
     resetUserAdminAdminTwoFactorServiceFactory();
-    resetSecurityPolicy();
+    await resetSecurityPolicy({ database: fakeDb });
   }
 });

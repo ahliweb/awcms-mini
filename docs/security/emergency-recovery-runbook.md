@@ -124,7 +124,7 @@ Use this when the incident is caused by a recent rollout, especially around auth
 Checkpoint order:
 
 1. Record the current git commit deployed to the environment.
-2. Record the current security policy state, especially mandatory 2FA rollout mode and effective role ids.
+2. Record the current persisted security policy state, especially mandatory 2FA rollout mode and effective role ids.
 3. Record whether ABAC audit-only flags are enabled.
 4. Record any plugin or admin-surface settings changed during the incident window.
 

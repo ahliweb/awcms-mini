@@ -143,6 +143,7 @@ Use these focused checks when the release touches governance or security surface
 ### Security Settings
 
 - [ ] `Security Settings` can switch between `none`, `protected_roles`, and `custom`
+- [ ] Security policy survives an app restart or instance replacement
 - [ ] Saving the security policy appends the expected audit entry
 - [ ] Security-sensitive admin actions do not depend on client-supplied authorization headers
 
