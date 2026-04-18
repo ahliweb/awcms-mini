@@ -1038,7 +1038,7 @@ async function listSecuritySettingsHandler(ctx) {
     .execute()).map(normalizeMatrixRoleRow);
 
   return {
-    policy: getSecurityPolicy(),
+    policy: getSecurityPolicy({ roles }),
     roles,
   };
 }
@@ -1060,10 +1060,23 @@ async function updateSecuritySettingsHandler(ctx) {
     throw PluginRouteError.badRequest("Expected JSON body");
   }
 
-  const previousPolicy = getSecurityPolicy();
+  const db = userAdminDatabaseGetter();
+  const roles = (await db
+    .selectFrom("roles")
+    .select(["id", "slug", "name", "staff_level", "is_assignable", "is_protected", "deleted_at"])
+    .where("deleted_at", "is", null)
+    .orderBy("staff_level", "desc")
+    .orderBy("slug", "asc")
+    .execute()).map(normalizeMatrixRoleRow);
+  const previousPolicy = getSecurityPolicy({ roles });
   const policy = updateSecurityPolicy({
-    mandatoryTwoFactorRoleIds: Array.isArray(body?.mandatoryTwoFactorRoleIds) ? body.mandatoryTwoFactorRoleIds : [],
-  });
+    mandatoryTwoFactorRolloutMode: typeof body?.mandatoryTwoFactorRolloutMode === "string" ? body.mandatoryTwoFactorRolloutMode : undefined,
+    customMandatoryTwoFactorRoleIds: Array.isArray(body?.customMandatoryTwoFactorRoleIds)
+      ? body.customMandatoryTwoFactorRoleIds
+      : Array.isArray(body?.mandatoryTwoFactorRoleIds)
+        ? body.mandatoryTwoFactorRoleIds
+        : [],
+  }, { roles });
 
   const pluginAudit = createPluginAuditHelper({
     pluginId: "awcms-users-admin",
@@ -1071,17 +1084,21 @@ async function updateSecuritySettingsHandler(ctx) {
   });
 
   await pluginAudit.append({
-    database: userAdminDatabaseGetter(),
+    database: db,
     actorUserId: ctx.request.headers.get("x-actor-user-id")?.trim() ?? null,
     request: ctx.request,
     action: "plugin.security.settings.update",
     entityType: "security_policy",
     summary: "Updated plugin-managed security settings.",
     beforePayload: {
+      mandatory_two_factor_rollout_mode: previousPolicy.mandatoryTwoFactorRolloutMode,
       mandatory_two_factor_role_ids: previousPolicy.mandatoryTwoFactorRoleIds,
+      custom_mandatory_two_factor_role_ids: previousPolicy.customMandatoryTwoFactorRoleIds,
     },
     afterPayload: {
+      mandatory_two_factor_rollout_mode: policy.mandatoryTwoFactorRolloutMode,
       mandatory_two_factor_role_ids: policy.mandatoryTwoFactorRoleIds,
+      custom_mandatory_two_factor_role_ids: policy.customMandatoryTwoFactorRoleIds,
     },
     metadata: {
       plugin_action: "security.settings.update",

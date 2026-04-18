@@ -136,7 +136,9 @@ interface UserTwoFactorStatus {
 
 interface SecurityPolicySnapshot {
   policy: {
+    mandatoryTwoFactorRolloutMode: "none" | "protected_roles" | "custom";
     mandatoryTwoFactorRoleIds: string[];
+    customMandatoryTwoFactorRoleIds: string[];
   };
   roles: PermissionMatrixRole[];
 }
@@ -1611,7 +1613,10 @@ function useSecuritySettings() {
     };
   }, []);
 
-  const updatePolicy = React.useCallback(async (mandatoryTwoFactorRoleIds: string[]) => {
+  const updatePolicy = React.useCallback(async (input: {
+    mandatoryTwoFactorRolloutMode: "none" | "protected_roles" | "custom";
+    customMandatoryTwoFactorRoleIds: string[];
+  }) => {
     setSaving(true);
     setError(null);
 
@@ -1619,7 +1624,7 @@ function useSecuritySettings() {
       const response = await apiFetch(`${API_BASE}/security/settings/update`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mandatoryTwoFactorRoleIds }),
+        body: JSON.stringify(input),
       });
       const data = await parseApiResponse<{ policy: SecurityPolicySnapshot["policy"] }>(response, "Failed to update security settings");
       setSnapshot((current) => (current ? { ...current, policy: data.policy } : current));
@@ -2086,10 +2091,29 @@ function UserSecurityPanel({ userId, status, submitting, onReset }: {
 function SecuritySettingsPage() {
   const { snapshot, loading, error, saving, updatePolicy } = useSecuritySettings();
   const [selectedRoleIds, setSelectedRoleIds] = React.useState<string[]>([]);
+  const [rolloutMode, setRolloutMode] = React.useState<"none" | "protected_roles" | "custom">("none");
 
   React.useEffect(() => {
-    setSelectedRoleIds(snapshot?.policy.mandatoryTwoFactorRoleIds ?? []);
+    setSelectedRoleIds(snapshot?.policy.customMandatoryTwoFactorRoleIds ?? []);
+    setRolloutMode(snapshot?.policy.mandatoryTwoFactorRolloutMode ?? "none");
   }, [snapshot]);
+
+  const protectedRoleIds = React.useMemo(
+    () => (snapshot?.roles ?? []).filter((role) => role.isProtected).map((role) => role.id).sort((a, b) => a.localeCompare(b)),
+    [snapshot?.roles],
+  );
+
+  const effectiveRoleIds = React.useMemo(() => {
+    if (rolloutMode === "protected_roles") {
+      return protectedRoleIds;
+    }
+
+    if (rolloutMode === "custom") {
+      return selectedRoleIds;
+    }
+
+    return [];
+  }, [protectedRoleIds, rolloutMode, selectedRoleIds]);
 
   return (
     <PageFrame title="Security Settings">
@@ -2101,27 +2125,51 @@ function SecuritySettingsPage() {
       {!loading && snapshot ? (
         <div style={{ padding: 16, border: "1px solid #e4e4e7", borderRadius: 16, background: "#fff" }}>
           <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>Mandatory 2FA Roles</h2>
-          <div style={{ display: "grid", gap: 10 }}>
-            {snapshot.roles.map((role) => (
-              <label key={role.id} style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={selectedRoleIds.includes(role.id)}
-                  onChange={(event) => {
-                    setSelectedRoleIds((current) =>
-                      event.target.checked ? [...current, role.id].sort((a, b) => a.localeCompare(b)) : current.filter((value) => value !== role.id),
-                    );
-                  }}
-                />
-                <span>{role.name} ({role.slug})</span>
-              </label>
-            ))}
+          <div style={{ display: "grid", gap: 12, marginBottom: 12 }}>
+            <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <input type="radio" name="mandatory-2fa-rollout" checked={rolloutMode === "none"} onChange={() => setRolloutMode("none")} />
+              <span>Disabled</span>
+            </label>
+            <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <input type="radio" name="mandatory-2fa-rollout" checked={rolloutMode === "protected_roles"} onChange={() => setRolloutMode("protected_roles")} />
+              <span>Protected roles first</span>
+            </label>
+            <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <input type="radio" name="mandatory-2fa-rollout" checked={rolloutMode === "custom"} onChange={() => setRolloutMode("custom")} />
+              <span>Custom role selection</span>
+            </label>
+          </div>
+          <div style={{ marginBottom: 14, color: "#52525b", maxWidth: 820 }}>
+            {rolloutMode === "none" ? "Mandatory 2FA enforcement is currently disabled." : null}
+            {rolloutMode === "protected_roles" ? `Mandatory 2FA will be enforced for protected roles first (${protectedRoleIds.length} role${protectedRoleIds.length === 1 ? "" : "s"}).` : null}
+            {rolloutMode === "custom" ? "Mandatory 2FA will be enforced only for the roles you select below." : null}
+          </div>
+          {rolloutMode === "custom" ? (
+            <div style={{ display: "grid", gap: 10 }}>
+              {snapshot.roles.map((role) => (
+                <label key={role.id} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedRoleIds.includes(role.id)}
+                    onChange={(event) => {
+                      setSelectedRoleIds((current) =>
+                        event.target.checked ? [...current, role.id].sort((a, b) => a.localeCompare(b)) : current.filter((value) => value !== role.id),
+                      );
+                    }}
+                  />
+                  <span>{role.name} ({role.slug}){role.isProtected ? " [protected]" : ""}</span>
+                </label>
+              ))}
+            </div>
+          ) : null}
+          <div style={{ marginTop: 14, color: "#71717a", fontSize: 14 }}>
+            Effective mandatory 2FA roles: {effectiveRoleIds.length === 0 ? "none" : effectiveRoleIds.join(", ")}
           </div>
           <div style={{ marginTop: 16 }}>
             <button
               type="button"
               disabled={saving}
-              onClick={() => void updatePolicy(selectedRoleIds)}
+              onClick={() => void updatePolicy({ mandatoryTwoFactorRolloutMode: rolloutMode, customMandatoryTwoFactorRoleIds: selectedRoleIds })}
               style={{ border: 0, borderRadius: 999, padding: "10px 16px", background: "#111827", color: "#fff", fontWeight: 600 }}
             >
               {saving ? "Saving..." : "Save security policy"}

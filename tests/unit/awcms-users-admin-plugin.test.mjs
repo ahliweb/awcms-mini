@@ -1959,24 +1959,32 @@ test("awcms users admin plugin exposes security settings routes and protected 2f
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/security/settings", { headers: createAdminHeaders() }),
     });
     assert.equal(settingsBody.roles.length, 2);
+    assert.equal(settingsBody.policy.mandatoryTwoFactorRolloutMode, "none");
     assert.deepEqual(settingsBody.policy.mandatoryTwoFactorRoleIds, []);
+    assert.deepEqual(settingsBody.policy.customMandatoryTwoFactorRoleIds, []);
 
     const updated = await plugin.routes["security/settings/update"].handler({
       request: new Request("http://example.test/_emdash/api/plugins/awcms-users-admin/security/settings/update", {
         method: "POST",
         headers: { ...createAdminHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ mandatoryTwoFactorRoleIds: ["role_owner"] }),
+        body: JSON.stringify({ mandatoryTwoFactorRolloutMode: "protected_roles" }),
       }),
     });
+    assert.equal(updated.policy.mandatoryTwoFactorRolloutMode, "protected_roles");
     assert.deepEqual(updated.policy.mandatoryTwoFactorRoleIds, ["role_owner"]);
+    assert.deepEqual(updated.policy.customMandatoryTwoFactorRoleIds, []);
     assert.equal(auditEntries.length, 1);
     assert.equal(auditEntries[0].action, "plugin.security.settings.update");
     assert.equal(auditEntries[0].metadata.plugin_id, "awcms-users-admin");
     assert.deepEqual(auditEntries[0].before_payload, {
+      mandatory_two_factor_rollout_mode: "none",
       mandatory_two_factor_role_ids: [],
+      custom_mandatory_two_factor_role_ids: [],
     });
     assert.deepEqual(auditEntries[0].after_payload, {
+      mandatory_two_factor_rollout_mode: "protected_roles",
       mandatory_two_factor_role_ids: ["role_owner"],
+      custom_mandatory_two_factor_role_ids: [],
     });
 
     const statusBody = await plugin.routes["users/2fa/status"].handler({
