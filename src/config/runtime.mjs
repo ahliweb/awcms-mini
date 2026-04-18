@@ -1,6 +1,8 @@
 export const DEFAULT_DATABASE_URL = "postgres://localhost:5432/awcms_mini_dev";
 export const DEFAULT_RUNTIME_TARGET = "cloudflare";
 export const DEFAULT_TRUSTED_PROXY_MODE = "direct";
+export const DEFAULT_R2_MEDIA_BUCKET_BINDING = "MEDIA_BUCKET";
+export const DEFAULT_R2_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 function normalizeSiteUrl(value) {
   if (typeof value !== "string") {
@@ -42,6 +44,24 @@ function normalizeTurnstileExpectedHostname(value, siteUrl) {
   }
 }
 
+function normalizePositiveInteger(value, fallback) {
+  const next = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(next) && next > 0 ? next : fallback;
+}
+
+function normalizeCommaSeparatedList(value, fallback = []) {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const entries = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  return entries.length > 0 ? entries : fallback;
+}
+
 export function getRuntimeConfig() {
   const siteUrl = normalizeSiteUrl(process.env.SITE_URL);
   const turnstileSecretKey = normalizeOptionalString(process.env.TURNSTILE_SECRET_KEY);
@@ -59,6 +79,12 @@ export function getRuntimeConfig() {
       secretKey: turnstileSecretKey,
       enabled: Boolean(turnstileSecretKey),
       expectedHostname: normalizeTurnstileExpectedHostname(process.env.TURNSTILE_EXPECTED_HOSTNAME, siteUrl),
+    },
+    r2: {
+      mediaBucketBinding: normalizeOptionalString(process.env.R2_MEDIA_BUCKET_BINDING) || DEFAULT_R2_MEDIA_BUCKET_BINDING,
+      mediaBucketName: normalizeOptionalString(process.env.R2_MEDIA_BUCKET_NAME),
+      maxUploadBytes: normalizePositiveInteger(process.env.R2_MAX_UPLOAD_BYTES, DEFAULT_R2_MAX_UPLOAD_BYTES),
+      allowedContentTypes: normalizeCommaSeparatedList(process.env.R2_ALLOWED_CONTENT_TYPES, ["image/jpeg", "image/png", "image/webp", "application/pdf"]),
     },
   };
 }

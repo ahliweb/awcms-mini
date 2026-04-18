@@ -64,6 +64,13 @@ Recommended public abuse-defense settings:
 - `TURNSTILE_SECRET_KEY`
 - optional `TURNSTILE_EXPECTED_HOSTNAME`
 
+R2 storage baseline when object storage is enabled:
+
+- `R2_MEDIA_BUCKET_BINDING`
+- optional `R2_MEDIA_BUCKET_NAME`
+- `R2_MAX_UPLOAD_BYTES`
+- `R2_ALLOWED_CONTENT_TYPES`
+
 For remote PostgreSQL deployments, `DATABASE_URL` should target the protected VPS host and use a non-superuser application role.
 
 `APP_SECRET` should also be set when your host auth/session runtime depends on it. Mini currently falls back to `APP_SECRET` only if `MINI_TOTP_ENCRYPTION_KEY` is not set.

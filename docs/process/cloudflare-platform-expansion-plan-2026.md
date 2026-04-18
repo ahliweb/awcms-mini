@@ -144,6 +144,11 @@ Security notes:
 
 R2 should be the object storage layer for operator-managed uploads or media-like assets when Mini needs object storage beyond PostgreSQL.
 
+Current status:
+
+- Mini now has a binding-backed R2 storage service baseline with private-by-default assumptions, application-generated object keys, and allowlist/size validation
+- follow-on work is still needed to add concrete metadata tables, upload UI/routes, and controlled download handlers for specific product surfaces
+
 Recommended design:
 
 - keep PostgreSQL as the source of truth for metadata, ownership, authorization state, and lifecycle state

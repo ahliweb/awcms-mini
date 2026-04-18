@@ -11,6 +11,16 @@
     "enabled": true
   },
 
+  // Add an R2 bucket binding for private object storage when Mini starts
+  // storing uploaded media or other approved binary assets.
+  //,
+  // "r2_buckets": [
+  //   {
+  //     "binding": "MEDIA_BUCKET",
+  //     "bucket_name": "<MEDIA_BUCKET_NAME>"
+  //   }
+  // ],
+
   // Add a Hyperdrive binding when the deployment path is ready to shift
   // PostgreSQL access from direct DATABASE_URL usage to Cloudflare-managed pooling.
   //,

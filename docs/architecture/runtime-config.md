@@ -68,6 +68,29 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Scope: server-only runtime configuration.
 - Default behavior: falls back to the hostname parsed from `SITE_URL` when omitted.
 
+### `R2_MEDIA_BUCKET_BINDING`
+
+- Purpose: Cloudflare Worker binding name used for private R2-backed object storage.
+- Scope: server-only runtime configuration.
+- Default fallback: `MEDIA_BUCKET`.
+
+### `R2_MEDIA_BUCKET_NAME`
+
+- Purpose: optional operator-facing bucket name reference for deployment documentation and binding alignment.
+- Scope: runtime/deployment documentation value.
+
+### `R2_MAX_UPLOAD_BYTES`
+
+- Purpose: maximum accepted object size for the current R2 upload policy.
+- Scope: server-only runtime configuration.
+- Default fallback: `5242880` (5 MiB).
+
+### `R2_ALLOWED_CONTENT_TYPES`
+
+- Purpose: allowlist of MIME types accepted by the current R2 upload policy.
+- Scope: server-only runtime configuration.
+- Default fallback: `image/jpeg,image/png,image/webp,application/pdf`.
+
 ## Source of Truth
 
 - runtime config module: `src/config/runtime.mjs`
@@ -76,6 +99,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Cloudflare deployment configuration: `wrangler.jsonc`
 - TOTP encryption key resolution: `src/services/security/two-factor.mjs`
 - Turnstile validation helper: `src/security/turnstile.mjs`
+- R2 storage helper: `src/services/storage/r2.mjs`
 
 ## Rules
 
@@ -88,6 +112,8 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - document public-origin and trusted-proxy assumptions explicitly for Cloudflare-fronted deployments
 - for remote PostgreSQL deployments, prefer TLS-enabled connections and host-level access restriction
 - store Turnstile secrets in Cloudflare-managed secrets or equivalent server-only runtime configuration
+- keep R2 buckets private by default and access them through Cloudflare bindings, not REST calls from runtime code
+- keep object metadata, ownership, and authorization state in PostgreSQL even when object bytes live in R2
 
 ## Deployment Notes
 
@@ -101,6 +127,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - `wrangler.jsonc` should define the Worker, static assets, observability, and any explicit Cloudflare bindings needed for deployment.
 - Astro's Cloudflare adapter uses the default `SESSION` KV binding for sessions unless operators override it deliberately.
 - Cloudflare Hyperdrive is the recommended next-step pooling path for PostgreSQL access from edge-hosted runtime code, but the current repo still uses `DATABASE_URL` directly.
+- R2-backed object storage should use a private bucket binding and application-generated object keys.
 
 See `docs/process/cloudflare-hosted-runtime.md` for the supported hosting model and deployment checks.
 
@@ -130,6 +157,13 @@ For public auth and recovery abuse defense, also configure:
 - `TURNSTILE_SITE_KEY`
 - `TURNSTILE_SECRET_KEY`
 - optional `TURNSTILE_EXPECTED_HOSTNAME`
+
+For private R2-backed object storage, also configure:
+
+- `R2_MEDIA_BUCKET_BINDING`
+- optional `R2_MEDIA_BUCKET_NAME`
+- `R2_MAX_UPLOAD_BYTES`
+- `R2_ALLOWED_CONTENT_TYPES`
 
 Also set `APP_SECRET` if the host auth/session runtime depends on it or if you need the current Mini fallback path during migration, but do not treat that fallback as the preferred long-term TOTP configuration.
 

@@ -21,6 +21,7 @@ The supported baseline production path is:
 - `DATABASE_URL` points to the intended remote PostgreSQL instance
 - `wrangler.jsonc` or equivalent deployment config defines the Worker, assets, observability, and required bindings
 - `TURNSTILE_SECRET_KEY` is stored as a server-only secret when Turnstile protection is enabled
+- `R2_MEDIA_BUCKET_BINDING` maps to a private R2 bucket when object storage is enabled
 
 ## Cloudflare Expectations
 
@@ -30,6 +31,7 @@ The supported baseline production path is:
 - Ensure the adapter's default `SESSION` KV binding or an explicit equivalent binding is available
 - Add edge protections such as rate limiting, managed challenge, or Turnstile on abuse-prone routes as those features land
 - Keep Turnstile hostname expectations aligned with `SITE_URL` or an explicit `TURNSTILE_EXPECTED_HOSTNAME`
+- Keep R2 buckets private by default and expose downloads through controlled application paths as upload features land
 
 ## PostgreSQL Expectations
 
