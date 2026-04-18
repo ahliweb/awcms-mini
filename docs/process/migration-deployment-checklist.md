@@ -94,6 +94,8 @@ Validate the live system in this order.
 - [ ] Lockout behavior still returns the expected blocked response after repeated failures where applicable
 - [ ] Password reset request and consume flows still behave correctly for test users
 - [ ] Client IP logging and lockout behavior reflect the intended proxied request path
+- [ ] When Turnstile is enabled, valid solves succeed and invalid or missing tokens fail for the protected public flows
+- [ ] When split hostnames are enabled, Turnstile hostname validation accepts only the reviewed public/admin hostname set
 
 ### RBAC
 
@@ -149,6 +151,14 @@ Use these focused checks when the release touches governance or security surface
 - [ ] Admin routes load correctly through the Cloudflare public hostname
 - [ ] If `ADMIN_SITE_URL` is configured, the admin hostname root redirects to `/_emdash/admin` and the admin surface still loads correctly there
 
+### Cloudflare Automation
+
+- [ ] `https://awcms-mini.ahlikoding.com/` responds through the current Cloudflare-hosted Worker deployment
+- [ ] `https://awcms-mini-admin.ahlikoding.com/` redirects to `/_emdash/admin` on the same host when the admin hostname is enabled
+- [ ] Turnstile-protected public flows behave correctly for the reviewed hostname set
+- [ ] The deployed Worker still exposes the `MEDIA_BUCKET` binding for `awcms-mini-s3`
+- [ ] Cloudflare-side hostname, Turnstile, and R2 configuration changes are reflected in the current operator notes before release signoff
+
 ### Security Settings
 
 - [ ] `Security Settings` can switch between `none`, `protected_roles`, and `custom`
@@ -172,6 +182,7 @@ Roll back or pause the release if any of these occur:
 - RBAC or ABAC checks unexpectedly allow high-risk actions
 - Audit entries stop appearing for plugin-managed or security-sensitive actions
 - Mandatory 2FA rollout applies to the wrong role set
+- Cloudflare automation leaves hostname routing, Turnstile validation, or R2 binding state partially applied and the smoke tests no longer pass
 
 ## Explicitly Avoid
 

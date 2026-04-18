@@ -72,6 +72,58 @@ After deployment:
 - Confirm the runtime can see the `MEDIA_BUCKET` binding for `awcms-mini-s3`
 - Confirm the app can reach PostgreSQL and complete health or smoke tests for the selected environment
 
+## Cloudflare Automation Smoke Tests
+
+Run these in order after a deployment or after Cloudflare-side automation changes.
+
+### 1. Public Hostname
+
+- Request `https://awcms-mini.ahlikoding.com/` and confirm the public site responds through the current Worker deployment.
+- Confirm the response is served through Cloudflare-managed TLS.
+- Confirm the public hostname remains the canonical browser-facing site URL.
+
+### 2. Admin Hostname
+
+- Request `https://awcms-mini-admin.ahlikoding.com/`.
+- Confirm the hostname root redirects to `/_emdash/admin` on the same host.
+- Confirm the EmDash admin surface loads there without introducing a second admin shell or alternate API surface.
+
+### 3. Turnstile-Protected Flows
+
+- Confirm the login screen renders the Turnstile widget when Turnstile is enabled.
+- Confirm a valid Turnstile solve allows the protected flow to continue.
+- Confirm an invalid or missing token fails server-side.
+- Confirm Siteverify hostname handling accepts only the reviewed hostname set from `TURNSTILE_EXPECTED_HOSTNAMES` or the derived `SITE_URL` and `ADMIN_SITE_URL` fallback.
+- Review Turnstile analytics for unexpected hostname, action, or challenge anomalies after rollout.
+
+### 4. R2 Binding
+
+- Confirm `wrangler.jsonc` and the deployed Worker configuration still bind `MEDIA_BUCKET` to `awcms-mini-s3`.
+- Confirm the runtime can resolve the `MEDIA_BUCKET` binding without throwing `R2_BUCKET_NOT_CONFIGURED`.
+- If an upload-capable flow is enabled in the environment, confirm the app can write and read an approved private object through the application path.
+
+### 5. PostgreSQL Reachability
+
+- Run `pnpm healthcheck` or the environment-equivalent health path.
+- Confirm the app can still reach PostgreSQL on the Coolify-managed VPS.
+- Confirm no Cloudflare-side automation change accidentally altered the database path assumptions.
+
+## Partial Provisioning Rollback
+
+If Cloudflare automation only partially succeeds, use the smallest rollback that restores a coherent deployment state.
+
+Rollback order:
+
+1. Record the currently deployed git commit and the active Worker version.
+2. Record which Cloudflare-side resources changed: hostname routing, Turnstile widget settings, Worker bindings, or R2 bucket configuration.
+3. If the Worker code deployment is the problem, roll back the Worker with `wrangler rollback` to the last known good version.
+4. If a hostname mapping is wrong, remove or correct the custom-domain or route change before changing app code.
+5. If Turnstile blocks valid traffic, restore the previous reviewed hostname set or secret configuration rather than disabling all server-side validation blindly.
+6. If the `MEDIA_BUCKET` binding is missing or incorrect, restore the last known good Worker binding configuration before changing application storage logic.
+7. Re-run the smoke tests in this document after the rollback step completes.
+
+Do not mix partial Cloudflare rollback, unreviewed runtime edits, and direct database changes in the same recovery step unless the incident has been escalated and the operator has captured the full state first.
+
 ## Cross-References
 
 - `docs/architecture/runtime-config.md`

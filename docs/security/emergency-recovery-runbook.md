@@ -130,6 +130,25 @@ Checkpoint order:
 3. Record whether ABAC audit-only flags are enabled.
 4. Record any plugin or admin-surface settings changed during the incident window.
 5. Record whether traffic is reaching the app through the supported Cloudflare-hosted runtime path or through an unexpected alternate deployment path.
+6. Record whether the incident coincides with hostname, Turnstile, Worker binding, or R2 bucket automation changes.
+
+## Cloudflare Automation Recovery
+
+Use this when a Cloudflare-side automation change leaves the deployment in a partially applied state.
+
+1. Record the active Worker deployment version before changing anything else.
+2. Record which Cloudflare-side resources changed:
+   - public hostname mapping
+   - admin hostname mapping
+   - Turnstile hostname or secret configuration
+   - Worker bindings such as `MEDIA_BUCKET`
+3. If the Worker deployment itself is broken, roll back the Worker version first using the reviewed Cloudflare rollback path.
+4. If only hostname routing is wrong, correct the custom-domain or route mapping before changing application code.
+5. If Turnstile is rejecting valid traffic, restore the last reviewed hostname allowlist or secret configuration rather than disabling server-side validation broadly.
+6. If the R2 binding is missing or points to the wrong bucket, restore the Worker binding contract to `MEDIA_BUCKET` and `awcms-mini-s3` before changing storage logic.
+7. Re-run the Cloudflare smoke tests from `docs/process/cloudflare-hosted-runtime.md` after each rollback step.
+
+Do not combine a Worker rollback, direct database edits, and ad hoc Cloudflare hostname changes in one untracked recovery step. Restore one boundary at a time and capture the result.
 
 ## Policy Rollback
 
