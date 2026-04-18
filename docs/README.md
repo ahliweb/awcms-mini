@@ -27,6 +27,7 @@ Current planning reference:
 - `process/cloudflare-hostname-turnstile-r2-automation-plan-2026.md` - next-stage Cloudflare hostname, Turnstile, and R2 automation recommendations
 - `process/secret-hygiene-coolify-cloudflare-topology-plan-2026.md` - secret hygiene, Coolify MCP, and Cloudflare topology recommendations
 - `process/secret-hygiene-audit.md` - audit checklist and cleanup rules for scripts, config examples, and operator secret handling
+- `process/coolify-mcp-secret-handling.md` - supported local-only secret handling pattern for Coolify MCP access
 - `process/ai-workflow-planning-templates.md` - reusable AI workflow templates for docs, planning, implementation, and review tasks
 
 ## Accuracy Rule

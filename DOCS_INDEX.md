@@ -56,6 +56,7 @@ This file maps the current documentation set for AWCMS Mini.
 - `docs/process/cloudflare-hostname-turnstile-r2-automation-plan-2026.md`
 - `docs/process/secret-hygiene-coolify-cloudflare-topology-plan-2026.md`
 - `docs/process/secret-hygiene-audit.md`
+- `docs/process/coolify-mcp-secret-handling.md`
 - `docs/process/ai-workflow-planning-templates.md`
 - `docs/process/postgresql-vps-hardening.md`
 - `docs/process/emdash-alignment-and-security-plan-2026.md`
