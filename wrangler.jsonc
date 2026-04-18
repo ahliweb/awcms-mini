@@ -10,6 +10,16 @@
   "observability": {
     "enabled": true
   },
+  "routes": [
+    {
+      "pattern": "awcms-mini.ahlikoding.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "awcms-mini-admin.ahlikoding.com",
+      "custom_domain": true
+    }
+  ],
   "r2_buckets": [
     {
       "binding": "MEDIA_BUCKET",

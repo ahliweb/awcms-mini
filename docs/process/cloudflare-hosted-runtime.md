@@ -32,6 +32,7 @@ The supported baseline production path is:
 - Use the Astro Cloudflare adapter for the supported runtime build
 - Keep Worker compatibility flags aligned with the runtime needs of the current codebase
 - Keep observability enabled for production deployment
+- Prefer Worker custom domains for `awcms-mini.ahlikoding.com` and `awcms-mini-admin.ahlikoding.com` because the Worker is the origin for this deployment model
 - Ensure the adapter's default `SESSION` KV binding or an explicit equivalent binding is available
 - If split hostnames are used, keep the admin hostname pointed at the same Worker deployment and treat it as an entry host for `/_emdash/admin`
 - Add edge protections such as rate limiting, managed challenge, or Turnstile on abuse-prone routes as those features land
@@ -56,6 +57,7 @@ Before deployment:
 
 - Confirm `pnpm build` produces the Cloudflare Worker bundle successfully
 - Confirm `wrangler.jsonc` matches the intended Worker name and bindings
+- Confirm `wrangler.jsonc` declares custom-domain routes for `awcms-mini.ahlikoding.com` and `awcms-mini-admin.ahlikoding.com`
 - Confirm the `MEDIA_BUCKET` binding targets `awcms-mini-s3`
 - Confirm `MINI_RUNTIME_TARGET=cloudflare` in the deployment environment
 - Confirm `SITE_URL`, `TRUSTED_PROXY_MODE`, and security secrets are set correctly
@@ -81,12 +83,14 @@ Run these in order after a deployment or after Cloudflare-side automation change
 - Request `https://awcms-mini.ahlikoding.com/` and confirm the public site responds through the current Worker deployment.
 - Confirm the response is served through Cloudflare-managed TLS.
 - Confirm the public hostname remains the canonical browser-facing site URL.
+- Confirm the hostname is attached through the Worker custom-domain path rather than an unrelated legacy route.
 
 ### 2. Admin Hostname
 
 - Request `https://awcms-mini-admin.ahlikoding.com/`.
 - Confirm the hostname root redirects to `/_emdash/admin` on the same host.
 - Confirm the EmDash admin surface loads there without introducing a second admin shell or alternate API surface.
+- Confirm the hostname is attached through the same Worker deployment as the public hostname.
 
 ### 3. Turnstile-Protected Flows
 
@@ -123,6 +127,16 @@ Rollback order:
 7. Re-run the smoke tests in this document after the rollback step completes.
 
 Do not mix partial Cloudflare rollback, unreviewed runtime edits, and direct database changes in the same recovery step unless the incident has been escalated and the operator has captured the full state first.
+
+## Current Account Visibility Caveat
+
+During the current implementation pass, the Cloudflare MCP session did not return visible zone, Worker, or custom-domain inventory for account `5255727b7269584897c8c97ebdd3347f`.
+
+Current consequence:
+
+- the repository now declares the intended custom-domain automation baseline in `wrangler.jsonc`
+- operators should still record the live `ahlikoding.com` zone ID and confirm the deployed Worker is the target of both custom domains during environment rollout
+- the smoke tests in this document remain the required verification step until account inventory is readable through the available Cloudflare management path
 
 ## Cross-References
 

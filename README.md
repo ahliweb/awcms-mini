@@ -129,7 +129,7 @@ Cloudflare-hosted deployment baseline:
 
 - `pnpm build` produces the Worker bundle
 - `pnpm deploy:cloudflare` deploys via Wrangler
-- `wrangler.jsonc` defines the Worker, assets, observability, the `MEDIA_BUCKET` R2 binding for `awcms-mini-s3`, and optional Hyperdrive binding placeholders
+- `wrangler.jsonc` defines the Worker, assets, observability, custom domains for `awcms-mini.ahlikoding.com` and `awcms-mini-admin.ahlikoding.com`, the `MEDIA_BUCKET` R2 binding for `awcms-mini-s3`, and optional Hyperdrive binding placeholders
 - Astro's Cloudflare adapter uses the default `SESSION` KV binding for sessions unless you override it explicitly
 
 ## Common Commands
