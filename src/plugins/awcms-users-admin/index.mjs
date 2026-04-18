@@ -23,6 +23,7 @@ import { createSessionService } from "../../services/sessions/service.mjs";
 import { createUserService } from "../../services/users/service.mjs";
 import { getSecurityPolicy, updateSecurityPolicy } from "../../security/policy.mjs";
 import { collectRegisteredPluginPermissions } from "../permission-registration.mjs";
+import { createAuthorizedPluginRoute } from "../route-authorization.mjs";
 
 const USER_ADMIN_PERMISSION_DECLARATIONS = [
   { code: "admin.users.read", domain: "admin", resource: "users", action: "read", description: "View user records and profile detail." },
@@ -485,6 +486,17 @@ async function requireAdminAuthorization(ctx, options) {
   return result;
 }
 
+function createUserAdminProtectedRoute(options) {
+  return createAuthorizedPluginRoute({
+    pluginId: "awcms-users-admin",
+    permissions: USER_ADMIN_PLUGIN_PERMISSIONS,
+    getDatabase: () => userAdminDatabaseGetter(),
+    resolveActor: resolveAdminActor,
+    getAuthorizationService: (database) => userAdminAuthorizationServiceFactory(database),
+    ...options,
+  });
+}
+
 async function listPermissionMatrixHandler(ctx) {
   await requireAdminAuthorization(ctx, {
     permissionCode: "admin.permissions.read",
@@ -695,12 +707,7 @@ async function getUserSummaryRow(db, userId) {
 }
 
 async function listUsersHandler(ctx) {
-  await requireAdminAuthorization(ctx, {
-    permissionCode: "admin.users.read",
-    action: "read",
-  });
-
-  const db = userAdminDatabaseGetter();
+  const db = ctx.pluginDb ?? userAdminDatabaseGetter();
   const search = new URL(ctx.request.url).searchParams;
   const limit = Number.parseInt(search.get("limit") ?? "25", 10);
   const includeDeleted = search.get("includeDeleted") === "true";
@@ -776,7 +783,7 @@ async function listUsersHandler(ctx) {
 }
 
 async function getUserDetailHandler(ctx) {
-  const db = userAdminDatabaseGetter();
+  const db = ctx.pluginDb ?? userAdminDatabaseGetter();
   const search = new URL(ctx.request.url).searchParams;
   const userId = search.get("id");
 
@@ -789,19 +796,6 @@ async function getUserDetailHandler(ctx) {
   if (!row) {
     throw PluginRouteError.notFound(`User not found: ${userId}`);
   }
-
-  const target = normalizeAuthorizationUserRow(row);
-
-  await requireAdminAuthorization(ctx, {
-    permissionCode: "admin.users.read",
-    action: "read",
-    resource: {
-      kind: "user",
-      target_user_id: target.id,
-      target_staff_level: target.activeRoleStaffLevel,
-      is_protected: target.isProtected,
-    },
-  });
 
   return {
     item: normalizeProfileRow(row),
@@ -1917,7 +1911,13 @@ export function createPlugin() {
     permissions: USER_ADMIN_PLUGIN_PERMISSIONS,
     routes: {
       "users/list": {
-        handler: listUsersHandler,
+        ...createUserAdminProtectedRoute({
+          guard: {
+            permissionCode: "admin.users.read",
+            action: "read",
+          },
+          handler: listUsersHandler,
+        }),
       },
       "roles/list": {
         handler: listRolesHandler,
@@ -1995,7 +1995,35 @@ export function createPlugin() {
         handler: applyPermissionMatrixHandler,
       },
       "users/detail": {
-        handler: getUserDetailHandler,
+        ...createUserAdminProtectedRoute({
+          guard: {
+            permissionCode: "admin.users.read",
+            action: "read",
+            resource: async ({ ctx, db }) => {
+              const search = new URL(ctx.request.url).searchParams;
+              const userId = search.get("id");
+
+              if (!userId) {
+                throw PluginRouteError.badRequest("Missing required user id");
+              }
+
+              const row = await getUserSummaryRow(db, userId);
+
+              if (!row) {
+                throw PluginRouteError.notFound(`User not found: ${userId}`);
+              }
+
+              const target = normalizeAuthorizationUserRow(row);
+              return {
+                kind: "user",
+                target_user_id: target.id,
+                target_staff_level: target.activeRoleStaffLevel,
+                is_protected: target.isProtected,
+              };
+            },
+          },
+          handler: getUserDetailHandler,
+        }),
       },
       "users/invite": {
         handler: createInviteHandler,

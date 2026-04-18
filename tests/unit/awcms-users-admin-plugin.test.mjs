@@ -733,6 +733,8 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
     assert.equal(detailResult.item.email, "user@example.com");
     assert.equal(authorizationCalls.length, 2);
     assert.equal(authorizationCalls[0].context.permission_code, "admin.users.read");
+    assert.equal(authorizationCalls[1].resource.target_user_id, "user_1");
+    assert.equal(authorizationCalls[1].resource.is_protected, true);
 
     const manifest = awcmsUsersAdminPlugin();
     assert.equal(manifest.permissions.length, USER_ADMIN_PLUGIN_PERMISSIONS.length);
