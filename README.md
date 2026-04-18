@@ -71,6 +71,13 @@ R2 storage baseline when object storage is enabled:
 - `R2_MAX_UPLOAD_BYTES`
 - `R2_ALLOWED_CONTENT_TYPES`
 
+Edge API baseline:
+
+- `/api/v1/health` for versioned public health checks
+- `/api/v1/session` for current-session inspection and self-revocation
+- `EDGE_API_ALLOWED_ORIGINS` for any explicit cross-origin browser clients
+- `EDGE_API_MAX_BODY_BYTES` for request-size enforcement
+
 For remote PostgreSQL deployments, `DATABASE_URL` should target the protected VPS host and use a non-superuser application role.
 
 `APP_SECRET` should also be set when your host auth/session runtime depends on it. Mini currently falls back to `APP_SECRET` only if `MINI_TOTP_ENCRYPTION_KEY` is not set.

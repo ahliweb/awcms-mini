@@ -91,6 +91,18 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Scope: server-only runtime configuration.
 - Default fallback: `image/jpeg,image/png,image/webp,application/pdf`.
 
+### `EDGE_API_ALLOWED_ORIGINS`
+
+- Purpose: explicit allowlist for cross-origin browser clients calling the versioned edge API.
+- Scope: server-only runtime configuration.
+- Default behavior: no cross-origin browser origins are allowed unless explicitly configured.
+
+### `EDGE_API_MAX_BODY_BYTES`
+
+- Purpose: maximum accepted request body size for the versioned edge API baseline.
+- Scope: server-only runtime configuration.
+- Default fallback: `16384` bytes.
+
 ## Source of Truth
 
 - runtime config module: `src/config/runtime.mjs`
@@ -100,6 +112,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - TOTP encryption key resolution: `src/services/security/two-factor.mjs`
 - Turnstile validation helper: `src/security/turnstile.mjs`
 - R2 storage helper: `src/services/storage/r2.mjs`
+- Edge API helpers: `src/api/edge/v1.mjs`, `src/api/edge/session.mjs`, `src/api/edge/health.mjs`
 
 ## Rules
 
@@ -114,6 +127,8 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - store Turnstile secrets in Cloudflare-managed secrets or equivalent server-only runtime configuration
 - keep R2 buckets private by default and access them through Cloudflare bindings, not REST calls from runtime code
 - keep object metadata, ownership, and authorization state in PostgreSQL even when object bytes live in R2
+- keep edge API routes versioned under `/api/v1/*` and separate from EmDash admin/plugin APIs under `/_emdash/api/*`
+- disable cross-origin browser access unless an explicit origin allowlist is configured
 
 ## Deployment Notes
 
@@ -164,6 +179,11 @@ For private R2-backed object storage, also configure:
 - optional `R2_MEDIA_BUCKET_NAME`
 - `R2_MAX_UPLOAD_BYTES`
 - `R2_ALLOWED_CONTENT_TYPES`
+
+For the versioned edge API baseline, also configure as needed:
+
+- optional `EDGE_API_ALLOWED_ORIGINS`
+- `EDGE_API_MAX_BODY_BYTES`
 
 Also set `APP_SECRET` if the host auth/session runtime depends on it or if you need the current Mini fallback path during migration, but do not treat that fallback as the preferred long-term TOTP configuration.
 

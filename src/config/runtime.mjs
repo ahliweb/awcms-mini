@@ -3,6 +3,7 @@ export const DEFAULT_RUNTIME_TARGET = "cloudflare";
 export const DEFAULT_TRUSTED_PROXY_MODE = "direct";
 export const DEFAULT_R2_MEDIA_BUCKET_BINDING = "MEDIA_BUCKET";
 export const DEFAULT_R2_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+export const DEFAULT_EDGE_API_MAX_BODY_BYTES = 16 * 1024;
 
 function normalizeSiteUrl(value) {
   if (typeof value !== "string") {
@@ -85,6 +86,10 @@ export function getRuntimeConfig() {
       mediaBucketName: normalizeOptionalString(process.env.R2_MEDIA_BUCKET_NAME),
       maxUploadBytes: normalizePositiveInteger(process.env.R2_MAX_UPLOAD_BYTES, DEFAULT_R2_MAX_UPLOAD_BYTES),
       allowedContentTypes: normalizeCommaSeparatedList(process.env.R2_ALLOWED_CONTENT_TYPES, ["image/jpeg", "image/png", "image/webp", "application/pdf"]),
+    },
+    edgeApi: {
+      allowedOrigins: normalizeCommaSeparatedList(process.env.EDGE_API_ALLOWED_ORIGINS, []),
+      maxBodyBytes: normalizePositiveInteger(process.env.EDGE_API_MAX_BODY_BYTES, DEFAULT_EDGE_API_MAX_BODY_BYTES),
     },
   };
 }

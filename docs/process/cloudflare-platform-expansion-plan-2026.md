@@ -177,6 +177,12 @@ Security notes from OWASP and Cloudflare guidance:
 
 Mini should add a dedicated edge API surface for mobile or other non-admin clients only when the boundary and workflow rules are explicit.
 
+Current status:
+
+- Mini now exposes a versioned `/api/v1/*` edge API baseline with a public health endpoint and authenticated current-session inspection/revocation
+- the current baseline still relies on the existing authenticated identity session rather than a separate token-based mobile auth system
+- follow-on work is still needed for broader mobile/external resource APIs and any future stateless token design
+
 Recommended direction:
 
 - use Cloudflare-hosted edge handlers or Workers for versioned API routes
