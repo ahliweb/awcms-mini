@@ -31,6 +31,7 @@ The supported baseline production path is:
 - Keep observability enabled for production deployment
 - Ensure the adapter's default `SESSION` KV binding or an explicit equivalent binding is available
 - Add edge protections such as rate limiting, managed challenge, or Turnstile on abuse-prone routes as those features land
+- The current Turnstile-covered public flows are login, password-reset request, and invite activation when the Turnstile secret is configured
 - Keep Turnstile hostname expectations aligned with `SITE_URL` or an explicit `TURNSTILE_EXPECTED_HOSTNAME`
 - Keep R2 buckets private by default and expose downloads through controlled application paths as upload features land
 - Keep versioned external-client APIs under `/api/v1/*` and do not expose `/_emdash/api/*` as the mobile/external API surface

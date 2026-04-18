@@ -54,7 +54,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 
 - Purpose: public Cloudflare Turnstile site key for clients rendering the widget.
 - Scope: deployment/runtime configuration.
-- Rule: pair this with `TURNSTILE_SECRET_KEY` for protected public flows.
+- Rule: pair this with `TURNSTILE_SECRET_KEY` for protected public flows such as login, password-reset request, and invite activation.
 
 ### `TURNSTILE_SECRET_KEY`
 

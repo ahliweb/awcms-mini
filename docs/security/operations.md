@@ -22,7 +22,7 @@ Mini owns the security-hardening layer:
 ## Current Controls
 
 - password login with failure tracking
-- Cloudflare Turnstile enforcement on public login and password-reset request flows when configured
+- Cloudflare Turnstile enforcement on public login, password-reset request, and invite-activation flows when configured
 - lockout response for repeated failures
 - mandatory password reset support
 - public password-reset requests return a generic acceptance response and do not expose live reset tokens in JSON
@@ -39,7 +39,7 @@ Mini owns the security-hardening layer:
 - ABAC audit-only flags are intended for controlled rollout safety, not permanent steady-state policy behavior.
 - Public password-reset issuance is a generic request-acceptance surface. Live reset tokens should be delivered through an operator-controlled or other out-of-band recovery channel, not returned to the caller.
 - Turnstile validation is server-side only and uses Siteverify with action and hostname checks when configured.
-- Turnstile currently protects login and password-reset request handlers. It complements, rather than replaces, lockouts and edge rate limiting.
+- Turnstile currently protects login, password-reset request, and invite-activation handlers. It complements, rather than replaces, lockouts and edge rate limiting.
 - The current edge API baseline is limited to versioned session self-inspection and self-revocation plus a public health endpoint.
 - Admin and plugin APIs remain isolated under `/_emdash/api/*` and should not be treated as external-client APIs.
 

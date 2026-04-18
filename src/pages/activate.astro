@@ -1,5 +1,6 @@
 ---
 import { getDatabase } from "../db/index.mjs";
+import { getRuntimeConfig } from "../config/runtime.mjs";
 import { UserInviteError, createUserService } from "../services/users/service.mjs";
 
 export const prerender = false;
@@ -14,7 +15,11 @@ const errorMessages = {
   INVALID_USER: "This invited account is no longer available.",
   ALREADY_ACTIVE: "This account has already been activated.",
   INVALID_PASSWORD: "Password must be at least 8 characters.",
+  REQUEST_VERIFICATION_FAILED: "Request verification failed. Please try again.",
 };
+
+const runtimeConfig = getRuntimeConfig();
+const turnstileSiteKey = runtimeConfig.turnstile?.siteKey ?? null;
 
 let activation = null;
 let errorMessage = errorMessages[errorCode] ?? "";
@@ -75,6 +80,7 @@ if (!status && token) {
                 <span>Password</span>
                 <input type="password" name="password" minlength="8" required autocomplete="new-password" />
               </label>
+              {turnstileSiteKey ? <div class="cf-turnstile" data-sitekey={turnstileSiteKey} data-action="invite_activation"></div> : null}
               <button class="button" type="submit">Activate account</button>
             </form>
           </>
@@ -83,6 +89,8 @@ if (!status && token) {
         )}
       </section>
     </main>
+
+    {turnstileSiteKey ? <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script> : null}
 
     <style>
       :global(*) {

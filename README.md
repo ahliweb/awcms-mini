@@ -64,6 +64,8 @@ Recommended public abuse-defense settings:
 - `TURNSTILE_SECRET_KEY`
 - optional `TURNSTILE_EXPECTED_HOSTNAME`
 
+When configured, Turnstile currently protects the public login, password-reset request, and invite-activation flows.
+
 R2 storage baseline when object storage is enabled:
 
 - `R2_MEDIA_BUCKET_BINDING`
