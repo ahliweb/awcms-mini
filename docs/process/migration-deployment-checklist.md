@@ -52,6 +52,8 @@ Complete these checks before applying migrations or releasing a new build.
 
 - [ ] PostgreSQL access is restricted to the intended application host or private network path
 - [ ] PostgreSQL transport security expectations are confirmed for the target environment
+- [ ] The remote PostgreSQL access rule uses the narrowest practical source range for the app host or private subnet
+- [ ] `pg_hba.conf` and server config require the intended remote authentication and TLS posture
 - [ ] The application user does not rely on superuser credentials
 
 ## Migration Window

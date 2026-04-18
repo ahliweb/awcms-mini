@@ -63,6 +63,10 @@ See `docs/process/cloudflare-coolify-origin-hardening.md` for the supported orig
 - Restrict database ingress to the application host or private network path.
 - Prefer stronger authentication methods such as `scram-sha-256` for application access.
 - Avoid using superuser credentials for the application runtime.
+- Prefer `hostssl` rules for remote app access on operator-managed PostgreSQL hosts.
+- Keep `pg_hba.conf` allow rules narrow and ordered intentionally.
+
+See `docs/process/postgresql-vps-hardening.md` for the supported PostgreSQL VPS posture.
 
 ## Operator Surfaces
 
@@ -87,3 +91,4 @@ These are rollout tools, not permanent substitutes for full enforcement.
 - `docs/security/emergency-recovery-runbook.md`
 - `docs/process/migration-deployment-checklist.md`
 - `docs/process/cloudflare-coolify-origin-hardening.md`
+- `docs/process/postgresql-vps-hardening.md`

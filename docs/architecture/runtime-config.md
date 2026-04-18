@@ -12,6 +12,8 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Scope: server-only runtime configuration.
 - Example: `postgres://localhost:5432/awcms_mini_dev`
 - Default fallback: `postgres://localhost:5432/awcms_mini_dev`
+- Production guidance: point this to the remote PostgreSQL host for the environment and prefer TLS-capable connection settings for app-to-database traffic.
+- Role guidance: do not use PostgreSQL superuser credentials for the normal app runtime.
 
 ### `MINI_TOTP_ENCRYPTION_KEY`
 
@@ -78,6 +80,10 @@ See `docs/process/cloudflare-coolify-origin-hardening.md` for the supported ingr
 - Production `DATABASE_URL` should point to the intended remote PostgreSQL instance.
 - The database path should be treated as a remote secured dependency, not a localhost-only assumption.
 - Prefer PostgreSQL TLS, restricted ingress, and strong authentication for the application user.
+- Prefer `hostssl` plus `scram-sha-256` for remote app access where the PostgreSQL host is operator-managed.
+- Restrict remote access to the specific app host or the narrowest private network range available.
+
+See `docs/process/postgresql-vps-hardening.md` for the supported VPS transport and access posture.
 
 ## Deployment Baseline
 
