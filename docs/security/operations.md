@@ -47,12 +47,15 @@ Security operations should treat those as separate trust boundaries.
 
 ## Edge And Origin Guidance
 
-- Prefer proxied Cloudflare DNS for public app traffic.
-- Prefer Cloudflare Tunnel when it is operationally acceptable.
-- If not using Tunnel, restrict direct origin access as much as possible and keep the origin reachable only through the intended path.
+- The supported baseline production path is Cloudflare proxied DNS to the Coolify-managed origin.
+- Cloudflare Tunnel is not the baseline deployment contract in the current Mini docs.
+- Keep the public hostname proxied through Cloudflare for normal operator and user traffic.
+- Restrict direct origin access as much as the hosting environment allows so the origin is not a parallel public entrypoint.
 - In the supported Cloudflare plus Coolify path, trust `CF-Connecting-IP` and configure `TRUSTED_PROXY_MODE=cloudflare`.
 - Do not treat arbitrary `X-Forwarded-For` values as authoritative unless a deployment explicitly opts into a different trusted proxy mode.
 - Add Cloudflare rate limiting or managed challenge rules for login and other abuse-prone auth endpoints.
+
+See `docs/process/cloudflare-coolify-origin-hardening.md` for the supported origin path and firewall expectations.
 
 ## PostgreSQL Guidance
 
@@ -83,3 +86,4 @@ These are rollout tools, not permanent substitutes for full enforcement.
 
 - `docs/security/emergency-recovery-runbook.md`
 - `docs/process/migration-deployment-checklist.md`
+- `docs/process/cloudflare-coolify-origin-hardening.md`

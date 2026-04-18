@@ -42,9 +42,10 @@ Complete these checks before applying migrations or releasing a new build.
 
 ### Edge And Origin Readiness
 
-- [ ] Cloudflare DNS and proxy settings point to the intended application origin path
-- [ ] Direct origin exposure is reviewed for the current deployment pattern
-- [ ] If using standard proxied origin instead of Tunnel, firewall and origin restrictions are in place
+- [ ] Cloudflare DNS for the public hostname is proxied and points to the intended Coolify-managed origin path
+- [ ] `TRUSTED_PROXY_MODE=cloudflare` is configured for the supported production path
+- [ ] Direct origin exposure is reviewed and reduced so the origin is not a routine public entrypoint
+- [ ] Firewall and origin restrictions are in place for the supported proxied-origin pattern
 - [ ] Coolify domain and proxy routing match the intended public host
 
 ### PostgreSQL Readiness

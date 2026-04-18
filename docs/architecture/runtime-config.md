@@ -55,8 +55,13 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 
 - Cloudflare should be treated as the browser-facing edge.
 - Coolify should be treated as the app deployment and reverse-proxy control plane.
+- The supported baseline production pattern is Cloudflare proxied DNS to the Coolify-managed origin, not direct origin exposure.
+- Cloudflare Tunnel may be used later if operators choose it, but it is not the baseline deployment contract documented for this repository.
 - The configured public origin must match the hostname users reach through Cloudflare, not an internal container or local Coolify address.
 - Client IP extraction should trust `CF-Connecting-IP`, not raw `X-Forwarded-For`, for the supported Cloudflare path.
+- Direct origin access should be restricted so routine public traffic cannot bypass Cloudflare.
+
+See `docs/process/cloudflare-coolify-origin-hardening.md` for the supported ingress model and operator checks.
 
 ### PostgreSQL On VPS
 

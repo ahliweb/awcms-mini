@@ -16,6 +16,7 @@ Use these steps when an operator, owner, or protected-role user is locked out, c
 - You can access the running application and the admin plugin routes under `/_emdash/admin`.
 - You have an administrator account that can complete step-up authentication for protected actions.
 - You can deploy a configuration rollback if the incident is caused by a recent code or policy change.
+- You know whether the deployment is using the supported Cloudflare proxied hostname and `TRUSTED_PROXY_MODE=cloudflare`.
 
 ## Recovery Order
 
@@ -127,6 +128,7 @@ Checkpoint order:
 2. Record the current persisted security policy state, especially mandatory 2FA rollout mode and effective role ids.
 3. Record whether ABAC audit-only flags are enabled.
 4. Record any plugin or admin-surface settings changed during the incident window.
+5. Record whether traffic is reaching the app through the supported Cloudflare plus Coolify path or through an unexpected direct origin path.
 
 ## Policy Rollback
 
