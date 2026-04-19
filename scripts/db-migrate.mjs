@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs";
-
 import { createDatabase } from "../src/db/client/postgres.mjs";
 import {
   ensureMigrationBootstrap,
@@ -9,18 +7,7 @@ import {
   migrateToLatest,
   NO_MIGRATIONS,
 } from "../src/db/migrations/runner.mjs";
-
-function loadLocalEnvFiles() {
-  if (typeof process.loadEnvFile !== "function") {
-    return;
-  }
-
-  for (const file of [".env.local", ".env"]) {
-    if (existsSync(file)) {
-      process.loadEnvFile(file);
-    }
-  }
-}
+import { loadLocalEnvFiles } from "./_local-env.mjs";
 
 function printUsage() {
   console.log("Usage: node scripts/db-migrate.mjs <latest|down|status>");

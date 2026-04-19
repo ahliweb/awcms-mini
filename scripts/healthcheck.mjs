@@ -1,18 +1,5 @@
-import { existsSync } from "node:fs";
-
 import { checkDatabaseHealth } from "../src/db/health.mjs";
-
-function loadLocalEnvFiles() {
-  if (typeof process.loadEnvFile !== "function") {
-    return;
-  }
-
-  for (const file of [".env.local", ".env"]) {
-    if (existsSync(file)) {
-      process.loadEnvFile(file);
-    }
-  }
-}
+import { loadLocalEnvFiles } from "./_local-env.mjs";
 
 async function main() {
   loadLocalEnvFiles();

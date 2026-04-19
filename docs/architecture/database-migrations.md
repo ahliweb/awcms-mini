@@ -42,7 +42,7 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
 ## Runtime Input
 
 - `DATABASE_URL` is required to target the PostgreSQL database
-- the runner loads `.env` and `.env.local` automatically when available
+- the runner uses `scripts/_local-env.mjs` to load `.env.local` first, then `.env`, so local-only values stay ahead of tracked defaults when using Node's `process.loadEnvFile()` behavior
 
 ## Usage
 

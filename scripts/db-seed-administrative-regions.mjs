@@ -1,20 +1,9 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { createDatabase } from "../src/db/client/postgres.mjs";
 import { importAdministrativeRegions } from "../src/db/importers/administrative-regions.mjs";
-
-function loadLocalEnvFiles() {
-  if (typeof process.loadEnvFile !== "function") {
-    return;
-  }
-
-  for (const file of [".env.local", ".env"]) {
-    if (existsSync(file)) {
-      process.loadEnvFile(file);
-    }
-  }
-}
+import { loadLocalEnvFiles } from "./_local-env.mjs";
 
 function printUsage() {
   console.log("Usage: node scripts/db-seed-administrative-regions.mjs [path-to-json]");
