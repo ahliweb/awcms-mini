@@ -31,6 +31,7 @@ Current planning reference:
 - `process/cloudflare-hyperdrive-decision.md` - current architecture decision for Hyperdrive as a PostgreSQL transport follow-on
 - `process/cloudflare-pages-vs-workers-decision.md` - current architecture decision for Pages-plus-Workers versus a single Worker baseline
 - `process/cloudflare-tunnel-private-db-connector-runbook.md` - operator runbook for the VPS-side `cloudflared` connector step in the private-database Hyperdrive path
+- `process/hyperdrive-rollout-operator-handoff.md` - condensed operator command sheet for the remaining Hyperdrive rollout blocker chain
 - `process/ai-workflow-planning-templates.md` - reusable AI workflow templates for docs, planning, implementation, and review tasks
 
 Current active operator rollout issues reflected by these docs:
