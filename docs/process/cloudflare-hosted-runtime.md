@@ -31,7 +31,7 @@ The supported baseline production path is:
 ## Cloudflare Expectations
 
 - Use the Astro Cloudflare adapter for the supported runtime build
-- Treat the reviewed Wrangler/operator deployment path as the current production source of truth unless and until the separate Cloudflare Workers Builds integration issue is repaired
+- Treat the reviewed Wrangler/operator deployment path as the production source of truth; the earlier Cloudflare Git-integrated Workers Builds path has been intentionally retired for this Worker
 - Keep Worker compatibility flags aligned with the runtime needs of the current codebase
 - Keep observability enabled for production deployment
 - Prefer the Worker custom domain for `awcms-mini.ahlikoding.com` as the reviewed single-host baseline because the Worker is the origin for this deployment model
@@ -131,12 +131,13 @@ Run these in order after a deployment or after Cloudflare-side automation change
 
 ## Builds Note
 
-If Cloudflare Git-integrated `Workers Builds` checks are failing while the live Worker runtime, Wrangler deployment path, and GitHub Actions validation are healthy, treat that as a separate integration problem rather than a signal that the reviewed production deployment is broken.
+Cloudflare Git-integrated `Workers Builds` has been intentionally retired for `awcms-mini`.
 
-Track that condition in a dedicated issue and either:
+Current reviewed expectation:
 
-1. repair the Workers Builds trigger configuration with the appropriate Cloudflare Builds permissions, or
-2. disconnect the failing Git integration if Wrangler/operator deploys remain the intended source of truth
+1. production deploys happen through Wrangler/operator workflows
+2. GitHub Actions remains the repository-side validation surface
+3. a future return to Git-integrated Workers Builds should happen only through a new reviewed issue with the appropriate Builds permissions and trigger configuration
 
 ## Partial Provisioning Rollback
 
