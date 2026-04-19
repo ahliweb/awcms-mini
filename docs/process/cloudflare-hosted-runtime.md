@@ -125,6 +125,7 @@ Run these in order after a deployment or after Cloudflare-side automation change
 - Confirm the reviewed application hostname `id1.ahlikoding.com` and TLS posture still match the intended deployment configuration when `DATABASE_TRANSPORT=direct`.
 - Confirm the deployed `DATABASE_URL` secret matches the reviewed hostname and SSL mode rather than an outdated direct-IP value when `DATABASE_TRANSPORT=direct`.
 - Confirm the `HYPERDRIVE` binding resolves correctly when `DATABASE_TRANSPORT=hyperdrive`.
+- When the reviewed rollout target is known, prefer the non-secret `pnpm healthcheck` assertion variables so runtime verification fails fast on the wrong transport, hostname, SSL mode, or binding.
 - Confirm no Cloudflare-side automation change accidentally altered the database path assumptions.
 
 ## Partial Provisioning Rollback

@@ -20,6 +20,7 @@ Complete these checks before applying migrations or releasing a new build.
 
 - [ ] `pnpm build` passes
 - [ ] `pnpm healthcheck` passes against the target environment or an equivalent pre-production environment
+- [ ] If the reviewed target posture is known for the release, `pnpm healthcheck` is run with the non-secret expectation variables needed to fail fast on the wrong transport target
 - [ ] `MINI_RUNTIME_TARGET=cloudflare` is set for the supported production path
 - [ ] `DATABASE_URL` points to the intended PostgreSQL instance
 - [ ] The configured public origin matches the Cloudflare-hosted URL
@@ -79,6 +80,15 @@ Perform these steps during the release window.
 3. Confirm no unexpected pending migrations remain
 4. Deploy the application build
 5. Run `pnpm healthcheck`
+
+Use expectation variables when the release has a reviewed target posture, for example:
+
+```bash
+HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=direct \
+HEALTHCHECK_EXPECT_DATABASE_HOSTNAME=id1.ahlikoding.com \
+HEALTHCHECK_EXPECT_DATABASE_SSLMODE=verify-full \
+pnpm healthcheck
+```
 
 If a migration fails:
 
@@ -171,12 +181,14 @@ Use these focused checks when the release touches governance or security surface
 - [ ] The deployed runtime secret for `DATABASE_URL` matches the reviewed PostgreSQL hostname and SSL mode for the environment
 - [ ] Cloudflare-side hostname, Turnstile, and R2 configuration changes are reflected in the current operator notes before release signoff
 - [ ] If the private-database Hyperdrive path is selected, the reviewed `cloudflared` connector is active and recent service logs do not show repeated reconnect or origin-reachability failures
+- [ ] If the private-database Hyperdrive path is selected, `pnpm healthcheck` is re-run with `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive` and `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE`
 
 ### PostgreSQL Posture
 
 - [ ] The live PostgreSQL resource is not left broadly publicly exposed unless there is a reviewed operator exception
 - [ ] The live PostgreSQL service still reports the intended SSL posture after the release
 - [ ] If credential rotation was triggered by live exposure or management-plane disclosure, the old credential no longer works and the new secret is stored only in reviewed deployment-managed locations
+- [ ] During direct-path remediation, `pnpm healthcheck` is re-run with the reviewed direct hostname and `sslmode` assertion variables
 
 ### Security Settings
 

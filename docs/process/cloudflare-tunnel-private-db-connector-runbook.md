@@ -143,6 +143,14 @@ After startup:
 - confirm `systemctl status cloudflared-postgres.service` shows a healthy running process if the recommended `systemd` path is used
 - confirm recent `journalctl` output does not show repeated reconnect, token, or origin-reachability failures
 - confirm the route/config issue has the hostname or route needed for Hyperdrive
+- run the reviewed Hyperdrive assertion flow so runtime verification fails fast if the app is still pointed at the wrong transport target:
+
+```bash
+HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive \
+HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE \
+pnpm healthcheck
+```
+
 - hand the active connector status back to `#146`
 
 ## Failure Notes

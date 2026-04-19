@@ -120,6 +120,16 @@ Use this order when rolling the reviewed SSL posture into the Coolify-managed Po
 9. Update the Cloudflare-hosted app runtime secret so `DATABASE_URL` uses `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is ready.
 10. If certificate validation is not ready yet, use a reviewed interim `sslmode=require` value temporarily and record the follow-on hardening step explicitly.
 11. Run `pnpm healthcheck` and the reviewed smoke tests after the deployment update.
+
+Reviewed direct-posture assertion example:
+
+```bash
+HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=direct \
+HEALTHCHECK_EXPECT_DATABASE_HOSTNAME=id1.ahlikoding.com \
+HEALTHCHECK_EXPECT_DATABASE_SSLMODE=verify-full \
+pnpm healthcheck
+```
+
 12. Record the effective certificate/hostname posture and any temporary exceptions in the deployment notes.
 
 ## Current Live Remediation Focus
@@ -160,6 +170,7 @@ Before deployment:
 After deployment:
 
 - Confirm the app can connect and complete `pnpm healthcheck`.
+- Prefer the reviewed direct-posture assertion variables during remediation signoff so the check fails fast if the deployment still points at the wrong hostname, SSL mode, or transport target.
 - Confirm migrations run successfully against the intended database.
 - Confirm no unexpected direct access path to PostgreSQL was introduced.
 - Confirm the deployed runtime is not using maintenance credentials.
@@ -185,7 +196,7 @@ If the reviewed SSL rollout causes production connectivity loss, use the smalles
 2. Verify DNS and certificate coverage for `id1.ahlikoding.com` before changing PostgreSQL access rules.
 3. If the certificate or hostname validation is the only failing seam, temporarily roll back to the last reviewed TLS-required mode such as `sslmode=require` instead of disabling TLS entirely.
 4. If server-side SSL configuration changed unexpectedly, restore the last known good PostgreSQL SSL configuration in Coolify before widening client access.
-5. Re-run `pnpm healthcheck` and the deployment smoke tests after the rollback step completes.
+5. Re-run `pnpm healthcheck` and the deployment smoke tests after the rollback step completes. Use the reviewed direct-posture assertion variables if the target rollback state is known.
 6. Record the incident and keep the follow-on hardening task explicit.
 
 ## Cross-References
