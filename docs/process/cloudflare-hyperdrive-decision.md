@@ -63,6 +63,7 @@ If Hyperdrive is adopted in a follow-on issue, keep the change minimal and expli
 - non-interactive Wrangler commands require `CLOUDFLARE_API_TOKEN`
 - the deployment operator needs a reviewed Hyperdrive configuration ID before enabling the binding in `wrangler.jsonc`
 - the PostgreSQL origin must accept the reviewed Cloudflare-to-origin connection path before `wrangler hyperdrive create` can succeed
+- the Hyperdrive origin hostname must resolve to a reachable PostgreSQL origin path for Cloudflare, not just to Cloudflare edge IPs on a web-proxied hostname
 - if account inventory is not readable through the available Cloudflare management path, treat Hyperdrive binding enablement as an operator-side rollout step rather than a repository-only change
 
 ## Security Implications

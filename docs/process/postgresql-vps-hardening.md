@@ -85,6 +85,7 @@ If the app reaches PostgreSQL through a private subnet instead of a single host,
 - Prefer VPS firewall rules or provider network controls in addition to PostgreSQL configuration.
 - Review both the app host egress path and the database host ingress policy during deployment changes.
 - If Hyperdrive will be used, confirm the database origin also accepts the reviewed Cloudflare-to-origin connection path; Hyperdrive configuration creation fails if the origin refuses Cloudflare connectivity.
+- If Hyperdrive will be used, confirm the chosen hostname resolves to the intended PostgreSQL origin path for Cloudflare rather than a web-proxied Cloudflare edge hostname.
 
 ## Coolify Operator Sequence
 
@@ -111,6 +112,7 @@ Before deployment:
 - Confirm the runtime user is not a superuser.
 - Confirm `pg_hba.conf` allows only the intended app host or narrow private range.
 - If Hyperdrive is planned, confirm the reviewed Cloudflare-to-origin connection path is allowed before attempting `wrangler hyperdrive create`.
+- If Hyperdrive is planned, confirm the reviewed Hyperdrive origin hostname resolves to a direct/reachable PostgreSQL origin path instead of Cloudflare edge IPs.
 - Confirm host firewall rules restrict database ingress accordingly.
 - Confirm the VPS IP `202.10.45.224` is treated as operator inventory and troubleshooting data, not the preferred application hostname when `verify-full` is required.
 
@@ -128,6 +130,7 @@ After deployment:
 - If TLS negotiation fails, fix the certificate or client configuration rather than disabling TLS requirements broadly.
 - If `verify-full` fails, verify that `id1.ahlikoding.com` resolves to the intended VPS and that the PostgreSQL certificate covers that hostname before falling back to a weaker mode.
 - If Hyperdrive configuration creation fails with a connection-refused error, fix origin reachability for the reviewed Cloudflare path before retrying the Hyperdrive rollout.
+- If the reviewed Hyperdrive origin hostname resolves to Cloudflare edge IPs instead of the intended PostgreSQL origin path, switch to a reviewed reachable origin hostname or direct origin path before retrying Hyperdrive creation.
 - If the app user lacks permissions, grant the smallest missing privilege instead of switching to a superuser credential.
 
 ## Rollback Order
