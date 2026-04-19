@@ -36,12 +36,12 @@ Current planning reference:
 
 Current active operator rollout issues reflected by these docs:
 
-- `#147` - fallback-only reachable PostgreSQL origin endpoint for Hyperdrive if the Tunnel strategy is abandoned or paused
 - `#158` - live Coolify PostgreSQL exposure and SSL posture reconciliation
 
 Recent completed rollout milestones reflected by these docs:
 
 - `#146` - live Cloudflare Hyperdrive binding rollout
+- `#147` - historical fallback public-origin path that was not needed after the Tunnel strategy succeeded
 - `#152` - VPS-side `cloudflared` connector deployment for the private-database Tunnel path
 
 ## Accuracy Rule

@@ -74,7 +74,7 @@ Supported operator choices for the origin endpoint:
 Preferred default for the current environment:
 
 - prefer the private-database Hyperdrive path via Cloudflare Tunnel unless there is a reviewed operator reason to expose a separately reachable PostgreSQL origin endpoint
-- keep the reachable public-origin path as the fallback option when Tunnel is not viable for the target environment
+- treat the reachable public-origin path as historical fallback guidance now that the Tunnel strategy succeeded in the live environment
 
 Private-database Tunnel prerequisites:
 

@@ -240,7 +240,7 @@ Current status: repository-side SSL baseline work complete; infrastructure execu
 
 ### Issue E: Adopt Cloudflare Hyperdrive For PostgreSQL Transport
 
-Tracked issues: `#145`, `#146`, `#147`, `#149`, `#150`, `#151`, `#152`, `#153`, `#154`, `#155`, `#156`, `#157`, `#158`
+Tracked issues: `#145`, `#146`, `#149`, `#150`, `#151`, `#152`, `#153`, `#154`, `#155`, `#156`, `#157`, `#158`
 
 - add runtime support for selecting Hyperdrive-backed PostgreSQL transport without breaking the reviewed direct `DATABASE_URL` path
 - document binding prerequisites, rollout order, smoke tests, and secret-handling expectations for Hyperdrive
@@ -252,7 +252,7 @@ Reviewed current route-name default for the private-database path: `pg-hyperdriv
 
 Preferred current direction: use the private-database Cloudflare Tunnel path unless the operator explicitly decides that a separately reachable public PostgreSQL origin endpoint is acceptable.
 
-Current status: repository-side Hyperdrive transport preparation is complete in `#145`; private-database Tunnel control-plane setup is complete across `#150`, `#153`, `#156`, and `#157`; live Hyperdrive binding enablement remains tracked in `#146` and is now primarily blocked on `#152` (connector deployment and activation). Separately, live Coolify PostgreSQL posture drift is now tracked in `#158` because the current database exposure and SSL state do not appear to match the reviewed repository target. Keep `#147` as the fallback public-origin path only if the Tunnel strategy is abandoned.
+Current status: repository-side Hyperdrive transport preparation completed in `#145`; private-database Tunnel control-plane work completed across `#150`, `#153`, `#156`, and `#157`; live Hyperdrive binding enablement completed in `#146`; and live Coolify PostgreSQL posture remediation completed in `#158`. The earlier public-origin fallback tracked in `#147` was not needed after the Tunnel strategy succeeded.
 
 ## Validation Expectations
 

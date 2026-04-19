@@ -95,7 +95,7 @@ Supported origin patterns for Hyperdrive:
 Preferred default for the current environment:
 
 - prefer the private-database Cloudflare Tunnel path so PostgreSQL does not need a separately reachable public origin endpoint just for Hyperdrive
-- treat the reachable public-origin path as a fallback only when the Tunnel path is not workable
+- treat the reachable public-origin path as historical fallback guidance unless a future reviewed issue intentionally re-opens it
 
 If the private-database Tunnel path is selected, prepare at least:
 

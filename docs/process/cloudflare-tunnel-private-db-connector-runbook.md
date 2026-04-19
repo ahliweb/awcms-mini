@@ -159,7 +159,7 @@ pnpm healthcheck
 - if the tunnel remains inactive, verify the token, process supervision, and host egress path first
 - if the service starts but repeatedly reconnects, review `journalctl` output before changing PostgreSQL exposure or Hyperdrive settings
 - if the tunnel token may have been exposed through shell history, issue comments, logs, or copied VPS files, rotate the token and update the server-managed secret store before retrying
-- if operators are tempted to open public PostgreSQL ingress to work around connector issues, stop and re-evaluate the fallback issue instead
+- if operators are tempted to open public PostgreSQL ingress to work around connector issues, stop and open a new reviewed fallback issue instead
 
 ## Validation
 
