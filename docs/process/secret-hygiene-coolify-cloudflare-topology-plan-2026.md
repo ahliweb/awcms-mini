@@ -193,7 +193,7 @@ Recommended operator posture:
 Current status after the completed repository passes:
 
 - Steps 1 through 4 have repository-scoped updates landed.
-- Remaining work is primarily operator execution and any intentionally deferred follow-on cleanup within `#142` and `#143`.
+- Remaining work is primarily operator execution outside the repository, plus any future optional follow-on architecture work such as Hyperdrive adoption.
 
 ## Proposed Issue Breakdown
 
@@ -225,7 +225,7 @@ Tracked issue: `#142`
 - move the reviewed admin entry path target to `/_emdash/` on the same host
 - keep EmDash-first routing and versioned `/api/v1/*` behavior intact
 
-Current status: partially complete; remaining work is limited to intentionally deferred follow-on cleanup.
+Current status: repository single-host migration work complete.
 
 ### Issue D: Require SSL Between Cloudflare Runtime And Coolify-Managed PostgreSQL
 
@@ -235,7 +235,7 @@ Tracked issue: `#143`
 - align Coolify-side SSL configuration with app-side connection settings using `id1.ahlikoding.com` as the reviewed SSL hostname
 - update operator guidance, smoke tests, and rollback notes for the transport change
 
-Current status: partially complete; repository-side SSL baseline updates are landed, while infrastructure execution remains operator-side.
+Current status: repository-side SSL baseline work complete; infrastructure execution remains operator-side.
 
 ## Validation Expectations
 
