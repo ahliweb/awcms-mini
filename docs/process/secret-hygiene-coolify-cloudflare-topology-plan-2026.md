@@ -29,6 +29,7 @@ It also reflects current OWASP, Cloudflare, Coolify, and PostgreSQL guidance for
 - Turnstile hostname allowlists and JWT edge auth already exist in the current runtime baseline.
 - The tracked Coolify MCP wrapper now follows the repo env-loading pattern and reads `.env` plus `.env.local`, while the live token stays local-only.
 - The current local operator secret file already contains the Coolify MCP token in `.env.local`, which is gitignored and is the correct storage class for that credential.
+- The current reviewed PostgreSQL target inventory for this planning pass is VPS IP `202.10.45.224` and SSL hostname `id1.ahlikoding.com`.
 
 ### Confirmed Gaps
 
@@ -36,6 +37,7 @@ It also reflects current OWASP, Cloudflare, Coolify, and PostgreSQL guidance for
 - The repository does not yet treat the requested single-host target `https://awcms-mini.ahlikoding.com` with admin entry `/_emdash/` as the documented production baseline.
 - The repository still documents split-host routing and the `/_emdash/admin` entry path as the current baseline, so the requested single-host shift must be handled as an explicit runtime and docs migration.
 - The current deployment guidance recommends TLS for PostgreSQL traffic, but the repo does not yet document the full reviewed SSL posture, certificate-validation expectations, or operator sequencing for the Cloudflare-to-Coolify PostgreSQL path.
+- The repo does not yet treat `id1.ahlikoding.com` as the reviewed PostgreSQL SSL endpoint in the documented production examples and operator sequencing.
 - The repo documents direct Cloudflare Worker hosting and R2 usage, but it does not yet spell out the requested browser/api to Cloudflare to Worker/Pages/R2 to PostgreSQL topology in one dependency-ordered plan.
 
 ### Important Evidence From This Pass
@@ -55,6 +57,7 @@ Add or improve the following capabilities without breaking EmDash-first rules:
 3. move the reviewed production target to `https://awcms-mini.ahlikoding.com`, with the public site at `/` and the admin entry on the same host at `/_emdash/`
 4. keep the Cloudflare-hosted app topology aligned with the requested path: browser/api to Cloudflare edge to Worker-hosted app runtime and platform services such as R2, with PostgreSQL on the Coolify-managed VPS over SSL
 5. tighten PostgreSQL transport guidance so the Cloudflare runtime reaches PostgreSQL with reviewed SSL settings and explicit operator rollback notes
+6. keep the reviewed PostgreSQL inventory explicit: VPS IP `202.10.45.224`, SSL hostname `id1.ahlikoding.com`, and application connectivity through env-managed connection strings rather than script-local credentials
 
 ## Recommended Workstreams
 
@@ -141,7 +144,7 @@ Recommended direction:
 - keep the application-hosting baseline on the Cloudflare Worker runtime unless a later architecture issue scopes a static-first split deliberately
 - treat Cloudflare Pages and R2 as optional platform services around the Worker runtime, not as evidence that the app has already been split into separate public/admin runtimes
 - keep the browser-facing request path simple: browser/api to Cloudflare edge to the Worker-hosted app runtime, with the runtime reaching PostgreSQL over SSL and using R2 through the private `MEDIA_BUCKET` binding when object storage is enabled
-- document PostgreSQL SSL posture explicitly, including app-side connection string expectations, Coolify-side SSL enablement, and what to do if hostname validation is not ready yet
+- document PostgreSQL SSL posture explicitly, including app-side connection string expectations, Coolify-side SSL enablement, the reviewed hostname `id1.ahlikoding.com`, and what to do if hostname validation is not ready yet
 
 Recommended operator posture:
 
@@ -179,6 +182,7 @@ Recommended operator posture:
 - keep PostgreSQL credentials application-scoped and non-superuser
 - keep remote database traffic protected with TLS and restricted ingress rules
 - enable PostgreSQL SSL on the Coolify-managed database resource and update the reviewed application connection string accordingly
+- prefer `DATABASE_URL` values that connect through `id1.ahlikoding.com` for hostname validation, while retaining `202.10.45.224` as operator inventory and fallback troubleshooting data
 - document certificate-validation expectations and rollback steps before switching production traffic
 
 ## Proposed Execution Order
@@ -220,7 +224,7 @@ Tracked issue: `#142`
 Tracked issue: `#143`
 
 - document and enforce the reviewed PostgreSQL SSL posture
-- align Coolify-side SSL configuration with app-side connection settings
+- align Coolify-side SSL configuration with app-side connection settings using `id1.ahlikoding.com` as the reviewed SSL hostname
 - update operator guidance, smoke tests, and rollback notes for the transport change
 
 ## Validation Expectations
