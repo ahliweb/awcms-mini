@@ -84,6 +84,7 @@ If the audit does not find confirmed live secrets:
 - keep Coolify MCP tokens out of tracked files and issue bodies
 - keep `CLOUDFLARE_API_TOKEN` out of tracked files and issue bodies
 - keep any elevated Cloudflare token scopes, including Tunnel-edit tokens, in local-only or CI/CD-managed secret storage
+- keep DNS-edit Cloudflare token scopes in local-only or CI/CD-managed secret storage as well
 - keep Cloudflare Turnstile and JWT secrets in server-only configuration
 - keep production database credentials distinct from local development placeholders
 
