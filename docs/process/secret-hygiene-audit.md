@@ -15,7 +15,7 @@ Use it when:
 
 The current maintained `scripts/**` entrypoints reviewed in this pass did not confirm embedded live credentials in checked-in code.
 
-The current maintained Node entrypoints now use the shared `scripts/_local-env.mjs` helper so local env loading stays auditable and consistent across script entrypoints.
+The current maintained script entrypoints now use the shared `scripts/_local-env.mjs` helper where local env loading is required, so secret loading stays auditable and consistent without sourcing env files as shell code.
 
 The current repository posture should therefore be described as:
 
@@ -59,6 +59,7 @@ Preferred repository patterns:
 - `.env.example` contains placeholder values only
 - `.env.local` is local-only and untracked
 - scripts use the shared local env loading pattern rather than reimplementing it ad hoc
+- scripts parse env files as environment data rather than execute them through the shell
 - scripts fail clearly when required env vars are missing
 - docs describe variable names and storage locations without including live values
 - Coolify, Cloudflare, and database credentials remain separate by purpose and scope

@@ -20,6 +20,7 @@ That means:
 - do not paste Coolify tokens into GitHub issues, PR bodies, or docs examples
 - do not embed Coolify tokens in maintained scripts under `scripts/**`
 - do not reuse Coolify administrative tokens as application runtime credentials
+- do not source `.env` files as shell code when a parser-based env loader is available
 
 ## Supported Storage Pattern
 
@@ -56,7 +57,7 @@ COOLIFY_ACCESS_TOKEN=<local-only-secret>
 
 If you want a tracked example for non-secret local defaults, keep only `COOLIFY_BASE_URL` in `.env.example` and keep `COOLIFY_ACCESS_TOKEN` in `.env.local`.
 
-If the token contains shell-significant characters such as `|`, quote the value in `.env.local` so local wrappers can source it safely.
+The local wrapper now loads `.env.local` and `.env` through the shared Node env loader rather than sourcing them as shell code, which keeps local operator secrets aligned with the safer script pattern already used elsewhere in the repository.
 
 ## Local CLI And MCP Workflow
 
@@ -66,7 +67,9 @@ For Coolify Cloud:
 2. run `coolify context set-token cloud "$COOLIFY_ACCESS_TOKEN"` to configure the CLI locally
 3. run `pnpm coolify:mcp` when an MCP client should launch the local wrapper in this repository
 
-The tracked wrapper script reads `.env` and `.env.local` at runtime, with `.env.local` taking precedence for operator-local secrets, and passes the credentials to the MCP server without storing the token in the script itself.
+The tracked wrapper script reads `.env.local` first and then `.env` through the shared Node loader, so operator-local secrets win without executing the files as shell code, and passes the credentials to the MCP server without storing the token in the script itself.
+
+For Cloudflare-hosted deployment secrets, keep Worker runtime secrets in Wrangler-managed secrets or CI/CD-managed environment storage rather than tracked files. Use tracked `.env.example` values only for placeholders and non-secret defaults.
 
 ## Operator Workflow
 
@@ -114,6 +117,20 @@ Keep these credentials separate by purpose:
 - Turnstile and JWT secrets: server-only application security secrets
 
 This separation reduces blast radius and keeps least-privilege boundaries clearer.
+
+## Security Baseline
+
+- prefer parser-based environment loading over shell evaluation for local secret files
+- keep Cloudflare deployment secrets server-only, using `wrangler secret put` or reviewed CI/CD secret storage for deployed Worker secrets
+- keep operator tokens least-privileged and scoped only to the Cloudflare or Coolify surfaces needed for the reviewed task
+- rotate tokens after suspected exposure and document the rotation owner and reason
+- keep PostgreSQL credentials distinct from Coolify and Cloudflare administrative credentials
+
+This baseline aligns with the current AWCMS Mini posture:
+
+- EmDash-first application hosted on Cloudflare Workers
+- PostgreSQL hosted on a Coolify-managed VPS
+- Hyperdrive and Tunnel rollout work separated from normal application runtime secrets
 
 ## Validation
 
