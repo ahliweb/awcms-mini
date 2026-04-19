@@ -16,6 +16,7 @@ The command reports:
 
 - runtime validation execution
 - database connectivity
+- non-secret database transport posture for rollout verification
 - timestamped status output
 
 ## Manual Smoke Test
@@ -32,7 +33,9 @@ The command reports:
    - `ok` is `true`
    - `checks.app.ok` is `true`
    - `checks.database.ok` is `true`
-   - the reviewed database transport and transport-specific posture match the target environment
+   - `checks.database.posture.transport` matches the intended deployment path
+   - for direct transport, `checks.database.posture.hostname`, `port`, `database`, and `sslmode` match the reviewed environment without exposing credentials
+   - for Hyperdrive transport, `checks.database.posture.binding` matches the reviewed binding name
 
 ## Cloudflare Automation Smoke Test
 

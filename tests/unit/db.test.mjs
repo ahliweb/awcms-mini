@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { buildPostgresPoolConfig, resolvePostgresConnectionString } from "../../src/db/client/postgres.mjs";
+import { describeDatabaseHealthPosture } from "../../src/db/health.mjs";
 import { DATABASE_ERROR_KIND, classifyDatabaseError } from "../../src/db/errors.mjs";
 import { defineTransactionStrategy, withTransaction } from "../../src/db/transactions.mjs";
 
@@ -115,6 +116,40 @@ test("resolvePostgresConnectionString fails clearly when Hyperdrive transport is
       ),
     /Hyperdrive transport requires the Cloudflare binding 'HYPERDRIVE'/,
   );
+});
+
+test("describeDatabaseHealthPosture reports direct transport without exposing credentials", () => {
+  const posture = describeDatabaseHealthPosture({
+    databaseUrl: "postgres://awcms_mini_app:secret@id1.ahlikoding.com:5432/awcms_mini?sslmode=verify-full",
+    databaseTransport: "direct",
+    runtimeTarget: "cloudflare",
+  });
+
+  assert.deepEqual(posture, {
+    transport: "direct",
+    runtimeTarget: "cloudflare",
+    source: "DATABASE_URL",
+    hostname: "id1.ahlikoding.com",
+    port: 5432,
+    database: "awcms_mini",
+    sslmode: "verify-full",
+  });
+});
+
+test("describeDatabaseHealthPosture reports Hyperdrive binding posture without a connection string", () => {
+  const posture = describeDatabaseHealthPosture({
+    databaseUrl: "postgres://unused-local-default",
+    databaseTransport: "hyperdrive",
+    hyperdriveBinding: "HYPERDRIVE",
+    runtimeTarget: "cloudflare",
+  });
+
+  assert.deepEqual(posture, {
+    transport: "hyperdrive",
+    runtimeTarget: "cloudflare",
+    source: "Cloudflare Hyperdrive binding",
+    binding: "HYPERDRIVE",
+  });
 });
 
 test("defineTransactionStrategy validates supported strategies", () => {

@@ -1,9 +1,10 @@
-import { checkDatabaseHealth } from "../src/db/health.mjs";
+import { checkDatabaseHealth, describeDatabaseHealthPosture } from "../src/db/health.mjs";
 import { loadLocalEnvFiles } from "./_local-env.mjs";
 
 async function main() {
   loadLocalEnvFiles();
   const database = await checkDatabaseHealth();
+  const databasePosture = describeDatabaseHealthPosture();
   const result = {
     ok: database.ok,
     service: "awcms-mini",
@@ -12,7 +13,10 @@ async function main() {
         ok: true,
         message: "runtime validation script executed",
       },
-      database,
+      database: {
+        ...database,
+        posture: databasePosture,
+      },
     },
     timestamp: new Date().toISOString(),
   };
