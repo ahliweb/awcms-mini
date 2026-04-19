@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildPostgresPoolConfig } from "../../src/db/client/postgres.mjs";
+import { buildPostgresPoolConfig, resolvePostgresConnectionString } from "../../src/db/client/postgres.mjs";
 import { DATABASE_ERROR_KIND, classifyDatabaseError } from "../../src/db/errors.mjs";
 import { defineTransactionStrategy, withTransaction } from "../../src/db/transactions.mjs";
 
@@ -66,6 +66,7 @@ test("classifyDatabaseError identifies missing relation failures", () => {
 test("buildPostgresPoolConfig keeps DATABASE_URL as the transport source of truth", () => {
   const config = buildPostgresPoolConfig({
     databaseUrl: "postgres://awcms_mini_app:secret@id1.ahlikoding.com:5432/awcms_mini?sslmode=verify-full",
+    databaseTransport: "direct",
   });
 
   assert.deepEqual(config, {
@@ -76,9 +77,44 @@ test("buildPostgresPoolConfig keeps DATABASE_URL as the transport source of trut
 test("buildPostgresPoolConfig preserves reviewed interim SSL modes when explicitly configured", () => {
   const config = buildPostgresPoolConfig({
     databaseUrl: "postgres://awcms_mini_app:secret@202.10.45.224:5432/awcms_mini?sslmode=require",
+    databaseTransport: "direct",
   });
 
   assert.equal(config.connectionString, "postgres://awcms_mini_app:secret@202.10.45.224:5432/awcms_mini?sslmode=require");
+});
+
+test("resolvePostgresConnectionString uses the reviewed Hyperdrive binding when transport is enabled", () => {
+  const connectionString = resolvePostgresConnectionString(
+    {
+      databaseUrl: "postgres://unused-local-default",
+      databaseTransport: "hyperdrive",
+      hyperdriveBinding: "HYPERDRIVE",
+    },
+    {
+      workersEnv: {
+        HYPERDRIVE: {
+          connectionString: "postgres://hyperdrive-user:secret@hyperdrive.cloudflare.example:5432/awcms_mini",
+        },
+      },
+    },
+  );
+
+  assert.equal(connectionString, "postgres://hyperdrive-user:secret@hyperdrive.cloudflare.example:5432/awcms_mini");
+});
+
+test("resolvePostgresConnectionString fails clearly when Hyperdrive transport is selected without a binding", () => {
+  assert.throws(
+    () =>
+      resolvePostgresConnectionString(
+        {
+          databaseUrl: "postgres://unused-local-default",
+          databaseTransport: "hyperdrive",
+          hyperdriveBinding: "HYPERDRIVE",
+        },
+        { workersEnv: {} },
+      ),
+    /Hyperdrive transport requires the Cloudflare binding 'HYPERDRIVE'/,
+  );
 });
 
 test("defineTransactionStrategy validates supported strategies", () => {

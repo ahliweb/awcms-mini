@@ -4,12 +4,35 @@ import pg from "pg";
 import { getRuntimeConfig } from "../../config/runtime.mjs";
 
 const { Pool } = pg;
+let cloudflareWorkersEnv = null;
 
-export function buildPostgresPoolConfig(runtimeConfig = getRuntimeConfig()) {
+try {
+  ({ env: cloudflareWorkersEnv } = await import("cloudflare:workers"));
+} catch {
+  cloudflareWorkersEnv = null;
+}
+
+export function resolvePostgresConnectionString(runtimeConfig = getRuntimeConfig(), options = {}) {
+  if (runtimeConfig.databaseTransport !== "hyperdrive") {
+    return runtimeConfig.databaseUrl;
+  }
+
+  const workersEnv = options.workersEnv ?? cloudflareWorkersEnv;
+  const binding = workersEnv?.[runtimeConfig.hyperdriveBinding];
+  const connectionString = binding?.connectionString;
+
+  if (typeof connectionString === "string" && connectionString.trim().length > 0) {
+    return connectionString;
+  }
+
+  throw new Error(
+    `Hyperdrive transport requires the Cloudflare binding '${runtimeConfig.hyperdriveBinding}' with a connectionString value.`,
+  );
+}
+
+export function buildPostgresPoolConfig(runtimeConfig = getRuntimeConfig(), options = {}) {
   return {
-    // Keep SSL/TLS posture in `DATABASE_URL` so deployment config remains the
-    // single source of truth for direct PostgreSQL transport settings.
-    connectionString: runtimeConfig.databaseUrl,
+    connectionString: resolvePostgresConnectionString(runtimeConfig, options),
   };
 }
 

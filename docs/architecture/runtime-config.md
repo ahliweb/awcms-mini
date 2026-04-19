@@ -25,6 +25,19 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Interim guidance: if certificate hostname validation is not ready yet, use an explicitly reviewed TLS-required mode such as `sslmode=require` and track the follow-on hardening work.
 - Role guidance: do not use PostgreSQL superuser credentials for the normal app runtime.
 
+### `DATABASE_TRANSPORT`
+
+- Purpose: selects whether the runtime should use direct `DATABASE_URL` transport or a Cloudflare Hyperdrive binding.
+- Supported values: `direct`, `hyperdrive`.
+- Default fallback: `direct`.
+- Production guidance: keep `direct` until the Cloudflare deployment has a reviewed Hyperdrive binding and rollout plan.
+
+### `HYPERDRIVE_BINDING`
+
+- Purpose: names the Cloudflare Hyperdrive binding used when `DATABASE_TRANSPORT=hyperdrive`.
+- Default fallback: `HYPERDRIVE`.
+- Rule: this is a binding name, not a secret or connection string.
+
 ### `MINI_TOTP_ENCRYPTION_KEY`
 
 - Purpose: encryption key for TOTP secret storage.
@@ -230,6 +243,8 @@ See `docs/process/postgresql-vps-hardening.md` for the supported VPS transport a
 For the intended production topology, configure at least:
 
 - `DATABASE_URL`
+- `DATABASE_TRANSPORT=direct` unless Hyperdrive is intentionally enabled
+- optional `HYPERDRIVE_BINDING`
 - `MINI_RUNTIME_TARGET=cloudflare`
 - `SITE_URL`
 - optional `ADMIN_SITE_URL`

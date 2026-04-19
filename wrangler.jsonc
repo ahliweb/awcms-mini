@@ -5,6 +5,8 @@
   "compatibility_date": "2026-04-18",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "vars": {
+    "DATABASE_TRANSPORT": "direct",
+    "HYPERDRIVE_BINDING": "HYPERDRIVE",
     "MINI_RUNTIME_TARGET": "cloudflare",
     "TRUSTED_PROXY_MODE": "cloudflare",
     "SITE_URL": "https://awcms-mini.ahlikoding.com",

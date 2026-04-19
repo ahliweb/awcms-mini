@@ -1,4 +1,6 @@
 export const DEFAULT_DATABASE_URL = "postgres://localhost:5432/awcms_mini_dev";
+export const DEFAULT_DATABASE_TRANSPORT = "direct";
+export const DEFAULT_HYPERDRIVE_BINDING = "HYPERDRIVE";
 export const DEFAULT_RUNTIME_TARGET = "cloudflare";
 export const DEFAULT_TRUSTED_PROXY_MODE = "direct";
 export const DEFAULT_R2_MEDIA_BUCKET_BINDING = "MEDIA_BUCKET";
@@ -21,6 +23,10 @@ function normalizeSiteUrl(value) {
 
 function normalizeRuntimeTarget(value) {
   return ["cloudflare", "node"].includes(value) ? value : DEFAULT_RUNTIME_TARGET;
+}
+
+function normalizeDatabaseTransport(value) {
+  return ["direct", "hyperdrive"].includes(value) ? value : DEFAULT_DATABASE_TRANSPORT;
 }
 
 function normalizeOptionalString(value) {
@@ -111,6 +117,8 @@ export function getRuntimeConfig() {
 
   return {
     databaseUrl: process.env.DATABASE_URL || DEFAULT_DATABASE_URL,
+    databaseTransport: normalizeDatabaseTransport(process.env.DATABASE_TRANSPORT),
+    hyperdriveBinding: normalizeOptionalString(process.env.HYPERDRIVE_BINDING) || DEFAULT_HYPERDRIVE_BINDING,
     runtimeTarget: normalizeRuntimeTarget(process.env.MINI_RUNTIME_TARGET),
     siteUrl,
     adminSiteUrl,

@@ -133,6 +133,7 @@ Cloudflare-hosted deployment baseline:
 - `pnpm build` produces the Worker bundle
 - `pnpm deploy:cloudflare` deploys via Wrangler
 - `wrangler.jsonc` defines the Worker, assets, observability, the reviewed public custom domain for `awcms-mini.ahlikoding.com`, the `MEDIA_BUCKET` R2 binding for `awcms-mini-s3`, and commented Hyperdrive binding placeholders for the follow-on transport decision
+- `DATABASE_TRANSPORT=direct` keeps the current reviewed direct PostgreSQL path; switch to `hyperdrive` only with the reviewed binding and rollout checks in place
 - Astro's Cloudflare adapter uses the default `SESSION` KV binding for sessions unless you override it explicitly
 
 ## Common Commands

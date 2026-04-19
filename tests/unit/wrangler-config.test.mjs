@@ -20,3 +20,10 @@ test("wrangler config declares the reviewed public custom domain baseline", asyn
   assert.match(contents, /"pattern"\s*:\s*"awcms-mini\.ahlikoding\.com"/);
   assert.match(contents, /"custom_domain"\s*:\s*true/);
 });
+
+test("wrangler config defines the reviewed database transport defaults", async () => {
+  const contents = await readFile(wranglerConfigPath, "utf8");
+
+  assert.match(contents, /"DATABASE_TRANSPORT"\s*:\s*"direct"/);
+  assert.match(contents, /"HYPERDRIVE_BINDING"\s*:\s*"HYPERDRIVE"/);
+});

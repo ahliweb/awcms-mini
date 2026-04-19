@@ -21,17 +21,18 @@ The command reports:
 ## Manual Smoke Test
 
 1. Start a PostgreSQL database reachable by `DATABASE_URL`.
-2. For the reviewed remote production posture, use `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is available.
-3. Set `SITE_URL` to the browser-facing hostname for the environment when validating a deployed-style build.
-4. If split hostnames are enabled, set `ADMIN_SITE_URL` to the dedicated admin hostname.
-5. Set `TRUSTED_PROXY_MODE` for the expected request path.
-6. Build the app with `pnpm build`.
-7. Run `pnpm healthcheck`.
-8. Confirm:
+2. Keep `DATABASE_TRANSPORT=direct` unless the environment is intentionally using Hyperdrive.
+3. For the reviewed remote production direct posture, use `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is available.
+4. Set `SITE_URL` to the browser-facing hostname for the environment when validating a deployed-style build.
+5. If split hostnames are enabled, set `ADMIN_SITE_URL` to the dedicated admin hostname.
+6. Set `TRUSTED_PROXY_MODE` for the expected request path.
+7. Build the app with `pnpm build`.
+8. Run `pnpm healthcheck`.
+9. Confirm:
    - `ok` is `true`
    - `checks.app.ok` is `true`
    - `checks.database.ok` is `true`
-   - the reviewed PostgreSQL SSL hostname and mode match the target environment posture
+   - the reviewed database transport and transport-specific posture match the target environment
 
 ## Cloudflare Automation Smoke Test
 
