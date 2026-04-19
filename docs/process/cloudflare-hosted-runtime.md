@@ -17,12 +17,13 @@ The supported baseline production path is:
 
 - `MINI_RUNTIME_TARGET=cloudflare`
 - `SITE_URL` matches the browser-facing Cloudflare hostname
-- optional `ADMIN_SITE_URL` matches the dedicated Cloudflare admin hostname when split public/admin hostnames are used
+- the reviewed single-host admin browser entry is `https://awcms-mini.ahlikoding.com/_emdash/`
+- optional `ADMIN_SITE_URL` remains a compatibility-only entry host when an operator still needs a dedicated admin hostname
 - `TRUSTED_PROXY_MODE=cloudflare`
 - `DATABASE_URL` points to the intended remote PostgreSQL instance
 - `wrangler.jsonc` or equivalent deployment config defines the Worker, assets, observability, and required bindings
 - `TURNSTILE_SECRET_KEY` is stored as a server-only secret when Turnstile protection is enabled
-- `TURNSTILE_EXPECTED_HOSTNAMES` should be set or derived correctly when Turnstile is used across both the public and admin hostnames
+- `TURNSTILE_EXPECTED_HOSTNAMES` should be set or derived correctly for the reviewed hostname set in the environment
 - `EDGE_API_JWT_SECRET` is stored as a server-only secret when edge API token issuance is enabled
 - `R2_MEDIA_BUCKET_BINDING=MEDIA_BUCKET` maps to the private R2 bucket `awcms-mini-s3` when object storage is enabled
 - `EDGE_API_ALLOWED_ORIGINS` stays empty unless an approved cross-origin external client needs browser access
@@ -32,12 +33,13 @@ The supported baseline production path is:
 - Use the Astro Cloudflare adapter for the supported runtime build
 - Keep Worker compatibility flags aligned with the runtime needs of the current codebase
 - Keep observability enabled for production deployment
-- Prefer Worker custom domains for `awcms-mini.ahlikoding.com` and `awcms-mini-admin.ahlikoding.com` because the Worker is the origin for this deployment model
+- Prefer the Worker custom domain for `awcms-mini.ahlikoding.com` as the reviewed single-host baseline because the Worker is the origin for this deployment model
 - Ensure the adapter's default `SESSION` KV binding or an explicit equivalent binding is available
-- If split hostnames are used, keep the admin hostname pointed at the same Worker deployment and treat it as an entry host for `/_emdash/admin`
+- Keep `/_emdash/` as the reviewed browser entry alias and redirect it into EmDash's current `/_emdash/admin` surface on the same host
+- If split hostnames are still used for compatibility, keep the admin hostname pointed at the same Worker deployment and treat it as an entry host for the configured admin entry path
 - Add edge protections such as rate limiting, managed challenge, or Turnstile on abuse-prone routes as those features land
 - The current Turnstile-covered public flows are login, password-reset request, and invite activation when the Turnstile secret is configured
-- Keep Turnstile hostname expectations aligned with `SITE_URL`, `ADMIN_SITE_URL`, or an explicit `TURNSTILE_EXPECTED_HOSTNAMES` allowlist
+- Keep Turnstile hostname expectations aligned with `SITE_URL`, optional `ADMIN_SITE_URL`, or an explicit `TURNSTILE_EXPECTED_HOSTNAMES` allowlist
 - Keep `/api/v1/token` behind Cloudflare rate limiting or equivalent abuse controls before broad external-client rollout
 - Keep R2 buckets private by default and expose downloads through controlled application paths as upload features land
 - Keep the Worker R2 binding aligned with `awcms-mini-s3` unless an explicit reviewed bucket migration occurs
@@ -57,19 +59,21 @@ Before deployment:
 
 - Confirm `pnpm build` produces the Cloudflare Worker bundle successfully
 - Confirm `wrangler.jsonc` matches the intended Worker name and bindings
-- Confirm `wrangler.jsonc` declares custom-domain routes for `awcms-mini.ahlikoding.com` and `awcms-mini-admin.ahlikoding.com`
+- Confirm `wrangler.jsonc` declares the reviewed public custom-domain route for `awcms-mini.ahlikoding.com`
 - Confirm the `MEDIA_BUCKET` binding targets `awcms-mini-s3`
 - Confirm `MINI_RUNTIME_TARGET=cloudflare` in the deployment environment
 - Confirm `SITE_URL`, `TRUSTED_PROXY_MODE`, and security secrets are set correctly
-- Confirm `ADMIN_SITE_URL` and any non-default `ADMIN_ENTRY_PATH` are set correctly when a separate admin hostname is used
-- Confirm `TURNSTILE_EXPECTED_HOSTNAMES` or its derived fallback matches the reviewed public/admin hostname set when Turnstile is enabled
+- Confirm `ADMIN_ENTRY_PATH=/_emdash/` for the reviewed single-host baseline
+- Confirm `ADMIN_SITE_URL` only if a dedicated admin hostname is still enabled for compatibility
+- Confirm `TURNSTILE_EXPECTED_HOSTNAMES` or its derived fallback matches the reviewed hostname set when Turnstile is enabled
 - Confirm `EDGE_API_JWT_SECRET` and any non-default `EDGE_API_JWT_*` settings are set correctly when `/api/v1/token` is enabled
 - Confirm `DATABASE_URL` or approved database transport configuration points to the intended PostgreSQL target
 
 After deployment:
 
 - Confirm the public hostname responds through the Cloudflare-hosted runtime
-- Confirm admin routes load through the public hostname or, when configured, the dedicated admin hostname
+- Confirm `https://awcms-mini.ahlikoding.com/_emdash/` redirects to `/_emdash/admin` on the same host
+- Confirm admin routes load through the public hostname and, if still configured, the dedicated admin hostname compatibility path
 - Confirm auth logging and lockout behavior reflect the expected Cloudflare client IP source
 - Confirm the runtime can see the `MEDIA_BUCKET` binding for `awcms-mini-s3`
 - Confirm the app can reach PostgreSQL and complete health or smoke tests for the selected environment
@@ -85,19 +89,19 @@ Run these in order after a deployment or after Cloudflare-side automation change
 - Confirm the public hostname remains the canonical browser-facing site URL.
 - Confirm the hostname is attached through the Worker custom-domain path rather than an unrelated legacy route.
 
-### 2. Admin Hostname
+### 2. Admin Entry
 
-- Request `https://awcms-mini-admin.ahlikoding.com/`.
-- Confirm the hostname root redirects to `/_emdash/admin` on the same host.
+- Request `https://awcms-mini.ahlikoding.com/_emdash/`.
+- Confirm the alias redirects to `/_emdash/admin` on the same host.
 - Confirm the EmDash admin surface loads there without introducing a second admin shell or alternate API surface.
-- Confirm the hostname is attached through the same Worker deployment as the public hostname.
+- If `ADMIN_SITE_URL` is still configured for compatibility, confirm the hostname root redirects to the configured admin entry path on the same Worker deployment.
 
 ### 3. Turnstile-Protected Flows
 
 - Confirm the login screen renders the Turnstile widget when Turnstile is enabled.
 - Confirm a valid Turnstile solve allows the protected flow to continue.
 - Confirm an invalid or missing token fails server-side.
-- Confirm Siteverify hostname handling accepts only the reviewed hostname set from `TURNSTILE_EXPECTED_HOSTNAMES` or the derived `SITE_URL` and `ADMIN_SITE_URL` fallback.
+- Confirm Siteverify hostname handling accepts only the reviewed hostname set from `TURNSTILE_EXPECTED_HOSTNAMES` or the derived `SITE_URL` and optional `ADMIN_SITE_URL` fallback.
 - Review Turnstile analytics for unexpected hostname, action, or challenge anomalies after rollout.
 
 ### 4. R2 Binding
@@ -135,7 +139,7 @@ During the current implementation pass, the Cloudflare MCP session did not retur
 Current consequence:
 
 - the repository now declares the intended custom-domain automation baseline in `wrangler.jsonc`
-- operators should still record the live `ahlikoding.com` zone ID and confirm the deployed Worker is the target of both custom domains during environment rollout
+- operators should still record the live `ahlikoding.com` zone ID and confirm the deployed Worker is the target of the reviewed public custom domain during environment rollout
 - the smoke tests in this document remain the required verification step until account inventory is readable through the available Cloudflare management path
 
 ## Cross-References

@@ -145,16 +145,18 @@ Use these focused checks when the release touches governance or security surface
 
 ### Admin Plugin
 
+- [ ] `/_emdash/` redirects to `/_emdash/admin`
 - [ ] `/_emdash/admin` loads
 - [ ] User detail tabs load: `Overview`, `Roles`, `Jobs`, `Logical Regions`, `Administrative Regions`, `Sessions`, `Security`
 - [ ] Protected action confirmations still appear for high-risk user-detail actions
 - [ ] Admin routes load correctly through the Cloudflare public hostname
-- [ ] If `ADMIN_SITE_URL` is configured, the admin hostname root redirects to `/_emdash/admin` and the admin surface still loads correctly there
+- [ ] If `ADMIN_SITE_URL` is configured for compatibility, the admin hostname root redirects to the configured admin entry path and the admin surface still loads correctly there
 
 ### Cloudflare Automation
 
 - [ ] `https://awcms-mini.ahlikoding.com/` responds through the current Cloudflare-hosted Worker deployment
-- [ ] `https://awcms-mini-admin.ahlikoding.com/` redirects to `/_emdash/admin` on the same host when the admin hostname is enabled
+- [ ] `https://awcms-mini.ahlikoding.com/_emdash/` redirects to `/_emdash/admin` on the same host
+- [ ] If a compatibility admin hostname is still enabled, its root redirects to the configured admin entry path on the same Worker deployment
 - [ ] Turnstile-protected public flows behave correctly for the reviewed hostname set
 - [ ] The deployed Worker still exposes the `MEDIA_BUCKET` binding for `awcms-mini-s3`
 - [ ] Cloudflare-side hostname, Turnstile, and R2 configuration changes are reflected in the current operator notes before release signoff

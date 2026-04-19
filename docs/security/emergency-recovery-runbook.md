@@ -13,7 +13,7 @@ Use these steps when an operator, owner, or protected-role user is locked out, c
 
 ## Prerequisites
 
-- You can access the running application and the admin plugin routes under `/_emdash/admin`.
+- You can access the running application through the reviewed admin browser entry at `/_emdash/`, which redirects into the current admin plugin routes under `/_emdash/admin`.
 - You have an administrator account that can complete step-up authentication for protected actions.
 - You can deploy a configuration rollback if the incident is caused by a recent code or policy change.
 - You know whether the deployment is using the supported Cloudflare proxied hostname and `TRUSTED_PROXY_MODE=cloudflare`.
