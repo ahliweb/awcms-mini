@@ -1,10 +1,49 @@
 import { checkDatabaseHealth, describeDatabaseHealthPosture } from "../src/db/health.mjs";
 import { loadLocalEnvFiles } from "./_local-env.mjs";
 
+function normalizeOptionalString(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const next = value.trim();
+  return next.length > 0 ? next : null;
+}
+
+function readExpectedDatabasePosture() {
+  return {
+    transport: normalizeOptionalString(process.env.HEALTHCHECK_EXPECT_DATABASE_TRANSPORT),
+    hostname: normalizeOptionalString(process.env.HEALTHCHECK_EXPECT_DATABASE_HOSTNAME),
+    sslmode: normalizeOptionalString(process.env.HEALTHCHECK_EXPECT_DATABASE_SSLMODE),
+    binding: normalizeOptionalString(process.env.HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING),
+  };
+}
+
+function assertExpectedDatabasePosture(actual, expected) {
+  const checks = [
+    ["transport", expected.transport],
+    ["hostname", expected.hostname],
+    ["sslmode", expected.sslmode],
+    ["binding", expected.binding],
+  ].filter(([, expectedValue]) => expectedValue !== null);
+
+  for (const [field, expectedValue] of checks) {
+    if (actual[field] !== expectedValue) {
+      throw new Error(`Healthcheck expected database ${field}=${expectedValue} but found ${actual[field] ?? "null"}`);
+    }
+  }
+}
+
 async function main() {
   loadLocalEnvFiles();
   const database = await checkDatabaseHealth();
   const databasePosture = describeDatabaseHealthPosture();
+  const expectedDatabasePosture = readExpectedDatabasePosture();
+
+  if (database.ok) {
+    assertExpectedDatabasePosture(databasePosture, expectedDatabasePosture);
+  }
+
   const result = {
     ok: database.ok,
     service: "awcms-mini",
@@ -16,6 +55,7 @@ async function main() {
       database: {
         ...database,
         posture: databasePosture,
+        expected: expectedDatabasePosture,
       },
     },
     timestamp: new Date().toISOString(),

@@ -6,6 +6,39 @@ import { describeDatabaseHealthPosture } from "../../src/db/health.mjs";
 import { DATABASE_ERROR_KIND, classifyDatabaseError } from "../../src/db/errors.mjs";
 import { defineTransactionStrategy, withTransaction } from "../../src/db/transactions.mjs";
 
+function normalizeOptionalString(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const next = value.trim();
+  return next.length > 0 ? next : null;
+}
+
+function readExpectedDatabasePostureFromEnv(env) {
+  return {
+    transport: normalizeOptionalString(env.HEALTHCHECK_EXPECT_DATABASE_TRANSPORT),
+    hostname: normalizeOptionalString(env.HEALTHCHECK_EXPECT_DATABASE_HOSTNAME),
+    sslmode: normalizeOptionalString(env.HEALTHCHECK_EXPECT_DATABASE_SSLMODE),
+    binding: normalizeOptionalString(env.HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING),
+  };
+}
+
+function assertExpectedDatabasePosture(actual, expected) {
+  const checks = [
+    ["transport", expected.transport],
+    ["hostname", expected.hostname],
+    ["sslmode", expected.sslmode],
+    ["binding", expected.binding],
+  ].filter(([, expectedValue]) => expectedValue !== null);
+
+  for (const [field, expectedValue] of checks) {
+    if (actual[field] !== expectedValue) {
+      throw new Error(`Healthcheck expected database ${field}=${expectedValue} but found ${actual[field] ?? "null"}`);
+    }
+  }
+}
+
 function createControlledTransactionRecorder() {
   const calls = [];
 
@@ -150,6 +183,45 @@ test("describeDatabaseHealthPosture reports Hyperdrive binding posture without a
     source: "Cloudflare Hyperdrive binding",
     binding: "HYPERDRIVE",
   });
+});
+
+test("healthcheck expected posture parsing keeps unset assertions optional", () => {
+  assert.deepEqual(readExpectedDatabasePostureFromEnv({}), {
+    transport: null,
+    hostname: null,
+    sslmode: null,
+    binding: null,
+  });
+});
+
+test("healthcheck expected posture accepts matching direct posture", () => {
+  const actual = describeDatabaseHealthPosture({
+    databaseUrl: "postgres://awcms_mini_app:secret@id1.ahlikoding.com:5432/awcms_mini?sslmode=verify-full",
+    databaseTransport: "direct",
+    runtimeTarget: "cloudflare",
+  });
+  const expected = readExpectedDatabasePostureFromEnv({
+    HEALTHCHECK_EXPECT_DATABASE_TRANSPORT: "direct",
+    HEALTHCHECK_EXPECT_DATABASE_HOSTNAME: "id1.ahlikoding.com",
+    HEALTHCHECK_EXPECT_DATABASE_SSLMODE: "verify-full",
+  });
+
+  assert.doesNotThrow(() => assertExpectedDatabasePosture(actual, expected));
+});
+
+test("healthcheck expected posture rejects mismatched Hyperdrive binding", () => {
+  const actual = describeDatabaseHealthPosture({
+    databaseUrl: "postgres://unused-local-default",
+    databaseTransport: "hyperdrive",
+    hyperdriveBinding: "HYPERDRIVE",
+    runtimeTarget: "cloudflare",
+  });
+  const expected = readExpectedDatabasePostureFromEnv({
+    HEALTHCHECK_EXPECT_DATABASE_TRANSPORT: "hyperdrive",
+    HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING: "OTHER_BINDING",
+  });
+
+  assert.throws(() => assertExpectedDatabasePosture(actual, expected), /database binding=OTHER_BINDING/);
 });
 
 test("defineTransactionStrategy validates supported strategies", () => {

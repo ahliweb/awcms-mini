@@ -17,7 +17,17 @@ The command reports:
 - runtime validation execution
 - database connectivity
 - non-secret database transport posture for rollout verification
+- optional expected-posture assertions for rollout verification
 - timestamped status output
+
+Optional assertion inputs:
+
+- `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT`
+- `HEALTHCHECK_EXPECT_DATABASE_HOSTNAME`
+- `HEALTHCHECK_EXPECT_DATABASE_SSLMODE`
+- `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING`
+
+When one or more of these values is set, `pnpm healthcheck` fails if the live non-secret posture does not match the expected rollout target.
 
 ## Manual Smoke Test
 
@@ -36,6 +46,23 @@ The command reports:
    - `checks.database.posture.transport` matches the intended deployment path
    - for direct transport, `checks.database.posture.hostname`, `port`, `database`, and `sslmode` match the reviewed environment without exposing credentials
    - for Hyperdrive transport, `checks.database.posture.binding` matches the reviewed binding name
+
+Example assertion flow for the reviewed direct production posture:
+
+```bash
+HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=direct \
+HEALTHCHECK_EXPECT_DATABASE_HOSTNAME=id1.ahlikoding.com \
+HEALTHCHECK_EXPECT_DATABASE_SSLMODE=verify-full \
+pnpm healthcheck
+```
+
+Example assertion flow for Hyperdrive rollout verification:
+
+```bash
+HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive \
+HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE \
+pnpm healthcheck
+```
 
 ## Cloudflare Automation Smoke Test
 
@@ -56,6 +83,7 @@ Use these checks after Cloudflare hostname, Turnstile, or R2 automation changes.
 - if the runtime build is broken, `pnpm build` fails
 - if the database is unreachable, `pnpm healthcheck` exits non-zero
 - database failures return a classified `kind` to make startup issues easier to identify
+- if the runtime is pointed at the wrong reviewed transport target, `pnpm healthcheck` exits non-zero when expectation variables are set
 - if hostname automation is only partially applied, the public or admin hostname smoke tests fail
 - if Turnstile hostname configuration is wrong, valid solves fail server-side with hostname mismatch behavior
 - if the Worker R2 binding is missing, runtime storage paths fail with `R2_BUCKET_NOT_CONFIGURED`
