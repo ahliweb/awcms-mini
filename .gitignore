@@ -9,3 +9,4 @@ dist/
 emdash-env.d.ts
 uploads/
 npm-debug.log*
+temp
