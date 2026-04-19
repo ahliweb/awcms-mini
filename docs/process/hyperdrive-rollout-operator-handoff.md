@@ -26,6 +26,12 @@ This document is a short execution aid, not a replacement for the detailed runbo
 2. Complete `#158` so the live PostgreSQL resource matches the reviewed private/SSL posture and any required credential rotation is finished.
 3. Continue `#146` only after the connector and database posture are both in a reviewed state.
 
+Fallback decision gate:
+
+- stay on the preferred tunnel path unless operators conclude that the VPS-side connector path is not viable in the target environment within the reviewed rollout window
+- pivot to `#147` only when the team explicitly decides to abandon or pause the private-database tunnel strategy and instead prepare a separately reachable reviewed PostgreSQL origin endpoint for Hyperdrive
+- if operators pivot to `#147`, keep PostgreSQL TLS, narrow ingress, least-privilege credentials, and explicit audit notes in place; the fallback path does not relax those controls
+
 ## `#152` Connector Activation
 
 Run the reviewed host-service checks:
@@ -50,6 +56,8 @@ Sign off only when:
 - the runtime verification matches the reviewed Hyperdrive transport target
 
 If the tunnel token may have leaked through logs, copied files, shell history, or issue comments, rotate it before retrying.
+
+If the connector path itself cannot be made viable after reviewed host/service troubleshooting, stop and re-evaluate `#147` rather than widening public PostgreSQL exposure as an ad hoc workaround.
 
 ## `#158` PostgreSQL Posture Reconciliation
 
