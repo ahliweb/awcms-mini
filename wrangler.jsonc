@@ -34,8 +34,8 @@
     }
   ],
 
-  // Add a Hyperdrive binding when the dedicated Hyperdrive implementation issue lands.
-  // Keep local development and non-Hyperdrive environments on direct DATABASE_URL transport until then.
+  // Add the reviewed Hyperdrive binding ID here when the live rollout is ready.
+  // Keep local development and non-Hyperdrive environments on direct DATABASE_URL transport until deployment intentionally switches.
   //,
   // "hyperdrive": [
   //   {

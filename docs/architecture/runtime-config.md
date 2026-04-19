@@ -220,7 +220,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - `wrangler.jsonc` should define the Worker, static assets, observability, and any explicit Cloudflare bindings needed for deployment.
 - `wrangler.jsonc` now declares the `MEDIA_BUCKET` R2 binding for `awcms-mini-s3` as the current deployment target.
 - Astro's Cloudflare adapter uses the default `SESSION` KV binding for sessions unless operators override it deliberately.
-- Cloudflare Hyperdrive is the recommended next-step pooling path for PostgreSQL access from edge-hosted runtime code, but the current repo still uses `DATABASE_URL` directly until the dedicated implementation issue lands.
+- Cloudflare Hyperdrive is the recommended next-step pooling path for PostgreSQL access from edge-hosted runtime code. The repository already includes transport-selection support, but the default deployment path remains direct `DATABASE_URL` until operators complete the live Hyperdrive rollout.
 - R2-backed object storage should use a private bucket binding and application-generated object keys.
 
 See `docs/process/cloudflare-hosted-runtime.md` for the supported hosting model and deployment checks.
