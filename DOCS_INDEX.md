@@ -53,13 +53,13 @@ This file maps the current documentation set for AWCMS Mini.
 - `docs/process/cloudflare-hosted-runtime.md`
 - `docs/process/cloudflare-hyperdrive-decision.md`
 - `docs/process/cloudflare-pages-vs-workers-decision.md`
+- `docs/process/cloudflare-tunnel-private-db-connector-runbook.md`
 - `docs/process/cloudflare-platform-expansion-plan-2026.md`
 - `docs/process/cloudflare-edge-jwt-permissions-ai-plan-2026.md`
 - `docs/process/cloudflare-hostname-turnstile-r2-automation-plan-2026.md`
 - `docs/process/secret-hygiene-coolify-cloudflare-topology-plan-2026.md`
 - `docs/process/secret-hygiene-audit.md`
 - `docs/process/coolify-mcp-secret-handling.md`
-- `docs/process/cloudflare-pages-vs-workers-decision.md`
 - `docs/process/ai-workflow-planning-templates.md`
 - `docs/process/postgresql-vps-hardening.md`
 - `docs/process/emdash-alignment-and-security-plan-2026.md`

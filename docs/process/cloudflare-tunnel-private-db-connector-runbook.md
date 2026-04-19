@@ -1,0 +1,81 @@
+# Cloudflare Tunnel Private DB Connector Runbook
+
+## Purpose
+
+This runbook covers the VPS-side connector step for the private-database Hyperdrive path.
+
+Use it after the Cloudflare Tunnel resource already exists and before retrying the Hyperdrive rollout.
+
+Current reviewed tunnel:
+
+- name: `awcms-mini-postgres`
+- tunnel ID: `f2646d88-0ca1-4ea2-9397-04a1e6ae436e`
+
+## When To Use This Runbook
+
+Use this runbook when:
+
+- the private-database Cloudflare Tunnel path is the selected Hyperdrive origin strategy
+- the Tunnel resource already exists in Cloudflare
+- the remaining task is to run a connector from the target environment that can reach PostgreSQL on port `5432`
+
+## Prerequisites
+
+- a reviewed Tunnel resource already exists in the target Cloudflare account
+- the target Ubuntu/Coolify-managed environment can reach the PostgreSQL origin host and port `5432`
+- the operator has the tunnel token or another reviewed method for running the connector
+- ingress rules and hostname/route configuration are being handled in the Cloudflare dashboard or API as part of the paired route/config issue
+
+## Deployment Guidance
+
+1. Choose the machine or container environment that can already reach the PostgreSQL origin privately.
+2. Install or verify `cloudflared` in that environment.
+3. Prefer running the connector with the tunnel token rather than embedding broader Cloudflare API credentials on the VPS.
+4. Keep the tunnel token in server-managed secret storage, not in tracked files.
+5. Start the connector for tunnel `f2646d88-0ca1-4ea2-9397-04a1e6ae436e`.
+6. Verify the tunnel becomes active in Cloudflare.
+7. Record the runtime location, restart method, and operator owner for the connector.
+
+## Recommended Runtime Pattern
+
+- use a supervised service or equivalent restart-managed process on the target host
+- avoid one-off foreground sessions as the steady-state deployment method
+- keep connector restarts explicit and auditable
+
+## Token Handling
+
+- keep the tunnel token in local-only or server-managed secret storage
+- do not place the tunnel token in `.env.example`, tracked scripts, or GitHub issue bodies
+- prefer the tunnel token over account-wide API credentials on the VPS once the tunnel resource exists
+
+## Minimum Operator Checks
+
+Before startup:
+
+- confirm the target environment can reach PostgreSQL on port `5432`
+- confirm PostgreSQL authentication and TLS posture remain unchanged
+- confirm the tunnel token is available only in the target environment's secret store
+
+After startup:
+
+- confirm tunnel `awcms-mini-postgres` is active
+- confirm the connector is running under a reviewed restart-managed process
+- confirm the route/config issue has the hostname or route needed for Hyperdrive
+- hand the active connector status back to `#146`
+
+## Failure Notes
+
+- if the connector cannot reach PostgreSQL, fix origin-network reachability before adjusting Hyperdrive config again
+- if the tunnel remains inactive, verify the token, process supervision, and host egress path first
+- if operators are tempted to open public PostgreSQL ingress to work around connector issues, stop and re-evaluate the fallback issue instead
+
+## Validation
+
+- target-environment connector validation
+- Cloudflare tunnel status shows active
+
+## Cross-References
+
+- `docs/process/cloudflare-hyperdrive-decision.md`
+- `docs/process/postgresql-vps-hardening.md`
+- `docs/process/secret-hygiene-coolify-cloudflare-topology-plan-2026.md`

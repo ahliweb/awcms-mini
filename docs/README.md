@@ -30,12 +30,14 @@ Current planning reference:
 - `process/coolify-mcp-secret-handling.md` - supported local-only secret handling pattern for Coolify MCP access
 - `process/cloudflare-hyperdrive-decision.md` - current architecture decision for Hyperdrive as a PostgreSQL transport follow-on
 - `process/cloudflare-pages-vs-workers-decision.md` - current architecture decision for Pages-plus-Workers versus a single Worker baseline
+- `process/cloudflare-tunnel-private-db-connector-runbook.md` - operator runbook for the VPS-side `cloudflared` connector step in the private-database Hyperdrive path
 - `process/ai-workflow-planning-templates.md` - reusable AI workflow templates for docs, planning, implementation, and review tasks
 
 Current active operator rollout issues reflected by these docs:
 
 - `#146` - live Cloudflare Hyperdrive binding rollout
-- `#147` - reachable PostgreSQL origin endpoint prerequisite for Hyperdrive
+- `#152` - VPS-side `cloudflared` connector deployment for the private-database Tunnel path
+- `#153` - Cloudflare-managed route configuration for the private-database Tunnel path
 
 ## Accuracy Rule
 
