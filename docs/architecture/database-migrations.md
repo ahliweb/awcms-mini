@@ -19,6 +19,7 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
 - db client: `src/db/client/postgres.mjs`
 - migration runner module: `src/db/migrations/runner.mjs`
 - migration files: `src/db/migrations/*.mjs`
+- EmDash compatibility ledger helper: `src/db/migrations/emdash-compatibility.mjs`
 
 ## Current Bootstrap State
 
@@ -47,6 +48,7 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
   - `Migration failed: column "actor_id" does not exist (migration: 001_initial)`
   - `corrupted migrations: expected previously executed migration 003_schema_registry to be at index 1 but 002_media_status was found in its place`
 - Treat any direct mutation of `_emdash_migrations` as issue-scoped operator work with explicit rollback notes. Do not ad hoc edit the migration ledger during routine deploys.
+- The repository now includes a deterministic compatibility helper for the expected Mini-owned EmDash migration prefix so issue `#180` can validate ordering and timestamp-seeding logic in unit tests before any future live ledger repair step.
 
 ## Runtime Input
 
