@@ -31,6 +31,7 @@ The supported baseline production path is:
 ## Cloudflare Expectations
 
 - Use the Astro Cloudflare adapter for the supported runtime build
+- Treat the reviewed Wrangler/operator deployment path as the current production source of truth unless and until the separate Cloudflare Workers Builds integration issue is repaired
 - Keep Worker compatibility flags aligned with the runtime needs of the current codebase
 - Keep observability enabled for production deployment
 - Prefer the Worker custom domain for `awcms-mini.ahlikoding.com` as the reviewed single-host baseline because the Worker is the origin for this deployment model
@@ -127,6 +128,15 @@ Run these in order after a deployment or after Cloudflare-side automation change
 - Confirm the `HYPERDRIVE` binding resolves correctly when `DATABASE_TRANSPORT=hyperdrive`.
 - When the reviewed rollout target is known, prefer the non-secret `pnpm healthcheck` assertion variables so runtime verification fails fast on the wrong transport, hostname, SSL mode, or binding.
 - Confirm no Cloudflare-side automation change accidentally altered the database path assumptions.
+
+## Builds Note
+
+If Cloudflare Git-integrated `Workers Builds` checks are failing while the live Worker runtime, Wrangler deployment path, and GitHub Actions validation are healthy, treat that as a separate integration problem rather than a signal that the reviewed production deployment is broken.
+
+Track that condition in a dedicated issue and either:
+
+1. repair the Workers Builds trigger configuration with the appropriate Cloudflare Builds permissions, or
+2. disconnect the failing Git integration if Wrangler/operator deploys remain the intended source of truth
 
 ## Partial Provisioning Rollback
 
