@@ -32,8 +32,8 @@
     }
   ],
 
-  // Add a Hyperdrive binding when the deployment path is ready to shift
-  // PostgreSQL access from direct DATABASE_URL usage to Cloudflare-managed pooling.
+  // Add a Hyperdrive binding when the dedicated Hyperdrive implementation issue lands.
+  // Keep local development and non-Hyperdrive environments on direct DATABASE_URL transport until then.
   //,
   // "hyperdrive": [
   //   {

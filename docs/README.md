@@ -28,6 +28,7 @@ Current planning reference:
 - `process/secret-hygiene-coolify-cloudflare-topology-plan-2026.md` - secret hygiene, Coolify MCP, and Cloudflare topology recommendations
 - `process/secret-hygiene-audit.md` - audit checklist and cleanup rules for scripts, config examples, and operator secret handling
 - `process/coolify-mcp-secret-handling.md` - supported local-only secret handling pattern for Coolify MCP access
+- `process/cloudflare-hyperdrive-decision.md` - current architecture decision for Hyperdrive as a PostgreSQL transport follow-on
 - `process/cloudflare-pages-vs-workers-decision.md` - current architecture decision for Pages-plus-Workers versus a single Worker baseline
 - `process/ai-workflow-planning-templates.md` - reusable AI workflow templates for docs, planning, implementation, and review tasks
 
