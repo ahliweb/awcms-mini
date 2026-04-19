@@ -36,6 +36,11 @@ Use this runbook when:
 6. Verify the tunnel becomes active in Cloudflare.
 7. Record the runtime location, restart method, and operator owner for the connector.
 
+Current reviewed operating model:
+
+- treat this as a remotely managed tunnel run from the VPS with a tunnel token
+- treat the tunnel token as equivalent to the ability to run this tunnel; if the token may have leaked, rotate it instead of only restarting the service
+
 Preferred execution path for the current environment:
 
 - run `cloudflared` directly on the Ubuntu/Coolify-managed VPS under a restart-managed host service such as `systemd`
@@ -107,6 +112,15 @@ sudo systemctl status cloudflared-postgres.service
 
 Adjust the `ExecStart` path if `cloudflared` is installed elsewhere on the host.
 
+Recommended verification commands after activation:
+
+```bash
+sudo systemctl status cloudflared-postgres.service
+sudo journalctl -u cloudflared-postgres.service -n 50 --no-pager
+```
+
+If operators later add reviewed run parameters such as explicit log files, keep those changes in the `systemd` unit or service override rather than moving the tunnel token into tracked config.
+
 ## Token Handling
 
 - keep the tunnel token in local-only or server-managed secret storage
@@ -120,12 +134,14 @@ Before startup:
 - confirm the target environment can reach PostgreSQL on port `5432`
 - confirm PostgreSQL authentication and TLS posture remain unchanged
 - confirm the tunnel token is available only in the target environment's secret store
+- confirm the target environment can restart the reviewed `cloudflared` service without requiring interactive shell sessions
 
 After startup:
 
 - confirm tunnel `awcms-mini-postgres` is active
 - confirm the connector is running under a reviewed restart-managed process
 - confirm `systemctl status cloudflared-postgres.service` shows a healthy running process if the recommended `systemd` path is used
+- confirm recent `journalctl` output does not show repeated reconnect, token, or origin-reachability failures
 - confirm the route/config issue has the hostname or route needed for Hyperdrive
 - hand the active connector status back to `#146`
 
@@ -133,6 +149,8 @@ After startup:
 
 - if the connector cannot reach PostgreSQL, fix origin-network reachability before adjusting Hyperdrive config again
 - if the tunnel remains inactive, verify the token, process supervision, and host egress path first
+- if the service starts but repeatedly reconnects, review `journalctl` output before changing PostgreSQL exposure or Hyperdrive settings
+- if the tunnel token may have been exposed through shell history, issue comments, logs, or copied VPS files, rotate the token and update the server-managed secret store before retrying
 - if operators are tempted to open public PostgreSQL ingress to work around connector issues, stop and re-evaluate the fallback issue instead
 
 ## Validation

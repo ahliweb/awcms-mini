@@ -122,6 +122,25 @@ Use this order when rolling the reviewed SSL posture into the Coolify-managed Po
 11. Run `pnpm healthcheck` and the reviewed smoke tests after the deployment update.
 12. Record the effective certificate/hostname posture and any temporary exceptions in the deployment notes.
 
+## Current Live Remediation Focus
+
+Use this when reconciling the currently observed Coolify drift tracked in `#158`.
+
+1. Record the currently exposed PostgreSQL endpoint shape, external port exposure, and any public connection URL shown in the management plane before making changes.
+2. Record whether Coolify currently reports SSL enabled or disabled for the PostgreSQL resource.
+3. Bring the live database posture back to the reviewed target shape first:
+   - remove or narrow public exposure unless there is an explicit reviewed exception
+   - ensure PostgreSQL SSL remains enabled for remote transport
+   - ensure `pg_hba.conf` keeps remote Mini access on `hostssl` with the narrowest practical source range and `scram-sha-256`
+4. After the live posture is back under control, rotate any application credential that may have been exposed through management-plane inspection, copied connection strings, or public resource metadata.
+5. Update the deployed `DATABASE_URL` secret only after the new credential and reviewed hostname/TLS posture are ready.
+6. Verify the old credential no longer works and record the rotation owner and timestamp in operator notes.
+
+Treat credential rotation as required when either of these conditions is true:
+
+- a management-plane response exposed a current database password or a reusable connection string
+- the live PostgreSQL resource was broadly publicly reachable and there is no high-confidence evidence the credential remained private
+
 ## Minimum Operator Checks
 
 Before deployment:
@@ -136,6 +155,7 @@ Before deployment:
 - Confirm host firewall rules restrict database ingress accordingly.
 - Confirm the VPS IP `202.10.45.224` is treated as operator inventory and troubleshooting data, not the preferred application hostname when `verify-full` is required.
 - If management-plane inspection revealed live database credentials or externally routable connection strings, treat credential rotation as part of the remediation plan rather than only tightening network controls.
+- If the current live Coolify resource is publicly exposed, decide explicitly whether that exposure is being removed now or temporarily retained under an auditable exception.
 
 After deployment:
 
@@ -144,6 +164,8 @@ After deployment:
 - Confirm no unexpected direct access path to PostgreSQL was introduced.
 - Confirm the deployed runtime is not using maintenance credentials.
 - Confirm the effective `DATABASE_URL` in the deployment matches the reviewed hostname and SSL mode for the environment.
+- Confirm the previous database credential no longer authenticates if credential rotation was part of the remediation.
+- Confirm no stale public connection URL remains in Coolify metadata, copied operator notes, or deployment secrets.
 
 ## Recovery Notes
 

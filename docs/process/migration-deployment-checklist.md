@@ -64,9 +64,11 @@ Complete these checks before applying migrations or releasing a new build.
 - [ ] If Hyperdrive is used, the reviewed Hyperdrive origin hostname resolves to the intended PostgreSQL origin path instead of Cloudflare edge proxy IPs
 - [ ] If Hyperdrive is used, the team has explicitly chosen either a reviewed reachable public PostgreSQL origin endpoint or a private-database route via Cloudflare Tunnel
 - [ ] If the private-database Hyperdrive path is selected, the reviewed Tunnel connector, TCP hostname/route, and any Access/service-token prerequisites are ready before rollout
+- [ ] If the private-database Hyperdrive path is selected, the operator has a reviewed command path to verify `cloudflared` service health and recent logs on the target environment
 - [ ] The remote PostgreSQL access rule uses the narrowest practical source range for the app host or private subnet
 - [ ] `pg_hba.conf` and server config require the intended remote authentication and TLS posture
 - [ ] The application user does not rely on superuser credentials
+- [ ] If live management-plane inspection exposed a current database password, reusable connection string, or broad public database endpoint, the release notes include a credential-rotation decision and owner
 
 ## Migration Window
 
@@ -168,6 +170,13 @@ Use these focused checks when the release touches governance or security surface
 - [ ] The deployed Worker still exposes the `MEDIA_BUCKET` binding for `awcms-mini-s3`
 - [ ] The deployed runtime secret for `DATABASE_URL` matches the reviewed PostgreSQL hostname and SSL mode for the environment
 - [ ] Cloudflare-side hostname, Turnstile, and R2 configuration changes are reflected in the current operator notes before release signoff
+- [ ] If the private-database Hyperdrive path is selected, the reviewed `cloudflared` connector is active and recent service logs do not show repeated reconnect or origin-reachability failures
+
+### PostgreSQL Posture
+
+- [ ] The live PostgreSQL resource is not left broadly publicly exposed unless there is a reviewed operator exception
+- [ ] The live PostgreSQL service still reports the intended SSL posture after the release
+- [ ] If credential rotation was triggered by live exposure or management-plane disclosure, the old credential no longer works and the new secret is stored only in reviewed deployment-managed locations
 
 ### Security Settings
 
