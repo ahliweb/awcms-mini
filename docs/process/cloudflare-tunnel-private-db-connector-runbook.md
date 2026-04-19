@@ -48,6 +48,65 @@ Preferred execution path for the current environment:
 - keep connector restarts explicit and auditable
 - keep direct host deployment as the reviewed default unless a later issue confirms a supported Coolify app automation path
 
+## Recommended `systemd` Example
+
+Recommended local-only environment file:
+
+```bash
+sudo install -d -m 0750 /etc/awcms-mini
+sudo sh -c 'cat > /etc/awcms-mini/cloudflared-postgres.env <<"EOF"
+TUNNEL_TOKEN=<local-only-tunnel-token>
+EOF'
+sudo chmod 0600 /etc/awcms-mini/cloudflared-postgres.env
+```
+
+Recommended unit file:
+
+```ini
+[Unit]
+Description=Cloudflare Tunnel connector for AWCMS Mini PostgreSQL
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/awcms-mini/cloudflared-postgres.env
+ExecStart=/usr/local/bin/cloudflared tunnel run --token ${TUNNEL_TOKEN}
+Restart=always
+RestartSec=5s
+User=root
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Recommended service activation flow:
+
+```bash
+sudo sh -c 'cat > /etc/systemd/system/cloudflared-postgres.service <<"EOF"
+[Unit]
+Description=Cloudflare Tunnel connector for AWCMS Mini PostgreSQL
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/awcms-mini/cloudflared-postgres.env
+ExecStart=/usr/local/bin/cloudflared tunnel run --token ${TUNNEL_TOKEN}
+Restart=always
+RestartSec=5s
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF'
+sudo systemctl daemon-reload
+sudo systemctl enable --now cloudflared-postgres.service
+sudo systemctl status cloudflared-postgres.service
+```
+
+Adjust the `ExecStart` path if `cloudflared` is installed elsewhere on the host.
+
 ## Token Handling
 
 - keep the tunnel token in local-only or server-managed secret storage
@@ -66,6 +125,7 @@ After startup:
 
 - confirm tunnel `awcms-mini-postgres` is active
 - confirm the connector is running under a reviewed restart-managed process
+- confirm `systemctl status cloudflared-postgres.service` shows a healthy running process if the recommended `systemd` path is used
 - confirm the route/config issue has the hostname or route needed for Hyperdrive
 - hand the active connector status back to `#146`
 
