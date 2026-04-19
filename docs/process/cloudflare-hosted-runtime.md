@@ -119,6 +119,7 @@ Run these in order after a deployment or after Cloudflare-side automation change
 - Run `pnpm healthcheck` or the environment-equivalent health path.
 - Confirm the app can still reach PostgreSQL on the Coolify-managed VPS.
 - Confirm the reviewed application hostname `id1.ahlikoding.com` and TLS posture still match the intended deployment configuration.
+- Confirm the deployed `DATABASE_URL` secret matches the reviewed hostname and SSL mode rather than an outdated direct-IP value.
 - Confirm no Cloudflare-side automation change accidentally altered the database path assumptions.
 
 ## Partial Provisioning Rollback

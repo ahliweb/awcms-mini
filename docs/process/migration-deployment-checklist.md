@@ -56,6 +56,7 @@ Complete these checks before applying migrations or releasing a new build.
 
 - [ ] PostgreSQL access is restricted to the intended application host or private network path
 - [ ] PostgreSQL transport security expectations are confirmed for the target environment
+- [ ] `id1.ahlikoding.com` resolves to the reviewed PostgreSQL VPS and the certificate covers that hostname when `sslmode=verify-full` is expected
 - [ ] If Hyperdrive is used, its binding/configuration points to the intended PostgreSQL target
 - [ ] The remote PostgreSQL access rule uses the narrowest practical source range for the app host or private subnet
 - [ ] `pg_hba.conf` and server config require the intended remote authentication and TLS posture
@@ -159,6 +160,7 @@ Use these focused checks when the release touches governance or security surface
 - [ ] If a compatibility admin hostname is still enabled, its root redirects to the configured admin entry path on the same Worker deployment
 - [ ] Turnstile-protected public flows behave correctly for the reviewed hostname set
 - [ ] The deployed Worker still exposes the `MEDIA_BUCKET` binding for `awcms-mini-s3`
+- [ ] The deployed runtime secret for `DATABASE_URL` matches the reviewed PostgreSQL hostname and SSL mode for the environment
 - [ ] Cloudflare-side hostname, Turnstile, and R2 configuration changes are reflected in the current operator notes before release signoff
 
 ### Security Settings

@@ -85,6 +85,20 @@ If the app reaches PostgreSQL through a private subnet instead of a single host,
 - Prefer VPS firewall rules or provider network controls in addition to PostgreSQL configuration.
 - Review both the app host egress path and the database host ingress policy during deployment changes.
 
+## Coolify Operator Sequence
+
+Use this order when rolling the reviewed SSL posture into the Coolify-managed PostgreSQL deployment.
+
+1. Confirm `id1.ahlikoding.com` resolves to the reviewed VPS IP `202.10.45.224`.
+2. Confirm the PostgreSQL server certificate presented by the host covers `id1.ahlikoding.com`.
+3. In the Coolify-managed PostgreSQL service, verify the server is configured for SSL and that `postgresql.conf` keeps `ssl = on`.
+4. Review `pg_hba.conf` so remote Mini access uses `hostssl` with the narrowest practical source range and `scram-sha-256`.
+5. Keep the application role non-superuser and separate from maintenance credentials.
+6. Update the Cloudflare-hosted app runtime secret so `DATABASE_URL` uses `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is ready.
+7. If certificate validation is not ready yet, use a reviewed interim `sslmode=require` value temporarily and record the follow-on hardening step explicitly.
+8. Run `pnpm healthcheck` and the reviewed smoke tests after the deployment update.
+9. Record the effective certificate/hostname posture and any temporary exceptions in the deployment notes.
+
 ## Minimum Operator Checks
 
 Before deployment:
@@ -103,6 +117,7 @@ After deployment:
 - Confirm migrations run successfully against the intended database.
 - Confirm no unexpected direct access path to PostgreSQL was introduced.
 - Confirm the deployed runtime is not using maintenance credentials.
+- Confirm the effective `DATABASE_URL` in the deployment matches the reviewed hostname and SSL mode for the environment.
 
 ## Recovery Notes
 
@@ -110,6 +125,17 @@ After deployment:
 - If TLS negotiation fails, fix the certificate or client configuration rather than disabling TLS requirements broadly.
 - If `verify-full` fails, verify that `id1.ahlikoding.com` resolves to the intended VPS and that the PostgreSQL certificate covers that hostname before falling back to a weaker mode.
 - If the app user lacks permissions, grant the smallest missing privilege instead of switching to a superuser credential.
+
+## Rollback Order
+
+If the reviewed SSL rollout causes production connectivity loss, use the smallest rollback that restores the previous known-good posture.
+
+1. Capture the failing `DATABASE_URL` posture, current certificate state, and the latest Coolify/PostgreSQL config change.
+2. Verify DNS and certificate coverage for `id1.ahlikoding.com` before changing PostgreSQL access rules.
+3. If the certificate or hostname validation is the only failing seam, temporarily roll back to the last reviewed TLS-required mode such as `sslmode=require` instead of disabling TLS entirely.
+4. If server-side SSL configuration changed unexpectedly, restore the last known good PostgreSQL SSL configuration in Coolify before widening client access.
+5. Re-run `pnpm healthcheck` and the deployment smoke tests after the rollback step completes.
+6. Record the incident and keep the follow-on hardening task explicit.
 
 ## Cross-References
 
