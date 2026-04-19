@@ -92,6 +92,11 @@ Supported origin patterns for Hyperdrive:
 1. a reviewed reachable public PostgreSQL origin hostname or IP path with the required TLS and ingress posture
 2. a private-database path fronted by Cloudflare Tunnel when the PostgreSQL origin should not be exposed as a directly reachable public service
 
+Preferred default for the current environment:
+
+- prefer the private-database Cloudflare Tunnel path so PostgreSQL does not need a separately reachable public origin endpoint just for Hyperdrive
+- treat the reachable public-origin path as a fallback only when the Tunnel path is not workable
+
 ## Coolify Operator Sequence
 
 Use this order when rolling the reviewed SSL posture into the Coolify-managed PostgreSQL deployment.
@@ -100,7 +105,7 @@ Use this order when rolling the reviewed SSL posture into the Coolify-managed Po
 2. Confirm the PostgreSQL server certificate presented by the host covers `id1.ahlikoding.com`.
 3. In the Coolify-managed PostgreSQL service, verify the server is configured for SSL and that `postgresql.conf` keeps `ssl = on`.
 4. Review `pg_hba.conf` so remote Mini access uses `hostssl` with the narrowest practical source range and `scram-sha-256`.
-5. If Hyperdrive rollout is planned, choose one reviewed origin pattern before changing app deployment config: a reachable public PostgreSQL origin endpoint, or a private-database route via Cloudflare Tunnel.
+5. If Hyperdrive rollout is planned, choose one reviewed origin pattern before changing app deployment config. Prefer the private-database route via Cloudflare Tunnel; use a reachable public PostgreSQL origin endpoint only as the fallback path.
 6. If Hyperdrive rollout is planned, confirm the database/firewall policy allows the reviewed Cloudflare-to-origin connection path needed for Hyperdrive configuration creation and runtime use.
 7. Keep the application role non-superuser and separate from maintenance credentials.
 8. Update the Cloudflare-hosted app runtime secret so `DATABASE_URL` uses `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is ready.

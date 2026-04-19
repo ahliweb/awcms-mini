@@ -248,6 +248,8 @@ Tracked issues: `#145`, `#146`, `#147`, `#149`
 - keep PostgreSQL origin endpoint preparation explicit when the reviewed SSL hostname is not a reachable Hyperdrive origin path
 - keep the private-database Cloudflare Tunnel alternative explicit as a separate operator decision path when public origin exposure is not desired
 
+Preferred current direction: use the private-database Cloudflare Tunnel path unless the operator explicitly decides that a separately reachable public PostgreSQL origin endpoint is acceptable.
+
 Current status: repository-side Hyperdrive transport preparation is complete in `#145`; live Cloudflare binding enablement remains tracked as operator rollout work in `#146`, which is currently blocked on either PostgreSQL origin endpoint preparation in `#147` or the private-database Tunnel decision path in `#149`.
 
 ## Validation Expectations

@@ -71,6 +71,11 @@ Supported operator choices for the origin endpoint:
 1. use a reviewed reachable public PostgreSQL origin hostname or IP path that Cloudflare can connect to directly
 2. if the database should stay private, use Cloudflare Tunnel and the private-database Hyperdrive path instead of trying to reuse a normal web-proxied hostname
 
+Preferred default for the current environment:
+
+- prefer the private-database Hyperdrive path via Cloudflare Tunnel unless there is a reviewed operator reason to expose a separately reachable PostgreSQL origin endpoint
+- keep the reachable public-origin path as the fallback option when Tunnel is not viable for the target environment
+
 ## Security Implications
 
 - Hyperdrive is a transport and pooling layer, not a replacement for PostgreSQL SSL, restricted ingress, or app-scoped credentials
