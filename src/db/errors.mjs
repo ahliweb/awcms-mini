@@ -9,6 +9,16 @@ export const DATABASE_ERROR_KIND = {
   UNKNOWN: "unknown",
 };
 
+export const DATABASE_ERROR_REASON = {
+  CONNECTION_TIMEOUT: "connection_timeout",
+  DNS: "dns",
+  HYPERDRIVE_BINDING: "hyperdrive_binding",
+  REFUSED: "refused",
+  TERMINATED: "terminated",
+  TLS: "tls",
+  UNKNOWN: "unknown",
+};
+
 const CONSTRAINT_CODES = new Set(["23502", "23503", "23505", "23514"]);
 const CONNECTION_CODES = new Set(["57P01", "57P03"]);
 
@@ -51,6 +61,37 @@ export function classifyDatabaseError(error) {
   }
 
   return DATABASE_ERROR_KIND.UNKNOWN;
+}
+
+export function describeDatabaseErrorReason(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lowercaseMessage = message.toLowerCase();
+
+  if (lowercaseMessage.includes("hyperdrive transport requires the cloudflare binding")) {
+    return DATABASE_ERROR_REASON.HYPERDRIVE_BINDING;
+  }
+
+  if (lowercaseMessage.includes("timeout")) {
+    return DATABASE_ERROR_REASON.CONNECTION_TIMEOUT;
+  }
+
+  if (lowercaseMessage.includes("enotfound") || lowercaseMessage.includes("getaddrinfo")) {
+    return DATABASE_ERROR_REASON.DNS;
+  }
+
+  if (lowercaseMessage.includes("econnrefused") || lowercaseMessage.includes("connection refused")) {
+    return DATABASE_ERROR_REASON.REFUSED;
+  }
+
+  if (lowercaseMessage.includes("self-signed") || lowercaseMessage.includes("certificate") || lowercaseMessage.includes("tls")) {
+    return DATABASE_ERROR_REASON.TLS;
+  }
+
+  if (lowercaseMessage.includes("terminated")) {
+    return DATABASE_ERROR_REASON.TERMINATED;
+  }
+
+  return DATABASE_ERROR_REASON.UNKNOWN;
 }
 
 export function isDatabaseErrorKind(error, kind) {

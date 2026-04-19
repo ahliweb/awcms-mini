@@ -85,11 +85,19 @@ Use these checks after Cloudflare hostname, Turnstile, or R2 automation changes.
 
 - if the runtime build is broken, `pnpm build` fails
 - if the database is unreachable, `pnpm healthcheck` exits non-zero
-- database failures return a classified `kind` to make startup issues easier to identify
+- database failures return a classified `kind` plus a non-secret `reason` to make startup issues easier to identify
 - if the runtime is pointed at the wrong reviewed transport target, `pnpm healthcheck` exits non-zero when expectation variables are set
 - if hostname automation is only partially applied, the public or admin hostname smoke tests fail
 - if Turnstile hostname configuration is wrong, valid solves fail server-side with hostname mismatch behavior
 - if the Worker R2 binding is missing, runtime storage paths fail with `R2_BUCKET_NOT_CONFIGURED`
+
+Common database `reason` values and next checks:
+
+- `connection_timeout`: confirm the target PostgreSQL path is reachable from the operator or runtime environment and that firewall, Tunnel, or Hyperdrive origin routing is allowing the connection
+- `dns`: confirm the reviewed hostname resolves from the current environment and that the configured direct or Hyperdrive origin hostname is correct
+- `refused`: confirm PostgreSQL is listening on the intended interface/port and that Coolify, host firewall, or private-network routing is not rejecting the connection
+- `tls`: confirm the reviewed certificate, hostname, and `sslmode` posture match the configured connection string
+- `hyperdrive_binding`: confirm `DATABASE_TRANSPORT=hyperdrive` is paired with the reviewed `HYPERDRIVE` binding in the Cloudflare target environment
 
 ## Validation
 

@@ -1,7 +1,7 @@
 import { sql } from "kysely";
 
 import { getRuntimeConfig } from "../config/runtime.mjs";
-import { classifyDatabaseError } from "./errors.mjs";
+import { classifyDatabaseError, describeDatabaseErrorReason } from "./errors.mjs";
 import { createDatabase } from "./index.mjs";
 
 function summarizeDirectDatabaseTarget(databaseUrl) {
@@ -53,12 +53,14 @@ export async function checkDatabaseHealth() {
     return {
       ok: true,
       kind: null,
+      reason: null,
       message: "database reachable",
     };
   } catch (error) {
     return {
       ok: false,
       kind: classifyDatabaseError(error),
+      reason: describeDatabaseErrorReason(error),
       message: error instanceof Error ? error.message : String(error),
     };
   } finally {

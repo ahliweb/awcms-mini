@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { buildPostgresPoolConfig, resolvePostgresConnectionString } from "../../src/db/client/postgres.mjs";
 import { describeDatabaseHealthPosture } from "../../src/db/health.mjs";
-import { DATABASE_ERROR_KIND, classifyDatabaseError } from "../../src/db/errors.mjs";
+import { DATABASE_ERROR_KIND, DATABASE_ERROR_REASON, classifyDatabaseError, describeDatabaseErrorReason } from "../../src/db/errors.mjs";
 import { defineTransactionStrategy, withTransaction } from "../../src/db/transactions.mjs";
 
 function normalizeOptionalString(value) {
@@ -95,6 +95,23 @@ test("classifyDatabaseError identifies authentication failures", () => {
 test("classifyDatabaseError identifies missing relation failures", () => {
   const kind = classifyDatabaseError(new Error('relation "kysely_migration" does not exist'));
   assert.equal(kind, DATABASE_ERROR_KIND.NOT_FOUND);
+});
+
+test("describeDatabaseErrorReason identifies connection timeout failures", () => {
+  const reason = describeDatabaseErrorReason(new Error("Connection terminated due to connection timeout"));
+  assert.equal(reason, DATABASE_ERROR_REASON.CONNECTION_TIMEOUT);
+});
+
+test("describeDatabaseErrorReason identifies Hyperdrive binding failures", () => {
+  const reason = describeDatabaseErrorReason(
+    new Error("Hyperdrive transport requires the Cloudflare binding 'HYPERDRIVE' with a connectionString value."),
+  );
+  assert.equal(reason, DATABASE_ERROR_REASON.HYPERDRIVE_BINDING);
+});
+
+test("describeDatabaseErrorReason identifies DNS failures", () => {
+  const reason = describeDatabaseErrorReason(new Error("getaddrinfo ENOTFOUND id1.ahlikoding.com"));
+  assert.equal(reason, DATABASE_ERROR_REASON.DNS);
 });
 
 test("buildPostgresPoolConfig keeps DATABASE_URL as the transport source of truth", () => {

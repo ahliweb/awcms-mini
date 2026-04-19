@@ -75,6 +75,12 @@ curl -i https://awcms-mini.ahlikoding.com/_emdash/api/setup/status
 ## Rollback Guidance
 
 - if `pnpm db:migrate:emdash:status` reports `unsafe`, stop and investigate instead of forcing a repair
+- if the command fails before reporting a ledger state, use the database error `reason` to classify the blocker before retrying:
+  - `connection_timeout`: verify the Cloudflare-to-Coolify or operator-to-VPS route is reachable
+  - `dns`: verify the reviewed hostname or Hyperdrive origin hostname resolves from the current environment
+  - `refused`: verify PostgreSQL is listening and ingress rules allow the current source path
+  - `tls`: verify certificate, hostname, and `sslmode` alignment
+  - `hyperdrive_binding`: verify the reviewed Cloudflare Hyperdrive binding exists in the target environment
 - if the repair command fails, capture the output and stop the release
 - if the target environment is production, keep the current setup-status compatibility handler in place until runtime initialization is proven stable
 - if post-repair smoke tests fail, restore from the reviewed database backup or transactionally revert using the incident runbook rather than ad hoc SQL edits
