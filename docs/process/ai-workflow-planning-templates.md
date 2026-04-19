@@ -61,7 +61,7 @@ Use these as the default current-state assumptions when adapting any template in
 - Turnstile validation is server-side and supports hostname allowlists through `TURNSTILE_EXPECTED_HOSTNAMES`, with fallback derivation from `SITE_URL` and optional `ADMIN_SITE_URL`.
 - The versioned external/mobile API baseline lives under `/api/v1/*` and currently includes `/api/v1/health`, `/api/v1/token`, and `/api/v1/session`.
 - Edge API access tokens are short-lived JWT Bearer tokens and refresh tokens are opaque, hashed, and rotation-backed in PostgreSQL.
-- The repository now includes the Hyperdrive transport-selection seam, but live Hyperdrive binding rollout remains operator-side and is currently blocked on preparing a reachable PostgreSQL origin endpoint.
+- The repository now includes the Hyperdrive transport-selection seam, while the remaining live rollout work is operator-side and currently centered on connector activation plus live Coolify PostgreSQL posture reconciliation.
 - The repository uses issue-driven execution and expects issues to be atomic with explicit validation.
 - `pnpm check` is the default baseline validation path for routine implementation work.
 - `pnpm lint` covers the maintained docs/config surface with Prettier rather than the full repository.

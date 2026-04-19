@@ -37,7 +37,7 @@ Current active operator rollout issues reflected by these docs:
 
 - `#146` - live Cloudflare Hyperdrive binding rollout
 - `#152` - VPS-side `cloudflared` connector deployment for the private-database Tunnel path
-- `#153` - Cloudflare-managed route configuration for the private-database Tunnel path
+- `#158` - live Coolify PostgreSQL exposure and SSL posture reconciliation
 
 ## Accuracy Rule
 
