@@ -135,6 +135,7 @@ Before deployment:
 - If Hyperdrive is planned, confirm the reviewed Hyperdrive origin hostname resolves to a direct/reachable PostgreSQL origin path instead of Cloudflare edge IPs.
 - Confirm host firewall rules restrict database ingress accordingly.
 - Confirm the VPS IP `202.10.45.224` is treated as operator inventory and troubleshooting data, not the preferred application hostname when `verify-full` is required.
+- If management-plane inspection revealed live database credentials or externally routable connection strings, treat credential rotation as part of the remediation plan rather than only tightening network controls.
 
 After deployment:
 
@@ -151,6 +152,7 @@ After deployment:
 - If `verify-full` fails, verify that `id1.ahlikoding.com` resolves to the intended VPS and that the PostgreSQL certificate covers that hostname before falling back to a weaker mode.
 - If Hyperdrive configuration creation fails with a connection-refused error, fix origin reachability for the reviewed Cloudflare path before retrying the Hyperdrive rollout.
 - If the reviewed Hyperdrive origin hostname resolves to Cloudflare edge IPs instead of the intended PostgreSQL origin path, switch to a reviewed reachable origin hostname or direct origin path before retrying Hyperdrive creation.
+- If a management-plane API response exposed current database passwords or public connection URLs during incident review, rotate the affected credentials after the live posture is brought back under control.
 - If the app user lacks permissions, grant the smallest missing privilege instead of switching to a superuser credential.
 
 ## Rollback Order
