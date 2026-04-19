@@ -252,7 +252,7 @@ Reviewed current route-name default for the private-database path: `pg-hyperdriv
 
 Preferred current direction: use the private-database Cloudflare Tunnel path unless the operator explicitly decides that a separately reachable public PostgreSQL origin endpoint is acceptable.
 
-Current status: repository-side Hyperdrive transport preparation is complete in `#145`; live Cloudflare binding enablement remains tracked as operator rollout work in `#146`, which is currently blocked on either PostgreSQL origin endpoint preparation in `#147` or private-database Tunnel setup split across `#152` (connector deployment), `#153` (Cloudflare-managed route configuration), `#156` (DNS record provisioning for the reviewed route name), and `#157` (Access app/policy and service-token provisioning if the route is protected). The Tunnel path decision is tracked in `#149`, the initial Tunnel resource provisioning is tracked in `#150`, and the route-name decision tracked in `#155` is now settled.
+Current status: repository-side Hyperdrive transport preparation is complete in `#145`; private-database Tunnel control-plane setup is complete across `#150`, `#153`, `#156`, and `#157`; live Hyperdrive binding enablement remains tracked in `#146` and is now primarily blocked on `#152` (connector deployment and activation), with `#147` retained only as the fallback public-origin path if the Tunnel strategy is abandoned.
 
 ## Validation Expectations
 
