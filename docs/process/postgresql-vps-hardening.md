@@ -97,6 +97,13 @@ Preferred default for the current environment:
 - prefer the private-database Cloudflare Tunnel path so PostgreSQL does not need a separately reachable public origin endpoint just for Hyperdrive
 - treat the reachable public-origin path as a fallback only when the Tunnel path is not workable
 
+If the private-database Tunnel path is selected, prepare at least:
+
+1. a `cloudflared` connector or equivalent reviewed tunnel connector path with reachability to the PostgreSQL origin host and port
+2. a reviewed TCP hostname or tunnel route that Hyperdrive can target for the private database path
+3. any required Cloudflare Access client ID and client secret material if the tunnel-backed origin is protected through Access
+4. an operator note showing how tunnel routing, PostgreSQL authentication, and the Coolify-managed host map together
+
 ## Coolify Operator Sequence
 
 Use this order when rolling the reviewed SSL posture into the Coolify-managed PostgreSQL deployment.
@@ -106,12 +113,13 @@ Use this order when rolling the reviewed SSL posture into the Coolify-managed Po
 3. In the Coolify-managed PostgreSQL service, verify the server is configured for SSL and that `postgresql.conf` keeps `ssl = on`.
 4. Review `pg_hba.conf` so remote Mini access uses `hostssl` with the narrowest practical source range and `scram-sha-256`.
 5. If Hyperdrive rollout is planned, choose one reviewed origin pattern before changing app deployment config. Prefer the private-database route via Cloudflare Tunnel; use a reachable public PostgreSQL origin endpoint only as the fallback path.
-6. If Hyperdrive rollout is planned, confirm the database/firewall policy allows the reviewed Cloudflare-to-origin connection path needed for Hyperdrive configuration creation and runtime use.
-7. Keep the application role non-superuser and separate from maintenance credentials.
-8. Update the Cloudflare-hosted app runtime secret so `DATABASE_URL` uses `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is ready.
-9. If certificate validation is not ready yet, use a reviewed interim `sslmode=require` value temporarily and record the follow-on hardening step explicitly.
-10. Run `pnpm healthcheck` and the reviewed smoke tests after the deployment update.
-11. Record the effective certificate/hostname posture and any temporary exceptions in the deployment notes.
+6. If the private-database Tunnel path is selected, confirm the tunnel connector can reach the PostgreSQL origin host and port and that any Access/service-token prerequisites are ready.
+7. If Hyperdrive rollout is planned, confirm the database/firewall policy allows the reviewed Cloudflare-to-origin connection path needed for Hyperdrive configuration creation and runtime use.
+8. Keep the application role non-superuser and separate from maintenance credentials.
+9. Update the Cloudflare-hosted app runtime secret so `DATABASE_URL` uses `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is ready.
+10. If certificate validation is not ready yet, use a reviewed interim `sslmode=require` value temporarily and record the follow-on hardening step explicitly.
+11. Run `pnpm healthcheck` and the reviewed smoke tests after the deployment update.
+12. Record the effective certificate/hostname posture and any temporary exceptions in the deployment notes.
 
 ## Minimum Operator Checks
 

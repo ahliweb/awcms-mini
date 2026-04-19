@@ -76,6 +76,13 @@ Preferred default for the current environment:
 - prefer the private-database Hyperdrive path via Cloudflare Tunnel unless there is a reviewed operator reason to expose a separately reachable PostgreSQL origin endpoint
 - keep the reachable public-origin path as the fallback option when Tunnel is not viable for the target environment
 
+Private-database Tunnel prerequisites:
+
+1. a reviewed Cloudflare Tunnel that can reach the PostgreSQL origin on port `5432`
+2. a reviewed TCP public hostname or equivalent private-database route for the tunnel-backed origin
+3. Cloudflare Access/service-token material if the Hyperdrive configuration will authenticate to the tunnel-backed origin through Access
+4. explicit tunnel-side and PostgreSQL-side notes showing how the private origin path maps back to the Coolify-managed VPS
+
 ## Security Implications
 
 - Hyperdrive is a transport and pooling layer, not a replacement for PostgreSQL SSL, restricted ingress, or app-scoped credentials
