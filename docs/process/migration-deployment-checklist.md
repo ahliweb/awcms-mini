@@ -62,6 +62,7 @@ Complete these checks before applying migrations or releasing a new build.
 - [ ] If Hyperdrive is used, the reviewed Hyperdrive configuration ID is available for the target Cloudflare account before the release window
 - [ ] If Hyperdrive is used, the reviewed Cloudflare-to-origin connection path is allowed by PostgreSQL and host firewall policy before `wrangler hyperdrive create` or deployment rollout
 - [ ] If Hyperdrive is used, the reviewed Hyperdrive origin hostname resolves to the intended PostgreSQL origin path instead of Cloudflare edge proxy IPs
+- [ ] If Hyperdrive is used, the team has explicitly chosen either a reviewed reachable public PostgreSQL origin endpoint or a private-database route via Cloudflare Tunnel
 - [ ] The remote PostgreSQL access rule uses the narrowest practical source range for the app host or private subnet
 - [ ] `pg_hba.conf` and server config require the intended remote authentication and TLS posture
 - [ ] The application user does not rely on superuser credentials

@@ -66,6 +66,11 @@ If Hyperdrive is adopted in a follow-on issue, keep the change minimal and expli
 - the Hyperdrive origin hostname must resolve to a reachable PostgreSQL origin path for Cloudflare, not just to Cloudflare edge IPs on a web-proxied hostname
 - if account inventory is not readable through the available Cloudflare management path, treat Hyperdrive binding enablement as an operator-side rollout step rather than a repository-only change
 
+Supported operator choices for the origin endpoint:
+
+1. use a reviewed reachable public PostgreSQL origin hostname or IP path that Cloudflare can connect to directly
+2. if the database should stay private, use Cloudflare Tunnel and the private-database Hyperdrive path instead of trying to reuse a normal web-proxied hostname
+
 ## Security Implications
 
 - Hyperdrive is a transport and pooling layer, not a replacement for PostgreSQL SSL, restricted ingress, or app-scoped credentials
