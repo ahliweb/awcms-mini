@@ -8,12 +8,13 @@ import { handleAuthLogout } from "./handlers/logout.mjs";
 import { handleAuthTwoFactorChallengeVerify } from "./handlers/two-factor-challenge.mjs";
 import { handleAuthTwoFactorEnroll, handleAuthTwoFactorVerify } from "./handlers/two-factor-enroll.mjs";
 import { handleAuthTwoFactorStepUpVerify } from "./handlers/two-factor-step-up.mjs";
+import { isMiniSetupShellPath } from "./middleware-paths.mjs";
 import { createSessionService } from "../services/sessions/service.mjs";
 import { redirectAdminEntryAlias, redirectAdminHostEntry } from "./admin-host-routing.mjs";
 
 async function handleMiniAuthRequest(context, next) {
-  const database = getDatabase();
   const adminEntryAliasRedirect = redirectAdminEntryAlias(context.url);
+  const isSetupShellRoute = isMiniSetupShellPath(context.url.pathname);
 
   if (adminEntryAliasRedirect) {
     return adminEntryAliasRedirect;
@@ -29,7 +30,7 @@ async function handleMiniAuthRequest(context, next) {
     return handleAuthLogin({
       request: context.request,
       session: context.session,
-      db: database,
+      db: getDatabase(),
     });
   }
 
@@ -38,21 +39,21 @@ async function handleMiniAuthRequest(context, next) {
       request: context.request,
       session: context.session,
       url: context.url,
-      db: database,
+      db: getDatabase(),
     });
   }
 
   if (context.url.pathname === "/_emdash/api/auth/me" && context.request.method === "GET") {
     return handleAuthMe({
       session: context.session,
-      db: database,
+      db: getDatabase(),
     });
   }
 
   if (context.url.pathname === "/_emdash/api/auth/2fa/enroll" && context.request.method === "POST") {
     return handleAuthTwoFactorEnroll({
       session: context.session,
-      db: database,
+      db: getDatabase(),
     });
   }
 
@@ -60,7 +61,7 @@ async function handleMiniAuthRequest(context, next) {
     return handleAuthTwoFactorVerify({
       request: context.request,
       session: context.session,
-      db: database,
+      db: getDatabase(),
     });
   }
 
@@ -68,7 +69,7 @@ async function handleMiniAuthRequest(context, next) {
     return handleAuthTwoFactorChallengeVerify({
       request: context.request,
       session: context.session,
-      db: database,
+      db: getDatabase(),
     });
   }
 
@@ -76,11 +77,15 @@ async function handleMiniAuthRequest(context, next) {
     return handleAuthTwoFactorStepUpVerify({
       request: context.request,
       session: context.session,
-      db: database,
+      db: getDatabase(),
     });
   }
 
   const response = await next();
+
+  if (isSetupShellRoute) {
+    return response;
+  }
 
   try {
     const sessionRecord = await context.session?.get("identitySession");
@@ -88,7 +93,7 @@ async function handleMiniAuthRequest(context, next) {
       return response;
     }
 
-    const sessions = createSessionService({ database });
+    const sessions = createSessionService({ database: getDatabase() });
     const refreshed = await sessions.refreshSession(sessionRecord.id, new Date().toISOString());
 
     if (!refreshed) {
@@ -102,5 +107,5 @@ async function handleMiniAuthRequest(context, next) {
 }
 
 export const onRequest = defineMiddleware(async (context, next) => {
-  return runWithContext({ editMode: false, db: getDatabase() }, () => handleMiniAuthRequest(context, next));
+  return runWithContext({ editMode: false }, () => handleMiniAuthRequest(context, next));
 });

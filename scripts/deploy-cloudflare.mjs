@@ -35,7 +35,11 @@ function extractVersionId(output) {
 
 loadLocalEnvFiles();
 
-if (!process.env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE) {
+if (
+  process.env.DATABASE_TRANSPORT === "hyperdrive"
+  && process.env.DATABASE_URL
+  && !process.env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE
+) {
   process.env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE = process.env.DATABASE_URL;
 }
 
