@@ -36,11 +36,17 @@ Use this runbook when:
 6. Verify the tunnel becomes active in Cloudflare.
 7. Record the runtime location, restart method, and operator owner for the connector.
 
+Preferred execution path for the current environment:
+
+- run `cloudflared` directly on the Ubuntu/Coolify-managed VPS under a restart-managed host service such as `systemd`
+- treat deployment through a Coolify-managed application container as optional/fallback only if a working hosted Coolify application-create path is later confirmed
+
 ## Recommended Runtime Pattern
 
 - use a supervised service or equivalent restart-managed process on the target host
 - avoid one-off foreground sessions as the steady-state deployment method
 - keep connector restarts explicit and auditable
+- keep direct host deployment as the reviewed default unless a later issue confirms a supported Coolify app automation path
 
 ## Token Handling
 
