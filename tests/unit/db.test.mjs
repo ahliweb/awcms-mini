@@ -101,10 +101,13 @@ test("buildPostgresPoolConfig keeps DATABASE_URL as the transport source of trut
   const config = buildPostgresPoolConfig({
     databaseUrl: "postgres://awcms_mini_app:secret@id1.ahlikoding.com:5432/awcms_mini?sslmode=verify-full",
     databaseTransport: "direct",
+    databaseConnectTimeoutMs: 10000,
   });
 
   assert.deepEqual(config, {
     connectionString: "postgres://awcms_mini_app:secret@id1.ahlikoding.com:5432/awcms_mini?sslmode=verify-full",
+    connectionTimeoutMillis: 10000,
+    allowExitOnIdle: true,
   });
 });
 
@@ -112,9 +115,12 @@ test("buildPostgresPoolConfig preserves reviewed interim SSL modes when explicit
   const config = buildPostgresPoolConfig({
     databaseUrl: "postgres://awcms_mini_app:secret@202.10.45.224:5432/awcms_mini?sslmode=require",
     databaseTransport: "direct",
+    databaseConnectTimeoutMs: 5000,
   });
 
   assert.equal(config.connectionString, "postgres://awcms_mini_app:secret@202.10.45.224:5432/awcms_mini?sslmode=require");
+   assert.equal(config.connectionTimeoutMillis, 5000);
+   assert.equal(config.allowExitOnIdle, true);
 });
 
 test("resolvePostgresConnectionString uses the reviewed Hyperdrive binding when transport is enabled", () => {

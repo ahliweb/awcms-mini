@@ -33,19 +33,21 @@ When one or more of these values is set, `pnpm healthcheck` fails if the live no
 
 1. Start a PostgreSQL database reachable by `DATABASE_URL`.
 2. Keep `DATABASE_TRANSPORT=direct` unless the environment is intentionally using Hyperdrive.
-3. For the reviewed remote production direct posture, use `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is available.
-4. Set `SITE_URL` to the browser-facing hostname for the environment when validating a deployed-style build.
-5. If split hostnames are enabled, set `ADMIN_SITE_URL` to the dedicated admin hostname.
-6. Set `TRUSTED_PROXY_MODE` for the expected request path.
-7. Build the app with `pnpm build`.
-8. Run `pnpm healthcheck`.
-9. Confirm:
-   - `ok` is `true`
-   - `checks.app.ok` is `true`
-   - `checks.database.ok` is `true`
-   - `checks.database.posture.transport` matches the intended deployment path
-   - for direct transport, `checks.database.posture.hostname`, `port`, `database`, and `sslmode` match the reviewed environment without exposing credentials
-   - for Hyperdrive transport, `checks.database.posture.binding` matches the reviewed binding name
+3. Set `DATABASE_CONNECT_TIMEOUT_MS` to a reviewed fail-fast value such as `10000` when validating remote or operator-managed PostgreSQL targets.
+4. For the reviewed remote production direct posture, use `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is available.
+5. Set `SITE_URL` to the browser-facing hostname for the environment when validating a deployed-style build.
+6. If split hostnames are enabled, set `ADMIN_SITE_URL` to the dedicated admin hostname.
+7. Set `TRUSTED_PROXY_MODE` for the expected request path.
+8. Build the app with `pnpm build`.
+9. Run `pnpm healthcheck`.
+10. Confirm:
+
+- `ok` is `true`
+- `checks.app.ok` is `true`
+- `checks.database.ok` is `true`
+- `checks.database.posture.transport` matches the intended deployment path
+- for direct transport, `checks.database.posture.hostname`, `port`, `database`, and `sslmode` match the reviewed environment without exposing credentials
+- for Hyperdrive transport, `checks.database.posture.binding` matches the reviewed binding name
 
 Example assertion flow for the reviewed direct production posture:
 

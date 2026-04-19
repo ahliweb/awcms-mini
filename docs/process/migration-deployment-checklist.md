@@ -23,6 +23,7 @@ Complete these checks before applying migrations or releasing a new build.
 - [ ] If the reviewed target posture is known for the release, `pnpm healthcheck` is run with the non-secret expectation variables needed to fail fast on the wrong transport target
 - [ ] `MINI_RUNTIME_TARGET=cloudflare` is set for the supported production path
 - [ ] `DATABASE_URL` points to the intended PostgreSQL instance
+- [ ] `DATABASE_CONNECT_TIMEOUT_MS` is set to a reviewed fail-fast value for the target environment
 - [ ] The configured public origin matches the Cloudflare-hosted URL
 - [ ] Required security secrets are present for the target environment
 

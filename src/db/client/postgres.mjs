@@ -33,6 +33,8 @@ export function resolvePostgresConnectionString(runtimeConfig = getRuntimeConfig
 export function buildPostgresPoolConfig(runtimeConfig = getRuntimeConfig(), options = {}) {
   return {
     connectionString: resolvePostgresConnectionString(runtimeConfig, options),
+    connectionTimeoutMillis: runtimeConfig.databaseConnectTimeoutMs,
+    allowExitOnIdle: true,
   };
 }
 

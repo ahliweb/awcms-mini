@@ -32,6 +32,13 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Default fallback: `direct`.
 - Production guidance: keep `direct` until the Cloudflare deployment has a reviewed Hyperdrive binding and rollout plan.
 
+### `DATABASE_CONNECT_TIMEOUT_MS`
+
+- Purpose: maximum time in milliseconds the Node/PostgreSQL client should wait for a new connection before failing.
+- Scope: server-only runtime configuration.
+- Default fallback: `10000`.
+- Production guidance: keep this explicit for operator commands, smoke tests, and migration tooling so unreachable Cloudflare-to-Coolify or local-to-VPS database paths fail fast instead of hanging indefinitely.
+
 ### `HYPERDRIVE_BINDING`
 
 - Purpose: names the Cloudflare Hyperdrive binding used when `DATABASE_TRANSPORT=hyperdrive`.
@@ -271,6 +278,7 @@ For the intended production topology, configure at least:
 - `DATABASE_URL`
 - `DATABASE_TRANSPORT=direct` unless Hyperdrive is intentionally enabled
 - optional `HYPERDRIVE_BINDING`
+- optional `DATABASE_CONNECT_TIMEOUT_MS`
 - `MINI_RUNTIME_TARGET=cloudflare`
 - `SITE_URL`
 - optional `ADMIN_SITE_URL`

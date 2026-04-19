@@ -11,6 +11,7 @@ export const DEFAULT_EDGE_API_JWT_ISSUER = "urn:awcms-mini:edge-api";
 export const DEFAULT_EDGE_API_ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 export const DEFAULT_EDGE_API_REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30;
 export const DEFAULT_ADMIN_ENTRY_PATH = "/_emdash/";
+export const DEFAULT_DATABASE_CONNECT_TIMEOUT_MS = 10_000;
 
 function normalizeSiteUrl(value) {
   if (typeof value !== "string") {
@@ -118,6 +119,10 @@ export function getRuntimeConfig() {
   return {
     databaseUrl: process.env.DATABASE_URL || DEFAULT_DATABASE_URL,
     databaseTransport: normalizeDatabaseTransport(process.env.DATABASE_TRANSPORT),
+    databaseConnectTimeoutMs: normalizePositiveInteger(
+      process.env.DATABASE_CONNECT_TIMEOUT_MS,
+      DEFAULT_DATABASE_CONNECT_TIMEOUT_MS,
+    ),
     hyperdriveBinding: normalizeOptionalString(process.env.HYPERDRIVE_BINDING) || DEFAULT_HYPERDRIVE_BINDING,
     runtimeTarget: normalizeRuntimeTarget(process.env.MINI_RUNTIME_TARGET),
     siteUrl,

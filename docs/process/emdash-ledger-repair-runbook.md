@@ -18,6 +18,7 @@ Do not use this runbook for routine releases that do not touch EmDash runtime co
 
 - the current database target is the intended environment
 - `DATABASE_URL` is sourced from `.env.local`, deployment-managed secrets, or another reviewed server-only source
+- `DATABASE_CONNECT_TIMEOUT_MS` is set to a reviewed value such as `10000` so operator commands fail fast if the PostgreSQL path is unreachable
 - no credentials are pasted into tracked scripts, docs, issue bodies, or shell history exports
 - `pnpm test:unit` has passed for the current branch
 - `pnpm db:migrate:emdash:status` has been run and its output recorded
