@@ -13,6 +13,11 @@ The supported baseline is:
 3. The app connects to PostgreSQL over a restricted network path.
 4. Remote database traffic is protected with TLS.
 
+Current reviewed operator inventory for this repository:
+
+- PostgreSQL VPS IP: `202.10.45.224`
+- reviewed SSL hostname for app connections: `id1.ahlikoding.com`
+
 ## Transport Expectations
 
 - Treat PostgreSQL as a remote protected dependency, not as a localhost-only service.
@@ -21,6 +26,7 @@ The supported baseline is:
 - Prefer certificate validation for higher-assurance environments.
 - If certificate validation is operationally available, prefer `sslmode=verify-full`.
 - If full certificate validation is not yet available, use a minimum posture that still requires TLS for remote connections.
+- For the reviewed production baseline, prefer app connections through `id1.ahlikoding.com` so `sslmode=verify-full` can validate the expected hostname.
 
 ## `DATABASE_URL` Guidance
 
@@ -32,13 +38,13 @@ The supported baseline is:
 Example baseline shape:
 
 ```text
-postgres://awcms_mini_app:<password>@db.example.internal:5432/awcms_mini?sslmode=require
+postgres://awcms_mini_app:<password>@id1.ahlikoding.com:5432/awcms_mini?sslmode=require
 ```
 
 Higher-assurance example when certificate validation is available:
 
 ```text
-postgres://awcms_mini_app:<password>@db.example.internal:5432/awcms_mini?sslmode=verify-full
+postgres://awcms_mini_app:<password>@id1.ahlikoding.com:5432/awcms_mini?sslmode=verify-full
 ```
 
 ## `postgresql.conf` Expectations
@@ -84,10 +90,12 @@ If the app reaches PostgreSQL through a private subnet instead of a single host,
 Before deployment:
 
 - Confirm `DATABASE_URL` points to the intended remote PostgreSQL host.
+- Confirm the reviewed app-side hostname is `id1.ahlikoding.com` when hostname validation is expected.
 - Confirm TLS expectations for the target environment are documented and enabled.
 - Confirm the runtime user is not a superuser.
 - Confirm `pg_hba.conf` allows only the intended app host or narrow private range.
 - Confirm host firewall rules restrict database ingress accordingly.
+- Confirm the VPS IP `202.10.45.224` is treated as operator inventory and troubleshooting data, not the preferred application hostname when `verify-full` is required.
 
 After deployment:
 
@@ -100,6 +108,7 @@ After deployment:
 
 - If connectivity fails after a database-host change, verify DNS or host routing before widening `pg_hba.conf` or firewall rules.
 - If TLS negotiation fails, fix the certificate or client configuration rather than disabling TLS requirements broadly.
+- If `verify-full` fails, verify that `id1.ahlikoding.com` resolves to the intended VPS and that the PostgreSQL certificate covers that hostname before falling back to a weaker mode.
 - If the app user lacks permissions, grant the smallest missing privilege instead of switching to a superuser credential.
 
 ## Cross-References

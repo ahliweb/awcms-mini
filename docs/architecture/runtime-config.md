@@ -19,7 +19,10 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Scope: server-only runtime configuration.
 - Example: `postgres://localhost:5432/awcms_mini_dev`
 - Default fallback: `postgres://localhost:5432/awcms_mini_dev`
-- Production guidance: point this to the remote PostgreSQL host for the environment and prefer TLS-capable connection settings for app-to-database traffic.
+- Production guidance: point this to the remote PostgreSQL host for the environment and encode the reviewed TLS posture directly in the connection string.
+- Reviewed production example: `postgres://awcms_mini_app:<password>@id1.ahlikoding.com:5432/awcms_mini?sslmode=verify-full`
+- Operator inventory note: `202.10.45.224` remains the reviewed VPS IP for troubleshooting and server-side config, but the application should prefer `id1.ahlikoding.com` when hostname validation is expected to succeed.
+- Interim guidance: if certificate hostname validation is not ready yet, use an explicitly reviewed TLS-required mode such as `sslmode=require` and track the follow-on hardening work.
 - Role guidance: do not use PostgreSQL superuser credentials for the normal app runtime.
 
 ### `MINI_TOTP_ENCRYPTION_KEY`

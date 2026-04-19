@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { buildPostgresPoolConfig } from "../../src/db/client/postgres.mjs";
 import { DATABASE_ERROR_KIND, classifyDatabaseError } from "../../src/db/errors.mjs";
 import { defineTransactionStrategy, withTransaction } from "../../src/db/transactions.mjs";
 
@@ -60,6 +61,24 @@ test("classifyDatabaseError identifies authentication failures", () => {
 test("classifyDatabaseError identifies missing relation failures", () => {
   const kind = classifyDatabaseError(new Error('relation "kysely_migration" does not exist'));
   assert.equal(kind, DATABASE_ERROR_KIND.NOT_FOUND);
+});
+
+test("buildPostgresPoolConfig keeps DATABASE_URL as the transport source of truth", () => {
+  const config = buildPostgresPoolConfig({
+    databaseUrl: "postgres://awcms_mini_app:secret@id1.ahlikoding.com:5432/awcms_mini?sslmode=verify-full",
+  });
+
+  assert.deepEqual(config, {
+    connectionString: "postgres://awcms_mini_app:secret@id1.ahlikoding.com:5432/awcms_mini?sslmode=verify-full",
+  });
+});
+
+test("buildPostgresPoolConfig preserves reviewed interim SSL modes when explicitly configured", () => {
+  const config = buildPostgresPoolConfig({
+    databaseUrl: "postgres://awcms_mini_app:secret@202.10.45.224:5432/awcms_mini?sslmode=require",
+  });
+
+  assert.equal(config.connectionString, "postgres://awcms_mini_app:secret@202.10.45.224:5432/awcms_mini?sslmode=require");
 });
 
 test("defineTransactionStrategy validates supported strategies", () => {

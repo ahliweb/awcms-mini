@@ -49,6 +49,8 @@ The supported baseline production path is:
 
 - Treat PostgreSQL as a private remote dependency
 - Use TLS for database traffic
+- Prefer `DATABASE_URL` values that connect through `id1.ahlikoding.com` for hostname validation in the reviewed production baseline
+- Prefer `sslmode=verify-full` when certificate validation is available, and treat weaker modes such as `require` as explicitly documented interim posture only
 - Keep firewall and `pg_hba.conf` rules scoped narrowly
 - Use non-superuser runtime credentials
 - If Hyperdrive is adopted later, treat it as the preferred pooling and transport layer from the Cloudflare-hosted runtime rather than a replacement for PostgreSQL hardening
@@ -68,6 +70,7 @@ Before deployment:
 - Confirm `TURNSTILE_EXPECTED_HOSTNAMES` or its derived fallback matches the reviewed hostname set when Turnstile is enabled
 - Confirm `EDGE_API_JWT_SECRET` and any non-default `EDGE_API_JWT_*` settings are set correctly when `/api/v1/token` is enabled
 - Confirm `DATABASE_URL` or approved database transport configuration points to the intended PostgreSQL target
+- Confirm the reviewed PostgreSQL SSL hostname `id1.ahlikoding.com` is used when `sslmode=verify-full` is expected
 
 After deployment:
 
@@ -77,6 +80,7 @@ After deployment:
 - Confirm auth logging and lockout behavior reflect the expected Cloudflare client IP source
 - Confirm the runtime can see the `MEDIA_BUCKET` binding for `awcms-mini-s3`
 - Confirm the app can reach PostgreSQL and complete health or smoke tests for the selected environment
+- Confirm the deployed runtime still uses the reviewed TLS posture for PostgreSQL connectivity after the rollout
 
 ## Cloudflare Automation Smoke Tests
 
@@ -114,6 +118,7 @@ Run these in order after a deployment or after Cloudflare-side automation change
 
 - Run `pnpm healthcheck` or the environment-equivalent health path.
 - Confirm the app can still reach PostgreSQL on the Coolify-managed VPS.
+- Confirm the reviewed application hostname `id1.ahlikoding.com` and TLS posture still match the intended deployment configuration.
 - Confirm no Cloudflare-side automation change accidentally altered the database path assumptions.
 
 ## Partial Provisioning Rollback

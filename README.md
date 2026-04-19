@@ -95,7 +95,9 @@ Current token behavior:
 - enrolled 2FA users must satisfy TOTP or recovery-code challenge during the password grant
 - protected `/api/v1/*` routes accept Bearer tokens and still keep the host identity session as a compatibility fallback
 
-For remote PostgreSQL deployments, `DATABASE_URL` should target the protected VPS host and use a non-superuser application role.
+For remote PostgreSQL deployments, `DATABASE_URL` should target the reviewed SSL hostname `id1.ahlikoding.com`, prefer `sslmode=verify-full` when certificate validation is available, and use a non-superuser application role.
+
+If production must temporarily run before hostname validation is fully ready, keep TLS required with an explicitly reviewed interim mode such as `sslmode=require` and track the follow-on hardening work rather than silently weakening transport defaults.
 
 `APP_SECRET` should also be set when your host auth/session runtime depends on it. Mini currently falls back to `APP_SECRET` only if `MINI_TOTP_ENCRYPTION_KEY` is not set.
 

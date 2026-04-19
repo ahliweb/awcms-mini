@@ -5,12 +5,18 @@ import { getRuntimeConfig } from "../../config/runtime.mjs";
 
 const { Pool } = pg;
 
-export function createPostgresPool() {
-  const { databaseUrl } = getRuntimeConfig();
+export function buildPostgresPoolConfig(runtimeConfig = getRuntimeConfig()) {
+  return {
+    // Keep SSL/TLS posture in `DATABASE_URL` so deployment config remains the
+    // single source of truth for direct PostgreSQL transport settings.
+    connectionString: runtimeConfig.databaseUrl,
+  };
+}
 
-  const pool = new Pool({
-    connectionString: databaseUrl,
-  });
+export function createPostgresPool(runtimeConfig = getRuntimeConfig()) {
+  const poolConfig = buildPostgresPoolConfig(runtimeConfig);
+
+  const pool = new Pool(poolConfig);
 
   pool.on("error", (error) => {
     console.error("[db] idle client error", error);
