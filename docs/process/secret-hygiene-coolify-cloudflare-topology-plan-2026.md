@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document captures the next planning pass for AWCMS Mini around operator secret hygiene, external MCP configuration, and Cloudflare deployment topology.
+This document captures the current planning pass for AWCMS Mini around operator secret hygiene, Coolify MCP handling, Cloudflare-hosted deployment, and PostgreSQL transport hardening.
 
 It uses `docs/process/ai-workflow-planning-templates.md` as a primary process reference and keeps the recommendations aligned with the current repository baseline:
 
@@ -10,16 +10,16 @@ It uses `docs/process/ai-workflow-planning-templates.md` as a primary process re
 - AWCMS Mini remains single-tenant
 - Cloudflare-hosted Worker runtime remains the supported app-hosting baseline
 - PostgreSQL remains the system of record on a protected VPS managed through Coolify
-- public/admin hostname separation must not introduce a second admin platform or separate auth core
+- the current repository still documents a split public/admin hostname baseline, with the admin entry under `/_emdash/admin`
 
-It also reflects current OWASP, Cloudflare, and operator-hygiene guidance for secret handling, deployment seams, and rollback-safe infrastructure changes.
+It also reflects current OWASP, Cloudflare, Coolify, and PostgreSQL guidance for secret handling, secure transport, deployment seams, and rollback-safe infrastructure changes.
 
 ## Current Baseline
 
 ### Confirmed Repository State
 
 - The current repository already routes operational secrets through environment variables and runtime config rather than hardcoding them in application services.
-- The current maintained scripts under `scripts/` load `.env` and `.env.local` when needed and do not currently embed confirmed live credentials in the checked-in code paths that were reviewed during this planning pass.
+- The current maintained scripts reviewed during this pass do not embed confirmed live credentials in tracked code.
 - `.env.example` already documents the main runtime secrets and bindings used by the current Cloudflare-hosted baseline.
 - `wrangler.jsonc` currently declares Worker custom domains for:
   - `awcms-mini.ahlikoding.com`
@@ -27,20 +27,24 @@ It also reflects current OWASP, Cloudflare, and operator-hygiene guidance for se
 - `wrangler.jsonc` currently declares the `MEDIA_BUCKET` binding for `awcms-mini-s3`.
 - The current admin-domain split is hostname-aware but still points at the same EmDash admin surface under `/_emdash/admin`.
 - Turnstile hostname allowlists and JWT edge auth already exist in the current runtime baseline.
+- The tracked Coolify MCP wrapper now follows the repo env-loading pattern and reads `.env` plus `.env.local`, while the live token stays local-only.
+- The current local operator secret file already contains the Coolify MCP token in `.env.local`, which is gitignored and is the correct storage class for that credential.
 
 ### Confirmed Gaps
 
 - The repository does not yet have a dedicated operator runbook for auditing scripts and automation helpers for secret leakage or unsafe credential handling.
-- The repository does not currently document an explicit Coolify MCP configuration pattern, secret-storage expectation, or local operator workflow for using an operator-provided Coolify token safely.
-- The repository does not yet document whether a Cloudflare Pages plus Cloudflare Workers split is recommended, unsupported, or conditionally feasible for the current EmDash-first architecture.
-- The current Cloudflare recommendations focus on Worker-hosted runtime automation, not on the architectural trade-offs of splitting public and admin surfaces across Pages and Workers.
+- The repository does not yet treat the requested single-host target `https://awcms-mini.ahlikoding.com` with admin entry `/_emdash/` as the documented production baseline.
+- The repository still documents split-host routing and the `/_emdash/admin` entry path as the current baseline, so the requested single-host shift must be handled as an explicit runtime and docs migration.
+- The current deployment guidance recommends TLS for PostgreSQL traffic, but the repo does not yet document the full reviewed SSL posture, certificate-validation expectations, or operator sequencing for the Cloudflare-to-Coolify PostgreSQL path.
+- The repo documents direct Cloudflare Worker hosting and R2 usage, but it does not yet spell out the requested browser/api to Cloudflare to Worker/Pages/R2 to PostgreSQL topology in one dependency-ordered plan.
 
 ### Important Evidence From This Pass
 
 - The script review performed for this planning pass did not confirm checked-in live credentials embedded in the maintained `scripts/**` entrypoints.
 - That means the planning target should be framed as a prevention and audit hardening pass, not as a claim that the current repo definitely contains committed secrets in scripts.
 - The Coolify token supplied for this request should be treated as sensitive operator input and must not be written into repository files, committed scripts, or GitHub issue bodies.
-- The current tool session does not expose a Coolify MCP configuration surface, so this plan can only recommend the correct secret-handling and configuration path rather than applying that MCP configuration directly.
+- The current tool session does not expose a Coolify MCP control surface, so this pass can update the local wrapper and secret-handling docs but cannot mutate Coolify-hosted resources directly.
+- The current tool session did not confirm live Cloudflare account inventory, so Cloudflare-side hostname, Worker, Pages, or R2 changes remain operator validation tasks after repo changes land.
 
 ## Planning Goals
 
@@ -48,8 +52,9 @@ Add or improve the following capabilities without breaking EmDash-first rules:
 
 1. ensure credentials are not embedded in maintained scripts and are instead sourced from `.env`, `.env.local`, deployment environment variables, or external secret stores as appropriate
 2. define a safe, non-repository workflow for configuring Coolify MCP access with an operator-provided token
-3. keep the admin domain separate from the public domain using the previously adopted hostnames while preserving the same EmDash admin surface
-4. determine whether Cloudflare Pages for public and Cloudflare Workers for admin is feasible and whether it should be recommended for the current architecture
+3. move the reviewed production target to `https://awcms-mini.ahlikoding.com`, with the public site at `/` and the admin entry on the same host at `/_emdash/`
+4. keep the Cloudflare-hosted app topology aligned with the requested path: browser/api to Cloudflare edge to Worker-hosted app runtime and platform services such as R2, with PostgreSQL on the Coolify-managed VPS over SSL
+5. tighten PostgreSQL transport guidance so the Cloudflare runtime reaches PostgreSQL with reviewed SSL settings and explicit operator rollback notes
 
 ## Recommended Workstreams
 
@@ -114,52 +119,37 @@ Recommended repository stance:
 Recommended direction:
 
 - keep `awcms-mini.ahlikoding.com` as the canonical public hostname
-- keep `awcms-mini-admin.ahlikoding.com` as the dedicated admin entry hostname
-- continue using the admin hostname only as an entry host for the same EmDash admin surface under `/_emdash/admin`
-- preserve the existing host-aware redirect behavior instead of creating a second admin app or parallel identity flow
+- treat the current split-host posture as the confirmed starting point, not the desired end state
+- migrate the reviewed production target to a single browser-facing hostname: `https://awcms-mini.ahlikoding.com`
+- move the reviewed admin entry target to `https://awcms-mini.ahlikoding.com/_emdash/`
+- preserve the EmDash-first admin surface and do not create a second admin app, a second auth core, or a separate operator hostname unless a future issue reintroduces that intentionally
 
-This remains the recommended baseline because it improves operator clarity and policy targeting without creating a second platform core.
+This should be handled as an explicit runtime migration issue because the current repo baseline still uses split-host terminology and the `/_emdash/admin` entry path.
 
 Recommended security posture:
 
 - prefer host-only cookies unless a reviewed operator workflow requires cross-host sharing
-- keep origin, redirect, and CSRF validation aligned with the reviewed hostname set
-- keep Turnstile hostname allowlists and login protections aligned with both hostnames
-- keep admin and public WAF/rate-limit posture independently reviewable even if both hostnames hit the same Worker deployment
+- keep origin, redirect, and CSRF validation aligned with the single reviewed hostname set
+- keep Turnstile hostname allowlists and login protections aligned with the single production hostname
+- keep admin/plugin APIs under the EmDash surface and external/mobile APIs under `/api/v1/*`
+- keep admin and public abuse controls independently reviewable by route and path even when they share one hostname
 
-### 4. Cloudflare Pages For Public And Workers For Admin
+### 4. Cloudflare Edge Topology And PostgreSQL SSL
 
-### Short Answer
+Recommended direction:
 
-Yes, it is technically possible to separate the deployment so that the public site uses Cloudflare Pages while the admin surface uses Cloudflare Workers.
+- keep the application-hosting baseline on the Cloudflare Worker runtime unless a later architecture issue scopes a static-first split deliberately
+- treat Cloudflare Pages and R2 as optional platform services around the Worker runtime, not as evidence that the app has already been split into separate public/admin runtimes
+- keep the browser-facing request path simple: browser/api to Cloudflare edge to the Worker-hosted app runtime, with the runtime reaching PostgreSQL over SSL and using R2 through the private `MEDIA_BUCKET` binding when object storage is enabled
+- document PostgreSQL SSL posture explicitly, including app-side connection string expectations, Coolify-side SSL enablement, and what to do if hostname validation is not ready yet
 
-### Recommended Architectural Answer For Current AWCMS Mini
+Recommended operator posture:
 
-This is not the recommended baseline for the current repository state.
-
-### Why It Is Technically Possible
-
-- Cloudflare Pages supports custom domains, environment variables, and resource bindings for Pages Functions.
-- Cloudflare Workers supports the current custom-domain, secret, and binding model already used by AWCMS Mini.
-- In principle, the public website could be split into a separate Pages project while the authenticated admin and dynamic governance runtime remain on Workers.
-
-### Why It Is Not The Recommended Current Baseline
-
-- AWCMS Mini is currently a single EmDash-hosted application, not a cleanly separated public-static app plus standalone admin runtime.
-- The current public/auth/admin flows share runtime assumptions, hostname handling, security controls, and deployment validation.
-- Splitting public Pages from admin Workers would introduce extra deployment surfaces for:
-  - auth and cookie behavior
-  - Turnstile integration and hostname management
-  - runtime config duplication
-  - asset, route, and healthcheck coordination
-  - rollback complexity
-- It would also require a sharper decision on which routes belong to the public Pages project versus the Worker-hosted app.
-
-### Recommended Conclusion
-
-- keep the current baseline as a single Cloudflare-hosted Worker deployment for both public and admin hostnames
-- only explore a Pages-plus-Workers split if there is a concrete product requirement for a static-first public site with independently deployable release cadence
-- if that exploration is needed later, treat it as a separate architecture decision issue rather than an incremental deployment tweak
+- prefer `sslmode=verify-full` when PostgreSQL certificate and hostname validation are available end to end
+- if the infrastructure is temporarily limited to a weaker reviewed mode such as `require`, document that as an interim state and track the follow-on hardening issue explicitly
+- keep PostgreSQL credentials application-scoped and non-superuser
+- keep database ingress narrow and auditable
+- keep Hyperdrive as an explicit follow-on transport/pooling option rather than silently assuming it is already deployed
 
 ## Security Standards And Recommendations
 
@@ -169,15 +159,18 @@ This is not the recommended baseline for the current repository state.
 - apply least privilege to Coolify, Cloudflare, database, and automation credentials
 - separate runtime secrets from operator automation secrets
 - rotate credentials when exposure is suspected rather than relying on obscurity or prompt-history cleanup
+- keep secure transport and peer validation explicit for database connectivity, not implied by deployment location alone
 - keep generic error handling for auth and recovery flows
 - keep audit coverage for privileged recovery and configuration changes
 
 ### Cloudflare-Aligned Recommendations
 
 - keep production application hosting on the reviewed Worker baseline unless an explicit architecture issue approves a split
+- keep the primary browser-facing hostname on `awcms-mini.ahlikoding.com` and route both public and admin entry traffic through the same reviewed app surface for the requested single-host target
 - keep custom domains, Turnstile config, Worker bindings, and runtime secrets declarative or environment-managed where practical
 - use Cloudflare-managed secrets or equivalent server-only configuration for Turnstile and edge auth secrets
 - keep custom domains attached through the Worker custom-domain path when the Worker is the origin
+- keep Hyperdrive in scope as the recommended next-step pooling option for Cloudflare-to-PostgreSQL traffic if direct SSL operation becomes operationally brittle
 
 ### Coolify And PostgreSQL Recommendations
 
@@ -185,40 +178,50 @@ This is not the recommended baseline for the current repository state.
 - do not reuse the same credential for Coolify automation and database access
 - keep PostgreSQL credentials application-scoped and non-superuser
 - keep remote database traffic protected with TLS and restricted ingress rules
+- enable PostgreSQL SSL on the Coolify-managed database resource and update the reviewed application connection string accordingly
+- document certificate-validation expectations and rollback steps before switching production traffic
 
 ## Proposed Execution Order
 
-1. perform a focused secret-hygiene audit of maintained scripts, docs, and helper commands
-2. document the non-repository Coolify MCP configuration and token-handling pattern
-3. tighten any script/config/document examples that still encourage embedded credentials
-4. keep the public/admin hostname split on the current Worker baseline and update docs if gaps remain
-5. open a separate architecture-decision issue only if a Pages-plus-Workers split still has a concrete product driver after the audit
+1. refresh the planning docs and issue breakdown for the requested Cloudflare/Coolify target
+2. perform the focused secret-hygiene and Coolify MCP hardening work
+3. migrate runtime/docs/deployment assumptions from the split-host baseline to the requested single-host target
+4. update PostgreSQL transport guidance and operator config so the Cloudflare runtime uses SSL to reach the Coolify-managed PostgreSQL server
+5. evaluate Hyperdrive only as a follow-on if direct SSL connectivity needs a safer pooling or transport layer
 
 ## Proposed Issue Breakdown
 
-### Issue A: Audit Scripts And Docs For Secret Hygiene
+### Issue A: Refresh Cloudflare/Coolify Recommendations And Planning
 
-Recommended follow-up issue: `#137`
+Tracked issue: `#140`
+
+- refresh the maintained planning doc using the confirmed repo state
+- convert the reviewed recommendations into dependency-ordered implementation issues
+- keep the resulting plan aligned with the current EmDash-first and Cloudflare-hosted baseline
+
+### Issue B: Harden Coolify MCP And Repository Secret Handling
+
+Tracked issue: `#141`
 
 - audit maintained scripts and docs for embedded secrets or unsafe secret-handling examples
 - move any confirmed embedded credentials into env-based or secret-store-based configuration
 - update examples so they use placeholders and documented env vars only
 
-### Issue B: Document Coolify MCP Secret Handling
+### Issue C: Consolidate AWCMS Mini To A Single Cloudflare Hostname
 
-Recommended follow-up issue: `#138`
+Tracked issue: `#142`
 
-- document how operators should configure Coolify MCP access without committing tokens
-- define the expected local-only env or secret-store pattern
-- add warnings about shell history, issue bodies, and log leakage
+- update runtime config, tests, docs, and deployment assumptions for `https://awcms-mini.ahlikoding.com`
+- move the reviewed admin entry path target to `/_emdash/` on the same host
+- keep EmDash-first routing and versioned `/api/v1/*` behavior intact
 
-### Issue C: Evaluate Pages-Plus-Workers As A Separate Architecture Decision
+### Issue D: Require SSL Between Cloudflare Runtime And Coolify-Managed PostgreSQL
 
-Recommended follow-up issue: `#139`
+Tracked issue: `#143`
 
-- evaluate whether a static-first public site on Cloudflare Pages has a concrete product need
-- map route ownership, auth implications, deployment complexity, and rollback impact
-- explicitly decide whether this architecture remains out of scope for the current baseline
+- document and enforce the reviewed PostgreSQL SSL posture
+- align Coolify-side SSL configuration with app-side connection settings
+- update operator guidance, smoke tests, and rollback notes for the transport change
 
 ## Validation Expectations
 
@@ -232,6 +235,7 @@ For follow-up implementation or audit issues:
 - `pnpm lint` for docs/config-only cleanup
 - `pnpm check` for runtime or script behavior changes
 - focused secret-hygiene review of changed scripts and examples
+- focused deployment and health smoke tests for hostname and PostgreSQL transport changes
 
 ## Cross-References
 
@@ -245,7 +249,7 @@ For follow-up implementation or audit issues:
 
 ## External Guidance References
 
-- OWASP guidance on secret management, least privilege, and secure configuration
-- Cloudflare Workers custom-domain guidance
-- Cloudflare Pages bindings and custom-domain guidance
-- Cloudflare guidance on keeping production traffic on reviewed custom-domain routes rather than ad hoc preview paths
+- OWASP guidance on secrets management, least privilege, secure configuration, and protected transport
+- Cloudflare Workers guidance on custom domains, secrets, and PostgreSQL connectivity patterns
+- Cloudflare Hyperdrive guidance as a follow-on transport/pooling option
+- Coolify guidance for PostgreSQL SSL enablement and operator-managed database configuration

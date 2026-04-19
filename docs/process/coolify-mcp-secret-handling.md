@@ -25,7 +25,7 @@ That means:
 
 Use one of these local-only secret locations:
 
-1. `.env.local`
+1. `.env.local` for the live token and any other local-only operator secrets
 2. a shell secret manager or password-manager CLI integration
 3. the MCP client's local secret or environment-variable configuration if supported
 
@@ -54,17 +54,19 @@ COOLIFY_ACCESS_TOKEN=<local-only-secret>
 
 `https://app.coolify.io` is the Coolify Cloud API base URL.
 
+If you want a tracked example for non-secret local defaults, keep only `COOLIFY_BASE_URL` in `.env.example` and keep `COOLIFY_ACCESS_TOKEN` in `.env.local`.
+
 If the token contains shell-significant characters such as `|`, quote the value in `.env.local` so local wrappers can source it safely.
 
 ## Local CLI And MCP Workflow
 
 For Coolify Cloud:
 
-1. store `COOLIFY_BASE_URL` and `COOLIFY_ACCESS_TOKEN` in `.env.local`
+1. keep `COOLIFY_BASE_URL` in `.env` or `.env.local` as needed, and keep `COOLIFY_ACCESS_TOKEN` in `.env.local`
 2. run `coolify context set-token cloud "$COOLIFY_ACCESS_TOKEN"` to configure the CLI locally
 3. run `pnpm coolify:mcp` when an MCP client should launch the local wrapper in this repository
 
-The tracked wrapper script reads `.env.local` at runtime and passes the credentials to the MCP server without storing the token in the script itself.
+The tracked wrapper script reads `.env` and `.env.local` at runtime, with `.env.local` taking precedence for operator-local secrets, and passes the credentials to the MCP server without storing the token in the script itself.
 
 ## Operator Workflow
 
