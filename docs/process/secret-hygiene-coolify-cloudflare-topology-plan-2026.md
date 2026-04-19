@@ -10,7 +10,7 @@ It uses `docs/process/ai-workflow-planning-templates.md` as a primary process re
 - AWCMS Mini remains single-tenant
 - Cloudflare-hosted Worker runtime remains the supported app-hosting baseline
 - PostgreSQL remains the system of record on a protected VPS managed through Coolify
-- the current repository still documents a split public/admin hostname baseline, with the admin entry under `/_emdash/admin`
+- the reviewed production browser baseline is `https://awcms-mini.ahlikoding.com`, with admin entry at `/_emdash/` redirecting into EmDash's current `/_emdash/admin` surface
 
 It also reflects current OWASP, Cloudflare, Coolify, and PostgreSQL guidance for secret handling, secure transport, deployment seams, and rollback-safe infrastructure changes.
 
@@ -21,24 +21,21 @@ It also reflects current OWASP, Cloudflare, Coolify, and PostgreSQL guidance for
 - The current repository already routes operational secrets through environment variables and runtime config rather than hardcoding them in application services.
 - The current maintained scripts reviewed during this pass do not embed confirmed live credentials in tracked code.
 - `.env.example` already documents the main runtime secrets and bindings used by the current Cloudflare-hosted baseline.
-- `wrangler.jsonc` currently declares Worker custom domains for:
-  - `awcms-mini.ahlikoding.com`
-  - `awcms-mini-admin.ahlikoding.com`
+- `wrangler.jsonc` currently declares the reviewed Worker custom-domain baseline for `awcms-mini.ahlikoding.com`.
 - `wrangler.jsonc` currently declares the `MEDIA_BUCKET` binding for `awcms-mini-s3`.
-- The current admin-domain split is hostname-aware but still points at the same EmDash admin surface under `/_emdash/admin`.
+- The current runtime treats `/_emdash/` as the reviewed browser entry alias and redirects it to EmDash's current `/_emdash/admin` surface on the same host.
 - Turnstile hostname allowlists and JWT edge auth already exist in the current runtime baseline.
 - The tracked Coolify MCP wrapper now follows the repo env-loading pattern and reads `.env` plus `.env.local`, while the live token stays local-only.
 - The current local operator secret file already contains the Coolify MCP token in `.env.local`, which is gitignored and is the correct storage class for that credential.
 - The current reviewed PostgreSQL target inventory for this planning pass is VPS IP `202.10.45.224` and SSL hostname `id1.ahlikoding.com`.
+- The repository now includes a dedicated secret-hygiene audit runbook in `docs/process/secret-hygiene-audit.md`.
 
 ### Confirmed Gaps
 
-- The repository does not yet have a dedicated operator runbook for auditing scripts and automation helpers for secret leakage or unsafe credential handling.
-- The repository does not yet treat the requested single-host target `https://awcms-mini.ahlikoding.com` with admin entry `/_emdash/` as the documented production baseline.
-- The repository still documents split-host routing and the `/_emdash/admin` entry path as the current baseline, so the requested single-host shift must be handled as an explicit runtime and docs migration.
-- The current deployment guidance recommends TLS for PostgreSQL traffic, but the repo does not yet document the full reviewed SSL posture, certificate-validation expectations, or operator sequencing for the Cloudflare-to-Coolify PostgreSQL path.
-- The repo does not yet treat `id1.ahlikoding.com` as the reviewed PostgreSQL SSL endpoint in the documented production examples and operator sequencing.
-- The repo documents direct Cloudflare Worker hosting and R2 usage, but it does not yet spell out the requested browser/api to Cloudflare to Worker/Pages/R2 to PostgreSQL topology in one dependency-ordered plan.
+- Planning and historical-decision docs still mention the previous split-host baseline intentionally as migration context.
+- Internal admin/plugin links still target EmDash's current `/_emdash/admin` surface directly beyond the reviewed `/_emdash/` entry alias.
+- Direct infrastructure-side Coolify/PostgreSQL SSL enablement and certificate rollout still require operator execution outside the repository.
+- Cloudflare-side verification of the live custom-domain and platform inventory still remains an operator validation task after repo changes land.
 
 ### Important Evidence From This Pass
 
@@ -193,6 +190,11 @@ Recommended operator posture:
 4. update PostgreSQL transport guidance and operator config so the Cloudflare runtime uses SSL to reach the Coolify-managed PostgreSQL server
 5. evaluate Hyperdrive only as a follow-on if direct SSL connectivity needs a safer pooling or transport layer
 
+Current status after the completed repository passes:
+
+- Steps 1 through 4 have repository-scoped updates landed.
+- Remaining work is primarily operator execution and any intentionally deferred follow-on cleanup within `#142` and `#143`.
+
 ## Proposed Issue Breakdown
 
 ### Issue A: Refresh Cloudflare/Coolify Recommendations And Planning
@@ -203,6 +205,8 @@ Tracked issue: `#140`
 - convert the reviewed recommendations into dependency-ordered implementation issues
 - keep the resulting plan aligned with the current EmDash-first and Cloudflare-hosted baseline
 
+Current status: repository planning work complete.
+
 ### Issue B: Harden Coolify MCP And Repository Secret Handling
 
 Tracked issue: `#141`
@@ -210,6 +214,8 @@ Tracked issue: `#141`
 - audit maintained scripts and docs for embedded secrets or unsafe secret-handling examples
 - move any confirmed embedded credentials into env-based or secret-store-based configuration
 - update examples so they use placeholders and documented env vars only
+
+Current status: repository secret-handling hardening work complete.
 
 ### Issue C: Consolidate AWCMS Mini To A Single Cloudflare Hostname
 
@@ -219,6 +225,8 @@ Tracked issue: `#142`
 - move the reviewed admin entry path target to `/_emdash/` on the same host
 - keep EmDash-first routing and versioned `/api/v1/*` behavior intact
 
+Current status: partially complete; remaining work is limited to intentionally deferred follow-on cleanup.
+
 ### Issue D: Require SSL Between Cloudflare Runtime And Coolify-Managed PostgreSQL
 
 Tracked issue: `#143`
@@ -226,6 +234,8 @@ Tracked issue: `#143`
 - document and enforce the reviewed PostgreSQL SSL posture
 - align Coolify-side SSL configuration with app-side connection settings using `id1.ahlikoding.com` as the reviewed SSL hostname
 - update operator guidance, smoke tests, and rollback notes for the transport change
+
+Current status: partially complete; repository-side SSL baseline updates are landed, while infrastructure execution remains operator-side.
 
 ## Validation Expectations
 
