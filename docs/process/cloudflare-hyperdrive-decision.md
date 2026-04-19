@@ -58,6 +58,12 @@ If Hyperdrive is adopted in a follow-on issue, keep the change minimal and expli
 4. keep local development and non-Hyperdrive environments working without forcing Hyperdrive everywhere
 5. update smoke tests, deployment checks, and rollback guidance for the new transport path
 
+## Operator Prerequisites
+
+- non-interactive Wrangler commands require `CLOUDFLARE_API_TOKEN`
+- the deployment operator needs a reviewed Hyperdrive configuration ID before enabling the binding in `wrangler.jsonc`
+- if account inventory is not readable through the available Cloudflare management path, treat Hyperdrive binding enablement as an operator-side rollout step rather than a repository-only change
+
 ## Security Implications
 
 - Hyperdrive is a transport and pooling layer, not a replacement for PostgreSQL SSL, restricted ingress, or app-scoped credentials

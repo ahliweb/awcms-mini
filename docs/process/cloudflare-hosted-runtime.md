@@ -61,6 +61,7 @@ The supported baseline production path is:
 Before deployment:
 
 - Confirm `pnpm build` produces the Cloudflare Worker bundle successfully
+- Confirm non-interactive Cloudflare automation has `CLOUDFLARE_API_TOKEN` available before relying on Wrangler-managed binding changes
 - Confirm `wrangler.jsonc` matches the intended Worker name and bindings
 - Confirm `wrangler.jsonc` declares the reviewed public custom-domain route for `awcms-mini.ahlikoding.com`
 - Confirm the `MEDIA_BUCKET` binding targets `awcms-mini-s3`
@@ -151,6 +152,7 @@ Current consequence:
 - the repository now declares the intended custom-domain automation baseline in `wrangler.jsonc`
 - operators should still record the live `ahlikoding.com` zone ID and confirm the deployed Worker is the target of the reviewed public custom domain during environment rollout
 - the smoke tests in this document remain the required verification step until account inventory is readable through the available Cloudflare management path
+- the same caveat applies to Hyperdrive rollout work when Wrangler or the available Cloudflare management path cannot read the live account inventory non-interactively
 
 ## Cross-References
 

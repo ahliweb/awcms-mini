@@ -48,6 +48,7 @@ Complete these checks before applying migrations or releasing a new build.
 - [ ] Cloudflare DNS for the public hostname is configured for the Cloudflare-hosted application path
 - [ ] If a dedicated admin hostname is used, Cloudflare DNS/custom-domain config points it at the same Worker deployment
 - [ ] `wrangler.jsonc` or equivalent deployment config matches the intended Worker name, assets, and bindings
+- [ ] Non-interactive Cloudflare rollout automation has `CLOUDFLARE_API_TOKEN` available if Wrangler-managed binding changes are part of the release
 - [ ] The `MEDIA_BUCKET` Worker binding points at the intended R2 bucket `awcms-mini-s3`
 - [ ] `TRUSTED_PROXY_MODE=cloudflare` is configured for the supported production path
 - [ ] The adapter's default `SESSION` binding or an explicit equivalent binding is available for the target environment
@@ -58,6 +59,7 @@ Complete these checks before applying migrations or releasing a new build.
 - [ ] PostgreSQL transport security expectations are confirmed for the target environment
 - [ ] `id1.ahlikoding.com` resolves to the reviewed PostgreSQL VPS and the certificate covers that hostname when `sslmode=verify-full` is expected
 - [ ] If Hyperdrive is used, its binding/configuration points to the intended PostgreSQL target
+- [ ] If Hyperdrive is used, the reviewed Hyperdrive configuration ID is available for the target Cloudflare account before the release window
 - [ ] The remote PostgreSQL access rule uses the narrowest practical source range for the app host or private subnet
 - [ ] `pg_hba.conf` and server config require the intended remote authentication and TLS posture
 - [ ] The application user does not rely on superuser credentials
