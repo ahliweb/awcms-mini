@@ -35,6 +35,8 @@ This repository now has a compact documentation set that should stay aligned wit
 3. Keep the EmDash-first rule explicit for architecture or extension topics.
 4. Avoid promising behavior that is not actually wired in code.
 5. Update the core entry docs when a change materially affects repository usage or navigation.
+6. Keep the current single-host Cloudflare baseline explicit unless a doc is intentionally describing historical or compatibility behavior.
+7. Distinguish repository-scoped Hyperdrive transport prep from operator-side Hyperdrive rollout work.
 
 ## When Adding New Docs
 
@@ -48,6 +50,7 @@ This repository now has a compact documentation set that should stay aligned wit
 ## Related Documents
 
 - `REQUIREMENTS.md`
+- `docs/process/ai-workflow-planning-templates.md`
 - `docs/architecture/overview.md`
 - `docs/security/emergency-recovery-runbook.md`
 - `docs/process/migration-deployment-checklist.md`

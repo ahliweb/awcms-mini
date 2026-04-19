@@ -32,6 +32,11 @@ Current planning reference:
 - `process/cloudflare-pages-vs-workers-decision.md` - current architecture decision for Pages-plus-Workers versus a single Worker baseline
 - `process/ai-workflow-planning-templates.md` - reusable AI workflow templates for docs, planning, implementation, and review tasks
 
+Current active operator rollout issues reflected by these docs:
+
+- `#146` - live Cloudflare Hyperdrive binding rollout
+- `#147` - reachable PostgreSQL origin endpoint prerequisite for Hyperdrive
+
 ## Accuracy Rule
 
 These docs should describe the real repository state, not just the intended plan. When implementation and planning diverge, update the docs to match the current code and call out rollout caveats explicitly.

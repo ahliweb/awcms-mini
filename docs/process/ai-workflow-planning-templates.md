@@ -54,12 +54,14 @@ Use these as the default current-state assumptions when adapting any template in
 - PostgreSQL is hosted on a protected VPS managed through Coolify.
 - Cloudflare-hosted Worker runtime is the supported app-hosting baseline.
 - The public hostname baseline is `SITE_URL=https://awcms-mini.ahlikoding.com`.
-- An optional admin hostname baseline is `ADMIN_SITE_URL=https://awcms-mini-admin.ahlikoding.com`, and it remains an entry host for the same EmDash admin surface under `/_emdash/admin`.
-- `wrangler.jsonc` currently declares Worker custom domains for the public and admin hostnames plus the `MEDIA_BUCKET` binding for R2 bucket `awcms-mini-s3`.
+- The reviewed admin browser entry is `https://awcms-mini.ahlikoding.com/_emdash/`, which redirects into EmDash's current `/_emdash/admin` surface.
+- `ADMIN_SITE_URL` is a compatibility-only entry host when operators still need a dedicated admin hostname.
+- `wrangler.jsonc` currently declares the reviewed public Worker custom domain plus the `MEDIA_BUCKET` binding for R2 bucket `awcms-mini-s3`.
 - Turnstile currently protects the public login, password-reset request, and invite-activation flows when configured.
-- Turnstile validation is server-side and supports hostname allowlists through `TURNSTILE_EXPECTED_HOSTNAMES`, with fallback derivation from `SITE_URL` and `ADMIN_SITE_URL`.
+- Turnstile validation is server-side and supports hostname allowlists through `TURNSTILE_EXPECTED_HOSTNAMES`, with fallback derivation from `SITE_URL` and optional `ADMIN_SITE_URL`.
 - The versioned external/mobile API baseline lives under `/api/v1/*` and currently includes `/api/v1/health`, `/api/v1/token`, and `/api/v1/session`.
 - Edge API access tokens are short-lived JWT Bearer tokens and refresh tokens are opaque, hashed, and rotation-backed in PostgreSQL.
+- The repository now includes the Hyperdrive transport-selection seam, but live Hyperdrive binding rollout remains operator-side and is currently blocked on preparing a reachable PostgreSQL origin endpoint.
 - The repository uses issue-driven execution and expects issues to be atomic with explicit validation.
 - `pnpm check` is the default baseline validation path for routine implementation work.
 - `pnpm lint` covers the maintained docs/config surface with Prettier rather than the full repository.
@@ -70,6 +72,7 @@ Use these as the default current-state assumptions when adapting any template in
 - Treat Cloudflare-managed secrets, Worker bindings, and custom domains as deployment/runtime seams, not as an in-app control plane.
 - Keep Turnstile, edge auth, and R2 guidance consistent with the current Cloudflare-hosted runtime docs.
 - Keep PostgreSQL recovery, transport, and access-control assumptions aligned with the Coolify-managed VPS baseline.
+- Keep Hyperdrive guidance aligned with the current split between repository-scoped transport preparation and operator-side rollout prerequisites.
 - Prefer host-only cookies unless a reviewed operator workflow requires cross-host sharing.
 - Never describe rollout-only controls such as ABAC audit-only mode as the permanent steady-state policy model.
 
@@ -88,8 +91,9 @@ Requirements:
 - Confirm the current implementation state before editing docs.
 - Do not overstate rollout completeness.
 - Keep the docs aligned with EmDash-first architecture, the Cloudflare-hosted Worker baseline, and PostgreSQL on a Coolify-managed VPS.
-- Reflect the current split-hostname, Turnstile, R2, and edge-auth baselines when they are relevant to the task.
+- Reflect the current single-host, Turnstile, R2, edge-auth, and Hyperdrive rollout baselines when they are relevant to the task.
 - Update index or cross-reference docs when adding a new maintained document.
+- Update repository-local skills when core documentation guidance materially changes.
 - Recommend validation commands and operator impact where relevant.
 - Prefer targeted file reads and avoid repository-wide restatement when a smaller context window is enough.
 
@@ -115,7 +119,8 @@ Constraints:
 - Mini work must stay additive in services, plugins, admin extensions, and edge routes.
 - Cloudflare-hosted Worker runtime is the supported app runtime baseline.
 - The database runs on a Coolify-managed VPS.
-- Public and admin hostnames may be split, but they must still terminate on the same EmDash-first app surface unless an issue explicitly scopes a different architecture.
+- Public traffic and the reviewed admin browser entry terminate on the same EmDash-first app surface unless an issue explicitly scopes a different architecture.
+- `ADMIN_SITE_URL` is a compatibility path, not the default current-state assumption.
 
 Planning tasks:
 - summarize the current repository baseline for this feature
@@ -149,7 +154,7 @@ Workflow rules:
 - update tests and focused docs as needed
 - run `pnpm check` plus issue-specific checks unless the issue is docs-only
 - use `pnpm lint` for docs/config-only changes
-- keep Cloudflare-hosted runtime assumptions, Coolify-managed PostgreSQL assumptions, and current hostname/edge-auth behavior accurate in any touched docs
+- keep Cloudflare-hosted runtime assumptions, Coolify-managed PostgreSQL assumptions, current single-host behavior, and Hyperdrive rollout status accurate in any touched docs
 - close the issue only after validation succeeds
 - read only the files needed to complete the scoped issue and avoid broad context pulls once the seam is clear
 - move unrelated cleanup into follow-on issues instead of silently expanding the current task
@@ -229,6 +234,7 @@ Output:
 - Create a follow-on issue if the doc refresh reveals a missing implementation seam, rollout caveat, or operator gap that should not be folded into the current change.
 - Do not create follow-on issues for wording-only cleanup that is already resolved by the current scoped edit.
 - If Cloudflare account visibility or provisioning capability is unavailable in the current tool session, document that caveat explicitly and create a follow-on issue only if repository changes alone cannot close the operational gap.
+- If a rollout issue becomes blocked on an operator prerequisite such as a reachable origin endpoint or account-managed binding, split that prerequisite into its own issue instead of leaving one mixed issue open indefinitely.
 
 ## Cross-References
 

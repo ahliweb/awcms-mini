@@ -51,6 +51,8 @@ This file maps the current documentation set for AWCMS Mini.
 - `docs/process/migration-deployment-checklist.md`
 - `docs/process/cloudflare-coolify-origin-hardening.md`
 - `docs/process/cloudflare-hosted-runtime.md`
+- `docs/process/cloudflare-hyperdrive-decision.md`
+- `docs/process/cloudflare-pages-vs-workers-decision.md`
 - `docs/process/cloudflare-platform-expansion-plan-2026.md`
 - `docs/process/cloudflare-edge-jwt-permissions-ai-plan-2026.md`
 - `docs/process/cloudflare-hostname-turnstile-r2-automation-plan-2026.md`
