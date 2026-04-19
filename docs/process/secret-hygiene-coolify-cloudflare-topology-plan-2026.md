@@ -240,14 +240,15 @@ Current status: repository-side SSL baseline work complete; infrastructure execu
 
 ### Issue E: Adopt Cloudflare Hyperdrive For PostgreSQL Transport
 
-Tracked issues: `#145`, `#146`, `#147`
+Tracked issues: `#145`, `#146`, `#147`, `#149`
 
 - add runtime support for selecting Hyperdrive-backed PostgreSQL transport without breaking the reviewed direct `DATABASE_URL` path
 - document binding prerequisites, rollout order, smoke tests, and secret-handling expectations for Hyperdrive
 - keep the live Cloudflare binding enablement and deployed verification as an explicit operator rollout track
 - keep PostgreSQL origin endpoint preparation explicit when the reviewed SSL hostname is not a reachable Hyperdrive origin path
+- keep the private-database Cloudflare Tunnel alternative explicit as a separate operator decision path when public origin exposure is not desired
 
-Current status: repository-side Hyperdrive transport preparation is complete in `#145`; live Cloudflare binding enablement remains tracked as operator rollout work in `#146`, which is currently blocked on PostgreSQL origin endpoint preparation in `#147`.
+Current status: repository-side Hyperdrive transport preparation is complete in `#145`; live Cloudflare binding enablement remains tracked as operator rollout work in `#146`, which is currently blocked on either PostgreSQL origin endpoint preparation in `#147` or the private-database Tunnel decision path in `#149`.
 
 ## Validation Expectations
 
