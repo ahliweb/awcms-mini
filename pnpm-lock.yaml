@@ -7,6 +7,11 @@ settings:
 overrides:
   kysely: 0.28.16
 
+patchedDependencies:
+  emdash@0.5.0:
+    hash: 6e48eacdd574619061ef4042a06f94fb5da892decc82234a7228e8e74ab0269f
+    path: patches/emdash@0.5.0.patch
+
 importers:
 
   .:
@@ -28,7 +33,7 @@ importers:
         version: 12.9.0
       emdash:
         specifier: 0.5.0
-        version: 0.5.0(6efdb8802079419a2db620598b63e0a0)
+        version: 0.5.0(patch_hash=6e48eacdd574619061ef4042a06f94fb5da892decc82234a7228e8e74ab0269f)(6efdb8802079419a2db620598b63e0a0)
       jose:
         specifier: ^6.2.2
         version: 6.2.2
@@ -5657,7 +5662,7 @@ snapshots:
 
   electron-to-chromium@1.5.336: {}
 
-  emdash@0.5.0(6efdb8802079419a2db620598b63e0a0):
+  emdash@0.5.0(patch_hash=6e48eacdd574619061ef4042a06f94fb5da892decc82234a7228e8e74ab0269f)(6efdb8802079419a2db620598b63e0a0):
     dependencies:
       '@astrojs/react': 5.0.3(@types/node@25.6.0)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(yaml@2.8.3)
       '@emdash-cms/admin': 0.5.0(@date-fns/tz@1.4.1)(@floating-ui/dom@1.7.6)(@tiptap/extension-collaboration@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3)(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30))(yjs@13.6.30))(@tiptap/extensions@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(date-fns@4.1.0)(echarts@6.0.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(zod@4.3.6)

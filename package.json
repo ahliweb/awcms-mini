@@ -47,6 +47,9 @@
   "pnpm": {
     "overrides": {
       "kysely": "0.28.16"
+    },
+    "patchedDependencies": {
+      "emdash@0.5.0": "patches/emdash@0.5.0.patch"
     }
   }
 }
