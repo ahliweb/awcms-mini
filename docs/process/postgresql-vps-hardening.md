@@ -103,6 +103,7 @@ If the private-database Tunnel path is selected, prepare at least:
 2. a reviewed TCP hostname or tunnel route that Hyperdrive can target for the private database path
 3. any required Cloudflare Access client ID and client secret material if the tunnel-backed origin is protected through Access
 4. an operator note showing how tunnel routing, PostgreSQL authentication, and the Coolify-managed host map together
+5. operator access to the Cloudflare dashboard or API to configure ingress rules for the remotely managed tunnel after resource creation
 
 ## Coolify Operator Sequence
 

@@ -83,6 +83,7 @@ Private-database Tunnel prerequisites:
 3. Cloudflare Access/service-token material if the Hyperdrive configuration will authenticate to the tunnel-backed origin through Access
 4. explicit tunnel-side and PostgreSQL-side notes showing how the private origin path maps back to the Coolify-managed VPS
 5. a `CLOUDFLARE_API_TOKEN` with tunnel permissions, including `Account > Cloudflare Tunnel > Edit`, for non-interactive tunnel provisioning through Wrangler
+6. operator access to the Cloudflare dashboard or API for ingress-rule management, because Wrangler-created tunnels are remotely managed and do not expose ingress configuration through the current tunnel CLI surface
 
 ## Security Implications
 
