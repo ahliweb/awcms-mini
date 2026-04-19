@@ -84,6 +84,7 @@ If the app reaches PostgreSQL through a private subnet instead of a single host,
 - Do not treat the database as a public internet-facing service.
 - Prefer VPS firewall rules or provider network controls in addition to PostgreSQL configuration.
 - Review both the app host egress path and the database host ingress policy during deployment changes.
+- If Hyperdrive will be used, confirm the database origin also accepts the reviewed Cloudflare-to-origin connection path; Hyperdrive configuration creation fails if the origin refuses Cloudflare connectivity.
 
 ## Coolify Operator Sequence
 
@@ -93,11 +94,12 @@ Use this order when rolling the reviewed SSL posture into the Coolify-managed Po
 2. Confirm the PostgreSQL server certificate presented by the host covers `id1.ahlikoding.com`.
 3. In the Coolify-managed PostgreSQL service, verify the server is configured for SSL and that `postgresql.conf` keeps `ssl = on`.
 4. Review `pg_hba.conf` so remote Mini access uses `hostssl` with the narrowest practical source range and `scram-sha-256`.
-5. Keep the application role non-superuser and separate from maintenance credentials.
-6. Update the Cloudflare-hosted app runtime secret so `DATABASE_URL` uses `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is ready.
-7. If certificate validation is not ready yet, use a reviewed interim `sslmode=require` value temporarily and record the follow-on hardening step explicitly.
-8. Run `pnpm healthcheck` and the reviewed smoke tests after the deployment update.
-9. Record the effective certificate/hostname posture and any temporary exceptions in the deployment notes.
+5. If Hyperdrive rollout is planned, confirm the database/firewall policy allows the reviewed Cloudflare-to-origin connection path needed for Hyperdrive configuration creation and runtime use.
+6. Keep the application role non-superuser and separate from maintenance credentials.
+7. Update the Cloudflare-hosted app runtime secret so `DATABASE_URL` uses `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is ready.
+8. If certificate validation is not ready yet, use a reviewed interim `sslmode=require` value temporarily and record the follow-on hardening step explicitly.
+9. Run `pnpm healthcheck` and the reviewed smoke tests after the deployment update.
+10. Record the effective certificate/hostname posture and any temporary exceptions in the deployment notes.
 
 ## Minimum Operator Checks
 
@@ -108,6 +110,7 @@ Before deployment:
 - Confirm TLS expectations for the target environment are documented and enabled.
 - Confirm the runtime user is not a superuser.
 - Confirm `pg_hba.conf` allows only the intended app host or narrow private range.
+- If Hyperdrive is planned, confirm the reviewed Cloudflare-to-origin connection path is allowed before attempting `wrangler hyperdrive create`.
 - Confirm host firewall rules restrict database ingress accordingly.
 - Confirm the VPS IP `202.10.45.224` is treated as operator inventory and troubleshooting data, not the preferred application hostname when `verify-full` is required.
 
@@ -124,6 +127,7 @@ After deployment:
 - If connectivity fails after a database-host change, verify DNS or host routing before widening `pg_hba.conf` or firewall rules.
 - If TLS negotiation fails, fix the certificate or client configuration rather than disabling TLS requirements broadly.
 - If `verify-full` fails, verify that `id1.ahlikoding.com` resolves to the intended VPS and that the PostgreSQL certificate covers that hostname before falling back to a weaker mode.
+- If Hyperdrive configuration creation fails with a connection-refused error, fix origin reachability for the reviewed Cloudflare path before retrying the Hyperdrive rollout.
 - If the app user lacks permissions, grant the smallest missing privilege instead of switching to a superuser credential.
 
 ## Rollback Order

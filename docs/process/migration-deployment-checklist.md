@@ -60,6 +60,7 @@ Complete these checks before applying migrations or releasing a new build.
 - [ ] `id1.ahlikoding.com` resolves to the reviewed PostgreSQL VPS and the certificate covers that hostname when `sslmode=verify-full` is expected
 - [ ] If Hyperdrive is used, its binding/configuration points to the intended PostgreSQL target
 - [ ] If Hyperdrive is used, the reviewed Hyperdrive configuration ID is available for the target Cloudflare account before the release window
+- [ ] If Hyperdrive is used, the reviewed Cloudflare-to-origin connection path is allowed by PostgreSQL and host firewall policy before `wrangler hyperdrive create` or deployment rollout
 - [ ] The remote PostgreSQL access rule uses the narrowest practical source range for the app host or private subnet
 - [ ] `pg_hba.conf` and server config require the intended remote authentication and TLS posture
 - [ ] The application user does not rely on superuser credentials
