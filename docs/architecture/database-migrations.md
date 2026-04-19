@@ -12,6 +12,10 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
   - rolls back the most recently applied migration
 - `pnpm db:migrate:status`
   - prints applied and pending migration names
+- `pnpm db:migrate:emdash:status`
+  - inspects the EmDash `_emdash_migrations` ledger and reports whether the current Mini compatibility prefix is compatible, repairable, or unsafe
+- `pnpm db:migrate:emdash:repair`
+  - rewrites `_emdash_migrations` only when the current rows are a repairable permutation of the expected Mini compatibility prefix
 
 ## Source of Truth
 
@@ -49,6 +53,7 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
   - `corrupted migrations: expected previously executed migration 003_schema_registry to be at index 1 but 002_media_status was found in its place`
 - Treat any direct mutation of `_emdash_migrations` as issue-scoped operator work with explicit rollback notes. Do not ad hoc edit the migration ledger during routine deploys.
 - The repository now includes a deterministic compatibility helper for the expected Mini-owned EmDash migration prefix so issue `#180` can validate ordering and timestamp-seeding logic in unit tests before any future live ledger repair step.
+- The repo-owned migration CLI now exposes explicit `emdash-status` and `emdash-repair` commands for issue-scoped operator use. `emdash-repair` only runs when the persisted ledger is a reorder-only mismatch within the expected Mini compatibility prefix and refuses unexpected migration names.
 
 ## Runtime Input
 
@@ -73,6 +78,18 @@ pnpm db:migrate:down
 
 ```bash
 pnpm db:migrate:status
+```
+
+### Inspect EmDash Ledger Compatibility
+
+```bash
+pnpm db:migrate:emdash:status
+```
+
+### Repair EmDash Ledger Ordering
+
+```bash
+pnpm db:migrate:emdash:repair
 ```
 
 ## Rules

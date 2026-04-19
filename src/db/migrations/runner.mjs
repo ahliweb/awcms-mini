@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import { FileMigrationProvider, Migrator, NO_MIGRATIONS, sql } from "kysely";
 
+import { planEmdashCompatibilityLedgerRepair } from "./emdash-compatibility.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const migrationFolder = __dirname;
@@ -61,6 +63,60 @@ export async function getMigrationStatus(db) {
   return {
     applied,
     pending: files.filter((name) => !appliedSet.has(name)),
+  };
+}
+
+export async function getEmdashMigrationStatus(db) {
+  const applied = await readEmdashMigrationLedger(db);
+  const repair = planEmdashCompatibilityLedgerRepair(applied);
+  const appliedSet = new Set(repair.orderedNames);
+
+  return {
+    applied: repair.orderedNames,
+    pending: repair.state === "unsafe" ? [] : repair.analysis.missing.filter((name) => !appliedSet.has(name)),
+    repair,
+  };
+}
+
+async function readEmdashMigrationLedger(db) {
+  try {
+    return await db
+      .selectFrom("_emdash_migrations")
+      .select(["name", "timestamp"])
+      .execute();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (!message.includes('relation "_emdash_migrations" does not exist')) {
+      throw error;
+    }
+
+    return [];
+  }
+}
+
+export async function repairEmdashMigrationLedger(db) {
+  const applied = await readEmdashMigrationLedger(db);
+  const repair = planEmdashCompatibilityLedgerRepair(applied);
+
+  if (repair.state !== "repairable") {
+    return {
+      changed: false,
+      repair,
+    };
+  }
+
+  await db.transaction().execute(async (trx) => {
+    await trx.deleteFrom("_emdash_migrations").execute();
+
+    if (repair.targetLedger.length > 0) {
+      await trx.insertInto("_emdash_migrations").values(repair.targetLedger).execute();
+    }
+  });
+
+  return {
+    changed: true,
+    repair,
   };
 }
 

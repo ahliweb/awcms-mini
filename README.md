@@ -170,6 +170,8 @@ pnpm healthcheck
 pnpm db:migrate
 pnpm db:migrate:status
 pnpm db:migrate:down
+pnpm db:migrate:emdash:status
+pnpm db:migrate:emdash:repair
 pnpm db:seed:administrative-regions
 ```
 

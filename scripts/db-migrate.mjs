@@ -2,15 +2,37 @@ import { createDatabase } from "../src/db/client/postgres.mjs";
 import {
   ensureMigrationBootstrap,
   formatMigrationResults,
+  getEmdashMigrationStatus,
   getMigrationStatus,
   migrateDown,
   migrateToLatest,
   NO_MIGRATIONS,
+  repairEmdashMigrationLedger,
 } from "../src/db/migrations/runner.mjs";
 import { loadLocalEnvFiles } from "./_local-env.mjs";
 
 function printUsage() {
-  console.log("Usage: node scripts/db-migrate.mjs <latest|down|status>");
+  console.log("Usage: node scripts/db-migrate.mjs <latest|down|status|emdash-status|emdash-repair>");
+}
+
+function printEmdashStatus(status) {
+  console.log(`Applied: ${status.applied.length}`);
+  status.applied.forEach((name) => console.log(`  applied ${name}`));
+  console.log(`Pending: ${status.pending.length}`);
+  status.pending.forEach((name) => console.log(`  pending ${name}`));
+  console.log(`Compatibility state: ${status.repair.state}`);
+
+  status.repair.analysis.mismatches.forEach((mismatch) => {
+    console.log(`  mismatch index=${mismatch.index} expected=${mismatch.expected} actual=${mismatch.actual}`);
+  });
+
+  status.repair.analysis.unexpected.forEach((name) => {
+    console.log(`  unexpected ${name}`);
+  });
+
+  if (status.repair.state === "repairable") {
+    console.log("  repair action: rewrite _emdash_migrations into the canonical Mini compatibility prefix order");
+  }
 }
 
 async function main() {
@@ -18,7 +40,7 @@ async function main() {
 
   const command = process.argv[2];
 
-  if (!command || !["latest", "down", "status"].includes(command)) {
+  if (!command || !["latest", "down", "status", "emdash-status", "emdash-repair"].includes(command)) {
     printUsage();
     process.exitCode = 1;
     return;
@@ -35,6 +57,25 @@ async function main() {
       status.applied.forEach((name) => console.log(`  applied ${name}`));
       console.log(`Pending: ${status.pending.length}`);
       status.pending.forEach((name) => console.log(`  pending ${name}`));
+      return;
+    }
+
+    if (command === "emdash-status") {
+      const status = await getEmdashMigrationStatus(db);
+      printEmdashStatus(status);
+      return;
+    }
+
+    if (command === "emdash-repair") {
+      const outcome = await repairEmdashMigrationLedger(db);
+      const status = await getEmdashMigrationStatus(db);
+      printEmdashStatus(status);
+      console.log(outcome.changed ? "Repair applied." : "Repair not applied.");
+
+      if (outcome.repair.state === "unsafe") {
+        process.exitCode = 1;
+      }
+
       return;
     }
 

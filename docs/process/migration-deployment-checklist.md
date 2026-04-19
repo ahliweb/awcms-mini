@@ -29,6 +29,7 @@ Complete these checks before applying migrations or releasing a new build.
 ### Schema Readiness
 
 - [ ] Review pending migrations with `pnpm db:migrate:status`
+- [ ] When issue `#180` or another EmDash migration-compatibility change is in scope, run `pnpm db:migrate:emdash:status` and record whether the ledger is `compatible`, `repairable`, `unsafe`, or `empty`
 - [ ] Confirm the release does not rely on ad hoc schema edits outside Kysely migrations
 - [ ] Confirm rollback impact for the newest migration is understood before deployment
 
@@ -77,9 +78,12 @@ Perform these steps during the release window.
 
 1. Run `pnpm db:migrate`
 2. Run `pnpm db:migrate:status`
-3. Confirm no unexpected pending migrations remain
-4. Deploy the application build
-5. Run `pnpm healthcheck`
+3. When issue `#180` or another EmDash migration-compatibility change is in scope, run `pnpm db:migrate:emdash:status`
+4. If the EmDash ledger state is `repairable`, run `pnpm db:migrate:emdash:repair`
+5. Re-run `pnpm db:migrate:emdash:status` and confirm the ledger state is `compatible`
+6. Confirm no unexpected pending migrations remain
+7. Deploy the application build
+8. Run `pnpm healthcheck`
 
 Use expectation variables when the release has a reviewed target posture, for example:
 
@@ -97,6 +101,13 @@ If a migration fails:
 - Use the recovery runbook before attempting manual intervention
 - Only run `pnpm db:migrate:down` if the migration and operational impact have been reviewed for safe rollback
 
+If `pnpm db:migrate:emdash:status` reports `unsafe`:
+
+- Stop the release
+- Capture the reported unexpected or out-of-scope migration names
+- Do not run `pnpm db:migrate:emdash:repair`
+- Treat the ledger state as issue-scoped investigation work, not routine deploy cleanup
+
 ## Post-Deploy Validation
 
 Validate the live system in this order.
@@ -105,6 +116,7 @@ Validate the live system in this order.
 
 - [ ] `pnpm db:migrate:status` shows the expected applied migration state
 - [ ] No unexpected migration drift is present between environments
+- [ ] When the release touched EmDash runtime compatibility, `pnpm db:migrate:emdash:status` reports `compatible`
 
 ### Auth
 
@@ -180,6 +192,7 @@ Use these focused checks when the release touches governance or security surface
 - [ ] The deployed Worker still exposes the `MEDIA_BUCKET` binding for `awcms-mini-s3`
 - [ ] The deployed runtime secret for `DATABASE_URL` matches the reviewed PostgreSQL hostname and SSL mode for the environment
 - [ ] Cloudflare-side hostname, Turnstile, and R2 configuration changes are reflected in the current operator notes before release signoff
+- [ ] When issue `#180` or related EmDash compatibility work is in scope, `https://awcms-mini.ahlikoding.com/_emdash/api/setup/status` still returns success after the release window
 - [ ] If the private-database Hyperdrive path is selected, the reviewed `cloudflared` connector is active and recent service logs do not show repeated reconnect or origin-reachability failures
 - [ ] If the private-database Hyperdrive path is selected, `pnpm healthcheck` is re-run with `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive` and `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE`
 
@@ -230,7 +243,9 @@ pnpm typecheck
 pnpm test:unit
 pnpm build
 pnpm db:migrate:status
+pnpm db:migrate:emdash:status
 pnpm db:migrate
 pnpm db:migrate:status
+pnpm db:migrate:emdash:status
 pnpm healthcheck
 ```
