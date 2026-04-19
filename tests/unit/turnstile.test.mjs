@@ -140,6 +140,37 @@ test("getRuntimeConfig derives expected Turnstile hostnames from public and admi
   }
 });
 
+test("getRuntimeConfig derives a single expected Turnstile hostname when only SITE_URL is configured", async () => {
+  const previousSiteUrl = process.env.SITE_URL;
+  const previousAdminSiteUrl = process.env.ADMIN_SITE_URL;
+  const previousExpectedHostname = process.env.TURNSTILE_EXPECTED_HOSTNAME;
+  const previousExpectedHostnames = process.env.TURNSTILE_EXPECTED_HOSTNAMES;
+
+  process.env.SITE_URL = "https://awcms-mini.ahlikoding.com";
+  delete process.env.ADMIN_SITE_URL;
+  delete process.env.TURNSTILE_EXPECTED_HOSTNAME;
+  delete process.env.TURNSTILE_EXPECTED_HOSTNAMES;
+
+  try {
+    const runtimeConfig = getRuntimeConfig();
+
+    assert.deepEqual(runtimeConfig.turnstile.expectedHostnames, ["awcms-mini.ahlikoding.com"]);
+    assert.equal(runtimeConfig.turnstile.expectedHostname, null);
+  } finally {
+    if (previousSiteUrl === undefined) delete process.env.SITE_URL;
+    else process.env.SITE_URL = previousSiteUrl;
+
+    if (previousAdminSiteUrl === undefined) delete process.env.ADMIN_SITE_URL;
+    else process.env.ADMIN_SITE_URL = previousAdminSiteUrl;
+
+    if (previousExpectedHostname === undefined) delete process.env.TURNSTILE_EXPECTED_HOSTNAME;
+    else process.env.TURNSTILE_EXPECTED_HOSTNAME = previousExpectedHostname;
+
+    if (previousExpectedHostnames === undefined) delete process.env.TURNSTILE_EXPECTED_HOSTNAMES;
+    else process.env.TURNSTILE_EXPECTED_HOSTNAMES = previousExpectedHostnames;
+  }
+});
+
 test("getRuntimeConfig honors explicit multi-hostname Turnstile configuration", async () => {
   const previousExpectedHostnames = process.env.TURNSTILE_EXPECTED_HOSTNAMES;
 

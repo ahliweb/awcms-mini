@@ -8,7 +8,7 @@ export const DEFAULT_EDGE_API_JWT_AUDIENCE = "awcms-mini-edge-api";
 export const DEFAULT_EDGE_API_JWT_ISSUER = "urn:awcms-mini:edge-api";
 export const DEFAULT_EDGE_API_ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 export const DEFAULT_EDGE_API_REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30;
-export const DEFAULT_ADMIN_ENTRY_PATH = "/_emdash/admin";
+export const DEFAULT_ADMIN_ENTRY_PATH = "/_emdash/";
 
 function normalizeSiteUrl(value) {
   if (typeof value !== "string") {

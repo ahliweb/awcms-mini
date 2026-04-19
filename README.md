@@ -117,19 +117,20 @@ pnpm dev
 pnpm healthcheck
 ```
 
-The EmDash-hosted admin surface runs under `/_emdash/admin`.
+The reviewed browser entry for the EmDash-hosted admin surface is `/_emdash/`, which redirects into the current EmDash admin surface under `/_emdash/admin`.
 
-Split-hostname note:
+Current single-host baseline:
 
 - `SITE_URL` remains the canonical public hostname
-- `ADMIN_SITE_URL`, when configured, acts only as a dedicated entry host for the same `/_emdash/admin` surface
-- the current runtime redirects the admin hostname root to `/_emdash/admin` and does not introduce a second admin shell
+- `https://awcms-mini.ahlikoding.com/_emdash/` is the reviewed admin entry URL
+- the runtime redirects that alias to the current EmDash admin surface under `/_emdash/admin`
+- `ADMIN_SITE_URL`, when configured for compatibility, remains only an optional entry host for the same admin surface
 
 Cloudflare-hosted deployment baseline:
 
 - `pnpm build` produces the Worker bundle
 - `pnpm deploy:cloudflare` deploys via Wrangler
-- `wrangler.jsonc` defines the Worker, assets, observability, custom domains for `awcms-mini.ahlikoding.com` and `awcms-mini-admin.ahlikoding.com`, the `MEDIA_BUCKET` R2 binding for `awcms-mini-s3`, and optional Hyperdrive binding placeholders
+- `wrangler.jsonc` defines the Worker, assets, observability, the reviewed public custom domain for `awcms-mini.ahlikoding.com`, the `MEDIA_BUCKET` R2 binding for `awcms-mini-s3`, and optional Hyperdrive binding placeholders
 - Astro's Cloudflare adapter uses the default `SESSION` KV binding for sessions unless you override it explicitly
 
 ## Common Commands

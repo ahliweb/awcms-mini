@@ -10,6 +10,14 @@ function buildSameOriginRedirect(url, pathname) {
   });
 }
 
+export function redirectAdminEntryAlias(requestUrl) {
+  if (requestUrl.pathname !== "/_emdash/") {
+    return null;
+  }
+
+  return buildSameOriginRedirect(requestUrl, "/_emdash/admin");
+}
+
 export function redirectAdminHostEntry(requestUrl, runtimeConfig = getRuntimeConfig()) {
   if (!runtimeConfig.adminHostRouting?.enabled || !runtimeConfig.adminSiteUrl) {
     return null;

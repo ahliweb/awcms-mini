@@ -36,13 +36,14 @@ The command reports:
 Use these checks after Cloudflare hostname, Turnstile, or R2 automation changes.
 
 1. Load the public hostname and confirm it responds through the active Worker deployment.
-2. If `ADMIN_SITE_URL` is enabled, load the admin hostname root and confirm it redirects to `/_emdash/admin`.
-3. Exercise at least one Turnstile-protected public flow and confirm:
+2. Load `https://awcms-mini.ahlikoding.com/_emdash/` and confirm it redirects to `/_emdash/admin` on the same host.
+3. If `ADMIN_SITE_URL` is still enabled for compatibility, load the admin hostname root and confirm it redirects to the configured admin entry path.
+4. Exercise at least one Turnstile-protected public flow and confirm:
    - a valid solve succeeds
    - an invalid or missing token fails server-side
-   - hostname validation matches the reviewed public/admin hostname set
-4. Confirm the deployed runtime still has the `MEDIA_BUCKET` binding for `awcms-mini-s3`.
-5. Re-run `pnpm healthcheck` or the target-environment equivalent after Cloudflare-side changes complete.
+   - hostname validation matches the reviewed hostname set for the environment
+5. Confirm the deployed runtime still has the `MEDIA_BUCKET` binding for `awcms-mini-s3`.
+6. Re-run `pnpm healthcheck` or the target-environment equivalent after Cloudflare-side changes complete.
 
 ## Failure Modes
 

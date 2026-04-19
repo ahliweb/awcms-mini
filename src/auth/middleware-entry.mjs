@@ -9,10 +9,16 @@ import { handleAuthTwoFactorChallengeVerify } from "./handlers/two-factor-challe
 import { handleAuthTwoFactorEnroll, handleAuthTwoFactorVerify } from "./handlers/two-factor-enroll.mjs";
 import { handleAuthTwoFactorStepUpVerify } from "./handlers/two-factor-step-up.mjs";
 import { createSessionService } from "../services/sessions/service.mjs";
-import { redirectAdminHostEntry } from "./admin-host-routing.mjs";
+import { redirectAdminEntryAlias, redirectAdminHostEntry } from "./admin-host-routing.mjs";
 
 async function handleMiniAuthRequest(context, next) {
   const database = getDatabase();
+  const adminEntryAliasRedirect = redirectAdminEntryAlias(context.url);
+
+  if (adminEntryAliasRedirect) {
+    return adminEntryAliasRedirect;
+  }
+
   const hostRedirect = redirectAdminHostEntry(context.url);
 
   if (hostRedirect) {

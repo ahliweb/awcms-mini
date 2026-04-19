@@ -54,7 +54,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 
 - Purpose: pathname used as the admin-host entry redirect target.
 - Scope: server/runtime configuration.
-- Default fallback: `/_emdash/admin`.
+- Default fallback: `/_emdash/`.
 - Rule: this should remain an EmDash admin path, not a second standalone admin application.
 
 ### `TRUSTED_PROXY_MODE`

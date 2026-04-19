@@ -8,7 +8,7 @@
     "MINI_RUNTIME_TARGET": "cloudflare",
     "TRUSTED_PROXY_MODE": "cloudflare",
     "SITE_URL": "https://awcms-mini.ahlikoding.com",
-    "ADMIN_SITE_URL": "https://awcms-mini-admin.ahlikoding.com",
+    "ADMIN_ENTRY_PATH": "/_emdash/",
     "R2_MEDIA_BUCKET_BINDING": "MEDIA_BUCKET",
     "R2_MEDIA_BUCKET_NAME": "awcms-mini-s3"
   },
@@ -22,10 +22,6 @@
   "routes": [
     {
       "pattern": "awcms-mini.ahlikoding.com",
-      "custom_domain": true
-    },
-    {
-      "pattern": "awcms-mini-admin.ahlikoding.com",
       "custom_domain": true
     }
   ],
