@@ -85,6 +85,19 @@ Private-database Tunnel prerequisites:
 5. a `CLOUDFLARE_API_TOKEN` with tunnel permissions, including `Account > Cloudflare Tunnel > Edit`, for non-interactive tunnel provisioning through Wrangler
 6. operator access to the Cloudflare dashboard or API for ingress-rule management, because Wrangler-created tunnels are remotely managed and do not expose ingress configuration through the current tunnel CLI surface
 
+For the remaining manual token cleanup tracked in `#171`, prefer the smallest replacement `CLOUDFLARE_API_TOKEN` that still supports the reviewed operator workflow. The current minimum practical scope set is:
+
+1. `Cloudflare Tunnel Edit` for remotely managed tunnel changes
+2. `Access: Apps and Policies Edit` and `Access: Service Tokens Edit` for private-database Access/service-token management
+3. `Zone DNS Edit` only when DNS changes are part of the reviewed operator task
+4. `API Tokens Write` on the user resource only if the operator intends to mint replacement API tokens programmatically
+
+After replacing `CLOUDFLARE_API_TOKEN`:
+
+1. update local-only `.env.local`
+2. verify non-interactive Wrangler commands still succeed
+3. revoke or disable the old token
+
 Reviewed default route name:
 
 - prefer `pg-hyperdrive.ahlikoding.com` for the tunnel-backed private-database route because it is explicit, operator-only, and distinct from the public app hostname

@@ -107,6 +107,25 @@ After rotation:
 2. confirm the MCP client still authenticates correctly
 3. verify the old token is no longer usable
 
+## Minimum Replacement Scope
+
+For the remaining manual cleanup tracked in `#171`, prefer the smallest replacement Coolify token that still supports the reviewed operator workflow in this repository.
+
+That means:
+
+- local Coolify MCP and direct API inspection for the current PostgreSQL resource only
+- no application-runtime use
+- no reuse outside operator workflows
+
+When replacing `COOLIFY_ACCESS_TOKEN`:
+
+1. create the new token through the reviewed Coolify operator surface
+2. store it only in `.env.local` or another local-only secret manager
+3. run `pnpm coolify:mcp` or the equivalent local operator flow to confirm the new token works
+4. verify the old token is rejected or deleted
+
+If Coolify does not expose granular scopes for the current token type, still keep the replacement token single-purpose and operator-local.
+
 ## Separation Of Concerns
 
 Keep these credentials separate by purpose:
