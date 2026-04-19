@@ -83,6 +83,7 @@ If the audit does not find confirmed live secrets:
 - use placeholder database passwords in `.env.example` instead of literal local defaults
 - keep Coolify MCP tokens out of tracked files and issue bodies
 - keep `CLOUDFLARE_API_TOKEN` out of tracked files and issue bodies
+- keep any elevated Cloudflare token scopes, including Tunnel-edit tokens, in local-only or CI/CD-managed secret storage
 - keep Cloudflare Turnstile and JWT secrets in server-only configuration
 - keep production database credentials distinct from local development placeholders
 
