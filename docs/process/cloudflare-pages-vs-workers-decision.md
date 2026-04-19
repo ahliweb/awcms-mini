@@ -11,9 +11,8 @@ For the current AWCMS Mini baseline, do not split the deployment so that the pub
 Keep the current baseline as a single Cloudflare-hosted Worker deployment serving:
 
 - `awcms-mini.ahlikoding.com`
-- `awcms-mini-admin.ahlikoding.com`
 
-with the admin hostname remaining an entry host for the same EmDash admin surface under `/_emdash/admin`.
+with the reviewed admin browser entry at `/_emdash/`, redirecting into the same EmDash admin surface under `/_emdash/admin`.
 
 ## Short Answer
 
@@ -26,12 +25,12 @@ It is not the recommended baseline for the current repository state.
 - AWCMS Mini is currently a single EmDash-hosted application.
 - Public, auth, admin, Turnstile, and runtime configuration assumptions are all part of the same application baseline.
 - The current Worker deployment already owns:
-  - custom domains for public and admin hostnames
+  - the reviewed public custom domain for `awcms-mini.ahlikoding.com`
   - runtime bindings such as `MEDIA_BUCKET`
   - Turnstile hostname-aware validation
   - JWT-backed `/api/v1/*` edge auth
   - the current healthcheck and deployment smoke-test path
-- The current admin-domain split is hostname-aware, but it does not introduce a second admin app or a second auth subsystem.
+- The current single-host baseline uses `/_emdash/` as the reviewed browser entry alias into the existing EmDash admin surface.
 
 ## Why A Split Is Technically Possible
 
@@ -77,7 +76,7 @@ The current Worker baseline keeps those seams more unified and easier to review.
 The current runbooks assume one reviewed Worker deployment path for:
 
 - public hostname checks
-- admin hostname checks
+- admin entry alias checks
 - Turnstile validation
 - `MEDIA_BUCKET` binding checks
 - PostgreSQL reachability checks
@@ -86,7 +85,7 @@ Splitting public Pages from admin Workers would require separate deployment heal
 
 ### 5. It Does Not Match The Current Primary Need
 
-The current need is secure, reviewable, Cloudflare-hosted application delivery with a split public/admin hostname model.
+The current need is secure, reviewable, Cloudflare-hosted application delivery on a single browser hostname.
 
 That need is already met by the current Worker baseline without introducing another hosting product boundary.
 
@@ -102,6 +101,7 @@ Potential Pages candidates:
 Worker-only candidates:
 
 - EmDash admin surface under `/_emdash/admin`
+- the reviewed admin entry alias at `/_emdash/`
 - auth and session flows
 - Turnstile-protected login and recovery flows
 - `/api/v1/*` edge APIs
