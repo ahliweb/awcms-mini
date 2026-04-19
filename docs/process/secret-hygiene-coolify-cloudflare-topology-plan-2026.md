@@ -189,11 +189,12 @@ Recommended operator posture:
 3. migrate runtime/docs/deployment assumptions from the split-host baseline to the requested single-host target
 4. update PostgreSQL transport guidance and operator config so the Cloudflare runtime uses SSL to reach the Coolify-managed PostgreSQL server
 5. evaluate Hyperdrive only as a follow-on if direct SSL connectivity needs a safer pooling or transport layer
+6. separate repository-scoped Hyperdrive transport changes from operator-side Cloudflare binding rollout so issue scope stays reviewable
 
 Current status after the completed repository passes:
 
 - Steps 1 through 4 have repository-scoped updates landed.
-- Remaining work is primarily operator execution outside the repository, plus any future optional follow-on architecture work such as Hyperdrive adoption.
+- Remaining work is primarily operator execution outside the repository, including the live Cloudflare Hyperdrive binding rollout.
 
 ## Proposed Issue Breakdown
 
@@ -236,6 +237,16 @@ Tracked issue: `#143`
 - update operator guidance, smoke tests, and rollback notes for the transport change
 
 Current status: repository-side SSL baseline work complete; infrastructure execution remains operator-side.
+
+### Issue E: Adopt Cloudflare Hyperdrive For PostgreSQL Transport
+
+Tracked issues: `#145`, `#146`
+
+- add runtime support for selecting Hyperdrive-backed PostgreSQL transport without breaking the reviewed direct `DATABASE_URL` path
+- document binding prerequisites, rollout order, smoke tests, and secret-handling expectations for Hyperdrive
+- keep the live Cloudflare binding enablement and deployed verification as an explicit operator rollout track
+
+Current status: repository-side Hyperdrive transport preparation is complete in `#145`; live Cloudflare binding enablement remains tracked as operator rollout work in `#146`.
 
 ## Validation Expectations
 
