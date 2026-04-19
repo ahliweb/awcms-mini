@@ -121,5 +121,4 @@ export function createRuntimeRateLimitStore(options = {}) {
   };
 }
 
-export const runtimeRateLimitStore = createRuntimeRateLimitStore();
 export { DEFAULT_POLICY, normalizeStoredEntry, serializeEntry };

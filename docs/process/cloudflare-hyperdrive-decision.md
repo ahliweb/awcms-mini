@@ -6,15 +6,16 @@ This document records the current architecture decision for whether AWCMS Mini s
 
 ## Decision
 
-For the next deployment phase, Hyperdrive is recommended as the preferred transport and pooling layer for PostgreSQL access from the Cloudflare-hosted runtime.
+For the current live deployment phase, Hyperdrive is the preferred transport and pooling layer for PostgreSQL access from the Cloudflare-hosted runtime.
 
-It is not enabled in the live deployment baseline yet.
+It is now enabled in the live deployment baseline.
 
-The current baseline remains:
+The current baseline is:
 
-- direct PostgreSQL access through `DATABASE_URL`
-- reviewed SSL posture using `id1.ahlikoding.com`
-- Cloudflare-hosted Worker runtime with Coolify-managed PostgreSQL on the VPS
+- Hyperdrive-backed PostgreSQL access from the Cloudflare-hosted Worker runtime
+- private-database tunnel path through `pg-hyperdrive.ahlikoding.com`
+- reviewed SSL posture on PostgreSQL using a publicly trusted certificate
+- Coolify-managed PostgreSQL on the VPS
 
 The repository already includes the runtime transport seam for Hyperdrive selection, but live binding enablement and operator rollout remain separate so deployment config and origin connectivity stay reviewable.
 
@@ -30,7 +31,7 @@ That aligns with AWCMS Mini's current deployment shape:
 
 ## Why It Is Not Enabled Immediately
 
-The current default deployment path still uses direct `DATABASE_URL` transport.
+The current fallback and local-development path still supports direct `DATABASE_URL` transport.
 
 The implementation change is not just a deployment toggle. It requires explicit review of:
 
@@ -39,23 +40,23 @@ The implementation change is not just a deployment toggle. It requires explicit 
 - how local development continues to use a direct local or reviewed remote connection string
 - how deployment secrets and smoke tests distinguish direct versus Hyperdrive-backed transport
 
-The remaining work is now primarily deployment and operator rollout, not a documentation-only decision.
+The remaining work is now primarily operational hardening and credential/exposure cleanup, not transport enablement.
 
 ## Current Repository Context
 
 - `src/config/runtime.mjs` and `src/db/client/postgres.mjs` already support explicit `DATABASE_TRANSPORT` selection and Hyperdrive binding resolution
-- `wrangler.jsonc` keeps direct transport as the default while leaving the reviewed Hyperdrive binding block commented until a live Hyperdrive configuration ID is available
+- `wrangler.jsonc` now binds the reviewed Hyperdrive configuration and sets the Worker runtime transport to `hyperdrive`
 - operator docs already treat Hyperdrive as a follow-on transport layer rather than a replacement for PostgreSQL TLS, ingress review, or least-privilege credentials
 - the reviewed browser-facing baseline remains a single Worker-hosted runtime on `https://awcms-mini.ahlikoding.com`
 
 ## Recommended Implementation Shape
 
-For live Hyperdrive enablement, keep the remaining change minimal and explicit:
+For follow-on maintenance, keep the remaining change minimal and explicit:
 
-1. add the reviewed Hyperdrive binding ID to `wrangler.jsonc`
-2. keep `DATABASE_TRANSPORT=direct` as the default until the target deployment intentionally switches
-3. keep local development and non-Hyperdrive environments working without forcing Hyperdrive everywhere
-4. update smoke tests, deployment checks, and rollback guidance for the live transport switch
+1. keep local development and rollback paths working without removing direct `DATABASE_URL` support prematurely
+2. keep the generated deploy configuration aligned with the reviewed Hyperdrive binding and transport settings
+3. complete the remaining PostgreSQL hardening work around public exposure and credential rotation
+4. keep smoke tests, deployment checks, and rollback guidance aligned with the live Hyperdrive baseline
 
 ## Operator Prerequisites
 

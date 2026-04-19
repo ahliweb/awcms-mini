@@ -3,7 +3,7 @@ import node from "@astrojs/node";
 import react from "@astrojs/react";
 import { defineConfig } from "astro/config";
 import emdash from "emdash/astro";
-import { postgres } from "emdash/db";
+import { fileURLToPath } from "node:url";
 import miniAuthIntegration from "./src/integrations/mini-auth.mjs";
 import { awcmsUsersAdminPlugin } from "./src/plugins/awcms-users-admin/index.mjs";
 import { getRuntimeConfig } from "./src/config/runtime.mjs";
@@ -12,6 +12,17 @@ const runtimeConfig = getRuntimeConfig();
 const adapter = runtimeConfig.runtimeTarget === "node"
   ? node({ mode: "standalone" })
   : cloudflare({ sessionKVBindingName: "SESSION" });
+
+const emdashDatabase = {
+  entrypoint: fileURLToPath(new URL("./src/emdash/postgres-runtime.mjs", import.meta.url)),
+  config: {
+    pool: {
+      min: 0,
+      max: 10,
+    },
+  },
+  type: "postgres",
+};
 
 export default defineConfig({
   output: "server",
@@ -24,9 +35,7 @@ export default defineConfig({
     react(),
     miniAuthIntegration(),
     emdash({
-      database: postgres({
-        connectionString: runtimeConfig.databaseUrl,
-      }),
+      database: emdashDatabase,
       plugins: [awcmsUsersAdminPlugin()],
     }),
   ],

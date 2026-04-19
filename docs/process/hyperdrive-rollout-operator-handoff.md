@@ -4,11 +4,11 @@
 
 This handoff condenses the remaining live operator-side rollout path for AWCMS Mini.
 
-Use it when working the current blocker chain:
+Use it when understanding the completed rollout sequence and the remaining follow-up work:
 
-- `#152` VPS-side `cloudflared` connector activation
-- `#158` Coolify PostgreSQL exposure and SSL posture reconciliation
-- `#146` final Hyperdrive binding rollout verification
+- `#152` VPS-side `cloudflared` connector activation completed
+- `#146` Hyperdrive binding rollout completed
+- `#158` remains the main live follow-up for PostgreSQL exposure and credential posture
 
 This document is a short execution aid, not a replacement for the detailed runbooks.
 
@@ -17,14 +17,14 @@ This document is a short execution aid, not a replacement for the detailed runbo
 - AWCMS Mini remains EmDash-first and Cloudflare-hosted.
 - PostgreSQL remains on a Coolify-managed VPS.
 - The repo already supports `DATABASE_TRANSPORT=direct|hyperdrive`.
-- Live Hyperdrive enablement is still operator-side and not yet complete.
+- Live Hyperdrive enablement is complete.
 - The current preferred path is private-database routing through Cloudflare Tunnel rather than broad public PostgreSQL exposure.
 
 ## Step Order
 
-1. Complete `#152` so the reviewed `cloudflared` connector is active from the VPS environment that can reach PostgreSQL.
-2. Complete `#158` so the live PostgreSQL resource matches the reviewed private/SSL posture and any required credential rotation is finished.
-3. Continue `#146` only after the connector and database posture are both in a reviewed state.
+1. `#152` completed so the reviewed `cloudflared` connector is active from the VPS environment that can reach PostgreSQL.
+2. `#146` completed so the Cloudflare-hosted Worker runtime now uses Hyperdrive successfully.
+3. Continue `#158` so the live PostgreSQL resource matches the reviewed private/credential posture after the Hyperdrive transport switch.
 
 Fallback decision gate:
 
