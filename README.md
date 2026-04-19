@@ -59,6 +59,15 @@ Required production baseline:
 - `MINI_TOTP_ENCRYPTION_KEY`
 - `TRUSTED_PROXY_MODE=cloudflare` for the supported Cloudflare-hosted path
 
+Optional rollout verification inputs for `pnpm healthcheck`:
+
+- `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT`
+- `HEALTHCHECK_EXPECT_DATABASE_HOSTNAME`
+- `HEALTHCHECK_EXPECT_DATABASE_SSLMODE`
+- `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING`
+
+These values are non-secret assertion inputs. Keep them unset for normal local development unless you intentionally want health checks to fail fast when the runtime points at the wrong reviewed database target.
+
 Recommended public abuse-defense settings:
 
 - `TURNSTILE_SITE_KEY`
@@ -116,6 +125,15 @@ pnpm dev
 5. Validate runtime health:
 
 ```bash
+pnpm healthcheck
+```
+
+Example direct-path rollout verification:
+
+```bash
+HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=direct \
+HEALTHCHECK_EXPECT_DATABASE_HOSTNAME=id1.ahlikoding.com \
+HEALTHCHECK_EXPECT_DATABASE_SSLMODE=verify-full \
 pnpm healthcheck
 ```
 

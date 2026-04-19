@@ -38,6 +38,31 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Default fallback: `HYPERDRIVE`.
 - Rule: this is a binding name, not a secret or connection string.
 
+### `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT`
+
+- Purpose: optional non-secret expectation used by `pnpm healthcheck` to fail fast when the runtime uses the wrong reviewed database transport.
+- Supported values: `direct`, `hyperdrive`.
+- Scope: rollout verification input, not a runtime secret.
+- Default behavior: unset, so the healthcheck reports posture without asserting it.
+
+### `HEALTHCHECK_EXPECT_DATABASE_HOSTNAME`
+
+- Purpose: optional non-secret expectation used by `pnpm healthcheck` when direct transport should point at a reviewed hostname.
+- Scope: rollout verification input, not a runtime secret.
+- Example: `id1.ahlikoding.com`.
+
+### `HEALTHCHECK_EXPECT_DATABASE_SSLMODE`
+
+- Purpose: optional non-secret expectation used by `pnpm healthcheck` when direct transport should enforce a reviewed PostgreSQL SSL mode.
+- Scope: rollout verification input, not a runtime secret.
+- Example: `verify-full`.
+
+### `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING`
+
+- Purpose: optional non-secret expectation used by `pnpm healthcheck` when Hyperdrive rollout should resolve through the reviewed binding name.
+- Scope: rollout verification input, not a runtime secret.
+- Default reviewed binding name: `HYPERDRIVE`.
+
 ### `MINI_TOTP_ENCRYPTION_KEY`
 
 - Purpose: encryption key for TOTP secret storage.
@@ -193,6 +218,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - do not inline database connection strings across multiple files
 - do not introduce Supabase-specific environment variables
 - treat `DATABASE_URL` as the canonical PostgreSQL runtime input
+- keep `HEALTHCHECK_EXPECT_*` values optional and use them only for non-secret rollout verification
 - document security-sensitive secrets explicitly when code depends on them
 - prefer a dedicated `MINI_TOTP_ENCRYPTION_KEY` over the `APP_SECRET` fallback for TOTP secret encryption
 - document public-origin and trusted-proxy assumptions explicitly for Cloudflare-fronted deployments
@@ -251,6 +277,13 @@ For the intended production topology, configure at least:
 - optional `ADMIN_ENTRY_PATH`
 - `MINI_TOTP_ENCRYPTION_KEY`
 - `TRUSTED_PROXY_MODE=cloudflare`
+
+For optional rollout verification with `pnpm healthcheck`, also configure as needed:
+
+- optional `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT`
+- optional `HEALTHCHECK_EXPECT_DATABASE_HOSTNAME`
+- optional `HEALTHCHECK_EXPECT_DATABASE_SSLMODE`
+- optional `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING`
 
 For public auth and recovery abuse defense, also configure:
 
