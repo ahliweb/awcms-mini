@@ -44,7 +44,7 @@ It also reflects current OWASP, Cloudflare, Coolify, and PostgreSQL guidance for
 - The Coolify token supplied for this request should be treated as sensitive operator input and must not be written into repository files, committed scripts, or GitHub issue bodies.
 - The current tool session does not expose a Coolify MCP control surface, so this pass can update the local wrapper and secret-handling docs but cannot mutate Coolify-hosted resources directly.
 - The current tool session did not confirm live Cloudflare account inventory, so Cloudflare-side hostname, Worker, Pages, or R2 changes remain operator validation tasks after repo changes land.
-- The current repository fix keeps the setup shell path database-lazy and restores the reviewed direct Worker transport default so Cloudflare bootstrap failures are less likely to surface as blanket setup-route Worker exceptions.
+- The current repository fix keeps the setup shell path database-lazy and keeps the reviewed live Hyperdrive Worker transport active so Cloudflare bootstrap failures are less likely to surface as blanket setup-route Worker exceptions.
 
 ## Planning Goals
 
@@ -150,7 +150,7 @@ Recommended operator posture:
 - if the infrastructure is temporarily limited to a weaker reviewed mode such as `require`, document that as an interim state and track the follow-on hardening issue explicitly
 - keep PostgreSQL credentials application-scoped and non-superuser
 - keep database ingress narrow and auditable
-- keep Hyperdrive as an explicit follow-on transport/pooling option rather than silently assuming it is already deployed or forcing it as the default Worker transport in reviewed config
+- keep Hyperdrive aligned with the current live reviewed deployment posture and do not remove it from reviewed Worker config unless the rollback or migration plan explicitly changes the active transport
 
 ## Security Standards And Recommendations
 
@@ -253,7 +253,7 @@ Reviewed current route-name default for the private-database path: `pg-hyperdriv
 
 Preferred current direction: use the private-database Cloudflare Tunnel path unless the operator explicitly decides that a separately reachable public PostgreSQL origin endpoint is acceptable.
 
-Current status: the repository keeps the Hyperdrive transport seam available, but the reviewed Worker config baseline remains `DATABASE_TRANSPORT=direct` until the operator explicitly confirms the active environment should use Hyperdrive end to end.
+Current status: the repository and live Worker are now aligned on `DATABASE_TRANSPORT=hyperdrive`, with local build and typecheck paths deriving the required local Hyperdrive connection string from env-managed `DATABASE_URL` rather than tracked script values.
 
 ## Validation Expectations
 

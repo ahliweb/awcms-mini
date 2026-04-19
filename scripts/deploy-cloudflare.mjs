@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 
-import { loadLocalEnvFiles } from "./_local-env.mjs";
+import { applyLocalCloudflareRuntimeEnv, loadLocalEnvFiles } from "./_local-env.mjs";
 
 function run(command, args, env, options = {}) {
   const result = spawnSync(command, args, {
@@ -34,20 +34,13 @@ function extractVersionId(output) {
 }
 
 loadLocalEnvFiles();
-
-if (
-  process.env.DATABASE_TRANSPORT === "hyperdrive"
-  && process.env.DATABASE_URL
-  && !process.env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE
-) {
-  process.env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE = process.env.DATABASE_URL;
-}
+applyLocalCloudflareRuntimeEnv();
 
 run("pnpm", ["build"], process.env);
 
 const uploadOutput = run(
   "npx",
-  ["wrangler", "versions", "upload", "--message", "route-safe deploy"],
+  ["wrangler", "versions", "upload", "--config", "dist/server/wrangler.json", "--message", "route-safe deploy"],
   process.env,
 );
 
@@ -60,6 +53,8 @@ run(
     "versions",
     "deploy",
     `${versionId}@100%`,
+    "--config",
+    "dist/server/wrangler.json",
     "--name",
     "awcms-mini",
     "--message",

@@ -24,7 +24,8 @@ test("wrangler config declares the reviewed public custom domain baseline", asyn
 test("wrangler config defines the reviewed database transport defaults", async () => {
   const contents = await readFile(wranglerConfigPath, "utf8");
 
-  assert.match(contents, /"DATABASE_TRANSPORT"\s*:\s*"direct"/);
+  assert.match(contents, /"DATABASE_TRANSPORT"\s*:\s*"hyperdrive"/);
   assert.match(contents, /"HYPERDRIVE_BINDING"\s*:\s*"HYPERDRIVE"/);
-  assert.doesNotMatch(contents, /"hyperdrive"\s*:\s*\[/);
+  assert.match(contents, /"hyperdrive"\s*:\s*\[/);
+  assert.match(contents, /"id"\s*:\s*"8491095b83164e1885cd3d6b4c32afd7"/);
 });

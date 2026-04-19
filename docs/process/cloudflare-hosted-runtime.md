@@ -21,7 +21,7 @@ The supported baseline production path is:
 - optional `ADMIN_SITE_URL` remains a compatibility-only entry host when an operator still needs a dedicated admin hostname
 - `TRUSTED_PROXY_MODE=cloudflare`
 - `DATABASE_URL` points to the intended remote PostgreSQL instance
-- `DATABASE_TRANSPORT=direct` remains the reviewed production default unless the operator has explicitly completed a Hyperdrive rollout for the current environment
+- `DATABASE_TRANSPORT=hyperdrive` is the reviewed production default for the current live Cloudflare deployment
 - `wrangler.jsonc` or equivalent deployment config defines the Worker, assets, observability, and required bindings
 - `TURNSTILE_SECRET_KEY` is stored as a server-only secret when Turnstile protection is enabled
 - `TURNSTILE_EXPECTED_HOSTNAMES` should be set or derived correctly for the reviewed hostname set in the environment
@@ -39,7 +39,8 @@ The supported baseline production path is:
 - Prefer the Worker custom domain for `awcms-mini.ahlikoding.com` as the reviewed single-host baseline because the Worker is the origin for this deployment model
 - Ensure the adapter's default `SESSION` KV binding or an explicit equivalent binding is available
 - Keep `/_emdash/` as the reviewed browser entry alias and redirect it into EmDash's current `/_emdash/admin` surface on the same host
-- Keep the setup shell under `/_emdash/admin/setup` database-lazy in repository middleware so setup/bootstrap reconciliation does not turn into a blanket Worker exception before the EmDash setup flow can render
+- Keep the setup shell under `/_emdash/admin/setup` database-lazy in repository middleware so transport/bootstrap reconciliation does not turn into a blanket Worker exception before the EmDash setup flow can render
+- Keep the reviewed Hyperdrive binding active in Worker config for the current live deployment, while local Astro validation derives the required local connection string from env-managed `DATABASE_URL`
 - If split hostnames are still used for compatibility, keep the admin hostname pointed at the same Worker deployment and treat it as an entry host for the configured admin entry path
 - Add edge protections such as rate limiting, managed challenge, or Turnstile on abuse-prone routes as those features land
 - The current Turnstile-covered public flows are login, password-reset request, and invite activation when the Turnstile secret is configured
@@ -53,7 +54,7 @@ The supported baseline production path is:
 
 - Treat PostgreSQL as a private remote dependency
 - Use TLS for database traffic
-- Keep `DATABASE_TRANSPORT=direct` unless the deployment is intentionally switching to Hyperdrive
+- Keep `DATABASE_TRANSPORT=hyperdrive` for the current live Cloudflare deployment unless a reviewed rollback intentionally returns the Worker to direct PostgreSQL transport
 - Prefer `DATABASE_URL` values that connect through `id1.ahlikoding.com` for hostname validation in the reviewed production baseline
 - Prefer `sslmode=verify-full` when certificate validation is available, and treat weaker modes such as `require` as explicitly documented interim posture only
 - Keep firewall and `pg_hba.conf` rules scoped narrowly
@@ -77,7 +78,7 @@ Before deployment:
 - Confirm `EDGE_API_JWT_SECRET` and any non-default `EDGE_API_JWT_*` settings are set correctly when `/api/v1/token` is enabled
 - Confirm `DATABASE_TRANSPORT` matches the intended deployment path
 - Confirm `DATABASE_URL` or approved database transport configuration points to the intended PostgreSQL target
-- Confirm the reviewed PostgreSQL SSL hostname `id1.ahlikoding.com` is used when `DATABASE_TRANSPORT=direct` and `sslmode=verify-full` is expected
+- Confirm the reviewed PostgreSQL SSL hostname `id1.ahlikoding.com` remains the intended origin posture behind the active Hyperdrive path
 - Confirm the `HYPERDRIVE` binding exists when `DATABASE_TRANSPORT=hyperdrive`
 
 After deployment:
@@ -85,6 +86,7 @@ After deployment:
 - Confirm the public hostname responds through the Cloudflare-hosted runtime
 - Confirm `https://awcms-mini.ahlikoding.com/_emdash/` redirects to `/_emdash/admin` on the same host
 - Confirm `https://awcms-mini.ahlikoding.com/_emdash/admin/setup` renders the EmDash setup shell instead of a Worker exception during transport/bootstrap reconciliation
+- Confirm `https://awcms-mini.ahlikoding.com/_emdash/api/setup/status` no longer returns `NOT_CONFIGURED` on the live Worker
 - Confirm admin routes load through the public hostname and, if still configured, the dedicated admin hostname compatibility path
 - Confirm auth logging and lockout behavior reflect the expected Cloudflare client IP source
 - Confirm the runtime can see the `MEDIA_BUCKET` binding for `awcms-mini-s3`

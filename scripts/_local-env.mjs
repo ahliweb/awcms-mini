@@ -15,3 +15,11 @@ export function loadLocalEnvFiles() {
     }
   }
 }
+
+export function applyLocalCloudflareRuntimeEnv(env = process.env) {
+  if (env.DATABASE_URL && !env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE) {
+    env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE = env.DATABASE_URL;
+  }
+
+  return env;
+}

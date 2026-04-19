@@ -17,7 +17,7 @@ The current maintained `scripts/**` entrypoints reviewed in this pass did not co
 
 The current maintained script entrypoints now use the shared `scripts/_local-env.mjs` helper where local env loading is required, so secret loading stays auditable and consistent without sourcing env files as shell code.
 
-The reviewed deploy wrapper now injects the local Hyperdrive connection-string compatibility variable only when `DATABASE_TRANSPORT=hyperdrive`, which keeps direct-path deploys from carrying transport-specific credential plumbing they do not need.
+The reviewed local command wrappers and deploy wrapper now inject the local Hyperdrive connection-string compatibility variable only when `DATABASE_TRANSPORT=hyperdrive`, which keeps the required credential in env files instead of tracked scripts.
 
 The current repository posture should therefore be described as:
 

@@ -152,8 +152,8 @@ Cloudflare-hosted deployment baseline:
 - `pnpm deploy:cloudflare` deploys via Wrangler
 - non-interactive Cloudflare automation should keep `CLOUDFLARE_API_TOKEN` in `.env.local`, Wrangler-managed secrets, or CI/CD secret storage rather than tracked files; Tunnel provisioning needs `Account > Cloudflare Tunnel > Edit`, DNS provisioning needs zone DNS read/edit permission for the target zone, and Access provisioning needs the relevant Cloudflare Access/Zero Trust scopes
 - local operator wrappers should load `.env.local` and `.env` as environment data, not by sourcing them as shell code
-- `wrangler.jsonc` defines the Worker, assets, observability, the reviewed public custom domain for `awcms-mini.ahlikoding.com`, the `MEDIA_BUCKET` R2 binding for `awcms-mini-s3`, and the reviewed direct transport default; Hyperdrive binding activation stays explicit rollout work instead of always-on reviewed config
-- `DATABASE_TRANSPORT=direct` keeps the current reviewed PostgreSQL baseline; switch to `hyperdrive` only with the reviewed binding, reachable origin path, and rollout checks in place
+- `wrangler.jsonc` defines the Worker, assets, observability, the reviewed public custom domain for `awcms-mini.ahlikoding.com`, the `MEDIA_BUCKET` R2 binding for `awcms-mini-s3`, and the active reviewed Hyperdrive binding used by the live Cloudflare deployment
+- `DATABASE_TRANSPORT=hyperdrive` is the current reviewed production posture; local build and typecheck wrappers derive `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` from `DATABASE_URL` so credentials stay env-managed
 - the Mini auth middleware keeps the EmDash setup shell database-lazy so `/_emdash/admin/setup` can render during database transport reconciliation instead of failing early with a Worker exception
 - Astro's Cloudflare adapter uses the default `SESSION` KV binding for sessions unless you override it explicitly
 

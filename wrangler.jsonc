@@ -5,7 +5,7 @@
   "compatibility_date": "2026-04-18",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "vars": {
-    "DATABASE_TRANSPORT": "direct",
+    "DATABASE_TRANSPORT": "hyperdrive",
     "HYPERDRIVE_BINDING": "HYPERDRIVE",
     "MINI_RUNTIME_TARGET": "cloudflare",
     "TRUSTED_PROXY_MODE": "cloudflare",
@@ -31,6 +31,12 @@
     {
       "binding": "MEDIA_BUCKET",
       "bucket_name": "awcms-mini-s3"
+    }
+  ],
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "8491095b83164e1885cd3d6b4c32afd7"
     }
   ]
 }
