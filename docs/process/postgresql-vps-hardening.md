@@ -100,7 +100,7 @@ Preferred default for the current environment:
 If the private-database Tunnel path is selected, prepare at least:
 
 1. a `cloudflared` connector or equivalent reviewed tunnel connector path with reachability to the PostgreSQL origin host and port
-2. a reviewed TCP hostname or tunnel route that Hyperdrive can target for the private database path
+2. a reviewed TCP hostname or tunnel route that Hyperdrive can target for the private database path; `pg-hyperdrive.ahlikoding.com` is the current reviewed default name
 3. any required Cloudflare Access client ID and client secret material if the tunnel-backed origin is protected through Access
 4. an operator note showing how tunnel routing, PostgreSQL authentication, and the Coolify-managed host map together
 5. operator access to the Cloudflare dashboard or API to configure ingress rules for the remotely managed tunnel after resource creation

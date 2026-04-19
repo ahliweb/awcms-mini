@@ -85,6 +85,11 @@ Private-database Tunnel prerequisites:
 5. a `CLOUDFLARE_API_TOKEN` with tunnel permissions, including `Account > Cloudflare Tunnel > Edit`, for non-interactive tunnel provisioning through Wrangler
 6. operator access to the Cloudflare dashboard or API for ingress-rule management, because Wrangler-created tunnels are remotely managed and do not expose ingress configuration through the current tunnel CLI surface
 
+Reviewed default route name:
+
+- prefer `pg-hyperdrive.ahlikoding.com` for the tunnel-backed private-database route because it is explicit, operator-only, and distinct from the public app hostname
+- avoid reusing `awcms-mini.ahlikoding.com`, `id1.ahlikoding.com`, or any general web-facing hostname for the Hyperdrive route
+
 ## Security Implications
 
 - Hyperdrive is a transport and pooling layer, not a replacement for PostgreSQL SSL, restricted ingress, or app-scoped credentials

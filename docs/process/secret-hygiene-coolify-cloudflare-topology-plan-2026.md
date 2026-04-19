@@ -248,9 +248,11 @@ Tracked issues: `#145`, `#146`, `#147`, `#149`, `#150`, `#151`, `#152`, `#153`, 
 - keep PostgreSQL origin endpoint preparation explicit when the reviewed SSL hostname is not a reachable Hyperdrive origin path
 - keep the private-database Cloudflare Tunnel alternative explicit as a separate operator decision path when public origin exposure is not desired
 
+Reviewed current route-name default for the private-database path: `pg-hyperdrive.ahlikoding.com`.
+
 Preferred current direction: use the private-database Cloudflare Tunnel path unless the operator explicitly decides that a separately reachable public PostgreSQL origin endpoint is acceptable.
 
-Current status: repository-side Hyperdrive transport preparation is complete in `#145`; live Cloudflare binding enablement remains tracked as operator rollout work in `#146`, which is currently blocked on either PostgreSQL origin endpoint preparation in `#147` or private-database Tunnel setup split across `#152` (connector deployment), `#153` (Cloudflare-managed route configuration), `#154` (Access prerequisites when the route is protected), and `#155` (reviewed hostname or route selection). The Tunnel path decision is tracked in `#149`, and the initial Tunnel resource provisioning is tracked in `#150`.
+Current status: repository-side Hyperdrive transport preparation is complete in `#145`; live Cloudflare binding enablement remains tracked as operator rollout work in `#146`, which is currently blocked on either PostgreSQL origin endpoint preparation in `#147` or private-database Tunnel setup split across `#152` (connector deployment), `#153` (Cloudflare-managed route configuration), and `#154` (Access prerequisites when the route is protected). The Tunnel path decision is tracked in `#149`, the initial Tunnel resource provisioning is tracked in `#150`, and the route-name decision tracked in `#155` is now settled.
 
 ## Validation Expectations
 
