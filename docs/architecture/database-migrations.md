@@ -39,6 +39,15 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
 - `032_edge_api_permissions` adds canonical self-service edge API permission entries and role grants for the current `/api/v1/session` baseline so protected edge routes use the shared authorization model
 - `031_soft_delete_operator_attribution_catalogs` adds `deleted_by_user_id` and `delete_reason` to operator-managed logical-region and job-catalog tables so soft delete attribution matches the established user and role contract
 
+## Current EmDash Runtime Caveat
+
+- The current live Cloudflare setup path still depends on the Mini-owned `/_emdash/api/setup/status` compatibility handler while issue `#180` remains open.
+- The underlying EmDash runtime initialization path is still colliding with Mini's existing PostgreSQL schema and `_emdash_migrations` ledger when it tries to reconcile upstream core migrations against the Mini-owned bootstrap.
+- Confirmed live failure signatures during issue `#180` investigation include:
+  - `Migration failed: column "actor_id" does not exist (migration: 001_initial)`
+  - `corrupted migrations: expected previously executed migration 003_schema_registry to be at index 1 but 002_media_status was found in its place`
+- Treat any direct mutation of `_emdash_migrations` as issue-scoped operator work with explicit rollback notes. Do not ad hoc edit the migration ledger during routine deploys.
+
 ## Runtime Input
 
 - `DATABASE_URL` is required to target the PostgreSQL database
