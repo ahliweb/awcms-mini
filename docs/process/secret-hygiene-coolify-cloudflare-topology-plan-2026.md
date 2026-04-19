@@ -240,7 +240,7 @@ Current status: repository-side SSL baseline work complete; infrastructure execu
 
 ### Issue E: Adopt Cloudflare Hyperdrive For PostgreSQL Transport
 
-Tracked issues: `#145`, `#146`, `#147`, `#149`, `#150`, `#151`, `#152`, `#153`, `#154`, `#155`, `#156`
+Tracked issues: `#145`, `#146`, `#147`, `#149`, `#150`, `#151`, `#152`, `#153`, `#154`, `#155`, `#156`, `#157`
 
 - add runtime support for selecting Hyperdrive-backed PostgreSQL transport without breaking the reviewed direct `DATABASE_URL` path
 - document binding prerequisites, rollout order, smoke tests, and secret-handling expectations for Hyperdrive
@@ -252,7 +252,7 @@ Reviewed current route-name default for the private-database path: `pg-hyperdriv
 
 Preferred current direction: use the private-database Cloudflare Tunnel path unless the operator explicitly decides that a separately reachable public PostgreSQL origin endpoint is acceptable.
 
-Current status: repository-side Hyperdrive transport preparation is complete in `#145`; live Cloudflare binding enablement remains tracked as operator rollout work in `#146`, which is currently blocked on either PostgreSQL origin endpoint preparation in `#147` or private-database Tunnel setup split across `#152` (connector deployment), `#153` (Cloudflare-managed route configuration), `#154` (Access prerequisites when the route is protected), and `#156` (DNS record provisioning for the reviewed route name). The Tunnel path decision is tracked in `#149`, the initial Tunnel resource provisioning is tracked in `#150`, and the route-name decision tracked in `#155` is now settled.
+Current status: repository-side Hyperdrive transport preparation is complete in `#145`; live Cloudflare binding enablement remains tracked as operator rollout work in `#146`, which is currently blocked on either PostgreSQL origin endpoint preparation in `#147` or private-database Tunnel setup split across `#152` (connector deployment), `#153` (Cloudflare-managed route configuration), `#156` (DNS record provisioning for the reviewed route name), and `#157` (Access app/policy and service-token provisioning if the route is protected). The Tunnel path decision is tracked in `#149`, the initial Tunnel resource provisioning is tracked in `#150`, and the route-name decision tracked in `#155` is now settled.
 
 ## Validation Expectations
 
