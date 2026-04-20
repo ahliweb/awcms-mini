@@ -1,4 +1,5 @@
 import { createDatabase } from "../src/db/client/postgres.mjs";
+import { formatDatabaseErrorDiagnostic } from "../src/db/errors.mjs";
 import {
   ensureMigrationBootstrap,
   formatMigrationResults,
@@ -13,6 +14,14 @@ import { loadLocalEnvFiles } from "./_local-env.mjs";
 
 function printUsage() {
   console.log("Usage: node scripts/db-migrate.mjs <latest|down|status|emdash-status|emdash-repair>");
+}
+
+function printDatabaseError(error) {
+  const diagnostic = formatDatabaseErrorDiagnostic(error);
+
+  console.error(`Database error kind: ${diagnostic.kind}`);
+  console.error(`Database error reason: ${diagnostic.reason}`);
+  console.error(`Database error message: ${diagnostic.message}`);
 }
 
 function printEmdashStatus(status) {
@@ -99,6 +108,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error);
+  printDatabaseError(error);
   process.exit(1);
 });

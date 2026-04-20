@@ -3,7 +3,14 @@ import assert from "node:assert/strict";
 
 import { buildPostgresPoolConfig, resolvePostgresConnectionString } from "../../src/db/client/postgres.mjs";
 import { describeDatabaseHealthPosture } from "../../src/db/health.mjs";
-import { DATABASE_ERROR_KIND, DATABASE_ERROR_REASON, classifyDatabaseError, describeDatabaseErrorReason } from "../../src/db/errors.mjs";
+import {
+  DATABASE_ERROR_KIND,
+  DATABASE_ERROR_REASON,
+  classifyDatabaseError,
+  describeDatabaseErrorReason,
+  extractDatabaseErrorMessage,
+  formatDatabaseErrorDiagnostic,
+} from "../../src/db/errors.mjs";
 import { defineTransactionStrategy, withTransaction } from "../../src/db/transactions.mjs";
 
 function normalizeOptionalString(value) {
@@ -112,6 +119,49 @@ test("describeDatabaseErrorReason identifies Hyperdrive binding failures", () =>
 test("describeDatabaseErrorReason identifies DNS failures", () => {
   const reason = describeDatabaseErrorReason(new Error("getaddrinfo ENOTFOUND id1.ahlikoding.com"));
   assert.equal(reason, DATABASE_ERROR_REASON.DNS);
+});
+
+test("classifyDatabaseError identifies aggregate ETIMEDOUT failures as connection blockers", () => {
+  const error = new Error("AggregateError [ETIMEDOUT]: ");
+
+  assert.equal(classifyDatabaseError(error), DATABASE_ERROR_KIND.CONNECTION);
+  assert.equal(describeDatabaseErrorReason(error), DATABASE_ERROR_REASON.CONNECTION_TIMEOUT);
+});
+
+test("classifyDatabaseError identifies malformed SCRAM credential input as authentication-related", () => {
+  const error = new Error("SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string");
+  assert.equal(classifyDatabaseError(error), DATABASE_ERROR_KIND.AUTHENTICATION);
+  assert.equal(describeDatabaseErrorReason(error), DATABASE_ERROR_REASON.CREDENTIAL_FORMAT);
+});
+
+test("extractDatabaseErrorMessage falls back to the first stack line when message is empty", () => {
+  const error = new Error("");
+  error.stack = "Error: SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string\n    at fake:1:1";
+
+  assert.equal(extractDatabaseErrorMessage(error), "SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string");
+});
+
+test("formatDatabaseErrorDiagnostic returns non-secret operator diagnostics", () => {
+  const diagnostic = formatDatabaseErrorDiagnostic(new Error("Connection terminated due to connection timeout"));
+
+  assert.deepEqual(diagnostic, {
+    kind: DATABASE_ERROR_KIND.CONNECTION,
+    reason: DATABASE_ERROR_REASON.CONNECTION_TIMEOUT,
+    message: "Connection terminated due to connection timeout",
+  });
+});
+
+test("formatDatabaseErrorDiagnostic preserves stack-derived messages for malformed credential errors", () => {
+  const error = new Error("");
+  error.stack = "Error: SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string\n    at fake:1:1";
+
+  const diagnostic = formatDatabaseErrorDiagnostic(error);
+
+  assert.deepEqual(diagnostic, {
+    kind: DATABASE_ERROR_KIND.AUTHENTICATION,
+    reason: DATABASE_ERROR_REASON.CREDENTIAL_FORMAT,
+    message: "SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string",
+  });
 });
 
 test("buildPostgresPoolConfig keeps DATABASE_URL as the transport source of truth", () => {

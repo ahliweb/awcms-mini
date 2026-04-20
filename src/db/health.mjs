@@ -1,7 +1,7 @@
 import { sql } from "kysely";
 
 import { getRuntimeConfig } from "../config/runtime.mjs";
-import { classifyDatabaseError, describeDatabaseErrorReason } from "./errors.mjs";
+import { classifyDatabaseError, describeDatabaseErrorReason, extractDatabaseErrorMessage } from "./errors.mjs";
 import { createDatabase } from "./index.mjs";
 
 function summarizeDirectDatabaseTarget(databaseUrl) {
@@ -61,7 +61,7 @@ export async function checkDatabaseHealth() {
       ok: false,
       kind: classifyDatabaseError(error),
       reason: describeDatabaseErrorReason(error),
-      message: error instanceof Error ? error.message : String(error),
+      message: extractDatabaseErrorMessage(error),
     };
   } finally {
     await db.destroy();

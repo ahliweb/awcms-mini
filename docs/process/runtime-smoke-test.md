@@ -94,6 +94,7 @@ Use these checks after Cloudflare hostname, Turnstile, or R2 automation changes.
 Common database `reason` values and next checks:
 
 - `connection_timeout`: confirm the target PostgreSQL path is reachable from the operator or runtime environment and that firewall, Tunnel, or Hyperdrive origin routing is allowing the connection
+- `credential_format`: confirm the effective `DATABASE_URL` parses into a valid PostgreSQL username/password pair and that local env loading did not leave the password unset or malformed
 - `dns`: confirm the reviewed hostname resolves from the current environment and that the configured direct or Hyperdrive origin hostname is correct
 - `refused`: confirm PostgreSQL is listening on the intended interface/port and that Coolify, host firewall, or private-network routing is not rejecting the connection
 - `tls`: confirm the reviewed certificate, hostname, and `sslmode` posture match the configured connection string

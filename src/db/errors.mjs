@@ -11,6 +11,7 @@ export const DATABASE_ERROR_KIND = {
 
 export const DATABASE_ERROR_REASON = {
   CONNECTION_TIMEOUT: "connection_timeout",
+  CREDENTIAL_FORMAT: "credential_format",
   DNS: "dns",
   HYPERDRIVE_BINDING: "hyperdrive_binding",
   REFUSED: "refused",
@@ -22,9 +23,46 @@ export const DATABASE_ERROR_REASON = {
 const CONSTRAINT_CODES = new Set(["23502", "23503", "23505", "23514"]);
 const CONNECTION_CODES = new Set(["57P01", "57P03"]);
 
+export function extractDatabaseErrorMessage(error) {
+  if (error instanceof Error) {
+    if (typeof error.message === "string" && error.message.trim().length > 0) {
+      return error.message;
+    }
+
+    if (typeof error.stack === "string" && error.stack.trim().length > 0) {
+      const firstLine = error.stack.split("\n").find((line) => line.trim().length > 0);
+      if (firstLine) {
+        return firstLine.replace(/^Error:\s*/, "");
+      }
+    }
+  }
+
+  return String(error ?? "");
+}
+
+function extractDatabaseErrorCode(error) {
+  if (!error || typeof error !== "object") {
+    return undefined;
+  }
+
+  if (typeof error.code === "string" && error.code.trim().length > 0) {
+    return error.code;
+  }
+
+  if (Array.isArray(error.errors)) {
+    const nestedCode = error.errors.find((entry) => entry && typeof entry === "object" && typeof entry.code === "string")?.code;
+    if (typeof nestedCode === "string" && nestedCode.trim().length > 0) {
+      return nestedCode;
+    }
+  }
+
+  return undefined;
+}
+
 export function classifyDatabaseError(error) {
-  const message = error instanceof Error ? error.message : String(error);
-  const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+  const message = extractDatabaseErrorMessage(error);
+  const lowercaseMessage = message.toLowerCase();
+  const code = extractDatabaseErrorCode(error);
 
   if (typeof code === "string") {
     if (code === "28P01") {
@@ -38,6 +76,14 @@ export function classifyDatabaseError(error) {
     if (CONSTRAINT_CODES.has(code)) {
       return DATABASE_ERROR_KIND.CONSTRAINT;
     }
+  }
+
+  if (lowercaseMessage.includes("client password must be a string") || lowercaseMessage.includes("sasl")) {
+    return DATABASE_ERROR_KIND.AUTHENTICATION;
+  }
+
+  if (lowercaseMessage.includes("etimedout") || lowercaseMessage.includes("aggregateerror [etimedout]")) {
+    return DATABASE_ERROR_KIND.CONNECTION;
   }
 
   if (message.includes('relation "') && message.includes('does not exist')) {
@@ -64,7 +110,7 @@ export function classifyDatabaseError(error) {
 }
 
 export function describeDatabaseErrorReason(error) {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = extractDatabaseErrorMessage(error);
   const lowercaseMessage = message.toLowerCase();
 
   if (lowercaseMessage.includes("hyperdrive transport requires the cloudflare binding")) {
@@ -73,6 +119,14 @@ export function describeDatabaseErrorReason(error) {
 
   if (lowercaseMessage.includes("timeout")) {
     return DATABASE_ERROR_REASON.CONNECTION_TIMEOUT;
+  }
+
+  if (lowercaseMessage.includes("etimedout") || lowercaseMessage.includes("aggregateerror [etimedout]")) {
+    return DATABASE_ERROR_REASON.CONNECTION_TIMEOUT;
+  }
+
+  if (lowercaseMessage.includes("client password must be a string") || lowercaseMessage.includes("sasl")) {
+    return DATABASE_ERROR_REASON.CREDENTIAL_FORMAT;
   }
 
   if (lowercaseMessage.includes("enotfound") || lowercaseMessage.includes("getaddrinfo")) {
@@ -92,6 +146,18 @@ export function describeDatabaseErrorReason(error) {
   }
 
   return DATABASE_ERROR_REASON.UNKNOWN;
+}
+
+export function formatDatabaseErrorDiagnostic(error) {
+  const kind = classifyDatabaseError(error);
+  const reason = describeDatabaseErrorReason(error);
+  const message = extractDatabaseErrorMessage(error);
+
+  return {
+    kind,
+    reason,
+    message,
+  };
 }
 
 export function isDatabaseErrorKind(error, kind) {

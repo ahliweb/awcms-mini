@@ -75,8 +75,9 @@ curl -i https://awcms-mini.ahlikoding.com/_emdash/api/setup/status
 ## Rollback Guidance
 
 - if `pnpm db:migrate:emdash:status` reports `unsafe`, stop and investigate instead of forcing a repair
-- if the command fails before reporting a ledger state, use the database error `reason` to classify the blocker before retrying:
+- if the command fails before reporting a ledger state, use the printed database error `kind` and `reason` to classify the blocker before retrying:
   - `connection_timeout`: verify the Cloudflare-to-Coolify or operator-to-VPS route is reachable
+  - `credential_format`: verify the effective `DATABASE_URL` contains a valid username/password pair and that local env loading did not leave the password unset or malformed
   - `dns`: verify the reviewed hostname or Hyperdrive origin hostname resolves from the current environment
   - `refused`: verify PostgreSQL is listening and ingress rules allow the current source path
   - `tls`: verify certificate, hostname, and `sslmode` alignment
