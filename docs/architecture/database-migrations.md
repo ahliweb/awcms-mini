@@ -46,7 +46,7 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
 
 ## Current EmDash Runtime Caveat
 
-- The current live Cloudflare setup path still depends on the Mini-owned `/_emdash/api/setup/status` compatibility handler while issue `#180` remains open.
+- The current live Cloudflare setup path now relies on a shared EmDash-side `/_emdash/api/setup/status` database fallback instead of the earlier Mini-only middleware override, but issue `#180` remains open until the broader runtime initialization path stops colliding with the Mini-owned schema and ledger.
 - The underlying EmDash runtime initialization path is still colliding with Mini's existing PostgreSQL schema and `_emdash_migrations` ledger when it tries to reconcile upstream core migrations against the Mini-owned bootstrap.
 - Confirmed live failure signatures during issue `#180` investigation include:
   - `Migration failed: column "actor_id" does not exist (migration: 001_initial)`

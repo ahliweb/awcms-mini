@@ -5,7 +5,6 @@ import { getDatabase } from "../db/index.mjs";
 import { handleAuthLogin } from "./handlers/login.mjs";
 import { handleAuthMe } from "./handlers/me.mjs";
 import { handleAuthLogout } from "./handlers/logout.mjs";
-import { handleSetupStatus } from "./handlers/setup-status.mjs";
 import { handleAuthTwoFactorChallengeVerify } from "./handlers/two-factor-challenge.mjs";
 import { handleAuthTwoFactorEnroll, handleAuthTwoFactorVerify } from "./handlers/two-factor-enroll.mjs";
 import { handleAuthTwoFactorStepUpVerify } from "./handlers/two-factor-step-up.mjs";
@@ -26,16 +25,9 @@ async function handleMiniAuthRequest(context, next) {
   if (hostRedirect) {
     return hostRedirect;
   }
-
-  if (context.url.pathname === "/_emdash/api/setup/status" && context.request.method === "GET") {
-    return handleSetupStatus({
-      db: getDatabase(),
-    });
-  }
-
-  if (context.url.pathname === "/_emdash/api/auth/login" && context.request.method === "POST") {
-    return handleAuthLogin({
-      request: context.request,
+	if (context.url.pathname === "/_emdash/api/auth/login" && context.request.method === "POST") {
+		return handleAuthLogin({
+			request: context.request,
       session: context.session,
       db: getDatabase(),
     });

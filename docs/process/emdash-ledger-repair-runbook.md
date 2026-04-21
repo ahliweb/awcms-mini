@@ -83,7 +83,7 @@ curl -i https://awcms-mini.ahlikoding.com/_emdash/api/setup/status
   - `tls`: verify certificate, hostname, and `sslmode` alignment
   - `hyperdrive_binding`: verify the reviewed Cloudflare Hyperdrive binding exists in the target environment
 - if the repair command fails, capture the output and stop the release
-- if the target environment is production, keep the current setup-status compatibility handler in place until runtime initialization is proven stable
+- if the target environment is production, keep the current shared setup-status compatibility seam in place until runtime initialization is proven stable
 - if post-repair smoke tests fail, restore from the reviewed database backup or transactionally revert using the incident runbook rather than ad hoc SQL edits
 
 ## Security Notes
