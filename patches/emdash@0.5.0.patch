@@ -61,12 +61,13 @@ index 545e018fb2eb61ed25382abcb922eeadbb1599d2..7597181e92c92b85feb093b258a80814
 @@ -182,9 +205,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
  	// Process /_emdash routes and public routes with an active session
  	// (logged-in editors need the runtime for toolbar/visual editing on public pages)
- 	const isEmDashRoute = url.pathname.startsWith("/_emdash");
+	const isEmDashRoute = url.pathname.startsWith("/_emdash");
 +	const isSetupShellRoute = url.pathname.startsWith("/_emdash/admin/setup");
++	const isSetupStatusRoute = url.pathname === "/_emdash/api/setup/status";
  	const isPublicRuntimeRoute =
 		PUBLIC_RUNTIME_ROUTES.has(url.pathname) || SITEMAP_COLLECTION_RE.test(url.pathname);
 
-+	if (isSetupShellRoute) {
++	if (isSetupShellRoute || isSetupStatusRoute) {
 +		const response = await next();
 +		return setBaselineSecurityHeaders(response);
 +	}

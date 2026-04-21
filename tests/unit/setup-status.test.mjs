@@ -9,6 +9,7 @@ const middlewareEntryPath = fileURLToPath(new URL("../../src/auth/middleware-ent
 const emdashSetupStatusRoutePath = fileURLToPath(
   new URL("../../node_modules/emdash/src/astro/routes/api/setup/status.ts", import.meta.url),
 );
+const emdashMiddlewarePath = fileURLToPath(new URL("../../node_modules/emdash/src/astro/middleware.ts", import.meta.url));
 const emdashPatchPath = fileURLToPath(new URL("../../patches/emdash@0.5.0.patch", import.meta.url));
 
 function createDbStub({ options = [], userCount = 0, throwOptions = false, throwUsers = false } = {}) {
@@ -102,6 +103,13 @@ test("patched EmDash setup-status route includes the db fallback compatibility s
   assert.doesNotMatch(contents, /apiError\("NOT_CONFIGURED", "EmDash is not initialized", 500\)/);
 });
 
+test("patched EmDash middleware treats setup-status as a setup-safe path", async () => {
+  const contents = await readFile(emdashMiddlewarePath, "utf8");
+
+  assert.match(contents, /const isSetupStatusRoute = url\.pathname === "\/_emdash\/api\/setup\/status";/);
+  assert.match(contents, /if \(isSetupShellRoute \|\| isSetupStatusRoute\) \{/);
+});
+
 test("tracked EmDash patch preserves the shared setup-status compatibility seam", async () => {
   const contents = await readFile(emdashPatchPath, "utf8");
 
@@ -109,4 +117,6 @@ test("tracked EmDash patch preserves the shared setup-status compatibility seam"
   assert.match(contents, /\+import \{ getDb \} from "\.\.\/\.\.\/\.\.\/\.\.\/loader\.js";/);
   assert.match(contents, /\+\t\tconst db = emdash\?\.db \?\? \(await getDb\(\)\);/);
   assert.match(contents, /\+\t\tconst useExternalAuth = authMode\?\.type === "external";/);
+  assert.match(contents, /\+\tconst isSetupStatusRoute = url\.pathname === "\/_emdash\/api\/setup\/status";/);
+  assert.match(contents, /\+\tif \(isSetupShellRoute \|\| isSetupStatusRoute\) \{/);
 });
