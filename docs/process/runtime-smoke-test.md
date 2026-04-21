@@ -70,6 +70,30 @@ pnpm healthcheck
 
 Use these checks after Cloudflare hostname, Turnstile, or R2 automation changes.
 
+Focused automation path:
+
+```bash
+pnpm smoke:cloudflare-admin
+```
+
+The script uses, in order:
+
+1. an explicit base URL passed as the first argument
+2. `SMOKE_TEST_BASE_URL` when set
+3. `SITE_URL` as the default target
+
+Example explicit target:
+
+```bash
+pnpm smoke:cloudflare-admin -- https://awcms-mini.ahlikoding.com
+```
+
+The smoke result reports separate checks for:
+
+- `adminEntry` for the reviewed `/_emdash/` redirect into `/_emdash/admin`
+- `setupShell` for the reviewed `/_emdash/admin/setup` shell render path
+- `setupStatus` as a diagnostic seam so setup-shell failures are easier to distinguish from broader runtime or database initialization failures
+
 1. Load the public hostname and confirm it responds through the active Worker deployment.
 2. Load `https://awcms-mini.ahlikoding.com/_emdash/` and confirm it redirects to `/_emdash/admin` on the same host.
 3. If `ADMIN_SITE_URL` is still enabled for compatibility, load the admin hostname root and confirm it redirects to the configured admin entry path.
@@ -102,6 +126,7 @@ Common database `reason` values and next checks:
 
 ## Validation
 
+- `node --test tests/unit/cloudflare-admin-smoke.test.mjs`
 - `pnpm typecheck`
 - `pnpm build`
 - `pnpm healthcheck`

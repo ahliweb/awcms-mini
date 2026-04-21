@@ -110,6 +110,7 @@ Run these in order after a deployment or after Cloudflare-side automation change
 - Confirm the alias redirects to `/_emdash/admin` on the same host.
 - Confirm the EmDash admin surface loads there without introducing a second admin shell or alternate API surface.
 - If `ADMIN_SITE_URL` is still configured for compatibility, confirm the hostname root redirects to the configured admin entry path on the same Worker deployment.
+- Prefer `pnpm smoke:cloudflare-admin` as the focused regression check for the reviewed admin-entry alias and setup-shell path.
 
 ### 3. Turnstile-Protected Flows
 
@@ -134,6 +135,28 @@ Run these in order after a deployment or after Cloudflare-side automation change
 - Confirm the `HYPERDRIVE` binding resolves correctly when `DATABASE_TRANSPORT=hyperdrive`.
 - When the reviewed rollout target is known, prefer the non-secret `pnpm healthcheck` assertion variables so runtime verification fails fast on the wrong transport, hostname, SSL mode, or binding.
 - Confirm no Cloudflare-side automation change accidentally altered the database path assumptions.
+
+## Focused Admin Smoke Script
+
+Use `pnpm smoke:cloudflare-admin` after reviewed Cloudflare-side changes that could affect the admin entry alias or setup shell.
+
+The script checks:
+
+- `/_emdash/` returns the reviewed same-host redirect into `/_emdash/admin`
+- `/_emdash/admin/setup` returns HTML without the reviewed runtime error markers that previously surfaced blanket Worker failures
+- `/_emdash/api/setup/status` as a diagnostic seam so setup-shell failures are easier to distinguish from broader runtime or database initialization failures
+
+Target selection order:
+
+1. explicit base URL argument
+2. `SMOKE_TEST_BASE_URL`
+3. `SITE_URL`
+
+Example:
+
+```bash
+pnpm smoke:cloudflare-admin -- https://awcms-mini.ahlikoding.com
+```
 
 ## Builds Note
 

@@ -160,6 +160,7 @@ Cloudflare-hosted deployment baseline:
 ## Common Commands
 
 ```bash
+pnpm smoke:cloudflare-admin
 pnpm check:secret-hygiene
 pnpm check
 pnpm lint
@@ -179,6 +180,7 @@ pnpm db:seed:administrative-regions
 Validation baseline:
 
 - `pnpm check:secret-hygiene` is the focused regression check for maintained scripts, config examples, and operator docs that must not gain hardcoded credentials or inline tokens.
+- `pnpm smoke:cloudflare-admin` is the focused live-target smoke check for the reviewed `/_emdash/` admin alias and `/_emdash/admin/setup` shell path.
 - Use `pnpm check` as the default local pre-change validation path.
 - `pnpm lint` and `pnpm format` currently cover the maintained docs/config surface with Prettier.
 - Keep issue-specific validation commands in addition to the baseline when a task requires them.
