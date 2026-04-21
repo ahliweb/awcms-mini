@@ -63,11 +63,11 @@ index 545e018fb2eb61ed25382abcb922eeadbb1599d2..7597181e92c92b85feb093b258a80814
  	// (logged-in editors need the runtime for toolbar/visual editing on public pages)
 	const isEmDashRoute = url.pathname.startsWith("/_emdash");
 +	const isSetupShellRoute = url.pathname.startsWith("/_emdash/admin/setup");
-+	const isSetupStatusRoute = url.pathname === "/_emdash/api/setup/status";
++	const isSetupApiRoute = url.pathname.startsWith("/_emdash/api/setup");
  	const isPublicRuntimeRoute =
 		PUBLIC_RUNTIME_ROUTES.has(url.pathname) || SITEMAP_COLLECTION_RE.test(url.pathname);
 
-+	if (isSetupShellRoute || isSetupStatusRoute) {
++	if (isSetupShellRoute || isSetupApiRoute) {
 +		const response = await next();
 +		return setBaselineSecurityHeaders(response);
 +	}
@@ -159,9 +159,208 @@ index 5d6f2f0af1f65c2fb8ad0d53cb06afcfa722f31f..c13f7f74de4b9ee2837b81195c6ef7df
  					step = "admin";
  				} else if (state.step === "site") {
 @@ -88,7 +84,7 @@ export const GET: APIRoute = async ({ locals }) => {
- 		}
- 
- 		// Check auth mode
+		}
+
+		// Check auth mode
 -		const authMode = getAuthMode(emdash.config);
 +		const authMode = emdash?.config ? getAuthMode(emdash.config) : null;
 +		const useExternalAuth = authMode?.type === "external";
+
+diff --git a/src/astro/routes/api/setup/index.ts b/src/astro/routes/api/setup/index.ts
+index 8fd8966cb9196b3667c026cc11c91c5079220254..7a855df66f8c69ca7d219ee9877cbefc0644551e 100644
+--- a/src/astro/routes/api/setup/index.ts
++++ b/src/astro/routes/api/setup/index.ts
+@@ -4,6 +4,8 @@
+  */
+ 
+ import type { APIRoute } from "astro";
++import virtualConfig from "virtual:emdash/config";
++import { createStorage as virtualCreateStorage } from "virtual:emdash/storage";
+ 
+ export const prerender = false;
+ 
+@@ -17,15 +19,18 @@ import { OptionsRepository } from "#db/repositories/options.js";
+ import { applySeed } from "#seed/apply.js";
+ import { loadSeed } from "#seed/load.js";
+ import { validateSeed } from "#seed/validate.js";
++import { getDb } from "../../../../loader.js";
+ 
+ export const POST: APIRoute = async ({ request, url, locals }) => {
+ 	const { emdash } = locals;
+-
+-	if (!emdash?.db) {
+-		return apiError("NOT_CONFIGURED", "EmDash is not initialized", 500);
+-	}
+ 
+ 	try {
++		const db = emdash?.db ?? (await getDb());
++		const config = emdash?.config ?? virtualConfig;
++		const storage =
++			emdash?.storage ??
++			(config?.storage && virtualCreateStorage ? virtualCreateStorage(config.storage.config) : undefined);
++
+ 		// Guard: reject if setup has already been completed.
+ 		// The options table may not exist on first-ever setup (pre-migration),
+ 		// so a query failure means setup hasn't run yet — allow it to proceed.
+ 		try {
+-			const options = new OptionsRepository(emdash.db);
++			const options = new OptionsRepository(db);
+ 			const setupComplete = await options.get("emdash:setup_complete");
+ 
+ 			if (setupComplete === true || setupComplete === "true") {
+@@ -47,7 +52,7 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
+ 
+ 		// 1. Run core migrations
+ 		try {
+-			await runMigrations(emdash.db);
++			await runMigrations(db);
+ 		} catch (error) {
+ 			return handleError(error, "Failed to run database migrations", "MIGRATION_ERROR");
+ 		}
+@@ -70,17 +75,17 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
+ 
+ 		let result;
+ 		try {
+-			result = await applySeed(emdash.db, seed, {
++			result = await applySeed(db, seed, {
+ 				includeContent: body.includeContent,
+ 				onConflict: "skip",
+-				storage: emdash.storage ?? undefined,
++				storage,
+ 			});
+ 		} catch (error) {
+ 			return handleError(error, "Failed to apply seed", "SEED_ERROR");
+ 		}
+ 
+ 		// 5. Store setup state
+ 		// In external auth mode, mark setup complete immediately (first user to login becomes admin)
+ 		// In passkey mode, setup_complete is set after admin user is created
+-		const authMode = getAuthMode(emdash.config);
++		const authMode = getAuthMode(config);
+ 		const useExternalAuth = authMode.type === "external";
+ 
+ 		try {
+-			const options = new OptionsRepository(emdash.db);
++			const options = new OptionsRepository(db);
+ 
+ 			// Store the canonical site URL from the setup request.
+ 			// This is trusted because setup runs on the real domain.
+-			const siteUrl = getPublicOrigin(url, emdash.config);
++			const siteUrl = getPublicOrigin(url, config);
+ 			await options.set("emdash:site_url", siteUrl);
+
+diff --git a/src/astro/routes/api/setup/admin.ts b/src/astro/routes/api/setup/admin.ts
+index b9fbe05ce784815a4b5281c6e954260a5180d78f..58e2682ad5d0945f03f4bac88d8d2e7ece92150d 100644
+--- a/src/astro/routes/api/setup/admin.ts
++++ b/src/astro/routes/api/setup/admin.ts
+@@ -4,6 +4,7 @@
+  */
+ 
+ import type { APIRoute } from "astro";
++import virtualConfig from "virtual:emdash/config";
+ 
+ export const prerender = false;
+ 
+@@ -17,15 +18,15 @@ import { createChallengeStore } from "#auth/challenge-store.js";
+ import { getPasskeyConfig } from "#auth/passkey-config.js";
+ import { OptionsRepository } from "#db/repositories/options.js";
++import { getDb } from "../../../../loader.js";
+ 
+ export const POST: APIRoute = async ({ request, locals }) => {
+ 	const { emdash } = locals;
+-
+-	if (!emdash?.db) {
+-		return apiError("NOT_CONFIGURED", "EmDash is not initialized", 500);
+-	}
+ 
+ 	try {
++		const db = emdash?.db ?? (await getDb());
++		const config = emdash?.config ?? virtualConfig;
++
+ 		// Check if setup is already complete
+-		const options = new OptionsRepository(emdash.db);
++		const options = new OptionsRepository(db);
+ 		const setupComplete = await options.get("emdash:setup_complete");
+ 
+ 		if (setupComplete === true || setupComplete === "true") {
+@@ -35,7 +36,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
+ 		}
+ 
+ 		// Check if any users exist
+-		const adapter = createKyselyAdapter(emdash.db);
++		const adapter = createKyselyAdapter(db);
+ 		const userCount = await adapter.countUsers();
+ 
+ 		if (userCount > 0) {
+@@ -55,11 +56,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
+ 		// Get passkey config
+ 		const url = new URL(request.url);
+ 		const siteName = (await options.get<string>("emdash:site_title")) ?? undefined;
+-		const siteUrl = getPublicOrigin(url, emdash?.config);
++		const siteUrl = getPublicOrigin(url, config);
+ 		const passkeyConfig = getPasskeyConfig(url, siteName, siteUrl);
+ 
+ 		// Generate registration options
+-		const challengeStore = createChallengeStore(emdash.db);
++		const challengeStore = createChallengeStore(db);
+ 
+ 		// Create a temporary user object for registration options
+ 		// (not persisted until passkey is verified)
+
+diff --git a/src/astro/routes/api/setup/admin-verify.ts b/src/astro/routes/api/setup/admin-verify.ts
+index 2102f733a4401722144c7573464d4767340e3927..6ec3710b45c083a6ca022f89fb8fcdd62a2c6476 100644
+--- a/src/astro/routes/api/setup/admin-verify.ts
++++ b/src/astro/routes/api/setup/admin-verify.ts
+@@ -5,6 +5,7 @@
+  */
+ 
+ import type { APIRoute } from "astro";
++import virtualConfig from "virtual:emdash/config";
+ 
+ export const prerender = false;
+ 
+@@ -18,15 +19,15 @@ import { createChallengeStore } from "#auth/challenge-store.js";
+ import { getPasskeyConfig } from "#auth/passkey-config.js";
+ import { OptionsRepository } from "#db/repositories/options.js";
++import { getDb } from "../../../../loader.js";
+ 
+ export const POST: APIRoute = async ({ request, locals }) => {
+ 	const { emdash } = locals;
+-
+-	if (!emdash?.db) {
+-		return apiError("NOT_CONFIGURED", "EmDash is not initialized", 500);
+-	}
+ 
+ 	try {
++		const db = emdash?.db ?? (await getDb());
++		const config = emdash?.config ?? virtualConfig;
++
+ 		// Check if setup is already complete
+-		const options = new OptionsRepository(emdash.db);
++		const options = new OptionsRepository(db);
+ 		const setupComplete = await options.get("emdash:setup_complete");
+ 
+ 		if (setupComplete === true || setupComplete === "true") {
+@@ -36,7 +37,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
+ 		}
+ 
+ 		// Check if any users exist
+-		const adapter = createKyselyAdapter(emdash.db);
++		const adapter = createKyselyAdapter(db);
+ 		const userCount = await adapter.countUsers();
+ 
+ 		if (userCount > 0) {
+@@ -56,11 +57,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
+ 		// Get passkey config
+ 		const url = new URL(request.url);
+ 		const siteName = (await options.get<string>("emdash:site_title")) ?? undefined;
+-		const siteUrl = getPublicOrigin(url, emdash?.config);
++		const siteUrl = getPublicOrigin(url, config);
+ 		const passkeyConfig = getPasskeyConfig(url, siteName, siteUrl);
+ 
+ 		// Verify the registration response
+-		const challengeStore = createChallengeStore(emdash.db);
++		const challengeStore = createChallengeStore(db);
+ 
+ 		const verified = await verifyRegistrationResponse(
+ 			passkeyConfig,

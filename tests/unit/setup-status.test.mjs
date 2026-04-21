@@ -10,6 +10,15 @@ const emdashSetupStatusRoutePath = fileURLToPath(
   new URL("../../node_modules/emdash/src/astro/routes/api/setup/status.ts", import.meta.url),
 );
 const emdashMiddlewarePath = fileURLToPath(new URL("../../node_modules/emdash/src/astro/middleware.ts", import.meta.url));
+const emdashSetupIndexRoutePath = fileURLToPath(
+  new URL("../../node_modules/emdash/src/astro/routes/api/setup/index.ts", import.meta.url),
+);
+const emdashSetupAdminRoutePath = fileURLToPath(
+  new URL("../../node_modules/emdash/src/astro/routes/api/setup/admin.ts", import.meta.url),
+);
+const emdashSetupAdminVerifyRoutePath = fileURLToPath(
+  new URL("../../node_modules/emdash/src/astro/routes/api/setup/admin-verify.ts", import.meta.url),
+);
 const emdashPatchPath = fileURLToPath(new URL("../../patches/emdash@0.5.0.patch", import.meta.url));
 
 function createDbStub({ options = [], userCount = 0, throwOptions = false, throwUsers = false } = {}) {
@@ -106,8 +115,34 @@ test("patched EmDash setup-status route includes the db fallback compatibility s
 test("patched EmDash middleware treats setup-status as a setup-safe path", async () => {
   const contents = await readFile(emdashMiddlewarePath, "utf8");
 
-  assert.match(contents, /const isSetupStatusRoute = url\.pathname === "\/_emdash\/api\/setup\/status";/);
-  assert.match(contents, /if \(isSetupShellRoute \|\| isSetupStatusRoute\) \{/);
+  assert.match(contents, /const isSetupApiRoute = url\.pathname\.startsWith\("\/_emdash\/api\/setup"\);/);
+  assert.match(contents, /if \(isSetupShellRoute \|\| isSetupApiRoute\) \{/);
+});
+
+test("patched EmDash setup API routes use shared db and config fallbacks", async () => {
+  const setupIndexContents = await readFile(emdashSetupIndexRoutePath, "utf8");
+  const setupAdminContents = await readFile(emdashSetupAdminRoutePath, "utf8");
+  const setupAdminVerifyContents = await readFile(emdashSetupAdminVerifyRoutePath, "utf8");
+
+  assert.match(setupIndexContents, /import virtualConfig from "virtual:emdash\/config";/);
+  assert.match(setupIndexContents, /import \{ createStorage as virtualCreateStorage \} from "virtual:emdash\/storage";/);
+  assert.match(setupIndexContents, /import \{ getDb \} from "\.\.\/\.\.\/\.\.\/\.\.\/loader\.js";/);
+  assert.match(setupIndexContents, /const db = emdash\?\.db \?\? \(await getDb\(\)\);/);
+  assert.match(setupIndexContents, /const config = emdash\?\.config \?\? virtualConfig;/);
+  assert.match(setupIndexContents, /const storage =/);
+  assert.doesNotMatch(setupIndexContents, /apiError\("NOT_CONFIGURED", "EmDash is not initialized", 500\)/);
+
+  assert.match(setupAdminContents, /import virtualConfig from "virtual:emdash\/config";/);
+  assert.match(setupAdminContents, /import \{ getDb \} from "\.\.\/\.\.\/\.\.\/\.\.\/loader\.js";/);
+  assert.match(setupAdminContents, /const db = emdash\?\.db \?\? \(await getDb\(\)\);/);
+  assert.match(setupAdminContents, /const config = emdash\?\.config \?\? virtualConfig;/);
+  assert.doesNotMatch(setupAdminContents, /apiError\("NOT_CONFIGURED", "EmDash is not initialized", 500\)/);
+
+  assert.match(setupAdminVerifyContents, /import virtualConfig from "virtual:emdash\/config";/);
+  assert.match(setupAdminVerifyContents, /import \{ getDb \} from "\.\.\/\.\.\/\.\.\/\.\.\/loader\.js";/);
+  assert.match(setupAdminVerifyContents, /const db = emdash\?\.db \?\? \(await getDb\(\)\);/);
+  assert.match(setupAdminVerifyContents, /const config = emdash\?\.config \?\? virtualConfig;/);
+  assert.doesNotMatch(setupAdminVerifyContents, /apiError\("NOT_CONFIGURED", "EmDash is not initialized", 500\)/);
 });
 
 test("tracked EmDash patch preserves the shared setup-status compatibility seam", async () => {
@@ -117,6 +152,9 @@ test("tracked EmDash patch preserves the shared setup-status compatibility seam"
   assert.match(contents, /\+import \{ getDb \} from "\.\.\/\.\.\/\.\.\/\.\.\/loader\.js";/);
   assert.match(contents, /\+\t\tconst db = emdash\?\.db \?\? \(await getDb\(\)\);/);
   assert.match(contents, /\+\t\tconst useExternalAuth = authMode\?\.type === "external";/);
-  assert.match(contents, /\+\tconst isSetupStatusRoute = url\.pathname === "\/_emdash\/api\/setup\/status";/);
-  assert.match(contents, /\+\tif \(isSetupShellRoute \|\| isSetupStatusRoute\) \{/);
+  assert.match(contents, /\+\tconst isSetupApiRoute = url\.pathname\.startsWith\("\/_emdash\/api\/setup"\);/);
+  assert.match(contents, /\+\tif \(isSetupShellRoute \|\| isSetupApiRoute\) \{/);
+  assert.match(contents, /diff --git a\/src\/astro\/routes\/api\/setup\/index\.ts b\/src\/astro\/routes\/api\/setup\/index\.ts/);
+  assert.match(contents, /diff --git a\/src\/astro\/routes\/api\/setup\/admin\.ts b\/src\/astro\/routes\/api\/setup\/admin\.ts/);
+  assert.match(contents, /diff --git a\/src\/astro\/routes\/api\/setup\/admin-verify\.ts b\/src\/astro\/routes\/api\/setup\/admin-verify\.ts/);
 });
