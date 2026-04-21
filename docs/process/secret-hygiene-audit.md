@@ -17,7 +17,7 @@ The current maintained `scripts/**` entrypoints reviewed in this pass did not co
 
 The current maintained script entrypoints now use the shared `scripts/_local-env.mjs` helper where local env loading is required, so secret loading stays auditable and consistent without sourcing env files as shell code.
 
-The reviewed local command wrappers and deploy wrapper now inject the local Hyperdrive connection-string compatibility variable only when `DATABASE_TRANSPORT=hyperdrive`, which keeps the required credential in env files instead of tracked scripts.
+The reviewed local command wrappers and deploy wrapper now inject the local Hyperdrive connection-string compatibility variable unless local execution explicitly opts into `DATABASE_TRANSPORT=direct`, which keeps the required credential in env files instead of tracked scripts, avoids leaking transport-specific settings into reviewed direct-postgresql local flows, and still lets local Cloudflare tooling follow the current Hyperdrive Worker baseline with the existing non-secret local default when no credential-bearing `DATABASE_URL` is configured.
 
 The current repository posture should therefore be described as:
 

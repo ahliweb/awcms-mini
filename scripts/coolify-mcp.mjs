@@ -5,7 +5,8 @@ import { loadLocalEnvFiles } from "./_local-env.mjs";
 loadLocalEnvFiles();
 
 if (!process.env.COOLIFY_BASE_URL) {
-  process.env.COOLIFY_BASE_URL = "https://app.coolify.io";
+  console.error("COOLIFY_BASE_URL must be set in .env, .env.local, or the environment");
+  process.exit(1);
 }
 
 if (!process.env.COOLIFY_ACCESS_TOKEN) {

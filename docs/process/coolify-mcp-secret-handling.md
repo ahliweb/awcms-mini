@@ -57,7 +57,7 @@ COOLIFY_ACCESS_TOKEN=<local-only-secret>
 
 If you want a tracked example for non-secret local defaults, keep only `COOLIFY_BASE_URL` in `.env.example` and keep `COOLIFY_ACCESS_TOKEN` in `.env.local`.
 
-The local wrapper now loads `.env.local` and `.env` through the shared Node env loader rather than sourcing them as shell code, which keeps local operator secrets aligned with the safer script pattern already used elsewhere in the repository.
+The local wrapper now loads `.env.local` and `.env` through the shared Node env loader rather than sourcing them as shell code, and it requires `COOLIFY_BASE_URL` plus `COOLIFY_ACCESS_TOKEN` to come from env-managed configuration instead of script defaults.
 
 ## Local CLI And MCP Workflow
 
