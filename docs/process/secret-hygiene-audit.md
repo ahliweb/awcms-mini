@@ -66,6 +66,33 @@ Preferred repository patterns:
 - docs describe variable names and storage locations without including live values
 - Coolify, Cloudflare, and database credentials remain separate by purpose and scope
 
+## Automated Coverage
+
+The repository now includes `pnpm check:secret-hygiene` as the focused automated regression check for reviewed maintained surfaces.
+
+Current scan scope:
+
+- `.env.example`
+- `README.md`
+- `scripts/**/*.mjs`
+- `docs/process/**/*.md`
+- `docs/security/**/*.md`
+
+Current detection focus:
+
+- hardcoded sensitive env assignments such as `*_TOKEN`, `*_SECRET`, `*_PASSWORD`, and `*_ENCRYPTION_KEY`
+- hardcoded `process.env.*` assignments for those same secret-bearing names
+- credential-bearing URLs with embedded usernames and passwords
+- inline Bearer-token values
+
+Current reviewed allowlist behavior:
+
+- placeholders such as `<password>`, `<local-only-secret>`, and `replace-with-...` remain allowed
+- env indirection such as shell-variable references remains allowed
+- reviewed non-secret defaults such as `COOLIFY_BASE_URL=https://app.coolify.io` remain allowed
+
+If a new maintained path needs coverage, extend the scanner target list and add or update focused tests in the same issue-scoped change so the allowlist stays explicit and reviewable.
+
 ## Cleanup Rules
 
 If the audit finds a confirmed issue:
@@ -94,6 +121,7 @@ If the audit does not find confirmed live secrets:
 
 ## Validation
 
+- `pnpm check:secret-hygiene` for the focused automated regression check
 - `pnpm lint` for docs and config-example updates
 - focused review of changed examples for residual secret exposure
 - `pnpm check` only if the audit changes runtime or script behavior
