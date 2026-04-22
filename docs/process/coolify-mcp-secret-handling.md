@@ -30,6 +30,8 @@ Use one of these local-only secret locations:
 2. a shell secret manager or password-manager CLI integration
 3. the MCP client's local secret or environment-variable configuration if supported
 
+Tracked local env-style files should stay limited to `.env.example`. The repo now treats tracked `.env*` and `.dev.vars*` files as a secret-hygiene failure so operator-local Coolify, Cloudflare, and PostgreSQL secrets do not drift into source control.
+
 Preferred pattern:
 
 - store the live Coolify token in a local-only secret location

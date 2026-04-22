@@ -2,7 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  LOCAL_SECRET_FILE_ALLOWLIST,
+  LOCAL_SECRET_FILE_PATTERNS,
   SECRET_HYGIENE_SCAN_TARGETS,
+  findTrackedLocalSecretFiles,
+  isTrackedLocalSecretFile,
   scanSecretHygieneLine,
   scanSecretHygieneText,
 } from "../../scripts/check-secret-hygiene.mjs";
@@ -63,6 +67,30 @@ test("secret hygiene scan flags inline bearer tokens", async () => {
   assert.equal(findings[0].kind, "bearer-token");
 });
 
+test("tracked local secret file detection ignores the reviewed example allowlist", async () => {
+  assert.equal(isTrackedLocalSecretFile(".env.example"), false);
+});
+
+test("tracked local secret file detection flags env and Cloudflare dev secret files", async () => {
+  assert.equal(isTrackedLocalSecretFile(".env"), true);
+  assert.equal(isTrackedLocalSecretFile(".env.local"), true);
+  assert.equal(isTrackedLocalSecretFile(".env.production"), true);
+  assert.equal(isTrackedLocalSecretFile(".dev.vars"), true);
+  assert.equal(isTrackedLocalSecretFile(".dev.vars.staging"), true);
+});
+
+test("findTrackedLocalSecretFiles returns only reviewed local secret file classes", async () => {
+  const findings = await findTrackedLocalSecretFiles("/repo", [
+    ".env.example",
+    ".env.local",
+    ".dev.vars.production",
+    "README.md",
+    "scripts/check-secret-hygiene.mjs",
+  ]);
+
+  assert.deepEqual(findings, [".env.local", ".dev.vars.production"]);
+});
+
 test("secret hygiene scan targets the reviewed maintained surfaces", async () => {
   assert.deepEqual(SECRET_HYGIENE_SCAN_TARGETS, [
     { path: ".env.example", type: "file" },
@@ -71,4 +99,9 @@ test("secret hygiene scan targets the reviewed maintained surfaces", async () =>
     { path: "docs/process", type: "directory", extensions: [".md"] },
     { path: "docs/security", type: "directory", extensions: [".md"] },
   ]);
+});
+
+test("tracked local secret file patterns stay aligned with reviewed env storage classes", async () => {
+  assert.deepEqual(LOCAL_SECRET_FILE_PATTERNS, [".env", ".env.*", ".dev.vars", ".dev.vars.*"]);
+  assert.deepEqual(LOCAL_SECRET_FILE_ALLOWLIST, [".env.example"]);
 });

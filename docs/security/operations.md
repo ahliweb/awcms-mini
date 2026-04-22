@@ -73,6 +73,7 @@ Security operations should treat those as separate trust boundaries.
 - Store `EDGE_API_JWT_SECRET` as a Cloudflare-managed secret or equivalent server-only runtime secret.
 - Keep `EDGE_API_ALLOWED_ORIGINS` empty unless a reviewed browser-based external client explicitly needs cross-origin access.
 - Prefer host-only cookies unless a reviewed operator workflow requires public/admin cross-host session sharing.
+- Keep local Cloudflare and operator secret files such as `.env.local`, `.env.<environment>.local`, `.dev.vars`, and `.dev.vars.<environment>` untracked; tracked env-style files should stay limited to reviewed placeholder examples such as `.env.example`.
 
 See `docs/process/cloudflare-hosted-runtime.md` for the supported Cloudflare runtime and deployment checks.
 

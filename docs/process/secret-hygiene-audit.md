@@ -77,6 +77,7 @@ Current scan scope:
 - `scripts/**/*.mjs`
 - `docs/process/**/*.md`
 - `docs/security/**/*.md`
+- tracked-file inventory for local secret file classes that must remain untracked
 
 Current detection focus:
 
@@ -84,12 +85,14 @@ Current detection focus:
 - hardcoded `process.env.*` assignments for those same secret-bearing names
 - credential-bearing URLs with embedded usernames and passwords
 - inline Bearer-token values
+- tracked local secret files such as `.env`, `.env.local`, `.env.<environment>`, `.dev.vars`, and `.dev.vars.<environment>`
 
 Current reviewed allowlist behavior:
 
 - placeholders such as `<password>`, `<local-only-secret>`, and `replace-with-...` remain allowed
 - env indirection such as shell-variable references remains allowed
 - reviewed non-secret defaults such as `COOLIFY_BASE_URL=https://app.coolify.io` remain allowed
+- `.env.example` remains the only reviewed tracked env-style example file
 
 If a new maintained path needs coverage, extend the scanner target list and add or update focused tests in the same issue-scoped change so the allowlist stays explicit and reviewable.
 

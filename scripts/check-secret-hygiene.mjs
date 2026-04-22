@@ -1,6 +1,10 @@
 import { readdir, readFile } from "node:fs/promises";
+import { execFile as execFileCallback } from "node:child_process";
 import { extname, join, relative, resolve } from "node:path";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+
+const execFile = promisify(execFileCallback);
 
 export const SECRET_HYGIENE_SCAN_TARGETS = [
   { path: ".env.example", type: "file" },
@@ -9,6 +13,15 @@ export const SECRET_HYGIENE_SCAN_TARGETS = [
   { path: "docs/process", type: "directory", extensions: [".md"] },
   { path: "docs/security", type: "directory", extensions: [".md"] },
 ];
+
+export const LOCAL_SECRET_FILE_PATTERNS = [
+  ".env",
+  ".env.*",
+  ".dev.vars",
+  ".dev.vars.*",
+];
+
+export const LOCAL_SECRET_FILE_ALLOWLIST = [".env.example"];
 
 const SENSITIVE_ENV_SUFFIX_PATTERN =
   /(?:ACCESS_TOKEN|REFRESH_TOKEN|TOKEN|SECRET|SECRET_KEY|PASSWORD|ENCRYPTION_KEY|CLIENT_SECRET|PRIVATE_KEY|ACCESS_KEY)$/;
@@ -41,6 +54,21 @@ function createFinding(filePath, lineNumber, kind, detail, line) {
     detail,
     line: line.trim(),
   };
+}
+
+export function isTrackedLocalSecretFile(filePath) {
+  const normalized = filePath.trim();
+
+  if (!normalized || LOCAL_SECRET_FILE_ALLOWLIST.includes(normalized)) {
+    return false;
+  }
+
+  return (
+    normalized === ".env" ||
+    normalized.startsWith(".env.") ||
+    normalized === ".dev.vars" ||
+    normalized.startsWith(".dev.vars.")
+  );
 }
 
 export function scanSecretHygieneLine(filePath, line, lineNumber) {
@@ -78,6 +106,24 @@ export function scanSecretHygieneText(filePath, text) {
   return text
     .split(/\r?\n/)
     .flatMap((line, index) => scanSecretHygieneLine(filePath, line, index + 1));
+}
+
+export async function listTrackedFiles(rootDir = process.cwd()) {
+  const { stdout } = await execFile("git", ["ls-files", "--cached"], {
+    cwd: rootDir,
+    encoding: "utf8",
+  });
+
+  return stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .sort();
+}
+
+export async function findTrackedLocalSecretFiles(rootDir = process.cwd(), trackedFiles = null) {
+  const files = trackedFiles ?? (await listTrackedFiles(rootDir));
+  return files.filter(isTrackedLocalSecretFile);
 }
 
 async function collectFilesFromDirectory(rootDir, directoryPath, extensions) {
@@ -119,10 +165,15 @@ export async function collectSecretHygieneTargets(rootDir = process.cwd()) {
 export async function scanSecretHygieneFiles(rootDir = process.cwd()) {
   const files = await collectSecretHygieneTargets(rootDir);
   const findings = [];
+  const trackedLocalSecretFiles = await findTrackedLocalSecretFiles(rootDir);
 
   for (const filePath of files) {
     const contents = await readFile(filePath, "utf8");
     findings.push(...scanSecretHygieneText(relative(rootDir, filePath), contents));
+  }
+
+  for (const filePath of trackedLocalSecretFiles) {
+    findings.push(createFinding(filePath, 0, "tracked-local-secret-file", filePath, filePath));
   }
 
   return { files, findings };
