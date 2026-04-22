@@ -23,6 +23,23 @@ test("resolveSmokeBaseUrl prefers an explicit argument over env defaults", async
   assert.equal(url.pathname, "/");
 });
 
+test("resolveSmokeBaseUrl ignores pnpm's double-dash separator", async () => {
+  const originalArgv = process.argv;
+  process.argv = ["node", "scripts/smoke-cloudflare-admin.mjs", "--", "https://example.test/path"];
+
+  try {
+    const url = resolveSmokeBaseUrl(undefined, {
+      SMOKE_TEST_BASE_URL: "https://fallback.test",
+      SITE_URL: "https://site.test",
+    });
+
+    assert.equal(url.origin, "https://example.test");
+    assert.equal(url.pathname, "/");
+  } finally {
+    process.argv = originalArgv;
+  }
+});
+
 test("evaluateAdminEntryAliasResponse accepts the reviewed same-host redirect", async () => {
   const response = new Response(null, {
     status: 302,

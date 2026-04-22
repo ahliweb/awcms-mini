@@ -18,7 +18,19 @@ function normalizeOptionalString(value) {
   return next.length > 0 ? next : null;
 }
 
-export function resolveSmokeBaseUrl(input = process.argv[2], env = process.env) {
+function resolveCliBaseUrlArg(argv = process.argv) {
+  for (const value of argv.slice(2)) {
+    if (value === "--") {
+      continue;
+    }
+
+    return value;
+  }
+
+  return null;
+}
+
+export function resolveSmokeBaseUrl(input = resolveCliBaseUrlArg(), env = process.env) {
   const raw = normalizeOptionalString(input) || normalizeOptionalString(env.SMOKE_TEST_BASE_URL) || normalizeOptionalString(env.SITE_URL);
 
   if (!raw) {
