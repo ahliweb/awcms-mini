@@ -103,7 +103,8 @@ The smoke result reports separate checks for:
    - hostname validation matches the reviewed hostname set for the environment
 5. Confirm the deployed runtime still has the `MEDIA_BUCKET` binding for `awcms-mini-s3`.
 6. Re-run `pnpm healthcheck` or the target-environment equivalent after Cloudflare-side changes complete.
-7. When issue `#180` or related EmDash compatibility work is in scope, run `pnpm db:migrate:emdash:status` against the target database and confirm the reported state is `compatible` before removing any temporary setup-path fallback.
+7. When issue `#180` or related EmDash compatibility work is in scope, run `pnpm db:migrate` first so `034_emdash_compatibility_support_tables` can backfill any missing reviewed support tables and seed the canonical EmDash prefix on empty ledgers.
+8. Then run `pnpm db:migrate:emdash:status` against the target database and confirm the reported state is `compatible` before removing any temporary setup-path fallback.
 
 ## Failure Modes
 

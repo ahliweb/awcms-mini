@@ -30,6 +30,7 @@ Complete these checks before applying migrations or releasing a new build.
 ### Schema Readiness
 
 - [ ] Review pending migrations with `pnpm db:migrate:status`
+- [ ] When issue `#180` or another EmDash migration-compatibility change is in scope, confirm the branch includes `034_emdash_compatibility_support_tables` or a reviewed equivalent before the deploy window
 - [ ] When issue `#180` or another EmDash migration-compatibility change is in scope, run `pnpm db:migrate:emdash:status` and record whether the ledger is `compatible`, `repairable`, `unsafe`, or `empty`
 - [ ] Confirm the release does not rely on ad hoc schema edits outside Kysely migrations
 - [ ] Confirm rollback impact for the newest migration is understood before deployment
@@ -80,11 +81,12 @@ Perform these steps during the release window.
 1. Run `pnpm db:migrate`
 2. Run `pnpm db:migrate:status`
 3. When issue `#180` or another EmDash migration-compatibility change is in scope, run `pnpm db:migrate:emdash:status`
-4. If the EmDash ledger state is `repairable`, run `pnpm db:migrate:emdash:repair`
-5. Re-run `pnpm db:migrate:emdash:status` and confirm the ledger state is `compatible`
-6. Confirm no unexpected pending migrations remain
-7. Deploy the application build
-8. Run `pnpm healthcheck`
+4. If the EmDash ledger state is `empty` after `pnpm db:migrate`, stop the release and investigate the compatibility bootstrap path instead of forcing manual ledger edits
+5. If the EmDash ledger state is `repairable`, run `pnpm db:migrate:emdash:repair`
+6. Re-run `pnpm db:migrate:emdash:status` and confirm the ledger state is `compatible`
+7. Confirm no unexpected pending migrations remain
+8. Deploy the application build
+9. Run `pnpm healthcheck`
 
 Use expectation variables when the release has a reviewed target posture, for example:
 
@@ -118,6 +120,7 @@ Validate the live system in this order.
 - [ ] `pnpm db:migrate:status` shows the expected applied migration state
 - [ ] No unexpected migration drift is present between environments
 - [ ] When the release touched EmDash runtime compatibility, `pnpm db:migrate:emdash:status` reports `compatible`
+- [ ] When the release touched EmDash runtime compatibility, `_emdash_migrations` is not left `empty` after the reviewed compatibility bootstrap migration path
 
 ### Auth
 

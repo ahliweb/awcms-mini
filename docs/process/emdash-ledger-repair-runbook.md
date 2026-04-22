@@ -21,6 +21,7 @@ Do not use this runbook for routine releases that do not touch EmDash runtime co
 - `DATABASE_CONNECT_TIMEOUT_MS` is set to a reviewed value such as `10000` so operator commands fail fast if the PostgreSQL path is unreachable
 - no credentials are pasted into tracked scripts, docs, issue bodies, or shell history exports
 - `pnpm test:unit` has passed for the current branch
+- `pnpm db:migrate` has been run for the current branch so `034_emdash_compatibility_support_tables` can backfill any missing reviewed support tables before ledger inspection
 - `pnpm db:migrate:emdash:status` has been run and its output recorded
 
 ## Safety Rules
@@ -40,33 +41,41 @@ Do not use this runbook for routine releases that do not touch EmDash runtime co
 
 ## Repair Flow
 
-1. Inspect the ledger state:
+1. Apply the current reviewed Mini migrations first:
+
+```bash
+pnpm db:migrate
+```
+
+2. Inspect the ledger state:
 
 ```bash
 pnpm db:migrate:emdash:status
 ```
 
-2. If the state is `repairable`, apply the repair:
+3. If the state is `empty` after `pnpm db:migrate`, stop and investigate instead of forcing a repair. The current reviewed branch expects `034_emdash_compatibility_support_tables` to seed the canonical EmDash compatibility prefix on empty ledgers.
+
+4. If the state is `repairable`, apply the repair:
 
 ```bash
 pnpm db:migrate:emdash:repair
 ```
 
-3. Re-run the status check:
+5. Re-run the status check:
 
 ```bash
 pnpm db:migrate:emdash:status
 ```
 
-4. Confirm the state is now `compatible`.
+6. Confirm the state is now `compatible`.
 
-5. Re-run the current release validation path:
+7. Re-run the current release validation path:
 
 ```bash
 pnpm healthcheck
 ```
 
-6. For Cloudflare-hosted validation, confirm the current setup path still responds:
+8. For Cloudflare-hosted validation, confirm the current setup path still responds:
 
 ```bash
 curl -i https://awcms-mini.ahlikoding.com/_emdash/api/setup/status
@@ -75,6 +84,7 @@ curl -i https://awcms-mini.ahlikoding.com/_emdash/api/setup/status
 ## Rollback Guidance
 
 - if `pnpm db:migrate:emdash:status` reports `unsafe`, stop and investigate instead of forcing a repair
+- if `pnpm db:migrate:emdash:status` still reports `empty` after `pnpm db:migrate` on the reviewed branch, stop and investigate the migration/bootstrap path instead of manually inserting ledger rows
 - if the command fails before reporting a ledger state, use the printed database error `kind` and `reason` to classify the blocker before retrying:
   - `connection_timeout`: verify the Cloudflare-to-Coolify or operator-to-VPS route is reachable
   - `credential_format`: verify the effective `DATABASE_URL` contains a valid username/password pair and that local env loading did not leave the password unset or malformed
