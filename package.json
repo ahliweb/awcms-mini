@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@astrojs/cloudflare": "^13.1.10",
-    "@astrojs/node": "^10.0.4",
+    "@astrojs/node": "^10.0.5",
     "@astrojs/react": "^5.0.3",
     "astro": "^6.1.8",
     "better-sqlite3": "^12.9.0",
