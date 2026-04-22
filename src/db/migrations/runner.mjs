@@ -78,6 +78,14 @@ export async function getEmdashMigrationStatus(db) {
   };
 }
 
+export function verifyEmdashMigrationStatus(status) {
+  if (status?.repair?.state !== "compatible") {
+    throw new Error(`Expected EmDash compatibility state=compatible but found ${status?.repair?.state ?? "unknown"}`);
+  }
+
+  return status;
+}
+
 async function readEmdashMigrationLedger(db) {
   try {
     return await db

@@ -84,9 +84,10 @@ Perform these steps during the release window.
 4. If the EmDash ledger state is `empty` after `pnpm db:migrate`, stop the release and investigate the compatibility bootstrap path instead of forcing manual ledger edits
 5. If the EmDash ledger state is `repairable`, run `pnpm db:migrate:emdash:repair`
 6. Re-run `pnpm db:migrate:emdash:status` and confirm the ledger state is `compatible`
-7. Confirm no unexpected pending migrations remain
-8. Deploy the application build
-9. Run `pnpm healthcheck`
+7. Run `pnpm db:migrate:emdash:verify` so the release fails fast unless the ledger is deploy-safe
+8. Confirm no unexpected pending migrations remain
+9. Deploy the application build
+10. Run `pnpm healthcheck`
 
 Use expectation variables when the release has a reviewed target posture, for example:
 
@@ -248,8 +249,10 @@ pnpm test:unit
 pnpm build
 pnpm db:migrate:status
 pnpm db:migrate:emdash:status
+pnpm db:migrate:emdash:verify
 pnpm db:migrate
 pnpm db:migrate:status
 pnpm db:migrate:emdash:status
+pnpm db:migrate:emdash:verify
 pnpm healthcheck
 ```

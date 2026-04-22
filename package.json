@@ -24,6 +24,7 @@
     "db:migrate:down": "node ./scripts/db-migrate.mjs down",
     "db:migrate:status": "node ./scripts/db-migrate.mjs status",
     "db:migrate:emdash:status": "node ./scripts/db-migrate.mjs emdash-status",
+    "db:migrate:emdash:verify": "node ./scripts/db-migrate.mjs emdash-verify",
     "db:migrate:emdash:repair": "node ./scripts/db-migrate.mjs emdash-repair",
     "db:seed:administrative-regions": "node ./scripts/db-seed-administrative-regions.mjs"
   },

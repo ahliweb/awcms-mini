@@ -69,13 +69,19 @@ pnpm db:migrate:emdash:status
 
 6. Confirm the state is now `compatible`.
 
-7. Re-run the current release validation path:
+7. Use the repo-owned verification command to fail fast if the ledger is still not deploy-safe:
+
+```bash
+pnpm db:migrate:emdash:verify
+```
+
+8. Re-run the current release validation path:
 
 ```bash
 pnpm healthcheck
 ```
 
-8. For Cloudflare-hosted validation, confirm the current setup path still responds:
+9. For Cloudflare-hosted validation, confirm the current setup path still responds:
 
 ```bash
 curl -i https://awcms-mini.ahlikoding.com/_emdash/api/setup/status

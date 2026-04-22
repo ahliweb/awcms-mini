@@ -14,6 +14,8 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
   - prints applied and pending migration names
 - `pnpm db:migrate:emdash:status`
   - inspects the EmDash `_emdash_migrations` ledger and reports whether the current Mini compatibility prefix is compatible, repairable, or unsafe
+- `pnpm db:migrate:emdash:verify`
+  - exits non-zero unless the EmDash `_emdash_migrations` ledger is already `compatible`
 - `pnpm db:migrate:emdash:repair`
   - rewrites `_emdash_migrations` only when the current rows are a repairable permutation of the expected Mini compatibility prefix
 
@@ -87,6 +89,12 @@ pnpm db:migrate:status
 
 ```bash
 pnpm db:migrate:emdash:status
+```
+
+### Verify EmDash Ledger Compatibility
+
+```bash
+pnpm db:migrate:emdash:verify
 ```
 
 ### Repair EmDash Ledger Ordering

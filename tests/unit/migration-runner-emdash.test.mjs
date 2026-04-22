@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { EMDASH_MINI_COMPATIBILITY_MIGRATIONS } from "../../src/db/migrations/emdash-compatibility.mjs";
-import { getEmdashMigrationStatus, repairEmdashMigrationLedger } from "../../src/db/migrations/runner.mjs";
+import { getEmdashMigrationStatus, repairEmdashMigrationLedger, verifyEmdashMigrationStatus } from "../../src/db/migrations/runner.mjs";
 
 function createLedgerDbStub({ rows = [], throwMissingTable = false } = {}) {
   const state = {
@@ -93,6 +93,29 @@ test("getEmdashMigrationStatus reports repairable out-of-order canonical ledgers
   assert.deepEqual(status.applied, ["001_initial", "003_schema_registry", "002_media_status"]);
   assert.equal(status.repair.state, "repairable");
   assert.deepEqual(status.pending, EMDASH_MINI_COMPATIBILITY_MIGRATIONS.slice(3));
+});
+
+test("verifyEmdashMigrationStatus accepts compatible ledgers", async () => {
+  const { db } = createLedgerDbStub({
+    rows: EMDASH_MINI_COMPATIBILITY_MIGRATIONS.slice(0, 3).map((name, index) => ({
+      name,
+      timestamp: new Date(Date.UTC(2026, 1, 3, 10, index, 0)).toISOString(),
+    })),
+  });
+
+  const status = await getEmdashMigrationStatus(db);
+
+  assert.equal(verifyEmdashMigrationStatus(status), status);
+});
+
+test("verifyEmdashMigrationStatus rejects non-compatible ledgers", async () => {
+  const { db } = createLedgerDbStub({ throwMissingTable: true });
+  const status = await getEmdashMigrationStatus(db);
+
+  assert.throws(
+    () => verifyEmdashMigrationStatus(status),
+    /Expected EmDash compatibility state=compatible but found empty/,
+  );
 });
 
 test("repairEmdashMigrationLedger rewrites repairable ledgers into canonical prefix order", async () => {

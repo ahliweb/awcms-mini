@@ -105,6 +105,7 @@ The smoke result reports separate checks for:
 6. Re-run `pnpm healthcheck` or the target-environment equivalent after Cloudflare-side changes complete.
 7. When issue `#180` or related EmDash compatibility work is in scope, run `pnpm db:migrate` first so `034_emdash_compatibility_support_tables` can backfill any missing reviewed support tables and seed the canonical EmDash prefix on empty ledgers.
 8. Then run `pnpm db:migrate:emdash:status` against the target database and confirm the reported state is `compatible` before removing any temporary setup-path fallback.
+9. Run `pnpm db:migrate:emdash:verify` so the release window fails fast unless the ledger is already deploy-safe.
 
 ## Failure Modes
 

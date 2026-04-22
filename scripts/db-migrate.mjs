@@ -9,11 +9,12 @@ import {
   migrateToLatest,
   NO_MIGRATIONS,
   repairEmdashMigrationLedger,
+  verifyEmdashMigrationStatus,
 } from "../src/db/migrations/runner.mjs";
 import { loadLocalEnvFiles } from "./_local-env.mjs";
 
 function printUsage() {
-  console.log("Usage: node scripts/db-migrate.mjs <latest|down|status|emdash-status|emdash-repair>");
+  console.log("Usage: node scripts/db-migrate.mjs <latest|down|status|emdash-status|emdash-verify|emdash-repair>");
 }
 
 function printDatabaseError(error) {
@@ -49,7 +50,7 @@ async function main() {
 
   const command = process.argv[2];
 
-  if (!command || !["latest", "down", "status", "emdash-status", "emdash-repair"].includes(command)) {
+  if (!command || !["latest", "down", "status", "emdash-status", "emdash-verify", "emdash-repair"].includes(command)) {
     printUsage();
     process.exitCode = 1;
     return;
@@ -72,6 +73,21 @@ async function main() {
     if (command === "emdash-status") {
       const status = await getEmdashMigrationStatus(db);
       printEmdashStatus(status);
+      return;
+    }
+
+    if (command === "emdash-verify") {
+      const status = await getEmdashMigrationStatus(db);
+      printEmdashStatus(status);
+
+      try {
+        verifyEmdashMigrationStatus(status);
+        console.log("EmDash compatibility verified.");
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exitCode = 1;
+      }
+
       return;
     }
 
