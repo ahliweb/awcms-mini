@@ -43,10 +43,12 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
 - `013_user_roles` adds effective-dated user role assignments with primary-role support and partial unique indexes for active-role enforcement
 - `032_edge_api_permissions` adds canonical self-service edge API permission entries and role grants for the current `/api/v1/session` baseline so protected edge routes use the shared authorization model
 - `031_soft_delete_operator_attribution_catalogs` adds `deleted_by_user_id` and `delete_reason` to operator-managed logical-region and job-catalog tables so soft delete attribution matches the established user and role contract
+- `034_emdash_compatibility_support_tables` backfills the missing upstream EmDash runtime support tables Mini needs for compatibility work and seeds the canonical `001` through `009` `_emdash_migrations` prefix when the EmDash ledger is still empty
 
 ## Current EmDash Runtime Caveat
 
 - The current live Cloudflare setup path now relies on a shared EmDash-side `/_emdash/api/setup/status` database fallback instead of the earlier Mini-only middleware override, but issue `#180` remains open until the broader runtime initialization path stops colliding with the Mini-owned schema and ledger.
+- The current repo now backfills the missing upstream support tables and seeds the canonical EmDash compatibility prefix only when `_emdash_migrations` is still empty, so fresh Mini-owned environments stop replaying `001_initial` blindly over the existing schema before the later runtime-compatibility work lands.
 - The underlying EmDash runtime initialization path is still colliding with Mini's existing PostgreSQL schema and `_emdash_migrations` ledger when it tries to reconcile upstream core migrations against the Mini-owned bootstrap.
 - Confirmed live failure signatures during issue `#180` investigation include:
   - `Migration failed: column "actor_id" does not exist (migration: 001_initial)`
