@@ -70,6 +70,18 @@ pnpm healthcheck
 
 Use these checks after Cloudflare hostname, Turnstile, or R2 automation changes.
 
+Combined reviewed live-baseline path:
+
+```bash
+pnpm verify:live-runtime -- https://awcms-mini.ahlikoding.com
+```
+
+This command reuses the current repo-owned verification steps in order:
+
+- `pnpm healthcheck`
+- `pnpm db:migrate:emdash:verify`
+- `pnpm smoke:cloudflare-admin`
+
 Focused automation path:
 
 ```bash

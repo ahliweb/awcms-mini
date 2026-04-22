@@ -13,6 +13,7 @@
     "coolify:mcp": "node ./scripts/coolify-mcp.mjs",
     "deploy:cloudflare": "node ./scripts/deploy-cloudflare.mjs",
     "smoke:cloudflare-admin": "node ./scripts/smoke-cloudflare-admin.mjs",
+    "verify:live-runtime": "node ./scripts/verify-live-runtime.mjs",
     "check": "pnpm check:secret-hygiene && pnpm typecheck && pnpm test:unit && pnpm build && pnpm lint",
     "check:secret-hygiene": "node ./scripts/check-secret-hygiene.mjs",
     "lint": "pnpm prettier --check README.md DOCS_INDEX.md REQUIREMENTS.md SECURITY.md AGENTS.md docs/**/*.md package.json",
