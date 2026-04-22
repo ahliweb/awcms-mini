@@ -30,7 +30,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Purpose: selects whether the runtime should use direct `DATABASE_URL` transport or a Cloudflare Hyperdrive binding.
 - Supported values: `direct`, `hyperdrive`.
 - Default fallback: `direct`.
-- Production guidance: keep `direct` until the Cloudflare deployment has a reviewed Hyperdrive binding and rollout plan.
+- Production guidance: the current reviewed Cloudflare Worker baseline uses `hyperdrive` with the `HYPERDRIVE` binding. Keep `direct` as an explicit local, rollback, or issue-scoped remediation path when operators intentionally select it.
 
 ### `DATABASE_CONNECT_TIMEOUT_MS`
 
@@ -253,7 +253,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - `wrangler.jsonc` should define the Worker, static assets, observability, and any explicit Cloudflare bindings needed for deployment.
 - `wrangler.jsonc` now declares the `MEDIA_BUCKET` R2 binding for `awcms-mini-s3` as the current deployment target.
 - Astro's Cloudflare adapter uses the default `SESSION` KV binding for sessions unless operators override it deliberately.
-- Cloudflare Hyperdrive is the recommended next-step pooling path for PostgreSQL access from edge-hosted runtime code. The repository already includes transport-selection support, but the default deployment path remains direct `DATABASE_URL` until operators complete the live Hyperdrive rollout.
+- Cloudflare Hyperdrive is the current reviewed PostgreSQL transport for the Cloudflare-hosted Worker baseline. The repository still supports direct `DATABASE_URL` transport for local execution, rollback, and issue-scoped remediation work.
 - R2-backed object storage should use a private bucket binding and application-generated object keys.
 
 See `docs/process/cloudflare-hosted-runtime.md` for the supported hosting model and deployment checks.
@@ -276,7 +276,8 @@ See `docs/process/postgresql-vps-hardening.md` for the supported VPS transport a
 For the intended production topology, configure at least:
 
 - `DATABASE_URL`
-- `DATABASE_TRANSPORT=direct` unless Hyperdrive is intentionally enabled
+- `DATABASE_TRANSPORT=hyperdrive` for the reviewed Cloudflare-hosted Worker baseline
+- `DATABASE_TRANSPORT=direct` only when local execution, rollback, or issue-scoped remediation intentionally needs the direct PostgreSQL path
 - optional `HYPERDRIVE_BINDING`
 - optional `DATABASE_CONNECT_TIMEOUT_MS`
 - `MINI_RUNTIME_TARGET=cloudflare`

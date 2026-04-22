@@ -91,7 +91,17 @@ Perform these steps during the release window.
 10. Run `pnpm healthcheck`
 11. When the reviewed Cloudflare-hosted Hyperdrive baseline is the deploy target, prefer `pnpm verify:live-runtime -- <base-url>` as the combined post-deploy verification path
 
-Use expectation variables when the release has a reviewed target posture, for example:
+Use expectation variables when the release has a reviewed target posture.
+
+Current reviewed Cloudflare-hosted Hyperdrive example:
+
+```bash
+HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive \
+HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE \
+pnpm healthcheck
+```
+
+Direct-path remediation example:
 
 ```bash
 HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=direct \
@@ -209,6 +219,7 @@ Use these focused checks when the release touches governance or security surface
 - [ ] The live PostgreSQL service still reports the intended SSL posture after the release
 - [ ] If credential rotation was triggered by live exposure or management-plane disclosure, the old credential no longer works and the new secret is stored only in reviewed deployment-managed locations
 - [ ] During direct-path remediation, `pnpm healthcheck` is re-run with the reviewed direct hostname and `sslmode` assertion variables
+- [ ] During the reviewed Cloudflare-hosted Hyperdrive baseline, `pnpm verify:live-runtime -- <base-url>` or `pnpm healthcheck` is re-run with Hyperdrive expectation variables unless an operator is intentionally verifying a direct fallback state
 
 ### Security Settings
 

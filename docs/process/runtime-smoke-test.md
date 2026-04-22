@@ -31,10 +31,10 @@ When one or more of these values is set, `pnpm healthcheck` fails if the live no
 
 ## Manual Smoke Test
 
-1. Start a PostgreSQL database reachable by `DATABASE_URL`.
-2. Keep `DATABASE_TRANSPORT=direct` unless the environment is intentionally using Hyperdrive.
+1. Start a PostgreSQL database reachable by `DATABASE_URL` or the reviewed Hyperdrive-backed target environment.
+2. Keep `DATABASE_TRANSPORT=hyperdrive` for the current reviewed Cloudflare deployment. Use `direct` only when intentionally validating a local, rollback, or remediation path.
 3. Set `DATABASE_CONNECT_TIMEOUT_MS` to a reviewed fail-fast value such as `10000` when validating remote or operator-managed PostgreSQL targets.
-4. For the reviewed remote production direct posture, use `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is available.
+4. For direct-path validation, use the reviewed hostname `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is available.
 5. Set `SITE_URL` to the browser-facing hostname for the environment when validating a deployed-style build.
 6. If split hostnames are enabled, set `ADMIN_SITE_URL` to the dedicated admin hostname.
 7. Set `TRUSTED_PROXY_MODE` for the expected request path.
@@ -49,20 +49,20 @@ When one or more of these values is set, `pnpm healthcheck` fails if the live no
 - for direct transport, `checks.database.posture.hostname`, `port`, `database`, and `sslmode` match the reviewed environment without exposing credentials
 - for Hyperdrive transport, `checks.database.posture.binding` matches the reviewed binding name
 
-Example assertion flow for the reviewed direct production posture:
+Example assertion flow for the current reviewed Hyperdrive production posture:
+
+```bash
+HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive \
+HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE \
+pnpm healthcheck
+```
+
+Direct-path remediation example:
 
 ```bash
 HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=direct \
 HEALTHCHECK_EXPECT_DATABASE_HOSTNAME=id1.ahlikoding.com \
 HEALTHCHECK_EXPECT_DATABASE_SSLMODE=verify-full \
-pnpm healthcheck
-```
-
-Example assertion flow for Hyperdrive rollout verification:
-
-```bash
-HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive \
-HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE \
 pnpm healthcheck
 ```
 

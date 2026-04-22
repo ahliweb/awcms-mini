@@ -17,7 +17,7 @@ This document is a short execution aid, not a replacement for the detailed runbo
 - AWCMS Mini remains EmDash-first and Cloudflare-hosted.
 - PostgreSQL remains on a Coolify-managed VPS.
 - The repo already supports `DATABASE_TRANSPORT=direct|hyperdrive`.
-- Live Hyperdrive enablement is complete.
+- Live Hyperdrive enablement is complete and is the current reviewed Worker baseline.
 - The current preferred path is private-database routing through Cloudflare Tunnel rather than broad public PostgreSQL exposure.
 
 ## Step Order
@@ -61,9 +61,17 @@ If the connector path ever becomes non-viable in a future rollout or recovery ev
 
 ## `#158` PostgreSQL Posture Reconciliation
 
-Confirm the live PostgreSQL posture is back on the reviewed direct path before treating the remediation as complete.
+Confirm the live PostgreSQL origin posture behind the reviewed Hyperdrive path matches the intended private, TLS-protected, least-privilege configuration before treating the remediation as complete.
 
 Run the reviewed runtime verification:
+
+```bash
+HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive \
+HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE \
+pnpm healthcheck
+```
+
+If operators intentionally fall back to direct-path remediation during investigation, use:
 
 ```bash
 HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=direct \
@@ -77,7 +85,7 @@ Sign off only when:
 - public exposure is removed or explicitly justified
 - SSL posture is enabled as reviewed
 - old credentials no longer work if credential rotation was triggered
-- the runtime verification matches the reviewed direct hostname and SSL mode
+- the runtime verification matches the reviewed Hyperdrive transport target, and any temporary direct remediation path has been verified separately before being retired
 
 Treat credential rotation as required when a current password or reusable connection string was exposed through the management plane, or when the database was broadly publicly reachable without high-confidence containment.
 
