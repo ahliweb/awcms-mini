@@ -94,6 +94,14 @@ Current reviewed allowlist behavior:
 - reviewed non-secret defaults such as `COOLIFY_BASE_URL=https://app.coolify.io` remain allowed
 - `.env.example` remains the only reviewed tracked env-style example file
 
+Current `.env.example` variable coverage:
+
+- runtime and application secrets: `DATABASE_URL`, `APP_SECRET`, `MINI_TOTP_ENCRYPTION_KEY`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `EDGE_API_JWT_SECRET`
+- operator automation secrets: `CLOUDFLARE_API_TOKEN`, `COOLIFY_ACCESS_TOKEN`
+- Cloudflare account and Tunnel variables: `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_TUNNEL_ID`, `CLOUDFLARE_TUNNEL_NAME`, `CLOUDFLARE_TUNNEL_TOKEN`
+- Cloudflare Access variables: `CLOUDFLARE_ACCESS_APP_ID`, `CLOUDFLARE_ACCESS_APP_AUD`, `CLOUDFLARE_ACCESS_CLIENT_ID`, `CLOUDFLARE_ACCESS_CLIENT_SECRET`, `CLOUDFLARE_ACCESS_SERVICE_TOKEN_ID`
+- emergency recovery (password manager only): `VPS_ROOT_PASSWORD`
+
 If a new maintained path needs coverage, extend the scanner target list and add or update focused tests in the same issue-scoped change so the allowlist stays explicit and reviewable.
 
 ## Cleanup Rules
@@ -117,10 +125,15 @@ If the audit does not find confirmed live secrets:
 - keep Coolify MCP tokens out of tracked files and issue bodies
 - keep `CLOUDFLARE_API_TOKEN` out of tracked files and issue bodies
 - keep any elevated Cloudflare token scopes, including Tunnel-edit tokens, in local-only or CI/CD-managed secret storage
+- keep `CLOUDFLARE_TUNNEL_TOKEN` in server-managed secret storage on the VPS connector host, not in `.env.local`; rotate immediately if leaked
 - keep DNS-edit Cloudflare token scopes in local-only or CI/CD-managed secret storage as well
-- keep Cloudflare Access/Zero Trust token scopes in local-only or CI/CD-managed secret storage as well
+- keep Cloudflare Access/Zero Trust variables in the appropriate storage class:
+  - `CLOUDFLARE_ACCESS_CLIENT_ID` and `CLOUDFLARE_ACCESS_CLIENT_SECRET` in Cloudflare-managed Worker secrets or CI/CD-managed secrets
+  - `CLOUDFLARE_ACCESS_APP_ID`, `CLOUDFLARE_ACCESS_APP_AUD`, and `CLOUDFLARE_ACCESS_SERVICE_TOKEN_ID` in `.env.local` or operator notes
 - keep Cloudflare Turnstile and JWT secrets in server-only configuration
 - keep production database credentials distinct from local development placeholders
+- do not store `VPS_ROOT_PASSWORD` in `.env.local` or any script; store it exclusively in a password manager or HSM
+- `.env.example` now documents all operator-managed variable classes with placeholder values and explicit storage-class guidance; update it when new operator variables are introduced
 
 ## Validation
 
