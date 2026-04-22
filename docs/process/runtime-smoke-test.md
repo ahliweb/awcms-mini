@@ -82,6 +82,11 @@ This command reuses the current repo-owned verification steps in order:
 - `pnpm db:migrate:emdash:verify`
 - `pnpm smoke:cloudflare-admin`
 
+For the current reviewed Cloudflare-hosted Hyperdrive baseline, the command applies these non-secret assertion defaults unless the operator explicitly overrides them:
+
+- `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive`
+- `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE`
+
 Focused automation path:
 
 ```bash

@@ -2,6 +2,11 @@ import { spawnSync } from "node:child_process";
 
 import { loadLocalEnvFiles } from "./_local-env.mjs";
 
+const DEFAULT_LIVE_RUNTIME_EXPECTATIONS = {
+  HEALTHCHECK_EXPECT_DATABASE_TRANSPORT: "hyperdrive",
+  HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING: "HYPERDRIVE",
+};
+
 function normalizeOptionalString(value) {
   if (typeof value !== "string") {
     return null;
@@ -13,6 +18,13 @@ function normalizeOptionalString(value) {
 
 function resolveVerificationBaseUrl(env = process.env) {
   return normalizeOptionalString(process.argv[2]) || normalizeOptionalString(env.SMOKE_TEST_BASE_URL) || normalizeOptionalString(env.SITE_URL);
+}
+
+function buildLiveRuntimeEnv(env = process.env) {
+  return {
+    ...DEFAULT_LIVE_RUNTIME_EXPECTATIONS,
+    ...env,
+  };
 }
 
 function runStep(label, command, args, env) {
@@ -38,15 +50,16 @@ function runStep(label, command, args, env) {
 
 async function main() {
   loadLocalEnvFiles();
-  const baseUrl = resolveVerificationBaseUrl();
+  const verificationEnv = buildLiveRuntimeEnv();
+  const baseUrl = resolveVerificationBaseUrl(verificationEnv);
 
   if (!baseUrl) {
     throw new Error("Set SITE_URL or SMOKE_TEST_BASE_URL, or pass a base URL as the first argument.");
   }
 
-  runStep("Database posture healthcheck", "node", ["./scripts/healthcheck.mjs"], process.env);
-  runStep("EmDash compatibility verify", "node", ["./scripts/db-migrate.mjs", "emdash-verify"], process.env);
-  runStep("Cloudflare admin smoke", "node", ["./scripts/smoke-cloudflare-admin.mjs", baseUrl], process.env);
+  runStep("Database posture healthcheck", "node", ["./scripts/healthcheck.mjs"], verificationEnv);
+  runStep("EmDash compatibility verify", "node", ["./scripts/db-migrate.mjs", "emdash-verify"], verificationEnv);
+  runStep("Cloudflare admin smoke", "node", ["./scripts/smoke-cloudflare-admin.mjs", baseUrl], verificationEnv);
 }
 
 main().catch((error) => {
