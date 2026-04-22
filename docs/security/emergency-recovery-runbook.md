@@ -194,6 +194,41 @@ After any recovery action:
 - Disabling protected-target checks without a tracked rollback decision
 - Force-pushing unreviewed hotfixes to bypass governance controls
 
+## VPS Infrastructure Access
+
+Use this when emergency SSH access to the Coolify-managed VPS is required for recovery, connector troubleshooting, or incident response.
+
+VPS root credentials must be retrieved from the password manager, not from `.env.local` or any script. See #192 for the credential migration and storage requirement.
+
+Recovery steps:
+
+1. Open the designated password manager entry for the Coolify VPS and retrieve the root SSH credentials.
+2. Prefer SSH key-based access where it is configured. Use the root password only when key-based access is unavailable.
+3. Do not paste VPS root credentials into issue bodies, shell history exports, or team chat threads.
+4. Do not store the retrieved password in `.env.local` after the recovery session. The password manager entry is the only long-term storage.
+5. If the VPS is unreachable through the normal SSH path, check whether Coolify's out-of-band console access is available before escalating.
+
+`cloudflared` connector recovery:
+
+- If the Cloudflare Tunnel connector for PostgreSQL is inactive, inspect the service status first:
+
+  ```bash
+  sudo systemctl status cloudflared-postgres.service
+  sudo journalctl -u cloudflared-postgres.service -n 50 --no-pager
+  ```
+
+- Do not paste `CLOUDFLARE_TUNNEL_TOKEN` into shell history, issue comments, or any unsecured channel. Retrieve it from server-managed secret storage on the VPS host only.
+- If the token may have been exposed, rotate it through the Cloudflare dashboard and update the server-side secret before restarting the service.
+- After restoring the connector, verify the Hyperdrive path is healthy:
+
+  ```bash
+  HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive \
+  HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE \
+  pnpm healthcheck
+  ```
+
+See `docs/process/cloudflare-tunnel-private-db-connector-runbook.md` for the full connector activation and recovery runbook.
+
 ## Tabletop Review Prompts
 
 Use these prompts when reviewing the runbook with operators:
@@ -203,3 +238,5 @@ Use these prompts when reviewing the runbook with operators:
 - Can operators distinguish when to use 2FA reset versus forced password reset?
 - Can rollout issues be reduced with policy changes before code rollback?
 - Can every recovery action be verified in audit logs afterward?
+- Can VPS SSH access be completed without retrieving credentials from `.env.local` or a script?
+- Can the `cloudflared` connector be restored without exposing the tunnel token in shell history or issue comments?
