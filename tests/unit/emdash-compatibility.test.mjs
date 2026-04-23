@@ -20,7 +20,7 @@ test("buildEmdashCompatibilityLedger returns deterministic contiguous migration 
   );
   assert.equal(ledger[0]?.timestamp, "2026-01-01T00:00:00.000Z");
   assert.equal(ledger[1]?.timestamp, "2026-01-01T00:01:00.000Z");
-  assert.equal(ledger.at(-1)?.timestamp, "2026-01-01T00:08:00.000Z");
+  assert.equal(ledger.at(-1)?.timestamp, "2026-01-01T00:09:00.000Z");
 });
 
 test("analyzeEmdashCompatibilityLedger accepts a valid Mini compatibility prefix", async () => {
@@ -59,14 +59,16 @@ test("analyzeEmdashCompatibilityLedger flags out-of-order applied migrations", a
 });
 
 test("analyzeEmdashCompatibilityLedger flags unexpected migrations outside the Mini compatibility set", async () => {
+  // Use a genuinely unknown migration name. 026_cron_tasks is now a known
+  // compatibility entry so it cannot be used as the unexpected sentinel.
   const analysis = analyzeEmdashCompatibilityLedger([
     "001_initial",
     "002_media_status",
-    "026_cron_tasks",
+    "027_unknown_migration",
   ]);
 
   assert.equal(analysis.compatiblePrefix, false);
-  assert.deepEqual(analysis.unexpected, ["026_cron_tasks"]);
+  assert.deepEqual(analysis.unexpected, ["027_unknown_migration"]);
 });
 
 test("sortEmdashCompatibilityLedgerEntries follows Kysely timestamp ordering semantics", async () => {
@@ -126,11 +128,13 @@ test("planEmdashCompatibilityLedgerRepair marks out-of-order canonical prefixes 
 });
 
 test("planEmdashCompatibilityLedgerRepair marks unexpected migrations as unsafe", async () => {
+  // Use a genuinely unknown migration name. 026_cron_tasks is now a known
+  // compatibility entry so it cannot be used as the unexpected sentinel.
   const repair = planEmdashCompatibilityLedgerRepair([
     { name: "001_initial", timestamp: "2026-02-03T10:00:00.000Z" },
-    { name: "026_cron_tasks", timestamp: "2026-02-03T10:01:00.000Z" },
+    { name: "027_unknown_migration", timestamp: "2026-02-03T10:01:00.000Z" },
   ]);
 
   assert.equal(repair.state, "unsafe");
-  assert.deepEqual(repair.analysis.unexpected, ["026_cron_tasks"]);
+  assert.deepEqual(repair.analysis.unexpected, ["027_unknown_migration"]);
 });

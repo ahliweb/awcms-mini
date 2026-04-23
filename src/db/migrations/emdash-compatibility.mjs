@@ -8,6 +8,10 @@ export const EMDASH_MINI_COMPATIBILITY_MIGRATIONS = Object.freeze([
   "007_widgets",
   "008_auth",
   "009_user_disabled",
+  // Applied by the live EmDash Worker runtime on 2026-04-19. Confirmed present
+  // in the live _emdash_migrations ledger on id1.ahlikoding.com. Required here
+  // so the compatibility analyzer does not flag it as an unexpected entry.
+  "026_cron_tasks",
 ]);
 
 export const EMDASH_MINI_COMPATIBILITY_SEED_DATE = "2026-01-01T00:00:00.000Z";
