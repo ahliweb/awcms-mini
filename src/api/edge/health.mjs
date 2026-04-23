@@ -5,6 +5,7 @@ import {
   enforceEdgeApiOrigin,
   handleEdgeApiCorsPreflight,
 } from "./v1.mjs";
+import { checkDatabaseHealth, describeDatabaseHealthPosture } from "../../db/health.mjs";
 
 export function handleEdgeHealthOptions({ request }) {
   return handleEdgeApiCorsPreflight(request, {
@@ -13,7 +14,11 @@ export function handleEdgeHealthOptions({ request }) {
   });
 }
 
-export async function handleEdgeHealthGet({ request }) {
+export async function handleEdgeHealthGet({
+  request,
+  databaseHealthCheck = checkDatabaseHealth,
+  databaseHealthPosture = describeDatabaseHealthPosture,
+} = {}) {
   const methodError = enforceEdgeApiMethod(request, ["GET"]);
   if (methodError) return methodError;
 
@@ -23,9 +28,29 @@ export async function handleEdgeHealthGet({ request }) {
   const acceptError = enforceEdgeApiAccept(request);
   if (acceptError) return acceptError;
 
-  return createEdgeApiJsonResponse(request, {
-    ok: true,
-    version: "v1",
-    service: "awcms-mini-edge-api",
-  });
+  const database = await databaseHealthCheck();
+  const databasePosture = databaseHealthPosture();
+  const ok = database.ok;
+
+  return createEdgeApiJsonResponse(
+    request,
+    {
+      ok,
+      version: "v1",
+      service: "awcms-mini-edge-api",
+      checks: {
+        database: {
+          ok: database.ok,
+          ...(database.ok
+            ? {}
+            : {
+                kind: database.kind,
+                reason: database.reason,
+              }),
+          posture: databasePosture,
+        },
+      },
+    },
+    ok ? 200 : 503,
+  );
 }

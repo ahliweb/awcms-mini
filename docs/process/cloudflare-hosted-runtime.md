@@ -112,8 +112,9 @@ Run these in order after a deployment or after Cloudflare-side automation change
 - Confirm the alias redirects to `/_emdash/admin` on the same host.
 - Confirm the EmDash admin surface loads there without introducing a second admin shell or alternate API surface.
 - If `ADMIN_SITE_URL` is still configured for compatibility, confirm the hostname root redirects to the configured admin entry path on the same Worker deployment.
-- Prefer `pnpm verify:live-runtime -- https://awcms-mini.ahlikoding.com` when the deploy window needs the reviewed combined verification path for database posture, EmDash compatibility, and the admin/setup smoke seam. The command now asserts the reviewed Hyperdrive transport and binding by default unless an operator explicitly overrides the expectation inputs.
+- Prefer `pnpm verify:live-runtime -- https://awcms-mini.ahlikoding.com` when the deploy window needs the reviewed combined verification path for deployed database posture and the admin/setup smoke seam. The command now asserts the reviewed Hyperdrive transport and binding by default unless an operator explicitly overrides the expectation inputs.
 - Prefer `pnpm smoke:cloudflare-admin` as the focused regression check for the reviewed admin-entry alias and setup-shell path.
+- Prefer `pnpm smoke:deployed-runtime-health -- https://awcms-mini.ahlikoding.com` when operators need the deployed Worker to report its non-secret database posture without depending on workstation-level direct reachability to the private PostgreSQL origin.
 
 ### 3. Turnstile-Protected Flows
 

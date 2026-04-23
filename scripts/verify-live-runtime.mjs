@@ -33,6 +33,11 @@ function buildLiveRuntimeEnv(env = process.env) {
   return verificationEnv;
 }
 
+function shouldRunLocalEmdashVerify(env = process.env) {
+  const value = normalizeOptionalString(env.VERIFY_LIVE_RUNTIME_INCLUDE_LOCAL_EMDASH_VERIFY);
+  return value === "1" || value === "true";
+}
+
 function runStep(label, command, args, env) {
   console.log(`== ${label} ==`);
 
@@ -63,9 +68,12 @@ async function main() {
     throw new Error("Set SITE_URL or SMOKE_TEST_BASE_URL, or pass a base URL as the first argument.");
   }
 
-  runStep("Database posture healthcheck", "node", ["./scripts/healthcheck.mjs"], verificationEnv);
-  runStep("EmDash compatibility verify", "node", ["./scripts/db-migrate.mjs", "emdash-verify"], verificationEnv);
+  runStep("Deployed runtime health", "node", ["./scripts/smoke-deployed-runtime-health.mjs", baseUrl], verificationEnv);
   runStep("Cloudflare admin smoke", "node", ["./scripts/smoke-cloudflare-admin.mjs", baseUrl], verificationEnv);
+
+  if (shouldRunLocalEmdashVerify(verificationEnv)) {
+    runStep("Local EmDash compatibility verify", "node", ["./scripts/db-migrate.mjs", "emdash-verify"], verificationEnv);
+  }
 }
 
 main().catch((error) => {

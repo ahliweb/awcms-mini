@@ -78,8 +78,7 @@ pnpm verify:live-runtime -- https://awcms-mini.ahlikoding.com
 
 This command reuses the current repo-owned verification steps in order:
 
-- `pnpm healthcheck`
-- `pnpm db:migrate:emdash:verify`
+- `pnpm smoke:deployed-runtime-health -- <base-url>`
 - `pnpm smoke:cloudflare-admin`
 
 For the current reviewed Cloudflare-hosted Hyperdrive baseline, the command applies these non-secret assertion defaults unless the operator explicitly overrides them:
@@ -87,9 +86,31 @@ For the current reviewed Cloudflare-hosted Hyperdrive baseline, the command appl
 - `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive`
 - `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE`
 
+The deployed runtime health step reads `/api/v1/health` from the live Worker and checks:
+
+- deployed database reachability
+- non-secret deployed database posture
+- reviewed Hyperdrive binding posture when applicable
+
+This avoids depending on workstation-level direct reachability to a private PostgreSQL origin once the reviewed Cloudflare Tunnel + Hyperdrive path is active.
+
+Local EmDash migration-compatibility verification remains a separate step:
+
+```bash
+pnpm db:migrate:emdash:verify
+```
+
+Run it only from an environment with reviewed database reachability. If an operator intentionally wants the combined live command to include that local database step, set:
+
+```bash
+VERIFY_LIVE_RUNTIME_INCLUDE_LOCAL_EMDASH_VERIFY=1 \
+pnpm verify:live-runtime -- https://awcms-mini.ahlikoding.com
+```
+
 Focused automation path:
 
 ```bash
+pnpm smoke:deployed-runtime-health -- https://awcms-mini.ahlikoding.com
 pnpm smoke:cloudflare-admin
 ```
 

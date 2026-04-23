@@ -6,8 +6,7 @@ import { readFileSync } from "node:fs";
 const scriptSource = readFileSync(new URL("../../scripts/verify-live-runtime.mjs", import.meta.url), "utf8");
 
 test("verify-live-runtime composes the reviewed verification commands", () => {
-  assert.match(scriptSource, /node", \["\.\/scripts\/healthcheck\.mjs"\]/);
-  assert.match(scriptSource, /node", \["\.\/scripts\/db-migrate\.mjs", "emdash-verify"\]/);
+  assert.match(scriptSource, /node", \["\.\/scripts\/smoke-deployed-runtime-health\.mjs", baseUrl\]/);
   assert.match(scriptSource, /node", \["\.\/scripts\/smoke-cloudflare-admin\.mjs", baseUrl\]/);
 });
 
@@ -25,6 +24,11 @@ test("verify-live-runtime lets explicit operator env values override the default
 
 test("verify-live-runtime reapplies the local Hyperdrive compatibility env before running child steps", () => {
   assert.match(scriptSource, /applyLocalCloudflareRuntimeEnv\(verificationEnv\)/);
+});
+
+test("verify-live-runtime runs local EmDash verification only when explicitly requested", () => {
+  assert.match(scriptSource, /VERIFY_LIVE_RUNTIME_INCLUDE_LOCAL_EMDASH_VERIFY/);
+  assert.match(scriptSource, /Local EmDash compatibility verify/);
 });
 
 test("verify-live-runtime resolves the smoke target from argv before env", () => {

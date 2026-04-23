@@ -237,6 +237,16 @@ function createFakeSession(values = {}) {
 test("edge health endpoint returns a versioned JSON health payload", async () => {
   const response = await handleEdgeHealthGet({
     request: new Request("http://example.test/api/v1/health", { headers: { Accept: "application/json" } }),
+    databaseHealthCheck: async () => ({
+      ok: true,
+      kind: null,
+      reason: null,
+    }),
+    databaseHealthPosture: () => ({
+      transport: "hyperdrive",
+      source: "Cloudflare Hyperdrive binding",
+      binding: "HYPERDRIVE",
+    }),
   });
 
   assert.equal(response.status, 200);
@@ -245,6 +255,32 @@ test("edge health endpoint returns a versioned JSON health payload", async () =>
   const body = await response.json();
   assert.equal(body.ok, true);
   assert.equal(body.version, "v1");
+  assert.equal(body.checks.database.ok, true);
+  assert.equal(body.checks.database.posture.binding, "HYPERDRIVE");
+});
+
+test("edge health endpoint reports non-secret database failure details with 503 status", async () => {
+  const response = await handleEdgeHealthGet({
+    request: new Request("http://example.test/api/v1/health", { headers: { Accept: "application/json" } }),
+    databaseHealthCheck: async () => ({
+      ok: false,
+      kind: "connection",
+      reason: "connection_timeout",
+    }),
+    databaseHealthPosture: () => ({
+      transport: "hyperdrive",
+      source: "Cloudflare Hyperdrive binding",
+      binding: "HYPERDRIVE",
+    }),
+  });
+
+  assert.equal(response.status, 503);
+
+  const body = await response.json();
+  assert.equal(body.ok, false);
+  assert.equal(body.checks.database.ok, false);
+  assert.equal(body.checks.database.kind, "connection");
+  assert.equal(body.checks.database.reason, "connection_timeout");
 });
 
 test("edge health preflight returns explicit CORS metadata for allowed origins", async () => {

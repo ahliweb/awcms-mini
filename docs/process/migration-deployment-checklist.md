@@ -21,7 +21,7 @@ Complete these checks before applying migrations or releasing a new build.
 - [ ] `pnpm build` passes
 - [ ] `pnpm healthcheck` passes against the target environment or an equivalent pre-production environment
 - [ ] If the reviewed target posture is known for the release, `pnpm healthcheck` is run with the non-secret expectation variables needed to fail fast on the wrong transport target
-- [ ] When the reviewed Cloudflare-hosted Hyperdrive baseline is the release target, `pnpm verify:live-runtime -- <base-url>` is available as the combined verification path for database posture, EmDash compatibility, and the admin/setup smoke seam, with reviewed Hyperdrive expectation inputs applied by default unless explicitly overridden
+- [ ] When the reviewed Cloudflare-hosted Hyperdrive baseline is the release target, `pnpm verify:live-runtime -- <base-url>` is available as the combined deployed-runtime verification path for database posture and the admin/setup smoke seam, with reviewed Hyperdrive expectation inputs applied by default unless explicitly overridden
 - [ ] `MINI_RUNTIME_TARGET=cloudflare` is set for the supported production path
 - [ ] `DATABASE_URL` points to the intended PostgreSQL instance
 - [ ] `DATABASE_CONNECT_TIMEOUT_MS` is set to a reviewed fail-fast value for the target environment
@@ -89,7 +89,7 @@ Perform these steps during the release window.
 8. Confirm no unexpected pending migrations remain
 9. Deploy the application build
 10. Run `pnpm healthcheck`
-11. When the reviewed Cloudflare-hosted Hyperdrive baseline is the deploy target, prefer `pnpm verify:live-runtime -- <base-url>` as the combined post-deploy verification path
+11. When the reviewed Cloudflare-hosted Hyperdrive baseline is the deploy target, prefer `pnpm verify:live-runtime -- <base-url>` as the combined post-deploy deployed-runtime verification path
 
 Use expectation variables when the release has a reviewed target posture.
 
