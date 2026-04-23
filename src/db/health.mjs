@@ -1,6 +1,7 @@
 import { sql } from "kysely";
 
 import { getRuntimeConfig } from "../config/runtime.mjs";
+import { resolvePostgresConnectionTarget } from "./client/postgres.mjs";
 import { classifyDatabaseError, describeDatabaseErrorReason, extractDatabaseErrorMessage } from "./errors.mjs";
 import { createDatabase } from "./index.mjs";
 
@@ -27,14 +28,30 @@ function summarizeDirectDatabaseTarget(databaseUrl) {
   }
 }
 
-export function describeDatabaseHealthPosture(runtimeConfig = getRuntimeConfig()) {
+export function describeDatabaseHealthPosture(runtimeConfig = getRuntimeConfig(), options = {}) {
   if (runtimeConfig.databaseTransport === "hyperdrive") {
-    return {
-      transport: "hyperdrive",
-      runtimeTarget: runtimeConfig.runtimeTarget,
-      source: "Cloudflare Hyperdrive binding",
-      binding: runtimeConfig.hyperdriveBinding,
-    };
+    try {
+      const target = resolvePostgresConnectionTarget(runtimeConfig, options);
+
+      return {
+        transport: "hyperdrive",
+        runtimeTarget: runtimeConfig.runtimeTarget,
+        source: target.source,
+        binding: target.binding ?? runtimeConfig.hyperdriveBinding,
+        ...(target.localConnectionStringVariable
+          ? {
+              localConnectionStringVariable: target.localConnectionStringVariable,
+            }
+          : {}),
+      };
+    } catch {
+      return {
+        transport: "hyperdrive",
+        runtimeTarget: runtimeConfig.runtimeTarget,
+        source: "Cloudflare Hyperdrive binding",
+        binding: runtimeConfig.hyperdriveBinding,
+      };
+    }
   }
 
   return {
