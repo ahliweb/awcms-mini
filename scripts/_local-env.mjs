@@ -1,8 +1,11 @@
 import { existsSync } from "node:fs";
+import { readdir, rm } from "node:fs/promises";
+import { join } from "node:path";
 
 import { DEFAULT_DATABASE_URL } from "../src/config/runtime.mjs";
 
 const LOCAL_ENV_FILES = [".env.local", ".env"];
+const GENERATED_LOCAL_SECRET_FILES_DIRECTORY = ["dist", "server"];
 
 function usesHyperdriveTransport(env) {
   return env.DATABASE_TRANSPORT !== "direct";
@@ -32,4 +35,38 @@ export function applyLocalCloudflareRuntimeEnv(env = process.env) {
   }
 
   return env;
+}
+
+export async function cleanupGeneratedCloudflareLocalSecretFiles(rootDir = process.cwd()) {
+  const generatedSecretsDirectory = join(rootDir, ...GENERATED_LOCAL_SECRET_FILES_DIRECTORY);
+
+  let entries;
+
+  try {
+    entries = await readdir(generatedSecretsDirectory, { withFileTypes: true });
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return [];
+    }
+
+    throw error;
+  }
+
+  const removedFiles = [];
+
+  for (const entry of entries) {
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    if (entry.name !== ".dev.vars" && !entry.name.startsWith(".dev.vars.")) {
+      continue;
+    }
+
+    const filePath = join(generatedSecretsDirectory, entry.name);
+    await rm(filePath, { force: true });
+    removedFiles.push(filePath);
+  }
+
+  return removedFiles;
 }

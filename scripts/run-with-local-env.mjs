@@ -1,6 +1,10 @@
 import { spawnSync } from "node:child_process";
 
-import { applyLocalCloudflareRuntimeEnv, loadLocalEnvFiles } from "./_local-env.mjs";
+import {
+  applyLocalCloudflareRuntimeEnv,
+  cleanupGeneratedCloudflareLocalSecretFiles,
+  loadLocalEnvFiles,
+} from "./_local-env.mjs";
 
 loadLocalEnvFiles();
 applyLocalCloudflareRuntimeEnv();
@@ -12,13 +16,30 @@ if (!command) {
   process.exit(1);
 }
 
-const result = spawnSync(command, args, {
-  stdio: "inherit",
-  env: process.env,
-});
+const shouldCleanupGeneratedCloudflareSecrets = command === "astro" && args[0] === "build";
 
-if (result.error) {
-  throw result.error;
+async function main() {
+  let result;
+
+  try {
+    result = spawnSync(command, args, {
+      stdio: "inherit",
+      env: process.env,
+    });
+  } finally {
+    if (shouldCleanupGeneratedCloudflareSecrets) {
+      await cleanupGeneratedCloudflareLocalSecretFiles();
+    }
+  }
+
+  if (result?.error) {
+    throw result.error;
+  }
+
+  process.exit(result?.status ?? 1);
 }
 
-process.exit(result.status ?? 1);
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

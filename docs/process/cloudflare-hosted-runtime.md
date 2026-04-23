@@ -34,6 +34,7 @@ The supported baseline production path is:
 - Use the Astro Cloudflare adapter for the supported runtime build
 - Treat the reviewed Wrangler/operator deployment path as the production source of truth; the earlier Cloudflare Git-integrated Workers Builds path has been intentionally retired for this Worker
 - Use the route-safe Wrangler flow for reviewed production deploys: `wrangler versions upload` followed by `wrangler versions deploy`
+- Keep production secrets in Cloudflare-managed Worker secrets such as `wrangler secret put`; do not treat local `.dev.vars` files or Wrangler `[vars]` as the deployed secret store
 - Keep Worker compatibility flags aligned with the runtime needs of the current codebase
 - Keep observability enabled for production deployment
 - Prefer the Worker custom domain for `awcms-mini.ahlikoding.com` as the reviewed single-host baseline because the Worker is the origin for this deployment model
@@ -66,6 +67,7 @@ The supported baseline production path is:
 Before deployment:
 
 - Confirm `pnpm build` produces the Cloudflare Worker bundle successfully
+- Confirm the reviewed build flow does not leave `dist/server/.dev.vars*` artifacts behind after local packaging
 - Confirm non-interactive Cloudflare automation has `CLOUDFLARE_API_TOKEN` available before relying on Wrangler-managed binding changes
 - Confirm `wrangler.jsonc` matches the intended Worker name and bindings
 - Confirm `wrangler.jsonc` declares the reviewed public custom-domain route for `awcms-mini.ahlikoding.com`
@@ -136,6 +138,7 @@ Run these in order after a deployment or after Cloudflare-side automation change
 - Confirm the `HYPERDRIVE` binding resolves correctly when `DATABASE_TRANSPORT=hyperdrive`.
 - When the reviewed rollout target is known, prefer the non-secret `pnpm healthcheck` assertion variables so runtime verification fails fast on the wrong transport, hostname, SSL mode, or binding.
 - Confirm no Cloudflare-side automation change accidentally altered the database path assumptions.
+- Confirm any local-only `.dev.vars` copy used for troubleshooting remains untracked and is not being treated as production secret storage.
 
 ## Focused Admin Smoke Script
 

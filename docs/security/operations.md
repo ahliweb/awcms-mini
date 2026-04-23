@@ -71,9 +71,11 @@ Security operations should treat those as separate trust boundaries.
 - Store `TURNSTILE_SECRET_KEY` as a Cloudflare-managed secret or equivalent server-only runtime secret.
 - Prefer `TURNSTILE_EXPECTED_HOSTNAMES` when multiple reviewed hostnames are enabled so Siteverify accepts only the intended hostname set.
 - Store `EDGE_API_JWT_SECRET` as a Cloudflare-managed secret or equivalent server-only runtime secret.
+- Keep deployed Worker secrets in Cloudflare-managed secret storage such as `wrangler secret put`, not in local `.dev.vars` files or Wrangler `[vars]`.
 - Keep `EDGE_API_ALLOWED_ORIGINS` empty unless a reviewed browser-based external client explicitly needs cross-origin access.
 - Prefer host-only cookies unless a reviewed operator workflow requires public/admin cross-host session sharing.
 - Keep local Cloudflare and operator secret files such as `.env.local`, `.env.<environment>.local`, `.dev.vars`, and `.dev.vars.<environment>` untracked; tracked env-style files should stay limited to reviewed placeholder examples such as `.env.example`.
+- Treat break-glass credentials such as `VPS_ROOT_PASSWORD` as password-manager-only secrets with audit trail and rotation history, not as developer-local env values.
 
 See `docs/process/cloudflare-hosted-runtime.md` for the supported Cloudflare runtime and deployment checks.
 

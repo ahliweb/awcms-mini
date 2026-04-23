@@ -19,6 +19,8 @@ The current maintained script entrypoints now use the shared `scripts/_local-env
 
 The reviewed local command wrappers and deploy wrapper now inject the local Hyperdrive connection-string compatibility variable unless local execution explicitly opts into `DATABASE_TRANSPORT=direct`, which keeps the required credential in env files instead of tracked scripts, avoids leaking transport-specific settings into reviewed direct-postgresql local flows, and still lets local Cloudflare tooling follow the current Hyperdrive Worker baseline with the existing non-secret local default when no credential-bearing `DATABASE_URL` is configured.
 
+The reviewed local build wrapper now also removes generated `dist/server/.dev.vars*` files after `astro build` completes so local operator secrets from `.env.local` do not linger inside the Cloudflare build artifact tree.
+
 The current repository posture should therefore be described as:
 
 - no confirmed committed live credentials in the reviewed maintained scripts
@@ -60,6 +62,7 @@ Preferred repository patterns:
 
 - `.env.example` contains placeholder values only
 - `.env.local` is local-only and untracked
+- generated Cloudflare local secret files such as `dist/server/.dev.vars` are treated as disposable local artifacts and removed after reviewed build flows
 - scripts use the shared local env loading pattern rather than reimplementing it ad hoc
 - scripts parse env files as environment data rather than execute them through the shell
 - scripts fail clearly when required env vars are missing
@@ -126,6 +129,7 @@ If the audit does not find confirmed live secrets:
 - keep `CLOUDFLARE_API_TOKEN` out of tracked files and issue bodies
 - keep any elevated Cloudflare token scopes, including Tunnel-edit tokens, in local-only or CI/CD-managed secret storage
 - keep `CLOUDFLARE_TUNNEL_TOKEN` in server-managed secret storage on the VPS connector host, not in `.env.local`; rotate immediately if leaked
+- do not rely on generated `dist/server/.dev.vars` files as a secret store; for deployed Workers keep sensitive values in Cloudflare-managed secrets instead of local dev vars or Wrangler `[vars]`
 - keep DNS-edit Cloudflare token scopes in local-only or CI/CD-managed secret storage as well
 - keep Cloudflare Access/Zero Trust variables in the appropriate storage class:
   - `CLOUDFLARE_ACCESS_CLIENT_ID` and `CLOUDFLARE_ACCESS_CLIENT_SECRET` in Cloudflare-managed Worker secrets or CI/CD-managed secrets
