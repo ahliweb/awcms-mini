@@ -19,8 +19,20 @@ function normalizeOptionalString(value) {
   return next.length > 0 ? next : null;
 }
 
+function resolveCliBaseUrlArg(argv = process.argv) {
+  for (const value of argv.slice(2)) {
+    if (value === "--") {
+      continue;
+    }
+
+    return value;
+  }
+
+  return null;
+}
+
 function resolveVerificationBaseUrl(env = process.env) {
-  return normalizeOptionalString(process.argv[2]) || normalizeOptionalString(env.SMOKE_TEST_BASE_URL) || normalizeOptionalString(env.SITE_URL);
+  return normalizeOptionalString(resolveCliBaseUrlArg()) || normalizeOptionalString(env.SMOKE_TEST_BASE_URL) || normalizeOptionalString(env.SITE_URL);
 }
 
 function buildLiveRuntimeEnv(env = process.env) {

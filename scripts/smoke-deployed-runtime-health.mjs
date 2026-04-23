@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { loadLocalEnvFiles } from "./_local-env.mjs";
 import { resolveSmokeBaseUrl } from "./smoke-cloudflare-admin.mjs";
 
-export const DEFAULT_EDGE_HEALTH_PATH = "/api/v1/health";
+export const DEFAULT_EDGE_HEALTH_PATH = "/_emdash/api/setup/status";
 
 function normalizeOptionalString(value) {
   if (typeof value !== "string") {
@@ -79,7 +79,7 @@ export async function evaluateDeployedRuntimeHealthResponse(response, expectedDa
     });
   }
 
-  const database = payload?.checks?.database;
+  const database = payload?.data?.runtimeHealth?.database;
 
   if (!database || typeof database.ok !== "boolean" || !database.posture) {
     return createCheckResult(false, {

@@ -11,15 +11,16 @@ test("evaluateDeployedRuntimeHealthResponse accepts the reviewed Hyperdrive payl
   const response = new Response(
     JSON.stringify({
       ok: true,
-      version: "v1",
-      service: "awcms-mini-edge-api",
-      checks: {
-        database: {
-          ok: true,
-          posture: {
-            transport: "hyperdrive",
-            binding: "HYPERDRIVE",
-            source: "Cloudflare Hyperdrive binding",
+      data: {
+        needsSetup: true,
+        runtimeHealth: {
+          database: {
+            ok: true,
+            posture: {
+              transport: "hyperdrive",
+              binding: "HYPERDRIVE",
+              source: "Cloudflare Hyperdrive binding",
+            },
           },
         },
       },
@@ -46,12 +47,14 @@ test("evaluateDeployedRuntimeHealthResponse rejects unexpected database posture"
   const response = new Response(
     JSON.stringify({
       ok: true,
-      checks: {
-        database: {
-          ok: true,
-          posture: {
-            transport: "direct",
-            hostname: "id1.ahlikoding.com",
+      data: {
+        runtimeHealth: {
+          database: {
+            ok: true,
+            posture: {
+              transport: "direct",
+              hostname: "id1.ahlikoding.com",
+            },
           },
         },
       },
@@ -88,13 +91,16 @@ test("runDeployedRuntimeHealthSmokeTest checks the reviewed edge health endpoint
       return new Response(
         JSON.stringify({
           ok: true,
-          checks: {
-            database: {
-              ok: true,
-              posture: {
-                transport: "hyperdrive",
-                binding: "HYPERDRIVE",
-                source: "Cloudflare Hyperdrive binding",
+          data: {
+            needsSetup: true,
+            runtimeHealth: {
+              database: {
+                ok: true,
+                posture: {
+                  transport: "hyperdrive",
+                  binding: "HYPERDRIVE",
+                  source: "Cloudflare Hyperdrive binding",
+                },
               },
             },
           },

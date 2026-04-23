@@ -32,7 +32,7 @@ test("verify-live-runtime runs local EmDash verification only when explicitly re
 });
 
 test("verify-live-runtime resolves the smoke target from argv before env", () => {
-  assert.match(scriptSource, /process\.argv\[2\]/);
+  assert.match(scriptSource, /resolveCliBaseUrlArg/);
   assert.match(scriptSource, /env\.SMOKE_TEST_BASE_URL/);
   assert.match(scriptSource, /env\.SITE_URL/);
 });

@@ -86,7 +86,7 @@ For the current reviewed Cloudflare-hosted Hyperdrive baseline, the command appl
 - `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive`
 - `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE`
 
-The deployed runtime health step reads `/api/v1/health` from the live Worker and checks:
+The deployed runtime health step reads `/_emdash/api/setup/status` from the live Worker and checks the embedded `runtimeHealth` payload for:
 
 - deployed database reachability
 - non-secret deployed database posture

@@ -65,7 +65,7 @@ index 545e018fb2eb61ed25382abcb922eeadbb1599d2..7597181e92c92b85feb093b258a80814
 +	const isSetupShellRoute = url.pathname.startsWith("/_emdash/admin/setup");
 +	const isSetupApiRoute = url.pathname.startsWith("/_emdash/api/setup");
  	const isPublicRuntimeRoute =
-		PUBLIC_RUNTIME_ROUTES.has(url.pathname) || SITEMAP_COLLECTION_RE.test(url.pathname);
+ 		PUBLIC_RUNTIME_ROUTES.has(url.pathname) || SITEMAP_COLLECTION_RE.test(url.pathname);
 
 +	if (isSetupShellRoute || isSetupApiRoute) {
 +		const response = await next();
@@ -84,11 +84,72 @@ index 5d6f2f0af1f65c2fb8ad0d53cb06afcfa722f31f..c13f7f74de4b9ee2837b81195c6ef7df
  
  export const prerender = false;
  
++import { sql } from "kysely";
 -import { apiError, apiSuccess, handleError } from "#api/error.js";
 +import { apiSuccess, handleError } from "#api/error.js";
  import { getAuthMode } from "#auth/mode.js";
  import { loadUserSeed } from "#seed/load.js";
 +import { getDb } from "../../../../loader.js";
++
++function summarizeDirectDatabaseTarget(databaseUrl?: string) {
++	if (!databaseUrl) {
++		return {
++			transport: "direct",
++			source: "DATABASE_URL",
++			hostname: null,
++			port: null,
++			database: null,
++			sslmode: null,
++		};
++	}
++
++	try {
++		const parsed = new URL(databaseUrl);
++		return {
++			transport: "direct",
++			source: "DATABASE_URL",
++			hostname: parsed.hostname || null,
++			port: parsed.port ? Number(parsed.port) : 5432,
++			database: parsed.pathname.replace(/^\//, "") || null,
++			sslmode: parsed.searchParams.get("sslmode") || null,
++		};
++	} catch {
++		return {
++			transport: "direct",
++			source: "DATABASE_URL",
++			hostname: null,
++			port: null,
++			database: null,
++			sslmode: null,
++		};
++	}
++}
++
++function describeRuntimeDatabasePosture() {
++	if (process.env.DATABASE_TRANSPORT === "hyperdrive") {
++		return {
++			transport: "hyperdrive",
++			source: "Cloudflare Hyperdrive binding",
++			binding: process.env.HYPERDRIVE_BINDING || "HYPERDRIVE",
++		};
++	}
++
++	return summarizeDirectDatabaseTarget(process.env.DATABASE_URL);
++}
++
++function createRuntimeHealthPayload(databaseOk: boolean, reason: string | null = null) {
++	return {
++		database: {
++			ok: databaseOk,
++			...(databaseOk
++				? {}
++				: {
++					reason,
++				}),
++			posture: describeRuntimeDatabasePosture(),
++		},
++	};
++}
  
  export const GET: APIRoute = async ({ locals }) => {
  	const { emdash } = locals;
@@ -101,7 +162,14 @@ index 5d6f2f0af1f65c2fb8ad0d53cb06afcfa722f31f..c13f7f74de4b9ee2837b81195c6ef7df
 +		const db = emdash?.db ?? (await getDb());
 +		let setupCompleteValue: string | null = null;
 +		let setupStateValue: string | null = null;
-		let hasUsers = false;
++		let runtimeHealth = createRuntimeHealthPayload(true);
+ 		let hasUsers = false;
++
++		try {
++			await sql`select 1`.execute(db);
++		} catch {
++			runtimeHealth = createRuntimeHealthPayload(false, "connection_error");
++		}
  
  		// Check if setup is complete
 -		const setupComplete = await emdash.db
@@ -165,6 +233,24 @@ index 5d6f2f0af1f65c2fb8ad0d53cb06afcfa722f31f..c13f7f74de4b9ee2837b81195c6ef7df
 -		const authMode = getAuthMode(emdash.config);
 +		const authMode = emdash?.config ? getAuthMode(emdash.config) : null;
 +		const useExternalAuth = authMode?.type === "external";
+
+@@ -100,7 +147,8 @@ export const GET: APIRoute = async ({ locals }) => {
+		if (useExternalAuth && isComplete) {
+			return apiSuccess({
+				needsSetup: false,
++				runtimeHealth,
+			});
+		}
+
+@@ -118,10 +166,11 @@ export const GET: APIRoute = async ({ locals }) => {
+		return apiSuccess({
+			needsSetup: true,
+			step,
+			seedInfo,
++			runtimeHealth,
+			// Tell the wizard which auth mode is active
+			authMode: useExternalAuth ? authMode.providerType : "passkey",
+		});
 
 diff --git a/src/astro/routes/api/setup/index.ts b/src/astro/routes/api/setup/index.ts
 index 8fd8966cb9196b3667c026cc11c91c5079220254..7a855df66f8c69ca7d219ee9877cbefc0644551e 100644
