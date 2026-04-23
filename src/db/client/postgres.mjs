@@ -12,6 +12,17 @@ try {
   cloudflareWorkersEnv = null;
 }
 
+function readLocalHyperdriveConnectionString(bindingName, env = process.env) {
+  const variableName = `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_${bindingName}`;
+  const value = env[variableName];
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value;
+  }
+
+  return null;
+}
+
 export function resolvePostgresConnectionString(runtimeConfig = getRuntimeConfig(), options = {}) {
   if (runtimeConfig.databaseTransport !== "hyperdrive") {
     return runtimeConfig.databaseUrl;
@@ -23,6 +34,12 @@ export function resolvePostgresConnectionString(runtimeConfig = getRuntimeConfig
 
   if (typeof connectionString === "string" && connectionString.trim().length > 0) {
     return connectionString;
+  }
+
+  const localConnectionString = readLocalHyperdriveConnectionString(runtimeConfig.hyperdriveBinding, options.env);
+
+  if (localConnectionString) {
+    return localConnectionString;
   }
 
   throw new Error(

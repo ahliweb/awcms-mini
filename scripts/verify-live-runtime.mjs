@@ -1,8 +1,11 @@
 import { spawnSync } from "node:child_process";
 
-import { loadLocalEnvFiles } from "./_local-env.mjs";
+import { applyLocalCloudflareRuntimeEnv, loadLocalEnvFiles } from "./_local-env.mjs";
 
 const DEFAULT_LIVE_RUNTIME_EXPECTATIONS = {
+  DATABASE_TRANSPORT: "hyperdrive",
+  HYPERDRIVE_BINDING: "HYPERDRIVE",
+  MINI_RUNTIME_TARGET: "cloudflare",
   HEALTHCHECK_EXPECT_DATABASE_TRANSPORT: "hyperdrive",
   HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING: "HYPERDRIVE",
 };
@@ -21,10 +24,13 @@ function resolveVerificationBaseUrl(env = process.env) {
 }
 
 function buildLiveRuntimeEnv(env = process.env) {
-  return {
+  const verificationEnv = {
     ...DEFAULT_LIVE_RUNTIME_EXPECTATIONS,
     ...env,
   };
+
+  applyLocalCloudflareRuntimeEnv(verificationEnv);
+  return verificationEnv;
 }
 
 function runStep(label, command, args, env) {

@@ -209,6 +209,25 @@ test("resolvePostgresConnectionString uses the reviewed Hyperdrive binding when 
   assert.equal(connectionString, "postgres://hyperdrive-user:secret@hyperdrive.cloudflare.example:5432/awcms_mini");
 });
 
+test("resolvePostgresConnectionString falls back to the local Hyperdrive compatibility env when no binding is present", () => {
+  const connectionString = resolvePostgresConnectionString(
+    {
+      databaseUrl: "postgres://unused-local-default",
+      databaseTransport: "hyperdrive",
+      hyperdriveBinding: "HYPERDRIVE",
+    },
+    {
+      workersEnv: {},
+      env: {
+        CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE:
+          "postgres://hyperdrive-local-user:secret@localhost:55432/awcms_mini_dev",
+      },
+    },
+  );
+
+  assert.equal(connectionString, "postgres://hyperdrive-local-user:secret@localhost:55432/awcms_mini_dev");
+});
+
 test("resolvePostgresConnectionString fails clearly when Hyperdrive transport is selected without a binding", () => {
   assert.throws(
     () =>
