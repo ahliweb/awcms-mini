@@ -52,7 +52,7 @@ A previous deployment pattern ran the Mini app as a Coolify-managed container be
 - Coolify manages the PostgreSQL VPS environment and its surrounding networking.
 - The VPS must not expose PostgreSQL directly to the internet when the Cloudflare Tunnel path is the reviewed configuration.
 - The `cloudflared` connector must remain active on the VPS for the Hyperdrive private-database path to function.
-- VPS root credentials must be stored in a password manager, not in `.env.local` or any script. See #192.
+- The reviewed VPS recovery path now uses the Coolify-managed SSH key for root access; do not store or use a root password from `.env.local` or scripts.
 - Environment variables for the PostgreSQL host are kept in operator-controlled secret storage, not in tracked repository files.
 
 ## Cloudflare Expectations
@@ -71,7 +71,7 @@ Before deployment:
 - Confirm `TRUSTED_PROXY_MODE=cloudflare` is set in the Worker deployment environment.
 - Confirm the Hyperdrive binding is configured in `wrangler.jsonc` and points to the intended PostgreSQL origin.
 - Confirm the `cloudflared` connector is active on the VPS and service logs do not show repeated reconnect failures.
-- Confirm VPS root credentials are in a password manager and not in `.env.local`.
+- Confirm root SSH recovery works with the reviewed Coolify-managed key path and that password-based root SSH login remains disabled.
 
 After deployment:
 

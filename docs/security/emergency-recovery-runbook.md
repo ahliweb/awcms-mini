@@ -198,15 +198,15 @@ After any recovery action:
 
 Use this when emergency SSH access to the Coolify-managed VPS is required for recovery, connector troubleshooting, or incident response.
 
-VPS root credentials must be retrieved from the password manager, not from `.env.local` or any script. See #192 for the credential migration and storage requirement.
+The reviewed Coolify-managed VPS now uses key-only root SSH recovery. Do not store or use a root password from `.env.local` or any script.
 
 Recovery steps:
 
-1. Open the designated password manager entry for the Coolify VPS and retrieve the root SSH credentials.
-2. Prefer SSH key-based access where it is configured. Use the root password only when key-based access is unavailable.
-3. Do not paste VPS root credentials into issue bodies, shell history exports, or team chat threads.
-4. Do not store the retrieved password in `.env.local` after the recovery session. The password manager entry is the only long-term storage.
-5. If the VPS is unreachable through the normal SSH path, check whether Coolify's out-of-band console access is available before escalating.
+1. Use the reviewed Coolify-managed SSH key path for root access.
+2. Confirm the required root public key remains present in `/root/.ssh/authorized_keys` before making SSH hardening changes.
+3. Do not paste private keys, tunnel tokens, or any other secret material into issue bodies, shell history exports, or team chat threads.
+4. Keep root password-based SSH recovery disabled unless a separately reviewed incident path explicitly re-enables it.
+5. If the VPS is unreachable through the normal SSH key path, check whether Coolify's out-of-band console access is available before escalating.
 
 `cloudflared` connector recovery:
 
