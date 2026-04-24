@@ -10,7 +10,6 @@ import {
 test("evaluateDeployedRuntimeHealthResponse accepts the reviewed Hyperdrive payload", async () => {
   const response = new Response(
     JSON.stringify({
-      ok: true,
       data: {
         needsSetup: true,
         runtimeHealth: {
@@ -90,7 +89,6 @@ test("runDeployedRuntimeHealthSmokeTest checks the reviewed edge health endpoint
 
       return new Response(
         JSON.stringify({
-          ok: true,
           data: {
             needsSetup: true,
             runtimeHealth: {

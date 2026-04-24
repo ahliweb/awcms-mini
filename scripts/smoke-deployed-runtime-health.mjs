@@ -91,7 +91,7 @@ export async function evaluateDeployedRuntimeHealthResponse(response, expectedDa
     });
   }
 
-  if (!payload.ok || response.status !== 200 || !database.ok) {
+  if (response.status !== 200 || payload?.ok === false || !database.ok) {
     return createCheckResult(false, {
       kind: "edge_health_database_unhealthy",
       status: response.status,
