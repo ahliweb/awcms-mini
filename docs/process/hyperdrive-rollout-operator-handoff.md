@@ -8,7 +8,7 @@ Use it when understanding the completed rollout sequence and the remaining follo
 
 - `#152` VPS-side `cloudflared` connector activation completed
 - `#146` Hyperdrive binding rollout completed
-- `#158` remains the main live follow-up for PostgreSQL exposure and credential posture
+- the remaining operator follow-up is now posture hardening and rotation maintenance rather than Hyperdrive enablement itself
 
 This document is a short execution aid, not a replacement for the detailed runbooks.
 
@@ -24,7 +24,7 @@ This document is a short execution aid, not a replacement for the detailed runbo
 
 1. `#152` completed so the reviewed `cloudflared` connector is active from the VPS environment that can reach PostgreSQL.
 2. `#146` completed so the Cloudflare-hosted Worker runtime now uses Hyperdrive successfully.
-3. Continue `#158` so the live PostgreSQL resource matches the reviewed private/credential posture after the Hyperdrive transport switch.
+3. Continue with operator hardening tasks only after the live Hyperdrive and tunnel path is already healthy.
 
 Fallback decision gate:
 
@@ -59,7 +59,7 @@ If the tunnel token may have leaked through logs, copied files, shell history, o
 
 If the connector path ever becomes non-viable in a future rollout or recovery event, open a new reviewed fallback issue rather than widening public PostgreSQL exposure as an ad hoc workaround.
 
-## `#158` PostgreSQL Posture Reconciliation
+## PostgreSQL Posture Reconciliation
 
 Confirm the live PostgreSQL origin posture behind the reviewed Hyperdrive path matches the intended private, TLS-protected, least-privilege configuration before treating the remediation as complete.
 
@@ -91,7 +91,7 @@ Treat credential rotation as required when a current password or reusable connec
 
 ## `#146` Final Hyperdrive Verification
 
-Continue only after `#152` and `#158` are both complete enough to support a real Hyperdrive rollout.
+Use this only as historical sequencing context. The live Hyperdrive rollout is already complete.
 
 Before enabling the live binding:
 

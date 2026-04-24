@@ -151,7 +151,7 @@ HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE \
 pnpm healthcheck
 ```
 
-- hand the active connector status back to `#146`
+- record the active connector status in the current operator notes; Hyperdrive enablement is already live
 
 ## Failure Notes
 

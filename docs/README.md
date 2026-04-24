@@ -21,6 +21,7 @@ This directory contains the maintained architecture, governance, security, plugi
 
 Current planning reference:
 
+- `process/repository-docs-and-secret-handling-recommendations-2026.md` - current recommendations and issue breakdown for refreshing docs, skills, planning templates, and secret-handling guidance
 - `process/emdash-alignment-and-security-plan-2026.md` - EmDash alignment and security recommendations backlog source
 - `process/cloudflare-platform-expansion-plan-2026.md` - next-stage Cloudflare platform and feature expansion recommendations
 - `process/cloudflare-edge-jwt-permissions-ai-plan-2026.md` - next-stage JWT edge auth, permission matrix, and AI workflow planning recommendations
@@ -35,15 +36,11 @@ Current planning reference:
 - `process/hyperdrive-rollout-operator-handoff.md` - condensed operator command sheet for the remaining Hyperdrive rollout blocker chain
 - `process/ai-workflow-planning-templates.md` - reusable AI workflow templates for docs, planning, implementation, and review tasks
 
-Current active operator rollout issues reflected by these docs:
+Current active planning and documentation issues reflected by these docs:
 
-- `#158` - live Coolify PostgreSQL exposure and SSL posture reconciliation
-
-Recent completed rollout milestones reflected by these docs:
-
-- `#146` - live Cloudflare Hyperdrive binding rollout
-- `#147` - historical fallback public-origin path that was not needed after the Tunnel strategy succeeded
-- `#152` - VPS-side `cloudflared` connector deployment for the private-database Tunnel path
+- `#199` - refresh core repository guidance and skills for the current Cloudflare/Coolify runtime posture
+- `#200` - update AI workflow planning templates for the current live runtime and operator posture
+- `#201` - align env examples and secret-handling docs with current VPS-managed tunnel rotation and key-only SSH recovery
 
 ## Accuracy Rule
 

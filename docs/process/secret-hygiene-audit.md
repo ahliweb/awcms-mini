@@ -103,7 +103,6 @@ Current `.env.example` variable coverage:
 - operator automation secrets: `CLOUDFLARE_API_TOKEN`, `COOLIFY_ACCESS_TOKEN`
 - Cloudflare account and Tunnel variables: `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_TUNNEL_ID`, `CLOUDFLARE_TUNNEL_NAME`, `CLOUDFLARE_TUNNEL_TOKEN`
 - Cloudflare Access variables: `CLOUDFLARE_ACCESS_APP_ID`, `CLOUDFLARE_ACCESS_APP_AUD`, `CLOUDFLARE_ACCESS_CLIENT_ID`, `CLOUDFLARE_ACCESS_CLIENT_SECRET`, `CLOUDFLARE_ACCESS_SERVICE_TOKEN_ID`
-- emergency recovery (password manager only): `VPS_ROOT_PASSWORD`
 
 If a new maintained path needs coverage, extend the scanner target list and add or update focused tests in the same issue-scoped change so the allowlist stays explicit and reviewable.
 
@@ -136,7 +135,7 @@ If the audit does not find confirmed live secrets:
   - `CLOUDFLARE_ACCESS_APP_ID`, `CLOUDFLARE_ACCESS_APP_AUD`, and `CLOUDFLARE_ACCESS_SERVICE_TOKEN_ID` in `.env.local` or operator notes
 - keep Cloudflare Turnstile and JWT secrets in server-only configuration
 - keep production database credentials distinct from local development placeholders
-- do not store `VPS_ROOT_PASSWORD` in `.env.local` or any script; store it exclusively in a password manager or HSM
+- do not reintroduce `VPS_ROOT_PASSWORD` into `.env.local`, `.env.example`, or any maintained script; the reviewed VPS recovery path now uses key-only SSH instead
 - `.env.example` now documents all operator-managed variable classes with placeholder values and explicit storage-class guidance; update it when new operator variables are introduced
 
 ## Validation

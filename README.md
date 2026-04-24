@@ -29,6 +29,8 @@ Known current conditions:
 - mandatory 2FA rollout configuration exists in the admin/security policy model
 - ABAC audit-only rollout flags exist in the authorization service
 - some rollout and persistence hardening work is still needed before treating those controls as fully production-complete across multi-instance deployments
+- the reviewed live Cloudflare Worker now uses the Hyperdrive-backed PostgreSQL path successfully through the current private-database tunnel posture
+- the reviewed Coolify-managed VPS now uses key-only root SSH recovery, and the tunnel token is rotated from root-only VPS-managed secret storage on a weekly timer
 
 ## Tech Stack
 
@@ -155,6 +157,7 @@ Cloudflare-hosted deployment baseline:
 - `wrangler.jsonc` defines the Worker, assets, observability, the reviewed public custom domain for `awcms-mini.ahlikoding.com`, the `MEDIA_BUCKET` R2 binding for `awcms-mini-s3`, and the active reviewed Hyperdrive binding used by the live Cloudflare deployment
 - `DATABASE_TRANSPORT=hyperdrive` is the current reviewed production posture; local build and typecheck wrappers derive `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` from `DATABASE_URL` so credentials stay env-managed
 - the Mini auth middleware keeps the EmDash setup shell database-lazy so `/_emdash/admin/setup` can render during database transport reconciliation instead of failing early with a Worker exception
+- the reviewed PostgreSQL tunnel connector now reads its runtime token from root-only VPS-managed storage and rotates that token weekly on the VPS
 - Astro's Cloudflare adapter uses the default `SESSION` KV binding for sessions unless you override it explicitly
 
 ## Common Commands

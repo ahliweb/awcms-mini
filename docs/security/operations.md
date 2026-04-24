@@ -75,7 +75,7 @@ Security operations should treat those as separate trust boundaries.
 - Keep `EDGE_API_ALLOWED_ORIGINS` empty unless a reviewed browser-based external client explicitly needs cross-origin access.
 - Prefer host-only cookies unless a reviewed operator workflow requires public/admin cross-host session sharing.
 - Keep local Cloudflare and operator secret files such as `.env.local`, `.env.<environment>.local`, `.dev.vars`, and `.dev.vars.<environment>` untracked; tracked env-style files should stay limited to reviewed placeholder examples such as `.env.example`.
-- Treat break-glass credentials such as `VPS_ROOT_PASSWORD` as password-manager-only secrets with audit trail and rotation history, not as developer-local env values.
+- Do not reintroduce `VPS_ROOT_PASSWORD` as a developer-local env value; the reviewed Coolify-managed VPS now uses key-only root SSH recovery.
 
 See `docs/process/cloudflare-hosted-runtime.md` for the supported Cloudflare runtime and deployment checks.
 

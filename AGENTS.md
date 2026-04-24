@@ -96,7 +96,8 @@ In particular:
 
 - staged mandatory 2FA rollout configuration exists, but enforcement/persistence should be treated carefully and verified against current runtime behavior before documenting it as fully complete
 - ABAC audit-only rollout exists and should be documented as a rollout tool, not a permanent policy mode
-- Hyperdrive transport selection exists in the repository, but the live Cloudflare Hyperdrive rollout is still blocked on operator-side origin endpoint preparation
+- the live Cloudflare-hosted Worker now uses the reviewed Hyperdrive-backed PostgreSQL path successfully, but operators should still treat tunnel ingress, token rotation, and VPS-side PostgreSQL posture as distinct operational seams
+- the reviewed Coolify-managed VPS now uses key-only root SSH recovery and no longer treats password-based root SSH as the normal recovery path
 
 ## Workflow Note
 

@@ -36,7 +36,7 @@ This repository now has a compact documentation set that should stay aligned wit
 4. Avoid promising behavior that is not actually wired in code.
 5. Update the core entry docs when a change materially affects repository usage or navigation.
 6. Keep the current single-host Cloudflare baseline explicit unless a doc is intentionally describing historical or compatibility behavior.
-7. Distinguish repository-scoped Hyperdrive transport prep from operator-side Hyperdrive rollout work.
+7. Distinguish current live Hyperdrive runtime posture from separate operator-owned concerns such as tunnel rotation, host hardening, and secret storage.
 
 ## When Adding New Docs
 

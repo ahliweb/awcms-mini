@@ -134,7 +134,7 @@ pnpm healthcheck
 
 ## Current Live Remediation Focus
 
-Use this when reconciling the currently observed Coolify drift tracked in `#158`.
+Use this when reconciling currently observed Coolify/PostgreSQL drift during issue-scoped operator remediation.
 
 1. Record the currently exposed PostgreSQL endpoint shape, external port exposure, and any public connection URL shown in the management plane before making changes.
 2. Record whether Coolify currently reports SSL enabled or disabled for the PostgreSQL resource.

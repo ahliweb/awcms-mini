@@ -198,7 +198,7 @@ Recommended operator posture:
 Current status after the completed repository passes:
 
 - Steps 1 through 4 have repository-scoped updates landed.
-- Remaining work is primarily operator execution outside the repository, including the live Cloudflare Hyperdrive binding rollout.
+- Remaining work is primarily documentation alignment and any future operator hardening that should not be folded into unrelated repository changes.
 
 ## Proposed Issue Breakdown
 
@@ -220,7 +220,7 @@ Tracked issue: `#141`
 - move any confirmed embedded credentials into env-based or secret-store-based configuration
 - update examples so they use placeholders and documented env vars only
 
-Current status: repository secret-handling hardening work complete. `.env.example` now covers all operator-managed variable classes including Cloudflare Tunnel, Access, account-level variables, and the `VPS_ROOT_PASSWORD` emergency-recovery credential. Outstanding operator action: remove `VPS_ROOT_PASSWORD` from `.env.local` and move it to a password manager (tracked in follow-on issue).
+Current status: repository secret-handling hardening work complete. `.env.example` now covers the current operator-managed variable classes for Cloudflare, Coolify, runtime secrets, and the tunnel connector path without normalizing password-based VPS recovery for this environment.
 
 ### Issue C: Consolidate AWCMS Mini To A Single Cloudflare Hostname
 

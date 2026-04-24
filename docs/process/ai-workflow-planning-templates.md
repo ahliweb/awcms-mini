@@ -61,7 +61,9 @@ Use these as the default current-state assumptions when adapting any template in
 - Turnstile validation is server-side and supports hostname allowlists through `TURNSTILE_EXPECTED_HOSTNAMES`, with fallback derivation from `SITE_URL` and optional `ADMIN_SITE_URL`.
 - The versioned external/mobile API baseline lives under `/api/v1/*` and currently includes `/api/v1/health`, `/api/v1/token`, and `/api/v1/session`.
 - Edge API access tokens are short-lived JWT Bearer tokens and refresh tokens are opaque, hashed, and rotation-backed in PostgreSQL.
-- The repository now includes the Hyperdrive transport-selection seam, while the remaining live rollout work is operator-side and currently centered on connector activation plus live Coolify PostgreSQL posture reconciliation.
+- The live Cloudflare-hosted Worker now uses the reviewed Hyperdrive-backed PostgreSQL path successfully.
+- The reviewed PostgreSQL tunnel connector now reads its token from root-only VPS-managed storage and rotates it weekly on the VPS.
+- The reviewed Coolify-managed VPS now uses key-only root SSH recovery rather than password-based root SSH recovery.
 - The repository uses issue-driven execution and expects issues to be atomic with explicit validation.
 - `pnpm check` is the default baseline validation path for routine implementation work.
 - `pnpm lint` covers the maintained docs/config surface with Prettier rather than the full repository.
@@ -73,6 +75,7 @@ Use these as the default current-state assumptions when adapting any template in
 - Keep Turnstile, edge auth, and R2 guidance consistent with the current Cloudflare-hosted runtime docs.
 - Keep PostgreSQL recovery, transport, and access-control assumptions aligned with the Coolify-managed VPS baseline.
 - Keep Hyperdrive guidance aligned with the current split between repository-scoped transport preparation and operator-side rollout prerequisites.
+- Keep VPS recovery guidance aligned with the current key-only SSH posture and root-only server-managed tunnel-token storage.
 - Prefer host-only cookies unless a reviewed operator workflow requires cross-host sharing.
 - Never describe rollout-only controls such as ABAC audit-only mode as the permanent steady-state policy model.
 
