@@ -447,6 +447,22 @@ index 2102f733a4401722144c7573464d4767340e3927..6ec3710b45c083a6ca022f89fb8fcdd6
  		// Verify the registration response
 -		const challengeStore = createChallengeStore(emdash.db);
 +		const challengeStore = createChallengeStore(db);
- 
- 		const verified = await verifyRegistrationResponse(
+
+		const verified = await verifyRegistrationResponse(
+
+diff --git a/dist/astro/middleware.mjs b/dist/astro/middleware.mjs
+--- a/dist/astro/middleware.mjs
++++ b/dist/astro/middleware.mjs
+@@
+-	const isEmDashRoute = url.pathname.startsWith("/_emdash");
+-	const isPublicRuntimeRoute = PUBLIC_RUNTIME_ROUTES.has(url.pathname) || SITEMAP_COLLECTION_RE.test(url.pathname);
++	const isEmDashRoute = url.pathname.startsWith("/_emdash");
++	const isSetupShellRoute = url.pathname.startsWith("/_emdash/admin/setup");
++	const isSetupApiRoute = url.pathname.startsWith("/_emdash/api/setup");
++	const isPublicEdgeHealthRoute = url.pathname === "/api/v1/health";
++	const isPublicRuntimeRoute = PUBLIC_RUNTIME_ROUTES.has(url.pathname) || SITEMAP_COLLECTION_RE.test(url.pathname);
++	if (isSetupShellRoute || isSetupApiRoute || isPublicEdgeHealthRoute) {
++		const response = await next();
++		return setBaselineSecurityHeaders(response);
++	}
  			passkeyConfig,

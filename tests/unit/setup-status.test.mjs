@@ -10,6 +10,9 @@ const emdashSetupStatusRoutePath = fileURLToPath(
   new URL("../../node_modules/emdash/src/astro/routes/api/setup/status.ts", import.meta.url),
 );
 const emdashMiddlewarePath = fileURLToPath(new URL("../../node_modules/emdash/src/astro/middleware.ts", import.meta.url));
+const emdashMiddlewareDistPath = fileURLToPath(
+  new URL("../../node_modules/emdash/dist/astro/middleware.mjs", import.meta.url),
+);
 const emdashSetupIndexRoutePath = fileURLToPath(
   new URL("../../node_modules/emdash/src/astro/routes/api/setup/index.ts", import.meta.url),
 );
@@ -108,7 +111,7 @@ test("patched EmDash setup-status route includes the db fallback compatibility s
   const contents = await readFile(emdashSetupStatusRoutePath, "utf8");
 
   assert.match(contents, /import \{ getDb \} from "\.\.\/\.\.\/\.\.\/\.\.\/loader\.js";/);
-  assert.match(contents, /const db = emdash\?\.db \?\? \(await getDb\(\)\);/);
+  assert.match(contents, /const db = emdash\?\.db \?\? \(await withTimeout\(getDb\(\)\)\);/);
   assert.doesNotMatch(contents, /apiError\("NOT_CONFIGURED", "EmDash is not initialized", 500\)/);
 });
 
@@ -116,7 +119,15 @@ test("patched EmDash middleware treats setup-status as a setup-safe path", async
   const contents = await readFile(emdashMiddlewarePath, "utf8");
 
   assert.match(contents, /const isSetupApiRoute = url\.pathname\.startsWith\("\/_emdash\/api\/setup"\);/);
-  assert.match(contents, /if \(isSetupShellRoute \|\| isSetupApiRoute\) \{/);
+  assert.match(contents, /if \(isSetupShellRoute \|\| isSetupApiRoute(?: \|\| isPublicEdgeHealthRoute)?\) \{/);
+});
+
+test("patched EmDash dist middleware treats setup-status as a setup-safe path", async () => {
+  const contents = await readFile(emdashMiddlewareDistPath, "utf8");
+
+  assert.match(contents, /const isSetupShellRoute = url\.pathname\.startsWith\("\/_emdash\/admin\/setup"\);/);
+  assert.match(contents, /const isSetupApiRoute = url\.pathname\.startsWith\("\/_emdash\/api\/setup"\);/);
+  assert.match(contents, /if \(isSetupShellRoute \|\| isSetupApiRoute \|\| isPublicEdgeHealthRoute\) \{/);
 });
 
 test("patched EmDash setup API routes use shared db and config fallbacks", async () => {
