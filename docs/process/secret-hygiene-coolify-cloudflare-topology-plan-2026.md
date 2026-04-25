@@ -38,7 +38,7 @@ It also reflects current OWASP, Cloudflare, Coolify, and PostgreSQL guidance for
 - Internal admin/plugin links still target EmDash's current `/_emdash/admin` surface directly beyond the reviewed `/_emdash/` entry alias.
 - Direct infrastructure-side Coolify/PostgreSQL SSL enablement and certificate rollout still require operator execution outside the repository.
 - Cloudflare-side verification of the live custom-domain and platform inventory still remains an operator validation task after repo changes land.
-- `.env.example` previously did not document Cloudflare Tunnel, Access, account-level operator variables, or the `VPS_ROOT_PASSWORD` emergency-recovery credential. This gap is now closed: all operator-managed variable classes are covered with placeholder values and storage-class guidance.
+- `.env.example` now documents Cloudflare Tunnel, Access, account-level operator variables, and the current key-only VPS recovery posture without reintroducing a root-password env variable.
 
 ### Important Evidence From This Pass
 
@@ -166,7 +166,7 @@ Recommended operator posture:
 - keep secure transport and peer validation explicit for database connectivity, not implied by deployment location alone
 - keep generic error handling for auth and recovery flows
 - keep audit coverage for privileged recovery and configuration changes
-- do not store emergency recovery credentials such as `VPS_ROOT_PASSWORD` in `.env.local` or any script; store them in a password manager or HSM and reference the emergency-recovery runbook for recovery procedures
+- do not store or reintroduce emergency recovery credentials such as `VPS_ROOT_PASSWORD` in `.env.local` or any script; the reviewed VPS recovery path now uses key-only SSH and the emergency-recovery runbook
 - treat `CLOUDFLARE_TUNNEL_TOKEN` as equivalent to the right to run the tunnel; rotate it if it has ever appeared in shell history, issue comments, or copied env files
 
 ### Cloudflare-Aligned Recommendations
