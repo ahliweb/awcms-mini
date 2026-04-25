@@ -24,6 +24,10 @@ That means:
 
 ## Supported Storage Pattern
 
+Coolify's currently documented secret surface is the Environment Variables UI for each resource, with support for locked secrets, build-vs-runtime scoping, and Docker Build Secrets for sensitive build-time inputs.
+
+For this repository, treat that surface as the reviewed Coolify-side equivalent of a password manager for Coolify-managed resources.
+
 Use one of these local-only secret locations:
 
 1. `.env.local` for the live token and any other local-only operator secrets
@@ -33,12 +37,20 @@ Use one of these local-only secret locations:
 
 Tracked local env-style files should stay limited to `.env.example`. The repo now treats tracked `.env*` and `.dev.vars*` files as a secret-hygiene failure so operator-local Coolify, Cloudflare, and PostgreSQL secrets do not drift into source control.
 
+For Coolify-managed resources on the VPS:
+
+- store sensitive values in Coolify Environment Variables as locked secrets when they must exist on the Coolify side
+- leave `Runtime Variable` enabled and disable `Build Variable` unless the secret is genuinely required during image build
+- use Coolify Docker Build Secrets instead of normal build arguments when a reviewed Docker build step truly needs sensitive material
+- avoid copying those same secrets into tracked repository files, copied shell snippets, or generic operator notes
+
 Preferred pattern:
 
 - store the live Coolify token in a local-only secret location
 - expose it to the MCP client through an environment variable or client-managed secret reference
 - keep the repository limited to documentation of the variable name and workflow, not the token value
 - keep any environment-specific local token overrides in `.env.<environment>.local`, which the shared local env loader now resolves before `.env.local`, `.env.<environment>`, and `.env`
+- when a Coolify-managed service itself needs a password, API token, or connection string, prefer a Coolify locked secret at the resource level instead of reusing the MCP token or writing the value into local scripts
 
 ## Recommended Variable Pattern
 
@@ -149,6 +161,7 @@ This separation reduces blast radius and keeps least-privilege boundaries cleare
 - rotate tokens after suspected exposure and document the rotation owner and reason
 - keep PostgreSQL credentials distinct from Coolify and Cloudflare administrative credentials
 - keep environment-specific local operator secrets in untracked `.env.<environment>.local` files rather than tracked config or script defaults when a workflow needs per-environment separation
+- on Coolify-managed resources, keep passwords and connection strings as locked runtime secrets by default and use Docker Build Secrets only for reviewed build-time needs
 
 This baseline aligns with the current AWCMS Mini posture:
 

@@ -34,6 +34,7 @@ Current reviewed operator inventory for this repository:
 - Prefer an application-specific database user, not `postgres` and not a superuser role.
 - Prefer a dedicated application database or narrowly scoped ownership pattern over broad cluster-wide privileges.
 - Include remote-transport expectations in the connection configuration used by the deployment environment.
+- If a Coolify-managed service or helper on the VPS needs database credentials, store them in Coolify Environment Variables as locked runtime secrets rather than copied plaintext notes or reused build arguments.
 
 Example baseline shape:
 
@@ -120,6 +121,7 @@ Use this order when rolling the reviewed SSL posture into the Coolify-managed Po
 9. Update the Cloudflare-hosted app runtime secret so `DATABASE_URL` uses `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is ready.
 10. If certificate validation is not ready yet, use a reviewed interim `sslmode=require` value temporarily and record the follow-on hardening step explicitly.
 11. Run `pnpm healthcheck` and the reviewed smoke tests after the deployment update.
+12. If Coolify-managed services on the VPS need matching database credentials, store them as Coolify locked runtime secrets and avoid exposing them as ordinary build variables unless a reviewed build-time workflow explicitly requires that.
 
 Reviewed direct-posture assertion example:
 

@@ -36,6 +36,7 @@ This runbook should not be used to overstate a leak that has not been confirmed.
 - keep production and operator secrets out of source control
 - keep local-only secrets in `.env.local`, `.env.<environment>.local`, or an equivalent local secret store
 - keep production runtime secrets in deployment-managed environment variables, Cloudflare-managed secrets, or equivalent server-only storage
+- for Coolify-managed resources, prefer Coolify locked secrets with runtime-only scope by default and Docker Build Secrets only when a reviewed build flow genuinely needs sensitive input
 - keep operator automation secrets separate from runtime application secrets
 - do not place live tokens, passwords, or keys in issue bodies, tracked scripts, or committed examples
 
@@ -71,6 +72,7 @@ Preferred repository patterns:
 - scripts fail clearly when required env vars are missing
 - docs describe variable names and storage locations without including live values
 - Coolify, Cloudflare, and database credentials remain separate by purpose and scope
+- Coolify-managed credentials use locked secrets and runtime/build scoping rather than generic copied `.env` text unless the value is intentionally operator-local only
 
 ## Automated Coverage
 
@@ -128,6 +130,7 @@ If the audit does not find confirmed live secrets:
 
 - OWASP Secrets Management guidance: centralize and standardize secret handling, apply least privilege, avoid plaintext secret transport, and keep rotation and auditability explicit for operator credentials.
 - Cloudflare Workers guidance: keep sensitive values out of Wrangler `vars`, prefer Worker secrets for deployed runtime values, and keep `.env*` or `.dev.vars*` files untracked in local development.
+- Coolify guidance: use Coolify Environment Variables with locked secrets for sensitive resource-side values, keep runtime-only variables out of the build phase by default, and prefer Docker Build Secrets over ordinary build args for reviewed build-time secrets.
 - Current Mini operator posture: Cloudflare hosts the runtime, PostgreSQL runs on a Coolify-managed VPS, and EmDash remains the host architecture, so operator automation secrets must stay distinct from application runtime credentials.
 
 ## Current Example Guidance
@@ -144,6 +147,7 @@ If the audit does not find confirmed live secrets:
   - `CLOUDFLARE_ACCESS_APP_ID`, `CLOUDFLARE_ACCESS_APP_AUD`, and `CLOUDFLARE_ACCESS_SERVICE_TOKEN_ID` in `.env.local` or operator notes
 - keep Cloudflare Turnstile and JWT secrets in server-only configuration
 - keep production database credentials distinct from local development placeholders
+- when PostgreSQL or other service credentials must exist inside Coolify-managed resources, keep them in Coolify locked secrets instead of copied repository env files or reusable shell snippets
 - do not reintroduce `VPS_ROOT_PASSWORD` into `.env.local`, `.env.example`, or any maintained script; the reviewed VPS recovery path now uses key-only SSH instead
 - `.env.example` now documents all operator-managed variable classes with placeholder values and explicit storage-class guidance; update it when new operator variables are introduced
 
