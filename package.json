@@ -13,6 +13,7 @@
     "audit:coolify": "node ./scripts/audit-coolify-posture.mjs",
     "audit:coolify-postgres": "node ./scripts/audit-coolify-postgres.mjs",
     "audit:coolify-server-ssh": "node ./scripts/audit-coolify-server-ssh.mjs",
+    "audit:coolify-token": "node ./scripts/audit-coolify-token.mjs",
     "audit:database-role": "node ./scripts/audit-database-role.mjs",
     "coolify:mcp": "node ./scripts/coolify-mcp.mjs",
     "deploy:cloudflare": "node ./scripts/deploy-cloudflare.mjs",
