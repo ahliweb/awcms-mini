@@ -22,6 +22,7 @@ const emdashSetupAdminRoutePath = fileURLToPath(
 const emdashSetupAdminVerifyRoutePath = fileURLToPath(
   new URL("../../node_modules/emdash/src/astro/routes/api/setup/admin-verify.ts", import.meta.url),
 );
+const emdashAdminRoutePath = fileURLToPath(new URL("../../node_modules/emdash/src/astro/routes/admin.astro", import.meta.url));
 const emdashPatchPath = fileURLToPath(new URL("../../patches/emdash@0.7.0.patch", import.meta.url));
 
 function createDbStub({ options = [], userCount = 0, throwOptions = false, throwUsers = false } = {}) {
@@ -156,6 +157,14 @@ test("patched EmDash setup API routes use shared db and config fallbacks", async
   assert.doesNotMatch(setupAdminVerifyContents, /apiError\("NOT_CONFIGURED", "EmDash is not initialized", 500\)/);
 });
 
+test("patched EmDash admin setup route defaults to English", async () => {
+  const contents = await readFile(emdashAdminRoutePath, "utf8");
+
+  assert.match(contents, /import \{ DEFAULT_LOCALE, resolveLocale, loadMessages, getLocaleDir \} from "@emdash-cms\/admin\/locales";/);
+  assert.match(contents, /const isSetupRoute = new URL\(Astro\.request\.url\)\.pathname === "\/_emdash\/admin\/setup";/);
+  assert.match(contents, /const resolvedLocale = isSetupRoute \? DEFAULT_LOCALE : resolveLocale\(Astro\.request\);/);
+});
+
 test("tracked EmDash patch preserves the shared setup-status compatibility seam", async () => {
   const contents = await readFile(emdashPatchPath, "utf8");
 
@@ -168,4 +177,6 @@ test("tracked EmDash patch preserves the shared setup-status compatibility seam"
   assert.match(contents, /diff --git a\/src\/astro\/routes\/api\/setup\/index\.ts b\/src\/astro\/routes\/api\/setup\/index\.ts/);
   assert.match(contents, /diff --git a\/src\/astro\/routes\/api\/setup\/admin\.ts b\/src\/astro\/routes\/api\/setup\/admin\.ts/);
   assert.match(contents, /diff --git a\/src\/astro\/routes\/api\/setup\/admin-verify\.ts b\/src\/astro\/routes\/api\/setup\/admin-verify\.ts/);
+  assert.match(contents, /diff --git a\/src\/astro\/routes\/admin\.astro b\/src\/astro\/routes\/admin\.astro/);
+  assert.match(contents, /\+const resolvedLocale = isSetupRoute \? DEFAULT_LOCALE : resolveLocale\(Astro\.request\);/);
 });

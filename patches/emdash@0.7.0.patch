@@ -391,6 +391,23 @@ index b242f55..9bc6e3e 100644
  
  		const verified = await verifyRegistrationResponse(
  			passkeyConfig,
+diff --git a/src/astro/routes/admin.astro b/src/astro/routes/admin.astro
+index 7b9ae3a..d96081c 100644
+--- a/src/astro/routes/admin.astro
++++ b/src/astro/routes/admin.astro
+@@ -13,9 +13,10 @@ import AdminWrapper from "emdash/routes/PluginRegistry";
+ 
+ export const prerender = false;
+ 
+-import { resolveLocale, loadMessages, getLocaleDir } from "@emdash-cms/admin/locales";
++import { DEFAULT_LOCALE, resolveLocale, loadMessages, getLocaleDir } from "@emdash-cms/admin/locales";
+ 
+-const resolvedLocale = resolveLocale(Astro.request);
++const isSetupRoute = new URL(Astro.request.url).pathname === "/_emdash/admin/setup";
++const resolvedLocale = isSetupRoute ? DEFAULT_LOCALE : resolveLocale(Astro.request);
+ const resolvedDir = getLocaleDir(resolvedLocale);
+ const messages = await loadMessages(resolvedLocale);
+ 
 diff --git a/dist/astro/middleware.mjs b/dist/astro/middleware.mjs
 index d0d9afd..215108d 100644
 --- a/dist/astro/middleware.mjs
