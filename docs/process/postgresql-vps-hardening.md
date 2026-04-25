@@ -93,6 +93,13 @@ If the app reaches PostgreSQL through a private subnet instead of a single host,
 - The application role should not own unrelated databases.
 - Grant only the database and schema privileges needed for Mini runtime and migration behavior.
 - Keep administrative PostgreSQL maintenance credentials separate from the application runtime credentials.
+- Use the redacted runtime role audit before and after credential rotation:
+
+  ```bash
+  pnpm audit:database-role
+  ```
+
+  This command uses the configured `DATABASE_URL` or local Hyperdrive compatibility connection string, reports only role names and privilege booleans, and exits non-zero if the active runtime role is `postgres`, a superuser, or otherwise over-privileged.
 
 ## Network Access Expectations
 
@@ -182,6 +189,7 @@ Treat credential rotation as required when either of these conditions is true:
 Before deployment:
 
 - Run `pnpm audit:coolify-postgres` and confirm only redacted posture fields are printed.
+- Run `pnpm audit:database-role` against the intended runtime `DATABASE_URL` and confirm the app is not using `postgres` or a superuser role.
 - Confirm `DATABASE_URL` points to the intended remote PostgreSQL host.
 - Confirm the reviewed app-side hostname is `id1.ahlikoding.com` when hostname validation is expected.
 - Confirm TLS expectations for the target environment are documented and enabled.
@@ -198,6 +206,7 @@ Before deployment:
 After deployment:
 
 - Confirm the app can connect and complete `pnpm healthcheck`.
+- Re-run `pnpm audit:database-role` after any credential rotation and keep only the redacted result in operator notes.
 - Prefer the reviewed direct-posture assertion variables during remediation signoff so the check fails fast if the deployment still points at the wrong hostname, SSL mode, or transport target.
 - Confirm migrations run successfully against the intended database.
 - Confirm no unexpected direct access path to PostgreSQL was introduced.
