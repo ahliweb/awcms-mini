@@ -208,6 +208,16 @@ pnpm audit:coolify-server-ssh
 
 This command verifies the API-visible server UUID/IP/user/reachability posture without printing private keys, passwords, tokens, or raw validation logs. It does not prove that password SSH is disabled; operators must still inspect the VPS SSH daemon configuration before closing the recovery review.
 
+Coolify Terminal Access is a dashboard-controlled interactive feature, not a public REST command-execution API. When local SSH certificate/key access is unavailable, use the Coolify dashboard terminal for the server and run only redacted posture checks such as:
+
+```bash
+whoami
+sshd -T | grep -E '^(passwordauthentication|permitrootlogin|pubkeyauthentication) '
+test ! -s /etc/ssh/sshd_config.d/* 2>/dev/null || grep -R --line-number -E '^(PasswordAuthentication|PermitRootLogin|PubkeyAuthentication)' /etc/ssh/sshd_config /etc/ssh/sshd_config.d
+```
+
+Copy only the resulting non-secret settings into the issue. Do not copy private keys, authorized key contents, shell history, or raw terminal transcripts.
+
 Recovery steps:
 
 1. Use the reviewed Coolify-managed SSH key path for root access.

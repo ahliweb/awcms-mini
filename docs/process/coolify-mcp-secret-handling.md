@@ -126,6 +126,8 @@ pnpm audit:coolify-server-ssh
 
 This command calls the documented Coolify server detail endpoint, reports only non-secret server posture fields, and exits non-zero while the API still reports root SSH or reachability/usability gaps that need operator review.
 
+Coolify's documented Terminal Access feature is dashboard-interactive; it is not a public REST command-execution endpoint. If local SSH certificate/key access is unavailable, use the Coolify dashboard terminal to inspect `sshd_config` and copy back only non-secret settings such as `PasswordAuthentication`, `PermitRootLogin`, and `PubkeyAuthentication`.
+
 Before copying API output into docs, issues, logs, or summaries, redact fields whose names or values may contain:
 
 - passwords
