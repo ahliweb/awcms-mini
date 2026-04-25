@@ -203,7 +203,7 @@ index c4709ee..a28da1a 100644
  
  export const prerender = false;
  
-@@ -18,20 +21,52 @@ import { OptionsRepository } from "#db/repositories/options.js";
+@@ -18,20 +21,77 @@ import { OptionsRepository } from "#db/repositories/options.js";
  import { applySeed } from "#seed/apply.js";
  import { loadSeed } from "#seed/load.js";
  import { validateSeed } from "#seed/validate.js";
@@ -237,6 +237,31 @@ index c4709ee..a28da1a 100644
 +	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS comments_auto_approve_users INTEGER DEFAULT 1`.execute(db);
 +	await sql`ALTER TABLE _emdash_fields ADD COLUMN IF NOT EXISTS searchable INTEGER DEFAULT 0`.execute(db);
 +}
++
++async function hasExistingSetupCollections(db) {
++	try {
++		const result = await sql`SELECT COUNT(*)::int AS count FROM _emdash_collections`.execute(db);
++		return Number(result.rows[0]?.count ?? 0) > 0;
++	} catch {
++		return false;
++	}
++}
++
++function buildSkippedSeedResult(seed) {
++	return {
++		collections: { created: 0, skipped: seed.collections?.length ?? 0, updated: 0 },
++		fields: { created: 0, skipped: seed.collections?.reduce((count, collection) => count + collection.fields.length, 0) ?? 0, updated: 0 },
++		taxonomies: { created: 0, terms: 0 },
++		bylines: { created: 0, skipped: 0, updated: 0 },
++		menus: { created: 0, items: 0 },
++		redirects: { created: 0, skipped: 0, updated: 0 },
++		widgetAreas: { created: 0, widgets: 0 },
++		sections: { created: 0, skipped: 0, updated: 0 },
++		settings: { applied: 0 },
++		content: { created: 0, skipped: 0, updated: 0 },
++		media: { created: 0, skipped: 0 },
++	};
++}
  
  export const POST: APIRoute = async ({ request, url, locals }) => {
  	const { emdash } = locals;
@@ -261,7 +286,7 @@ index c4709ee..a28da1a 100644
  			const setupComplete = await options.get("emdash:setup_complete");
  
  			if (setupComplete === true || setupComplete === "true") {
-@@ -47,7 +82,10 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
+@@ -47,7 +107,10 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
  
  		// 1. Run core migrations
  		try {
@@ -273,17 +298,29 @@ index c4709ee..a28da1a 100644
  		} catch (error) {
  			return handleError(error, "Failed to run database migrations", "MIGRATION_ERROR");
  		}
-@@ -70,10 +75,10 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
+@@ -70,11 +133,20 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
  
  		let result;
  		try {
 -			result = await applySeed(emdash.db, seed, {
-+			result = await applySeed(db, seed, {
- 				includeContent: body.includeContent,
- 				onConflict: "skip",
+-				includeContent: body.includeContent,
+-				onConflict: "skip",
 -				storage: emdash.storage ?? undefined,
-+				storage,
- 			});
+-			});
++			result = (await hasExistingSetupCollections(db))
++				? buildSkippedSeedResult(seed)
++				: await applySeed(db, {
++						...seed,
++						settings: {
++							...seed.settings,
++							title: body.title,
++							tagline: body.tagline,
++						},
++					}, {
++						includeContent: body.includeContent,
++						onConflict: "skip",
++						storage,
++					});
  		} catch (error) {
  			return handleError(error, "Failed to apply seed", "SEED_ERROR");
 @@ -82,18 +87,18 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
