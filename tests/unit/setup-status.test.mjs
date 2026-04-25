@@ -22,7 +22,7 @@ const emdashSetupAdminRoutePath = fileURLToPath(
 const emdashSetupAdminVerifyRoutePath = fileURLToPath(
   new URL("../../node_modules/emdash/src/astro/routes/api/setup/admin-verify.ts", import.meta.url),
 );
-const emdashPatchPath = fileURLToPath(new URL("../../patches/emdash@0.5.0.patch", import.meta.url));
+const emdashPatchPath = fileURLToPath(new URL("../../patches/emdash@0.7.0.patch", import.meta.url));
 
 function createDbStub({ options = [], userCount = 0, throwOptions = false, throwUsers = false } = {}) {
   return {
@@ -163,8 +163,8 @@ test("tracked EmDash patch preserves the shared setup-status compatibility seam"
   assert.match(contents, /\+import \{ getDb \} from "\.\.\/\.\.\/\.\.\/\.\.\/loader\.js";/);
   assert.match(contents, /\+\t\tconst db = emdash\?\.db \?\? \(await getDb\(\)\);/);
   assert.match(contents, /\+\t\tconst useExternalAuth = authMode\?\.type === "external";/);
-  assert.match(contents, /\+\tconst isSetupApiRoute = url\.pathname\.startsWith\("\/_emdash\/api\/setup"\);/);
-  assert.match(contents, /\+\tif \(isSetupShellRoute \|\| isSetupApiRoute\) \{/);
+  assert.match(contents, /\+\t+const isSetupApiRoute = url\.pathname\.startsWith\("\/_emdash\/api\/setup"\);/);
+  assert.match(contents, /\+\t+if \(isSetupShellRoute \|\| isSetupApiRoute(?: \|\| isPublicEdgeHealthRoute)?\) \{/);
   assert.match(contents, /diff --git a\/src\/astro\/routes\/api\/setup\/index\.ts b\/src\/astro\/routes\/api\/setup\/index\.ts/);
   assert.match(contents, /diff --git a\/src\/astro\/routes\/api\/setup\/admin\.ts b\/src\/astro\/routes\/api\/setup\/admin\.ts/);
   assert.match(contents, /diff --git a\/src\/astro\/routes\/api\/setup\/admin-verify\.ts b\/src\/astro\/routes\/api\/setup\/admin-verify\.ts/);

@@ -8,9 +8,9 @@ overrides:
   kysely: 0.28.16
 
 patchedDependencies:
-  emdash@0.5.0:
-    hash: e728a47858406d4d650f0b8035c0f16fd5ceab2dbd03fee6127de45e3c8b4ba3
-    path: patches/emdash@0.5.0.patch
+  emdash@0.7.0:
+    hash: e5c460e6a2e61ef988412c657388416f7c2ddc1ec19212819edc9c8aad139a0e
+    path: patches/emdash@0.7.0.patch
 
 importers:
 
@@ -32,8 +32,8 @@ importers:
         specifier: ^12.9.0
         version: 12.9.0
       emdash:
-        specifier: 0.5.0
-        version: 0.5.0(patch_hash=e728a47858406d4d650f0b8035c0f16fd5ceab2dbd03fee6127de45e3c8b4ba3)(9fc46a6ce8e42ac195b499e18e82a87b)
+        specifier: 0.7.0
+        version: 0.7.0(patch_hash=e5c460e6a2e61ef988412c657388416f7c2ddc1ec19212819edc9c8aad139a0e)(9fc46a6ce8e42ac195b499e18e82a87b)
       jose:
         specifier: ^6.2.2
         version: 6.2.2
@@ -376,14 +376,14 @@ packages:
     peerDependencies:
       react: '>=16.8.0'
 
-  '@emdash-cms/admin@0.5.0':
-    resolution: {integrity: sha512-iv5x2E9MmAg+EAxr+y8qt2tIqsbBI2cFT3PuIqrLpfnC1V0DZ6U5fRkjbHPt7fUUJf4LHa5fZoKSbzFifmn6Jg==}
+  '@emdash-cms/admin@0.7.0':
+    resolution: {integrity: sha512-iQk+f9Qhb4iY495XVxrKFIsAz/nSBteRm6UzLRVlorfn8oVUeTUVLw9oOpXBwtHh5jzf8KGfjK6yS5bTl9vpfg==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
 
-  '@emdash-cms/auth@0.5.0':
-    resolution: {integrity: sha512-rHv/RZtYB2hjblKRbI+mqEqG0k/qGrhacqdXN01TqPcmA5i5UXBkZ1HIzN9ktrI6nA7fbJTmBXGehnK2BH1/rg==}
+  '@emdash-cms/auth@0.7.0':
+    resolution: {integrity: sha512-EEh3TjfX/ssPYOW2RP/N+ivJv1IMARtoIQy1N+Ck5oI9bbJoTA0LYcN4pnFvUnkiH65KZWIZXHzljFsUu7yfFw==}
     peerDependencies:
       astro: '>=6.0.0-beta.0'
       kysely: 0.28.16
@@ -391,14 +391,14 @@ packages:
       kysely:
         optional: true
 
-  '@emdash-cms/blocks@0.5.0':
-    resolution: {integrity: sha512-vBuPNuaND1eWFDek4rSkKBXiUyTYxX+8ng+nm3N/GLUYyrb41jbfJolsLp0H85mYoVu1LDP0f/jnxfRNRROP5g==}
+  '@emdash-cms/blocks@0.7.0':
+    resolution: {integrity: sha512-y1sC3T10raMWzbJGkKaCK3SWf0QTwfja9FlNCIBksJ7iY7MRMRlKCZ1xFSImC1NuVDfQRWVaLZs69cej2QMBYg==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
 
-  '@emdash-cms/gutenberg-to-portable-text@0.5.0':
-    resolution: {integrity: sha512-lzivrsa1WVr8DqbBlID2Umg5bCIneai8NdtpHdmDnkg/uCZuCXH4rpcHlGmCKgqrDUHjlPv4cqNORlKOVaJ3pQ==}
+  '@emdash-cms/gutenberg-to-portable-text@0.7.0':
+    resolution: {integrity: sha512-RtAL+Cno34ECCrEqIi73i9gY+hGjw0J5VH+XNZ5bjCp83Z/46/az/ijNm6VEfpkqaPDoX3k4MU/5BTvyprpPLg==}
 
   '@emmetio/abbreviation@2.3.3':
     resolution: {integrity: sha512-mgv58UrU3rh4YgbE/TzgLQwJ3pFsHHhCLqY20aJq+9comytTXUDNGG/SMtSeMJdkpxgXSXunBGLD8Boka3JyVA==}
@@ -1983,8 +1983,8 @@ packages:
   electron-to-chromium@1.5.336:
     resolution: {integrity: sha512-AbH9q9J455r/nLmdNZes0G0ZKcRX73FicwowalLs6ijwOmCJSRRrLX63lcAlzy9ux3dWK1w1+1nsBJEWN11hcQ==}
 
-  emdash@0.5.0:
-    resolution: {integrity: sha512-7tUIlMEYdSJ6FmmW0DbnhiGC77u593hitvmX3H7jAywbZk1/aobicg3YnswzxhzNHsHU4QHLoTDadwQVZwrthA==}
+  emdash@0.7.0:
+    resolution: {integrity: sha512-AbbYm9pilEdH9VcH0DnfSrllZW7s5swPkimZ/BlkNWz2RZByGHga0g6dKuxvFH3Blq9M2WBeQe7vNa6RMu5QUg==}
     hasBin: true
     peerDependencies:
       '@astrojs/react': '>=5.0.0-beta.0'
@@ -2836,10 +2836,6 @@ packages:
 
   postcss@8.5.10:
     resolution: {integrity: sha512-pMMHxBOZKFU6HgAZ4eyGnwXF/EvPGGqUr0MnZ5+99485wwW41kW91A4LOGxSHhgugZmSChL5AlElNdwlNgcnLQ==}
-    engines: {node: ^10 || ^12 || >=14}
-
-  postcss@8.5.9:
-    resolution: {integrity: sha512-7a70Nsot+EMX9fFU3064K/kdHWZqGVY+BADLyXc8Dfv+mTLLVl6JzJpPaCZ2kQL9gIJvKXSLMHhqdRRjwQeFtw==}
     engines: {node: ^10 || ^12 || >=14}
 
   postgres-array@2.0.0:
@@ -4145,13 +4141,13 @@ snapshots:
       react: 19.2.5
       tslib: 2.8.1
 
-  '@emdash-cms/admin@0.5.0(@date-fns/tz@1.4.1)(@floating-ui/dom@1.7.6)(@tiptap/extension-collaboration@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3)(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30))(yjs@13.6.30))(@tiptap/extensions@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(date-fns@4.1.0)(echarts@6.0.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(zod@4.3.6)':
+  '@emdash-cms/admin@0.7.0(@date-fns/tz@1.4.1)(@floating-ui/dom@1.7.6)(@tiptap/extension-collaboration@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3)(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30))(yjs@13.6.30))(@tiptap/extensions@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(date-fns@4.1.0)(echarts@6.0.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(zod@4.3.6)':
     dependencies:
       '@cloudflare/kumo': 1.18.0(@date-fns/tz@1.4.1)(@phosphor-icons/react@2.1.10(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@types/react@19.2.14)(date-fns@4.1.0)(echarts@6.0.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(zod@4.3.6)
       '@dnd-kit/core': 6.3.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@dnd-kit/sortable': 10.0.0(@dnd-kit/core@6.3.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)
       '@dnd-kit/utilities': 3.2.2(react@19.2.5)
-      '@emdash-cms/blocks': 0.5.0(@date-fns/tz@1.4.1)(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(zod@4.3.6)
+      '@emdash-cms/blocks': 0.7.0(@date-fns/tz@1.4.1)(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(zod@4.3.6)
       '@floating-ui/react': 0.27.19(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@lingui/core': 5.9.5
       '@lingui/react': 5.9.5(react@19.2.5)
@@ -4196,7 +4192,7 @@ snapshots:
       - echarts
       - zod
 
-  '@emdash-cms/auth@0.5.0(astro@6.1.8(@types/node@25.6.0)(rollup@4.60.2)(typescript@5.9.3)(yaml@2.8.3))(kysely@0.28.16)':
+  '@emdash-cms/auth@0.7.0(astro@6.1.8(@types/node@25.6.0)(rollup@4.60.2)(typescript@5.9.3)(yaml@2.8.3))(kysely@0.28.16)':
     dependencies:
       '@oslojs/crypto': 1.0.1
       '@oslojs/encoding': 1.1.0
@@ -4207,7 +4203,7 @@ snapshots:
     optionalDependencies:
       kysely: 0.28.16
 
-  '@emdash-cms/blocks@0.5.0(@date-fns/tz@1.4.1)(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(zod@4.3.6)':
+  '@emdash-cms/blocks@0.7.0(@date-fns/tz@1.4.1)(@types/react@19.2.14)(date-fns@4.1.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(zod@4.3.6)':
     dependencies:
       '@cloudflare/kumo': 1.18.0(@date-fns/tz@1.4.1)(@phosphor-icons/react@2.1.10(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@types/react@19.2.14)(date-fns@4.1.0)(echarts@6.0.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(zod@4.3.6)
       '@phosphor-icons/react': 2.1.10(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -4223,7 +4219,7 @@ snapshots:
       - date-fns
       - zod
 
-  '@emdash-cms/gutenberg-to-portable-text@0.5.0':
+  '@emdash-cms/gutenberg-to-portable-text@0.7.0':
     dependencies:
       '@wordpress/block-serialization-default-parser': 5.43.0
       parse5: 7.3.0
@@ -5717,12 +5713,12 @@ snapshots:
 
   electron-to-chromium@1.5.336: {}
 
-  emdash@0.5.0(patch_hash=e728a47858406d4d650f0b8035c0f16fd5ceab2dbd03fee6127de45e3c8b4ba3)(9fc46a6ce8e42ac195b499e18e82a87b):
+  emdash@0.7.0(patch_hash=e5c460e6a2e61ef988412c657388416f7c2ddc1ec19212819edc9c8aad139a0e)(9fc46a6ce8e42ac195b499e18e82a87b):
     dependencies:
       '@astrojs/react': 5.0.3(@types/node@25.6.0)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(yaml@2.8.3)
-      '@emdash-cms/admin': 0.5.0(@date-fns/tz@1.4.1)(@floating-ui/dom@1.7.6)(@tiptap/extension-collaboration@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3)(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30))(yjs@13.6.30))(@tiptap/extensions@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(date-fns@4.1.0)(echarts@6.0.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(zod@4.3.6)
-      '@emdash-cms/auth': 0.5.0(astro@6.1.8(@types/node@25.6.0)(rollup@4.60.2)(typescript@5.9.3)(yaml@2.8.3))(kysely@0.28.16)
-      '@emdash-cms/gutenberg-to-portable-text': 0.5.0
+      '@emdash-cms/admin': 0.7.0(@date-fns/tz@1.4.1)(@floating-ui/dom@1.7.6)(@tiptap/extension-collaboration@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3)(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30))(yjs@13.6.30))(@tiptap/extensions@3.22.3(@tiptap/core@3.22.3(@tiptap/pm@3.22.3))(@tiptap/pm@3.22.3))(@tiptap/y-tiptap@3.0.3(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.8)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(date-fns@4.1.0)(echarts@6.0.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(zod@4.3.6)
+      '@emdash-cms/auth': 0.7.0(astro@6.1.8(@types/node@25.6.0)(rollup@4.60.2)(typescript@5.9.3)(yaml@2.8.3))(kysely@0.28.16)
+      '@emdash-cms/gutenberg-to-portable-text': 0.7.0
       '@floating-ui/react': 0.27.19(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
       '@portabletext/toolkit': 5.0.2
@@ -6846,12 +6842,6 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  postcss@8.5.9:
-    dependencies:
-      nanoid: 3.3.11
-      picocolors: 1.1.1
-      source-map-js: 1.2.1
-
   postgres-array@2.0.0: {}
 
   postgres-bytea@1.0.1: {}
@@ -7220,7 +7210,7 @@ snapshots:
       htmlparser2: 10.1.0
       is-plain-object: 5.0.0
       parse-srcset: 1.0.2
-      postcss: 8.5.9
+      postcss: 8.5.10
 
   sax@1.6.0: {}
 

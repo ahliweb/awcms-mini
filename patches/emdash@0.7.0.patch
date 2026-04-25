@@ -1,20 +1,20 @@
 diff --git a/src/astro/middleware.ts b/src/astro/middleware.ts
-index 545e018fb2eb61ed25382abcb922eeadbb1599d2..7597181e92c92b85feb093b258a80814ee0b174e 100644
+index 315e9c4..d9fd5b3 100644
 --- a/src/astro/middleware.ts
 +++ b/src/astro/middleware.ts
-@@ -51,6 +51,11 @@ import type { EmDashHandlers } from "./types.js";
+@@ -53,6 +53,11 @@ import type { EmDashHandlers } from "./types.js";
  let runtimeInstance: EmDashRuntime | null = null;
  // Whether initialization is in progress (prevents concurrent init attempts)
  let runtimeInitializing = false;
-+// Epoch ms when the current initialization attempt started.
-+let runtimeInitializingSince = 0;
-+
-+const RUNTIME_INIT_WAIT_MS = 3000;
-+const RUNTIME_INIT_POLL_MS = 50;
+++// Epoch ms when the current initialization attempt started.
+++let runtimeInitializingSince = 0;
+++
+++const RUNTIME_INIT_WAIT_MS = 3000;
+++const RUNTIME_INIT_POLL_MS = 50;
  
  /** Whether i18n config has been initialized from the virtual module */
  let i18nInitialized = false;
-@@ -138,14 +143,31 @@ async function getRuntime(config: EmDashConfig): Promise<EmDashRuntime> {
+@@ -148,14 +153,31 @@ async function getRuntime(
  
  	// If another request is already initializing, wait and retry.
  	// We don't share the promise across requests because workerd flags
@@ -24,7 +24,7 @@ index 545e018fb2eb61ed25382abcb922eeadbb1599d2..7597181e92c92b85feb093b258a80814
  	if (runtimeInitializing) {
 -		// Poll until the initializing request finishes
 -		await new Promise((resolve) => setTimeout(resolve, 50));
--		return getRuntime(config);
+-		return getRuntime(config, initTimings);
 +		const waitStartedAt = Date.now();
 +
 +		while (runtimeInitializing && !runtimeInstance) {
@@ -49,8 +49,8 @@ index 545e018fb2eb61ed25382abcb922eeadbb1599d2..7597181e92c92b85feb093b258a80814
 +	runtimeInitializingSince = Date.now();
  	try {
  		const deps = buildDependencies(config);
- 		const runtime = await EmDashRuntime.create(deps);
-@@ -153,6 +175,7 @@ async function getRuntime(config: EmDashConfig): Promise<EmDashRuntime> {
+ 		const runtime = await EmDashRuntime.create(deps, initTimings);
+@@ -163,6 +185,7 @@ async function getRuntime(
  		return runtime;
  	} finally {
  		runtimeInitializing = false;
@@ -58,119 +58,62 @@ index 545e018fb2eb61ed25382abcb922eeadbb1599d2..7597181e92c92b85feb093b258a80814
  	}
  }
  
-@@ -182,9 +205,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
- 	// Process /_emdash routes and public routes with an active session
- 	// (logged-in editors need the runtime for toolbar/visual editing on public pages)
-	const isEmDashRoute = url.pathname.startsWith("/_emdash");
-+	const isSetupShellRoute = url.pathname.startsWith("/_emdash/admin/setup");
-+	const isSetupApiRoute = url.pathname.startsWith("/_emdash/api/setup");
- 	const isPublicRuntimeRoute =
- 		PUBLIC_RUNTIME_ROUTES.has(url.pathname) || SITEMAP_COLLECTION_RE.test(url.pathname);
-
-+	if (isSetupShellRoute || isSetupApiRoute) {
-+		const response = await next();
-+		return setBaselineSecurityHeaders(response);
-+	}
+@@ -240,9 +263,17 @@ export const onRequest = defineMiddleware(async (context, next) => {
+ 		// Process /_emdash routes and public routes with an active session
+ 		// (logged-in editors need the runtime for toolbar/visual editing on public pages)
+ 		const isEmDashRoute = url.pathname.startsWith("/_emdash");
++		const isSetupShellRoute = url.pathname.startsWith("/_emdash/admin/setup");
++		const isSetupApiRoute = url.pathname.startsWith("/_emdash/api/setup");
++		const isPublicEdgeHealthRoute = url.pathname === "/api/v1/health";
+ 		const isPublicRuntimeRoute =
+ 			PUBLIC_RUNTIME_ROUTES.has(url.pathname) || SITEMAP_COLLECTION_RE.test(url.pathname);
+ 
++		if (isSetupShellRoute || isSetupApiRoute || isPublicEdgeHealthRoute) {
++			const response = await next();
++			return finalizeResponse(response);
++		}
 +
-	// Check for edit mode cookie - editors viewing public pages need the runtime
-	// so auth middleware can verify their session for visual editing
-	const hasEditCookie = cookies.get("emdash-edit-mode")?.value === "true";
-
+ 		// Check for edit mode cookie - editors viewing public pages need the runtime
+ 		// so auth middleware can verify their session for visual editing
+ 		const hasEditCookie = cookies.get("emdash-edit-mode")?.value === "true";
 diff --git a/src/astro/routes/api/setup/status.ts b/src/astro/routes/api/setup/status.ts
-index 5d6f2f0af1f65c2fb8ad0d53cb06afcfa722f31f..c13f7f74de4b9ee2837b81195c6ef7df1bfb7e62 100644
+index 4f9c068..6654c72 100644
 --- a/src/astro/routes/api/setup/status.ts
 +++ b/src/astro/routes/api/setup/status.ts
-@@ -8,17 +8,20 @@ import type { APIRoute } from "astro";
+@@ -8,31 +8,56 @@ import type { APIRoute } from "astro";
  
  export const prerender = false;
  
-+import { sql } from "kysely";
 -import { apiError, apiSuccess, handleError } from "#api/error.js";
 +import { apiSuccess, handleError } from "#api/error.js";
  import { getAuthMode } from "#auth/mode.js";
  import { loadUserSeed } from "#seed/load.js";
 +import { getDb } from "../../../../loader.js";
 +
-+function summarizeDirectDatabaseTarget(databaseUrl?: string) {
-+	if (!databaseUrl) {
-+		return {
-+			transport: "direct",
-+			source: "DATABASE_URL",
-+			hostname: null,
-+			port: null,
-+			database: null,
-+			sslmode: null,
-+		};
-+	}
++function withTimeout(promise, timeoutMs = 3000) {
++	let timer;
 +
-+	try {
-+		const parsed = new URL(databaseUrl);
-+		return {
-+			transport: "direct",
-+			source: "DATABASE_URL",
-+			hostname: parsed.hostname || null,
-+			port: parsed.port ? Number(parsed.port) : 5432,
-+			database: parsed.pathname.replace(/^\//, "") || null,
-+			sslmode: parsed.searchParams.get("sslmode") || null,
-+		};
-+	} catch {
-+		return {
-+			transport: "direct",
-+			source: "DATABASE_URL",
-+			hostname: null,
-+			port: null,
-+			database: null,
-+			sslmode: null,
-+		};
-+	}
-+}
-+
-+function describeRuntimeDatabasePosture() {
-+	if (process.env.DATABASE_TRANSPORT === "hyperdrive") {
-+		return {
-+			transport: "hyperdrive",
-+			source: "Cloudflare Hyperdrive binding",
-+			binding: process.env.HYPERDRIVE_BINDING || "HYPERDRIVE",
-+		};
-+	}
-+
-+	return summarizeDirectDatabaseTarget(process.env.DATABASE_URL);
-+}
-+
-+function createRuntimeHealthPayload(databaseOk: boolean, reason: string | null = null) {
-+	return {
-+		database: {
-+			ok: databaseOk,
-+			...(databaseOk
-+				? {}
-+				: {
-+					reason,
-+				}),
-+			posture: describeRuntimeDatabasePosture(),
-+		},
-+	};
++	return Promise.race([
++		promise.finally(() => clearTimeout(timer)),
++		new Promise((_, reject) => {
++			timer = setTimeout(() => reject(new Error("Timed out waiting for EmDash database initialization")), timeoutMs);
++		}),
++	]);
 +}
  
  export const GET: APIRoute = async ({ locals }) => {
  	const { emdash } = locals;
--
+ 
 -	if (!emdash?.db) {
 -		return apiError("NOT_CONFIGURED", "EmDash is not initialized", 500);
 -	}
- 
+-
  	try {
-+		const db = emdash?.db ?? (await getDb());
-+		let setupCompleteValue: string | null = null;
-+		let setupStateValue: string | null = null;
-+		let runtimeHealth = createRuntimeHealthPayload(true);
- 		let hasUsers = false;
++		const db = emdash?.db ?? (await withTimeout(getDb()));
++		let setupCompleteValue = null;
++		let setupStateValue = null;
++		let hasUsers = false;
 +
-+		try {
-+			await sql`select 1`.execute(db);
-+		} catch {
-+			runtimeHealth = createRuntimeHealthPayload(false, "connection_error");
-+		}
- 
  		// Check if setup is complete
 -		const setupComplete = await emdash.db
 -			.selectFrom("options")
@@ -178,10 +121,18 @@ index 5d6f2f0af1f65c2fb8ad0d53cb06afcfa722f31f..c13f7f74de4b9ee2837b81195c6ef7df
 -			.where("name", "=", "emdash:setup_complete")
 -			.executeTakeFirst();
 +		try {
-+			const setupComplete = await db.selectFrom("options").select("value").where("name", "=", "emdash:setup_complete").executeTakeFirst();
++			const setupComplete = await db
++				.selectFrom("options")
++				.select("value")
++				.where("name", "=", "emdash:setup_complete")
++				.executeTakeFirst();
 +			setupCompleteValue = setupComplete?.value ?? null;
 +
-+			const setupState = await db.selectFrom("options").select("value").where("name", "=", "emdash:setup_state").executeTakeFirst();
++			const setupState = await db
++				.selectFrom("options")
++				.select("value")
++				.where("name", "=", "emdash:setup_state")
++				.executeTakeFirst();
 +			setupStateValue = setupState?.value ?? null;
 +		} catch {
 +			// Fresh environments may not have the options table yet.
@@ -198,20 +149,21 @@ index 5d6f2f0af1f65c2fb8ad0d53cb06afcfa722f31f..c13f7f74de4b9ee2837b81195c6ef7df
  					return parsed === true || parsed === "true";
  				} catch {
  					return false;
-@@ -42,7 +45,7 @@ export const GET: APIRoute = async ({ locals }) => {
+@@ -40,9 +65,8 @@ export const GET: APIRoute = async ({ locals }) => {
+ 			})();
+ 
  		// Also check if users exist
- 		let hasUsers = false;
+-		let hasUsers = false;
  		try {
 -			const userCount = await emdash.db
 +			const userCount = await db
  				.selectFrom("users")
  				.select((eb) => eb.fn.countAll<number>().as("count"))
  				.executeTakeFirstOrThrow();
-@@ -62,14 +65,7 @@ export const GET: APIRoute = async ({ locals }) => {
- 		// step: "start" | "site" | "admin" | "complete"
+@@ -63,15 +87,9 @@ export const GET: APIRoute = async ({ locals }) => {
  		let step: "start" | "site" | "admin" = "start";
  
--		// Get setup state if it exists
+ 		// Get setup state if it exists
 -		const setupState = await emdash.db
 -			.selectFrom("options")
 -			.select("value")
@@ -226,37 +178,22 @@ index 5d6f2f0af1f65c2fb8ad0d53cb06afcfa722f31f..c13f7f74de4b9ee2837b81195c6ef7df
  				if (state.step === "admin") {
  					step = "admin";
  				} else if (state.step === "site") {
-@@ -88,7 +84,7 @@ export const GET: APIRoute = async ({ locals }) => {
-		}
-
-		// Check auth mode
+@@ -88,8 +106,8 @@ export const GET: APIRoute = async ({ locals }) => {
+ 		}
+ 
+ 		// Check auth mode
 -		const authMode = getAuthMode(emdash.config);
+-		const useExternalAuth = authMode.type === "external";
 +		const authMode = emdash?.config ? getAuthMode(emdash.config) : null;
 +		const useExternalAuth = authMode?.type === "external";
-
-@@ -100,7 +147,8 @@ export const GET: APIRoute = async ({ locals }) => {
-		if (useExternalAuth && isComplete) {
-			return apiSuccess({
-				needsSetup: false,
-+				runtimeHealth,
-			});
-		}
-
-@@ -118,10 +166,11 @@ export const GET: APIRoute = async ({ locals }) => {
-		return apiSuccess({
-			needsSetup: true,
-			step,
-			seedInfo,
-+			runtimeHealth,
-			// Tell the wizard which auth mode is active
-			authMode: useExternalAuth ? authMode.providerType : "passkey",
-		});
-
+ 
+ 		// In external auth mode, setup is complete if flag is set (no users required initially)
+ 		if (useExternalAuth && isComplete) {
 diff --git a/src/astro/routes/api/setup/index.ts b/src/astro/routes/api/setup/index.ts
-index 8fd8966cb9196b3667c026cc11c91c5079220254..7a855df66f8c69ca7d219ee9877cbefc0644551e 100644
+index c4709ee..a28da1a 100644
 --- a/src/astro/routes/api/setup/index.ts
 +++ b/src/astro/routes/api/setup/index.ts
-@@ -4,6 +4,8 @@
+@@ -5,6 +5,8 @@
   */
  
  import type { APIRoute } from "astro";
@@ -265,7 +202,7 @@ index 8fd8966cb9196b3667c026cc11c91c5079220254..7a855df66f8c69ca7d219ee9877cbefc
  
  export const prerender = false;
  
-@@ -17,15 +19,18 @@ import { OptionsRepository } from "#db/repositories/options.js";
+@@ -18,20 +20,23 @@ import { OptionsRepository } from "#db/repositories/options.js";
  import { applySeed } from "#seed/apply.js";
  import { loadSeed } from "#seed/load.js";
  import { validateSeed } from "#seed/validate.js";
@@ -273,11 +210,11 @@ index 8fd8966cb9196b3667c026cc11c91c5079220254..7a855df66f8c69ca7d219ee9877cbefc
  
  export const POST: APIRoute = async ({ request, url, locals }) => {
  	const { emdash } = locals;
--
+ 
 -	if (!emdash?.db) {
 -		return apiError("NOT_CONFIGURED", "EmDash is not initialized", 500);
 -	}
- 
+-
  	try {
 +		const db = emdash?.db ?? (await getDb());
 +		const config = emdash?.config ?? virtualConfig;
@@ -303,7 +240,7 @@ index 8fd8966cb9196b3667c026cc11c91c5079220254..7a855df66f8c69ca7d219ee9877cbefc
  		} catch (error) {
  			return handleError(error, "Failed to run database migrations", "MIGRATION_ERROR");
  		}
-@@ -70,17 +75,17 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
+@@ -70,10 +75,10 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
  
  		let result;
  		try {
@@ -316,8 +253,7 @@ index 8fd8966cb9196b3667c026cc11c91c5079220254..7a855df66f8c69ca7d219ee9877cbefc
  			});
  		} catch (error) {
  			return handleError(error, "Failed to apply seed", "SEED_ERROR");
- 		}
- 
+@@ -82,18 +87,18 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
  		// 5. Store setup state
  		// In external auth mode, mark setup complete immediately (first user to login becomes admin)
  		// In passkey mode, setup_complete is set after admin user is created
@@ -330,16 +266,20 @@ index 8fd8966cb9196b3667c026cc11c91c5079220254..7a855df66f8c69ca7d219ee9877cbefc
 +			const options = new OptionsRepository(db);
  
  			// Store the canonical site URL from the setup request.
- 			// This is trusted because setup runs on the real domain.
+ 			// Write-once at the DB level so concurrent setup POSTs can't both
+ 			// observe an empty value and race to write. A spoofed Host header
+ 			// on a later call during the wizard window must not be able to
+ 			// replace the first value.
 -			const siteUrl = getPublicOrigin(url, emdash.config);
 +			const siteUrl = getPublicOrigin(url, config);
- 			await options.set("emdash:site_url", siteUrl);
-
+ 			await options.setIfAbsent("emdash:site_url", siteUrl);
+ 
+ 			if (useExternalAuth) {
 diff --git a/src/astro/routes/api/setup/admin.ts b/src/astro/routes/api/setup/admin.ts
-index b9fbe05ce784815a4b5281c6e954260a5180d78f..58e2682ad5d0945f03f4bac88d8d2e7ece92150d 100644
+index 9d697cf..f822d6d 100644
 --- a/src/astro/routes/api/setup/admin.ts
 +++ b/src/astro/routes/api/setup/admin.ts
-@@ -4,6 +4,7 @@
+@@ -5,6 +5,7 @@
   */
  
  import type { APIRoute } from "astro";
@@ -347,18 +287,19 @@ index b9fbe05ce784815a4b5281c6e954260a5180d78f..58e2682ad5d0945f03f4bac88d8d2e7e
  
  export const prerender = false;
  
-@@ -17,15 +18,15 @@ import { createChallengeStore } from "#auth/challenge-store.js";
+@@ -20,17 +21,17 @@ import { createChallengeStore } from "#auth/challenge-store.js";
  import { getPasskeyConfig } from "#auth/passkey-config.js";
+ import { SETUP_NONCE_COOKIE, SETUP_NONCE_MAX_AGE_SECONDS } from "#auth/setup-nonce.js";
  import { OptionsRepository } from "#db/repositories/options.js";
 +import { getDb } from "../../../../loader.js";
  
- export const POST: APIRoute = async ({ request, locals }) => {
+ export const POST: APIRoute = async ({ cookies, request, locals }) => {
  	const { emdash } = locals;
--
+ 
 -	if (!emdash?.db) {
 -		return apiError("NOT_CONFIGURED", "EmDash is not initialized", 500);
 -	}
- 
+-
  	try {
 +		const db = emdash?.db ?? (await getDb());
 +		const config = emdash?.config ?? virtualConfig;
@@ -369,7 +310,7 @@ index b9fbe05ce784815a4b5281c6e954260a5180d78f..58e2682ad5d0945f03f4bac88d8d2e7e
  		const setupComplete = await options.get("emdash:setup_complete");
  
  		if (setupComplete === true || setupComplete === "true") {
-@@ -35,7 +36,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
+@@ -38,7 +39,7 @@ export const POST: APIRoute = async ({ cookies, request, locals }) => {
  		}
  
  		// Check if any users exist
@@ -378,7 +319,7 @@ index b9fbe05ce784815a4b5281c6e954260a5180d78f..58e2682ad5d0945f03f4bac88d8d2e7e
  		const userCount = await adapter.countUsers();
  
  		if (userCount > 0) {
-@@ -55,11 +56,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
+@@ -60,11 +61,11 @@ export const POST: APIRoute = async ({ cookies, request, locals }) => {
  		// Get passkey config
  		const url = new URL(request.url);
  		const siteName = (await options.get<string>("emdash:site_title")) ?? undefined;
@@ -392,9 +333,8 @@ index b9fbe05ce784815a4b5281c6e954260a5180d78f..58e2682ad5d0945f03f4bac88d8d2e7e
  
  		// Create a temporary user object for registration options
  		// (not persisted until passkey is verified)
-
 diff --git a/src/astro/routes/api/setup/admin-verify.ts b/src/astro/routes/api/setup/admin-verify.ts
-index 2102f733a4401722144c7573464d4767340e3927..6ec3710b45c083a6ca022f89fb8fcdd62a2c6476 100644
+index b242f55..9bc6e3e 100644
 --- a/src/astro/routes/api/setup/admin-verify.ts
 +++ b/src/astro/routes/api/setup/admin-verify.ts
 @@ -5,6 +5,7 @@
@@ -405,18 +345,19 @@ index 2102f733a4401722144c7573464d4767340e3927..6ec3710b45c083a6ca022f89fb8fcdd6
  
  export const prerender = false;
  
-@@ -18,15 +19,15 @@ import { createChallengeStore } from "#auth/challenge-store.js";
+@@ -20,17 +21,17 @@ import { createChallengeStore } from "#auth/challenge-store.js";
  import { getPasskeyConfig } from "#auth/passkey-config.js";
+ import { SETUP_NONCE_COOKIE } from "#auth/setup-nonce.js";
  import { OptionsRepository } from "#db/repositories/options.js";
 +import { getDb } from "../../../../loader.js";
  
- export const POST: APIRoute = async ({ request, locals }) => {
+ export const POST: APIRoute = async ({ cookies, request, locals }) => {
  	const { emdash } = locals;
--
+ 
 -	if (!emdash?.db) {
 -		return apiError("NOT_CONFIGURED", "EmDash is not initialized", 500);
 -	}
- 
+-
  	try {
 +		const db = emdash?.db ?? (await getDb());
 +		const config = emdash?.config ?? virtualConfig;
@@ -427,7 +368,7 @@ index 2102f733a4401722144c7573464d4767340e3927..6ec3710b45c083a6ca022f89fb8fcdd6
  		const setupComplete = await options.get("emdash:setup_complete");
  
  		if (setupComplete === true || setupComplete === "true") {
-@@ -36,7 +37,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
+@@ -38,7 +39,7 @@ export const POST: APIRoute = async ({ cookies, request, locals }) => {
  		}
  
  		// Check if any users exist
@@ -436,7 +377,7 @@ index 2102f733a4401722144c7573464d4767340e3927..6ec3710b45c083a6ca022f89fb8fcdd6
  		const userCount = await adapter.countUsers();
  
  		if (userCount > 0) {
-@@ -56,11 +57,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
+@@ -82,11 +83,11 @@ export const POST: APIRoute = async ({ cookies, request, locals }) => {
  		// Get passkey config
  		const url = new URL(request.url);
  		const siteName = (await options.get<string>("emdash:site_title")) ?? undefined;
@@ -447,22 +388,67 @@ index 2102f733a4401722144c7573464d4767340e3927..6ec3710b45c083a6ca022f89fb8fcdd6
  		// Verify the registration response
 -		const challengeStore = createChallengeStore(emdash.db);
 +		const challengeStore = createChallengeStore(db);
-
-		const verified = await verifyRegistrationResponse(
-
+ 
+ 		const verified = await verifyRegistrationResponse(
+ 			passkeyConfig,
 diff --git a/dist/astro/middleware.mjs b/dist/astro/middleware.mjs
+index d0d9afd..215108d 100644
 --- a/dist/astro/middleware.mjs
 +++ b/dist/astro/middleware.mjs
-@@
--	const isEmDashRoute = url.pathname.startsWith("/_emdash");
--	const isPublicRuntimeRoute = PUBLIC_RUNTIME_ROUTES.has(url.pathname) || SITEMAP_COLLECTION_RE.test(url.pathname);
-+	const isEmDashRoute = url.pathname.startsWith("/_emdash");
-+	const isSetupShellRoute = url.pathname.startsWith("/_emdash/admin/setup");
-+	const isSetupApiRoute = url.pathname.startsWith("/_emdash/api/setup");
-+	const isPublicEdgeHealthRoute = url.pathname === "/api/v1/health";
-+	const isPublicRuntimeRoute = PUBLIC_RUNTIME_ROUTES.has(url.pathname) || SITEMAP_COLLECTION_RE.test(url.pathname);
-+	if (isSetupShellRoute || isSetupApiRoute || isPublicEdgeHealthRoute) {
-+		const response = await next();
-+		return setBaselineSecurityHeaders(response);
-+	}
- 			passkeyConfig,
+@@ -1639,6 +1639,9 @@ var EmDashRuntime = class EmDashRuntime {
+ */
+ let runtimeInstance = null;
+ let runtimeInitializing = false;
++let runtimeInitializingSince = 0;
++const RUNTIME_INIT_WAIT_MS = 3000;
++const RUNTIME_INIT_POLL_MS = 50;
+ /** Whether i18n config has been initialized from the virtual module */
+ let i18nInitialized = false;
+ /**
+@@ -1697,10 +1700,21 @@ function buildDependencies(config) {
+ async function getRuntime(config, initTimings) {
+ 	if (runtimeInstance) return runtimeInstance;
+ 	if (runtimeInitializing) {
+-		await new Promise((resolve) => setTimeout(resolve, 50));
+-		return getRuntime(config, initTimings);
++		const waitStartedAt = Date.now();
++		while (runtimeInitializing && !runtimeInstance) {
++			const initAge = runtimeInitializingSince > 0 ? Date.now() - runtimeInitializingSince : 0;
++			const waitAge = Date.now() - waitStartedAt;
++			if (initAge > RUNTIME_INIT_WAIT_MS || waitAge > RUNTIME_INIT_WAIT_MS) {
++				runtimeInitializing = false;
++				runtimeInitializingSince = 0;
++				break;
++			}
++			await new Promise((resolve) => setTimeout(resolve, RUNTIME_INIT_POLL_MS));
++		}
++		if (runtimeInstance) return runtimeInstance;
+ 	}
+ 	runtimeInitializing = true;
++	runtimeInitializingSince = Date.now();
+ 	try {
+ 		const deps = buildDependencies(config);
+ 		const runtime = await EmDashRuntime.create(deps, initTimings);
+@@ -1708,6 +1722,7 @@ async function getRuntime(config, initTimings) {
+ 		return runtime;
+ 	} finally {
+ 		runtimeInitializing = false;
++		runtimeInitializingSince = 0;
+ 	}
+ }
+ /**
+@@ -1754,7 +1769,14 @@ const onRequest = defineMiddleware(async (context, next) => {
+ 	const queryRecorder = isInstrumentationEnabled() ? createRecorder(url.pathname, request.method, request.headers.get("x-perf-phase") ?? "default") : void 0;
+ 	const run = async () => {
+ 		const isEmDashRoute = url.pathname.startsWith("/_emdash");
++		const isSetupShellRoute = url.pathname.startsWith("/_emdash/admin/setup");
++		const isSetupApiRoute = url.pathname.startsWith("/_emdash/api/setup");
++		const isPublicEdgeHealthRoute = url.pathname === "/api/v1/health";
+ 		const isPublicRuntimeRoute = PUBLIC_RUNTIME_ROUTES.has(url.pathname) || SITEMAP_COLLECTION_RE.test(url.pathname);
++		if (isSetupShellRoute || isSetupApiRoute || isPublicEdgeHealthRoute) {
++			const response = await next();
++			return finalizeResponse(response);
++		}
+ 		const hasEditCookie = cookies.get("emdash-edit-mode")?.value === "true";
+ 		const hasPreviewToken = url.searchParams.has("_preview");
+ 		const playgroundDb = locals.__playgroundDb;
