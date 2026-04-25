@@ -108,6 +108,8 @@ pnpm audit:coolify-postgres
 
 This command uses `COOLIFY_BASE_URL` plus `COOLIFY_ACCESS_TOKEN` through the same env-managed path as the MCP wrapper, reads the documented database detail endpoint, omits secret-bearing fields from output, and exits non-zero when the API posture still violates the reviewed expectations.
 
+For PostgreSQL SSL remediation, use the Coolify dashboard or another reviewed Coolify-supported management path. Coolify's documented database update endpoint rejected `enable_ssl` and `ssl_mode` fields with validation errors during this review, so the API-backed repository command is currently verification-only for SSL state.
+
 For the reviewed PostgreSQL VPS server connection posture, use:
 
 ```bash
