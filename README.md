@@ -34,9 +34,9 @@ Known current conditions:
 
 ## Tech Stack
 
-- Astro `6.1.6`
-- React `19.2.0`
-- EmDash `0.5.0`
+- Astro `6.1.8`
+- React `19.2.5`
+- EmDash `0.7.0`
 - PostgreSQL
 - Kysely `0.28.16`
 - Cloudflare adapter via `@astrojs/cloudflare`
@@ -155,10 +155,12 @@ Cloudflare-hosted deployment baseline:
 - non-interactive Cloudflare automation should keep `CLOUDFLARE_API_TOKEN` in `.env.local`, Wrangler-managed secrets, or CI/CD secret storage rather than tracked files; Tunnel provisioning needs `Account > Cloudflare Tunnel > Edit`, DNS provisioning needs zone DNS read/edit permission for the target zone, and Access provisioning needs the relevant Cloudflare Access/Zero Trust scopes
 - local operator wrappers should load `.env.local` and `.env` as environment data, not by sourcing them as shell code
 - `wrangler.jsonc` defines the Worker, assets, observability, the reviewed public custom domain for `awcms-mini.ahlikoding.com`, the `MEDIA_BUCKET` R2 binding for `awcms-mini-s3`, and the active reviewed Hyperdrive binding used by the live Cloudflare deployment
+- `wrangler.jsonc` also declares the reviewed required Worker secret names, and the shared local Astro wrapper now fails fast when those required secrets are missing from env-managed local files or process env
 - `DATABASE_TRANSPORT=hyperdrive` is the current reviewed production posture; local build and typecheck wrappers derive `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` from `DATABASE_URL` so credentials stay env-managed
 - the Mini auth middleware keeps the EmDash setup shell database-lazy so `/_emdash/admin/setup` can render during database transport reconciliation instead of failing early with a Worker exception
 - the reviewed PostgreSQL tunnel connector now reads its runtime token from root-only VPS-managed storage and rotates that token weekly on the VPS
 - Astro's Cloudflare adapter uses the default `SESSION` KV binding for sessions unless you override it explicitly
+- for Coolify-managed resources on the VPS, the reviewed secret surface is Coolify Environment Variables with locked secrets, runtime/build scoping, and Docker Build Secrets for reviewed build-time sensitive inputs
 
 ## Common Commands
 

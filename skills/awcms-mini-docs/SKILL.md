@@ -37,6 +37,7 @@ This repository now has a compact documentation set that should stay aligned wit
 5. Update the core entry docs when a change materially affects repository usage or navigation.
 6. Keep the current single-host Cloudflare baseline explicit unless a doc is intentionally describing historical or compatibility behavior.
 7. Distinguish current live Hyperdrive runtime posture from separate operator-owned concerns such as tunnel rotation, host hardening, and secret storage.
+8. Keep the current Worker required-secret contract and Coolify-side locked-secret guidance accurate whenever docs touch credentials or deployment-managed configuration.
 
 ## When Adding New Docs
 

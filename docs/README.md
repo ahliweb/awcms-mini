@@ -38,9 +38,9 @@ Current planning reference:
 
 Current active planning and documentation issues reflected by these docs:
 
-- `#199` - refresh core repository guidance and skills for the current Cloudflare/Coolify runtime posture
-- `#200` - update AI workflow planning templates for the current live runtime and operator posture
-- `#201` - align env examples and secret-handling docs with current VPS-managed tunnel rotation and key-only SSH recovery
+- `#201` - refresh core repository guidance and skills for the current Cloudflare/Coolify runtime posture
+- `#199` - update AI workflow planning templates for the current live runtime and operator posture
+- `#200` - align env examples and secret-handling docs with current VPS-managed tunnel rotation and key-only SSH recovery
 
 ## Accuracy Rule
 
