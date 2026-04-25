@@ -142,6 +142,9 @@ test("patched EmDash setup API routes use shared db and config fallbacks", async
   assert.match(setupIndexContents, /const db = emdash\?\.db \?\? \(await getDb\(\)\);/);
   assert.match(setupIndexContents, /const config = emdash\?\.config \?\? virtualConfig;/);
   assert.match(setupIndexContents, /const storage =/);
+  assert.match(setupIndexContents, /async function shouldRunSetupCoreMigrations\(db\) \{/);
+  assert.match(setupIndexContents, /const applied = await db\.selectFrom\("_emdash_migrations"\)\.select\("name"\)\.limit\(1\)\.execute\(\);/);
+  assert.match(setupIndexContents, /if \(await shouldRunSetupCoreMigrations\(db\)\) \{/);
   assert.doesNotMatch(setupIndexContents, /apiError\("NOT_CONFIGURED", "EmDash is not initialized", 500\)/);
 
   assert.match(setupAdminContents, /import virtualConfig from "virtual:emdash\/config";/);
@@ -175,6 +178,8 @@ test("tracked EmDash patch preserves the shared setup-status compatibility seam"
   assert.match(contents, /\+\t+const isSetupApiRoute = url\.pathname\.startsWith\("\/_emdash\/api\/setup"\);/);
   assert.match(contents, /\+\t+if \(isSetupShellRoute \|\| isSetupApiRoute(?: \|\| isPublicEdgeHealthRoute)?\) \{/);
   assert.match(contents, /diff --git a\/src\/astro\/routes\/api\/setup\/index\.ts b\/src\/astro\/routes\/api\/setup\/index\.ts/);
+  assert.match(contents, /\+async function shouldRunSetupCoreMigrations\(db\) \{/);
+  assert.match(contents, /\+\t\tconst applied = await db\.selectFrom\("_emdash_migrations"\)\.select\("name"\)\.limit\(1\)\.execute\(\);/);
   assert.match(contents, /diff --git a\/src\/astro\/routes\/api\/setup\/admin\.ts b\/src\/astro\/routes\/api\/setup\/admin\.ts/);
   assert.match(contents, /diff --git a\/src\/astro\/routes\/api\/setup\/admin-verify\.ts b\/src\/astro\/routes\/api\/setup\/admin-verify\.ts/);
   assert.match(contents, /diff --git a\/src\/astro\/routes\/admin\.astro b\/src\/astro\/routes\/admin\.astro/);
