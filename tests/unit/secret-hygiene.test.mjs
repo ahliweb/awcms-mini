@@ -67,6 +67,17 @@ test("secret hygiene scan flags inline bearer tokens", async () => {
   assert.equal(findings[0].kind, "bearer-token");
 });
 
+test("secret hygiene scan flags private key blocks", async () => {
+  const findings = scanSecretHygieneLine(
+    "scripts/example.mjs",
+    "-----BEGIN OPENSSH PRIVATE KEY-----",
+    1,
+  );
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].kind, "private-key-block");
+});
+
 test("tracked local secret file detection ignores the reviewed example allowlist", async () => {
   assert.equal(isTrackedLocalSecretFile(".env.example"), false);
 });
@@ -93,8 +104,11 @@ test("findTrackedLocalSecretFiles returns only reviewed local secret file classe
 
 test("secret hygiene scan targets the reviewed maintained surfaces", async () => {
   assert.deepEqual(SECRET_HYGIENE_SCAN_TARGETS, [
+    { path: ".gitignore", type: "file" },
     { path: ".env.example", type: "file" },
+    { path: "package.json", type: "file" },
     { path: "README.md", type: "file" },
+    { path: "wrangler.jsonc", type: "file" },
     { path: "scripts", type: "directory", extensions: [".mjs"] },
     { path: "docs/process", type: "directory", extensions: [".md"] },
     { path: "docs/security", type: "directory", extensions: [".md"] },

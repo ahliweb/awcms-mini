@@ -7,8 +7,11 @@ import { fileURLToPath } from "node:url";
 const execFile = promisify(execFileCallback);
 
 export const SECRET_HYGIENE_SCAN_TARGETS = [
+  { path: ".gitignore", type: "file" },
   { path: ".env.example", type: "file" },
+  { path: "package.json", type: "file" },
   { path: "README.md", type: "file" },
+  { path: "wrangler.jsonc", type: "file" },
   { path: "scripts", type: "directory", extensions: [".mjs"] },
   { path: "docs/process", type: "directory", extensions: [".md"] },
   { path: "docs/security", type: "directory", extensions: [".md"] },
@@ -32,6 +35,7 @@ const SENSITIVE_PROCESS_ENV_ASSIGNMENT_PATTERN =
 const CREDENTIAL_URL_PATTERN =
   /\b(?:postgres(?:ql)?|mysql|mariadb|redis|amqps?|https?):\/\/[^\s`"'<>:@]+:[^\s`"'<>@]+@[^\s`"'<>]+/g;
 const BEARER_TOKEN_PATTERN = /\bBearer\s+[A-Za-z0-9._-]{20,}\b/g;
+const PRIVATE_KEY_BLOCK_MARKER_PATTERN = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/;
 
 function isPlaceholderValue(value) {
   const normalized = value.trim();
@@ -97,6 +101,10 @@ export function scanSecretHygieneLine(filePath, line, lineNumber) {
 
   for (const match of line.matchAll(BEARER_TOKEN_PATTERN)) {
     findings.push(createFinding(filePath, lineNumber, "bearer-token", match[0], line));
+  }
+
+  if (PRIVATE_KEY_BLOCK_MARKER_PATTERN.test(line)) {
+    findings.push(createFinding(filePath, lineNumber, "private-key-block", "private key marker", line));
   }
 
   return findings;
