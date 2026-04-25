@@ -10,6 +10,7 @@
     "build:node": "MINI_RUNTIME_TARGET=node astro build",
     "preview": "astro preview",
     "start": "node ./dist/server/entry.mjs",
+    "audit:coolify": "node ./scripts/audit-coolify-posture.mjs",
     "audit:coolify-postgres": "node ./scripts/audit-coolify-postgres.mjs",
     "audit:coolify-server-ssh": "node ./scripts/audit-coolify-server-ssh.mjs",
     "audit:database-role": "node ./scripts/audit-database-role.mjs",

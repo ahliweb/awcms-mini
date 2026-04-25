@@ -100,6 +100,14 @@ Read-only verification may include:
 5. `GET /api/v1/servers/{uuid}`
 6. `GET /api/v1/databases/{uuid}`
 
+For the current AWCMS Mini Coolify/PostgreSQL management-plane posture, use the combined read-only audit first:
+
+```bash
+pnpm audit:coolify
+```
+
+This command checks the current PostgreSQL resource and VPS server detail endpoints together, emits only redacted posture fields, and exits non-zero while any Coolify-side issue remains open.
+
 The repository also provides a focused read-only wrapper for the current PostgreSQL resource:
 
 ```bash
