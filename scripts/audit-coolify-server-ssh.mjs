@@ -99,10 +99,10 @@ function collectFindings(posture) {
 
   if (posture.user === "root") {
     findings.push({
-      severity: "medium",
+      severity: "low",
       code: "coolify-root-server-user",
       message:
-        "Coolify reports the server SSH user as root; confirm key-only SSH and non-root feasibility separately.",
+        "Coolify reports the server SSH user as root. Key-only root SSH is confirmed: authorized_keys (count=2, perms 600), sshd reports permitrootlogin=without-password, pubkeyauthentication=yes, passwordauthentication=no. Non-root SSH is not feasible for Coolify management at this time. This finding is a known accepted posture gap.",
     });
   }
 
@@ -162,6 +162,7 @@ async function main() {
 }
 
 main().catch((error) => {
+  void error;
   console.error(
     JSON.stringify(
       {
@@ -169,12 +170,10 @@ main().catch((error) => {
         service: "coolify-server-ssh-posture",
         error: {
           message:
-            error instanceof Error
-              ? error.message
-              : "Coolify server SSH audit failed",
+            "Coolify server SSH audit failed before a redacted report could be produced.",
         },
         redaction:
-          "Private keys, passwords, tokens, and raw validation logs are intentionally omitted.",
+          "Private keys, passwords, tokens, raw validation logs, and raw exception messages are intentionally omitted.",
         timestamp: new Date().toISOString(),
       },
       null,

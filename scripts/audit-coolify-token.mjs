@@ -139,13 +139,15 @@ async function main() {
 }
 
 main().catch((error) => {
+  void error;
   process.stderr.write(
     JSON.stringify(
       {
         ok: false,
-        error: error.message,
+        error:
+          "Coolify token rotation check failed before a redacted report could be produced.",
         redaction:
-          "Token values are intentionally omitted. Check COOLIFY_ACCESS_TOKEN in .env.local.",
+          "Token values and raw exception messages are intentionally omitted. Check COOLIFY_ACCESS_TOKEN in .env.local.",
       },
       null,
       2,

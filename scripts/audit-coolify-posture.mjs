@@ -273,6 +273,7 @@ async function main() {
 }
 
 main().catch((error) => {
+  void error;
   console.error(
     JSON.stringify(
       {
@@ -280,12 +281,10 @@ main().catch((error) => {
         service: "coolify-posture",
         error: {
           message:
-            error instanceof Error
-              ? error.message
-              : "Coolify posture audit failed",
+            "Coolify posture audit failed before a redacted report could be produced.",
         },
         redaction:
-          "Passwords, tokens, private keys, raw validation logs, connection strings, and URLs are intentionally omitted.",
+          "Passwords, tokens, private keys, raw validation logs, connection strings, URLs, and raw exception messages are intentionally omitted.",
         timestamp: new Date().toISOString(),
       },
       null,
