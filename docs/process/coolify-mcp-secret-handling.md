@@ -97,6 +97,8 @@ Read-only verification may include:
 2. `GET /api/v1/servers`
 3. `GET /api/v1/resources`
 4. `GET /api/v1/databases`
+5. `GET /api/v1/servers/{uuid}`
+6. `GET /api/v1/databases/{uuid}`
 
 The repository also provides a focused read-only wrapper for the current PostgreSQL resource:
 
@@ -104,7 +106,7 @@ The repository also provides a focused read-only wrapper for the current Postgre
 pnpm audit:coolify-postgres
 ```
 
-This command uses `COOLIFY_BASE_URL` plus `COOLIFY_ACCESS_TOKEN` through the same env-managed path as the MCP wrapper, omits secret-bearing fields from output, and exits non-zero when the API posture still violates the reviewed expectations.
+This command uses `COOLIFY_BASE_URL` plus `COOLIFY_ACCESS_TOKEN` through the same env-managed path as the MCP wrapper, reads the documented database detail endpoint, omits secret-bearing fields from output, and exits non-zero when the API posture still violates the reviewed expectations.
 
 For the reviewed PostgreSQL VPS server connection posture, use:
 
@@ -112,7 +114,7 @@ For the reviewed PostgreSQL VPS server connection posture, use:
 pnpm audit:coolify-server-ssh
 ```
 
-This command calls the documented Coolify server list endpoint, reports only non-secret server posture fields, and exits non-zero while the API still reports root SSH or reachability/usability gaps that need operator review.
+This command calls the documented Coolify server detail endpoint, reports only non-secret server posture fields, and exits non-zero while the API still reports root SSH or reachability/usability gaps that need operator review.
 
 Before copying API output into docs, issues, logs, or summaries, redact fields whose names or values may contain:
 

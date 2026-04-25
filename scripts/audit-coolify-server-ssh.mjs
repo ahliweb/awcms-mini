@@ -65,20 +65,6 @@ async function fetchCoolifyJson({ baseUrl, token }, pathname) {
   }
 }
 
-function selectServer(servers, expectedServerUuid) {
-  if (!Array.isArray(servers)) {
-    throw new Error("Coolify server list response was not an array");
-  }
-
-  const exact = servers.find((server) => server?.uuid === expectedServerUuid);
-
-  if (exact) {
-    return exact;
-  }
-
-  throw new Error(`Could not find Coolify server ${expectedServerUuid}`);
-}
-
 function buildPosture(server, expected) {
   return {
     uuid: server.uuid ?? null,
@@ -149,8 +135,10 @@ function collectFindings(posture) {
 
 async function main() {
   const config = readCoolifyConfig();
-  const servers = await fetchCoolifyJson(config, "/api/v1/servers");
-  const server = selectServer(servers, config.expectedServerUuid);
+  const server = await fetchCoolifyJson(
+    config,
+    `/api/v1/servers/${config.expectedServerUuid}`,
+  );
   const posture = buildPosture(server, {
     serverUuid: config.expectedServerUuid,
     serverIp: config.expectedServerIp,

@@ -69,28 +69,6 @@ function getNestedServerIp(database) {
   return normalizeOptionalString(database?.destination?.server?.ip);
 }
 
-function selectDatabase(databases, expectedResourceUuid) {
-  if (!Array.isArray(databases)) {
-    throw new Error("Coolify database list response was not an array");
-  }
-
-  const exact = databases.find(
-    (database) => database?.uuid === expectedResourceUuid,
-  );
-
-  if (exact) {
-    return exact;
-  }
-
-  if (databases.length === 1) {
-    return databases[0];
-  }
-
-  throw new Error(
-    `Could not find Coolify PostgreSQL resource ${expectedResourceUuid}`,
-  );
-}
-
 function buildPosture(database, expected) {
   return {
     uuid: database.uuid ?? null,
@@ -178,8 +156,10 @@ function collectFindings(posture) {
 
 async function main() {
   const config = readCoolifyConfig();
-  const databases = await fetchCoolifyJson(config, "/api/v1/databases");
-  const database = selectDatabase(databases, config.expectedResourceUuid);
+  const database = await fetchCoolifyJson(
+    config,
+    `/api/v1/databases/${config.expectedResourceUuid}`,
+  );
   const posture = buildPosture(database, {
     resourceUuid: config.expectedResourceUuid,
     serverIp: config.expectedServerIp,
