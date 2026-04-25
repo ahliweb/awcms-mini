@@ -4,21 +4,53 @@ import { join } from "node:path";
 
 import { DEFAULT_DATABASE_URL } from "../src/config/runtime.mjs";
 
-const LOCAL_ENV_FILES = [".env.local", ".env"];
 const GENERATED_LOCAL_SECRET_FILES_DIRECTORY = ["dist", "server"];
+
+function normalizeOptionalString(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const next = value.trim();
+  return next.length > 0 ? next : null;
+}
+
+function resolveLocalEnvironmentName(env = process.env) {
+  return normalizeOptionalString(env.CLOUDFLARE_ENV) || normalizeOptionalString(env.NODE_ENV);
+}
+
+export function resolveLocalEnvFiles(env = process.env) {
+  const environmentName = resolveLocalEnvironmentName(env);
+  const files = [];
+
+  if (environmentName) {
+    files.push(`.env.${environmentName}.local`);
+  }
+
+  files.push(".env.local");
+
+  if (environmentName) {
+    files.push(`.env.${environmentName}`);
+  }
+
+  files.push(".env");
+
+  return [...new Set(files)];
+}
 
 function usesHyperdriveTransport(env) {
   return env.DATABASE_TRANSPORT !== "direct";
 }
 
-export function loadLocalEnvFiles() {
+export function loadLocalEnvFiles(env = process.env) {
   if (typeof process.loadEnvFile !== "function") {
     return;
   }
 
-  // `process.loadEnvFile()` does not overwrite existing values, so load
-  // `.env.local` first to keep operator-local secrets ahead of tracked defaults.
-  for (const file of LOCAL_ENV_FILES) {
+  // `process.loadEnvFile()` does not overwrite existing values, so load the
+  // most specific Cloudflare-compatible env file first to keep operator-local
+  // secrets ahead of broader tracked defaults.
+  for (const file of resolveLocalEnvFiles(env)) {
     if (existsSync(file)) {
       process.loadEnvFile(file);
     }

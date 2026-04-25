@@ -27,8 +27,9 @@ That means:
 Use one of these local-only secret locations:
 
 1. `.env.local` for the live token and any other local-only operator secrets
-2. a shell secret manager or password-manager CLI integration
-3. the MCP client's local secret or environment-variable configuration if supported
+2. `.env.<environment>.local` when a local operator workflow needs environment-specific credentials without mixing them into the generic local file
+3. a shell secret manager or password-manager CLI integration
+4. the MCP client's local secret or environment-variable configuration if supported
 
 Tracked local env-style files should stay limited to `.env.example`. The repo now treats tracked `.env*` and `.dev.vars*` files as a secret-hygiene failure so operator-local Coolify, Cloudflare, and PostgreSQL secrets do not drift into source control.
 
@@ -37,6 +38,7 @@ Preferred pattern:
 - store the live Coolify token in a local-only secret location
 - expose it to the MCP client through an environment variable or client-managed secret reference
 - keep the repository limited to documentation of the variable name and workflow, not the token value
+- keep any environment-specific local token overrides in `.env.<environment>.local`, which the shared local env loader now resolves before `.env.local`, `.env.<environment>`, and `.env`
 
 ## Recommended Variable Pattern
 
@@ -57,26 +59,26 @@ COOLIFY_ACCESS_TOKEN=<local-only-secret>
 
 `https://app.coolify.io` is the Coolify Cloud API base URL.
 
-If you want a tracked example for non-secret local defaults, keep only `COOLIFY_BASE_URL` in `.env.example` and keep `COOLIFY_ACCESS_TOKEN` in `.env.local`.
+If you want a tracked example for non-secret local defaults, keep only `COOLIFY_BASE_URL` in `.env.example` and keep `COOLIFY_ACCESS_TOKEN` in `.env.local` or `.env.<environment>.local`.
 
-The local wrapper now loads `.env.local` and `.env` through the shared Node env loader rather than sourcing them as shell code, and it requires `COOLIFY_BASE_URL` plus `COOLIFY_ACCESS_TOKEN` to come from env-managed configuration instead of script defaults.
+The local wrapper now loads env files with Cloudflare-style precedence through the shared Node env loader rather than sourcing them as shell code, and it requires `COOLIFY_BASE_URL` plus `COOLIFY_ACCESS_TOKEN` to come from env-managed configuration instead of script defaults.
 
 ## Local CLI And MCP Workflow
 
 For Coolify Cloud:
 
-1. keep `COOLIFY_BASE_URL` in `.env` or `.env.local` as needed, and keep `COOLIFY_ACCESS_TOKEN` in `.env.local`
+1. keep `COOLIFY_BASE_URL` in `.env`, `.env.<environment>`, or `.env.local` as needed, and keep `COOLIFY_ACCESS_TOKEN` in `.env.local` or `.env.<environment>.local`
 2. run `coolify context set-token cloud "$COOLIFY_ACCESS_TOKEN"` to configure the CLI locally
 3. run `pnpm coolify:mcp` when an MCP client should launch the local wrapper in this repository
 
-The tracked wrapper script reads `.env.local` first and then `.env` through the shared Node loader, so operator-local secrets win without executing the files as shell code, and passes the credentials to the MCP server without storing the token in the script itself.
+The tracked wrapper script now reads env files with Cloudflare-style precedence through the shared Node loader, so the most specific local secret file wins without executing the files as shell code, and passes the credentials to the MCP server without storing the token in the script itself.
 
 For Cloudflare-hosted deployment secrets, keep Worker runtime secrets in Wrangler-managed secrets or CI/CD-managed environment storage rather than tracked files. Use tracked `.env.example` values only for placeholders and non-secret defaults.
 
 ## Operator Workflow
 
 1. Generate or obtain the smallest-scope Coolify token available for the intended operator task.
-2. Store the token in a local-only secret location such as `.env.local` or an external secret manager.
+2. Store the token in a local-only secret location such as `.env.local`, `.env.<environment>.local`, or an external secret manager.
 3. Configure the MCP client to read that token from the local environment or secret store.
 4. Verify the token is not echoed in wrapper scripts, shell history helpers, or captured command logs.
 5. Keep Coolify administrative credentials separate from:
@@ -146,6 +148,7 @@ This separation reduces blast radius and keeps least-privilege boundaries cleare
 - keep operator tokens least-privileged and scoped only to the Cloudflare or Coolify surfaces needed for the reviewed task
 - rotate tokens after suspected exposure and document the rotation owner and reason
 - keep PostgreSQL credentials distinct from Coolify and Cloudflare administrative credentials
+- keep environment-specific local operator secrets in untracked `.env.<environment>.local` files rather than tracked config or script defaults when a workflow needs per-environment separation
 
 This baseline aligns with the current AWCMS Mini posture:
 

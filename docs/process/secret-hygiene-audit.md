@@ -21,6 +21,8 @@ The reviewed local command wrappers and deploy wrapper now inject the local Hype
 
 The reviewed local build wrapper now also removes generated `dist/server/.dev.vars*` files after `astro build` completes so local operator secrets from `.env.local` do not linger inside the Cloudflare build artifact tree.
 
+The reviewed local env helper now follows Cloudflare's current `.env` merge precedence for local development: `.env.<environment>.local`, `.env.local`, `.env.<environment>`, `.env`. This keeps environment-specific operator secrets in untracked env files instead of embedding them in maintained scripts or tracked config defaults.
+
 The current repository posture should therefore be described as:
 
 - no confirmed committed live credentials in the reviewed maintained scripts
@@ -32,7 +34,7 @@ This runbook should not be used to overstate a leak that has not been confirmed.
 ## Secret Storage Rules
 
 - keep production and operator secrets out of source control
-- keep local-only secrets in `.env.local` or an equivalent local secret store
+- keep local-only secrets in `.env.local`, `.env.<environment>.local`, or an equivalent local secret store
 - keep production runtime secrets in deployment-managed environment variables, Cloudflare-managed secrets, or equivalent server-only storage
 - keep operator automation secrets separate from runtime application secrets
 - do not place live tokens, passwords, or keys in issue bodies, tracked scripts, or committed examples
@@ -61,7 +63,8 @@ Review these surfaces in order:
 Preferred repository patterns:
 
 - `.env.example` contains placeholder values only
-- `.env.local` is local-only and untracked
+- `.env.local` and `.env.<environment>.local` are local-only and untracked
+- `.env.<environment>` may be used for non-secret environment-specific defaults, but should stay untracked unless it is promoted into `.env.example`-style placeholder guidance
 - generated Cloudflare local secret files such as `dist/server/.dev.vars` are treated as disposable local artifacts and removed after reviewed build flows
 - scripts use the shared local env loading pattern rather than reimplementing it ad hoc
 - scripts parse env files as environment data rather than execute them through the shell
@@ -120,6 +123,12 @@ If the audit does not find confirmed live secrets:
 - document the finding accurately
 - tighten any examples that still normalize unsafe patterns
 - avoid overstating the result as a confirmed credential leak
+
+## Current Standards Alignment
+
+- OWASP Secrets Management guidance: centralize and standardize secret handling, apply least privilege, avoid plaintext secret transport, and keep rotation and auditability explicit for operator credentials.
+- Cloudflare Workers guidance: keep sensitive values out of Wrangler `vars`, prefer Worker secrets for deployed runtime values, and keep `.env*` or `.dev.vars*` files untracked in local development.
+- Current Mini operator posture: Cloudflare hosts the runtime, PostgreSQL runs on a Coolify-managed VPS, and EmDash remains the host architecture, so operator automation secrets must stay distinct from application runtime credentials.
 
 ## Current Example Guidance
 

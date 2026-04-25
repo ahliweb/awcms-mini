@@ -7,7 +7,30 @@ import { tmpdir } from "node:os";
 import {
   applyLocalCloudflareRuntimeEnv,
   cleanupGeneratedCloudflareLocalSecretFiles,
+  resolveLocalEnvFiles,
 } from "../../scripts/_local-env.mjs";
+
+test("resolveLocalEnvFiles follows Cloudflare .env precedence for environment-specific files", async () => {
+  assert.deepEqual(resolveLocalEnvFiles({ CLOUDFLARE_ENV: "staging" }), [
+    ".env.staging.local",
+    ".env.local",
+    ".env.staging",
+    ".env",
+  ]);
+});
+
+test("resolveLocalEnvFiles falls back to NODE_ENV when CLOUDFLARE_ENV is unset", async () => {
+  assert.deepEqual(resolveLocalEnvFiles({ NODE_ENV: "production" }), [
+    ".env.production.local",
+    ".env.local",
+    ".env.production",
+    ".env",
+  ]);
+});
+
+test("resolveLocalEnvFiles keeps the generic local env files when no environment is set", async () => {
+  assert.deepEqual(resolveLocalEnvFiles({}), [".env.local", ".env"]);
+});
 
 test("applyLocalCloudflareRuntimeEnv derives the local Hyperdrive connection string from DATABASE_URL", async () => {
   const env = {
