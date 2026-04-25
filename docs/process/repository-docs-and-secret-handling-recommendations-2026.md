@@ -18,7 +18,7 @@ It also follows the issue-driven planning rules in `docs/process/ai-workflow-pla
 - Media/file storage is expected to use the private R2 bucket bound as `MEDIA_BUCKET` with bucket name `awcms-mini-s3`.
 - The reviewed admin browser entry remains `https://awcms-mini.ahlikoding.com/_emdash/`, which redirects into EmDash's `/_emdash/admin` surface.
 - Turnstile still protects the public login, password-reset request, and invite-activation flows when configured.
-- The private-database Cloudflare Tunnel path is active again, and the tunnel token is now stored in root-only VPS-managed storage with a weekly rotation timer.
+- The private-database Cloudflare Tunnel path is active again, and the tunnel token is now stored in root-only VPS-managed storage with a monthly rotation timer.
 - The reviewed Coolify-managed VPS now uses key-only root SSH recovery; password-based root SSH login is disabled and the root password is locked.
 
 ## Confirmed Documentation Alignment Status
@@ -32,7 +32,7 @@ It also follows the issue-driven planning rules in `docs/process/ai-workflow-pla
 
 ### Planning Guidance
 
-- `docs/process/ai-workflow-planning-templates.md` now describes the live Hyperdrive-backed Worker baseline, restored tunnel/connectivity posture, weekly tunnel-token rotation, and key-only VPS recovery.
+- `docs/process/ai-workflow-planning-templates.md` now describes the live Hyperdrive-backed Worker baseline, restored tunnel/connectivity posture, monthly tunnel-token rotation, and key-only VPS recovery.
 
 ### Secret Handling And Env Guidance
 
@@ -79,7 +79,7 @@ Recommended changes:
 
 - update the current repository baseline section
 - remove stale blocked-rollout language
-- add current operator guardrails for root-only VPS-managed tunnel token storage, weekly tunnel rotation, and key-only SSH recovery
+- add current operator guardrails for root-only VPS-managed tunnel token storage, monthly tunnel rotation, and key-only SSH recovery
 - keep the templates atomic, token-efficient, and issue-driven
 
 Current status: planning template refresh complete.

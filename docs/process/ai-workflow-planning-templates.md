@@ -64,7 +64,7 @@ Use these as the default current-state assumptions when adapting any template in
 - The versioned external/mobile API baseline lives under `/api/v1/*` and currently includes `/api/v1/health`, `/api/v1/token`, and `/api/v1/session`.
 - Edge API access tokens are short-lived JWT Bearer tokens and refresh tokens are opaque, hashed, and rotation-backed in PostgreSQL.
 - The live Cloudflare-hosted Worker now uses the reviewed Hyperdrive-backed PostgreSQL path successfully.
-- The reviewed PostgreSQL tunnel connector now reads its token from root-only VPS-managed storage and rotates it weekly on the VPS.
+- The reviewed PostgreSQL tunnel connector now reads its token from root-only VPS-managed storage and rotates it monthly on the VPS.
 - The reviewed Coolify-managed VPS now uses key-only root SSH recovery rather than password-based root SSH recovery.
 - For Coolify-managed resources, the reviewed secret surface is Coolify Environment Variables with locked secrets, explicit build-vs-runtime scoping, and Docker Build Secrets for reviewed build-time sensitive inputs.
 - Coolify API inspection confirms the current PostgreSQL resource is private and healthy, while SSL enablement, runtime database role scope, and server SSH user hardening remain operator-side verification seams tracked through issue-scoped follow-up.

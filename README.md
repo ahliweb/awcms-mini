@@ -30,7 +30,7 @@ Known current conditions:
 - ABAC audit-only rollout flags exist in the authorization service
 - some rollout and persistence hardening work is still needed before treating those controls as fully production-complete across multi-instance deployments
 - the reviewed live Cloudflare Worker now uses the Hyperdrive-backed PostgreSQL path successfully through the current private-database tunnel posture
-- the reviewed Coolify-managed VPS now uses key-only root SSH recovery, and the tunnel token is rotated from root-only VPS-managed secret storage on a weekly timer
+- the reviewed Coolify-managed VPS now uses key-only root SSH recovery, and the tunnel token is rotated from root-only VPS-managed secret storage on a monthly timer
 
 ## Tech Stack
 
@@ -158,7 +158,7 @@ Cloudflare-hosted deployment baseline:
 - `wrangler.jsonc` also declares the reviewed required Worker secret names, and the shared local Astro wrapper now fails fast when those required secrets are missing from env-managed local files or process env
 - `DATABASE_TRANSPORT=hyperdrive` is the current reviewed production posture; local build and typecheck wrappers derive `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` from `DATABASE_URL` so credentials stay env-managed
 - the Mini auth middleware keeps the EmDash setup shell database-lazy so `/_emdash/admin/setup` can render during database transport reconciliation instead of failing early with a Worker exception
-- the reviewed PostgreSQL tunnel connector now reads its runtime token from root-only VPS-managed storage and rotates that token weekly on the VPS
+- the reviewed PostgreSQL tunnel connector now reads its runtime token from root-only VPS-managed storage and rotates that token monthly on the VPS
 - Astro's Cloudflare adapter uses the default `SESSION` KV binding for sessions unless you override it explicitly
 - for Coolify-managed resources on the VPS, the reviewed secret surface is Coolify Environment Variables with locked secrets, runtime/build scoping, and Docker Build Secrets for reviewed build-time sensitive inputs
 
