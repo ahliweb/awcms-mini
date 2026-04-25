@@ -76,6 +76,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Scope: server-only runtime configuration.
 - Fallback behavior: the current code falls back to `APP_SECRET` when this value is not provided.
 - Rule: production deployments should set an explicit dedicated value instead of relying on an implicit fallback.
+- Cloudflare Worker contract: the reviewed `wrangler.jsonc` now declares this as a required Worker secret for local/dev and deploy validation.
 
 ### `APP_SECRET`
 
@@ -83,6 +84,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Scope: server-only runtime configuration.
 - Current Mini usage: fallback for TOTP secret encryption when `MINI_TOTP_ENCRYPTION_KEY` is not set.
 - Rule: do not rely on `APP_SECRET` as the steady-state TOTP key in production when a dedicated `MINI_TOTP_ENCRYPTION_KEY` can be provided.
+- Cloudflare Worker contract: the reviewed `wrangler.jsonc` now declares this as a required Worker secret for local/dev and deploy validation.
 
 ### `SITE_URL`
 
@@ -123,6 +125,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Purpose: server-side secret used for mandatory Turnstile Siteverify validation.
 - Scope: server-only runtime secret.
 - Current rule: Turnstile enforcement activates when this value is configured.
+- Cloudflare Worker contract: the reviewed Cloudflare-hosted baseline now declares this as a required Worker secret because Turnstile protects the current reviewed public auth and recovery flows.
 
 ### `TURNSTILE_EXPECTED_HOSTNAME`
 
@@ -180,6 +183,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Scope: server-only runtime secret.
 - Default behavior: falls back to `APP_SECRET` when omitted.
 - Rule: production deployments should set a dedicated value instead of relying on the fallback.
+- Cloudflare Worker contract: the reviewed `wrangler.jsonc` now declares this as a required Worker secret for local/dev and deploy validation.
 
 ### `EDGE_API_JWT_ISSUER`
 
@@ -232,6 +236,8 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - if `ADMIN_SITE_URL` is configured, treat it as an entry hostname for the same EmDash admin surface rather than a second admin runtime
 - for remote PostgreSQL deployments, prefer TLS-enabled connections and host-level access restriction
 - store Turnstile secrets in Cloudflare-managed secrets or equivalent server-only runtime configuration
+- keep the Cloudflare Worker required-secret list in `wrangler.jsonc` aligned with the real runtime secret contract so local/dev and deploy validation fail clearly when reviewed secrets are missing
+- keep the shared local Astro wrapper aligned with that same `wrangler.jsonc` secret list so local `astro dev`, `astro check`, and `astro build` fail clearly instead of continuing with warning-only secret drift
 - for split public/admin hostnames, validate Turnstile Siteverify results against an explicit hostname allowlist rather than a single hostname only
 - store `EDGE_API_JWT_SECRET` in Cloudflare-managed secrets or equivalent server-only runtime configuration
 - keep R2 buckets private by default and access them through Cloudflare bindings, not REST calls from runtime code

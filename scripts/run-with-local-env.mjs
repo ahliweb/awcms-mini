@@ -2,12 +2,14 @@ import { spawnSync } from "node:child_process";
 
 import {
   applyLocalCloudflareRuntimeEnv,
+  assertRequiredWorkerSecretsPresent,
   cleanupGeneratedCloudflareLocalSecretFiles,
   loadLocalEnvFiles,
 } from "./_local-env.mjs";
 
 loadLocalEnvFiles();
 applyLocalCloudflareRuntimeEnv();
+assertRequiredWorkerSecretsPresent();
 
 const [, , command, ...args] = process.argv;
 

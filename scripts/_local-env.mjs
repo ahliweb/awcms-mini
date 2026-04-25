@@ -1,10 +1,11 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 
 import { DEFAULT_DATABASE_URL } from "../src/config/runtime.mjs";
 
 const GENERATED_LOCAL_SECRET_FILES_DIRECTORY = ["dist", "server"];
+const DEFAULT_WORKER_CONFIG_PATH = "wrangler.jsonc";
 
 function normalizeOptionalString(value) {
   if (typeof value !== "string") {
@@ -36,6 +37,36 @@ export function resolveLocalEnvFiles(env = process.env) {
   files.push(".env");
 
   return [...new Set(files)];
+}
+
+export function getRequiredWorkerSecrets(configPath = DEFAULT_WORKER_CONFIG_PATH) {
+  if (!existsSync(configPath)) {
+    return [];
+  }
+
+  const contents = readFileSync(configPath, "utf8");
+  const parsed = JSON.parse(contents);
+  const entries = Array.isArray(parsed?.secrets?.required) ? parsed.secrets.required : [];
+
+  return entries
+    .map((value) => normalizeOptionalString(value))
+    .filter(Boolean);
+}
+
+export function findMissingRequiredWorkerSecrets(env = process.env, configPath = DEFAULT_WORKER_CONFIG_PATH) {
+  return getRequiredWorkerSecrets(configPath).filter((name) => !normalizeOptionalString(env[name]));
+}
+
+export function assertRequiredWorkerSecretsPresent(env = process.env, configPath = DEFAULT_WORKER_CONFIG_PATH) {
+  const missing = findMissingRequiredWorkerSecrets(env, configPath);
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required Worker secrets: ${missing.join(", ")}. Set them in .env.local, .env.<environment>.local, Cloudflare-managed Worker secrets, or process.env.`,
+    );
+  }
+
+  return getRequiredWorkerSecrets(configPath);
 }
 
 function usesHyperdriveTransport(env) {

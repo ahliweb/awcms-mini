@@ -6,7 +6,10 @@ import { tmpdir } from "node:os";
 
 import {
   applyLocalCloudflareRuntimeEnv,
+  assertRequiredWorkerSecretsPresent,
   cleanupGeneratedCloudflareLocalSecretFiles,
+  findMissingRequiredWorkerSecrets,
+  getRequiredWorkerSecrets,
   resolveLocalEnvFiles,
 } from "../../scripts/_local-env.mjs";
 
@@ -30,6 +33,66 @@ test("resolveLocalEnvFiles falls back to NODE_ENV when CLOUDFLARE_ENV is unset",
 
 test("resolveLocalEnvFiles keeps the generic local env files when no environment is set", async () => {
   assert.deepEqual(resolveLocalEnvFiles({}), [".env.local", ".env"]);
+});
+
+test("getRequiredWorkerSecrets reads the reviewed required secret names from wrangler config", async () => {
+  const rootDir = await mkdtemp(join(tmpdir(), "awcms-mini-worker-secrets-"));
+  const configPath = join(rootDir, "wrangler.jsonc");
+
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      secrets: {
+        required: ["APP_SECRET", "EDGE_API_JWT_SECRET"],
+      },
+    }),
+  );
+
+  assert.deepEqual(getRequiredWorkerSecrets(configPath), ["APP_SECRET", "EDGE_API_JWT_SECRET"]);
+});
+
+test("findMissingRequiredWorkerSecrets reports only missing reviewed secret names", async () => {
+  const rootDir = await mkdtemp(join(tmpdir(), "awcms-mini-worker-secrets-"));
+  const configPath = join(rootDir, "wrangler.jsonc");
+
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      secrets: {
+        required: ["APP_SECRET", "EDGE_API_JWT_SECRET", "TURNSTILE_SECRET_KEY"],
+      },
+    }),
+  );
+
+  assert.deepEqual(
+    findMissingRequiredWorkerSecrets(
+      {
+        APP_SECRET: "local-app-secret",
+        TURNSTILE_SECRET_KEY: "turnstile-secret",
+      },
+      configPath,
+    ),
+    ["EDGE_API_JWT_SECRET"],
+  );
+});
+
+test("assertRequiredWorkerSecretsPresent fails clearly when reviewed Worker secrets are missing", async () => {
+  const rootDir = await mkdtemp(join(tmpdir(), "awcms-mini-worker-secrets-"));
+  const configPath = join(rootDir, "wrangler.jsonc");
+
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      secrets: {
+        required: ["APP_SECRET", "EDGE_API_JWT_SECRET"],
+      },
+    }),
+  );
+
+  assert.throws(
+    () => assertRequiredWorkerSecretsPresent({ APP_SECRET: "local-app-secret" }, configPath),
+    /Missing required Worker secrets: EDGE_API_JWT_SECRET/,
+  );
 });
 
 test("applyLocalCloudflareRuntimeEnv derives the local Hyperdrive connection string from DATABASE_URL", async () => {

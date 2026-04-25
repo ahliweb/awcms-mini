@@ -14,6 +14,14 @@
     "R2_MEDIA_BUCKET_BINDING": "MEDIA_BUCKET",
     "R2_MEDIA_BUCKET_NAME": "awcms-mini-s3"
   },
+  "secrets": {
+    "required": [
+      "APP_SECRET",
+      "MINI_TOTP_ENCRYPTION_KEY",
+      "TURNSTILE_SECRET_KEY",
+      "EDGE_API_JWT_SECRET"
+    ]
+  },
   "assets": {
     "binding": "ASSETS",
     "directory": "./dist"

@@ -35,6 +35,7 @@ The supported baseline production path is:
 - Treat the reviewed Wrangler/operator deployment path as the production source of truth; the earlier Cloudflare Git-integrated Workers Builds path has been intentionally retired for this Worker
 - Use the route-safe Wrangler flow for reviewed production deploys: `wrangler versions upload` followed by `wrangler versions deploy`
 - Keep production secrets in Cloudflare-managed Worker secrets such as `wrangler secret put`; do not treat local `.dev.vars` files or Wrangler `[vars]` as the deployed secret store
+- Keep the reviewed required runtime secrets declared in `wrangler.jsonc` so local/dev and deploy flows fail clearly when the Worker secret contract is incomplete. The shared local Astro wrapper now enforces the same required-secret list before `astro dev`, `astro check`, or `astro build` starts.
 - Keep Worker compatibility flags aligned with the runtime needs of the current codebase
 - Keep observability enabled for production deployment
 - Prefer the Worker custom domain for `awcms-mini.ahlikoding.com` as the reviewed single-host baseline because the Worker is the origin for this deployment model
@@ -74,6 +75,7 @@ Before deployment:
 - Confirm the `MEDIA_BUCKET` binding targets `awcms-mini-s3`
 - Confirm `MINI_RUNTIME_TARGET=cloudflare` in the deployment environment
 - Confirm `SITE_URL`, `TRUSTED_PROXY_MODE`, and security secrets are set correctly
+- Confirm the required Worker secrets declared in `wrangler.jsonc` are present in Cloudflare-managed secrets or the reviewed local env-managed development files before deploy
 - Confirm `ADMIN_ENTRY_PATH=/_emdash/` for the reviewed single-host baseline
 - Confirm `ADMIN_SITE_URL` only if a dedicated admin hostname is still enabled for compatibility
 - Confirm `TURNSTILE_EXPECTED_HOSTNAMES` or its derived fallback matches the reviewed hostname set when Turnstile is enabled

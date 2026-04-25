@@ -28,6 +28,28 @@ function withTurnstileEnv(callback) {
   });
 }
 
+function withoutTurnstileEnv(callback) {
+  const previousSecret = process.env.TURNSTILE_SECRET_KEY;
+  const previousSiteUrl = process.env.SITE_URL;
+
+  delete process.env.TURNSTILE_SECRET_KEY;
+  delete process.env.SITE_URL;
+
+  return Promise.resolve(callback()).finally(() => {
+    if (previousSecret === undefined) {
+      delete process.env.TURNSTILE_SECRET_KEY;
+    } else {
+      process.env.TURNSTILE_SECRET_KEY = previousSecret;
+    }
+
+    if (previousSiteUrl === undefined) {
+      delete process.env.SITE_URL;
+    } else {
+      process.env.SITE_URL = previousSiteUrl;
+    }
+  });
+}
+
 function withTurnstileStub(result, callback) {
   globalThis.fetch = async () => ({
     async json() {
@@ -265,13 +287,15 @@ test("handleInviteActivation still works without Turnstile configuration", async
   formData.set("display_name", "No Turnstile");
   formData.set("password", "very-secure-password");
 
-  const response = await handleInviteActivation({
-    db: database,
-    request: new Request("http://example.test/api/activate", {
-      method: "POST",
-      body: formData,
+  const response = await withoutTurnstileEnv(() =>
+    handleInviteActivation({
+      db: database,
+      request: new Request("http://example.test/api/activate", {
+        method: "POST",
+        body: formData,
+      }),
     }),
-  });
+  );
 
   assert.equal(response.status, 302);
   assert.equal(response.headers.get("location"), "http://example.test/activate?status=success");

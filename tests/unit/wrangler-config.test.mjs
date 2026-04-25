@@ -29,3 +29,14 @@ test("wrangler config defines the reviewed database transport defaults", async (
   assert.match(contents, /"hyperdrive"\s*:\s*\[/);
   assert.match(contents, /"id"\s*:\s*"8491095b83164e1885cd3d6b4c32afd7"/);
 });
+
+test("wrangler config declares the reviewed required Worker secrets", async () => {
+  const contents = await readFile(wranglerConfigPath, "utf8");
+
+  assert.match(contents, /"secrets"\s*:\s*\{/);
+  assert.match(contents, /"required"\s*:\s*\[/);
+  assert.match(contents, /"APP_SECRET"/);
+  assert.match(contents, /"MINI_TOTP_ENCRYPTION_KEY"/);
+  assert.match(contents, /"TURNSTILE_SECRET_KEY"/);
+  assert.match(contents, /"EDGE_API_JWT_SECRET"/);
+});
