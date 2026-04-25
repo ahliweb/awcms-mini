@@ -34,6 +34,7 @@ Use these rules to keep AI-assisted work scoped, reviewable, and efficient.
 - Prefer targeted validation first, then the repo baseline, instead of always running the broadest possible command set at the start.
 - Create follow-on issues rather than folding unrelated cleanup into the current task.
 - When a Cloudflare MCP or other external management surface cannot show live inventory, document the caveat explicitly instead of spending extra prompt budget restating the failure repeatedly.
+- When a Coolify MCP or direct Coolify control surface is unavailable, update repository-side guidance and create an operator follow-on issue instead of pretending live Coolify secrets or settings were changed.
 
 ## Recommended Execution Order For AI Tasks
 
@@ -49,7 +50,7 @@ Use these rules to keep AI-assisted work scoped, reviewable, and efficient.
 
 Use these as the default current-state assumptions when adapting any template in this document.
 
-- EmDash `0.5.0` remains the canonical host architecture.
+- EmDash `0.7.0` is the current reviewed package baseline in `awcms-mini`.
 - AWCMS Mini remains single-tenant and PostgreSQL-backed.
 - PostgreSQL is hosted on a protected VPS managed through Coolify.
 - Cloudflare-hosted Worker runtime is the supported app-hosting baseline.
@@ -57,6 +58,7 @@ Use these as the default current-state assumptions when adapting any template in
 - The reviewed admin browser entry is `https://awcms-mini.ahlikoding.com/_emdash/`, which redirects into EmDash's current `/_emdash/admin` surface.
 - `ADMIN_SITE_URL` is a compatibility-only entry host when operators still need a dedicated admin hostname.
 - `wrangler.jsonc` currently declares the reviewed public Worker custom domain plus the `MEDIA_BUCKET` binding for R2 bucket `awcms-mini-s3`.
+- `wrangler.jsonc` now also declares the reviewed required Worker secret names, and the shared local Astro wrapper enforces the same required-secret contract before local `astro dev`, `astro check`, or `astro build` runs.
 - Turnstile currently protects the public login, password-reset request, and invite-activation flows when configured.
 - Turnstile validation is server-side and supports hostname allowlists through `TURNSTILE_EXPECTED_HOSTNAMES`, with fallback derivation from `SITE_URL` and optional `ADMIN_SITE_URL`.
 - The versioned external/mobile API baseline lives under `/api/v1/*` and currently includes `/api/v1/health`, `/api/v1/token`, and `/api/v1/session`.
@@ -64,6 +66,7 @@ Use these as the default current-state assumptions when adapting any template in
 - The live Cloudflare-hosted Worker now uses the reviewed Hyperdrive-backed PostgreSQL path successfully.
 - The reviewed PostgreSQL tunnel connector now reads its token from root-only VPS-managed storage and rotates it weekly on the VPS.
 - The reviewed Coolify-managed VPS now uses key-only root SSH recovery rather than password-based root SSH recovery.
+- For Coolify-managed resources, the reviewed secret surface is Coolify Environment Variables with locked secrets, explicit build-vs-runtime scoping, and Docker Build Secrets for reviewed build-time sensitive inputs.
 - The repository uses issue-driven execution and expects issues to be atomic with explicit validation.
 - `pnpm check` is the default baseline validation path for routine implementation work.
 - `pnpm lint` covers the maintained docs/config surface with Prettier rather than the full repository.
@@ -72,10 +75,12 @@ Use these as the default current-state assumptions when adapting any template in
 
 - Keep OWASP-aligned server-side validation, least-privilege assumptions, and audit coverage explicit in prompts.
 - Treat Cloudflare-managed secrets, Worker bindings, and custom domains as deployment/runtime seams, not as an in-app control plane.
+- Treat Coolify-managed locked secrets, runtime/build scoping, and Docker Build Secrets as operator-side deployment seams, not as tracked repository configuration.
 - Keep Turnstile, edge auth, and R2 guidance consistent with the current Cloudflare-hosted runtime docs.
 - Keep PostgreSQL recovery, transport, and access-control assumptions aligned with the Coolify-managed VPS baseline.
 - Keep Hyperdrive guidance aligned with the current split between repository-scoped transport preparation and operator-side rollout prerequisites.
 - Keep VPS recovery guidance aligned with the current key-only SSH posture and root-only server-managed tunnel-token storage.
+- Keep passwords and connection strings out of copied build arguments or generic shell snippets when Coolify-managed resources can store them as locked runtime secrets instead.
 - Prefer host-only cookies unless a reviewed operator workflow requires cross-host sharing.
 - Never describe rollout-only controls such as ABAC audit-only mode as the permanent steady-state policy model.
 
@@ -95,6 +100,7 @@ Requirements:
 - Do not overstate rollout completeness.
 - Keep the docs aligned with EmDash-first architecture, the Cloudflare-hosted Worker baseline, and PostgreSQL on a Coolify-managed VPS.
 - Reflect the current single-host, Turnstile, R2, edge-auth, and Hyperdrive rollout baselines when they are relevant to the task.
+- Reflect the current Worker secret contract and Coolify-side locked-secret guidance when the task touches credentials or operator configuration.
 - Update index or cross-reference docs when adding a new maintained document.
 - Update repository-local skills when core documentation guidance materially changes.
 - Recommend validation commands and operator impact where relevant.
@@ -124,6 +130,7 @@ Constraints:
 - The database runs on a Coolify-managed VPS.
 - Public traffic and the reviewed admin browser entry terminate on the same EmDash-first app surface unless an issue explicitly scopes a different architecture.
 - `ADMIN_SITE_URL` is a compatibility path, not the default current-state assumption.
+- Deployed Worker secrets live in Cloudflare-managed secrets, while Coolify-managed resource-side secrets live in Coolify locked secrets with runtime-only scope by default.
 
 Planning tasks:
 - summarize the current repository baseline for this feature
@@ -132,6 +139,7 @@ Planning tasks:
 - include security, operator, and validation notes
 - align terminology with current EmDash descriptor, plugin, and auth conventions
 - call out Cloudflare-specific runtime assumptions such as custom domains, Turnstile hostname validation, Worker bindings, or `/api/v1/*` edge routes when relevant
+- call out Coolify secret-storage and runtime/build-scope assumptions when the task touches passwords, connection strings, or deployment-managed credentials
 - explicitly identify what should stay out of scope for the first issue so the implementation remains atomic
 
 Output:
@@ -158,6 +166,7 @@ Workflow rules:
 - run `pnpm check` plus issue-specific checks unless the issue is docs-only
 - use `pnpm lint` for docs/config-only changes
 - keep Cloudflare-hosted runtime assumptions, Coolify-managed PostgreSQL assumptions, current single-host behavior, and Hyperdrive rollout status accurate in any touched docs
+- keep the current Worker required-secret contract and Coolify locked-secret guidance accurate in any touched docs or scripts
 - close the issue only after validation succeeds
 - read only the files needed to complete the scoped issue and avoid broad context pulls once the seam is clear
 - move unrelated cleanup into follow-on issues instead of silently expanding the current task
@@ -182,6 +191,7 @@ Review focus:
 - authentication and authorization correctness
 - EmDash-first architecture compliance
 - Cloudflare Worker, custom-domain, Turnstile, R2 binding, and secret-handling assumptions
+- Coolify locked-secret, runtime/build-scope, and Docker Build Secret assumptions when operator-managed credentials are relevant
 - PostgreSQL and Coolify trust-boundary implications
 - OWASP-aligned error handling, token handling, and audit coverage
 - missing tests or validation gaps
@@ -205,6 +215,7 @@ Change:
 Requirements:
 - keep the guidance consistent with the Cloudflare-hosted Worker runtime and PostgreSQL on a Coolify-managed VPS
 - call out required runtime variables, bindings, secrets, and migration order
+- distinguish Cloudflare-managed Worker secrets from Coolify-managed locked secrets when both surfaces are involved
 - identify rollback and recovery considerations
 - update any checklist or runbook references affected by the change
 - keep claims aligned with the current implementation state

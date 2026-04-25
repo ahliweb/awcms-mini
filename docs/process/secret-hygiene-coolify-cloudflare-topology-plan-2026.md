@@ -6,7 +6,7 @@ This document captures the current planning pass for AWCMS Mini around operator 
 
 It uses `docs/process/ai-workflow-planning-templates.md` as a primary process reference and keeps the recommendations aligned with the current repository baseline:
 
-- EmDash `0.5.0` remains the host architecture
+- EmDash `0.7.0` is the current reviewed package baseline in `awcms-mini`
 - AWCMS Mini remains single-tenant
 - Cloudflare-hosted Worker runtime remains the supported app-hosting baseline
 - PostgreSQL remains the system of record on a protected VPS managed through Coolify
@@ -23,10 +23,12 @@ It also reflects current OWASP, Cloudflare, Coolify, and PostgreSQL guidance for
 - `.env.example` already documents the main runtime secrets and bindings used by the current Cloudflare-hosted baseline.
 - `wrangler.jsonc` currently declares the reviewed Worker custom-domain baseline for `awcms-mini.ahlikoding.com`.
 - `wrangler.jsonc` currently declares the `MEDIA_BUCKET` binding for `awcms-mini-s3`.
+- `wrangler.jsonc` now also declares the reviewed required Worker secret names, and the shared local Astro wrapper enforces the same required-secret contract for local Astro commands.
 - The current runtime treats `/_emdash/` as the reviewed browser entry alias and redirects it to EmDash's current `/_emdash/admin` surface on the same host.
 - Turnstile hostname allowlists and JWT edge auth already exist in the current runtime baseline.
 - The tracked Coolify MCP wrapper now follows the repo env-loading pattern and reads `.env` plus `.env.local`, while the live token stays local-only.
 - The current local operator secret file already contains the Coolify MCP token in `.env.local`, which is gitignored and is the correct storage class for that credential.
+- The current reviewed Coolify-side secret surface is Environment Variables with locked secrets, explicit runtime/build scoping, and Docker Build Secrets for reviewed build-time sensitive inputs.
 - The current reviewed PostgreSQL target inventory for this planning pass is VPS IP `202.10.45.224` and SSL hostname `id1.ahlikoding.com`.
 - The repository now includes a dedicated secret-hygiene audit runbook in `docs/process/secret-hygiene-audit.md`.
 
