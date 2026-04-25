@@ -10,6 +10,7 @@
     "build:node": "MINI_RUNTIME_TARGET=node astro build",
     "preview": "astro preview",
     "start": "node ./dist/server/entry.mjs",
+    "audit:coolify-postgres": "node ./scripts/audit-coolify-postgres.mjs",
     "coolify:mcp": "node ./scripts/coolify-mcp.mjs",
     "deploy:cloudflare": "node ./scripts/deploy-cloudflare.mjs",
     "smoke:deployed-runtime-health": "node ./scripts/smoke-deployed-runtime-health.mjs",

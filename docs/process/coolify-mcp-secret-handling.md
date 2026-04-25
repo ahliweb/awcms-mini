@@ -98,6 +98,14 @@ Read-only verification may include:
 3. `GET /api/v1/resources`
 4. `GET /api/v1/databases`
 
+The repository also provides a focused read-only wrapper for the current PostgreSQL resource:
+
+```bash
+pnpm audit:coolify-postgres
+```
+
+This command uses `COOLIFY_BASE_URL` plus `COOLIFY_ACCESS_TOKEN` through the same env-managed path as the MCP wrapper, omits secret-bearing fields from output, and exits non-zero when the API posture still violates the reviewed expectations.
+
 Before copying API output into docs, issues, logs, or summaries, redact fields whose names or values may contain:
 
 - passwords
