@@ -200,6 +200,14 @@ Use this when emergency SSH access to the Coolify-managed VPS is required for re
 
 The reviewed Coolify-managed VPS now uses key-only root SSH recovery. Do not store or use a root password from `.env.local` or any script.
 
+Before changing server access posture, capture the redacted Coolify server posture:
+
+```bash
+pnpm audit:coolify-server-ssh
+```
+
+This command verifies the API-visible server UUID/IP/user/reachability posture without printing private keys, passwords, tokens, or raw validation logs. It does not prove that password SSH is disabled; operators must still inspect the VPS SSH daemon configuration before closing the recovery review.
+
 Recovery steps:
 
 1. Use the reviewed Coolify-managed SSH key path for root access.

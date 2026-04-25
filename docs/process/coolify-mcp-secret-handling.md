@@ -106,6 +106,14 @@ pnpm audit:coolify-postgres
 
 This command uses `COOLIFY_BASE_URL` plus `COOLIFY_ACCESS_TOKEN` through the same env-managed path as the MCP wrapper, omits secret-bearing fields from output, and exits non-zero when the API posture still violates the reviewed expectations.
 
+For the reviewed PostgreSQL VPS server connection posture, use:
+
+```bash
+pnpm audit:coolify-server-ssh
+```
+
+This command calls the documented Coolify server list endpoint, reports only non-secret server posture fields, and exits non-zero while the API still reports root SSH or reachability/usability gaps that need operator review.
+
 Before copying API output into docs, issues, logs, or summaries, redact fields whose names or values may contain:
 
 - passwords
