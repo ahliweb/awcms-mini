@@ -67,6 +67,7 @@ Use these as the default current-state assumptions when adapting any template in
 - The reviewed PostgreSQL tunnel connector now reads its token from root-only VPS-managed storage and rotates it weekly on the VPS.
 - The reviewed Coolify-managed VPS now uses key-only root SSH recovery rather than password-based root SSH recovery.
 - For Coolify-managed resources, the reviewed secret surface is Coolify Environment Variables with locked secrets, explicit build-vs-runtime scoping, and Docker Build Secrets for reviewed build-time sensitive inputs.
+- Coolify API inspection confirms the current PostgreSQL resource is private and healthy, while SSL enablement, runtime database role scope, and server SSH user hardening remain operator-side verification seams tracked through issue-scoped follow-up.
 - The repository uses issue-driven execution and expects issues to be atomic with explicit validation.
 - `pnpm check` is the default baseline validation path for routine implementation work.
 - `pnpm lint` covers the maintained docs/config surface with Prettier rather than the full repository.
@@ -78,6 +79,7 @@ Use these as the default current-state assumptions when adapting any template in
 - Treat Coolify-managed locked secrets, runtime/build scoping, and Docker Build Secrets as operator-side deployment seams, not as tracked repository configuration.
 - Keep Turnstile, edge auth, and R2 guidance consistent with the current Cloudflare-hosted runtime docs.
 - Keep PostgreSQL recovery, transport, and access-control assumptions aligned with the Coolify-managed VPS baseline.
+- Treat Coolify API responses as management-plane data: redact passwords, connection strings, tokens, private keys, and URLs before copying findings into docs or issue comments.
 - Keep Hyperdrive guidance aligned with the current split between repository-scoped transport preparation and operator-side rollout prerequisites.
 - Keep VPS recovery guidance aligned with the current key-only SSH posture and root-only server-managed tunnel-token storage.
 - Keep passwords and connection strings out of copied build arguments or generic shell snippets when Coolify-managed resources can store them as locked runtime secrets instead.

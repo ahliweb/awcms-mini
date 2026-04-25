@@ -87,6 +87,29 @@ The tracked wrapper script now reads env files with Cloudflare-style precedence 
 
 For Cloudflare-hosted deployment secrets, keep Worker runtime secrets in Wrangler-managed secrets or CI/CD-managed environment storage rather than tracked files. Use tracked `.env.example` values only for placeholders and non-secret defaults.
 
+## Direct API Verification
+
+When the Coolify MCP client surface is not available in the current tool session, use direct read-only Coolify API calls only when `COOLIFY_BASE_URL` and `COOLIFY_ACCESS_TOKEN` are already available through the supported env-managed path.
+
+Read-only verification may include:
+
+1. `GET /api/v1/version`
+2. `GET /api/v1/servers`
+3. `GET /api/v1/resources`
+4. `GET /api/v1/databases`
+
+Before copying API output into docs, issues, logs, or summaries, redact fields whose names or values may contain:
+
+- passwords
+- tokens
+- private keys
+- connection strings
+- DSNs or database URLs
+- service URLs that embed credentials
+- environment variable arrays or maps
+
+The current API-confirmed database inventory for AWCMS Mini is recorded in `docs/process/postgresql-vps-hardening.md`. Treat that inventory as management-plane evidence for issue planning, not as permission to expose secret-bearing Coolify responses in repository artifacts.
+
 ## Operator Workflow
 
 1. Generate or obtain the smallest-scope Coolify token available for the intended operator task.

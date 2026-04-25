@@ -18,6 +18,21 @@ Current reviewed operator inventory for this repository:
 - PostgreSQL VPS IP: `202.10.45.224`
 - reviewed SSL hostname for app connections: `id1.ahlikoding.com`
 
+Current Coolify API-confirmed inventory as of 2026-04-25:
+
+- Coolify version observed through the API: `4.0.0-beta.473`
+- database resource UUID: `kbzbui977dnkhdzl8xcw6v90`
+- database resource type: `standalone-postgresql`
+- database image: `postgres:18-alpine`
+- database status: `running:healthy`
+- public database exposure reported by Coolify: `is_public=false`
+- external database URL reported by Coolify: `null`
+- SSL fields reported by Coolify: `enable_ssl=false`, `ssl_mode=require`
+- database user reported by Coolify: `postgres`
+- server SSH user reported by Coolify: `root`
+
+Sensitive fields returned by the Coolify API, including passwords and connection URLs, must be redacted before being copied into docs, issue comments, logs, or operator notes.
+
 ## Transport Expectations
 
 - Treat PostgreSQL as a remote protected dependency, not as a localhost-only service.
@@ -112,16 +127,18 @@ Use this order when rolling the reviewed SSL posture into the Coolify-managed Po
 
 1. Confirm `id1.ahlikoding.com` resolves to the reviewed VPS IP `202.10.45.224`.
 2. Confirm the PostgreSQL server certificate presented by the host covers `id1.ahlikoding.com`.
-3. In the Coolify-managed PostgreSQL service, verify the server is configured for SSL and that `postgresql.conf` keeps `ssl = on`.
-4. Review `pg_hba.conf` so remote Mini access uses `hostssl` with the narrowest practical source range and `scram-sha-256`.
-5. If Hyperdrive rollout is planned, choose one reviewed origin pattern before changing app deployment config. Prefer the private-database route via Cloudflare Tunnel; use a reachable public PostgreSQL origin endpoint only as the fallback path.
-6. If the private-database Tunnel path is selected, confirm the tunnel connector can reach the PostgreSQL origin host and port and that any Access/service-token prerequisites are ready.
-7. If Hyperdrive rollout is planned, confirm the database/firewall policy allows the reviewed Cloudflare-to-origin connection path needed for Hyperdrive configuration creation and runtime use.
-8. Keep the application role non-superuser and separate from maintenance credentials.
-9. Update the Cloudflare-hosted app runtime secret so `DATABASE_URL` uses `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is ready.
-10. If certificate validation is not ready yet, use a reviewed interim `sslmode=require` value temporarily and record the follow-on hardening step explicitly.
-11. Run `pnpm healthcheck` and the reviewed smoke tests after the deployment update.
-12. If Coolify-managed services on the VPS need matching database credentials, store them as Coolify locked runtime secrets and avoid exposing them as ordinary build variables unless a reviewed build-time workflow explicitly requires that.
+3. Reconcile the Coolify API SSL fields before marking the transport posture complete; `enable_ssl=false` with `ssl_mode=require` is a live configuration gap until the operator verifies and corrects the effective PostgreSQL SSL state.
+4. In the Coolify-managed PostgreSQL service, verify the server is configured for SSL and that `postgresql.conf` keeps `ssl = on`.
+5. Review `pg_hba.conf` so remote Mini access uses `hostssl` with the narrowest practical source range and `scram-sha-256`.
+6. Confirm the deployed AWCMS Mini runtime uses an application-scoped non-superuser role; if the app still uses the API-reported `postgres` role, create and rotate to a dedicated runtime credential before signoff.
+7. If Hyperdrive rollout is planned, choose one reviewed origin pattern before changing app deployment config. Prefer the private-database route via Cloudflare Tunnel; use a reachable public PostgreSQL origin endpoint only as the fallback path.
+8. If the private-database Tunnel path is selected, confirm the tunnel connector can reach the PostgreSQL origin host and port and that any Access/service-token prerequisites are ready.
+9. If Hyperdrive rollout is planned, confirm the database/firewall policy allows the reviewed Cloudflare-to-origin connection path needed for Hyperdrive configuration creation and runtime use.
+10. Keep the application role non-superuser and separate from maintenance credentials.
+11. Update the Cloudflare-hosted app runtime secret so `DATABASE_URL` uses `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is ready.
+12. If certificate validation is not ready yet, use a reviewed interim `sslmode=require` value temporarily and record the follow-on hardening step explicitly.
+13. Run `pnpm healthcheck` and the reviewed smoke tests after the deployment update.
+14. If Coolify-managed services on the VPS need matching database credentials, store them as Coolify locked runtime secrets and avoid exposing them as ordinary build variables unless a reviewed build-time workflow explicitly requires that.
 
 Reviewed direct-posture assertion example:
 
@@ -132,7 +149,7 @@ HEALTHCHECK_EXPECT_DATABASE_SSLMODE=verify-full \
 pnpm healthcheck
 ```
 
-12. Record the effective certificate/hostname posture and any temporary exceptions in the deployment notes.
+13. Record the effective certificate/hostname posture and any temporary exceptions in the deployment notes.
 
 ## Current Live Remediation Focus
 
@@ -140,13 +157,14 @@ Use this when reconciling currently observed Coolify/PostgreSQL drift during iss
 
 1. Record the currently exposed PostgreSQL endpoint shape, external port exposure, and any public connection URL shown in the management plane before making changes.
 2. Record whether Coolify currently reports SSL enabled or disabled for the PostgreSQL resource.
-3. Bring the live database posture back to the reviewed target shape first:
+3. Record whether the runtime credential is a dedicated application user or the API-reported maintenance/bootstrap user.
+4. Bring the live database posture back to the reviewed target shape first:
    - remove or narrow public exposure unless there is an explicit reviewed exception
    - ensure PostgreSQL SSL remains enabled for remote transport
    - ensure `pg_hba.conf` keeps remote Mini access on `hostssl` with the narrowest practical source range and `scram-sha-256`
-4. After the live posture is back under control, rotate any application credential that may have been exposed through management-plane inspection, copied connection strings, or public resource metadata.
-5. Update the deployed `DATABASE_URL` secret only after the new credential and reviewed hostname/TLS posture are ready.
-6. Verify the old credential no longer works and record the rotation owner and timestamp in operator notes.
+5. After the live posture is back under control, rotate any application credential that may have been exposed through management-plane inspection, copied connection strings, or public resource metadata.
+6. Update the deployed `DATABASE_URL` secret only after the new credential and reviewed hostname/TLS posture are ready.
+7. Verify the old credential no longer works and record the rotation owner and timestamp in operator notes.
 
 Treat credential rotation as required when either of these conditions is true:
 
@@ -161,6 +179,7 @@ Before deployment:
 - Confirm the reviewed app-side hostname is `id1.ahlikoding.com` when hostname validation is expected.
 - Confirm TLS expectations for the target environment are documented and enabled.
 - Confirm the runtime user is not a superuser.
+- Confirm Coolify API or dashboard state does not report `enable_ssl=false` for a production database path that is documented as TLS-enabled.
 - Confirm `pg_hba.conf` allows only the intended app host or narrow private range.
 - If Hyperdrive is planned, confirm the reviewed Cloudflare-to-origin connection path is allowed before attempting `wrangler hyperdrive create`.
 - If Hyperdrive is planned, confirm the reviewed Hyperdrive origin hostname resolves to a direct/reachable PostgreSQL origin path instead of Cloudflare edge IPs.
@@ -176,6 +195,7 @@ After deployment:
 - Confirm migrations run successfully against the intended database.
 - Confirm no unexpected direct access path to PostgreSQL was introduced.
 - Confirm the deployed runtime is not using maintenance credentials.
+- Confirm the API-reported `postgres` user is not the deployed AWCMS Mini runtime role, or record the issue-scoped rotation plan if it is.
 - Confirm the effective `DATABASE_URL` in the deployment matches the reviewed hostname and SSL mode for the environment.
 - Confirm the previous database credential no longer authenticates if credential rotation was part of the remediation.
 - Confirm no stale public connection URL remains in Coolify metadata, copied operator notes, or deployment secrets.
