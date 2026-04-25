@@ -193,16 +193,17 @@ diff --git a/src/astro/routes/api/setup/index.ts b/src/astro/routes/api/setup/in
 index c4709ee..a28da1a 100644
 --- a/src/astro/routes/api/setup/index.ts
 +++ b/src/astro/routes/api/setup/index.ts
-@@ -5,6 +5,8 @@
+@@ -5,6 +5,9 @@
   */
  
  import type { APIRoute } from "astro";
++import { sql } from "kysely";
 +import virtualConfig from "virtual:emdash/config";
 +import { createStorage as virtualCreateStorage } from "virtual:emdash/storage";
  
  export const prerender = false;
  
-@@ -18,20 +20,41 @@ import { OptionsRepository } from "#db/repositories/options.js";
+@@ -18,20 +21,52 @@ import { OptionsRepository } from "#db/repositories/options.js";
  import { applySeed } from "#seed/apply.js";
  import { loadSeed } from "#seed/load.js";
  import { validateSeed } from "#seed/validate.js";
@@ -224,6 +225,17 @@ index c4709ee..a28da1a 100644
 +	} catch {
 +		return true;
 +	}
++}
++
++async function ensureSetupCompatibilitySchema(db) {
++	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS search_config TEXT`.execute(db);
++	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS has_seo INTEGER NOT NULL DEFAULT 0`.execute(db);
++	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS url_pattern TEXT`.execute(db);
++	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS comments_enabled INTEGER DEFAULT 0`.execute(db);
++	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS comments_moderation TEXT DEFAULT 'first_time'`.execute(db);
++	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS comments_closed_after_days INTEGER DEFAULT 90`.execute(db);
++	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS comments_auto_approve_users INTEGER DEFAULT 1`.execute(db);
++	await sql`ALTER TABLE _emdash_fields ADD COLUMN IF NOT EXISTS searchable INTEGER DEFAULT 0`.execute(db);
 +}
  
  export const POST: APIRoute = async ({ request, url, locals }) => {
@@ -249,7 +261,7 @@ index c4709ee..a28da1a 100644
  			const setupComplete = await options.get("emdash:setup_complete");
  
  			if (setupComplete === true || setupComplete === "true") {
-@@ -47,7 +67,9 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
+@@ -47,7 +82,10 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
  
  		// 1. Run core migrations
  		try {
@@ -257,6 +269,7 @@ index c4709ee..a28da1a 100644
 +			if (await shouldRunSetupCoreMigrations(db)) {
 +				await runMigrations(db);
 +			}
++			await ensureSetupCompatibilitySchema(db);
  		} catch (error) {
  			return handleError(error, "Failed to run database migrations", "MIGRATION_ERROR");
  		}
