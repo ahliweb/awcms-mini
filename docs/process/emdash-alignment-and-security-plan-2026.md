@@ -24,8 +24,10 @@ It is based on:
 ### Confirmed Repository State
 
 - AWCMS Mini remains structurally aligned with EmDash-first architecture.
-- The installed `emdash` package version is still `0.5.0`, which matches the current EmDash core package version inspected in the reference repo.
-- The main alignment gap is not package-version drift. The bigger gap is operational and architectural maturity around runtime configuration, security controls, and plugin/admin integration conventions.
+- The installed `emdash` package version is now `0.7.0`, which matches the current local EmDash core package version inspected in `/home/data/dev_react/emdash-awcms/`.
+- The current sync gap is no longer package-version drift at the dependency pin. The confirmed local EmDash divergence now lives in the tracked `pnpm` patch and the reviewed Mini compatibility seams it still carries.
+- The tracked patch currently covers the reviewed Mini-local setup/runtime seams, including setup-safe middleware routing, setup route database/config fallbacks, and the fail-fast runtime-init safeguard.
+- Beyond that patch surface, the bigger gap remains operational and architectural maturity around runtime configuration, security controls, and plugin/admin integration conventions.
 
 ### Confirmed Target Deployment Shape
 
