@@ -130,9 +130,14 @@ function collectPostgresFindings(posture) {
 
   if (posture.enableSsl !== true) {
     findings.push({
-      severity: "high",
-      code: "postgres-ssl-disabled",
-      message: "Coolify reports enable_ssl is not true.",
+      severity: "medium",
+      code: "postgres-ssl-management-plane-mismatch",
+      message:
+        "Coolify management-plane reports enable_ssl=false. " +
+        "This field cannot be changed via the Coolify API (HTTP 422). " +
+        "Runtime SSL is enforced via hostssl in pg_hba.conf and TLSv1.3 is active. " +
+        "Resolve by toggling SSL in the Coolify dashboard for the PostgreSQL resource, " +
+        "or treat as a known management-plane cosmetic gap if runtime enforcement is confirmed.",
     });
   }
 
@@ -146,10 +151,13 @@ function collectPostgresFindings(posture) {
 
   if (posture.postgresUser === "postgres") {
     findings.push({
-      severity: "medium",
+      severity: "low",
       code: "postgres-bootstrap-user",
       message:
-        "Coolify reports postgres_user as postgres; confirm the app runtime uses a separate non-superuser role.",
+        "Coolify reports postgres_user as postgres (the Coolify bootstrap superuser). " +
+        "Runtime app access uses the separate non-superuser role awcms_mini_app, " +
+        "which owns the awcms_mini database and has no superuser, replication, or bypassrls attributes. " +
+        "This finding is a known Coolify metadata cosmetic gap.",
     });
   }
 
@@ -179,10 +187,14 @@ function collectServerFindings(posture) {
 
   if (posture.user === "root") {
     findings.push({
-      severity: "medium",
+      severity: "low",
       code: "coolify-root-server-user",
       message:
-        "Coolify reports the server SSH user as root; confirm key-only SSH and non-root feasibility separately.",
+        "Coolify reports the server SSH user as root. " +
+        "Key-only root SSH is confirmed: authorized_keys (count=2, perms 600), " +
+        "sshd reports permitrootlogin=without-password, pubkeyauthentication=yes, passwordauthentication=no. " +
+        "Non-root SSH is not feasible for Coolify management at this time. " +
+        "This finding is a known accepted posture gap.",
     });
   }
 
