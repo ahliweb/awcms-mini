@@ -7,16 +7,78 @@
 
 import { Hono } from "hono";
 
+import { validateTurnstileToken, TurnstileValidationError } from "../../src/security/turnstile.mjs";
+import { createEdgeAuthService, EdgeAuthError } from "../../src/services/edge-auth/service.mjs";
+
 /**
  * @param {object} [options]
  * @returns {Hono}
  */
 export function routeApiV1Auth(options = {}) {
   const app = new Hono();
+  const edgeAuth =
+    options.edgeAuthService ??
+    createEdgeAuthService({
+      database: options.database,
+      runtimeConfig: options.runtimeConfig,
+    });
 
   // POST /api/v1/auth/login
-  app.post("/login", (c) => {
-    return c.json({ error: { code: "NOT_IMPLEMENTED", message: "Not yet implemented." } }, 501);
+  app.post("/login", async (c) => {
+    let body;
+
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json(
+        { error: { code: "INVALID_BODY", message: "Expected JSON body." } },
+        400,
+      );
+    }
+
+    try {
+      await validateTurnstileToken(
+        {
+          token: body?.turnstileToken,
+          expectedAction: "login",
+          remoteIp: c.get("clientIp") ?? null,
+        },
+        {
+          runtimeConfig: options.runtimeConfig,
+          fetchImpl: options.turnstileFetchImpl,
+        },
+      );
+    } catch (error) {
+      if (error instanceof TurnstileValidationError) {
+        return c.json(
+          { error: { code: error.code, message: error.message } },
+          403,
+        );
+      }
+
+      throw error;
+    }
+
+    try {
+      const result = await edgeAuth.issueTokenPairFromPassword({
+        request: c.req.raw,
+        email: body?.email,
+        password: body?.password,
+        code: body?.code,
+        recoveryCode: body?.recoveryCode,
+      });
+
+      return c.json({ data: result });
+    } catch (error) {
+      if (error instanceof EdgeAuthError) {
+        return c.json(
+          { error: { code: error.code, message: error.message } },
+          error.status,
+        );
+      }
+
+      throw error;
+    }
   });
 
   // POST /api/v1/auth/logout

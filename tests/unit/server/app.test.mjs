@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createApp } from "../../../server/app.mjs";
+import { EdgeAuthError } from "../../../src/services/edge-auth/service.mjs";
 
 function makeRequest(path, options = {}) {
   return new Request(`http://localhost:3000${path}`, options);
@@ -81,6 +82,63 @@ function createBearerAuthOptions() {
   };
 }
 
+function createLoginOptions({
+  turnstileSuccess = true,
+  loginResult,
+  loginError,
+} = {}) {
+  return {
+    runtimeConfig: {
+      turnstile: {
+        enabled: true,
+        secretKey: "turnstile-secret",
+        expectedHostnames: [],
+      },
+      edgeApi: {
+        jwt: {
+          enabled: true,
+          secret: "edge-secret",
+        },
+      },
+    },
+    turnstileFetchImpl: async () => ({
+      async json() {
+        if (turnstileSuccess) {
+          return { success: true, action: "login", hostname: "localhost" };
+        }
+
+        return { success: false, "error-codes": ["invalid-input-response"] };
+      },
+    }),
+    edgeAuthService: {
+      async issueTokenPairFromPassword(input) {
+        if (loginError) {
+          throw loginError;
+        }
+
+        return (
+          loginResult ?? {
+            tokenType: "Bearer",
+            accessToken: "access-token",
+            refreshToken: "refresh-token",
+            user: {
+              id: "user_1",
+              email: input.email,
+              name: "Admin User",
+            },
+            session: {
+              id: "session_1",
+              trustedDevice: false,
+              sessionStrength: "password",
+              twoFactorSatisfied: false,
+            },
+          }
+        );
+      },
+    },
+  };
+}
+
 test("GET /health returns a JSON health check response", async () => {
   const app = createApp();
   const res = await app.fetch(makeRequest("/health"));
@@ -129,17 +187,22 @@ test("GET /api/v1 returns version metadata", async () => {
 });
 
 test("POST /api/v1/auth/login returns 501 not-yet-implemented", async () => {
-  const app = createApp();
+  const app = createApp(createLoginOptions());
   const res = await app.fetch(
     makeRequest("/api/v1/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({
+        email: "admin@example.test",
+        password: "secret-password",
+        turnstileToken: "turnstile-token",
+      }),
     }),
   );
-  assert.equal(res.status, 501);
+  assert.equal(res.status, 200);
   const body = await res.json();
-  assert.equal(body.error?.code, "NOT_IMPLEMENTED");
+  assert.equal(body.data.tokenType, "Bearer");
+  assert.equal(body.data.user.email, "admin@example.test");
 });
 
 test("GET /nonexistent returns 404", async () => {
@@ -205,4 +268,48 @@ test("GET /api/v1/roles uses bearer-authenticated actor for ABAC", async () => {
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.data[0].slug, "admin");
+});
+
+test("POST /api/v1/auth/login returns 403 when Turnstile validation fails", async () => {
+  const app = createApp(createLoginOptions({ turnstileSuccess: false }));
+  const res = await app.fetch(
+    makeRequest("/api/v1/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "admin@example.test",
+        password: "secret-password",
+        turnstileToken: "invalid-turnstile-token",
+      }),
+    }),
+  );
+  assert.equal(res.status, 403);
+  const body = await res.json();
+  assert.equal(body.error.code, "TURNSTILE_INVALID");
+});
+
+test("POST /api/v1/auth/login returns edge-auth errors", async () => {
+  const app = createApp(
+    createLoginOptions({
+      loginError: new EdgeAuthError(
+        "INVALID_CREDENTIALS",
+        "Invalid email or password.",
+        401,
+      ),
+    }),
+  );
+  const res = await app.fetch(
+    makeRequest("/api/v1/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "admin@example.test",
+        password: "wrong-password",
+        turnstileToken: "turnstile-token",
+      }),
+    }),
+  );
+  assert.equal(res.status, 401);
+  const body = await res.json();
+  assert.equal(body.error.code, "INVALID_CREDENTIALS");
 });
