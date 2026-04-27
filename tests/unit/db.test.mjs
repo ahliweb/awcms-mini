@@ -184,12 +184,12 @@ test("buildPostgresPoolConfig keeps DATABASE_URL as the transport source of trut
 
 test("buildPostgresPoolConfig preserves reviewed interim SSL modes when explicitly configured", () => {
   const config = buildPostgresPoolConfig({
-    databaseUrl: "postgres://awcms_mini_app:secret@202.10.45.224:5432/awcms_mini?sslmode=require",
+    databaseUrl: "postgres://awcms_mini_app:secret@db.example.internal:5432/awcms_mini?sslmode=require",
     databaseTransport: "direct",
     databaseConnectTimeoutMs: 5000,
   });
 
-  assert.equal(config.connectionString, "postgres://awcms_mini_app:secret@202.10.45.224:5432/awcms_mini?sslmode=require");
+  assert.equal(config.connectionString, "postgres://awcms_mini_app:secret@db.example.internal:5432/awcms_mini?sslmode=require");
    assert.equal(config.connectionTimeoutMillis, 5000);
    assert.equal(config.allowExitOnIdle, true);
 });
