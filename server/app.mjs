@@ -17,6 +17,7 @@ import { middlewareCors } from "./middleware/cors.mjs";
 import { middlewareOptionalAuth } from "./middleware/auth.mjs";
 import { routeHealth } from "./routes/health.mjs";
 import { routeApiV1 } from "./routes/api-v1.mjs";
+import { routeOpenApi } from "./routes/openapi.mjs";
 
 /**
  * @param {import('./types.mjs').AppOptions} [options]
@@ -38,6 +39,7 @@ export function createApp(options = {}) {
 
   // Routes
   app.route("/health", routeHealth(options));
+  app.route("/", routeOpenApi(options));
   app.route("/api/v1", routeApiV1(options));
 
   // 404 handler

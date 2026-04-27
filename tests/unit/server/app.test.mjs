@@ -412,6 +412,19 @@ test("GET /api/v1 returns version metadata", async () => {
   assert.equal(body.service, "awcms-mini");
 });
 
+test("GET /openapi.json returns the current OpenAPI document", async () => {
+  const app = createApp();
+  const res = await app.fetch(makeRequest("/openapi.json"));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.openapi, "3.1.0");
+  assert.equal(body.info.title, "AWCMS Mini Hono API");
+  assert.ok(body.paths["/api/v1/auth/login"]);
+  assert.ok(body.paths["/api/v1/security/2fa/disable"]);
+  assert.ok(body.paths["/api/v1/roles"]);
+  assert.equal(body.components.securitySchemes.bearerAuth.scheme, "bearer");
+});
+
 test("POST /api/v1/auth/login returns 501 not-yet-implemented", async () => {
   const app = createApp(createLoginOptions());
   const res = await app.fetch(
