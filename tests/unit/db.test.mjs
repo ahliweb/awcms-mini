@@ -31,7 +31,6 @@ function readExpectedDatabasePostureFromEnv(env) {
     transport: normalizeOptionalString(env.HEALTHCHECK_EXPECT_DATABASE_TRANSPORT),
     hostname: normalizeOptionalString(env.HEALTHCHECK_EXPECT_DATABASE_HOSTNAME),
     sslmode: normalizeOptionalString(env.HEALTHCHECK_EXPECT_DATABASE_SSLMODE),
-    binding: normalizeOptionalString(env.HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING),
   };
 }
 
@@ -40,7 +39,6 @@ function assertExpectedDatabasePosture(actual, expected) {
     ["transport", expected.transport],
     ["hostname", expected.hostname],
     ["sslmode", expected.sslmode],
-    ["binding", expected.binding],
   ].filter(([, expectedValue]) => expectedValue !== null);
 
   for (const [field, expectedValue] of checks) {
@@ -111,13 +109,6 @@ test("classifyDatabaseError identifies missing relation failures", () => {
 test("describeDatabaseErrorReason identifies connection timeout failures", () => {
   const reason = describeDatabaseErrorReason(new Error("Connection terminated due to connection timeout"));
   assert.equal(reason, DATABASE_ERROR_REASON.CONNECTION_TIMEOUT);
-});
-
-test("describeDatabaseErrorReason identifies Hyperdrive binding failures", () => {
-  const reason = describeDatabaseErrorReason(
-    new Error("Hyperdrive transport requires the Cloudflare binding 'HYPERDRIVE' with a connectionString value."),
-  );
-  assert.equal(reason, DATABASE_ERROR_REASON.HYPERDRIVE_BINDING);
 });
 
 test("describeDatabaseErrorReason identifies DNS failures", () => {
@@ -194,84 +185,6 @@ test("buildPostgresPoolConfig preserves reviewed interim SSL modes when explicit
    assert.equal(config.allowExitOnIdle, true);
 });
 
-test("resolvePostgresConnectionString uses the reviewed Hyperdrive binding when transport is enabled", () => {
-  const connectionString = resolvePostgresConnectionString(
-    {
-      databaseUrl: "postgres://unused-local-default",
-      databaseTransport: "hyperdrive",
-      hyperdriveBinding: "HYPERDRIVE",
-    },
-    {
-      workersEnv: {
-        HYPERDRIVE: {
-          connectionString: "postgres://hyperdrive-user:secret@hyperdrive.cloudflare.example:5432/awcms_mini",
-        },
-      },
-    },
-  );
-
-  assert.equal(connectionString, "postgres://hyperdrive-user:secret@hyperdrive.cloudflare.example:5432/awcms_mini");
-});
-
-test("resolvePostgresConnectionString falls back to the local Hyperdrive compatibility env when no binding is present", () => {
-  const connectionString = resolvePostgresConnectionString(
-    {
-      databaseUrl: "postgres://unused-local-default",
-      databaseTransport: "hyperdrive",
-      hyperdriveBinding: "HYPERDRIVE",
-    },
-    {
-      workersEnv: {},
-      env: {
-        CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE:
-          "postgres://hyperdrive-local-user:secret@localhost:55432/awcms_mini_dev",
-      },
-    },
-  );
-
-  assert.equal(connectionString, "postgres://hyperdrive-local-user:secret@localhost:55432/awcms_mini_dev");
-});
-
-test("resolvePostgresConnectionTarget describes the local Hyperdrive compatibility fallback", () => {
-  const target = resolvePostgresConnectionTarget(
-    {
-      databaseUrl: "postgres://unused-local-default",
-      databaseTransport: "hyperdrive",
-      hyperdriveBinding: "HYPERDRIVE",
-    },
-    {
-      workersEnv: {},
-      env: {
-        CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE:
-          "postgres://hyperdrive-local-user:secret@localhost:55432/awcms_mini_dev",
-      },
-    },
-  );
-
-  assert.deepEqual(target, {
-    transport: "hyperdrive",
-    source: "Local Hyperdrive compatibility env",
-    binding: "HYPERDRIVE",
-    localConnectionStringVariable: "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE",
-    connectionString: "postgres://hyperdrive-local-user:secret@localhost:55432/awcms_mini_dev",
-  });
-});
-
-test("resolvePostgresConnectionString fails clearly when Hyperdrive transport is selected without a binding", () => {
-  assert.throws(
-    () =>
-      resolvePostgresConnectionString(
-        {
-          databaseUrl: "postgres://unused-local-default",
-          databaseTransport: "hyperdrive",
-          hyperdriveBinding: "HYPERDRIVE",
-        },
-        { workersEnv: {} },
-      ),
-    /Hyperdrive transport requires the Cloudflare binding 'HYPERDRIVE'/,
-  );
-});
-
 test("describeDatabaseHealthPosture reports direct transport without exposing credentials", () => {
   const posture = describeDatabaseHealthPosture({
     databaseUrl: "postgres://awcms_mini_app:secret@id1.ahlikoding.com:5432/awcms_mini?sslmode=verify-full",
@@ -290,54 +203,11 @@ test("describeDatabaseHealthPosture reports direct transport without exposing cr
   });
 });
 
-test("describeDatabaseHealthPosture reports Hyperdrive binding posture without a connection string", () => {
-  const posture = describeDatabaseHealthPosture({
-    databaseUrl: "postgres://unused-local-default",
-    databaseTransport: "hyperdrive",
-    hyperdriveBinding: "HYPERDRIVE",
-    runtimeTarget: "cloudflare",
-  });
-
-  assert.deepEqual(posture, {
-    transport: "hyperdrive",
-    runtimeTarget: "cloudflare",
-    source: "Cloudflare Hyperdrive binding",
-    binding: "HYPERDRIVE",
-  });
-});
-
-test("describeDatabaseHealthPosture reports local Hyperdrive compatibility posture distinctly", () => {
-  const posture = describeDatabaseHealthPosture(
-    {
-      databaseUrl: "postgres://unused-local-default",
-      databaseTransport: "hyperdrive",
-      hyperdriveBinding: "HYPERDRIVE",
-      runtimeTarget: "cloudflare",
-    },
-    {
-      workersEnv: {},
-      env: {
-        CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE:
-          "postgres://hyperdrive-local-user:secret@localhost:55432/awcms_mini_dev",
-      },
-    },
-  );
-
-  assert.deepEqual(posture, {
-    transport: "hyperdrive",
-    runtimeTarget: "cloudflare",
-    source: "Local Hyperdrive compatibility env",
-    binding: "HYPERDRIVE",
-    localConnectionStringVariable: "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE",
-  });
-});
-
 test("healthcheck expected posture parsing keeps unset assertions optional", () => {
   assert.deepEqual(readExpectedDatabasePostureFromEnv({}), {
     transport: null,
     hostname: null,
     sslmode: null,
-    binding: null,
   });
 });
 
@@ -356,19 +226,18 @@ test("healthcheck expected posture accepts matching direct posture", () => {
   assert.doesNotThrow(() => assertExpectedDatabasePosture(actual, expected));
 });
 
-test("healthcheck expected posture rejects mismatched Hyperdrive binding", () => {
+test("healthcheck expected posture rejects mismatched direct hostname", () => {
   const actual = describeDatabaseHealthPosture({
-    databaseUrl: "postgres://unused-local-default",
-    databaseTransport: "hyperdrive",
-    hyperdriveBinding: "HYPERDRIVE",
+    databaseUrl: "postgres://awcms_mini_app:secret@postgres:5432/awcms_mini",
+    databaseTransport: "direct",
     runtimeTarget: "cloudflare",
   });
   const expected = readExpectedDatabasePostureFromEnv({
-    HEALTHCHECK_EXPECT_DATABASE_TRANSPORT: "hyperdrive",
-    HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING: "OTHER_BINDING",
+    HEALTHCHECK_EXPECT_DATABASE_TRANSPORT: "direct",
+    HEALTHCHECK_EXPECT_DATABASE_HOSTNAME: "other-host",
   });
 
-  assert.throws(() => assertExpectedDatabasePosture(actual, expected), /database binding=OTHER_BINDING/);
+  assert.throws(() => assertExpectedDatabasePosture(actual, expected), /database hostname=other-host/);
 });
 
 test("defineTransactionStrategy validates supported strategies", () => {

@@ -226,27 +226,6 @@ Recovery steps:
 4. Keep root password-based SSH recovery disabled unless a separately reviewed incident path explicitly re-enables it.
 5. If the VPS is unreachable through the normal SSH key path, check whether Coolify's out-of-band console access is available before escalating.
 
-`cloudflared` connector recovery:
-
-- If the Cloudflare Tunnel connector for PostgreSQL is inactive, inspect the service status first:
-
-  ```bash
-  sudo systemctl status cloudflared-postgres.service
-  sudo journalctl -u cloudflared-postgres.service -n 50 --no-pager
-  ```
-
-- Do not paste `CLOUDFLARE_TUNNEL_TOKEN` into shell history, issue comments, or any unsecured channel. Retrieve it from server-managed secret storage on the VPS host only.
-- If the token may have been exposed, rotate it through the Cloudflare dashboard and update the server-side secret before restarting the service.
-- After restoring the connector, verify the Hyperdrive path is healthy:
-
-  ```bash
-  HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive \
-  HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE \
-  pnpm healthcheck
-  ```
-
-See `docs/process/cloudflare-tunnel-private-db-connector-runbook.md` for the full connector activation and recovery runbook.
-
 ## Tabletop Review Prompts
 
 Use these prompts when reviewing the runbook with operators:
@@ -257,4 +236,3 @@ Use these prompts when reviewing the runbook with operators:
 - Can rollout issues be reduced with policy changes before code rollback?
 - Can every recovery action be verified in audit logs afterward?
 - Can VPS SSH access be completed without retrieving credentials from `.env.local` or a script?
-- Can the `cloudflared` connector be restored without exposing the tunnel token in shell history or issue comments?

@@ -63,7 +63,7 @@ Hono Backend API — Coolify-managed VPS
 
 PostgreSQL is not exposed to the public internet. All database access goes through the Hono backend API.
 
-Cloudflare Hyperdrive is not used in this architecture. See `docs/process/no-hyperdrive-adr.md`.
+Cloudflare Pages, Workers, and Edge Functions may call the Hono backend API, but they do not connect to PostgreSQL directly.
 
 ## Layer Map
 
@@ -133,7 +133,6 @@ The current implementation is optimized for:
 - `docs/architecture/constraints.md`
 - `docs/architecture/runtime-config.md`
 - `docs/architecture/repository-layout.md`
-- `docs/process/no-hyperdrive-adr.md`
 - `docs/governance/auth-and-authorization.md`
 - `docs/governance/permission-matrix.md`
 - `docs/governance/roles.md`

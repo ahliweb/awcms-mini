@@ -1,6 +1,5 @@
 export const DEFAULT_DATABASE_URL = "postgres://localhost:5432/awcms_mini_dev";
 export const DEFAULT_DATABASE_TRANSPORT = "direct";
-export const DEFAULT_HYPERDRIVE_BINDING = "HYPERDRIVE";
 export const DEFAULT_RUNTIME_TARGET = "node";
 export const DEFAULT_TRUSTED_PROXY_MODE = "direct";
 export const DEFAULT_R2_MEDIA_BUCKET_BINDING = "MEDIA_BUCKET";
@@ -27,7 +26,7 @@ function normalizeRuntimeTarget(value) {
 }
 
 function normalizeDatabaseTransport(value) {
-  return ["direct", "hyperdrive"].includes(value) ? value : DEFAULT_DATABASE_TRANSPORT;
+  return value === "direct" ? value : DEFAULT_DATABASE_TRANSPORT;
 }
 
 function normalizeOptionalString(value) {
@@ -123,7 +122,6 @@ export function getRuntimeConfig() {
       process.env.DATABASE_CONNECT_TIMEOUT_MS,
       DEFAULT_DATABASE_CONNECT_TIMEOUT_MS,
     ),
-    hyperdriveBinding: normalizeOptionalString(process.env.HYPERDRIVE_BINDING) || DEFAULT_HYPERDRIVE_BINDING,
     runtimeTarget: normalizeRuntimeTarget(process.env.MINI_RUNTIME_TARGET),
     siteUrl,
     adminSiteUrl,

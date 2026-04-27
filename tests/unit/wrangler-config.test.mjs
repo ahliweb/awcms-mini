@@ -24,10 +24,7 @@ test("wrangler config declares the reviewed public custom domain baseline", asyn
 test("wrangler config defines the reviewed database transport defaults", async () => {
   const contents = await readFile(wranglerConfigPath, "utf8");
 
-  // Active production transport is `direct` (Hyperdrive is not used).
-  // See docs/process/no-hyperdrive-adr.md.
   assert.match(contents, /"DATABASE_TRANSPORT"\s*:\s*"direct"/);
-  assert.doesNotMatch(contents, /"hyperdrive"\s*:\s*\[/);
 });
 
 test("wrangler config declares the reviewed required Worker secrets", async () => {

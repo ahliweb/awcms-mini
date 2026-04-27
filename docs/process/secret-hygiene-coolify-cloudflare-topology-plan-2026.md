@@ -8,7 +8,7 @@ It uses `docs/process/ai-workflow-planning-templates.md` as a primary process re
 
 - EmDash `0.7.0` is the current reviewed package baseline in `awcms-mini`
 - AWCMS Mini remains single-tenant
-- Cloudflare-hosted Worker runtime remains the supported app-hosting baseline
+- Cloudflare-delivered frontend traffic plus Hono on Coolify remains the supported deployment baseline
 - PostgreSQL remains the system of record on a protected VPS managed through Coolify
 - the reviewed production browser baseline is `https://awcms-mini.ahlikoding.com`, with admin entry at `/_emdash/` redirecting into EmDash's current `/_emdash/admin` surface
 
@@ -20,10 +20,8 @@ It also reflects current OWASP, Cloudflare, Coolify, and PostgreSQL guidance for
 
 - The current repository already routes operational secrets through environment variables and runtime config rather than hardcoding them in application services.
 - The current maintained scripts reviewed during this pass do not embed confirmed live credentials in tracked code, but they still need explicit `.env` versus `.env.local` storage guidance and transport-specific env handling.
-- `.env.example` already documents the main runtime secrets and bindings used by the current Cloudflare-hosted baseline.
-- `wrangler.jsonc` currently declares the reviewed Worker custom-domain baseline for `awcms-mini.ahlikoding.com`.
-- `wrangler.jsonc` currently declares the `MEDIA_BUCKET` binding for `awcms-mini-s3`.
-- `wrangler.jsonc` now also declares the reviewed required Worker secret names, and the shared local Astro wrapper enforces the same required-secret contract for local Astro commands.
+- `.env.example` already documents the main runtime secrets and bindings used by the current frontend/backend baseline.
+- `wrangler.jsonc` remains only as historical reference for the earlier Worker deployment path.
 - The current runtime treats `/_emdash/` as the reviewed browser entry alias and redirects it to EmDash's current `/_emdash/admin` surface on the same host.
 - Turnstile hostname allowlists and JWT edge auth already exist in the current runtime baseline.
 - The tracked Coolify MCP wrapper now follows the repo env-loading pattern and reads `.env` plus `.env.local`, while the live token stays local-only.
@@ -38,7 +36,7 @@ It also reflects current OWASP, Cloudflare, Coolify, and PostgreSQL guidance for
 - Internal admin/plugin links still target EmDash's current `/_emdash/admin` surface directly beyond the reviewed `/_emdash/` entry alias.
 - Direct infrastructure-side Coolify/PostgreSQL SSL enablement and certificate rollout still require operator execution outside the repository.
 - Cloudflare-side verification of the live custom-domain and platform inventory still remains an operator validation task after repo changes land.
-- `.env.example` now documents Cloudflare Tunnel, Access, account-level operator variables, and the current key-only VPS recovery posture without reintroducing a root-password env variable.
+- `.env.example` now documents the reviewed operator and runtime variable classes without reintroducing a root-password env variable.
 
 ### Important Evidence From This Pass
 
@@ -47,7 +45,7 @@ It also reflects current OWASP, Cloudflare, Coolify, and PostgreSQL guidance for
 - The Coolify token supplied for this request should be treated as sensitive operator input and must not be written into repository files, committed scripts, or GitHub issue bodies.
 - The current tool session does not expose a Coolify MCP control surface, so this pass can update the local wrapper and secret-handling docs but cannot mutate Coolify-hosted resources directly.
 - The current tool session did not confirm live Cloudflare account inventory, so Cloudflare-side hostname, Worker, Pages, or R2 changes remain operator validation tasks after repo changes land.
-- The current repository fix keeps the setup shell path database-lazy and keeps the reviewed live Hyperdrive Worker transport active so Cloudflare bootstrap failures are less likely to surface as blanket setup-route Worker exceptions.
+- The current repository fix keeps the setup shell path database-lazy so Cloudflare-facing bootstrap failures are less likely to surface as blanket setup-route exceptions.
 
 ## Planning Goals
 
@@ -56,8 +54,8 @@ Add or improve the following capabilities without breaking EmDash-first rules:
 1. ensure credentials are not embedded in maintained scripts and are instead sourced from `.env`, `.env.local`, deployment environment variables, or external secret stores as appropriate
 2. define a safe, non-repository workflow for configuring Coolify MCP access with an operator-provided token
 3. move the reviewed production target to `https://awcms-mini.ahlikoding.com`, with the public site at `/` and the admin entry on the same host at `/_emdash/`
-4. keep the Cloudflare-hosted app topology aligned with the requested path: browser/api to Cloudflare edge to Worker-hosted app runtime and platform services such as R2, with PostgreSQL on the Coolify-managed VPS over SSL
-5. tighten PostgreSQL transport guidance so the Cloudflare runtime reaches PostgreSQL with reviewed SSL settings and explicit operator rollback notes
+4. keep the Cloudflare-hosted app topology aligned with the requested path: browser/api to Cloudflare edge to the reviewed frontend/backend surfaces and platform services such as R2, with PostgreSQL on the Coolify-managed VPS over SSL
+5. tighten PostgreSQL transport guidance so the backend reaches PostgreSQL with reviewed SSL settings and explicit operator rollback notes
 6. keep the reviewed PostgreSQL inventory explicit in local-only operator configuration: VPS IP via `COOLIFY_POSTGRES_SERVER_IP`, SSL hostname `id1.ahlikoding.com`, and application connectivity through env-managed connection strings rather than script-local credentials
 
 ## Recommended Workstreams
@@ -142,9 +140,9 @@ Recommended security posture:
 
 Recommended direction:
 
-- keep the application-hosting baseline on the Cloudflare Worker runtime unless a later architecture issue scopes a static-first split deliberately
-- treat Cloudflare Pages and R2 as optional platform services around the Worker runtime, not as evidence that the app has already been split into separate public/admin runtimes
-- keep the browser-facing request path simple: browser/api to Cloudflare edge to the Worker-hosted app runtime, with the runtime reaching PostgreSQL over SSL and using R2 through the private `MEDIA_BUCKET` binding when object storage is enabled
+- keep the application baseline on Cloudflare-delivered frontend traffic plus Hono on Coolify unless a later architecture issue scopes a different split deliberately
+- treat Cloudflare Pages and R2 as platform services around the Hono backend, not as evidence that edge runtime code should access PostgreSQL directly
+- keep the browser-facing request path simple: browser to Cloudflare edge to the reviewed frontend/backend surfaces, with the backend reaching PostgreSQL over SSL and using the configured storage target when object storage is enabled
 - document PostgreSQL SSL posture explicitly, including app-side connection string expectations, Coolify-side SSL enablement, the reviewed hostname `id1.ahlikoding.com`, and what to do if hostname validation is not ready yet
 
 Recommended operator posture:
@@ -153,7 +151,7 @@ Recommended operator posture:
 - if the infrastructure is temporarily limited to a weaker reviewed mode such as `require`, document that as an interim state and track the follow-on hardening issue explicitly
 - keep PostgreSQL credentials application-scoped and non-superuser
 - keep database ingress narrow and auditable
-- keep Hyperdrive aligned with the current live reviewed deployment posture and do not remove it from reviewed Worker config unless the rollback or migration plan explicitly changes the active transport
+- keep PostgreSQL transport guidance aligned with the reviewed direct backend connection posture
 
 ## Security Standards And Recommendations
 
@@ -167,16 +165,14 @@ Recommended operator posture:
 - keep generic error handling for auth and recovery flows
 - keep audit coverage for privileged recovery and configuration changes
 - do not store or reintroduce emergency recovery credentials such as `VPS_ROOT_PASSWORD` in `.env.local` or any script; the reviewed VPS recovery path now uses key-only SSH and the emergency-recovery runbook
-- treat `CLOUDFLARE_TUNNEL_TOKEN` as equivalent to the right to run the tunnel; rotate it if it has ever appeared in shell history, issue comments, or copied env files
 
 ### Cloudflare-Aligned Recommendations
 
-- keep production application hosting on the reviewed Worker baseline unless an explicit architecture issue approves a split
+- keep production application hosting aligned with the reviewed Cloudflare-plus-Hono baseline unless an explicit architecture issue approves a different split
 - keep the primary browser-facing hostname on `awcms-mini.ahlikoding.com` and route both public and admin entry traffic through the same reviewed app surface for the requested single-host target
 - keep custom domains, Turnstile config, Worker bindings, and runtime secrets declarative or environment-managed where practical
 - use Cloudflare-managed secrets or equivalent server-only configuration for Turnstile and edge auth secrets
-- keep custom domains attached through the Worker custom-domain path when the Worker is the origin
-- keep Hyperdrive in scope as the recommended next-step pooling option for Cloudflare-to-PostgreSQL traffic if direct SSL operation becomes operationally brittle
+- keep custom domains and frontend routing aligned with the reviewed Cloudflare delivery path
 
 ### Coolify And PostgreSQL Recommendations
 
@@ -193,9 +189,8 @@ Recommended operator posture:
 1. refresh the planning docs and issue breakdown for the requested Cloudflare/Coolify target
 2. perform the focused secret-hygiene and Coolify MCP hardening work
 3. migrate runtime/docs/deployment assumptions from the split-host baseline to the requested single-host target
-4. update PostgreSQL transport guidance and operator config so the Cloudflare runtime uses SSL to reach the Coolify-managed PostgreSQL server
-5. evaluate Hyperdrive only as a follow-on if direct SSL connectivity needs a safer pooling or transport layer
-6. separate repository-scoped Hyperdrive transport changes from operator-side Cloudflare binding rollout so issue scope stays reviewable
+4. update PostgreSQL transport guidance and operator config so the Hono backend uses SSL to reach the Coolify-managed PostgreSQL server
+5. keep PostgreSQL behind Hono rather than reintroducing a second database-access surface
 
 Current status after the completed repository passes:
 
@@ -210,7 +205,7 @@ Tracked issue: `#140`
 
 - refresh the maintained planning doc using the confirmed repo state
 - convert the reviewed recommendations into dependency-ordered implementation issues
-- keep the resulting plan aligned with the current EmDash-first and Cloudflare-hosted baseline
+- keep the resulting plan aligned with the current EmDash-first and Cloudflare-plus-Hono baseline
 
 Current status: repository planning work complete.
 
@@ -244,21 +239,13 @@ Tracked issue: `#143`
 
 Current status: repository-side SSL baseline work complete; infrastructure execution remains operator-side.
 
-### Issue E: Adopt Cloudflare Hyperdrive For PostgreSQL Transport
+### Issue E: Keep PostgreSQL Behind Hono Only
 
-Tracked issues: `#145`, `#146`, `#149`, `#150`, `#151`, `#152`, `#153`, `#154`, `#155`, `#156`, `#157`, `#158`
+Tracked issue: `#267`
 
-- add runtime support for selecting Hyperdrive-backed PostgreSQL transport without breaking the reviewed direct `DATABASE_URL` path
-- document binding prerequisites, rollout order, smoke tests, and secret-handling expectations for Hyperdrive
-- keep the live Cloudflare binding enablement and deployed verification as an explicit operator rollout track
-- keep PostgreSQL origin endpoint preparation explicit when the reviewed SSL hostname is not a reachable Hyperdrive origin path
-- keep the private-database Cloudflare Tunnel alternative explicit as a separate operator decision path when public origin exposure is not desired
-
-Reviewed current route-name default for the private-database path: `pg-hyperdrive.ahlikoding.com`.
-
-Preferred current direction: use the private-database Cloudflare Tunnel path unless the operator explicitly decides that a separately reachable public PostgreSQL origin endpoint is acceptable.
-
-Current status: the repository and live Worker are now aligned on `DATABASE_TRANSPORT=hyperdrive`, with local build and typecheck paths deriving the required local Hyperdrive connection string from env-managed `DATABASE_URL` rather than tracked script values.
+- remove deprecated direct edge-to-database transport support and related docs
+- keep PostgreSQL access scoped to the Hono backend only
+- align smoke tests, env examples, and operator guidance with the reviewed direct backend posture
 
 ## Validation Expectations
 
@@ -288,5 +275,5 @@ For follow-up implementation or audit issues:
 
 - OWASP guidance on secrets management, least privilege, secure configuration, and protected transport
 - Cloudflare Workers guidance on custom domains, secrets, and PostgreSQL connectivity patterns
-- Cloudflare Hyperdrive guidance as a follow-on transport/pooling option
+- Cloudflare guidance on keeping database access behind the reviewed backend boundary
 - Coolify guidance for PostgreSQL SSL enablement and operator-managed database configuration

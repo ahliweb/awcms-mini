@@ -25,14 +25,13 @@ Optional assertion inputs:
 - `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT`
 - `HEALTHCHECK_EXPECT_DATABASE_HOSTNAME`
 - `HEALTHCHECK_EXPECT_DATABASE_SSLMODE`
-- `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING`
 
 When one or more of these values is set, `pnpm healthcheck` fails if the live non-secret posture does not match the expected rollout target.
 
 ## Manual Smoke Test
 
-1. Start a PostgreSQL database reachable by `DATABASE_URL` or the reviewed Hyperdrive-backed target environment.
-2. Keep `DATABASE_TRANSPORT=hyperdrive` for the current reviewed Cloudflare deployment. Use `direct` only when intentionally validating a local, rollback, or remediation path.
+1. Start a PostgreSQL database reachable by `DATABASE_URL`.
+2. Keep `DATABASE_TRANSPORT=direct` for the current reviewed backend deployment path.
 3. Set `DATABASE_CONNECT_TIMEOUT_MS` to a reviewed fail-fast value such as `10000` when validating remote or operator-managed PostgreSQL targets.
 4. For direct-path validation, use the reviewed hostname `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is available.
 5. Set `SITE_URL` to the browser-facing hostname for the environment when validating a deployed-style build.
@@ -47,15 +46,6 @@ When one or more of these values is set, `pnpm healthcheck` fails if the live no
 - `checks.database.ok` is `true`
 - `checks.database.posture.transport` matches the intended deployment path
 - for direct transport, `checks.database.posture.hostname`, `port`, `database`, and `sslmode` match the reviewed environment without exposing credentials
-- for Hyperdrive transport, `checks.database.posture.binding` matches the reviewed binding name
-
-Example assertion flow for the current reviewed Hyperdrive production posture:
-
-```bash
-HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive \
-HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE \
-pnpm healthcheck
-```
 
 Direct-path remediation example:
 
@@ -81,18 +71,12 @@ This command reuses the current repo-owned verification steps in order:
 - `pnpm smoke:deployed-runtime-health -- <base-url>`
 - `pnpm smoke:cloudflare-admin`
 
-For the current reviewed Cloudflare-hosted Hyperdrive baseline, the command applies these non-secret assertion defaults unless the operator explicitly overrides them:
-
-- `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive`
-- `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE`
-
-The deployed runtime health step reads `/_emdash/api/setup/status` from the live Worker and checks the embedded `runtimeHealth` payload for:
+The deployed runtime health step reads `/_emdash/api/setup/status` from the live backend-integrated runtime path and checks the embedded `runtimeHealth` payload for:
 
 - deployed database reachability
 - non-secret deployed database posture
-- reviewed Hyperdrive binding posture when applicable
 
-This avoids depending on workstation-level direct reachability to a private PostgreSQL origin once the reviewed Cloudflare Tunnel + Hyperdrive path is active.
+This avoids depending on workstation-level direct reachability to the production database during deployed smoke testing.
 
 Local EmDash migration-compatibility verification remains a separate step:
 
@@ -132,14 +116,14 @@ The smoke result reports separate checks for:
 - `setupShell` for the reviewed `/_emdash/admin/setup` shell render path
 - `setupStatus` as a diagnostic seam so setup-shell failures are easier to distinguish from broader runtime or database initialization failures
 
-1. Load the public hostname and confirm it responds through the active Worker deployment.
+1. Load the public hostname and confirm it responds through the active reviewed deployment path.
 2. Load `https://awcms-mini.ahlikoding.com/_emdash/` and confirm it redirects to `/_emdash/admin` on the same host.
 3. If `ADMIN_SITE_URL` is still enabled for compatibility, load the admin hostname root and confirm it redirects to the configured admin entry path.
 4. Exercise at least one Turnstile-protected public flow and confirm:
    - a valid solve succeeds
    - an invalid or missing token fails server-side
    - hostname validation matches the reviewed hostname set for the environment
-5. Confirm the deployed runtime still has the `MEDIA_BUCKET` binding for `awcms-mini-s3`.
+5. Confirm the deployed runtime still has access to the configured storage target for `awcms-mini-s3` when R2-backed media storage is enabled.
 6. Re-run `pnpm healthcheck` or the target-environment equivalent after Cloudflare-side changes complete.
 7. When issue `#180` or related EmDash compatibility work is in scope, run `pnpm db:migrate` first so `034_emdash_compatibility_support_tables` can backfill any missing reviewed support tables and seed the canonical EmDash prefix on empty ledgers.
 8. Then run `pnpm db:migrate:emdash:status` against the target database and confirm the reported state is `compatible` before removing any temporary setup-path fallback.
@@ -153,16 +137,15 @@ The smoke result reports separate checks for:
 - if the runtime is pointed at the wrong reviewed transport target, `pnpm healthcheck` exits non-zero when expectation variables are set
 - if hostname automation is only partially applied, the public or admin hostname smoke tests fail
 - if Turnstile hostname configuration is wrong, valid solves fail server-side with hostname mismatch behavior
-- if the Worker R2 binding is missing, runtime storage paths fail with `R2_BUCKET_NOT_CONFIGURED`
+- if backend storage configuration is missing, runtime storage paths fail with the corresponding storage configuration error
 
 Common database `reason` values and next checks:
 
-- `connection_timeout`: confirm the target PostgreSQL path is reachable from the operator or runtime environment and that firewall, Tunnel, or Hyperdrive origin routing is allowing the connection
+- `connection_timeout`: confirm the target PostgreSQL path is reachable from the operator or runtime environment and that firewall and backend network routing allow the connection
 - `credential_format`: confirm the effective `DATABASE_URL` parses into a valid PostgreSQL username/password pair and that local env loading did not leave the password unset or malformed
-- `dns`: confirm the reviewed hostname resolves from the current environment and that the configured direct or Hyperdrive origin hostname is correct
+- `dns`: confirm the reviewed hostname resolves from the current environment and that the configured direct database hostname is correct
 - `refused`: confirm PostgreSQL is listening on the intended interface/port and that Coolify, host firewall, or private-network routing is not rejecting the connection
 - `tls`: confirm the reviewed certificate, hostname, and `sslmode` posture match the configured connection string
-- `hyperdrive_binding`: confirm `DATABASE_TRANSPORT=hyperdrive` is paired with the reviewed `HYPERDRIVE` binding in the Cloudflare target environment
 
 ## Validation
 

@@ -7,7 +7,7 @@ import {
   runDeployedRuntimeHealthSmokeTest,
 } from "../../scripts/smoke-deployed-runtime-health.mjs";
 
-test("evaluateDeployedRuntimeHealthResponse accepts the reviewed Hyperdrive payload", async () => {
+test("evaluateDeployedRuntimeHealthResponse accepts the reviewed direct payload", async () => {
   const response = new Response(
     JSON.stringify({
       data: {
@@ -16,9 +16,10 @@ test("evaluateDeployedRuntimeHealthResponse accepts the reviewed Hyperdrive payl
           database: {
             ok: true,
             posture: {
-              transport: "hyperdrive",
-              binding: "HYPERDRIVE",
-              source: "Cloudflare Hyperdrive binding",
+              transport: "direct",
+              hostname: "postgres",
+              sslmode: null,
+              source: "DATABASE_URL",
             },
           },
         },
@@ -33,10 +34,9 @@ test("evaluateDeployedRuntimeHealthResponse accepts the reviewed Hyperdrive payl
   );
 
   const result = await evaluateDeployedRuntimeHealthResponse(response, {
-    transport: "hyperdrive",
-    hostname: null,
+    transport: "direct",
+    hostname: "postgres",
     sslmode: null,
-    binding: "HYPERDRIVE",
   });
 
   assert.equal(result.ok, true);
@@ -67,10 +67,9 @@ test("evaluateDeployedRuntimeHealthResponse rejects unexpected database posture"
   );
 
   const result = await evaluateDeployedRuntimeHealthResponse(response, {
-    transport: "hyperdrive",
+    transport: "direct",
     hostname: null,
     sslmode: null,
-    binding: null,
   });
 
   assert.equal(result.ok, false);
@@ -81,8 +80,8 @@ test("runDeployedRuntimeHealthSmokeTest checks the reviewed edge health endpoint
   const result = await runDeployedRuntimeHealthSmokeTest({
     baseUrl: new URL("https://awcms-mini.ahlikoding.com"),
     env: {
-      HEALTHCHECK_EXPECT_DATABASE_TRANSPORT: "hyperdrive",
-      HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING: "HYPERDRIVE",
+      HEALTHCHECK_EXPECT_DATABASE_TRANSPORT: "direct",
+      HEALTHCHECK_EXPECT_DATABASE_HOSTNAME: "postgres",
     },
     fetchImpl: async (input) => {
       assert.equal(String(input), `https://awcms-mini.ahlikoding.com${DEFAULT_EDGE_HEALTH_PATH}`);
@@ -95,9 +94,10 @@ test("runDeployedRuntimeHealthSmokeTest checks the reviewed edge health endpoint
               database: {
                 ok: true,
                 posture: {
-                  transport: "hyperdrive",
-                  binding: "HYPERDRIVE",
-                  source: "Cloudflare Hyperdrive binding",
+                  transport: "direct",
+                  hostname: "postgres",
+                  sslmode: null,
+                  source: "DATABASE_URL",
                 },
               },
             },

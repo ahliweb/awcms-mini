@@ -2,8 +2,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 
-import { DEFAULT_DATABASE_URL } from "../src/config/runtime.mjs";
-
 const GENERATED_LOCAL_SECRET_FILES_DIRECTORY = ["dist", "server"];
 const DEFAULT_WORKER_CONFIG_PATH = "wrangler.jsonc";
 
@@ -69,21 +67,7 @@ export function assertRequiredWorkerSecretsPresent(env = process.env, configPath
   return getRequiredWorkerSecrets(configPath);
 }
 
-function usesHyperdriveTransport(env) {
-  return env.DATABASE_TRANSPORT === "hyperdrive";
-}
-
 export function applyLocalCloudflareRuntimeEnv(env = process.env) {
-  // Hyperdrive is not the active production transport (see docs/process/no-hyperdrive-adr.md).
-  // This function is retained for compatibility but is a no-op for the direct transport path.
-  if (
-    usesHyperdriveTransport(env) &&
-    (env.DATABASE_URL || DEFAULT_DATABASE_URL) &&
-    !env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE
-  ) {
-    env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE = env.DATABASE_URL || DEFAULT_DATABASE_URL;
-  }
-
   return env;
 }
 

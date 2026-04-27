@@ -132,7 +132,7 @@ It does not treat EmDash as a copy target. It uses EmDash as an architectural re
 
 - The repo keeps an EmDash-aligned core architecture without creating a second platform core.
 - PostgreSQL, Hono, and Coolify remain the current target runtime assumptions where already chosen by Mini.
-- Docs and issue planning do not reintroduce Hyperdrive or Supabase as active architecture.
+- Docs and issue planning do not reintroduce deprecated edge-to-database transport or Supabase as active architecture.
 - GitHub issues are dependency-ordered and atomic.
 - Already-landed work is recognized instead of being re-opened under broad umbrella issues.
 
@@ -143,7 +143,7 @@ It does not treat EmDash as a copy target. It uses EmDash as an architectural re
 - `#246` architecture overview and assessment update: closed
 - `#247` env normalization: closed
 - `#248` Hono scaffold baseline: closed
-- `#257` remove Hyperdrive from active runtime path: closed
+- `#257` remove deprecated direct edge-to-database transport from the active runtime path: closed
 
 ### Broad Issues That Need Atomic Follow-Ons
 

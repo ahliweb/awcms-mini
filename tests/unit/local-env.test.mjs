@@ -95,54 +95,19 @@ test("assertRequiredWorkerSecretsPresent fails clearly when reviewed Worker secr
   );
 });
 
-test("applyLocalCloudflareRuntimeEnv derives the local Hyperdrive connection string from DATABASE_URL", async () => {
-  const env = {
-    DATABASE_TRANSPORT: "hyperdrive",
-    DATABASE_URL: "postgres://postgres:postgres@localhost:55432/awcms_mini_dev",
-  };
-
-  applyLocalCloudflareRuntimeEnv(env);
-
-  assert.equal(
-    env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE,
-    "postgres://postgres:postgres@localhost:55432/awcms_mini_dev",
-  );
-});
-
-test("applyLocalCloudflareRuntimeEnv preserves an explicit local Hyperdrive override", async () => {
-  const env = {
-    DATABASE_TRANSPORT: "hyperdrive",
-    DATABASE_URL: "postgres://postgres:postgres@localhost:55432/awcms_mini_dev",
-    CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE: "postgres://override:override@localhost:55432/override",
-  };
-
-  applyLocalCloudflareRuntimeEnv(env);
-
-  assert.equal(
-    env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE,
-    "postgres://override:override@localhost:55432/override",
-  );
-});
-
-test("applyLocalCloudflareRuntimeEnv skips Hyperdrive connection-string derivation for direct transport", async () => {
+test("applyLocalCloudflareRuntimeEnv remains a no-op for direct backend database access", async () => {
   const env = {
     DATABASE_TRANSPORT: "direct",
     DATABASE_URL: "postgres://postgres:postgres@localhost:55432/awcms_mini_dev",
   };
 
-  applyLocalCloudflareRuntimeEnv(env);
-
-  assert.equal(env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE, undefined);
+  assert.equal(applyLocalCloudflareRuntimeEnv(env), env);
 });
 
-test("applyLocalCloudflareRuntimeEnv does not derive a Hyperdrive string when transport is unset (direct is the default)", async () => {
-  // With DATABASE_TRANSPORT unset, the active transport is `direct`.
-  // The function must not populate the Hyperdrive compatibility variable.
+test("applyLocalCloudflareRuntimeEnv remains a no-op when transport is unset", async () => {
   const env = {};
 
-  applyLocalCloudflareRuntimeEnv(env);
-
-  assert.equal(env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE, undefined);
+  assert.equal(applyLocalCloudflareRuntimeEnv(env), env);
 });
 
 test("cleanupGeneratedCloudflareLocalSecretFiles removes generated dist/server .dev.vars files only", async () => {

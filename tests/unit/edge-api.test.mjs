@@ -243,9 +243,9 @@ test("edge health endpoint returns a versioned JSON health payload", async () =>
       reason: null,
     }),
     databaseHealthPosture: () => ({
-      transport: "hyperdrive",
-      source: "Cloudflare Hyperdrive binding",
-      binding: "HYPERDRIVE",
+      transport: "direct",
+      source: "DATABASE_URL",
+      hostname: "postgres.internal",
     }),
   });
 
@@ -256,7 +256,7 @@ test("edge health endpoint returns a versioned JSON health payload", async () =>
   assert.equal(body.ok, true);
   assert.equal(body.version, "v1");
   assert.equal(body.checks.database.ok, true);
-  assert.equal(body.checks.database.posture.binding, "HYPERDRIVE");
+  assert.equal(body.checks.database.posture.hostname, "postgres.internal");
 });
 
 test("edge health endpoint reports non-secret database failure details with 503 status", async () => {
@@ -268,9 +268,9 @@ test("edge health endpoint reports non-secret database failure details with 503 
       reason: "connection_timeout",
     }),
     databaseHealthPosture: () => ({
-      transport: "hyperdrive",
-      source: "Cloudflare Hyperdrive binding",
-      binding: "HYPERDRIVE",
+      transport: "direct",
+      source: "DATABASE_URL",
+      hostname: "postgres.internal",
     }),
   });
 

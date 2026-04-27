@@ -27,10 +27,10 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 
 ### `DATABASE_TRANSPORT`
 
-- Purpose: selects whether the runtime should use direct `DATABASE_URL` transport.
-- Supported values: `direct`, `hyperdrive`.
+- Purpose: selects the backend database transport.
+- Supported values: `direct`.
 - Default fallback: `direct`.
-- Production guidance: use `direct` for the Hono-on-VPS backend connecting to the PostgreSQL Docker service on the same VPS via internal Docker networking. `hyperdrive` is retained as a code path but is **not** the active production transport in the current architecture. See `docs/process/no-hyperdrive-adr.md`.
+- Production guidance: use `direct` for the Hono backend connecting to PostgreSQL through the reviewed backend path. Cloudflare clients must call Hono rather than PostgreSQL directly.
 
 ### `DATABASE_CONNECT_TIMEOUT_MS`
 
@@ -39,16 +39,10 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Default fallback: `10000`.
 - Production guidance: keep this explicit for operator commands, smoke tests, and migration tooling so unreachable Cloudflare-to-Coolify or local-to-VPS database paths fail fast instead of hanging indefinitely.
 
-### `HYPERDRIVE_BINDING`
-
-- Purpose: names the Cloudflare Hyperdrive binding used when `DATABASE_TRANSPORT=hyperdrive`.
-- Default fallback: `HYPERDRIVE`.
-- Rule: this is a binding name, not a secret or connection string.
-
 ### `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT`
 
 - Purpose: optional non-secret expectation used by `pnpm healthcheck` to fail fast when the runtime uses the wrong reviewed database transport.
-- Supported values: `direct`, `hyperdrive`.
+- Supported values: `direct`.
 - Scope: rollout verification input, not a runtime secret.
 - Default behavior: unset, so the healthcheck reports posture without asserting it.
 
@@ -63,12 +57,6 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Purpose: optional non-secret expectation used by `pnpm healthcheck` when direct transport should enforce a reviewed PostgreSQL SSL mode.
 - Scope: rollout verification input, not a runtime secret.
 - Example: `verify-full`.
-
-### `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING`
-
-- Purpose: optional non-secret expectation used by `pnpm healthcheck` when Hyperdrive rollout should resolve through the reviewed binding name.
-- Scope: rollout verification input, not a runtime secret.
-- Default reviewed binding name: `HYPERDRIVE`.
 
 ### `MINI_TOTP_ENCRYPTION_KEY`
 
@@ -256,7 +244,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - `MINI_RUNTIME_TARGET=node` is the production setting for the Hono backend.
 - `SITE_URL` must match the public frontend hostname.
 - Client IP extraction should use `CF-Connecting-IP` when Cloudflare proxies requests to the VPS.
-- Cloudflare Hyperdrive is **not** used in this architecture. See `docs/process/no-hyperdrive-adr.md`.
+- PostgreSQL is accessed only through the Hono backend API in this architecture.
 - R2-backed object storage is accessed from the Hono backend via the S3-compatible API using `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`, not through a Cloudflare Worker binding.
 
 See `docs/process/coolify-deployment.md` for the current deployment guide.
@@ -268,9 +256,6 @@ See `docs/process/coolify-deployment.md` for the current deployment guide.
 - Prefer PostgreSQL TLS, restricted ingress, and strong authentication for the application user.
 - Prefer `hostssl` plus `scram-sha-256` for remote app access where the PostgreSQL host is operator-managed.
 - Restrict remote access to the specific app host or the narrowest private network range available.
-- If the Cloudflare-hosted runtime later adopts Hyperdrive, treat that as a transport and pooling layer over the same PostgreSQL security posture rather than a replacement for PostgreSQL controls.
-
-See `docs/process/no-hyperdrive-adr.md` for the no-Hyperdrive architecture decision.
 
 See `docs/process/postgresql-vps-hardening.md` for the supported VPS transport and access posture.
 
@@ -293,7 +278,6 @@ For optional rollout verification with `pnpm healthcheck`, also configure as nee
 - optional `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT`
 - optional `HEALTHCHECK_EXPECT_DATABASE_HOSTNAME`
 - optional `HEALTHCHECK_EXPECT_DATABASE_SSLMODE`
-- optional `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING`
 
 For public auth and recovery abuse defense, also configure:
 

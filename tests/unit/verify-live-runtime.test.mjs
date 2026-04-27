@@ -11,12 +11,9 @@ test("verify-live-runtime composes the reviewed verification commands", () => {
 });
 
 test("verify-live-runtime applies the reviewed direct transport expectations by default", () => {
-  // Active production transport is `direct` (Hyperdrive is not used).
-  // See docs/process/no-hyperdrive-adr.md.
   assert.match(scriptSource, /DATABASE_TRANSPORT: "direct"/);
   assert.match(scriptSource, /MINI_RUNTIME_TARGET: "node"/);
   assert.match(scriptSource, /HEALTHCHECK_EXPECT_DATABASE_TRANSPORT: "direct"/);
-  assert.doesNotMatch(scriptSource, /HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING/);
 });
 
 test("verify-live-runtime lets explicit operator env values override the defaults", () => {

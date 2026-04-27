@@ -105,7 +105,7 @@ Cloudflare and deployment notes:
 
 - keep signing keys in Cloudflare-managed secrets
 - if a separate verifier or multiple runtimes need verification, expose or generate a JWKS-friendly verification path
-- use Hyperdrive or another approved Cloudflare-to-PostgreSQL transport pattern if direct Worker database access becomes a scaling or connection-pressure concern
+- keep PostgreSQL access behind the reviewed backend boundary even if Cloudflare-delivered frontend or edge surfaces expand
 - apply Cloudflare WAF and rate limiting to token issuance and refresh endpoints
 - add Turnstile where public token-grant or low-trust onboarding endpoints warrant it
 
@@ -204,7 +204,7 @@ Recommended initial templates:
 - use TLS for app-to-database traffic
 - keep `pg_hba.conf` and firewall rules scoped narrowly to the Cloudflare-approved app path or transport layer
 - avoid superuser credentials for runtime token and permission services
-- if Hyperdrive is introduced later, treat it as a transport optimization rather than a replacement for PostgreSQL hardening
+- keep PostgreSQL hardening and backend-only database access as separate non-negotiable requirements
 
 ## Proposed Execution Order
 

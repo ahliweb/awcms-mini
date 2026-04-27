@@ -2,56 +2,49 @@
 
 ## Purpose
 
-This document records the current architecture decision for whether AWCMS Mini should split its public and admin surfaces across Cloudflare Pages and Cloudflare Workers.
+This document records the current architecture decision for how Cloudflare Pages and Workers relate to the maintained Hono backend baseline.
 
 ## Decision
 
-For the current AWCMS Mini baseline, do not split the deployment so that the public site runs on Cloudflare Pages while the admin/runtime surface runs on Cloudflare Workers.
+For the current AWCMS Mini baseline, Cloudflare Pages may serve frontend traffic, but PostgreSQL must stay behind the Hono backend API.
 
-Keep the current baseline as a single Cloudflare-hosted Worker deployment serving:
+Do not adopt a deployment shape where Cloudflare Workers, Pages Functions, or other edge runtime code connects to PostgreSQL directly.
 
-- `awcms-mini.ahlikoding.com`
-
-with the reviewed admin browser entry at `/_emdash/`, redirecting into the same EmDash admin surface under `/_emdash/admin`.
+Keep the reviewed baseline as frontend delivery through Cloudflare plus Hono on Coolify as the only backend surface that accesses PostgreSQL.
 
 ## Short Answer
 
-Yes, a Pages-plus-Workers split is technically possible.
+Yes, Cloudflare Pages plus Workers or other edge components is technically possible.
 
-It is not the recommended baseline for the current repository state.
+Direct database access from those edge surfaces is not the recommended baseline for the current repository state.
 
 ## Current Repository Context
 
-- AWCMS Mini is currently a single EmDash-hosted application.
-- Public, auth, admin, Turnstile, and runtime configuration assumptions are all part of the same application baseline.
-- The current Worker deployment already owns:
-  - the reviewed public custom domain for `awcms-mini.ahlikoding.com`
-  - runtime bindings such as `MEDIA_BUCKET`
-  - Turnstile hostname-aware validation
-  - JWT-backed `/api/v1/*` edge auth
-  - the current healthcheck and deployment smoke-test path
+- AWCMS Mini is still one EmDash-first application.
+- Public, auth, admin, Turnstile, and runtime configuration assumptions are still part of one reviewed application boundary.
+- The current maintained runtime baseline is Cloudflare-delivered frontend traffic plus Hono on Coolify for backend API and PostgreSQL access.
 - The current single-host baseline uses `/_emdash/` as the reviewed browser entry alias into the existing EmDash admin surface.
 
 ## Why A Split Is Technically Possible
 
 - Cloudflare Pages supports custom domains, environment variables, and Pages Functions.
-- Cloudflare Workers supports the current custom-domain, secret, and binding model already used by AWCMS Mini.
-- A public-facing static-first website could, in principle, live on Pages while the authenticated governance runtime stayed on Workers.
+- Cloudflare Pages can serve public or app frontend traffic.
+- Cloudflare Workers or Pages Functions can call backend APIs when needed.
+- A public-facing static-first website could, in principle, live on Pages while authenticated governance behavior remains behind Hono.
 
 ## Why It Is Not The Recommended Baseline
 
-### 1. The App Is Still One Dynamic EmDash-Hosted Surface
+### 1. PostgreSQL Must Stay Behind Hono
 
-AWCMS Mini is not currently structured as:
+AWCMS Mini is not currently structured for safe direct database access from multiple runtime surfaces.
 
-- a standalone static public site
-- plus a separate authenticated admin/runtime application
-
-It is one EmDash-first app with shared runtime assumptions.
+- The reviewed backend boundary is Hono.
+- Service, auth, audit, and governance logic already concentrate there.
+- Letting Workers or other edge runtimes connect to PostgreSQL would widen the trusted database-access surface without a matching requirement.
 
 ### 2. It Would Increase Auth And Session Complexity
 
-A Pages-plus-Workers split would force a clearer boundary for:
+Adding an edge runtime as another stateful backend surface would force a clearer boundary for:
 
 - which hostname handles login
 - how cookies are scoped across public and admin hosts
@@ -60,34 +53,33 @@ A Pages-plus-Workers split would force a clearer boundary for:
 
 That raises complexity without a current product requirement that justifies it.
 
-### 3. It Would Duplicate Deployment Configuration
+### 3. It Would Duplicate Sensitive Runtime Configuration
 
-The split would require separate management for:
+Direct database access from multiple runtime surfaces would require separate management for:
 
-- public Pages environment variables and bindings
-- Worker environment variables and bindings
-- hostname setup and smoke tests across two deployment surfaces
-- release coordination and rollback handling
+- database credentials or transport configuration across multiple execution surfaces
+- posture validation across backend and edge layers
+- release coordination and rollback handling across more than one database-capable runtime
 
-The current Worker baseline keeps those seams more unified and easier to review.
+The current Hono backend baseline keeps those seams more unified and easier to review.
 
 ### 4. It Would Complicate Smoke Tests And Rollback
 
-The current runbooks assume one reviewed Worker deployment path for:
+The current runbooks assume one reviewed backend path for:
 
 - public hostname checks
 - admin entry alias checks
 - Turnstile validation
-- `MEDIA_BUCKET` binding checks
+- backend storage checks
 - PostgreSQL reachability checks
 
-Splitting public Pages from admin Workers would require separate deployment health, rollback, and coordination procedures.
+Adding direct Worker or edge database access would require separate deployment health, rollback, and coordination procedures.
 
 ### 5. It Does Not Match The Current Primary Need
 
-The current need is secure, reviewable, Cloudflare-hosted application delivery on a single browser hostname.
+The current need is secure, reviewable frontend delivery with PostgreSQL protected behind Hono.
 
-That need is already met by the current Worker baseline without introducing another hosting product boundary.
+That need is already met by the current Pages plus Hono baseline without introducing another database-access surface.
 
 ## Route And Capability Mapping If Revisited Later
 
@@ -98,19 +90,19 @@ Potential Pages candidates:
 - static-first marketing or public content pages
 - public asset delivery that does not require app-authenticated governance logic
 
-Worker-only candidates:
+Backend-only candidates:
 
 - EmDash admin surface under `/_emdash/admin`
 - the reviewed admin entry alias at `/_emdash/`
 - auth and session flows
 - Turnstile-protected login and recovery flows
-- `/api/v1/*` edge APIs
-- governance-aware uploads and any route depending on `MEDIA_BUCKET`
+- `/api/v1/*` backend APIs
+- governance-aware uploads and any route depending on backend storage credentials
 - any route depending on the current app runtime and PostgreSQL-backed dynamic state
 
 ## Security Implications
 
-- keep secrets and bindings scoped to the deployment product that actually needs them
+- keep secrets and database credentials scoped to the backend surface that actually needs them
 - avoid broad cookie sharing across Pages and Workers unless a reviewed workflow requires it
 - keep Turnstile hostname and action validation explicit across any split deployment
 - keep rollback-safe boundaries clear so partial deployment changes do not strand auth or admin traffic
@@ -122,9 +114,9 @@ Reopen this decision only if there is a concrete requirement for one of the foll
 
 - independently deployable static-first public content
 - materially different release cadence for public site versus admin/runtime
-- measurable operational or performance gain that cannot be achieved within the current Worker baseline
+- measurable operational or performance gain that cannot be achieved within the current Hono backend baseline
 
-Absent one of those drivers, the default remains a single Worker-hosted runtime.
+Absent one of those drivers, the default remains Cloudflare frontend delivery with PostgreSQL access only through Hono.
 
 ## Validation
 
@@ -133,7 +125,7 @@ Absent one of those drivers, the default remains a single Worker-hosted runtime.
 
 ## Cross-References
 
-- `docs/process/cloudflare-hosted-runtime.md`
+- `docs/process/coolify-deployment.md`
 - `docs/process/secret-hygiene-coolify-cloudflare-topology-plan-2026.md`
 - `docs/process/runtime-smoke-test.md`
 - `README.md`

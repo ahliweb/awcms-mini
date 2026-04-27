@@ -12,27 +12,26 @@ It also follows the issue-driven planning rules in `docs/process/ai-workflow-pla
 
 - EmDash `0.7.0` remains the current reviewed package baseline and canonical host architecture.
 - AWCMS Mini remains single-tenant, PostgreSQL-backed, and Kysely-based.
-- The supported runtime baseline is a Cloudflare-hosted Worker.
+- The supported runtime baseline is Cloudflare frontend delivery plus Hono on Coolify.
 - PostgreSQL runs on a VPS managed through Coolify.
-- The current reviewed production database transport is Cloudflare Hyperdrive.
+- PostgreSQL is reached through the reviewed backend connection path, not from Cloudflare edge runtime code.
 - Media/file storage is expected to use the private R2 bucket bound as `MEDIA_BUCKET` with bucket name `awcms-mini-s3`.
 - The reviewed admin browser entry remains `https://awcms-mini.ahlikoding.com/_emdash/`, which redirects into EmDash's `/_emdash/admin` surface.
 - Turnstile still protects the public login, password-reset request, and invite-activation flows when configured.
-- The private-database Cloudflare Tunnel path is active again, and the tunnel token is now stored in root-only VPS-managed storage with a monthly rotation timer.
 - The reviewed Coolify-managed VPS now uses key-only root SSH recovery; password-based root SSH login is disabled and the root password is locked.
 
 ## Confirmed Documentation Alignment Status
 
 ### Core Docs And Skills
 
-- `README.md` now reflects the current EmDash `0.7.0` baseline, live Hyperdrive-backed Cloudflare Worker posture, required Worker secret contract, and Coolify locked-secret guidance.
-- `AGENTS.md` now records the current live Hyperdrive path and key-only VPS recovery posture.
+- `README.md` now reflects the current EmDash `0.7.0` baseline, Cloudflare-plus-Hono deployment posture, and Coolify locked-secret guidance.
+- `AGENTS.md` should reflect the current backend and recovery posture accurately.
 - `docs/README.md` now references the current active documentation issue map.
-- local docs skills now require Worker secret contract and Coolify locked-secret guidance to stay accurate when docs touch credentials or deployment-managed configuration.
+- local docs skills now require accurate frontend/backend secret-storage guidance and Coolify locked-secret guidance when docs touch credentials or deployment-managed configuration.
 
 ### Planning Guidance
 
-- `docs/process/ai-workflow-planning-templates.md` now describes the live Hyperdrive-backed Worker baseline, restored tunnel/connectivity posture, monthly tunnel-token rotation, and key-only VPS recovery.
+- `docs/process/ai-workflow-planning-templates.md` should describe the current Cloudflare-plus-Hono baseline and key-only VPS recovery posture.
 
 ### Secret Handling And Env Guidance
 
@@ -66,7 +65,7 @@ Recommended changes:
 
 - refresh `README.md`, `AGENTS.md`, `DOCS_INDEX.md`, and `docs/README.md`
 - update local skills so they describe the current live/runtime posture accurately
-- keep the docs explicit about the current Cloudflare Worker, Hyperdrive, R2, Turnstile, and key-only VPS recovery posture
+- keep the docs explicit about the current Cloudflare, Hono, R2, Turnstile, and key-only VPS recovery posture
 - keep rollout-only controls such as staged 2FA enforcement and ABAC audit-only mode documented carefully
 
 Current status: repository-side core docs and docs-skill refresh complete.

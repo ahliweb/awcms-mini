@@ -2,8 +2,6 @@ import { spawnSync } from "node:child_process";
 
 import { applyLocalCloudflareRuntimeEnv, loadLocalEnvFiles } from "./_local-env.mjs";
 
-// Active production transport is `direct` (Hyperdrive is not used).
-// See docs/process/no-hyperdrive-adr.md.
 const DEFAULT_LIVE_RUNTIME_EXPECTATIONS = {
   DATABASE_TRANSPORT: "direct",
   MINI_RUNTIME_TARGET: "node",
