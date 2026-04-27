@@ -1,7 +1,7 @@
 export const DEFAULT_DATABASE_URL = "postgres://localhost:5432/awcms_mini_dev";
 export const DEFAULT_DATABASE_TRANSPORT = "direct";
 export const DEFAULT_HYPERDRIVE_BINDING = "HYPERDRIVE";
-export const DEFAULT_RUNTIME_TARGET = "cloudflare";
+export const DEFAULT_RUNTIME_TARGET = "node";
 export const DEFAULT_TRUSTED_PROXY_MODE = "direct";
 export const DEFAULT_R2_MEDIA_BUCKET_BINDING = "MEDIA_BUCKET";
 export const DEFAULT_R2_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;

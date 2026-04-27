@@ -70,7 +70,21 @@ export function assertRequiredWorkerSecretsPresent(env = process.env, configPath
 }
 
 function usesHyperdriveTransport(env) {
-  return env.DATABASE_TRANSPORT !== "direct";
+  return env.DATABASE_TRANSPORT === "hyperdrive";
+}
+
+export function applyLocalCloudflareRuntimeEnv(env = process.env) {
+  // Hyperdrive is not the active production transport (see docs/process/no-hyperdrive-adr.md).
+  // This function is retained for compatibility but is a no-op for the direct transport path.
+  if (
+    usesHyperdriveTransport(env) &&
+    (env.DATABASE_URL || DEFAULT_DATABASE_URL) &&
+    !env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE
+  ) {
+    env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE = env.DATABASE_URL || DEFAULT_DATABASE_URL;
+  }
+
+  return env;
 }
 
 export function loadLocalEnvFiles(env = process.env) {
@@ -86,18 +100,6 @@ export function loadLocalEnvFiles(env = process.env) {
       process.loadEnvFile(file);
     }
   }
-}
-
-export function applyLocalCloudflareRuntimeEnv(env = process.env) {
-  if (
-    usesHyperdriveTransport(env) &&
-    (env.DATABASE_URL || DEFAULT_DATABASE_URL) &&
-    !env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE
-  ) {
-    env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE = env.DATABASE_URL || DEFAULT_DATABASE_URL;
-  }
-
-  return env;
 }
 
 export async function cleanupGeneratedCloudflareLocalSecretFiles(rootDir = process.cwd()) {

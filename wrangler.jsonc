@@ -1,3 +1,7 @@
+// NOTE: This file is retained as a historical reference only.
+// The active production target is Hono on Coolify VPS + Cloudflare Pages.
+// Cloudflare Workers is NOT the active runtime. Hyperdrive is NOT used.
+// See docs/process/no-hyperdrive-adr.md and docs/architecture/overview.md.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "main": "@astrojs/cloudflare/entrypoints/server",
@@ -5,9 +9,8 @@
   "compatibility_date": "2026-04-18",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "vars": {
-    "DATABASE_TRANSPORT": "hyperdrive",
-    "HYPERDRIVE_BINDING": "HYPERDRIVE",
-    "MINI_RUNTIME_TARGET": "cloudflare",
+    "DATABASE_TRANSPORT": "direct",
+    "MINI_RUNTIME_TARGET": "node",
     "TRUSTED_PROXY_MODE": "cloudflare",
     "SITE_URL": "https://awcms-mini.ahlikoding.com",
     "ADMIN_ENTRY_PATH": "/_emdash/",
@@ -39,12 +42,6 @@
     {
       "binding": "MEDIA_BUCKET",
       "bucket_name": "awcms-mini-s3"
-    }
-  ],
-  "hyperdrive": [
-    {
-      "binding": "HYPERDRIVE",
-      "id": "8491095b83164e1885cd3d6b4c32afd7"
     }
   ]
 }

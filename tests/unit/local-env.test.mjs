@@ -135,13 +135,14 @@ test("applyLocalCloudflareRuntimeEnv skips Hyperdrive connection-string derivati
   assert.equal(env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE, undefined);
 });
 
-test("applyLocalCloudflareRuntimeEnv falls back to the non-secret default database URL for Hyperdrive tooling", async () => {
-  const env = {
-  };
+test("applyLocalCloudflareRuntimeEnv does not derive a Hyperdrive string when transport is unset (direct is the default)", async () => {
+  // With DATABASE_TRANSPORT unset, the active transport is `direct`.
+  // The function must not populate the Hyperdrive compatibility variable.
+  const env = {};
 
   applyLocalCloudflareRuntimeEnv(env);
 
-  assert.equal(env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE, "postgres://localhost:5432/awcms_mini_dev");
+  assert.equal(env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE, undefined);
 });
 
 test("cleanupGeneratedCloudflareLocalSecretFiles removes generated dist/server .dev.vars files only", async () => {
