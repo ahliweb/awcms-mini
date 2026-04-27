@@ -139,6 +139,63 @@ function createLoginOptions({
   };
 }
 
+function createTwoFactorLoginOptions({ verifyResult, verifyError } = {}) {
+  return {
+    runtimeConfig: {
+      turnstile: {
+        enabled: true,
+        secretKey: "turnstile-secret",
+        expectedHostnames: [],
+      },
+      edgeApi: {
+        jwt: {
+          enabled: true,
+          secret: "edge-secret",
+        },
+      },
+    },
+    turnstileFetchImpl: async () => ({
+      async json() {
+        return { success: true, action: "login", hostname: "localhost" };
+      },
+    }),
+    edgeAuthService: {
+      async issueTokenPairFromPassword(input) {
+        if (!input.code && !input.recoveryCode) {
+          throw new EdgeAuthError(
+            "TWO_FACTOR_REQUIRED",
+            "Two-factor code is required.",
+            403,
+          );
+        }
+
+        if (verifyError) {
+          throw verifyError;
+        }
+
+        return (
+          verifyResult ?? {
+            tokenType: "Bearer",
+            accessToken: "two-factor-access-token",
+            refreshToken: "two-factor-refresh-token",
+            user: {
+              id: "user_1",
+              email: input.email,
+              name: "Admin User",
+            },
+            session: {
+              id: "session_1",
+              trustedDevice: false,
+              sessionStrength: "two_factor",
+              twoFactorSatisfied: true,
+            },
+          }
+        );
+      },
+    },
+  };
+}
+
 function createLogoutOptions({ activeSession = true } = {}) {
   return {
     edgeAuthService: {
@@ -438,6 +495,25 @@ test("POST /api/v1/auth/login returns edge-auth errors", async () => {
   assert.equal(body.error.code, "INVALID_CREDENTIALS");
 });
 
+test("POST /api/v1/auth/login returns explicit two-factor challenge payload", async () => {
+  const app = createApp(createTwoFactorLoginOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "admin@example.test",
+        password: "secret-password",
+        turnstileToken: "turnstile-token",
+      }),
+    }),
+  );
+  assert.equal(res.status, 403);
+  const body = await res.json();
+  assert.equal(body.error.code, "TWO_FACTOR_REQUIRED");
+  assert.equal(body.data.requiresTwoFactor, true);
+});
+
 test("POST /api/v1/auth/logout returns 401 when not authenticated", async () => {
   const app = createApp();
   const res = await app.fetch(
@@ -545,4 +621,40 @@ test("POST /api/v1/security/2fa/confirm returns verification payload", async () 
   assert.equal(body.data.success, true);
   assert.equal(body.data.verifiedAt, "2026-03-01T00:00:00.000Z");
   assert.equal(body.data.recoveryCodes.length, 2);
+});
+
+test("POST /api/v1/auth/login/verify-2fa returns token pair after second factor", async () => {
+  const app = createApp(createTwoFactorLoginOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/auth/login/verify-2fa", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "admin@example.test",
+        password: "secret-password",
+        code: "123456",
+      }),
+    }),
+  );
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data.accessToken, "two-factor-access-token");
+  assert.equal(body.data.session.twoFactorSatisfied, true);
+});
+
+test("POST /api/v1/auth/login/verify-2fa requires code or recovery code", async () => {
+  const app = createApp(createTwoFactorLoginOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/auth/login/verify-2fa", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "admin@example.test",
+        password: "secret-password",
+      }),
+    }),
+  );
+  assert.equal(res.status, 400);
+  const body = await res.json();
+  assert.equal(body.error.code, "INVALID_CODE");
 });

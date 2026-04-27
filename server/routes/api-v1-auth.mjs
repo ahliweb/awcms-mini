@@ -10,6 +10,10 @@ import { Hono } from "hono";
 import { validateTurnstileToken, TurnstileValidationError } from "../../src/security/turnstile.mjs";
 import { createEdgeAuthService, EdgeAuthError } from "../../src/services/edge-auth/service.mjs";
 import { createSessionService } from "../../src/services/sessions/service.mjs";
+import {
+  createTwoFactorService,
+  TwoFactorChallengeError,
+} from "../../src/services/security/two-factor.mjs";
 
 /**
  * @param {object} [options]
@@ -27,6 +31,12 @@ export function routeApiV1Auth(options = {}) {
     options.sessionService ??
     createSessionService({
       database: options.database,
+    });
+  const twoFactor =
+    options.twoFactorService ??
+    createTwoFactorService({
+      database: options.database,
+      encryptionKey: options.runtimeConfig?.miniTotpEncryptionKey,
     });
 
   // POST /api/v1/auth/login
@@ -76,6 +86,81 @@ export function routeApiV1Auth(options = {}) {
 
       return c.json({ data: result });
     } catch (error) {
+      if (error instanceof EdgeAuthError) {
+        if (error.code === "TWO_FACTOR_REQUIRED") {
+          return c.json(
+            {
+              error: { code: error.code, message: error.message },
+              data: {
+                requiresTwoFactor: true,
+                challenge: {
+                  type: "totp_or_recovery_code",
+                },
+              },
+            },
+            error.status,
+          );
+        }
+
+        return c.json(
+          { error: { code: error.code, message: error.message } },
+          error.status,
+        );
+      }
+
+      throw error;
+    }
+  });
+
+  // POST /api/v1/auth/login/verify-2fa
+  app.post("/login/verify-2fa", async (c) => {
+    let body;
+
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json(
+        { error: { code: "INVALID_BODY", message: "Expected JSON body." } },
+        400,
+      );
+    }
+
+    const email = typeof body?.email === "string" ? body.email : "";
+    const password = typeof body?.password === "string" ? body.password : "";
+    const code = typeof body?.code === "string" ? body.code.trim() : "";
+    const recoveryCode =
+      typeof body?.recoveryCode === "string" ? body.recoveryCode.trim() : "";
+
+    if (!code && !recoveryCode) {
+      return c.json(
+        {
+          error: {
+            code: "INVALID_CODE",
+            message: "TOTP code or recovery code is required.",
+          },
+        },
+        400,
+      );
+    }
+
+    try {
+      const result = await edgeAuth.issueTokenPairFromPassword({
+        request: c.req.raw,
+        email,
+        password,
+        code,
+        recoveryCode,
+      });
+
+      return c.json({ data: result });
+    } catch (error) {
+      if (error instanceof TwoFactorChallengeError) {
+        return c.json(
+          { error: { code: error.code, message: error.message } },
+          400,
+        );
+      }
+
       if (error instanceof EdgeAuthError) {
         return c.json(
           { error: { code: error.code, message: error.message } },
