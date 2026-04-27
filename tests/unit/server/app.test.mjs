@@ -34,6 +34,37 @@ function createAuthorizedOptions({ allowed = true } = {}) {
   };
 }
 
+function createDeniedAuditOptions() {
+  const calls = [];
+
+  return {
+    options: {
+      resolveActor: () => ({ id: "user_1", status: "active", staff_level: 9 }),
+      authorizationService: {
+        async evaluate(input) {
+          return {
+            allowed: false,
+            permission_code: input.context.permission_code,
+            matched_rule: "test-deny",
+            reason: { code: "DENY_PERMISSION_MISSING" },
+          };
+        },
+      },
+      permissionRepository: {
+        async listPermissions() {
+          return [{ id: "perm_admin_roles_read", code: "admin.roles.read" }];
+        },
+      },
+      auditService: {
+        async append(entry) {
+          calls.push(entry);
+        },
+      },
+    },
+    calls,
+  };
+}
+
 function createBearerAuthOptions() {
   return {
     edgeAuthService: {
@@ -430,6 +461,21 @@ test("GET /api/v1/permissions returns 403 when ABAC denies", async () => {
   const body = await res.json();
   assert.equal(body.error?.code, "FORBIDDEN");
   assert.equal(body.error?.details?.permissionCode, "admin.permissions.read");
+});
+
+test("GET /api/v1/permissions writes an audit record when ABAC denies", async () => {
+  const deniedAudit = createDeniedAuditOptions();
+  const app = createApp(deniedAudit.options);
+  const res = await app.fetch(makeRequest("/api/v1/permissions"));
+  assert.equal(res.status, 403);
+  assert.equal(deniedAudit.calls.length, 1);
+  assert.equal(deniedAudit.calls[0].action, "authorization.deny");
+  assert.equal(deniedAudit.calls[0].entity_type, "route");
+  assert.equal(deniedAudit.calls[0].metadata.permission_code, "admin.permissions.read");
+  assert.equal(
+    deniedAudit.calls[0].metadata.authorization_reason,
+    "DENY_PERMISSION_MISSING",
+  );
 });
 
 test("GET /api/v1/auth/me returns current bearer-authenticated user", async () => {

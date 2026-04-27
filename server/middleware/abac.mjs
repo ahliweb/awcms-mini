@@ -1,4 +1,5 @@
 import { createAuthorizationService } from "../../src/services/authorization/service.mjs";
+import { createAuditService } from "../../src/services/audit/service.mjs";
 
 function normalizeOptionalString(value) {
   if (typeof value !== "string") {
@@ -68,6 +69,36 @@ async function resolveActor(c, options) {
 }
 
 async function reportDeniedAuthorization(c, options, details) {
+  const audit =
+    options.auditService ??
+    (options.database ? createAuditService({ database: options.database }) : null);
+
+  if (audit) {
+    try {
+      await audit.append({
+        actor_user_id: details.actorUserId ?? null,
+        action: "authorization.deny",
+        entity_type: "route",
+        entity_id: c.req.path,
+        target_user_id: details.actorUserId ?? null,
+        request_id: c.get("requestId") ?? null,
+        ip_address: c.get("clientIp") ?? null,
+        user_agent: c.req.header("user-agent") ?? null,
+        summary: "Rejected API request due to authorization denial.",
+        metadata: {
+          method: c.req.method,
+          path: c.req.path,
+          permission_code: details.permissionCode ?? null,
+          request_origin: details.requestOrigin ?? null,
+          authorization_reason: details.authorizationResult?.reason?.code ?? details.reason ?? null,
+          matched_rule: details.authorizationResult?.matched_rule ?? null,
+        },
+      });
+    } catch {
+      // Best-effort audit logging must not mask the authorization result.
+    }
+  }
+
   if (typeof options.auditAuthorizationDenied !== "function") {
     return;
   }
