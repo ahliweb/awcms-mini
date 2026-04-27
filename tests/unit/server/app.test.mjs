@@ -139,6 +139,48 @@ function createLoginOptions({
   };
 }
 
+function createLogoutOptions({ activeSession = true } = {}) {
+  return {
+    edgeAuthService: {
+      async authenticateAccessToken(token) {
+        assert.equal(token, "test-token");
+        return {
+          user: {
+            id: "user_1",
+            email: "admin@example.test",
+            name: "Admin User",
+            status: "active",
+            staff_level: 9,
+          },
+          activeSession: activeSession
+            ? {
+                id: "session_1",
+                trusted_device: false,
+                expires_at: "2030-01-01T00:00:00.000Z",
+                last_seen_at: "2026-01-01T00:00:00.000Z",
+              }
+            : null,
+          tokenClaims: {
+            two_factor_satisfied: true,
+          },
+        };
+      },
+      async revokeSessionTokens(sessionId) {
+        assert.equal(sessionId, "session_1");
+      },
+    },
+    sessionService: {
+      async revokeSession(sessionId) {
+        assert.equal(sessionId, "session_1");
+        return {
+          id: "session_1",
+          revoked_at: "2026-02-01T00:00:00.000Z",
+        };
+      },
+    },
+  };
+}
+
 test("GET /health returns a JSON health check response", async () => {
   const app = createApp();
   const res = await app.fetch(makeRequest("/health"));
@@ -312,4 +354,31 @@ test("POST /api/v1/auth/login returns edge-auth errors", async () => {
   assert.equal(res.status, 401);
   const body = await res.json();
   assert.equal(body.error.code, "INVALID_CREDENTIALS");
+});
+
+test("POST /api/v1/auth/logout returns 401 when not authenticated", async () => {
+  const app = createApp();
+  const res = await app.fetch(
+    makeRequest("/api/v1/auth/logout", {
+      method: "POST",
+    }),
+  );
+  assert.equal(res.status, 401);
+  const body = await res.json();
+  assert.equal(body.error.code, "NOT_AUTHENTICATED");
+});
+
+test("POST /api/v1/auth/logout revokes current bearer-authenticated session", async () => {
+  const app = createApp(createLogoutOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/auth/logout", {
+      method: "POST",
+      headers: { authorization: "Bearer test-token" },
+    }),
+  );
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data.success, true);
+  assert.equal(body.data.session.id, "session_1");
+  assert.equal(body.data.session.revokedAt, "2026-02-01T00:00:00.000Z");
 });

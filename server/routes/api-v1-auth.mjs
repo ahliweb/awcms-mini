@@ -9,6 +9,7 @@ import { Hono } from "hono";
 
 import { validateTurnstileToken, TurnstileValidationError } from "../../src/security/turnstile.mjs";
 import { createEdgeAuthService, EdgeAuthError } from "../../src/services/edge-auth/service.mjs";
+import { createSessionService } from "../../src/services/sessions/service.mjs";
 
 /**
  * @param {object} [options]
@@ -21,6 +22,11 @@ export function routeApiV1Auth(options = {}) {
     createEdgeAuthService({
       database: options.database,
       runtimeConfig: options.runtimeConfig,
+    });
+  const sessions =
+    options.sessionService ??
+    createSessionService({
+      database: options.database,
     });
 
   // POST /api/v1/auth/login
@@ -82,8 +88,31 @@ export function routeApiV1Auth(options = {}) {
   });
 
   // POST /api/v1/auth/logout
-  app.post("/logout", (c) => {
-    return c.json({ error: { code: "NOT_IMPLEMENTED", message: "Not yet implemented." } }, 501);
+  app.post("/logout", async (c) => {
+    const activeSession = c.get("activeSession");
+
+    if (!activeSession?.id) {
+      return c.json(
+        { error: { code: "NOT_AUTHENTICATED", message: "Not authenticated." } },
+        401,
+      );
+    }
+
+    const revoked = await sessions.revokeSession(activeSession.id);
+    await edgeAuth.revokeSessionTokens(
+      activeSession.id,
+      revoked?.revoked_at ?? undefined,
+    );
+
+    return c.json({
+      data: {
+        success: true,
+        session: {
+          id: revoked?.id ?? activeSession.id,
+          revokedAt: revoked?.revoked_at ?? null,
+        },
+      },
+    });
   });
 
   // GET /api/v1/auth/me
