@@ -1,8 +1,5 @@
 import { loadLocalEnvFiles } from "./_local-env.mjs";
 
-const DEFAULT_EXPECTED_SERVER_UUID = "z7mcy4r3ejl6kno5neellf1f";
-const DEFAULT_EXPECTED_SERVER_IP = "202.10.45.224";
-
 function normalizeOptionalString(value) {
   if (typeof value !== "string") {
     return null;
@@ -17,6 +14,12 @@ function readCoolifyConfig() {
 
   const baseUrl = normalizeOptionalString(process.env.COOLIFY_BASE_URL);
   const token = normalizeOptionalString(process.env.COOLIFY_ACCESS_TOKEN);
+  const expectedServerUuid = normalizeOptionalString(
+    process.env.COOLIFY_POSTGRES_SERVER_UUID,
+  );
+  const expectedServerIp = normalizeOptionalString(
+    process.env.COOLIFY_POSTGRES_SERVER_IP,
+  );
 
   if (!baseUrl) {
     throw new Error(
@@ -30,15 +33,23 @@ function readCoolifyConfig() {
     );
   }
 
+  if (!expectedServerUuid) {
+    throw new Error(
+      "COOLIFY_POSTGRES_SERVER_UUID must be set in .env.local or the environment",
+    );
+  }
+
+  if (!expectedServerIp) {
+    throw new Error(
+      "COOLIFY_POSTGRES_SERVER_IP must be set in .env.local or the environment",
+    );
+  }
+
   return {
     baseUrl,
     token,
-    expectedServerUuid:
-      normalizeOptionalString(process.env.COOLIFY_POSTGRES_SERVER_UUID) ||
-      DEFAULT_EXPECTED_SERVER_UUID,
-    expectedServerIp:
-      normalizeOptionalString(process.env.COOLIFY_POSTGRES_SERVER_IP) ||
-      DEFAULT_EXPECTED_SERVER_IP,
+    expectedServerUuid,
+    expectedServerIp,
   };
 }
 

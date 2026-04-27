@@ -29,7 +29,7 @@ It also reflects current OWASP, Cloudflare, Coolify, and PostgreSQL guidance for
 - The tracked Coolify MCP wrapper now follows the repo env-loading pattern and reads `.env` plus `.env.local`, while the live token stays local-only.
 - The current local operator secret file already contains the Coolify MCP token in `.env.local`, which is gitignored and is the correct storage class for that credential.
 - The current reviewed Coolify-side secret surface is Environment Variables with locked secrets, explicit runtime/build scoping, and Docker Build Secrets for reviewed build-time sensitive inputs.
-- The current reviewed PostgreSQL target inventory for this planning pass is VPS IP `202.10.45.224` and SSL hostname `id1.ahlikoding.com`.
+- The current reviewed PostgreSQL target inventory for this planning pass is stored in local-only operator configuration (`COOLIFY_POSTGRES_SERVER_IP`) with SSL hostname `id1.ahlikoding.com`.
 - The repository now includes a dedicated secret-hygiene audit runbook in `docs/process/secret-hygiene-audit.md`.
 
 ### Confirmed Gaps
@@ -58,7 +58,7 @@ Add or improve the following capabilities without breaking EmDash-first rules:
 3. move the reviewed production target to `https://awcms-mini.ahlikoding.com`, with the public site at `/` and the admin entry on the same host at `/_emdash/`
 4. keep the Cloudflare-hosted app topology aligned with the requested path: browser/api to Cloudflare edge to Worker-hosted app runtime and platform services such as R2, with PostgreSQL on the Coolify-managed VPS over SSL
 5. tighten PostgreSQL transport guidance so the Cloudflare runtime reaches PostgreSQL with reviewed SSL settings and explicit operator rollback notes
-6. keep the reviewed PostgreSQL inventory explicit: VPS IP `202.10.45.224`, SSL hostname `id1.ahlikoding.com`, and application connectivity through env-managed connection strings rather than script-local credentials
+6. keep the reviewed PostgreSQL inventory explicit in local-only operator configuration: VPS IP via `COOLIFY_POSTGRES_SERVER_IP`, SSL hostname `id1.ahlikoding.com`, and application connectivity through env-managed connection strings rather than script-local credentials
 
 ## Recommended Workstreams
 
@@ -185,7 +185,7 @@ Recommended operator posture:
 - keep PostgreSQL credentials application-scoped and non-superuser
 - keep remote database traffic protected with TLS and restricted ingress rules
 - enable PostgreSQL SSL on the Coolify-managed database resource and update the reviewed application connection string accordingly
-- prefer `DATABASE_URL` values that connect through `id1.ahlikoding.com` for hostname validation, while retaining `202.10.45.224` as operator inventory and fallback troubleshooting data
+- prefer `DATABASE_URL` values that connect through `id1.ahlikoding.com` for hostname validation, while retaining the VPS IP only in local-only operator inventory and fallback troubleshooting notes
 - document certificate-validation expectations and rollback steps before switching production traffic
 
 ## Proposed Execution Order

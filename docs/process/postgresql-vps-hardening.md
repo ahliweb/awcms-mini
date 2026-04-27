@@ -15,13 +15,13 @@ The supported baseline is:
 
 Current reviewed operator inventory for this repository:
 
-- PostgreSQL VPS IP: `202.10.45.224`
+- PostgreSQL VPS IP: stored locally as `COOLIFY_POSTGRES_SERVER_IP`
 - reviewed SSL hostname for app connections: `id1.ahlikoding.com`
 
 Current Coolify API-confirmed inventory as of 2026-04-25:
 
 - Coolify version observed through the API: `4.0.0-beta.473`
-- database resource UUID: `kbzbui977dnkhdzl8xcw6v90`
+- database resource UUID: stored locally as `COOLIFY_POSTGRES_RESOURCE_UUID`
 - database resource type: `standalone-postgresql`
 - database image: `postgres:18-alpine`
 - database status: `running:healthy`
@@ -138,7 +138,7 @@ If the private-database Tunnel path is selected, prepare at least:
 
 Use this order when rolling the reviewed SSL posture into the Coolify-managed PostgreSQL deployment.
 
-1. Confirm `id1.ahlikoding.com` resolves to the reviewed VPS IP `202.10.45.224`.
+1. Confirm `id1.ahlikoding.com` resolves to the reviewed VPS IP stored in `COOLIFY_POSTGRES_SERVER_IP`.
 2. Confirm the PostgreSQL server certificate presented by the host covers `id1.ahlikoding.com`.
 3. Run the read-only Coolify API posture audit and keep its redacted output with the issue notes:
 
@@ -206,7 +206,7 @@ Before deployment:
 - If Hyperdrive is planned, confirm the reviewed Cloudflare-to-origin connection path is allowed before attempting `wrangler hyperdrive create`.
 - If Hyperdrive is planned, confirm the reviewed Hyperdrive origin hostname resolves to a direct/reachable PostgreSQL origin path instead of Cloudflare edge IPs.
 - Confirm host firewall rules restrict database ingress accordingly.
-- Confirm the VPS IP `202.10.45.224` is treated as operator inventory and troubleshooting data, not the preferred application hostname when `verify-full` is required.
+- Confirm the VPS IP stored in `COOLIFY_POSTGRES_SERVER_IP` is treated as local-only operator inventory and troubleshooting data, not the preferred application hostname when `verify-full` is required.
 - If management-plane inspection revealed live database credentials or externally routable connection strings, treat credential rotation as part of the remediation plan rather than only tightening network controls.
 - If the current live Coolify resource is publicly exposed, decide explicitly whether that exposure is being removed now or temporarily retained under an auditable exception.
 
