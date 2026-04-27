@@ -14,6 +14,7 @@ import { middlewareTrustedProxy } from "./middleware/trusted-proxy.mjs";
 import { middlewareLogger } from "./middleware/logger.mjs";
 import { middlewareErrorHandler } from "./middleware/error-handler.mjs";
 import { middlewareCors } from "./middleware/cors.mjs";
+import { middlewareOptionalAuth } from "./middleware/auth.mjs";
 import { routeHealth } from "./routes/health.mjs";
 import { routeApiV1 } from "./routes/api-v1.mjs";
 
@@ -30,6 +31,7 @@ export function createApp(options = {}) {
   app.use("*", middlewareLogger(options));
   app.use("*", middlewareSecurityHeaders());
   app.use("*", middlewareCors(options));
+  app.use("/api/v1/*", middlewareOptionalAuth(options));
 
   // Error handler (registered last but catches all thrown errors)
   app.onError(middlewareErrorHandler(options));

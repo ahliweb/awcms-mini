@@ -33,6 +33,54 @@ function createAuthorizedOptions({ allowed = true } = {}) {
   };
 }
 
+function createBearerAuthOptions() {
+  return {
+    edgeAuthService: {
+      async authenticateAccessToken(token) {
+        assert.equal(token, "test-token");
+        return {
+          user: {
+            id: "user_1",
+            email: "admin@example.test",
+            name: "Admin User",
+            status: "active",
+            staff_level: 9,
+          },
+          activeSession: {
+            id: "session_1",
+            trusted_device: false,
+            expires_at: "2030-01-01T00:00:00.000Z",
+            last_seen_at: "2026-01-01T00:00:00.000Z",
+          },
+          tokenClaims: {
+            two_factor_satisfied: true,
+          },
+        };
+      },
+    },
+    authorizationService: {
+      async evaluate(input) {
+        return {
+          allowed: true,
+          permission_code: input.context.permission_code,
+          matched_rule: "test-allow",
+          reason: null,
+        };
+      },
+    },
+    roleRepository: {
+      async listRoles() {
+        return [{ id: "role_admin", slug: "admin", name: "Admin" }];
+      },
+    },
+    permissionRepository: {
+      async listPermissions() {
+        return [{ id: "perm_admin_roles_read", code: "admin.roles.read" }];
+      },
+    },
+  };
+}
+
 test("GET /health returns a JSON health check response", async () => {
   const app = createApp();
   const res = await app.fetch(makeRequest("/health"));
@@ -116,7 +164,7 @@ test("GET /api/v1/roles requires authentication", async () => {
   assert.equal(body.error?.code, "UNAUTHENTICATED");
 });
 
-test("GET /api/v1/roles returns role catalog when ABAC allows", async () => {
+test("GET /api/v1/roles returns role catalog when injected actor is allowed", async () => {
   const app = createApp(createAuthorizedOptions());
   const res = await app.fetch(makeRequest("/api/v1/roles"));
   assert.equal(res.status, 200);
@@ -131,4 +179,30 @@ test("GET /api/v1/permissions returns 403 when ABAC denies", async () => {
   const body = await res.json();
   assert.equal(body.error?.code, "FORBIDDEN");
   assert.equal(body.error?.details?.permissionCode, "admin.permissions.read");
+});
+
+test("GET /api/v1/auth/me returns current bearer-authenticated user", async () => {
+  const app = createApp(createBearerAuthOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/auth/me", {
+      headers: { authorization: "Bearer test-token" },
+    }),
+  );
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data.user.id, "user_1");
+  assert.equal(body.data.user.email, "admin@example.test");
+  assert.equal(body.data.session.id, "session_1");
+});
+
+test("GET /api/v1/roles uses bearer-authenticated actor for ABAC", async () => {
+  const app = createApp(createBearerAuthOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/roles", {
+      headers: { authorization: "Bearer test-token" },
+    }),
+  );
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data[0].slug, "admin");
 });

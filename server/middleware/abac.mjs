@@ -123,6 +123,7 @@ export function middlewareAbacGuard(guard, options = {}) {
       context: {
         permission_code: permissionCode,
         action,
+        session_id: c.get("activeSession")?.id ?? null,
         request_type: `${c.req.method} ${c.req.path}`,
         ip_address: c.get("clientIp") ?? null,
         occurred_at: new Date().toISOString(),
