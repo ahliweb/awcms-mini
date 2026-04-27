@@ -10,6 +10,7 @@ import { Hono } from "hono";
 import { routeApiV1Auth } from "./api-v1-auth.mjs";
 import { routeApiV1Permissions } from "./api-v1-permissions.mjs";
 import { routeApiV1Roles } from "./api-v1-roles.mjs";
+import { routeApiV1Security } from "./api-v1-security.mjs";
 
 /**
  * @param {object} [options]
@@ -22,6 +23,7 @@ export function routeApiV1(options = {}) {
   app.route("/auth", routeApiV1Auth(options));
   app.route("/permissions", routeApiV1Permissions(options));
   app.route("/roles", routeApiV1Roles(options));
+  app.route("/security", routeApiV1Security(options));
 
   // Version metadata
   app.get("/", (c) => {

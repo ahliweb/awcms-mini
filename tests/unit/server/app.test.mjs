@@ -214,6 +214,55 @@ function createRefreshOptions({ refreshResult, refreshError } = {}) {
   };
 }
 
+function createTwoFactorOptions() {
+  return {
+    edgeAuthService: {
+      async authenticateAccessToken(token) {
+        assert.equal(token, "test-token");
+        return {
+          user: {
+            id: "user_1",
+            email: "admin@example.test",
+            name: "Admin User",
+            status: "active",
+            staff_level: 9,
+          },
+          activeSession: {
+            id: "session_1",
+            trusted_device: false,
+            expires_at: "2030-01-01T00:00:00.000Z",
+            last_seen_at: "2026-01-01T00:00:00.000Z",
+          },
+          tokenClaims: {
+            two_factor_satisfied: true,
+          },
+        };
+      },
+    },
+    twoFactorService: {
+      async beginEnrollment(input) {
+        assert.equal(input.user_id, "user_1");
+        return {
+          credentialId: "totp_1",
+          manualKey: "MANUALKEY123",
+          otpauthUrl: "otpauth://totp/AWCMS%20Mini:admin@example.test",
+          verified: false,
+        };
+      },
+      async verifyEnrollment(input) {
+        assert.equal(input.user_id, "user_1");
+        assert.equal(input.code, "123456");
+        return {
+          credential: {
+            verified_at: "2026-03-01T00:00:00.000Z",
+          },
+          recoveryCodes: ["RECOVERY1", "RECOVERY2"],
+        };
+      },
+    },
+  };
+}
+
 test("GET /health returns a JSON health check response", async () => {
   const app = createApp();
   const res = await app.fetch(makeRequest("/health"));
@@ -451,4 +500,49 @@ test("POST /api/v1/auth/refresh returns edge-auth refresh errors", async () => {
   assert.equal(res.status, 401);
   const body = await res.json();
   assert.equal(body.error.code, "INVALID_REFRESH_TOKEN");
+});
+
+test("POST /api/v1/security/2fa/setup requires authentication", async () => {
+  const app = createApp();
+  const res = await app.fetch(
+    makeRequest("/api/v1/security/2fa/setup", {
+      method: "POST",
+    }),
+  );
+  assert.equal(res.status, 401);
+  const body = await res.json();
+  assert.equal(body.error.code, "NOT_AUTHENTICATED");
+});
+
+test("POST /api/v1/security/2fa/setup returns enrollment payload", async () => {
+  const app = createApp(createTwoFactorOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/security/2fa/setup", {
+      method: "POST",
+      headers: { authorization: "Bearer test-token" },
+    }),
+  );
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data.credentialId, "totp_1");
+  assert.equal(body.data.verified, false);
+});
+
+test("POST /api/v1/security/2fa/confirm returns verification payload", async () => {
+  const app = createApp(createTwoFactorOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/security/2fa/confirm", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ code: "123456" }),
+    }),
+  );
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data.success, true);
+  assert.equal(body.data.verifiedAt, "2026-03-01T00:00:00.000Z");
+  assert.equal(body.data.recoveryCodes.length, 2);
 });
