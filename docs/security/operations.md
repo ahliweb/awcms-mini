@@ -55,31 +55,32 @@ Mini owns the security-hardening layer:
 For the intended deployment model:
 
 - Cloudflare is the public edge.
-- Cloudflare hosts the supported application runtime.
-- PostgreSQL runs as a protected remote dependency on a VPS.
-- Coolify manages the PostgreSQL host lifecycle and related operator environment.
+- Cloudflare Pages hosts the public frontend.
+- the Hono backend runs on a Coolify-managed VPS.
+- PostgreSQL runs as a protected dependency on the same Coolify-managed VPS.
+- Coolify manages the backend and PostgreSQL operator environment.
 
 Security operations should treat those as separate trust boundaries.
 
 ## Edge And Origin Guidance
 
-- The supported baseline production path is a Cloudflare-hosted runtime serving the public hostname directly.
+- The supported baseline production path is Cloudflare Pages for the frontend plus Hono on Coolify for backend API traffic.
 - If `ADMIN_SITE_URL` is configured for compatibility, treat it as a second trusted browser hostname for operator entry only, not as a second app origin with separate auth rules.
-- In the supported Cloudflare-hosted path, trust `CF-Connecting-IP` and configure `TRUSTED_PROXY_MODE=cloudflare`.
+- In the supported Cloudflare-fronted path, trust `CF-Connecting-IP` and configure `TRUSTED_PROXY_MODE=cloudflare`.
 - Do not treat arbitrary `X-Forwarded-For` values as authoritative unless a deployment explicitly opts into a different trusted proxy mode.
 - Add Cloudflare rate limiting or managed challenge rules for login and other abuse-prone auth endpoints.
-- Store `TURNSTILE_SECRET_KEY` as a Cloudflare-managed secret or equivalent server-only runtime secret.
+- Store `TURNSTILE_SECRET_KEY` as a Coolify-managed backend secret or equivalent server-only runtime secret.
 - Prefer `TURNSTILE_EXPECTED_HOSTNAMES` when multiple reviewed hostnames are enabled so Siteverify accepts only the intended hostname set.
-- Store `EDGE_API_JWT_SECRET` as a Cloudflare-managed secret or equivalent server-only runtime secret.
-- Keep deployed Worker secrets in Cloudflare-managed secret storage such as `wrangler secret put`, not in local `.dev.vars` files or Wrangler `[vars]`.
+- Store `EDGE_API_JWT_SECRET` as a Coolify-managed backend secret or equivalent server-only runtime secret.
+- Keep backend runtime secrets in Coolify locked runtime secrets or equivalent deployment-managed storage, not in tracked files or frontend config.
 - Keep `EDGE_API_ALLOWED_ORIGINS` empty unless a reviewed browser-based external client explicitly needs cross-origin access.
 - Prefer host-only cookies unless a reviewed operator workflow requires public/admin cross-host session sharing.
 - Keep local Cloudflare and operator secret files such as `.env.local`, `.env.<environment>.local`, `.dev.vars`, and `.dev.vars.<environment>` untracked; tracked env-style files should stay limited to reviewed placeholder examples such as `.env.example`.
 - Do not reintroduce `VPS_ROOT_PASSWORD` as a developer-local env value; the reviewed Coolify-managed VPS now uses key-only root SSH recovery.
 
-See `docs/process/cloudflare-hosted-runtime.md` for the supported Cloudflare runtime and deployment checks.
+See `docs/process/coolify-deployment.md` for the current deployment guide.
 
-The older `docs/process/cloudflare-coolify-origin-hardening.md` runbook should be treated as an alternative or historical app-on-Coolify deployment path, not the current baseline.
+The older `docs/process/cloudflare-hosted-runtime.md` and `docs/process/cloudflare-coolify-origin-hardening.md` docs should be treated as historical or alternative references, not the current baseline.
 
 ## PostgreSQL Guidance
 

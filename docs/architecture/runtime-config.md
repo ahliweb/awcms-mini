@@ -259,7 +259,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Cloudflare Hyperdrive is **not** used in this architecture. See `docs/process/no-hyperdrive-adr.md`.
 - R2-backed object storage is accessed from the Hono backend via the S3-compatible API using `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`, not through a Cloudflare Worker binding.
 
-See `docs/process/coolify-deployment.md` for the deployment guide.
+See `docs/process/coolify-deployment.md` for the current deployment guide.
 
 ### PostgreSQL On VPS
 

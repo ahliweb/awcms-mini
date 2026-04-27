@@ -1,8 +1,14 @@
 # Cloudflare Hosted Runtime
 
+## Status
+
+Historical reference only.
+
 ## Purpose
 
-This runbook defines the supported hosting baseline for AWCMS Mini when the application runtime is hosted on Cloudflare and PostgreSQL remains on a protected VPS managed through Coolify.
+This runbook preserves the earlier Cloudflare-hosted runtime path as historical reference.
+
+The current maintained deployment baseline is `docs/process/coolify-deployment.md`.
 
 ## Supported Baseline
 

@@ -1,10 +1,14 @@
 # Cloudflare And Coolify Origin Hardening
 
+## Status
+
+Historical or alternative reference only.
+
 ## Purpose
 
-This runbook defines the supported public ingress pattern for AWCMS Mini when deployed as a Cloudflare-hosted Worker with PostgreSQL on a Coolify-managed VPS.
+This runbook preserves earlier Cloudflare-plus-Coolify ingress hardening notes.
 
-The current supported runtime baseline for this repository is the Cloudflare-hosted Worker described in `docs/process/cloudflare-hosted-runtime.md`. The historical Coolify-hosted application path — where the Mini app ran inside a Coolify-managed container — is preserved as a reference and origin-hardening complement but is no longer the primary runtime model.
+The current maintained deployment baseline is `docs/process/coolify-deployment.md`.
 
 ## Current Supported Production Pattern
 
