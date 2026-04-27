@@ -101,5 +101,39 @@ export function routeApiV1Security(options = {}) {
     }
   });
 
+  app.post("/2fa/recovery-codes/regenerate", async (c) => {
+    const user = c.get("authUser");
+
+    if (!user?.id) {
+      return c.json(
+        { error: { code: "NOT_AUTHENTICATED", message: "Not authenticated." } },
+        401,
+      );
+    }
+
+    try {
+      const regenerated = await twoFactor.regenerateRecoveryCodes({
+        user_id: user.id,
+      });
+
+      return c.json({
+        data: {
+          success: true,
+          regeneratedAt: regenerated.regeneratedAt,
+          recoveryCodes: regenerated.recoveryCodes,
+        },
+      });
+    } catch (error) {
+      if (error instanceof TwoFactorEnrollmentError) {
+        return c.json(
+          { error: { code: error.code, message: error.message } },
+          400,
+        );
+      }
+
+      throw error;
+    }
+  });
+
   return app;
 }

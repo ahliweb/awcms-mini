@@ -316,6 +316,13 @@ function createTwoFactorOptions() {
           recoveryCodes: ["RECOVERY1", "RECOVERY2"],
         };
       },
+      async regenerateRecoveryCodes(input) {
+        assert.equal(input.user_id, "user_1");
+        return {
+          regeneratedAt: "2026-03-02T00:00:00.000Z",
+          recoveryCodes: ["NEWRECOVERY1", "NEWRECOVERY2"],
+        };
+      },
     },
   };
 }
@@ -620,6 +627,33 @@ test("POST /api/v1/security/2fa/confirm returns verification payload", async () 
   const body = await res.json();
   assert.equal(body.data.success, true);
   assert.equal(body.data.verifiedAt, "2026-03-01T00:00:00.000Z");
+  assert.equal(body.data.recoveryCodes.length, 2);
+});
+
+test("POST /api/v1/security/2fa/recovery-codes/regenerate requires authentication", async () => {
+  const app = createApp();
+  const res = await app.fetch(
+    makeRequest("/api/v1/security/2fa/recovery-codes/regenerate", {
+      method: "POST",
+    }),
+  );
+  assert.equal(res.status, 401);
+  const body = await res.json();
+  assert.equal(body.error.code, "NOT_AUTHENTICATED");
+});
+
+test("POST /api/v1/security/2fa/recovery-codes/regenerate returns a new recovery code set", async () => {
+  const app = createApp(createTwoFactorOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/security/2fa/recovery-codes/regenerate", {
+      method: "POST",
+      headers: { authorization: "Bearer test-token" },
+    }),
+  );
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data.success, true);
+  assert.equal(body.data.regeneratedAt, "2026-03-02T00:00:00.000Z");
   assert.equal(body.data.recoveryCodes.length, 2);
 });
 
