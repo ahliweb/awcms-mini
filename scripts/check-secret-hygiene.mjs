@@ -42,7 +42,14 @@ function isPlaceholderValue(value) {
 
   return (
     normalized.length === 0 ||
+    // hyphen-style: replace-with-something
     normalized.includes("replace-with-") ||
+    // underscore-style used in .env.example: replace_with_something
+    normalized.includes("replace_with_") ||
+    // generic "strong_" placeholder values e.g. strong_password, strong_secret
+    /^strong_/.test(normalized) ||
+    // replace_if_ used for optional webhook secrets
+    normalized.includes("replace_if_") ||
     normalized.includes("<password>") ||
     normalized.includes("<local-only-secret>") ||
     normalized.includes("<") ||
@@ -96,7 +103,17 @@ export function scanSecretHygieneLine(filePath, line, lineNumber) {
   }
 
   for (const match of line.matchAll(CREDENTIAL_URL_PATTERN)) {
-    findings.push(createFinding(filePath, lineNumber, "credential-url", match[0], line));
+    // Skip credential-url findings when the password segment is a placeholder.
+    // Extracts the password portion from a URL like scheme://user:password@host.
+    const credentialUrl = match[0];
+    const passwordMatch = credentialUrl.match(/\/\/[^:]+:([^@]+)@/);
+    const password = passwordMatch ? passwordMatch[1] : credentialUrl;
+
+    if (isPlaceholderValue(password)) {
+      continue;
+    }
+
+    findings.push(createFinding(filePath, lineNumber, "credential-url", credentialUrl, line));
   }
 
   for (const match of line.matchAll(BEARER_TOKEN_PATTERN)) {
