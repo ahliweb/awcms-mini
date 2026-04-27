@@ -354,6 +354,13 @@ function createTwoFactorOptions() {
           recoveryCodes: ["NEWRECOVERY1", "NEWRECOVERY2"],
         };
       },
+      async disableEnrollment(input) {
+        assert.equal(input.user_id, "user_1");
+        assert.equal(input.code, "123456");
+        return {
+          disabledAt: "2026-03-03T00:00:00.000Z",
+        };
+      },
     },
   };
 }
@@ -522,6 +529,24 @@ test("POST /api/v1/auth/login returns 403 when Turnstile validation fails", asyn
   assert.equal(body.error.code, "TURNSTILE_INVALID");
 });
 
+test("POST /api/v1/auth/login requires email and password", async () => {
+  const app = createApp(createLoginOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "",
+        password: "",
+        turnstileToken: "turnstile-token",
+      }),
+    }),
+  );
+  assert.equal(res.status, 400);
+  const body = await res.json();
+  assert.equal(body.error.code, "INVALID_CREDENTIALS");
+});
+
 test("POST /api/v1/auth/login returns edge-auth errors", async () => {
   const app = createApp(
     createLoginOptions({
@@ -631,6 +656,20 @@ test("POST /api/v1/auth/refresh returns edge-auth refresh errors", async () => {
   assert.equal(body.error.code, "INVALID_REFRESH_TOKEN");
 });
 
+test("POST /api/v1/auth/refresh requires a refresh token", async () => {
+  const app = createApp(createRefreshOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/auth/refresh", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ refreshToken: "" }),
+    }),
+  );
+  assert.equal(res.status, 400);
+  const body = await res.json();
+  assert.equal(body.error.code, "INVALID_REFRESH_TOKEN");
+});
+
 test("POST /api/v1/security/2fa/setup requires authentication", async () => {
   const app = createApp();
   const res = await app.fetch(
@@ -703,6 +742,55 @@ test("POST /api/v1/security/2fa/recovery-codes/regenerate returns a new recovery
   assert.equal(body.data.recoveryCodes.length, 2);
 });
 
+test("POST /api/v1/security/2fa/disable requires authentication", async () => {
+  const app = createApp();
+  const res = await app.fetch(
+    makeRequest("/api/v1/security/2fa/disable", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: "123456" }),
+    }),
+  );
+  assert.equal(res.status, 401);
+  const body = await res.json();
+  assert.equal(body.error.code, "NOT_AUTHENTICATED");
+});
+
+test("POST /api/v1/security/2fa/disable requires a fresh code or recovery code", async () => {
+  const app = createApp(createTwoFactorOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/security/2fa/disable", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({}),
+    }),
+  );
+  assert.equal(res.status, 400);
+  const body = await res.json();
+  assert.equal(body.error.code, "INVALID_CODE");
+});
+
+test("POST /api/v1/security/2fa/disable disables enrolled two-factor auth", async () => {
+  const app = createApp(createTwoFactorOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/security/2fa/disable", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ code: "123456" }),
+    }),
+  );
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data.success, true);
+  assert.equal(body.data.disabledAt, "2026-03-03T00:00:00.000Z");
+});
+
 test("POST /api/v1/auth/login/verify-2fa returns token pair after second factor", async () => {
   const app = createApp(createTwoFactorLoginOptions());
   const res = await app.fetch(
@@ -737,4 +825,22 @@ test("POST /api/v1/auth/login/verify-2fa requires code or recovery code", async 
   assert.equal(res.status, 400);
   const body = await res.json();
   assert.equal(body.error.code, "INVALID_CODE");
+});
+
+test("POST /api/v1/auth/login/verify-2fa requires email and password", async () => {
+  const app = createApp(createTwoFactorLoginOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/auth/login/verify-2fa", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "",
+        password: "",
+        code: "123456",
+      }),
+    }),
+  );
+  assert.equal(res.status, 400);
+  const body = await res.json();
+  assert.equal(body.error.code, "INVALID_CREDENTIALS");
 });

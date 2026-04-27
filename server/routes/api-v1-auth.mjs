@@ -52,6 +52,21 @@ export function routeApiV1Auth(options = {}) {
       );
     }
 
+    const email = typeof body?.email === "string" ? body.email.trim() : "";
+    const password = typeof body?.password === "string" ? body.password : "";
+
+    if (!email || !password) {
+      return c.json(
+        {
+          error: {
+            code: "INVALID_CREDENTIALS",
+            message: "Email and password are required.",
+          },
+        },
+        400,
+      );
+    }
+
     try {
       await validateTurnstileToken(
         {
@@ -78,8 +93,8 @@ export function routeApiV1Auth(options = {}) {
     try {
       const result = await edgeAuth.issueTokenPairFromPassword({
         request: c.req.raw,
-        email: body?.email,
-        password: body?.password,
+        email,
+        password,
         code: body?.code,
         recoveryCode: body?.recoveryCode,
       });
@@ -130,6 +145,18 @@ export function routeApiV1Auth(options = {}) {
     const code = typeof body?.code === "string" ? body.code.trim() : "";
     const recoveryCode =
       typeof body?.recoveryCode === "string" ? body.recoveryCode.trim() : "";
+
+    if (!email.trim() || !password) {
+      return c.json(
+        {
+          error: {
+            code: "INVALID_CREDENTIALS",
+            message: "Email and password are required.",
+          },
+        },
+        400,
+      );
+    }
 
     if (!code && !recoveryCode) {
       return c.json(
@@ -213,9 +240,23 @@ export function routeApiV1Auth(options = {}) {
       );
     }
 
+    const refreshToken = typeof body?.refreshToken === "string" ? body.refreshToken.trim() : "";
+
+    if (!refreshToken) {
+      return c.json(
+        {
+          error: {
+            code: "INVALID_REFRESH_TOKEN",
+            message: "Refresh token is required.",
+          },
+        },
+        400,
+      );
+    }
+
     try {
       const result = await edgeAuth.refreshTokenPair({
-        refreshToken: body?.refreshToken,
+        refreshToken,
         request: c.req.raw,
       });
 

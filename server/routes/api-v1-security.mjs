@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import {
   createTwoFactorService,
   TwoFactorEnrollmentError,
+  TwoFactorChallengeError,
 } from "../../src/services/security/two-factor.mjs";
 
 export function routeApiV1Security(options = {}) {
@@ -125,6 +126,71 @@ export function routeApiV1Security(options = {}) {
       });
     } catch (error) {
       if (error instanceof TwoFactorEnrollmentError) {
+        return c.json(
+          { error: { code: error.code, message: error.message } },
+          400,
+        );
+      }
+
+      throw error;
+    }
+  });
+
+  app.post("/2fa/disable", async (c) => {
+    const user = c.get("authUser");
+
+    if (!user?.id) {
+      return c.json(
+        { error: { code: "NOT_AUTHENTICATED", message: "Not authenticated." } },
+        401,
+      );
+    }
+
+    let body;
+
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json(
+        { error: { code: "INVALID_BODY", message: "Expected JSON body." } },
+        400,
+      );
+    }
+
+    const code = typeof body?.code === "string" ? body.code.trim() : "";
+    const recoveryCode =
+      typeof body?.recoveryCode === "string" ? body.recoveryCode.trim() : "";
+
+    if (!code && !recoveryCode) {
+      return c.json(
+        {
+          error: {
+            code: "INVALID_CODE",
+            message: "TOTP code or recovery code is required.",
+          },
+        },
+        400,
+      );
+    }
+
+    try {
+      const result = await twoFactor.disableEnrollment({
+        user_id: user.id,
+        code,
+        recovery_code: recoveryCode,
+      });
+
+      return c.json({
+        data: {
+          success: true,
+          disabledAt: result.disabledAt,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof TwoFactorEnrollmentError ||
+        error instanceof TwoFactorChallengeError
+      ) {
         return c.json(
           { error: { code: error.code, message: error.message } },
           400,
