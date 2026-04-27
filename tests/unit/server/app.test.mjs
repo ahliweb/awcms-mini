@@ -7,6 +7,32 @@ function makeRequest(path, options = {}) {
   return new Request(`http://localhost:3000${path}`, options);
 }
 
+function createAuthorizedOptions({ allowed = true } = {}) {
+  return {
+    resolveActor: () => ({ id: "user_1", status: "active", staff_level: 9 }),
+    authorizationService: {
+      async evaluate(input) {
+        return {
+          allowed,
+          permission_code: input.context.permission_code,
+          matched_rule: allowed ? "test-allow" : "test-deny",
+          reason: allowed ? null : { code: "DENY_PERMISSION_MISSING" },
+        };
+      },
+    },
+    roleRepository: {
+      async listRoles() {
+        return [{ id: "role_admin", slug: "admin", name: "Admin" }];
+      },
+    },
+    permissionRepository: {
+      async listPermissions() {
+        return [{ id: "perm_admin_roles_read", code: "admin.roles.read" }];
+      },
+    },
+  };
+}
+
 test("GET /health returns a JSON health check response", async () => {
   const app = createApp();
   const res = await app.fetch(makeRequest("/health"));
@@ -74,4 +100,35 @@ test("GET /nonexistent returns 404", async () => {
   assert.equal(res.status, 404);
   const body = await res.json();
   assert.equal(body.error?.code, "NOT_FOUND");
+});
+
+test("GET /api/v1/roles requires authentication", async () => {
+  const app = createApp({
+    roleRepository: {
+      async listRoles() {
+        return [];
+      },
+    },
+  });
+  const res = await app.fetch(makeRequest("/api/v1/roles"));
+  assert.equal(res.status, 401);
+  const body = await res.json();
+  assert.equal(body.error?.code, "UNAUTHENTICATED");
+});
+
+test("GET /api/v1/roles returns role catalog when ABAC allows", async () => {
+  const app = createApp(createAuthorizedOptions());
+  const res = await app.fetch(makeRequest("/api/v1/roles"));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data[0].slug, "admin");
+});
+
+test("GET /api/v1/permissions returns 403 when ABAC denies", async () => {
+  const app = createApp(createAuthorizedOptions({ allowed: false }));
+  const res = await app.fetch(makeRequest("/api/v1/permissions"));
+  assert.equal(res.status, 403);
+  const body = await res.json();
+  assert.equal(body.error?.code, "FORBIDDEN");
+  assert.equal(body.error?.details?.permissionCode, "admin.permissions.read");
 });
