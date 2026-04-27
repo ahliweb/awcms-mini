@@ -181,6 +181,39 @@ function createLogoutOptions({ activeSession = true } = {}) {
   };
 }
 
+function createRefreshOptions({ refreshResult, refreshError } = {}) {
+  return {
+    edgeAuthService: {
+      async refreshTokenPair(input) {
+        assert.equal(input.refreshToken, "refresh-token");
+
+        if (refreshError) {
+          throw refreshError;
+        }
+
+        return (
+          refreshResult ?? {
+            tokenType: "Bearer",
+            accessToken: "next-access-token",
+            refreshToken: "next-refresh-token",
+            user: {
+              id: "user_1",
+              email: "admin@example.test",
+              name: "Admin User",
+            },
+            session: {
+              id: "session_1",
+              trustedDevice: false,
+              sessionStrength: "password",
+              twoFactorSatisfied: false,
+            },
+          }
+        );
+      },
+    },
+  };
+}
+
 test("GET /health returns a JSON health check response", async () => {
   const app = createApp();
   const res = await app.fetch(makeRequest("/health"));
@@ -381,4 +414,41 @@ test("POST /api/v1/auth/logout revokes current bearer-authenticated session", as
   assert.equal(body.data.success, true);
   assert.equal(body.data.session.id, "session_1");
   assert.equal(body.data.session.revokedAt, "2026-02-01T00:00:00.000Z");
+});
+
+test("POST /api/v1/auth/refresh returns a rotated token pair", async () => {
+  const app = createApp(createRefreshOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/auth/refresh", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ refreshToken: "refresh-token" }),
+    }),
+  );
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data.accessToken, "next-access-token");
+  assert.equal(body.data.refreshToken, "next-refresh-token");
+});
+
+test("POST /api/v1/auth/refresh returns edge-auth refresh errors", async () => {
+  const app = createApp(
+    createRefreshOptions({
+      refreshError: new EdgeAuthError(
+        "INVALID_REFRESH_TOKEN",
+        "Refresh token is invalid.",
+        401,
+      ),
+    }),
+  );
+  const res = await app.fetch(
+    makeRequest("/api/v1/auth/refresh", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ refreshToken: "refresh-token" }),
+    }),
+  );
+  assert.equal(res.status, 401);
+  const body = await res.json();
+  assert.equal(body.error.code, "INVALID_REFRESH_TOKEN");
 });

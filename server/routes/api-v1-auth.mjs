@@ -115,6 +115,38 @@ export function routeApiV1Auth(options = {}) {
     });
   });
 
+  // POST /api/v1/auth/refresh
+  app.post("/refresh", async (c) => {
+    let body;
+
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json(
+        { error: { code: "INVALID_BODY", message: "Expected JSON body." } },
+        400,
+      );
+    }
+
+    try {
+      const result = await edgeAuth.refreshTokenPair({
+        refreshToken: body?.refreshToken,
+        request: c.req.raw,
+      });
+
+      return c.json({ data: result });
+    } catch (error) {
+      if (error instanceof EdgeAuthError) {
+        return c.json(
+          { error: { code: error.code, message: error.message } },
+          error.status,
+        );
+      }
+
+      throw error;
+    }
+  });
+
   // GET /api/v1/auth/me
   app.get("/me", (c) => {
     const user = c.get("authUser");
