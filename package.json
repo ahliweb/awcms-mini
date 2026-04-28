@@ -43,7 +43,11 @@
     "@astrojs/react": "^5.0.3",
     "astro": "^6.1.8",
     "better-sqlite3": "^12.9.0",
-    "emdash": "0.8.0",
+    "emdash": "link:../emdash-awcms/packages/core",
+    "@emdash-cms/admin": "link:../emdash-awcms/packages/admin",
+    "@emdash-cms/auth": "link:../emdash-awcms/packages/auth",
+    "@emdash-cms/blocks": "link:../emdash-awcms/packages/blocks",
+    "@emdash-cms/gutenberg-to-portable-text": "link:../emdash-awcms/packages/gutenberg-to-portable-text",
     "jose": "^6.2.2",
     "kysely": "^0.28.16",
     "pg": "^8.16.3",
@@ -62,8 +66,6 @@
     "overrides": {
       "kysely": "0.28.16"
     },
-    "patchedDependencies": {
-      "emdash@0.8.0": "patches/emdash@0.8.0.patch"
-    }
+    "patchedDependencies": {}
   }
 }
