@@ -37,13 +37,46 @@ export function resolveLocalEnvFiles(env = process.env) {
   return [...new Set(files)];
 }
 
+function stripJsoncComments(text) {
+  let result = "";
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === '"') {
+      const start = i;
+      i++;
+      while (i < text.length) {
+        if (text[i] === "\\" && i + 1 < text.length) {
+          i += 2;
+        } else if (text[i] === '"') {
+          i++;
+          break;
+        } else {
+          i++;
+        }
+      }
+      result += text.slice(start, i);
+    } else if (text[i] === "/" && text[i + 1] === "/") {
+      while (i < text.length && text[i] !== "\n") i++;
+    } else if (text[i] === "/" && text[i + 1] === "*") {
+      i += 2;
+      while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i++;
+      i += 2;
+    } else {
+      result += text[i];
+      i++;
+    }
+  }
+  return result;
+}
+
 export function getRequiredWorkerSecrets(configPath = DEFAULT_WORKER_CONFIG_PATH) {
   if (!existsSync(configPath)) {
     return [];
   }
 
   const contents = readFileSync(configPath, "utf8");
-  const parsed = JSON.parse(contents);
+  const stripped = stripJsoncComments(contents);
+  const parsed = JSON.parse(stripped);
   const entries = Array.isArray(parsed?.secrets?.required) ? parsed.secrets.required : [];
 
   return entries
