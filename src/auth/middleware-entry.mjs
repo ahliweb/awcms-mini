@@ -41,9 +41,8 @@ async function handleMiniAuthRequest(context, next) {
 
   if (isAdminShellRoute && !isSetupShellRoute && !isLoginShellRoute) {
     const sessionUser = await context.session?.get("user");
-    const identitySession = await context.session?.get("identitySession");
 
-    if (!sessionUser?.id || !identitySession?.id) {
+    if (!sessionUser?.id) {
       return redirectToPath(context.url, "/_emdash/admin/login");
     }
   }
