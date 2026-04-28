@@ -1,5 +1,66 @@
+diff --git a/dist/astro/middleware.mjs b/dist/astro/middleware.mjs
+index d0d9afde0ea41f2dff3952d21e1341d624557359..e77939dd6b2ddab48be77ca5370a4ae422e72085 100644
+--- a/dist/astro/middleware.mjs
++++ b/dist/astro/middleware.mjs
+@@ -1639,6 +1639,9 @@ var EmDashRuntime = class EmDashRuntime {
+ */
+ let runtimeInstance = null;
+ let runtimeInitializing = false;
++let runtimeInitializingSince = 0;
++const RUNTIME_INIT_WAIT_MS = 3000;
++const RUNTIME_INIT_POLL_MS = 50;
+ /** Whether i18n config has been initialized from the virtual module */
+ let i18nInitialized = false;
+ /**
+@@ -1697,10 +1700,21 @@ function buildDependencies(config) {
+ async function getRuntime(config, initTimings) {
+ 	if (runtimeInstance) return runtimeInstance;
+ 	if (runtimeInitializing) {
+-		await new Promise((resolve) => setTimeout(resolve, 50));
+-		return getRuntime(config, initTimings);
++		const waitStartedAt = Date.now();
++		while (runtimeInitializing && !runtimeInstance) {
++			const initAge = runtimeInitializingSince > 0 ? Date.now() - runtimeInitializingSince : 0;
++			const waitAge = Date.now() - waitStartedAt;
++			if (initAge > RUNTIME_INIT_WAIT_MS || waitAge > RUNTIME_INIT_WAIT_MS) {
++				runtimeInitializing = false;
++				runtimeInitializingSince = 0;
++				break;
++			}
++			await new Promise((resolve) => setTimeout(resolve, RUNTIME_INIT_POLL_MS));
++		}
++		if (runtimeInstance) return runtimeInstance;
+ 	}
+ 	runtimeInitializing = true;
++	runtimeInitializingSince = Date.now();
+ 	try {
+ 		const deps = buildDependencies(config);
+ 		const runtime = await EmDashRuntime.create(deps, initTimings);
+@@ -1708,6 +1722,7 @@ async function getRuntime(config, initTimings) {
+ 		return runtime;
+ 	} finally {
+ 		runtimeInitializing = false;
++		runtimeInitializingSince = 0;
+ 	}
+ }
+ /**
+@@ -1754,7 +1769,14 @@ const onRequest = defineMiddleware(async (context, next) => {
+ 	const queryRecorder = isInstrumentationEnabled() ? createRecorder(url.pathname, request.method, request.headers.get("x-perf-phase") ?? "default") : void 0;
+ 	const run = async () => {
+ 		const isEmDashRoute = url.pathname.startsWith("/_emdash");
++		const isSetupShellRoute = url.pathname.startsWith("/_emdash/admin/setup");
++		const isSetupApiRoute = url.pathname.startsWith("/_emdash/api/setup");
++		const isPublicEdgeHealthRoute = url.pathname === "/api/v1/health";
+ 		const isPublicRuntimeRoute = PUBLIC_RUNTIME_ROUTES.has(url.pathname) || SITEMAP_COLLECTION_RE.test(url.pathname);
++		if (isSetupShellRoute || isSetupApiRoute || isPublicEdgeHealthRoute) {
++			const response = await next();
++			return finalizeResponse(response);
++		}
+ 		const hasEditCookie = cookies.get("emdash-edit-mode")?.value === "true";
+ 		const hasPreviewToken = url.searchParams.has("_preview");
+ 		const playgroundDb = locals.__playgroundDb;
 diff --git a/src/astro/middleware.ts b/src/astro/middleware.ts
-index 315e9c4..d9fd5b3 100644
+index 315e9c469861ba7162e733071626f32547609f3e..86df61d6b7c7f6c0c9cda06ec9e2441ee2f4b7e9 100644
 --- a/src/astro/middleware.ts
 +++ b/src/astro/middleware.ts
 @@ -53,6 +53,11 @@ import type { EmDashHandlers } from "./types.js";
@@ -76,8 +137,302 @@ index 315e9c4..d9fd5b3 100644
  		// Check for edit mode cookie - editors viewing public pages need the runtime
  		// so auth middleware can verify their session for visual editing
  		const hasEditCookie = cookies.get("emdash-edit-mode")?.value === "true";
+diff --git a/src/astro/routes/admin.astro b/src/astro/routes/admin.astro
+index 21380de8200fbfe1963716f9b0e82096bb59d840..b1df4486afdbcbdcaad60b9be3dd0f48d09b4f11 100644
+--- a/src/astro/routes/admin.astro
++++ b/src/astro/routes/admin.astro
+@@ -13,9 +13,10 @@ import { Font } from "astro:assets";
+ 
+ export const prerender = false;
+ 
+-import { resolveLocale, loadMessages, getLocaleDir } from "@emdash-cms/admin/locales";
++import { DEFAULT_LOCALE, resolveLocale, loadMessages, getLocaleDir } from "@emdash-cms/admin/locales";
+ 
+-const resolvedLocale = resolveLocale(Astro.request);
++const isSetupRoute = new URL(Astro.request.url).pathname === "/_emdash/admin/setup";
++const resolvedLocale = isSetupRoute ? DEFAULT_LOCALE : resolveLocale(Astro.request);
+ const resolvedDir = getLocaleDir(resolvedLocale);
+ const messages = await loadMessages(resolvedLocale);
+ 
+diff --git a/src/astro/routes/api/setup/admin-verify.ts b/src/astro/routes/api/setup/admin-verify.ts
+index b242f551dd6f5328e66c78fdfa9d26ee87707a3c..9bc6e3e31ed20975fc370a8935af1be9986f28f8 100644
+--- a/src/astro/routes/api/setup/admin-verify.ts
++++ b/src/astro/routes/api/setup/admin-verify.ts
+@@ -5,6 +5,7 @@
+  */
+ 
+ import type { APIRoute } from "astro";
++import virtualConfig from "virtual:emdash/config";
+ 
+ export const prerender = false;
+ 
+@@ -20,17 +21,17 @@ import { createChallengeStore } from "#auth/challenge-store.js";
+ import { getPasskeyConfig } from "#auth/passkey-config.js";
+ import { SETUP_NONCE_COOKIE } from "#auth/setup-nonce.js";
+ import { OptionsRepository } from "#db/repositories/options.js";
++import { getDb } from "../../../../loader.js";
+ 
+ export const POST: APIRoute = async ({ cookies, request, locals }) => {
+ 	const { emdash } = locals;
+ 
+-	if (!emdash?.db) {
+-		return apiError("NOT_CONFIGURED", "EmDash is not initialized", 500);
+-	}
+-
+ 	try {
++		const db = emdash?.db ?? (await getDb());
++		const config = emdash?.config ?? virtualConfig;
++
+ 		// Check if setup is already complete
+-		const options = new OptionsRepository(emdash.db);
++		const options = new OptionsRepository(db);
+ 		const setupComplete = await options.get("emdash:setup_complete");
+ 
+ 		if (setupComplete === true || setupComplete === "true") {
+@@ -38,7 +39,7 @@ export const POST: APIRoute = async ({ cookies, request, locals }) => {
+ 		}
+ 
+ 		// Check if any users exist
+-		const adapter = createKyselyAdapter(emdash.db);
++		const adapter = createKyselyAdapter(db);
+ 		const userCount = await adapter.countUsers();
+ 
+ 		if (userCount > 0) {
+@@ -82,11 +83,11 @@ export const POST: APIRoute = async ({ cookies, request, locals }) => {
+ 		// Get passkey config
+ 		const url = new URL(request.url);
+ 		const siteName = (await options.get<string>("emdash:site_title")) ?? undefined;
+-		const siteUrl = getPublicOrigin(url, emdash?.config);
++		const siteUrl = getPublicOrigin(url, config);
+ 		const passkeyConfig = getPasskeyConfig(url, siteName, siteUrl);
+ 
+ 		// Verify the registration response
+-		const challengeStore = createChallengeStore(emdash.db);
++		const challengeStore = createChallengeStore(db);
+ 
+ 		const verified = await verifyRegistrationResponse(
+ 			passkeyConfig,
+diff --git a/src/astro/routes/api/setup/admin.ts b/src/astro/routes/api/setup/admin.ts
+index 9d697cfdbdd491f888e10ef08aeedcb68591ab40..f822d6d18b7ffff59fefc4e49e989658fa5a56f7 100644
+--- a/src/astro/routes/api/setup/admin.ts
++++ b/src/astro/routes/api/setup/admin.ts
+@@ -5,6 +5,7 @@
+  */
+ 
+ import type { APIRoute } from "astro";
++import virtualConfig from "virtual:emdash/config";
+ 
+ export const prerender = false;
+ 
+@@ -20,17 +21,17 @@ import { createChallengeStore } from "#auth/challenge-store.js";
+ import { getPasskeyConfig } from "#auth/passkey-config.js";
+ import { SETUP_NONCE_COOKIE, SETUP_NONCE_MAX_AGE_SECONDS } from "#auth/setup-nonce.js";
+ import { OptionsRepository } from "#db/repositories/options.js";
++import { getDb } from "../../../../loader.js";
+ 
+ export const POST: APIRoute = async ({ cookies, request, locals }) => {
+ 	const { emdash } = locals;
+ 
+-	if (!emdash?.db) {
+-		return apiError("NOT_CONFIGURED", "EmDash is not initialized", 500);
+-	}
+-
+ 	try {
++		const db = emdash?.db ?? (await getDb());
++		const config = emdash?.config ?? virtualConfig;
++
+ 		// Check if setup is already complete
+-		const options = new OptionsRepository(emdash.db);
++		const options = new OptionsRepository(db);
+ 		const setupComplete = await options.get("emdash:setup_complete");
+ 
+ 		if (setupComplete === true || setupComplete === "true") {
+@@ -38,7 +39,7 @@ export const POST: APIRoute = async ({ cookies, request, locals }) => {
+ 		}
+ 
+ 		// Check if any users exist
+-		const adapter = createKyselyAdapter(emdash.db);
++		const adapter = createKyselyAdapter(db);
+ 		const userCount = await adapter.countUsers();
+ 
+ 		if (userCount > 0) {
+@@ -60,11 +61,11 @@ export const POST: APIRoute = async ({ cookies, request, locals }) => {
+ 		// Get passkey config
+ 		const url = new URL(request.url);
+ 		const siteName = (await options.get<string>("emdash:site_title")) ?? undefined;
+-		const siteUrl = getPublicOrigin(url, emdash?.config);
++		const siteUrl = getPublicOrigin(url, config);
+ 		const passkeyConfig = getPasskeyConfig(url, siteName, siteUrl);
+ 
+ 		// Generate registration options
+-		const challengeStore = createChallengeStore(emdash.db);
++		const challengeStore = createChallengeStore(db);
+ 
+ 		// Create a temporary user object for registration options
+ 		// (not persisted until passkey is verified)
+diff --git a/src/astro/routes/api/setup/index.ts b/src/astro/routes/api/setup/index.ts
+index c4709ee9908399b2d5d4e1d113be70dc6c8c806c..b5bfecefd8b411df63f9663d46ef3a22ee41aa51 100644
+--- a/src/astro/routes/api/setup/index.ts
++++ b/src/astro/routes/api/setup/index.ts
+@@ -5,10 +5,13 @@
+  */
+ 
+ import type { APIRoute } from "astro";
++import { sql } from "kysely";
++import virtualConfig from "virtual:emdash/config";
++import { createStorage as virtualCreateStorage } from "virtual:emdash/storage";
+ 
+ export const prerender = false;
+ 
+-import { apiError, apiSuccess, handleError } from "#api/error.js";
++import { apiSuccess, handleError } from "#api/error.js";
+ import { isParseError, parseBody } from "#api/parse.js";
+ import { getPublicOrigin } from "#api/public-url.js";
+ import { setupBody } from "#api/schemas.js";
+@@ -18,20 +21,76 @@ import { OptionsRepository } from "#db/repositories/options.js";
+ import { applySeed } from "#seed/apply.js";
+ import { loadSeed } from "#seed/load.js";
+ import { validateSeed } from "#seed/validate.js";
++import { getDb } from "../../../../loader.js";
+ 
+-export const POST: APIRoute = async ({ request, url, locals }) => {
+-	const { emdash } = locals;
++async function shouldRunSetupCoreMigrations(db) {
++	try {
++		const applied = await db.selectFrom("_emdash_migrations").select("name").limit(1).execute();
++		if (applied.length > 0) {
++			return false;
++		}
++	} catch {
++		// Missing EmDash ledger can still be valid on Mini-owned schemas.
++	}
+ 
+-	if (!emdash?.db) {
+-		return apiError("NOT_CONFIGURED", "EmDash is not initialized", 500);
++	try {
++		const miniMigrations = await db.selectFrom("kysely_migration").select("name").limit(1).execute();
++		return miniMigrations.length === 0;
++	} catch {
++		return true;
+ 	}
++}
++
++async function ensureSetupCompatibilitySchema(db) {
++	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS search_config TEXT`.execute(db);
++	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS has_seo INTEGER NOT NULL DEFAULT 0`.execute(db);
++	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS url_pattern TEXT`.execute(db);
++	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS comments_enabled INTEGER DEFAULT 0`.execute(db);
++	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS comments_moderation TEXT DEFAULT 'first_time'`.execute(db);
++	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS comments_closed_after_days INTEGER DEFAULT 90`.execute(db);
++	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS comments_auto_approve_users INTEGER DEFAULT 1`.execute(db);
++	await sql`ALTER TABLE _emdash_fields ADD COLUMN IF NOT EXISTS searchable INTEGER DEFAULT 0`.execute(db);
++}
++
++async function hasExistingSetupCollections(db) {
++	try {
++		const result = await sql`SELECT COUNT(*)::int AS count FROM _emdash_collections`.execute(db);
++		return Number(result.rows[0]?.count ?? 0) > 0;
++	} catch {
++		return false;
++	}
++}
++
++function buildSkippedSeedResult(seed) {
++	return {
++		collections: { created: 0, skipped: seed.collections?.length ?? 0, updated: 0 },
++		fields: { created: 0, skipped: seed.collections?.reduce((count, collection) => count + collection.fields.length, 0) ?? 0, updated: 0 },
++		taxonomies: { created: 0, terms: 0 },
++		bylines: { created: 0, skipped: 0, updated: 0 },
++		menus: { created: 0, items: 0 },
++		redirects: { created: 0, skipped: 0, updated: 0 },
++		widgetAreas: { created: 0, widgets: 0 },
++		sections: { created: 0, skipped: 0, updated: 0 },
++		settings: { applied: 0 },
++		content: { created: 0, skipped: 0, updated: 0 },
++		media: { created: 0, skipped: 0 },
++	};
++}
++
++export const POST: APIRoute = async ({ request, url, locals }) => {
++	const { emdash } = locals;
+ 
+ 	try {
++		const db = emdash?.db ?? (await getDb());
++		const config = emdash?.config ?? virtualConfig;
++		const storage =
++			emdash?.storage ??
++			(config?.storage && virtualCreateStorage ? virtualCreateStorage(config.storage.config) : undefined);
+ 		// Guard: reject if setup has already been completed.
+ 		// The options table may not exist on first-ever setup (pre-migration),
+ 		// so a query failure means setup hasn't run yet — allow it to proceed.
+ 		try {
+-			const options = new OptionsRepository(emdash.db);
++			const options = new OptionsRepository(db);
+ 			const setupComplete = await options.get("emdash:setup_complete");
+ 
+ 			if (setupComplete === true || setupComplete === "true") {
+@@ -47,7 +106,10 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
+ 
+ 		// 1. Run core migrations
+ 		try {
+-			await runMigrations(emdash.db);
++			if (await shouldRunSetupCoreMigrations(db)) {
++				await runMigrations(db);
++			}
++			await ensureSetupCompatibilitySchema(db);
+ 		} catch (error) {
+ 			return handleError(error, "Failed to run database migrations", "MIGRATION_ERROR");
+ 		}
+@@ -70,11 +132,20 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
+ 
+ 		let result;
+ 		try {
+-			result = await applySeed(emdash.db, seed, {
+-				includeContent: body.includeContent,
+-				onConflict: "skip",
+-				storage: emdash.storage ?? undefined,
+-			});
++			result = (await hasExistingSetupCollections(db))
++				? buildSkippedSeedResult(seed)
++				: await applySeed(db, {
++						...seed,
++						settings: {
++							...seed.settings,
++							title: body.title,
++							tagline: body.tagline,
++						},
++					}, {
++						includeContent: body.includeContent,
++						onConflict: "skip",
++						storage,
++					});
+ 		} catch (error) {
+ 			return handleError(error, "Failed to apply seed", "SEED_ERROR");
+ 		}
+@@ -82,18 +153,18 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
+ 		// 5. Store setup state
+ 		// In external auth mode, mark setup complete immediately (first user to login becomes admin)
+ 		// In passkey mode, setup_complete is set after admin user is created
+-		const authMode = getAuthMode(emdash.config);
++		const authMode = getAuthMode(config);
+ 		const useExternalAuth = authMode.type === "external";
+ 
+ 		try {
+-			const options = new OptionsRepository(emdash.db);
++			const options = new OptionsRepository(db);
+ 
+ 			// Store the canonical site URL from the setup request.
+ 			// Write-once at the DB level so concurrent setup POSTs can't both
+ 			// observe an empty value and race to write. A spoofed Host header
+ 			// on a later call during the wizard window must not be able to
+ 			// replace the first value.
+-			const siteUrl = getPublicOrigin(url, emdash.config);
++			const siteUrl = getPublicOrigin(url, config);
+ 			await options.setIfAbsent("emdash:site_url", siteUrl);
+ 
+ 			if (useExternalAuth) {
 diff --git a/src/astro/routes/api/setup/status.ts b/src/astro/routes/api/setup/status.ts
-index 4f9c068..6654c72 100644
+index 4f9c068b89ac034f997f51c6e27d7575f496134b..6654c7257aae368924b291052d0f6bd90ca2e299 100644
 --- a/src/astro/routes/api/setup/status.ts
 +++ b/src/astro/routes/api/setup/status.ts
 @@ -8,31 +8,56 @@ import type { APIRoute } from "astro";
@@ -189,353 +544,3 @@ index 4f9c068..6654c72 100644
  
  		// In external auth mode, setup is complete if flag is set (no users required initially)
  		if (useExternalAuth && isComplete) {
-diff --git a/src/astro/routes/api/setup/index.ts b/src/astro/routes/api/setup/index.ts
-index c4709ee..a28da1a 100644
---- a/src/astro/routes/api/setup/index.ts
-+++ b/src/astro/routes/api/setup/index.ts
-@@ -5,6 +5,9 @@
-  */
- 
- import type { APIRoute } from "astro";
-+import { sql } from "kysely";
-+import virtualConfig from "virtual:emdash/config";
-+import { createStorage as virtualCreateStorage } from "virtual:emdash/storage";
- 
- export const prerender = false;
- 
-@@ -18,20 +21,77 @@ import { OptionsRepository } from "#db/repositories/options.js";
- import { applySeed } from "#seed/apply.js";
- import { loadSeed } from "#seed/load.js";
- import { validateSeed } from "#seed/validate.js";
-+import { getDb } from "../../../../loader.js";
-+
-+async function shouldRunSetupCoreMigrations(db) {
-+	try {
-+		const applied = await db.selectFrom("_emdash_migrations").select("name").limit(1).execute();
-+		if (applied.length > 0) {
-+			return false;
-+		}
-+	} catch {
-+		// Missing EmDash ledger can still be valid on Mini-owned schemas.
-+	}
-+
-+	try {
-+		const miniMigrations = await db.selectFrom("kysely_migration").select("name").limit(1).execute();
-+		return miniMigrations.length === 0;
-+	} catch {
-+		return true;
-+	}
-+}
-+
-+async function ensureSetupCompatibilitySchema(db) {
-+	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS search_config TEXT`.execute(db);
-+	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS has_seo INTEGER NOT NULL DEFAULT 0`.execute(db);
-+	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS url_pattern TEXT`.execute(db);
-+	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS comments_enabled INTEGER DEFAULT 0`.execute(db);
-+	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS comments_moderation TEXT DEFAULT 'first_time'`.execute(db);
-+	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS comments_closed_after_days INTEGER DEFAULT 90`.execute(db);
-+	await sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS comments_auto_approve_users INTEGER DEFAULT 1`.execute(db);
-+	await sql`ALTER TABLE _emdash_fields ADD COLUMN IF NOT EXISTS searchable INTEGER DEFAULT 0`.execute(db);
-+}
-+
-+async function hasExistingSetupCollections(db) {
-+	try {
-+		const result = await sql`SELECT COUNT(*)::int AS count FROM _emdash_collections`.execute(db);
-+		return Number(result.rows[0]?.count ?? 0) > 0;
-+	} catch {
-+		return false;
-+	}
-+}
-+
-+function buildSkippedSeedResult(seed) {
-+	return {
-+		collections: { created: 0, skipped: seed.collections?.length ?? 0, updated: 0 },
-+		fields: { created: 0, skipped: seed.collections?.reduce((count, collection) => count + collection.fields.length, 0) ?? 0, updated: 0 },
-+		taxonomies: { created: 0, terms: 0 },
-+		bylines: { created: 0, skipped: 0, updated: 0 },
-+		menus: { created: 0, items: 0 },
-+		redirects: { created: 0, skipped: 0, updated: 0 },
-+		widgetAreas: { created: 0, widgets: 0 },
-+		sections: { created: 0, skipped: 0, updated: 0 },
-+		settings: { applied: 0 },
-+		content: { created: 0, skipped: 0, updated: 0 },
-+		media: { created: 0, skipped: 0 },
-+	};
-+}
- 
- export const POST: APIRoute = async ({ request, url, locals }) => {
- 	const { emdash } = locals;
- 
--	if (!emdash?.db) {
--		return apiError("NOT_CONFIGURED", "EmDash is not initialized", 500);
--	}
--
- 	try {
-+		const db = emdash?.db ?? (await getDb());
-+		const config = emdash?.config ?? virtualConfig;
-+		const storage =
-+			emdash?.storage ??
-+			(config?.storage && virtualCreateStorage ? virtualCreateStorage(config.storage.config) : undefined);
-+
- 		// Guard: reject if setup has already been completed.
- 		// The options table may not exist on first-ever setup (pre-migration),
- 		// so a query failure means setup hasn't run yet — allow it to proceed.
- 		try {
--			const options = new OptionsRepository(emdash.db);
-+			const options = new OptionsRepository(db);
- 			const setupComplete = await options.get("emdash:setup_complete");
- 
- 			if (setupComplete === true || setupComplete === "true") {
-@@ -47,7 +107,10 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
- 
- 		// 1. Run core migrations
- 		try {
--			await runMigrations(emdash.db);
-+			if (await shouldRunSetupCoreMigrations(db)) {
-+				await runMigrations(db);
-+			}
-+			await ensureSetupCompatibilitySchema(db);
- 		} catch (error) {
- 			return handleError(error, "Failed to run database migrations", "MIGRATION_ERROR");
- 		}
-@@ -70,11 +133,20 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
- 
- 		let result;
- 		try {
--			result = await applySeed(emdash.db, seed, {
--				includeContent: body.includeContent,
--				onConflict: "skip",
--				storage: emdash.storage ?? undefined,
--			});
-+			result = (await hasExistingSetupCollections(db))
-+				? buildSkippedSeedResult(seed)
-+				: await applySeed(db, {
-+						...seed,
-+						settings: {
-+							...seed.settings,
-+							title: body.title,
-+							tagline: body.tagline,
-+						},
-+					}, {
-+						includeContent: body.includeContent,
-+						onConflict: "skip",
-+						storage,
-+					});
- 		} catch (error) {
- 			return handleError(error, "Failed to apply seed", "SEED_ERROR");
-@@ -82,18 +87,18 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
- 		// 5. Store setup state
- 		// In external auth mode, mark setup complete immediately (first user to login becomes admin)
- 		// In passkey mode, setup_complete is set after admin user is created
--		const authMode = getAuthMode(emdash.config);
-+		const authMode = getAuthMode(config);
- 		const useExternalAuth = authMode.type === "external";
- 
- 		try {
--			const options = new OptionsRepository(emdash.db);
-+			const options = new OptionsRepository(db);
- 
- 			// Store the canonical site URL from the setup request.
- 			// Write-once at the DB level so concurrent setup POSTs can't both
- 			// observe an empty value and race to write. A spoofed Host header
- 			// on a later call during the wizard window must not be able to
- 			// replace the first value.
--			const siteUrl = getPublicOrigin(url, emdash.config);
-+			const siteUrl = getPublicOrigin(url, config);
- 			await options.setIfAbsent("emdash:site_url", siteUrl);
- 
- 			if (useExternalAuth) {
-diff --git a/src/astro/routes/api/setup/admin.ts b/src/astro/routes/api/setup/admin.ts
-index 9d697cf..f822d6d 100644
---- a/src/astro/routes/api/setup/admin.ts
-+++ b/src/astro/routes/api/setup/admin.ts
-@@ -5,6 +5,7 @@
-  */
- 
- import type { APIRoute } from "astro";
-+import virtualConfig from "virtual:emdash/config";
- 
- export const prerender = false;
- 
-@@ -20,17 +21,17 @@ import { createChallengeStore } from "#auth/challenge-store.js";
- import { getPasskeyConfig } from "#auth/passkey-config.js";
- import { SETUP_NONCE_COOKIE, SETUP_NONCE_MAX_AGE_SECONDS } from "#auth/setup-nonce.js";
- import { OptionsRepository } from "#db/repositories/options.js";
-+import { getDb } from "../../../../loader.js";
- 
- export const POST: APIRoute = async ({ cookies, request, locals }) => {
- 	const { emdash } = locals;
- 
--	if (!emdash?.db) {
--		return apiError("NOT_CONFIGURED", "EmDash is not initialized", 500);
--	}
--
- 	try {
-+		const db = emdash?.db ?? (await getDb());
-+		const config = emdash?.config ?? virtualConfig;
-+
- 		// Check if setup is already complete
--		const options = new OptionsRepository(emdash.db);
-+		const options = new OptionsRepository(db);
- 		const setupComplete = await options.get("emdash:setup_complete");
- 
- 		if (setupComplete === true || setupComplete === "true") {
-@@ -38,7 +39,7 @@ export const POST: APIRoute = async ({ cookies, request, locals }) => {
- 		}
- 
- 		// Check if any users exist
--		const adapter = createKyselyAdapter(emdash.db);
-+		const adapter = createKyselyAdapter(db);
- 		const userCount = await adapter.countUsers();
- 
- 		if (userCount > 0) {
-@@ -60,11 +61,11 @@ export const POST: APIRoute = async ({ cookies, request, locals }) => {
- 		// Get passkey config
- 		const url = new URL(request.url);
- 		const siteName = (await options.get<string>("emdash:site_title")) ?? undefined;
--		const siteUrl = getPublicOrigin(url, emdash?.config);
-+		const siteUrl = getPublicOrigin(url, config);
- 		const passkeyConfig = getPasskeyConfig(url, siteName, siteUrl);
- 
- 		// Generate registration options
--		const challengeStore = createChallengeStore(emdash.db);
-+		const challengeStore = createChallengeStore(db);
- 
- 		// Create a temporary user object for registration options
- 		// (not persisted until passkey is verified)
-diff --git a/src/astro/routes/api/setup/admin-verify.ts b/src/astro/routes/api/setup/admin-verify.ts
-index b242f55..9bc6e3e 100644
---- a/src/astro/routes/api/setup/admin-verify.ts
-+++ b/src/astro/routes/api/setup/admin-verify.ts
-@@ -5,6 +5,7 @@
-  */
- 
- import type { APIRoute } from "astro";
-+import virtualConfig from "virtual:emdash/config";
- 
- export const prerender = false;
- 
-@@ -20,17 +21,17 @@ import { createChallengeStore } from "#auth/challenge-store.js";
- import { getPasskeyConfig } from "#auth/passkey-config.js";
- import { SETUP_NONCE_COOKIE } from "#auth/setup-nonce.js";
- import { OptionsRepository } from "#db/repositories/options.js";
-+import { getDb } from "../../../../loader.js";
- 
- export const POST: APIRoute = async ({ cookies, request, locals }) => {
- 	const { emdash } = locals;
- 
--	if (!emdash?.db) {
--		return apiError("NOT_CONFIGURED", "EmDash is not initialized", 500);
--	}
--
- 	try {
-+		const db = emdash?.db ?? (await getDb());
-+		const config = emdash?.config ?? virtualConfig;
-+
- 		// Check if setup is already complete
--		const options = new OptionsRepository(emdash.db);
-+		const options = new OptionsRepository(db);
- 		const setupComplete = await options.get("emdash:setup_complete");
- 
- 		if (setupComplete === true || setupComplete === "true") {
-@@ -38,7 +39,7 @@ export const POST: APIRoute = async ({ cookies, request, locals }) => {
- 		}
- 
- 		// Check if any users exist
--		const adapter = createKyselyAdapter(emdash.db);
-+		const adapter = createKyselyAdapter(db);
- 		const userCount = await adapter.countUsers();
- 
- 		if (userCount > 0) {
-@@ -82,11 +83,11 @@ export const POST: APIRoute = async ({ cookies, request, locals }) => {
- 		// Get passkey config
- 		const url = new URL(request.url);
- 		const siteName = (await options.get<string>("emdash:site_title")) ?? undefined;
--		const siteUrl = getPublicOrigin(url, emdash?.config);
-+		const siteUrl = getPublicOrigin(url, config);
- 		const passkeyConfig = getPasskeyConfig(url, siteName, siteUrl);
- 
- 		// Verify the registration response
--		const challengeStore = createChallengeStore(emdash.db);
-+		const challengeStore = createChallengeStore(db);
- 
- 		const verified = await verifyRegistrationResponse(
- 			passkeyConfig,
-diff --git a/src/astro/routes/admin.astro b/src/astro/routes/admin.astro
-index 7b9ae3a..d96081c 100644
---- a/src/astro/routes/admin.astro
-+++ b/src/astro/routes/admin.astro
-@@ -13,9 +13,10 @@ import AdminWrapper from "emdash/routes/PluginRegistry";
- 
- export const prerender = false;
- 
--import { resolveLocale, loadMessages, getLocaleDir } from "@emdash-cms/admin/locales";
-+import { DEFAULT_LOCALE, resolveLocale, loadMessages, getLocaleDir } from "@emdash-cms/admin/locales";
- 
--const resolvedLocale = resolveLocale(Astro.request);
-+const isSetupRoute = new URL(Astro.request.url).pathname === "/_emdash/admin/setup";
-+const resolvedLocale = isSetupRoute ? DEFAULT_LOCALE : resolveLocale(Astro.request);
- const resolvedDir = getLocaleDir(resolvedLocale);
- const messages = await loadMessages(resolvedLocale);
- 
-diff --git a/dist/astro/middleware.mjs b/dist/astro/middleware.mjs
-index d0d9afd..215108d 100644
---- a/dist/astro/middleware.mjs
-+++ b/dist/astro/middleware.mjs
-@@ -1639,6 +1639,9 @@ var EmDashRuntime = class EmDashRuntime {
- */
- let runtimeInstance = null;
- let runtimeInitializing = false;
-+let runtimeInitializingSince = 0;
-+const RUNTIME_INIT_WAIT_MS = 3000;
-+const RUNTIME_INIT_POLL_MS = 50;
- /** Whether i18n config has been initialized from the virtual module */
- let i18nInitialized = false;
- /**
-@@ -1697,10 +1700,21 @@ function buildDependencies(config) {
- async function getRuntime(config, initTimings) {
- 	if (runtimeInstance) return runtimeInstance;
- 	if (runtimeInitializing) {
--		await new Promise((resolve) => setTimeout(resolve, 50));
--		return getRuntime(config, initTimings);
-+		const waitStartedAt = Date.now();
-+		while (runtimeInitializing && !runtimeInstance) {
-+			const initAge = runtimeInitializingSince > 0 ? Date.now() - runtimeInitializingSince : 0;
-+			const waitAge = Date.now() - waitStartedAt;
-+			if (initAge > RUNTIME_INIT_WAIT_MS || waitAge > RUNTIME_INIT_WAIT_MS) {
-+				runtimeInitializing = false;
-+				runtimeInitializingSince = 0;
-+				break;
-+			}
-+			await new Promise((resolve) => setTimeout(resolve, RUNTIME_INIT_POLL_MS));
-+		}
-+		if (runtimeInstance) return runtimeInstance;
- 	}
- 	runtimeInitializing = true;
-+	runtimeInitializingSince = Date.now();
- 	try {
- 		const deps = buildDependencies(config);
- 		const runtime = await EmDashRuntime.create(deps, initTimings);
-@@ -1708,6 +1722,7 @@ async function getRuntime(config, initTimings) {
- 		return runtime;
- 	} finally {
- 		runtimeInitializing = false;
-+		runtimeInitializingSince = 0;
- 	}
- }
- /**
-@@ -1754,7 +1769,14 @@ const onRequest = defineMiddleware(async (context, next) => {
- 	const queryRecorder = isInstrumentationEnabled() ? createRecorder(url.pathname, request.method, request.headers.get("x-perf-phase") ?? "default") : void 0;
- 	const run = async () => {
- 		const isEmDashRoute = url.pathname.startsWith("/_emdash");
-+		const isSetupShellRoute = url.pathname.startsWith("/_emdash/admin/setup");
-+		const isSetupApiRoute = url.pathname.startsWith("/_emdash/api/setup");
-+		const isPublicEdgeHealthRoute = url.pathname === "/api/v1/health";
- 		const isPublicRuntimeRoute = PUBLIC_RUNTIME_ROUTES.has(url.pathname) || SITEMAP_COLLECTION_RE.test(url.pathname);
-+		if (isSetupShellRoute || isSetupApiRoute || isPublicEdgeHealthRoute) {
-+			const response = await next();
-+			return finalizeResponse(response);
-+		}
- 		const hasEditCookie = cookies.get("emdash-edit-mode")?.value === "true";
- 		const hasPreviewToken = url.searchParams.has("_preview");
- 		const playgroundDb = locals.__playgroundDb;
