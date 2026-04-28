@@ -35,8 +35,8 @@ importers:
         specifier: 0.8.0
         version: 0.8.0(patch_hash=eca2ef20834327601b0c6a198ca8fd3f0525ca662f05de0a23814c1d00ea48f8)(9fc46a6ce8e42ac195b499e18e82a87b)
       jose:
-        specifier: ^6.2.2
-        version: 6.2.2
+        specifier: ^6.2.3
+        version: 6.2.3
       kysely:
         specifier: 0.28.16
         version: 0.28.16
@@ -2348,8 +2348,8 @@ packages:
   isomorphic.js@0.2.5:
     resolution: {integrity: sha512-PIeMbHqMt4DnUP3MA/Flc0HElYjMXArsw1qwJZcm9sqR8mq3l8NYizFMty0pWwE/tzIGH3EKK5+jes5mAr85yw==}
 
-  jose@6.2.2:
-    resolution: {integrity: sha512-d7kPDd34KO/YnzaDOlikGpOurfF0ByC2sEV4cANCtdqLlTfBlw2p14O/5d/zv40gJPbIQxfES3nSx1/oYNyuZQ==}
+  jose@6.2.3:
+    resolution: {integrity: sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw==}
 
   jpeg-js@0.4.4:
     resolution: {integrity: sha512-WZzeDOEtTOBK4Mdsar0IqEU5sMr3vSV2RqkAIzUEV2BHnUfKGyswWFPFwK5EeDo93K3FohSHbLAjj0s1Wzd+dg==}
@@ -4664,7 +4664,7 @@ snapshots:
       express: 5.2.1
       express-rate-limit: 8.3.2(express@5.2.1)
       hono: 4.12.14
-      jose: 6.2.2
+      jose: 6.2.3
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
@@ -5749,7 +5749,7 @@ snapshots:
       consola: 3.4.2
       croner: 10.0.1
       image-size: 2.0.2
-      jose: 6.2.2
+      jose: 6.2.3
       jpeg-js: 0.4.4
       kysely: 0.28.16
       mime: 4.1.0
@@ -6210,7 +6210,7 @@ snapshots:
 
   isomorphic.js@0.2.5: {}
 
-  jose@6.2.2: {}
+  jose@6.2.3: {}
 
   jpeg-js@0.4.4: {}
 
