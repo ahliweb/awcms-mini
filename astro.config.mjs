@@ -5,7 +5,7 @@ import { defineConfig } from "astro/config";
 import emdash from "emdash/astro";
 import { fileURLToPath } from "node:url";
 import miniAuthIntegration from "./src/integrations/mini-auth.mjs";
-import { awcmsUsersAdminPlugin } from "./src/plugins/awcms-users-admin/index.mjs";
+import { createSikesraAdminPluginDescriptor } from "../awcms-mini-sikesra/src/plugins/sikesra-admin/index.mjs";
 import { getRuntimeConfig } from "./src/config/runtime.mjs";
 
 const runtimeConfig = getRuntimeConfig();
@@ -24,6 +24,12 @@ const emdashDatabase = {
   type: "postgres",
 };
 
+const sikesraPluginDescriptor = createSikesraAdminPluginDescriptor({
+  entrypoint: fileURLToPath(new URL("../awcms-mini-sikesra/src/plugins/sikesra-admin/index.mjs", import.meta.url)),
+  adminEntry: fileURLToPath(new URL("../awcms-mini-sikesra/src/plugins/sikesra-admin/admin.tsx", import.meta.url)),
+  adminPages: [{ path: "/about-sikesra", label: "About SIKESRA", icon: "info" }],
+});
+
 export default defineConfig({
   output: "server",
   ...(runtimeConfig.siteUrl ? { site: runtimeConfig.siteUrl } : {}),
@@ -36,7 +42,7 @@ export default defineConfig({
     miniAuthIntegration(),
     emdash({
       database: emdashDatabase,
-      plugins: [awcmsUsersAdminPlugin()],
+      plugins: [sikesraPluginDescriptor],
     }),
   ],
   devToolbar: { enabled: false },
