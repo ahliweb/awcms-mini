@@ -58,7 +58,7 @@ This document defines the canonical migration runner workflow for AWCMS Mini.
 - Treat any direct mutation of `_emdash_migrations` as issue-scoped operator work with explicit rollback notes. Do not ad hoc edit the migration ledger during routine deploys.
 - The repository now includes a deterministic compatibility helper for the expected Mini-owned EmDash migration prefix so issue `#180` can validate ordering and timestamp-seeding logic in unit tests before any future live ledger repair step.
 - The repo-owned migration CLI now exposes explicit `emdash-status` and `emdash-repair` commands for issue-scoped operator use. `emdash-repair` only runs when the persisted ledger is a reorder-only mismatch within the expected Mini compatibility prefix and refuses unexpected migration names.
-- When a migration command cannot reach or initialize the reviewed database target, the CLI now prints a non-secret database error `kind`, `reason`, and message so operators can distinguish timeout, DNS, TLS, authentication, and Hyperdrive-binding blockers before retrying.
+- When a migration command cannot reach or initialize the reviewed database target, the CLI now prints a non-secret database error `kind`, `reason`, and message so operators can distinguish timeout, DNS, TLS, authentication, and other connectivity blockers before retrying.
 
 ## Runtime Input
 

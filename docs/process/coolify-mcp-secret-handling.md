@@ -218,9 +218,9 @@ This separation reduces blast radius and keeps least-privilege boundaries cleare
 
 This baseline aligns with the current AWCMS Mini posture:
 
-- EmDash-first application hosted on Cloudflare Workers
+- EmDash-first application served through Cloudflare frontend delivery with Hono on Coolify as the backend API
 - PostgreSQL hosted on a Coolify-managed VPS
-- Hyperdrive and Tunnel rollout work separated from normal application runtime secrets
+- PostgreSQL access kept behind the backend API rather than Cloudflare edge runtime code
 
 ## Validation
 

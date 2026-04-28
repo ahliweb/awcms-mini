@@ -1,0 +1,43 @@
+# Local development PostgreSQL service.
+#
+# Usage:
+#   docker compose up -d          # start PostgreSQL in the background
+#   docker compose down           # stop and remove containers
+#   docker compose down -v        # also wipe the data volume
+#
+# After starting, run migrations:
+#   pnpm db:migrate
+#
+# Connection string (matches .env.example default):
+#   postgresql://awcms_mini_dev:replace_with_password@localhost:5432/awcms_mini_dev
+#
+# Override the password by setting POSTGRES_PASSWORD in .env.local before running
+# docker compose, then update DATABASE_URL in .env.local to match.
+#
+# This file is for local development only.
+# Production PostgreSQL is a Coolify-managed Docker service on the VPS.
+# The internal Docker network hostname in production is `postgres`.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: awcms_mini_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-replace_with_password}
+      POSTGRES_DB: awcms_mini_dev
+    ports:
+      # Bind only to localhost — do not expose PostgreSQL to the network.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U awcms_mini_dev -d awcms_mini_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:
+    driver: local

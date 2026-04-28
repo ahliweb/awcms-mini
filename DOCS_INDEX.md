@@ -47,14 +47,12 @@ This file maps the current documentation set for AWCMS Mini.
 ### Process
 
 - `docs/process/github-issue-workflow.md`
+- `docs/process/coolify-deployment.md`
 - `docs/process/runtime-smoke-test.md`
 - `docs/process/migration-deployment-checklist.md`
 - `docs/process/cloudflare-coolify-origin-hardening.md`
 - `docs/process/cloudflare-hosted-runtime.md`
-- `docs/process/cloudflare-hyperdrive-decision.md`
 - `docs/process/cloudflare-pages-vs-workers-decision.md`
-- `docs/process/cloudflare-tunnel-private-db-connector-runbook.md`
-- `docs/process/hyperdrive-rollout-operator-handoff.md`
 - `docs/process/cloudflare-platform-expansion-plan-2026.md`
 - `docs/process/cloudflare-edge-jwt-permissions-ai-plan-2026.md`
 - `docs/process/cloudflare-hostname-turnstile-r2-automation-plan-2026.md`
@@ -66,6 +64,7 @@ This file maps the current documentation set for AWCMS Mini.
 - `docs/process/repository-docs-and-secret-handling-recommendations-2026.md`
 - `docs/process/postgresql-vps-hardening.md`
 - `docs/process/emdash-alignment-and-security-plan-2026.md`
+- `docs/process/emdash-sync-atomic-issue-map-2026.md`
 
 ### Supporting Reference
 

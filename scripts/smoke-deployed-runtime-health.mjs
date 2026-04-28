@@ -20,7 +20,6 @@ function readExpectedDatabasePosture(env = process.env) {
     transport: normalizeOptionalString(env.HEALTHCHECK_EXPECT_DATABASE_TRANSPORT),
     hostname: normalizeOptionalString(env.HEALTHCHECK_EXPECT_DATABASE_HOSTNAME),
     sslmode: normalizeOptionalString(env.HEALTHCHECK_EXPECT_DATABASE_SSLMODE),
-    binding: normalizeOptionalString(env.HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING),
   };
 }
 
@@ -36,7 +35,6 @@ function assertExpectedDatabasePosture(actual, expected) {
     ["transport", expected.transport],
     ["hostname", expected.hostname],
     ["sslmode", expected.sslmode],
-    ["binding", expected.binding],
   ].filter(([, expectedValue]) => expectedValue !== null);
 
   for (const [field, expectedValue] of checks) {

@@ -21,8 +21,8 @@ Complete these checks before applying migrations or releasing a new build.
 - [ ] `pnpm build` passes
 - [ ] `pnpm healthcheck` passes against the target environment or an equivalent pre-production environment
 - [ ] If the reviewed target posture is known for the release, `pnpm healthcheck` is run with the non-secret expectation variables needed to fail fast on the wrong transport target
-- [ ] When the reviewed Cloudflare-hosted Hyperdrive baseline is the release target, `pnpm verify:live-runtime -- <base-url>` is available as the combined deployed-runtime verification path for database posture and the admin/setup smoke seam, with reviewed Hyperdrive expectation inputs applied by default unless explicitly overridden
-- [ ] `MINI_RUNTIME_TARGET=cloudflare` is set for the supported production path
+- [ ] `pnpm verify:live-runtime -- <base-url>` is available as the combined deployed-runtime verification path for database posture and the admin/setup smoke seam
+- [ ] `MINI_RUNTIME_TARGET=node` is set for the supported backend production path
 - [ ] `DATABASE_URL` points to the intended PostgreSQL instance
 - [ ] `DATABASE_CONNECT_TIMEOUT_MS` is set to a reviewed fail-fast value for the target environment
 - [ ] The configured public origin matches the Cloudflare-hosted URL
@@ -63,13 +63,6 @@ Complete these checks before applying migrations or releasing a new build.
 - [ ] PostgreSQL access is restricted to the intended application host or private network path
 - [ ] PostgreSQL transport security expectations are confirmed for the target environment
 - [ ] `id1.ahlikoding.com` resolves to the reviewed PostgreSQL VPS and the certificate covers that hostname when `sslmode=verify-full` is expected
-- [ ] If Hyperdrive is used, its binding/configuration points to the intended PostgreSQL target
-- [ ] If Hyperdrive is used, the reviewed Hyperdrive configuration ID is available for the target Cloudflare account before the release window
-- [ ] If Hyperdrive is used, the reviewed Cloudflare-to-origin connection path is allowed by PostgreSQL and host firewall policy before `wrangler hyperdrive create` or deployment rollout
-- [ ] If Hyperdrive is used, the reviewed Hyperdrive origin hostname resolves to the intended PostgreSQL origin path instead of Cloudflare edge proxy IPs
-- [ ] If Hyperdrive is used, the team has explicitly chosen either a reviewed reachable public PostgreSQL origin endpoint or a private-database route via Cloudflare Tunnel
-- [ ] If the private-database Hyperdrive path is selected, the reviewed Tunnel connector, TCP hostname/route, and any Access/service-token prerequisites are ready before rollout
-- [ ] If the private-database Hyperdrive path is selected, the operator has a reviewed command path to verify `cloudflared` service health and recent logs on the target environment
 - [ ] The remote PostgreSQL access rule uses the narrowest practical source range for the app host or private subnet
 - [ ] `pg_hba.conf` and server config require the intended remote authentication and TLS posture
 - [ ] The application user does not rely on superuser credentials
@@ -89,17 +82,9 @@ Perform these steps during the release window.
 8. Confirm no unexpected pending migrations remain
 9. Deploy the application build
 10. Run `pnpm healthcheck`
-11. When the reviewed Cloudflare-hosted Hyperdrive baseline is the deploy target, prefer `pnpm verify:live-runtime -- <base-url>` as the combined post-deploy deployed-runtime verification path
+11. Prefer `pnpm verify:live-runtime -- <base-url>` as the combined post-deploy deployed-runtime verification path
 
 Use expectation variables when the release has a reviewed target posture.
-
-Current reviewed Cloudflare-hosted Hyperdrive example:
-
-```bash
-HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive \
-HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE \
-pnpm healthcheck
-```
 
 Direct-path remediation example:
 
@@ -202,16 +187,14 @@ Use these focused checks when the release touches governance or security surface
 
 ### Cloudflare Automation
 
-- [ ] `https://awcms-mini.ahlikoding.com/` responds through the current Cloudflare-hosted Worker deployment
+- [ ] `https://awcms-mini.ahlikoding.com/` responds through the current reviewed frontend/backend deployment path
 - [ ] `https://awcms-mini.ahlikoding.com/_emdash/` redirects to `/_emdash/admin` on the same host
-- [ ] If a compatibility admin hostname is still enabled, its root redirects to the configured admin entry path on the same Worker deployment
+- [ ] If a compatibility admin hostname is still enabled, its root redirects to the configured admin entry path on the same reviewed deployment path
 - [ ] Turnstile-protected public flows behave correctly for the reviewed hostname set
-- [ ] The deployed Worker still exposes the `MEDIA_BUCKET` binding for `awcms-mini-s3`
+- [ ] The deployed backend storage configuration still points at `awcms-mini-s3` when R2-backed media storage is enabled
 - [ ] The deployed runtime secret for `DATABASE_URL` matches the reviewed PostgreSQL hostname and SSL mode for the environment
 - [ ] Cloudflare-side hostname, Turnstile, and R2 configuration changes are reflected in the current operator notes before release signoff
 - [ ] When issue `#180` or related EmDash compatibility work is in scope, `https://awcms-mini.ahlikoding.com/_emdash/api/setup/status` still returns success after the release window
-- [ ] If the private-database Hyperdrive path is selected, the reviewed `cloudflared` connector is active and recent service logs do not show repeated reconnect or origin-reachability failures
-- [ ] If the private-database Hyperdrive path is selected, `pnpm healthcheck` is re-run with `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive` and `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE`
 
 ### PostgreSQL Posture
 
@@ -219,7 +202,7 @@ Use these focused checks when the release touches governance or security surface
 - [ ] The live PostgreSQL service still reports the intended SSL posture after the release
 - [ ] If credential rotation was triggered by live exposure or management-plane disclosure, the old credential no longer works and the new secret is stored only in reviewed deployment-managed locations
 - [ ] During direct-path remediation, `pnpm healthcheck` is re-run with the reviewed direct hostname and `sslmode` assertion variables
-- [ ] During the reviewed Cloudflare-hosted Hyperdrive baseline, `pnpm verify:live-runtime -- <base-url>` or `pnpm healthcheck` is re-run with Hyperdrive expectation variables unless an operator is intentionally verifying a direct fallback state
+- [ ] `pnpm verify:live-runtime -- <base-url>` or `pnpm healthcheck` is re-run with reviewed direct expectation variables when the target posture is known
 
 ### Security Settings
 

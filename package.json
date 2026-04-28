@@ -33,7 +33,9 @@
     "db:migrate:emdash:status": "node ./scripts/db-migrate.mjs emdash-status",
     "db:migrate:emdash:verify": "node ./scripts/db-migrate.mjs emdash-verify",
     "db:migrate:emdash:repair": "node ./scripts/db-migrate.mjs emdash-repair",
-    "db:seed:administrative-regions": "node ./scripts/db-seed-administrative-regions.mjs"
+    "db:seed:administrative-regions": "node ./scripts/db-seed-administrative-regions.mjs",
+    "start:api": "node ./server/index.mjs",
+    "dev:api": "NODE_ENV=development node --watch ./server/index.mjs"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^13.1.10",
@@ -41,7 +43,7 @@
     "@astrojs/react": "^5.0.3",
     "astro": "^6.1.8",
     "better-sqlite3": "^12.9.0",
-    "emdash": "0.7.0",
+    "emdash": "0.8.0",
     "jose": "^6.2.2",
     "kysely": "^0.28.16",
     "pg": "^8.16.3",
@@ -61,7 +63,7 @@
       "kysely": "0.28.16"
     },
     "patchedDependencies": {
-      "emdash@0.7.0": "patches/emdash@0.7.0.patch"
+      "emdash@0.8.0": "patches/emdash@0.8.0.patch"
     }
   }
 }

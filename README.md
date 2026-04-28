@@ -29,7 +29,7 @@ Known current conditions:
 - mandatory 2FA rollout configuration exists in the admin/security policy model
 - ABAC audit-only rollout flags exist in the authorization service
 - some rollout and persistence hardening work is still needed before treating those controls as fully production-complete across multi-instance deployments
-- the reviewed live Cloudflare Worker now uses the Hyperdrive-backed PostgreSQL path successfully through the current private-database tunnel posture
+- the current reviewed deployment path uses Hono as the backend API in front of PostgreSQL
 - the reviewed Coolify-managed VPS now uses key-only root SSH recovery, and the tunnel token is rotated from root-only VPS-managed secret storage on a monthly timer
 
 ## Tech Stack
@@ -66,7 +66,6 @@ Optional rollout verification inputs for `pnpm healthcheck`:
 - `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT`
 - `HEALTHCHECK_EXPECT_DATABASE_HOSTNAME`
 - `HEALTHCHECK_EXPECT_DATABASE_SSLMODE`
-- `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING`
 
 These values are non-secret assertion inputs. Keep them unset for normal local development unless you intentionally want health checks to fail fast when the runtime points at the wrong reviewed database target.
 
@@ -148,18 +147,16 @@ Current single-host baseline:
 - the runtime redirects that alias to the current EmDash admin surface under `/_emdash/admin`
 - `ADMIN_SITE_URL`, when configured for compatibility, remains only an optional entry host for the same admin surface
 
-Cloudflare-hosted deployment baseline:
+Cloudflare Pages plus Hono deployment baseline:
 
-- `pnpm build` produces the Worker bundle
-- `pnpm deploy:cloudflare` deploys via Wrangler
-- non-interactive Cloudflare automation should keep `CLOUDFLARE_API_TOKEN` in `.env.local`, Wrangler-managed secrets, or CI/CD secret storage rather than tracked files; Tunnel provisioning needs `Account > Cloudflare Tunnel > Edit`, DNS provisioning needs zone DNS read/edit permission for the target zone, and Access provisioning needs the relevant Cloudflare Access/Zero Trust scopes
+- `pnpm build` produces the frontend build output
+- Cloudflare Pages serves the frontend and calls the backend through `PUBLIC_API_BASE_URL`
+- Hono runs on Coolify and is the only approved database access layer
+- non-interactive Cloudflare automation should keep `CLOUDFLARE_API_TOKEN` in `.env.local` or approved CI/CD secret storage rather than tracked files
 - local operator wrappers should load `.env.local` and `.env` as environment data, not by sourcing them as shell code
-- `wrangler.jsonc` defines the Worker, assets, observability, the reviewed public custom domain for `awcms-mini.ahlikoding.com`, the `MEDIA_BUCKET` R2 binding for `awcms-mini-s3`, and the active reviewed Hyperdrive binding used by the live Cloudflare deployment
+- `wrangler.jsonc` is retained as historical reference only and is not the active backend deployment target
 - `wrangler.jsonc` also declares the reviewed required Worker secret names, and the shared local Astro wrapper now fails fast when those required secrets are missing from env-managed local files or process env
-- `DATABASE_TRANSPORT=hyperdrive` is the current reviewed production posture; local build and typecheck wrappers derive `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` from `DATABASE_URL` so credentials stay env-managed
 - the Mini auth middleware keeps the EmDash setup shell database-lazy so `/_emdash/admin/setup` can render during database transport reconciliation instead of failing early with a Worker exception
-- the reviewed PostgreSQL tunnel connector now reads its runtime token from root-only VPS-managed storage and rotates that token monthly on the VPS
-- Astro's Cloudflare adapter uses the default `SESSION` KV binding for sessions unless you override it explicitly
 - for Coolify-managed resources on the VPS, the reviewed secret surface is Coolify Environment Variables with locked secrets, runtime/build scoping, and Docker Build Secrets for reviewed build-time sensitive inputs
 
 ## Common Commands
@@ -186,7 +183,7 @@ pnpm db:seed:administrative-regions
 Validation baseline:
 
 - `pnpm check:secret-hygiene` is the focused regression check for maintained scripts, config examples, and operator docs that must not gain hardcoded credentials or inline tokens.
-- `pnpm verify:live-runtime` is the focused combined verification path for the current reviewed Cloudflare-hosted Hyperdrive baseline, reusing `pnpm healthcheck`, `pnpm db:migrate:emdash:verify`, and `pnpm smoke:cloudflare-admin`, and it asserts `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=hyperdrive` plus `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING=HYPERDRIVE` by default unless explicitly overridden.
+- `pnpm verify:live-runtime` is the focused combined verification path for the reviewed direct PostgreSQL backend posture, reusing `pnpm healthcheck`, `pnpm db:migrate:emdash:verify`, and `pnpm smoke:cloudflare-admin`.
 - `pnpm smoke:cloudflare-admin` is the focused live-target smoke check for the reviewed `/_emdash/` admin alias and `/_emdash/admin/setup` shell path.
 - Use `pnpm check` as the default local pre-change validation path.
 - `pnpm lint` and `pnpm format` currently cover the maintained docs/config surface with Prettier.

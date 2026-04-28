@@ -1,21 +1,20 @@
 # Cloudflare And Coolify Origin Hardening
 
+## Status
+
+Historical or alternative reference only.
+
 ## Purpose
 
-This runbook defines the supported public ingress pattern for AWCMS Mini when deployed as a Cloudflare-hosted Worker with PostgreSQL on a Coolify-managed VPS.
+This runbook preserves earlier Cloudflare-plus-Coolify ingress hardening notes.
 
-The current supported runtime baseline for this repository is the Cloudflare-hosted Worker described in `docs/process/cloudflare-hosted-runtime.md`. The historical Coolify-hosted application path — where the Mini app ran inside a Coolify-managed container — is preserved as a reference and origin-hardening complement but is no longer the primary runtime model.
+The current maintained deployment baseline is `docs/process/coolify-deployment.md`.
 
 ## Current Supported Production Pattern
 
-The supported baseline production path is:
+The supported baseline production path is now documented in `docs/process/coolify-deployment.md`.
 
-1. Browser to Cloudflare
-2. Cloudflare terminates public traffic and applies edge security controls
-3. Cloudflare-hosted Worker runtime serves the Mini application
-4. The Worker connects to PostgreSQL on the Coolify-managed VPS through Cloudflare Hyperdrive over the reviewed private-database Cloudflare Tunnel path
-
-The Mini application itself does not run inside a Coolify-managed container in this baseline. Coolify manages only the PostgreSQL host and its surrounding VPS environment.
+This file remains only as a historical or alternative reference for earlier Cloudflare-to-origin hardening discussions.
 
 ## Historical Coolify-Hosted Application Path
 
@@ -23,11 +22,11 @@ A previous deployment pattern ran the Mini app as a Coolify-managed container be
 
 ## Trust Boundary Rules
 
-- Cloudflare is the browser-facing edge for all public and admin traffic.
-- The Mini Worker runs on Cloudflare infrastructure, not on the VPS.
-- PostgreSQL on the Coolify-managed VPS is a private database dependency, not a co-located runtime peer.
-- The Worker must use `TRUSTED_PROXY_MODE=cloudflare` to trust `CF-Connecting-IP` for client IP extraction.
-- The Worker must not trust raw `X-Forwarded-For` values from arbitrary upstream sources.
+- Cloudflare is the browser-facing edge for public and admin traffic.
+- The maintained backend runtime is Hono on Coolify.
+- PostgreSQL on the Coolify-managed VPS is a private database dependency, not a public service.
+- The backend must use `TRUSTED_PROXY_MODE=cloudflare` to trust `CF-Connecting-IP` for client IP extraction.
+- The backend must not trust raw `X-Forwarded-For` values from arbitrary upstream sources.
 - The public origin must be the Cloudflare-served hostname, not a VPS IP, container address, or direct Coolify URL.
 
 ## Required Runtime Expectations
@@ -44,16 +43,14 @@ A previous deployment pattern ran the Mini app as a Coolify-managed container be
 - Restrict direct origin access so unsolicited public traffic does not bypass Cloudflare.
 - If the origin must remain publicly reachable, limit ingress as tightly as the hosting environment allows and keep the public hostname proxied through Cloudflare.
 - Do not rely on user-controlled forwarded headers as proof that traffic passed through Cloudflare.
-- Keep the Cloudflare Tunnel connector and Hyperdrive configuration private; do not expose PostgreSQL directly to the public internet.
-- If the reviewed private-database Hyperdrive path becomes non-viable, open a new reviewed issue rather than widening PostgreSQL exposure as a workaround.
+- Do not expose PostgreSQL directly to the public internet as a workaround for application connectivity.
 
 ## Coolify VPS Expectations
 
-- Coolify manages the PostgreSQL VPS environment and its surrounding networking.
-- The VPS must not expose PostgreSQL directly to the internet when the Cloudflare Tunnel path is the reviewed configuration.
-- The `cloudflared` connector must remain active on the VPS for the Hyperdrive private-database path to function.
+- Coolify manages the application and PostgreSQL VPS environment and its surrounding networking.
+- The VPS must not expose PostgreSQL directly to the internet.
 - The reviewed VPS recovery path now uses the Coolify-managed SSH key for root access; do not store or use a root password from `.env.local` or scripts.
-- Environment variables for the PostgreSQL host are kept in operator-controlled secret storage, not in tracked repository files.
+- Environment variables for the application and PostgreSQL host are kept in operator-controlled secret storage, not in tracked repository files.
 
 ## Cloudflare Expectations
 
@@ -68,23 +65,22 @@ A previous deployment pattern ran the Mini app as a Coolify-managed container be
 Before deployment:
 
 - Confirm the public hostname is orange-cloud proxied in Cloudflare.
-- Confirm `TRUSTED_PROXY_MODE=cloudflare` is set in the Worker deployment environment.
-- Confirm the Hyperdrive binding is configured in `wrangler.jsonc` and points to the intended PostgreSQL origin.
-- Confirm the `cloudflared` connector is active on the VPS and service logs do not show repeated reconnect failures.
+- Confirm `TRUSTED_PROXY_MODE=cloudflare` is set in the backend deployment environment.
+- Confirm direct backend access to PostgreSQL uses the intended reviewed hostname and TLS posture.
 - Confirm root SSH recovery works with the reviewed Coolify-managed key path and that password-based root SSH login remains disabled.
 
 After deployment:
 
-- Load the public hostname and confirm the app responds through the Cloudflare-hosted Worker.
+- Load the public hostname and confirm the app responds through the reviewed Cloudflare-plus-backend deployment path.
 - Confirm admin routes load through the same public hostname.
 - Confirm auth logging and lockout behavior record the expected client IP source using `CF-Connecting-IP`.
 - Run `pnpm verify:live-runtime -- https://awcms-mini.ahlikoding.com` to confirm the combined database posture, EmDash compatibility, and admin/setup smoke seam.
 
 ## Cross-References
 
-- `docs/process/cloudflare-hosted-runtime.md`
-- `docs/process/cloudflare-tunnel-private-db-connector-runbook.md`
-- `docs/process/hyperdrive-rollout-operator-handoff.md`
+- `docs/process/coolify-deployment.md`
+- `docs/process/runtime-smoke-test.md`
+- `docs/process/coolify-deployment.md`
 - `docs/architecture/runtime-config.md`
 - `docs/security/operations.md`
 - `docs/process/migration-deployment-checklist.md`

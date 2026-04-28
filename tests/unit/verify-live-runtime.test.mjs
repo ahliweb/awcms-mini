@@ -10,19 +10,17 @@ test("verify-live-runtime composes the reviewed verification commands", () => {
   assert.match(scriptSource, /node", \["\.\/scripts\/smoke-cloudflare-admin\.mjs", baseUrl\]/);
 });
 
-test("verify-live-runtime applies the reviewed Hyperdrive expectations by default", () => {
-  assert.match(scriptSource, /DATABASE_TRANSPORT: "hyperdrive"/);
-  assert.match(scriptSource, /HYPERDRIVE_BINDING: "HYPERDRIVE"/);
-  assert.match(scriptSource, /MINI_RUNTIME_TARGET: "cloudflare"/);
-  assert.match(scriptSource, /HEALTHCHECK_EXPECT_DATABASE_TRANSPORT: "hyperdrive"/);
-  assert.match(scriptSource, /HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING: "HYPERDRIVE"/);
+test("verify-live-runtime applies the reviewed direct transport expectations by default", () => {
+  assert.match(scriptSource, /DATABASE_TRANSPORT: "direct"/);
+  assert.match(scriptSource, /MINI_RUNTIME_TARGET: "node"/);
+  assert.match(scriptSource, /HEALTHCHECK_EXPECT_DATABASE_TRANSPORT: "direct"/);
 });
 
 test("verify-live-runtime lets explicit operator env values override the defaults", () => {
   assert.match(scriptSource, /\.\.\.DEFAULT_LIVE_RUNTIME_EXPECTATIONS,\s+\.\.\.env/);
 });
 
-test("verify-live-runtime reapplies the local Hyperdrive compatibility env before running child steps", () => {
+test("verify-live-runtime reapplies the local env before running child steps", () => {
   assert.match(scriptSource, /applyLocalCloudflareRuntimeEnv\(verificationEnv\)/);
 });
 

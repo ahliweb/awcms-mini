@@ -216,6 +216,37 @@ export function createTwoFactorService(options = {}) {
       });
     },
 
+    async disableEnrollment(input) {
+      return withTransaction(database, async (trx) => {
+        const deps = createTwoFactorServiceDependencies(trx);
+        const credential = await deps.totpCredentials.getActiveTotpCredentialByUserId(input.user_id);
+
+        if (!credential?.verified_at) {
+          throw new TwoFactorEnrollmentError("TOTP_NOT_ENROLLED", "User does not have a verified TOTP credential.");
+        }
+
+        if (input.recovery_code) {
+          await this.verifyRecoveryCodeChallenge({
+            user_id: input.user_id,
+            code: input.recovery_code,
+          });
+        } else {
+          await this.verifyChallenge({
+            user_id: input.user_id,
+            code: input.code,
+          });
+        }
+
+        const disabledAt = now();
+        await deps.totpCredentials.disableActiveTotpCredentialsForUser(input.user_id, disabledAt);
+        await deps.recoveryCodes.replaceActiveRecoveryCodesForUser(input.user_id, disabledAt);
+
+        return {
+          disabledAt,
+        };
+      });
+    },
+
     async getEnrollmentStatus(userId) {
       return withTransaction(database, async (trx) => {
         const deps = createTwoFactorServiceDependencies(trx);

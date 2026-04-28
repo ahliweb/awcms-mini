@@ -34,12 +34,36 @@ Mini owns:
 
 ## Runtime Stack
 
-- Host runtime: Astro + EmDash
-- Hosting baseline: Cloudflare-hosted app runtime
-- Database: PostgreSQL
+- Frontend hosting: Cloudflare Pages
+- Backend API: Hono on a Coolify-managed VPS
+- Database: PostgreSQL running as a Docker service on the same VPS
+- Object storage: Cloudflare R2
 - Query and migration layer: Kysely
 - Extension model: internal EmDash-compatible plugins
 - Admin surface: EmDash admin extended by Mini governance pages
+- Email notifications: Mailketing Email API (backend-only)
+- WhatsApp notifications: Starsender WhatsApp API (backend-only)
+
+## Deployment Topology
+
+```
+Cloudflare Pages (frontend)
+        |
+        v (HTTPS API calls via PUBLIC_API_BASE_URL)
+Hono Backend API — Coolify-managed VPS
+        |
+        +--> PostgreSQL Docker service (internal Docker network)
+        |
+        +--> Cloudflare R2 (object storage, signed URLs)
+        |
+        +--> Mailketing Email API
+        |
+        +--> Starsender WhatsApp API
+```
+
+PostgreSQL is not exposed to the public internet. All database access goes through the Hono backend API.
+
+Cloudflare Pages, Workers, and Edge Functions may call the Hono backend API, but they do not connect to PostgreSQL directly.
 
 ## Layer Map
 

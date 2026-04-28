@@ -3,11 +3,9 @@ import { spawnSync } from "node:child_process";
 import { applyLocalCloudflareRuntimeEnv, loadLocalEnvFiles } from "./_local-env.mjs";
 
 const DEFAULT_LIVE_RUNTIME_EXPECTATIONS = {
-  DATABASE_TRANSPORT: "hyperdrive",
-  HYPERDRIVE_BINDING: "HYPERDRIVE",
-  MINI_RUNTIME_TARGET: "cloudflare",
-  HEALTHCHECK_EXPECT_DATABASE_TRANSPORT: "hyperdrive",
-  HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING: "HYPERDRIVE",
+  DATABASE_TRANSPORT: "direct",
+  MINI_RUNTIME_TARGET: "node",
+  HEALTHCHECK_EXPECT_DATABASE_TRANSPORT: "direct",
 };
 
 function normalizeOptionalString(value) {

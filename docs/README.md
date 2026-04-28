@@ -30,10 +30,8 @@ Current planning reference:
 - `process/secret-hygiene-audit.md` - audit checklist and cleanup rules for scripts, config examples, and operator secret handling
 - `process/emdash-ledger-repair-runbook.md` - operator-only inspection and repair flow for the EmDash `_emdash_migrations` ledger during issue-scoped compatibility work
 - `process/coolify-mcp-secret-handling.md` - supported local-only secret handling pattern for Coolify MCP access
-- `process/cloudflare-hyperdrive-decision.md` - current architecture decision for Hyperdrive as a PostgreSQL transport follow-on
-- `process/cloudflare-pages-vs-workers-decision.md` - current architecture decision for Pages-plus-Workers versus a single Worker baseline
-- `process/cloudflare-tunnel-private-db-connector-runbook.md` - operator runbook for the VPS-side `cloudflared` connector step in the private-database Hyperdrive path
-- `process/hyperdrive-rollout-operator-handoff.md` - condensed operator command sheet for the remaining Hyperdrive rollout blocker chain
+- `process/coolify-deployment.md` - current deployment guide for Cloudflare Pages plus Hono on Coolify with PostgreSQL on the Coolify-managed VPS
+- `process/cloudflare-pages-vs-workers-decision.md` - historical decision context from the earlier Worker-first deployment phase
 - `process/ai-workflow-planning-templates.md` - reusable AI workflow templates for docs, planning, implementation, and review tasks
 
 Current active planning and documentation issues reflected by these docs:

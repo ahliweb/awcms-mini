@@ -11,7 +11,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Purpose: select the Astro adapter/runtime target for the build.
 - Supported values: `cloudflare`, `node`.
 - Default fallback: `cloudflare`.
-- Current rule: the supported production baseline is Cloudflare-hosted runtime. `node` remains an explicit fallback target during migration and local compatibility work.
+- Current rule: `node` is the production baseline for the Hono-on-VPS backend. `cloudflare` is used when deploying a Cloudflare Pages-integrated build.
 
 ### `DATABASE_URL`
 
@@ -21,16 +21,16 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Default fallback: `postgres://localhost:5432/awcms_mini_dev`
 - Production guidance: point this to the remote PostgreSQL host for the environment and encode the reviewed TLS posture directly in the connection string.
 - Reviewed production example: `postgres://awcms_mini_app:<password>@id1.ahlikoding.com:5432/awcms_mini?sslmode=verify-full`
-- Operator inventory note: `202.10.45.224` remains the reviewed VPS IP for troubleshooting and server-side config, but the application should prefer `id1.ahlikoding.com` when hostname validation is expected to succeed.
+- Operator inventory note: keep the reviewed VPS IP in local-only operator configuration such as `COOLIFY_POSTGRES_SERVER_IP`; do not commit live infrastructure IPs. The application should prefer `id1.ahlikoding.com` when hostname validation is expected to succeed.
 - Interim guidance: if certificate hostname validation is not ready yet, use an explicitly reviewed TLS-required mode such as `sslmode=require` and track the follow-on hardening work.
 - Role guidance: do not use PostgreSQL superuser credentials for the normal app runtime.
 
 ### `DATABASE_TRANSPORT`
 
-- Purpose: selects whether the runtime should use direct `DATABASE_URL` transport or a Cloudflare Hyperdrive binding.
-- Supported values: `direct`, `hyperdrive`.
+- Purpose: selects the backend database transport.
+- Supported values: `direct`.
 - Default fallback: `direct`.
-- Production guidance: the current reviewed Cloudflare Worker baseline uses `hyperdrive` with the `HYPERDRIVE` binding. Keep `direct` as an explicit local, rollback, or issue-scoped remediation path when operators intentionally select it.
+- Production guidance: use `direct` for the Hono backend connecting to PostgreSQL through the reviewed backend path. Cloudflare clients must call Hono rather than PostgreSQL directly.
 
 ### `DATABASE_CONNECT_TIMEOUT_MS`
 
@@ -39,16 +39,10 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Default fallback: `10000`.
 - Production guidance: keep this explicit for operator commands, smoke tests, and migration tooling so unreachable Cloudflare-to-Coolify or local-to-VPS database paths fail fast instead of hanging indefinitely.
 
-### `HYPERDRIVE_BINDING`
-
-- Purpose: names the Cloudflare Hyperdrive binding used when `DATABASE_TRANSPORT=hyperdrive`.
-- Default fallback: `HYPERDRIVE`.
-- Rule: this is a binding name, not a secret or connection string.
-
 ### `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT`
 
 - Purpose: optional non-secret expectation used by `pnpm healthcheck` to fail fast when the runtime uses the wrong reviewed database transport.
-- Supported values: `direct`, `hyperdrive`.
+- Supported values: `direct`.
 - Scope: rollout verification input, not a runtime secret.
 - Default behavior: unset, so the healthcheck reports posture without asserting it.
 
@@ -63,12 +57,6 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Purpose: optional non-secret expectation used by `pnpm healthcheck` when direct transport should enforce a reviewed PostgreSQL SSL mode.
 - Scope: rollout verification input, not a runtime secret.
 - Example: `verify-full`.
-
-### `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING`
-
-- Purpose: optional non-secret expectation used by `pnpm healthcheck` when Hyperdrive rollout should resolve through the reviewed binding name.
-- Scope: rollout verification input, not a runtime secret.
-- Default reviewed binding name: `HYPERDRIVE`.
 
 ### `MINI_TOTP_ENCRYPTION_KEY`
 
@@ -248,21 +236,18 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 
 ## Deployment Notes
 
-### Cloudflare Plus Coolify
+### Coolify Plus Cloudflare Pages
 
-- Cloudflare should be treated as both the browser-facing edge and the supported application hosting baseline.
-- Coolify should be treated as the operational control plane for the PostgreSQL VPS, not as the primary app hosting path.
-- `MINI_RUNTIME_TARGET=cloudflare` is the supported production setting.
-- `SITE_URL` must match the hostname users reach through Cloudflare.
-- `ADMIN_SITE_URL`, when configured, should be the Cloudflare-managed admin hostname that redirects into the same `/_emdash/admin` surface.
-- Client IP extraction should trust `CF-Connecting-IP`, not raw `X-Forwarded-For`, for the supported Cloudflare-hosted path.
-- `wrangler.jsonc` should define the Worker, static assets, observability, and any explicit Cloudflare bindings needed for deployment.
-- `wrangler.jsonc` now declares the `MEDIA_BUCKET` R2 binding for `awcms-mini-s3` as the current deployment target.
-- Astro's Cloudflare adapter uses the default `SESSION` KV binding for sessions unless operators override it deliberately.
-- Cloudflare Hyperdrive is the current reviewed PostgreSQL transport for the Cloudflare-hosted Worker baseline. The repository still supports direct `DATABASE_URL` transport for local execution, rollback, and issue-scoped remediation work.
-- R2-backed object storage should use a private bucket binding and application-generated object keys.
+- Coolify is the operational control plane for the Hono backend API and the PostgreSQL Docker service.
+- Cloudflare Pages serves the frontend. It calls the Hono backend through `PUBLIC_API_BASE_URL`.
+- PostgreSQL is not exposed to the public internet. The Hono backend accesses it via the internal Docker network hostname (`postgres`).
+- `MINI_RUNTIME_TARGET=node` is the production setting for the Hono backend.
+- `SITE_URL` must match the public frontend hostname.
+- Client IP extraction should use `CF-Connecting-IP` when Cloudflare proxies requests to the VPS.
+- PostgreSQL is accessed only through the Hono backend API in this architecture.
+- R2-backed object storage is accessed from the Hono backend via the S3-compatible API using `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`, not through a Cloudflare Worker binding.
 
-See `docs/process/cloudflare-hosted-runtime.md` for the supported hosting model and deployment checks.
+See `docs/process/coolify-deployment.md` for the current deployment guide.
 
 ### PostgreSQL On VPS
 
@@ -271,9 +256,6 @@ See `docs/process/cloudflare-hosted-runtime.md` for the supported hosting model 
 - Prefer PostgreSQL TLS, restricted ingress, and strong authentication for the application user.
 - Prefer `hostssl` plus `scram-sha-256` for remote app access where the PostgreSQL host is operator-managed.
 - Restrict remote access to the specific app host or the narrowest private network range available.
-- If the Cloudflare-hosted runtime later adopts Hyperdrive, treat that as a transport and pooling layer over the same PostgreSQL security posture rather than a replacement for PostgreSQL controls.
-
-See `docs/process/cloudflare-hyperdrive-decision.md` for the current decision and follow-on expectations.
 
 See `docs/process/postgresql-vps-hardening.md` for the supported VPS transport and access posture.
 
@@ -281,12 +263,10 @@ See `docs/process/postgresql-vps-hardening.md` for the supported VPS transport a
 
 For the intended production topology, configure at least:
 
-- `DATABASE_URL`
-- `DATABASE_TRANSPORT=hyperdrive` for the reviewed Cloudflare-hosted Worker baseline
-- `DATABASE_TRANSPORT=direct` only when local execution, rollback, or issue-scoped remediation intentionally needs the direct PostgreSQL path
-- optional `HYPERDRIVE_BINDING`
+- `DATABASE_URL` — internal Docker connection string, e.g. `postgresql://app_user:password@postgres:5432/awcms_mini`
+- `DATABASE_TRANSPORT=direct`
 - optional `DATABASE_CONNECT_TIMEOUT_MS`
-- `MINI_RUNTIME_TARGET=cloudflare`
+- `MINI_RUNTIME_TARGET=node`
 - `SITE_URL`
 - optional `ADMIN_SITE_URL`
 - optional `ADMIN_ENTRY_PATH`
@@ -298,7 +278,6 @@ For optional rollout verification with `pnpm healthcheck`, also configure as nee
 - optional `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT`
 - optional `HEALTHCHECK_EXPECT_DATABASE_HOSTNAME`
 - optional `HEALTHCHECK_EXPECT_DATABASE_SSLMODE`
-- optional `HEALTHCHECK_EXPECT_HYPERDRIVE_BINDING`
 
 For public auth and recovery abuse defense, also configure:
 

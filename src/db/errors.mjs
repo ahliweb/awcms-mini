@@ -13,7 +13,6 @@ export const DATABASE_ERROR_REASON = {
   CONNECTION_TIMEOUT: "connection_timeout",
   CREDENTIAL_FORMAT: "credential_format",
   DNS: "dns",
-  HYPERDRIVE_BINDING: "hyperdrive_binding",
   REFUSED: "refused",
   TERMINATED: "terminated",
   TLS: "tls",
@@ -112,10 +111,6 @@ export function classifyDatabaseError(error) {
 export function describeDatabaseErrorReason(error) {
   const message = extractDatabaseErrorMessage(error);
   const lowercaseMessage = message.toLowerCase();
-
-  if (lowercaseMessage.includes("hyperdrive transport requires the cloudflare binding")) {
-    return DATABASE_ERROR_REASON.HYPERDRIVE_BINDING;
-  }
 
   if (lowercaseMessage.includes("timeout")) {
     return DATABASE_ERROR_REASON.CONNECTION_TIMEOUT;

@@ -29,31 +29,6 @@ function summarizeDirectDatabaseTarget(databaseUrl) {
 }
 
 export function describeDatabaseHealthPosture(runtimeConfig = getRuntimeConfig(), options = {}) {
-  if (runtimeConfig.databaseTransport === "hyperdrive") {
-    try {
-      const target = resolvePostgresConnectionTarget(runtimeConfig, options);
-
-      return {
-        transport: "hyperdrive",
-        runtimeTarget: runtimeConfig.runtimeTarget,
-        source: target.source,
-        binding: target.binding ?? runtimeConfig.hyperdriveBinding,
-        ...(target.localConnectionStringVariable
-          ? {
-              localConnectionStringVariable: target.localConnectionStringVariable,
-            }
-          : {}),
-      };
-    } catch {
-      return {
-        transport: "hyperdrive",
-        runtimeTarget: runtimeConfig.runtimeTarget,
-        source: "Cloudflare Hyperdrive binding",
-        binding: runtimeConfig.hyperdriveBinding,
-      };
-    }
-  }
-
   return {
     transport: "direct",
     runtimeTarget: runtimeConfig.runtimeTarget,

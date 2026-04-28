@@ -2,8 +2,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 
-import { DEFAULT_DATABASE_URL } from "../src/config/runtime.mjs";
-
 const GENERATED_LOCAL_SECRET_FILES_DIRECTORY = ["dist", "server"];
 const DEFAULT_WORKER_CONFIG_PATH = "wrangler.jsonc";
 
@@ -39,13 +37,46 @@ export function resolveLocalEnvFiles(env = process.env) {
   return [...new Set(files)];
 }
 
+function stripJsoncComments(text) {
+  let result = "";
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === '"') {
+      const start = i;
+      i++;
+      while (i < text.length) {
+        if (text[i] === "\\" && i + 1 < text.length) {
+          i += 2;
+        } else if (text[i] === '"') {
+          i++;
+          break;
+        } else {
+          i++;
+        }
+      }
+      result += text.slice(start, i);
+    } else if (text[i] === "/" && text[i + 1] === "/") {
+      while (i < text.length && text[i] !== "\n") i++;
+    } else if (text[i] === "/" && text[i + 1] === "*") {
+      i += 2;
+      while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i++;
+      i += 2;
+    } else {
+      result += text[i];
+      i++;
+    }
+  }
+  return result;
+}
+
 export function getRequiredWorkerSecrets(configPath = DEFAULT_WORKER_CONFIG_PATH) {
   if (!existsSync(configPath)) {
     return [];
   }
 
   const contents = readFileSync(configPath, "utf8");
-  const parsed = JSON.parse(contents);
+  const stripped = stripJsoncComments(contents);
+  const parsed = JSON.parse(stripped);
   const entries = Array.isArray(parsed?.secrets?.required) ? parsed.secrets.required : [];
 
   return entries
@@ -69,8 +100,8 @@ export function assertRequiredWorkerSecretsPresent(env = process.env, configPath
   return getRequiredWorkerSecrets(configPath);
 }
 
-function usesHyperdriveTransport(env) {
-  return env.DATABASE_TRANSPORT !== "direct";
+export function applyLocalCloudflareRuntimeEnv(env = process.env) {
+  return env;
 }
 
 export function loadLocalEnvFiles(env = process.env) {
@@ -86,18 +117,6 @@ export function loadLocalEnvFiles(env = process.env) {
       process.loadEnvFile(file);
     }
   }
-}
-
-export function applyLocalCloudflareRuntimeEnv(env = process.env) {
-  if (
-    usesHyperdriveTransport(env) &&
-    (env.DATABASE_URL || DEFAULT_DATABASE_URL) &&
-    !env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE
-  ) {
-    env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE = env.DATABASE_URL || DEFAULT_DATABASE_URL;
-  }
-
-  return env;
 }
 
 export async function cleanupGeneratedCloudflareLocalSecretFiles(rootDir = process.cwd()) {

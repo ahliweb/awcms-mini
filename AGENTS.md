@@ -96,7 +96,7 @@ In particular:
 
 - staged mandatory 2FA rollout configuration exists, but enforcement/persistence should be treated carefully and verified against current runtime behavior before documenting it as fully complete
 - ABAC audit-only rollout exists and should be documented as a rollout tool, not a permanent policy mode
-- the live Cloudflare-hosted Worker now uses the reviewed Hyperdrive-backed PostgreSQL path successfully, but operators should still treat tunnel ingress, token rotation, and VPS-side PostgreSQL posture as distinct operational seams
+- the current deployment baseline is Cloudflare-delivered frontend traffic plus Hono on Coolify, with PostgreSQL accessed only through the backend API
 - the reviewed Coolify-managed VPS now uses key-only root SSH recovery and no longer treats password-based root SSH as the normal recovery path
 
 ## Workflow Note

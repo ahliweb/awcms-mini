@@ -8,20 +8,20 @@ This runbook defines the supported security posture for AWCMS Mini when PostgreS
 
 The supported baseline is:
 
-1. AWCMS Mini runs in the supported Cloudflare-hosted runtime.
+1. Hono runs in the supported backend runtime managed through Coolify.
 2. PostgreSQL runs on a separate protected VPS or equivalent protected host managed through Coolify.
-3. The app connects to PostgreSQL over a restricted network path.
-4. Remote database traffic is protected with TLS.
+3. The backend connects to PostgreSQL over a restricted network path.
+4. Remote database traffic is protected with TLS when the path is not same-host private Docker networking.
 
 Current reviewed operator inventory for this repository:
 
-- PostgreSQL VPS IP: `202.10.45.224`
+- PostgreSQL VPS IP: stored locally as `COOLIFY_POSTGRES_SERVER_IP`
 - reviewed SSL hostname for app connections: `id1.ahlikoding.com`
 
 Current Coolify API-confirmed inventory as of 2026-04-25:
 
 - Coolify version observed through the API: `4.0.0-beta.473`
-- database resource UUID: `kbzbui977dnkhdzl8xcw6v90`
+- database resource UUID: stored locally as `COOLIFY_POSTGRES_RESOURCE_UUID`
 - database resource type: `standalone-postgresql`
 - database image: `postgres:18-alpine`
 - database status: `running:healthy`
@@ -105,7 +105,7 @@ If the app reaches PostgreSQL through a private subnet instead of a single host,
   pnpm audit:database-role
   ```
 
-  This command uses the configured `DATABASE_URL` or local Hyperdrive compatibility connection string, reports only role names and privilege booleans, and exits non-zero if the active runtime role is `postgres`, a superuser, or otherwise over-privileged.
+  This command uses the configured `DATABASE_URL`, reports only role names and privilege booleans, and exits non-zero if the active runtime role is `postgres`, a superuser, or otherwise over-privileged.
 
 ## Network Access Expectations
 
@@ -113,32 +113,13 @@ If the app reaches PostgreSQL through a private subnet instead of a single host,
 - Do not treat the database as a public internet-facing service.
 - Prefer VPS firewall rules or provider network controls in addition to PostgreSQL configuration.
 - Review both the app host egress path and the database host ingress policy during deployment changes.
-- If Hyperdrive will be used, confirm the database origin also accepts the reviewed Cloudflare-to-origin connection path; Hyperdrive configuration creation fails if the origin refuses Cloudflare connectivity.
-- If Hyperdrive will be used, confirm the chosen hostname resolves to the intended PostgreSQL origin path for Cloudflare rather than a web-proxied Cloudflare edge hostname.
-
-Supported origin patterns for Hyperdrive:
-
-1. a reviewed reachable public PostgreSQL origin hostname or IP path with the required TLS and ingress posture
-2. a private-database path fronted by Cloudflare Tunnel when the PostgreSQL origin should not be exposed as a directly reachable public service
-
-Preferred default for the current environment:
-
-- prefer the private-database Cloudflare Tunnel path so PostgreSQL does not need a separately reachable public origin endpoint just for Hyperdrive
-- treat the reachable public-origin path as historical fallback guidance unless a future reviewed issue intentionally re-opens it
-
-If the private-database Tunnel path is selected, prepare at least:
-
-1. a `cloudflared` connector or equivalent reviewed tunnel connector path with reachability to the PostgreSQL origin host and port
-2. a reviewed TCP hostname or tunnel route that Hyperdrive can target for the private database path; `pg-hyperdrive.ahlikoding.com` is the current reviewed default name
-3. any required Cloudflare Access client ID and client secret material if the tunnel-backed origin is protected through Access
-4. an operator note showing how tunnel routing, PostgreSQL authentication, and the Coolify-managed host map together
-5. operator access to the Cloudflare dashboard or API to configure ingress rules for the remotely managed tunnel after resource creation
+- Cloudflare clients must reach PostgreSQL through Hono as the backend API instead of direct database connectivity.
 
 ## Coolify Operator Sequence
 
 Use this order when rolling the reviewed SSL posture into the Coolify-managed PostgreSQL deployment.
 
-1. Confirm `id1.ahlikoding.com` resolves to the reviewed VPS IP `202.10.45.224`.
+1. Confirm `id1.ahlikoding.com` resolves to the reviewed VPS IP stored in `COOLIFY_POSTGRES_SERVER_IP`.
 2. Confirm the PostgreSQL server certificate presented by the host covers `id1.ahlikoding.com`.
 3. Run the read-only Coolify API posture audit and keep its redacted output with the issue notes:
 
@@ -151,14 +132,11 @@ Use this order when rolling the reviewed SSL posture into the Coolify-managed Po
 6. In the Coolify-managed PostgreSQL service, verify the server is configured for SSL and that `postgresql.conf` keeps `ssl = on`.
 7. Review `pg_hba.conf` so remote Mini access uses `hostssl` with the narrowest practical source range and `scram-sha-256`.
 8. Confirm the deployed AWCMS Mini runtime uses an application-scoped non-superuser role; if the app still uses the API-reported `postgres` role, create and rotate to a dedicated runtime credential before signoff.
-9. If Hyperdrive rollout is planned, choose one reviewed origin pattern before changing app deployment config. Prefer the private-database route via Cloudflare Tunnel; use a reachable public PostgreSQL origin endpoint only as the fallback path.
-10. If the private-database Tunnel path is selected, confirm the tunnel connector can reach the PostgreSQL origin host and port and that any Access/service-token prerequisites are ready.
-11. If Hyperdrive rollout is planned, confirm the database/firewall policy allows the reviewed Cloudflare-to-origin connection path needed for Hyperdrive configuration creation and runtime use.
-12. Keep the application role non-superuser and separate from maintenance credentials.
-13. Update the Cloudflare-hosted app runtime secret so `DATABASE_URL` uses `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is ready.
-14. If certificate validation is not ready yet, use a reviewed interim `sslmode=require` value temporarily and record the follow-on hardening step explicitly.
-15. Run `pnpm healthcheck` and the reviewed smoke tests after the deployment update.
-16. If Coolify-managed services on the VPS need matching database credentials, store them as Coolify locked runtime secrets and avoid exposing them as ordinary build variables unless a reviewed build-time workflow explicitly requires that.
+9. Keep the application role non-superuser and separate from maintenance credentials.
+10. Update the deployed backend secret so `DATABASE_URL` uses `id1.ahlikoding.com` with `sslmode=verify-full` when certificate validation is ready.
+11. If certificate validation is not ready yet, use a reviewed interim `sslmode=require` value temporarily and record the follow-on hardening step explicitly.
+12. Run `pnpm healthcheck` and the reviewed smoke tests after the deployment update.
+13. If Coolify-managed services on the VPS need matching database credentials, store them as Coolify locked runtime secrets and avoid exposing them as ordinary build variables unless a reviewed build-time workflow explicitly requires that.
 
 Reviewed direct-posture assertion example:
 
@@ -203,10 +181,8 @@ Before deployment:
 - Confirm the runtime user is not a superuser.
 - Confirm Coolify API or dashboard state does not report `enable_ssl=false` for a production database path that is documented as TLS-enabled.
 - Confirm `pg_hba.conf` allows only the intended app host or narrow private range.
-- If Hyperdrive is planned, confirm the reviewed Cloudflare-to-origin connection path is allowed before attempting `wrangler hyperdrive create`.
-- If Hyperdrive is planned, confirm the reviewed Hyperdrive origin hostname resolves to a direct/reachable PostgreSQL origin path instead of Cloudflare edge IPs.
 - Confirm host firewall rules restrict database ingress accordingly.
-- Confirm the VPS IP `202.10.45.224` is treated as operator inventory and troubleshooting data, not the preferred application hostname when `verify-full` is required.
+- Confirm the VPS IP stored in `COOLIFY_POSTGRES_SERVER_IP` is treated as local-only operator inventory and troubleshooting data, not the preferred application hostname when `verify-full` is required.
 - If management-plane inspection revealed live database credentials or externally routable connection strings, treat credential rotation as part of the remediation plan rather than only tightening network controls.
 - If the current live Coolify resource is publicly exposed, decide explicitly whether that exposure is being removed now or temporarily retained under an auditable exception.
 
@@ -228,8 +204,6 @@ After deployment:
 - If connectivity fails after a database-host change, verify DNS or host routing before widening `pg_hba.conf` or firewall rules.
 - If TLS negotiation fails, fix the certificate or client configuration rather than disabling TLS requirements broadly.
 - If `verify-full` fails, verify that `id1.ahlikoding.com` resolves to the intended VPS and that the PostgreSQL certificate covers that hostname before falling back to a weaker mode.
-- If Hyperdrive configuration creation fails with a connection-refused error, fix origin reachability for the reviewed Cloudflare path before retrying the Hyperdrive rollout.
-- If the reviewed Hyperdrive origin hostname resolves to Cloudflare edge IPs instead of the intended PostgreSQL origin path, switch to a reviewed reachable origin hostname or direct origin path before retrying Hyperdrive creation.
 - If a management-plane API response exposed current database passwords or public connection URLs during incident review, rotate the affected credentials after the live posture is brought back under control.
 - If the app user lacks permissions, grant the smallest missing privilege instead of switching to a superuser credential.
 
