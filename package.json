@@ -41,7 +41,7 @@
     "@astrojs/cloudflare": "^13.1.10",
     "@astrojs/node": "^10.0.5",
     "@astrojs/react": "^5.0.3",
-    "astro": "^6.1.8",
+    "astro": "^6.1.10",
     "better-sqlite3": "^12.9.0",
     "emdash": "0.8.0",
     "jose": "^6.2.2",
