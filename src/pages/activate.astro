@@ -1,7 +1,5 @@
 ---
-import { getDatabase } from "../db/index.mjs";
 import { getRuntimeConfig } from "../config/runtime.mjs";
-import { UserInviteError, createUserService } from "../services/users/service.mjs";
 
 export const prerender = false;
 
@@ -19,24 +17,36 @@ const errorMessages = {
 };
 
 const runtimeConfig = getRuntimeConfig();
+const publicApiBaseUrl =
+  typeof import.meta.env.PUBLIC_API_BASE_URL === "string" && import.meta.env.PUBLIC_API_BASE_URL.trim()
+    ? import.meta.env.PUBLIC_API_BASE_URL.replace(/\/$/, "")
+    : "";
 const turnstileSiteKey =
   (typeof import.meta.env.PUBLIC_TURNSTILE_SITE_KEY === "string" &&
   import.meta.env.PUBLIC_TURNSTILE_SITE_KEY.trim()
     ? import.meta.env.PUBLIC_TURNSTILE_SITE_KEY.trim()
     : runtimeConfig.turnstile?.siteKey) ?? null;
+const activationApiUrl = publicApiBaseUrl
+  ? `${publicApiBaseUrl}/api/v1/auth/activate`
+  : "/api/v1/auth/activate";
 
 let activation = null;
 let errorMessage = errorMessages[errorCode] ?? "";
 
 if (!status && token) {
   try {
-    activation = await createUserService({ database: getDatabase() }).getInviteActivation(token);
-  } catch (error) {
-    if (error instanceof UserInviteError) {
-      errorMessage = errorMessages[error.code] ?? error.message;
+    const response = await fetch(`${activationApiUrl}?token=${encodeURIComponent(token)}`, {
+      headers: { accept: "application/json" },
+    });
+    const payload = await response.json();
+
+    if (response.ok) {
+      activation = payload.data;
     } else {
-      throw error;
+      errorMessage = errorMessages[payload?.error?.code] ?? payload?.error?.message ?? "Activation link is invalid.";
     }
+  } catch (error) {
+    throw error;
   }
 }
 ---
@@ -69,7 +79,7 @@ if (!status && token) {
               Finishing activation for <strong>{activation.user.email}</strong>. This link expires on
               <strong> {new Date(activation.expires_at).toLocaleString()}</strong>.
             </p>
-            <form method="POST" action="/api/activate" class="form">
+            <form method="POST" action={activationApiUrl} class="form">
               <input type="hidden" name="token" value={token} />
               <label>
                 <span>Display name</span>

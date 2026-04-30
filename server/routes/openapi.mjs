@@ -178,6 +178,56 @@ function createOpenApiDocument() {
           },
         },
       },
+      "/api/v1/auth/activate": {
+        get: {
+          tags: ["auth"],
+          summary: "Get invite activation metadata",
+          parameters: [
+            {
+              name: "token",
+              in: "query",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Activation metadata.",
+              content: { "application/json": { schema: createJsonSchemaRef("SimpleSuccessEnvelope") } },
+            },
+            400: {
+              description: "Invalid token.",
+              content: { "application/json": { schema: createJsonSchemaRef("ErrorEnvelope") } },
+            },
+          },
+        },
+        post: {
+          tags: ["auth"],
+          summary: "Submit invite activation form",
+          requestBody: {
+            required: true,
+            content: {
+              "multipart/form-data": {
+                schema: {
+                  type: "object",
+                  required: ["token", "password", "cf-turnstile-response"],
+                  properties: {
+                    token: { type: "string" },
+                    display_name: { type: "string" },
+                    password: { type: "string" },
+                    "cf-turnstile-response": { type: "string" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            302: {
+              description: "Redirects back to activation page with status or error.",
+            },
+          },
+        },
+      },
       "/api/v1/files/upload-request": {
         post: {
           tags: ["storage"],

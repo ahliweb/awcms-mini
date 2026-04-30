@@ -10,6 +10,7 @@ import { Hono } from "hono";
 import { validateTurnstileToken, TurnstileValidationError } from "../../src/security/turnstile.mjs";
 import { createEdgeAuthService, EdgeAuthError } from "../../src/services/edge-auth/service.mjs";
 import { createSessionService } from "../../src/services/sessions/service.mjs";
+import { createUserService, UserInviteError } from "../../src/services/users/service.mjs";
 import {
   createTwoFactorService,
   TwoFactorChallengeError,
@@ -38,6 +39,28 @@ export function routeApiV1Auth(options = {}) {
       database: options.database,
       encryptionKey: options.runtimeConfig?.miniTotpEncryptionKey,
     });
+  const users = options.userService ?? createUserService({ database: options.database });
+
+  function activationRedirectUrl(requestUrl, params) {
+    const url = new URL("/activate", requestUrl);
+
+    for (const [key, value] of Object.entries(params)) {
+      if (value) {
+        url.searchParams.set(key, value);
+      }
+    }
+
+    return url.toString();
+  }
+
+  function redirect(location, status = 302) {
+    return new Response(null, {
+      status,
+      headers: {
+        Location: location,
+      },
+    });
+  }
 
   // POST /api/v1/auth/login
   app.post("/login", async (c) => {
@@ -304,6 +327,97 @@ export function routeApiV1Auth(options = {}) {
           : null,
       },
     });
+  });
+
+  // GET /api/v1/auth/activate
+  app.get("/activate", async (c) => {
+    const token = String(c.req.query("token") ?? "").trim();
+
+    if (!token) {
+      return c.json(
+        {
+          error: {
+            code: "INVALID_TOKEN",
+            message: "Activation token is required.",
+          },
+        },
+        400,
+      );
+    }
+
+    try {
+      const activation = await users.getInviteActivation(token);
+      return c.json({ data: activation });
+    } catch (error) {
+      if (error instanceof UserInviteError) {
+        return c.json(
+          {
+            error: {
+              code: error.code,
+              message: error.message,
+            },
+          },
+          400,
+        );
+      }
+
+      throw error;
+    }
+  });
+
+  // POST /api/v1/auth/activate
+  app.post("/activate", async (c) => {
+    const formData = await c.req.raw.formData();
+    const token = typeof formData.get("token") === "string" ? formData.get("token").trim() : "";
+    const displayName = typeof formData.get("display_name") === "string" ? formData.get("display_name") : "";
+    const password = typeof formData.get("password") === "string" ? formData.get("password") : "";
+    const turnstileToken = typeof formData.get("cf-turnstile-response") === "string" ? formData.get("cf-turnstile-response") : "";
+
+    try {
+      await validateTurnstileToken(
+        {
+          token: turnstileToken,
+          expectedAction: "invite_activation",
+          remoteIp: c.get("clientIp") ?? null,
+        },
+        {
+          runtimeConfig: options.runtimeConfig,
+          fetchImpl: options.turnstileFetchImpl,
+        },
+      );
+    } catch (error) {
+      if (error instanceof TurnstileValidationError) {
+        return redirect(
+          activationRedirectUrl(c.req.url, {
+            token,
+            error: "REQUEST_VERIFICATION_FAILED",
+          }),
+        );
+      }
+
+      throw error;
+    }
+
+    try {
+      await users.activateInvite({
+        token,
+        display_name: displayName,
+        password,
+      });
+
+      return redirect(activationRedirectUrl(c.req.url, { status: "success" }));
+    } catch (error) {
+      if (error instanceof UserInviteError) {
+        return redirect(
+          activationRedirectUrl(c.req.url, {
+            token,
+            error: error.code,
+          }),
+        );
+      }
+
+      throw error;
+    }
   });
 
   return app;

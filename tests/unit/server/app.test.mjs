@@ -1204,3 +1204,62 @@ test("POST /api/v1/message-templates creates template", async () => {
   const body = await res.json();
   assert.equal(body.data.template_key, "welcome");
 });
+
+test("GET /api/v1/auth/activate returns activation metadata", async () => {
+  const app = createApp({
+    userService: {
+      async getInviteActivation(token) {
+        assert.equal(token, "invite-token");
+        return {
+          token,
+          expires_at: "2030-01-01T00:00:00.000Z",
+          user: { id: "user_1", email: "invitee@example.test" },
+        };
+      },
+    },
+  });
+
+  const res = await app.fetch(makeRequest("/api/v1/auth/activate?token=invite-token"));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data.user.email, "invitee@example.test");
+});
+
+test("POST /api/v1/auth/activate redirects success to /activate", async () => {
+  const app = createApp({
+    runtimeConfig: {
+      turnstile: {
+        enabled: true,
+        secretKey: "turnstile-secret",
+        expectedHostnames: [],
+      },
+    },
+    turnstileFetchImpl: async () => ({
+      async json() {
+        return { success: true, action: "invite_activation", hostname: "localhost" };
+      },
+    }),
+    userService: {
+      async activateInvite(input) {
+        assert.equal(input.token, "invite-token");
+      },
+    },
+  });
+
+  const formData = new FormData();
+  formData.set("token", "invite-token");
+  formData.set("display_name", "Invite User");
+  formData.set("password", "supersecret");
+  formData.set("cf-turnstile-response", "token-ok");
+
+  const res = await app.fetch(
+    makeRequest("/api/v1/auth/activate", {
+      method: "POST",
+      body: formData,
+      redirect: "manual",
+    }),
+  );
+
+  assert.equal(res.status, 302);
+  assert.match(res.headers.get("location") ?? "", /\/activate\?status=success/);
+});
