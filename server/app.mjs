@@ -10,11 +10,13 @@ import { Hono } from "hono";
 
 import { middlewareRequestId } from "./middleware/request-id.mjs";
 import { middlewareSecurityHeaders } from "./middleware/security-headers.mjs";
+import { middlewareBodySizeLimit } from "./middleware/body-size-limit.mjs";
 import { middlewareTrustedProxy } from "./middleware/trusted-proxy.mjs";
 import { middlewareLogger } from "./middleware/logger.mjs";
 import { middlewareErrorHandler } from "./middleware/error-handler.mjs";
 import { middlewareCors } from "./middleware/cors.mjs";
 import { middlewareOptionalAuth } from "./middleware/auth.mjs";
+import { middlewareRateLimit } from "./middleware/rate-limit.mjs";
 import { routeHealth } from "./routes/health.mjs";
 import { routeApiV1 } from "./routes/api-v1.mjs";
 import { routeOpenApi } from "./routes/openapi.mjs";
@@ -32,6 +34,8 @@ export function createApp(options = {}) {
   app.use("*", middlewareLogger(options));
   app.use("*", middlewareSecurityHeaders());
   app.use("*", middlewareCors(options));
+  app.use("/api/v1/*", middlewareBodySizeLimit(options));
+  app.use("/api/v1/*", middlewareRateLimit());
   app.use("/api/v1/*", middlewareOptionalAuth(options));
 
   // Error handler (registered last but catches all thrown errors)
