@@ -18,6 +18,7 @@ function createOpenApiDocument() {
       { name: "health", description: "Service health and runtime posture." },
       { name: "api", description: "API version metadata." },
       { name: "auth", description: "Authentication and session routes." },
+      { name: "notifications", description: "Outbound notifications and delivery logs." },
       { name: "storage", description: "R2-backed file upload and download metadata routes." },
       { name: "authorization", description: "RBAC and ABAC protected catalog routes." },
       { name: "security", description: "Two-factor enrollment and recovery routes." },
@@ -322,6 +323,112 @@ function createOpenApiDocument() {
           },
         },
       },
+      "/api/v1/notifications/email/send": {
+        post: {
+          tags: ["notifications"],
+          summary: "Send email notification",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: createJsonSchemaRef("NotificationSendRequest"),
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: "Notification accepted.",
+              content: { "application/json": { schema: createJsonSchemaRef("NotificationEnvelope") } },
+            },
+          },
+        },
+      },
+      "/api/v1/notifications/whatsapp/send": {
+        post: {
+          tags: ["notifications"],
+          summary: "Send WhatsApp notification",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: createJsonSchemaRef("NotificationSendRequest"),
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: "Notification accepted.",
+              content: { "application/json": { schema: createJsonSchemaRef("NotificationEnvelope") } },
+            },
+          },
+        },
+      },
+      "/api/v1/notifications/{id}": {
+        get: {
+          tags: ["notifications"],
+          summary: "Get notification status",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          responses: {
+            200: {
+              description: "Notification status.",
+              content: { "application/json": { schema: createJsonSchemaRef("NotificationEnvelope") } },
+            },
+            404: {
+              description: "Notification not found.",
+              content: { "application/json": { schema: createJsonSchemaRef("ErrorEnvelope") } },
+            },
+          },
+        },
+      },
+      "/api/v1/notifications/{id}/delivery-logs": {
+        get: {
+          tags: ["notifications"],
+          summary: "Get notification delivery logs",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          responses: {
+            200: {
+              description: "Delivery log records.",
+              content: { "application/json": { schema: createJsonSchemaRef("NotificationLogsEnvelope") } },
+            },
+          },
+        },
+      },
+      "/api/v1/message-templates": {
+        get: {
+          tags: ["notifications"],
+          summary: "List message templates",
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: {
+              description: "Template list.",
+              content: { "application/json": { schema: createJsonSchemaRef("MessageTemplatesEnvelope") } },
+            },
+          },
+        },
+        post: {
+          tags: ["notifications"],
+          summary: "Create message template",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: createJsonSchemaRef("MessageTemplateCreateRequest"),
+              },
+            },
+          },
+          responses: {
+            201: {
+              description: "Template created.",
+              content: { "application/json": { schema: createJsonSchemaRef("MessageTemplateEnvelope") } },
+            },
+          },
+        },
+      },
       "/api/v1/roles": {
         get: {
           tags: ["authorization"],
@@ -568,6 +675,64 @@ function createOpenApiDocument() {
             size: { type: "integer", minimum: 1 },
             checksumSha256: { type: "string" },
             visibility: { type: "string", enum: ["private", "public"] },
+          },
+          additionalProperties: false,
+        },
+        NotificationSendRequest: {
+          type: "object",
+          required: ["recipient", "body"],
+          properties: {
+            recipient: { type: "string" },
+            subject: { type: "string" },
+            body: { type: "string" },
+            metadata: { type: "object", additionalProperties: true },
+          },
+          additionalProperties: false,
+        },
+        NotificationEnvelope: {
+          type: "object",
+          required: ["data"],
+          properties: {
+            data: { type: "object", additionalProperties: true },
+          },
+          additionalProperties: false,
+        },
+        NotificationLogsEnvelope: {
+          type: "object",
+          required: ["data"],
+          properties: {
+            data: { type: "array", items: { type: "object", additionalProperties: true } },
+          },
+          additionalProperties: false,
+        },
+        MessageTemplateCreateRequest: {
+          type: "object",
+          required: ["templateKey", "channel", "provider", "body"],
+          properties: {
+            templateKey: { type: "string" },
+            channel: { type: "string" },
+            provider: { type: "string" },
+            language: { type: "string" },
+            subject: { type: "string" },
+            body: { type: "string" },
+            status: { type: "string" },
+            metadata: { type: "object", additionalProperties: true },
+          },
+          additionalProperties: false,
+        },
+        MessageTemplatesEnvelope: {
+          type: "object",
+          required: ["data"],
+          properties: {
+            data: { type: "array", items: { type: "object", additionalProperties: true } },
+          },
+          additionalProperties: false,
+        },
+        MessageTemplateEnvelope: {
+          type: "object",
+          required: ["data"],
+          properties: {
+            data: { type: "object", additionalProperties: true },
           },
           additionalProperties: false,
         },

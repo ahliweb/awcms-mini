@@ -370,6 +370,72 @@ function createFileRouteOptions() {
   };
 }
 
+function createNotificationOptions() {
+  const requests = new Map();
+  const logs = new Map();
+
+  return {
+    resolveActor: () => ({ id: "user_1", status: "active", staff_level: 9 }),
+    authorizationService: {
+      async evaluate(input) {
+        return {
+          allowed: true,
+          permission_code: input.context.permission_code,
+          matched_rule: "test-allow",
+          reason: null,
+        };
+      },
+    },
+    edgeAuthService: {
+      async authenticateAccessToken() {
+        return {
+          user: { id: "user_1", status: "active", staff_level: 9 },
+          activeSession: { id: "session_1" },
+          tokenClaims: { two_factor_satisfied: true },
+        };
+      },
+    },
+    notificationRepository: {
+      async getRequestByIdempotencyKey(key) {
+        for (const item of requests.values()) {
+          if (item.idempotency_key === key) return item;
+        }
+        return null;
+      },
+      async createRequest(input) {
+        requests.set(input.id, input);
+        return input;
+      },
+      async getRequestById(id) {
+        return requests.get(id) ?? null;
+      },
+      async markRequestStatus(id, patch) {
+        const next = { ...(requests.get(id) ?? {}), ...patch, id };
+        requests.set(id, next);
+        return next;
+      },
+      async appendDeliveryLog(input) {
+        const current = logs.get(input.notification_request_id) ?? [];
+        logs.set(input.notification_request_id, [...current, input]);
+      },
+      async listDeliveryLogs(id) {
+        return logs.get(id) ?? [];
+      },
+      async appendWebhookEvent() {},
+    },
+    mailketingProvider: {
+      async send() {
+        return { ok: true, status: 200, messageId: "mail-1", body: { ok: true } };
+      },
+    },
+    starsenderProvider: {
+      async send() {
+        return { ok: true, status: 200, messageId: "wa-1", body: { ok: true } };
+      },
+    },
+  };
+}
+
 function createRefreshOptions({ refreshResult, refreshError } = {}) {
   return {
     edgeAuthService: {
@@ -1064,4 +1130,77 @@ test("GET /api/v1/files/:id/signed-url returns short-lived URL", async () => {
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.match(body.data.url, /\/api\/v1\/files\/.*\/download\?token=/);
+});
+
+test("POST /api/v1/notifications/email/send creates a sent notification", async () => {
+  const app = createApp(createNotificationOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/notifications/email/send", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+        "idempotency-key": "notif-1",
+      },
+      body: JSON.stringify({ recipient: "user@example.test", subject: "Hello", body: "World" }),
+    }),
+  );
+
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data.status, "sent");
+});
+
+test("GET /api/v1/notifications/:id returns notification status", async () => {
+  const app = createApp(createNotificationOptions());
+  const sendRes = await app.fetch(
+    makeRequest("/api/v1/notifications/email/send", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ recipient: "user@example.test", subject: "Hello", body: "World" }),
+    }),
+  );
+  const sent = await sendRes.json();
+
+  const res = await app.fetch(
+    makeRequest(`/api/v1/notifications/${encodeURIComponent(sent.data.id)}`, {
+      headers: { authorization: "Bearer test-token" },
+    }),
+  );
+
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data.id, sent.data.id);
+});
+
+test("POST /api/v1/message-templates creates template", async () => {
+  const app = createApp({
+    ...createNotificationOptions(),
+    messageTemplateRepository: {
+      async listTemplates() {
+        return [];
+      },
+      async createTemplate(input) {
+        return input;
+      },
+    },
+  });
+
+  const res = await app.fetch(
+    makeRequest("/api/v1/message-templates", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ templateKey: "welcome", channel: "email", provider: "mailketing", body: "Hi" }),
+    }),
+  );
+
+  assert.equal(res.status, 201);
+  const body = await res.json();
+  assert.equal(body.data.template_key, "welcome");
 });
