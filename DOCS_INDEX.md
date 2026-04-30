@@ -100,6 +100,8 @@ This file maps the current documentation set for AWCMS Mini.
 - `docs/process/postgresql-vps-hardening.md`
 - `docs/process/emdash-alignment-and-security-plan-2026.md`
 - `docs/process/emdash-sync-atomic-issue-map-2026.md`
+- `docs/process/operator-secret-rotation-checklist-261.md`
+- `docs/process/operator-cloudflared-removal-checklist-268.md`
 
 ### Supporting Reference
 
