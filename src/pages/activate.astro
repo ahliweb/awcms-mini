@@ -19,7 +19,11 @@ const errorMessages = {
 };
 
 const runtimeConfig = getRuntimeConfig();
-const turnstileSiteKey = runtimeConfig.turnstile?.siteKey ?? null;
+const turnstileSiteKey =
+  (typeof import.meta.env.PUBLIC_TURNSTILE_SITE_KEY === "string" &&
+  import.meta.env.PUBLIC_TURNSTILE_SITE_KEY.trim()
+    ? import.meta.env.PUBLIC_TURNSTILE_SITE_KEY.trim()
+    : runtimeConfig.turnstile?.siteKey) ?? null;
 
 let activation = null;
 let errorMessage = errorMessages[errorCode] ?? "";
