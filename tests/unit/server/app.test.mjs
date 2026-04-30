@@ -269,6 +269,107 @@ function createLogoutOptions({ activeSession = true } = {}) {
   };
 }
 
+function createFileRouteOptions() {
+  const state = {
+    byId: new Map(),
+  };
+
+  return {
+    resolveActor: () => ({ id: "user_1", status: "active", staff_level: 9 }),
+    authorizationService: {
+      async evaluate(input) {
+        return {
+          allowed: true,
+          permission_code: input.context.permission_code,
+          matched_rule: "test-allow",
+          reason: null,
+        };
+      },
+    },
+    edgeAuthService: {
+      async authenticateAccessToken(token) {
+        assert.equal(token, "test-token");
+        return {
+          user: {
+            id: "user_1",
+            email: "admin@example.test",
+            name: "Admin User",
+            status: "active",
+            staff_level: 9,
+          },
+          activeSession: {
+            id: "session_1",
+          },
+          tokenClaims: {
+            two_factor_satisfied: true,
+          },
+        };
+      },
+    },
+    fileRepository: {
+      async createFileObject(input) {
+        const row = {
+          ...input,
+          deleted_at: null,
+          verified_at: null,
+          status: input.status ?? "pending",
+        };
+        state.byId.set(input.id, row);
+        return row;
+      },
+      async getFileObjectById(id) {
+        return state.byId.get(id) ?? null;
+      },
+      async updateFileObject(id, patch) {
+        const row = state.byId.get(id);
+        if (!row) return null;
+        const next = { ...row, ...patch };
+        state.byId.set(id, next);
+        return next;
+      },
+    },
+    fileAccessTokenService: {
+      async signUploadToken(input) {
+        return `upload:${input.fileId}`;
+      },
+      async signDownloadToken(input) {
+        return `download:${input.fileId}`;
+      },
+      async verify(token, type) {
+        const [tokenType, fileId] = String(token).split(":");
+        if (!tokenType || !fileId || tokenType !== type) {
+          throw new Error("invalid token");
+        }
+
+        const file = state.byId.get(fileId);
+        return {
+          typ: tokenType,
+          file_id: fileId,
+          storage_key: file?.storage_key ?? "",
+        };
+      },
+    },
+    r2StorageService: {
+      async putObject(input) {
+        return {
+          key: input.key,
+          size: input.size,
+          etag: "etag-1",
+          contentType: input.contentType,
+        };
+      },
+      async headObject() {
+        return { etag: "etag-1" };
+      },
+      async getObject() {
+        return {
+          body: new TextEncoder().encode("hello file"),
+        };
+      },
+    },
+  };
+}
+
 function createRefreshOptions({ refreshResult, refreshError } = {}) {
   return {
     edgeAuthService: {
@@ -856,4 +957,111 @@ test("POST /api/v1/auth/login/verify-2fa requires email and password", async () 
   assert.equal(res.status, 400);
   const body = await res.json();
   assert.equal(body.error.code, "INVALID_CREDENTIALS");
+});
+
+test("POST /api/v1/files/upload-request returns signed upload URL", async () => {
+  const app = createApp(createFileRouteOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/files/upload-request", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        entityType: "post",
+        entityId: "post_1",
+        filename: "photo.png",
+        contentType: "image/png",
+        size: 1024,
+      }),
+    }),
+  );
+
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data.method, "PUT");
+  assert.match(body.data.uploadUrl, /\/api\/v1\/files\/upload\//);
+});
+
+test("POST /api/v1/files/complete-upload marks metadata as ready", async () => {
+  const app = createApp(createFileRouteOptions());
+  const requestRes = await app.fetch(
+    makeRequest("/api/v1/files/upload-request", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        entityType: "post",
+        entityId: "post_1",
+        filename: "photo.png",
+        contentType: "image/png",
+        size: 1024,
+      }),
+    }),
+  );
+  const uploadRequest = await requestRes.json();
+  const fileId = uploadRequest.data.fileId;
+
+  const completeRes = await app.fetch(
+    makeRequest("/api/v1/files/complete-upload", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ fileId }),
+    }),
+  );
+
+  assert.equal(completeRes.status, 200);
+  const completeBody = await completeRes.json();
+  assert.equal(completeBody.data.status, "ready");
+});
+
+test("GET /api/v1/files/:id/signed-url returns short-lived URL", async () => {
+  const app = createApp(createFileRouteOptions());
+  const requestRes = await app.fetch(
+    makeRequest("/api/v1/files/upload-request", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        entityType: "post",
+        entityId: "post_1",
+        filename: "photo.png",
+        contentType: "image/png",
+        size: 1024,
+      }),
+    }),
+  );
+  const uploadRequest = await requestRes.json();
+  const fileId = uploadRequest.data.fileId;
+
+  await app.fetch(
+    makeRequest("/api/v1/files/complete-upload", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ fileId }),
+    }),
+  );
+
+  const res = await app.fetch(
+    makeRequest(`/api/v1/files/${encodeURIComponent(fileId)}/signed-url`, {
+      headers: {
+        authorization: "Bearer test-token",
+      },
+    }),
+  );
+
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.match(body.data.url, /\/api\/v1\/files\/.*\/download\?token=/);
 });
