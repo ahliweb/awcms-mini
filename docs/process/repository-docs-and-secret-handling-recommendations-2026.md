@@ -10,7 +10,7 @@ It also follows the issue-driven planning rules in `docs/process/ai-workflow-pla
 
 ## Current Confirmed Baseline
 
-- EmDash `0.7.0` remains the current reviewed package baseline and canonical host architecture.
+- EmDash `0.8.0` remains the current reviewed package baseline and canonical host architecture.
 - AWCMS Mini remains single-tenant, PostgreSQL-backed, and Kysely-based.
 - The supported runtime baseline is Cloudflare frontend delivery plus Hono on Coolify.
 - PostgreSQL runs on a VPS managed through Coolify.
@@ -24,7 +24,7 @@ It also follows the issue-driven planning rules in `docs/process/ai-workflow-pla
 
 ### Core Docs And Skills
 
-- `README.md` now reflects the current EmDash `0.7.0` baseline, Cloudflare-plus-Hono deployment posture, and Coolify locked-secret guidance.
+- `README.md` now reflects the current EmDash `0.8.0` baseline, Cloudflare-plus-Hono deployment posture, and Coolify locked-secret guidance.
 - `AGENTS.md` should reflect the current backend and recovery posture accurately.
 - `docs/README.md` now references the current active documentation issue map.
 - local docs skills now require accurate frontend/backend secret-storage guidance and Coolify locked-secret guidance when docs touch credentials or deployment-managed configuration.
