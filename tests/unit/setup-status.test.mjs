@@ -23,7 +23,6 @@ const emdashSetupAdminVerifyRoutePath = fileURLToPath(
   new URL("../../node_modules/emdash/src/astro/routes/api/setup/admin-verify.ts", import.meta.url),
 );
 const emdashAdminRoutePath = fileURLToPath(new URL("../../node_modules/emdash/src/astro/routes/admin.astro", import.meta.url));
-const emdashPatchPath = fileURLToPath(new URL("../../patches/emdash@0.7.0.patch", import.meta.url));
 
 function createDbStub({ options = [], userCount = 0, throwOptions = false, throwUsers = false } = {}) {
   return {
@@ -120,7 +119,7 @@ test("patched EmDash middleware treats setup-status as a setup-safe path", async
   const contents = await readFile(emdashMiddlewarePath, "utf8");
 
   assert.match(contents, /const isSetupApiRoute = url\.pathname\.startsWith\("\/_emdash\/api\/setup"\);/);
-  assert.match(contents, /if \(isSetupShellRoute \|\| isSetupApiRoute(?: \|\| isPublicEdgeHealthRoute)?\) \{/);
+  assert.match(contents, /if \(isSetupShellRoute \|\| isSetupApiRoute(?: \|\| isPublicEdgeHealthRoute)?\)(?: \{| return finalizeResponse\(await next\(\)\);)/);
 });
 
 test("patched EmDash dist middleware treats setup-status as a setup-safe path", async () => {
@@ -128,7 +127,7 @@ test("patched EmDash dist middleware treats setup-status as a setup-safe path", 
 
   assert.match(contents, /const isSetupShellRoute = url\.pathname\.startsWith\("\/_emdash\/admin\/setup"\);/);
   assert.match(contents, /const isSetupApiRoute = url\.pathname\.startsWith\("\/_emdash\/api\/setup"\);/);
-  assert.match(contents, /if \(isSetupShellRoute \|\| isSetupApiRoute \|\| isPublicEdgeHealthRoute\) \{/);
+  assert.match(contents, /if \(isSetupShellRoute \|\| isSetupApiRoute \|\| isPublicEdgeHealthRoute\)(?: \{| return finalizeResponse\(await next\(\)\);)/);
 });
 
 test("patched EmDash setup API routes use shared db and config fallbacks", async () => {
@@ -171,26 +170,4 @@ test("patched EmDash admin setup route defaults to English", async () => {
   assert.match(contents, /import \{ DEFAULT_LOCALE, resolveLocale, loadMessages, getLocaleDir \} from "@emdash-cms\/admin\/locales";/);
   assert.match(contents, /const isSetupRoute = new URL\(Astro\.request\.url\)\.pathname === "\/_emdash\/admin\/setup";/);
   assert.match(contents, /const resolvedLocale = isSetupRoute \? DEFAULT_LOCALE : resolveLocale\(Astro\.request\);/);
-});
-
-test("tracked EmDash patch preserves the shared setup-status compatibility seam", async () => {
-  const contents = await readFile(emdashPatchPath, "utf8");
-
-  assert.match(contents, /diff --git a\/src\/astro\/routes\/api\/setup\/status\.ts b\/src\/astro\/routes\/api\/setup\/status\.ts/);
-  assert.match(contents, /\+import \{ getDb \} from "\.\.\/\.\.\/\.\.\/\.\.\/loader\.js";/);
-  assert.match(contents, /\+\t\tconst db = emdash\?\.db \?\? \(await getDb\(\)\);/);
-  assert.match(contents, /\+\t\tconst useExternalAuth = authMode\?\.type === "external";/);
-  assert.match(contents, /\+\t+const isSetupApiRoute = url\.pathname\.startsWith\("\/_emdash\/api\/setup"\);/);
-  assert.match(contents, /\+\t+if \(isSetupShellRoute \|\| isSetupApiRoute(?: \|\| isPublicEdgeHealthRoute)?\) \{/);
-  assert.match(contents, /diff --git a\/src\/astro\/routes\/api\/setup\/index\.ts b\/src\/astro\/routes\/api\/setup\/index\.ts/);
-  assert.match(contents, /\+async function shouldRunSetupCoreMigrations\(db\) \{/);
-  assert.match(contents, /\+\t\tconst applied = await db\.selectFrom\("_emdash_migrations"\)\.select\("name"\)\.limit\(1\)\.execute\(\);/);
-  assert.match(contents, /\+\t\tconst miniMigrations = await db\.selectFrom\("kysely_migration"\)\.select\("name"\)\.limit\(1\)\.execute\(\);/);
-  assert.match(contents, /\+async function ensureSetupCompatibilitySchema\(db\) \{/);
-  assert.match(contents, /\+\tawait sql`ALTER TABLE _emdash_collections ADD COLUMN IF NOT EXISTS has_seo INTEGER NOT NULL DEFAULT 0`\.execute\(db\);/);
-  assert.match(contents, /\+\t\t\tawait ensureSetupCompatibilitySchema\(db\);/);
-  assert.match(contents, /diff --git a\/src\/astro\/routes\/api\/setup\/admin\.ts b\/src\/astro\/routes\/api\/setup\/admin\.ts/);
-  assert.match(contents, /diff --git a\/src\/astro\/routes\/api\/setup\/admin-verify\.ts b\/src\/astro\/routes\/api\/setup\/admin-verify\.ts/);
-  assert.match(contents, /diff --git a\/src\/astro\/routes\/admin\.astro b\/src\/astro\/routes\/admin\.astro/);
-  assert.match(contents, /\+const resolvedLocale = isSetupRoute \? DEFAULT_LOCALE : resolveLocale\(Astro\.request\);/);
 });

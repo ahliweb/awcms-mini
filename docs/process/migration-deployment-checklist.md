@@ -11,6 +11,7 @@ Complete these checks before applying migrations or releasing a new build.
 ### Code Validation
 
 - [ ] `pnpm check` passes for the current branch when the scoped change fits the baseline validation path
+- [ ] `pnpm check:emdash-drift` passes before any release that depends on the tracked EmDash compatibility patchset
 - [ ] `pnpm typecheck` passes
 - [ ] `pnpm test:unit` passes
 - [ ] `pnpm lint` passes for the maintained docs/config surface when documentation or workflow files changed
@@ -240,6 +241,7 @@ Roll back or pause the release if any of these occur:
 ## Minimum Command Set
 
 ```bash
+pnpm check:emdash-drift
 pnpm typecheck
 pnpm test:unit
 pnpm build
