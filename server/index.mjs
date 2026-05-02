@@ -12,7 +12,9 @@ import { loadLocalEnvFiles } from "../scripts/_local-env.mjs";
 import { getRuntimeConfig } from "../src/config/runtime.mjs";
 import { createApp } from "./app.mjs";
 
-loadLocalEnvFiles();
+if (process.env.NODE_ENV !== "production") {
+  loadLocalEnvFiles();
+}
 
 const runtimeConfig = getRuntimeConfig();
 const port = Number(process.env.PORT) || 3000;

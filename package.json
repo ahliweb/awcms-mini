@@ -14,6 +14,8 @@
     "audit:coolify-postgres": "node ./scripts/audit-coolify-postgres.mjs",
     "audit:coolify-server-ssh": "node ./scripts/audit-coolify-server-ssh.mjs",
     "audit:coolify-token": "node ./scripts/audit-coolify-token.mjs",
+    "audit:coolify-backup": "node ./scripts/audit-coolify-backup.mjs",
+    "coolify:backup-setup": "node ./scripts/backup-coolify-setup.mjs",
     "audit:database-role": "node ./scripts/audit-database-role.mjs",
     "coolify:mcp": "node ./scripts/coolify-mcp.mjs",
     "deploy:cloudflare": "node ./scripts/deploy-cloudflare.mjs",
@@ -45,6 +47,8 @@
     "astro": "^6.1.10",
     "better-sqlite3": "^12.9.0",
     "emdash": "0.9.0",
+    "hono": "^4.7.10",
+    "@hono/node-server": "^1.17.3",
     "jose": "^6.2.3",
     "kysely": "^0.28.16",
     "pg": "^8.16.3",
@@ -62,9 +66,6 @@
   "pnpm": {
     "overrides": {
       "kysely": "0.28.16"
-    },
-    "patchedDependencies": {
-      "emdash@0.9.0": "patches/emdash@0.9.0.patch"
     }
   }
 }

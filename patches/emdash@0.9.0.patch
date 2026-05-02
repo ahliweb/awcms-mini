@@ -293,7 +293,25 @@ index bbf59ce62a3a158812a4204c8534ffcb46fc365c..a2502000461ef495507b2b752f10bc30
  
 -export const POST: APIRoute = async ({ request, url, locals }) => {
 -	const { emdash } = locals;
++async function tableExists(db, name) {
++	try {
++		const result = await sql`SELECT 1 FROM `.append(sql.literal(name)).append(sql` LIMIT 1`).execute(db);
++		void result;
++		return true;
++	} catch {
++		return false;
++	}
++}
++
++async function setupSchemaAlreadyBootstrapped(db) {
++	return (await tableExists(db, "options")) || (await tableExists(db, "users"));
++}
++
 +async function shouldRunSetupCoreMigrations(db) {
++	if (await setupSchemaAlreadyBootstrapped(db)) {
++		return false;
++	}
++
 +	try {
 +		const applied = await db.selectFrom("_emdash_migrations").select("name").limit(1).execute();
 +		if (applied.length > 0) {
@@ -302,7 +320,7 @@ index bbf59ce62a3a158812a4204c8534ffcb46fc365c..a2502000461ef495507b2b752f10bc30
 +	} catch {
 +		// Missing EmDash ledger can still be valid on Mini-owned schemas.
 +	}
- 
+
 -	if (!emdash?.db) {
 -		return apiError("NOT_CONFIGURED", "EmDash is not initialized", 500);
 +	try {
@@ -378,7 +396,11 @@ index bbf59ce62a3a158812a4204c8534ffcb46fc365c..a2502000461ef495507b2b752f10bc30
 +			}
 +			await ensureSetupCompatibilitySchema(db);
  		} catch (error) {
- 			return handleError(error, "Failed to run database migrations", "MIGRATION_ERROR");
++			if (await setupSchemaAlreadyBootstrapped(db)) {
++				await ensureSetupCompatibilitySchema(db);
++			} else {
++				return handleError(error, "Failed to run database migrations", "MIGRATION_ERROR");
++			}
  		}
 @@ -70,30 +133,39 @@ export const POST: APIRoute = async ({ request, url, locals }) => {
  
