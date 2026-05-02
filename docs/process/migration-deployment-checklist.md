@@ -11,6 +11,7 @@ Complete these checks before applying migrations or releasing a new build.
 ### Code Validation
 
 - [ ] `pnpm check` passes for the current branch when the scoped change fits the baseline validation path
+- [ ] `pnpm check:emdash-drift` passes before any release that depends on the tracked EmDash compatibility patchset
 - [ ] `pnpm typecheck` passes
 - [ ] `pnpm test:unit` passes
 - [ ] `pnpm lint` passes for the maintained docs/config surface when documentation or workflow files changed
@@ -194,7 +195,7 @@ Use these focused checks when the release touches governance or security surface
 - [ ] The deployed backend storage configuration still points at `awcms-mini-s3` when R2-backed media storage is enabled
 - [ ] The deployed runtime secret for `DATABASE_URL` matches the reviewed PostgreSQL hostname and SSL mode for the environment
 - [ ] Cloudflare-side hostname, Turnstile, and R2 configuration changes are reflected in the current operator notes before release signoff
-- [ ] When issue `#180` or related EmDash compatibility work is in scope, `https://awcms-mini.ahlikoding.com/_emdash/api/setup/status` still returns success after the release window
+- [ ] When issue `#180` or related EmDash compatibility work is in scope, `https://awcms-mini.ahlikoding.com/_emdash/api/setup/status` still returns success after the release window and accepts the reviewed fresh-setup payload on first-run deployments
 
 ### PostgreSQL Posture
 
@@ -240,6 +241,7 @@ Roll back or pause the release if any of these occur:
 ## Minimum Command Set
 
 ```bash
+pnpm check:emdash-drift
 pnpm typecheck
 pnpm test:unit
 pnpm build

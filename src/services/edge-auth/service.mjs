@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 
 import { SignJWT, jwtVerify } from "jose";
 
@@ -32,6 +33,20 @@ function isExpired(value, now = new Date()) {
 
 function buildInvalidCredentialError() {
   return new EdgeAuthError("INVALID_CREDENTIALS", "Invalid email or password.", 401);
+}
+
+function hashTelemetryValue(value, secret) {
+  if (!value) {
+    return null;
+  }
+
+  const salt = secret || "awcms-mini";
+  return createHash("sha256").update(`${salt}:${value}`).digest("hex");
+}
+
+function requiresMandatoryTwoFactor(user) {
+  const rank = Number(user?.role ?? 0);
+  return Number.isFinite(rank) && rank >= 5;
 }
 
 function assertActiveUser(user) {
@@ -183,6 +198,8 @@ export function createEdgeAuthService(options = {}) {
       const normalizedRecoveryCode = typeof recoveryCode === "string" ? recoveryCode.trim() : "";
       const ipAddress = request ? resolveTrustedClientIp(request) : null;
       const userAgent = request?.headers.get("user-agent") ?? null;
+      const hashedIpAddress = hashTelemetryValue(ipAddress, runtimeConfig.appSecret);
+      const hashedUserAgent = hashTelemetryValue(userAgent, runtimeConfig.appSecret);
 
       if (!normalizedEmail || !normalizedPassword) {
         throw new EdgeAuthError("INVALID_CREDENTIALS", "Email and password are required.", 400);
@@ -193,8 +210,8 @@ export function createEdgeAuthService(options = {}) {
           id: crypto.randomUUID(),
           event_type: "login_attempt",
           email_attempted: normalizedEmail,
-          ip_address: ipAddress,
-          user_agent: userAgent,
+          ip_address: hashedIpAddress,
+          user_agent: hashedUserAgent,
           ...input,
         });
 
@@ -231,6 +248,15 @@ export function createEdgeAuthService(options = {}) {
       const twoFactorStatus = await twoFactor.getEnrollmentStatus(user.id);
       let sessionStrength = "password";
       let twoFactorSatisfied = false;
+
+      if (requiresMandatoryTwoFactor(user) && !twoFactorStatus.enrolled) {
+        await appendEvent({ user_id: user.id, outcome: "failure", reason: "two_factor_enrollment_required" });
+        throw new EdgeAuthError(
+          "TWO_FACTOR_ENROLLMENT_REQUIRED",
+          "Two-factor enrollment is required for this account.",
+          403,
+        );
+      }
 
       if (twoFactorStatus.enrolled) {
         if (!normalizedCode && !normalizedRecoveryCode) {

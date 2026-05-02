@@ -22,6 +22,14 @@ Mini currently provides:
 - plugin audit helper
 - plugin region-awareness helper
 
+## Supported Boundaries
+
+Mini keeps setup, runtime bootstrap, database ledgers, and route authorization aligned with EmDash by using supported seams first.
+
+- add behavior through `definePlugin(...)`, adapters, or shared helpers when EmDash exposes a plugin or service seam
+- keep host-routing, runtime-init, and setup-bootstrap overrides out of Mini-local forks unless a compatibility issue explicitly tracks them
+- treat patch drift as a release concern and verify it before changing the EmDash compatibility baseline
+
 ## Current Terminology
 
 - A plugin definition is the runtime object returned from `definePlugin(...)`.

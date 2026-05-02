@@ -23,6 +23,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Reviewed production example: `postgres://awcms_mini_app:<password>@id1.ahlikoding.com:5432/awcms_mini?sslmode=verify-full`
 - Operator inventory note: keep the reviewed VPS IP in local-only operator configuration such as `COOLIFY_POSTGRES_SERVER_IP`; do not commit live infrastructure IPs. The application should prefer `id1.ahlikoding.com` when hostname validation is expected to succeed.
 - Interim guidance: if certificate hostname validation is not ready yet, use an explicitly reviewed TLS-required mode such as `sslmode=require` and track the follow-on hardening work.
+- Runtime note: the PostgreSQL client now honors the reviewed SSL mode explicitly, so `sslmode=require` still negotiates TLS while `sslmode=verify-full` keeps certificate validation enabled.
 - Role guidance: do not use PostgreSQL superuser credentials for the normal app runtime.
 
 ### `DATABASE_TRANSPORT`

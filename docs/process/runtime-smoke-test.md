@@ -71,12 +71,18 @@ This command reuses the current repo-owned verification steps in order:
 - `pnpm smoke:deployed-runtime-health -- <base-url>`
 - `pnpm smoke:cloudflare-admin`
 
-The deployed runtime health step reads `/_emdash/api/setup/status` from the live backend-integrated runtime path and checks the embedded `runtimeHealth` payload for:
+The deployed runtime health step reads `/_emdash/api/setup/status` from the live
+backend-integrated runtime path and accepts either:
+
+- the embedded `runtimeHealth.database` payload when the runtime is already initialized
+- the reviewed fresh-setup payload when a new deployment is still in bootstrap
+
+When `runtimeHealth` is present, the smoke checks validate:
 
 - deployed database reachability
 - non-secret deployed database posture
 
-This avoids depending on workstation-level direct reachability to the production database during deployed smoke testing.
+This avoids depending on workstation-level direct reachability to the production database during deployed smoke testing while still treating fresh bootstrap as a valid reviewed state.
 
 Local EmDash migration-compatibility verification remains a separate step:
 

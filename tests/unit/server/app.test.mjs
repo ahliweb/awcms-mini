@@ -269,6 +269,173 @@ function createLogoutOptions({ activeSession = true } = {}) {
   };
 }
 
+function createFileRouteOptions() {
+  const state = {
+    byId: new Map(),
+  };
+
+  return {
+    resolveActor: () => ({ id: "user_1", status: "active", staff_level: 9 }),
+    authorizationService: {
+      async evaluate(input) {
+        return {
+          allowed: true,
+          permission_code: input.context.permission_code,
+          matched_rule: "test-allow",
+          reason: null,
+        };
+      },
+    },
+    edgeAuthService: {
+      async authenticateAccessToken(token) {
+        assert.equal(token, "test-token");
+        return {
+          user: {
+            id: "user_1",
+            email: "admin@example.test",
+            name: "Admin User",
+            status: "active",
+            staff_level: 9,
+          },
+          activeSession: {
+            id: "session_1",
+          },
+          tokenClaims: {
+            two_factor_satisfied: true,
+          },
+        };
+      },
+    },
+    fileRepository: {
+      async createFileObject(input) {
+        const row = {
+          ...input,
+          deleted_at: null,
+          verified_at: null,
+          status: input.status ?? "pending",
+        };
+        state.byId.set(input.id, row);
+        return row;
+      },
+      async getFileObjectById(id) {
+        return state.byId.get(id) ?? null;
+      },
+      async updateFileObject(id, patch) {
+        const row = state.byId.get(id);
+        if (!row) return null;
+        const next = { ...row, ...patch };
+        state.byId.set(id, next);
+        return next;
+      },
+    },
+    fileAccessTokenService: {
+      async signUploadToken(input) {
+        return `upload:${input.fileId}`;
+      },
+      async signDownloadToken(input) {
+        return `download:${input.fileId}`;
+      },
+      async verify(token, type) {
+        const [tokenType, fileId] = String(token).split(":");
+        if (!tokenType || !fileId || tokenType !== type) {
+          throw new Error("invalid token");
+        }
+
+        const file = state.byId.get(fileId);
+        return {
+          typ: tokenType,
+          file_id: fileId,
+          storage_key: file?.storage_key ?? "",
+        };
+      },
+    },
+    r2StorageService: {
+      async putObject(input) {
+        return {
+          key: input.key,
+          size: input.size,
+          etag: "etag-1",
+          contentType: input.contentType,
+        };
+      },
+      async headObject() {
+        return { etag: "etag-1" };
+      },
+      async getObject() {
+        return {
+          body: new TextEncoder().encode("hello file"),
+        };
+      },
+    },
+  };
+}
+
+function createNotificationOptions() {
+  const requests = new Map();
+  const logs = new Map();
+
+  return {
+    resolveActor: () => ({ id: "user_1", status: "active", staff_level: 9 }),
+    authorizationService: {
+      async evaluate(input) {
+        return {
+          allowed: true,
+          permission_code: input.context.permission_code,
+          matched_rule: "test-allow",
+          reason: null,
+        };
+      },
+    },
+    edgeAuthService: {
+      async authenticateAccessToken() {
+        return {
+          user: { id: "user_1", status: "active", staff_level: 9 },
+          activeSession: { id: "session_1" },
+          tokenClaims: { two_factor_satisfied: true },
+        };
+      },
+    },
+    notificationRepository: {
+      async getRequestByIdempotencyKey(key) {
+        for (const item of requests.values()) {
+          if (item.idempotency_key === key) return item;
+        }
+        return null;
+      },
+      async createRequest(input) {
+        requests.set(input.id, input);
+        return input;
+      },
+      async getRequestById(id) {
+        return requests.get(id) ?? null;
+      },
+      async markRequestStatus(id, patch) {
+        const next = { ...(requests.get(id) ?? {}), ...patch, id };
+        requests.set(id, next);
+        return next;
+      },
+      async appendDeliveryLog(input) {
+        const current = logs.get(input.notification_request_id) ?? [];
+        logs.set(input.notification_request_id, [...current, input]);
+      },
+      async listDeliveryLogs(id) {
+        return logs.get(id) ?? [];
+      },
+      async appendWebhookEvent() {},
+    },
+    mailketingProvider: {
+      async send() {
+        return { ok: true, status: 200, messageId: "mail-1", body: { ok: true } };
+      },
+    },
+    starsenderProvider: {
+      async send() {
+        return { ok: true, status: 200, messageId: "wa-1", body: { ok: true } };
+      },
+    },
+  };
+}
+
 function createRefreshOptions({ refreshResult, refreshError } = {}) {
   return {
     edgeAuthService: {
@@ -856,4 +1023,243 @@ test("POST /api/v1/auth/login/verify-2fa requires email and password", async () 
   assert.equal(res.status, 400);
   const body = await res.json();
   assert.equal(body.error.code, "INVALID_CREDENTIALS");
+});
+
+test("POST /api/v1/files/upload-request returns signed upload URL", async () => {
+  const app = createApp(createFileRouteOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/files/upload-request", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        entityType: "post",
+        entityId: "post_1",
+        filename: "photo.png",
+        contentType: "image/png",
+        size: 1024,
+      }),
+    }),
+  );
+
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data.method, "PUT");
+  assert.match(body.data.uploadUrl, /\/api\/v1\/files\/upload\//);
+});
+
+test("POST /api/v1/files/complete-upload marks metadata as ready", async () => {
+  const app = createApp(createFileRouteOptions());
+  const requestRes = await app.fetch(
+    makeRequest("/api/v1/files/upload-request", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        entityType: "post",
+        entityId: "post_1",
+        filename: "photo.png",
+        contentType: "image/png",
+        size: 1024,
+      }),
+    }),
+  );
+  const uploadRequest = await requestRes.json();
+  const fileId = uploadRequest.data.fileId;
+
+  const completeRes = await app.fetch(
+    makeRequest("/api/v1/files/complete-upload", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ fileId }),
+    }),
+  );
+
+  assert.equal(completeRes.status, 200);
+  const completeBody = await completeRes.json();
+  assert.equal(completeBody.data.status, "ready");
+});
+
+test("GET /api/v1/files/:id/signed-url returns short-lived URL", async () => {
+  const app = createApp(createFileRouteOptions());
+  const requestRes = await app.fetch(
+    makeRequest("/api/v1/files/upload-request", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        entityType: "post",
+        entityId: "post_1",
+        filename: "photo.png",
+        contentType: "image/png",
+        size: 1024,
+      }),
+    }),
+  );
+  const uploadRequest = await requestRes.json();
+  const fileId = uploadRequest.data.fileId;
+
+  await app.fetch(
+    makeRequest("/api/v1/files/complete-upload", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ fileId }),
+    }),
+  );
+
+  const res = await app.fetch(
+    makeRequest(`/api/v1/files/${encodeURIComponent(fileId)}/signed-url`, {
+      headers: {
+        authorization: "Bearer test-token",
+      },
+    }),
+  );
+
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.match(body.data.url, /\/api\/v1\/files\/.*\/download\?token=/);
+});
+
+test("POST /api/v1/notifications/email/send creates a sent notification", async () => {
+  const app = createApp(createNotificationOptions());
+  const res = await app.fetch(
+    makeRequest("/api/v1/notifications/email/send", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+        "idempotency-key": "notif-1",
+      },
+      body: JSON.stringify({ recipient: "user@example.test", subject: "Hello", body: "World" }),
+    }),
+  );
+
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data.status, "sent");
+});
+
+test("GET /api/v1/notifications/:id returns notification status", async () => {
+  const app = createApp(createNotificationOptions());
+  const sendRes = await app.fetch(
+    makeRequest("/api/v1/notifications/email/send", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ recipient: "user@example.test", subject: "Hello", body: "World" }),
+    }),
+  );
+  const sent = await sendRes.json();
+
+  const res = await app.fetch(
+    makeRequest(`/api/v1/notifications/${encodeURIComponent(sent.data.id)}`, {
+      headers: { authorization: "Bearer test-token" },
+    }),
+  );
+
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data.id, sent.data.id);
+});
+
+test("POST /api/v1/message-templates creates template", async () => {
+  const app = createApp({
+    ...createNotificationOptions(),
+    messageTemplateRepository: {
+      async listTemplates() {
+        return [];
+      },
+      async createTemplate(input) {
+        return input;
+      },
+    },
+  });
+
+  const res = await app.fetch(
+    makeRequest("/api/v1/message-templates", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ templateKey: "welcome", channel: "email", provider: "mailketing", body: "Hi" }),
+    }),
+  );
+
+  assert.equal(res.status, 201);
+  const body = await res.json();
+  assert.equal(body.data.template_key, "welcome");
+});
+
+test("GET /api/v1/auth/activate returns activation metadata", async () => {
+  const app = createApp({
+    userService: {
+      async getInviteActivation(token) {
+        assert.equal(token, "invite-token");
+        return {
+          token,
+          expires_at: "2030-01-01T00:00:00.000Z",
+          user: { id: "user_1", email: "invitee@example.test" },
+        };
+      },
+    },
+  });
+
+  const res = await app.fetch(makeRequest("/api/v1/auth/activate?token=invite-token"));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.data.user.email, "invitee@example.test");
+});
+
+test("POST /api/v1/auth/activate redirects success to /activate", async () => {
+  const app = createApp({
+    runtimeConfig: {
+      turnstile: {
+        enabled: true,
+        secretKey: "turnstile-secret",
+        expectedHostnames: [],
+      },
+    },
+    turnstileFetchImpl: async () => ({
+      async json() {
+        return { success: true, action: "invite_activation", hostname: "localhost" };
+      },
+    }),
+    userService: {
+      async activateInvite(input) {
+        assert.equal(input.token, "invite-token");
+      },
+    },
+  });
+
+  const formData = new FormData();
+  formData.set("token", "invite-token");
+  formData.set("display_name", "Invite User");
+  formData.set("password", "supersecret");
+  formData.set("cf-turnstile-response", "token-ok");
+
+  const res = await app.fetch(
+    makeRequest("/api/v1/auth/activate", {
+      method: "POST",
+      body: formData,
+      redirect: "manual",
+    }),
+  );
+
+  assert.equal(res.status, 302);
+  assert.match(res.headers.get("location") ?? "", /\/activate\?status=success/);
 });

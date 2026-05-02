@@ -14,6 +14,11 @@ It keeps EmDash as the host architecture and adds Mini-specific governance featu
 - governance-aware internal plugin contracts
 - EmDash admin extensions for governance operations
 
+Mini stays EmDash-compatible so upstream repository updates can land without rebuilding a second CMS core.
+
+Cloudflare Pages and Workers act as clients of the Hono API, while PostgreSQL stays behind that backend boundary.
+That preserves the original EmDash architecture shape so upstream EmDash updates remain straightforward to merge.
+
 ## Current Status
 
 This repository is implementation-heavy and now includes:
@@ -36,7 +41,7 @@ Known current conditions:
 
 - Astro `6.1.8`
 - React `19.2.5`
-- EmDash `0.7.0`
+- EmDash `0.8.0`
 - PostgreSQL
 - Kysely `0.28.16`
 - Cloudflare adapter via `@astrojs/cloudflare`

@@ -34,6 +34,39 @@ This file maps the current documentation set for AWCMS Mini.
 - `docs/security/operations.md`
 - `docs/security/emergency-recovery-runbook.md`
 - `docs/security/rate-limit-storage-strategy.md`
+- `docs/security/security-baseline.md`
+- `docs/security/turnstile-integration.md`
+- `docs/security/two-factor-authentication.md`
+- `docs/security/abac-rbac-design.md`
+
+### Deployment
+
+- `docs/deployment/coolify.md`
+- `docs/deployment/cloudflare-pages.md`
+- `docs/deployment/cloudflare-r2.md`
+- `docs/deployment/postgresql-docker.md`
+- `docs/deployment/environment-variables.md`
+- `docs/deployment/production-readiness-checklist.md`
+
+### API
+
+- `docs/api/openapi.md`
+
+### Integrations
+
+- `docs/integrations/mailketing.md`
+- `docs/integrations/starsender.md`
+- `docs/integrations/notifications.md`
+
+### Database
+
+- `docs/database/migration-workflow.md`
+- `docs/database/backup-restore.md`
+- `docs/database/schema-overview.md`
+
+### Development
+
+- `docs/development/local-dev-guide.md`
 
 ### Plugins
 
@@ -48,6 +81,7 @@ This file maps the current documentation set for AWCMS Mini.
 
 - `docs/process/github-issue-workflow.md`
 - `docs/process/coolify-deployment.md`
+- `docs/process/cloudflare-pages-deployment.md`
 - `docs/process/runtime-smoke-test.md`
 - `docs/process/migration-deployment-checklist.md`
 - `docs/process/cloudflare-coolify-origin-hardening.md`
@@ -65,6 +99,8 @@ This file maps the current documentation set for AWCMS Mini.
 - `docs/process/postgresql-vps-hardening.md`
 - `docs/process/emdash-alignment-and-security-plan-2026.md`
 - `docs/process/emdash-sync-atomic-issue-map-2026.md`
+- `docs/process/operator-secret-rotation-checklist-261.md`
+- `docs/process/operator-cloudflared-removal-checklist-268.md`
 
 ### Supporting Reference
 

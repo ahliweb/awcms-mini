@@ -42,6 +42,33 @@ test("evaluateDeployedRuntimeHealthResponse accepts the reviewed direct payload"
   assert.equal(result.ok, true);
 });
 
+test("evaluateDeployedRuntimeHealthResponse accepts the reviewed fresh-setup payload", async () => {
+  const response = new Response(
+    JSON.stringify({
+      data: {
+        needsSetup: true,
+        step: "start",
+        seedInfo: null,
+        authMode: "passkey",
+      },
+    }),
+    {
+      status: 200,
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+      },
+    },
+  );
+
+  const result = await evaluateDeployedRuntimeHealthResponse(response, {
+    transport: "direct",
+    hostname: "postgres",
+    sslmode: null,
+  });
+
+  assert.equal(result.ok, true);
+});
+
 test("evaluateDeployedRuntimeHealthResponse rejects unexpected database posture", async () => {
   const response = new Response(
     JSON.stringify({
@@ -68,7 +95,7 @@ test("evaluateDeployedRuntimeHealthResponse rejects unexpected database posture"
 
   const result = await evaluateDeployedRuntimeHealthResponse(response, {
     transport: "direct",
-    hostname: null,
+    hostname: "other-host",
     sslmode: null,
   });
 
@@ -90,17 +117,9 @@ test("runDeployedRuntimeHealthSmokeTest checks the reviewed edge health endpoint
         JSON.stringify({
           data: {
             needsSetup: true,
-            runtimeHealth: {
-              database: {
-                ok: true,
-                posture: {
-                  transport: "direct",
-                  hostname: "postgres",
-                  sslmode: null,
-                  source: "DATABASE_URL",
-                },
-              },
-            },
+            step: "start",
+            seedInfo: null,
+            authMode: "passkey",
           },
         }),
         {

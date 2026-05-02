@@ -77,44 +77,64 @@ export async function evaluateDeployedRuntimeHealthResponse(response, expectedDa
     });
   }
 
-  const database = payload?.data?.runtimeHealth?.database;
+  const data = payload?.data;
+  const database = data?.runtimeHealth?.database;
 
-  if (!database || typeof database.ok !== "boolean" || !database.posture) {
-    return createCheckResult(false, {
-      kind: "edge_health_unexpected_payload",
+  if (database) {
+    if (typeof database.ok !== "boolean" || !database.posture) {
+      return createCheckResult(false, {
+        kind: "edge_health_unexpected_payload",
+        status: response.status,
+        contentType,
+        payload,
+        message: "Deployed runtime health endpoint returned an unexpected payload shape.",
+      });
+    }
+
+    if (response.status !== 200 || payload?.ok === false || !database.ok) {
+      return createCheckResult(false, {
+        kind: "edge_health_database_unhealthy",
+        status: response.status,
+        contentType,
+        payload,
+        message: "Deployed runtime health endpoint reported a database connectivity failure.",
+      });
+    }
+
+    const postureMismatch = assertExpectedDatabasePosture(database.posture, expectedDatabasePosture);
+
+    if (postureMismatch) {
+      return createCheckResult(false, {
+        status: response.status,
+        contentType,
+        payload,
+        ...postureMismatch,
+      });
+    }
+
+    return createCheckResult(true, {
       status: response.status,
       contentType,
       payload,
-      message: "Deployed runtime health endpoint returned an unexpected payload shape.",
+      message: "Deployed runtime health endpoint reported the reviewed database posture.",
     });
   }
 
-  if (response.status !== 200 || payload?.ok === false || !database.ok) {
-    return createCheckResult(false, {
-      kind: "edge_health_database_unhealthy",
+  if (typeof data?.needsSetup === "boolean" && data.needsSetup === true) {
+    return createCheckResult(true, {
       status: response.status,
       contentType,
       payload,
-      message: "Deployed runtime health endpoint reported a database connectivity failure.",
+      message: "Deployed runtime health endpoint reported the reviewed fresh-setup payload.",
     });
   }
 
-  const postureMismatch = assertExpectedDatabasePosture(database.posture, expectedDatabasePosture);
-
-  if (postureMismatch) {
-    return createCheckResult(false, {
-      status: response.status,
-      contentType,
-      payload,
-      ...postureMismatch,
-    });
-  }
-
-  return createCheckResult(true, {
+  return createCheckResult(false, {
+    kind: "edge_health_unexpected_payload",
     status: response.status,
     contentType,
     payload,
-    message: "Deployed runtime health endpoint reported the reviewed database posture.",
+    message: "Deployed runtime health endpoint returned an unexpected payload shape.",
   });
 }
 

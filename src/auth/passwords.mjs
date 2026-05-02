@@ -11,9 +11,16 @@ function fromBase64Url(value) {
   return Buffer.from(value, "base64url");
 }
 
+function normalizePasswordInput(password) {
+  const base = String(password ?? "");
+  const pepper = typeof process.env.PASSWORD_PEPPER === "string" ? process.env.PASSWORD_PEPPER : "";
+  return pepper ? `${base}${pepper}` : base;
+}
+
 export function hashPassword(password) {
+  const normalizedPassword = normalizePasswordInput(password);
   const salt = randomBytes(16);
-  const derived = scryptSync(password, salt, SCRYPT_KEYLEN);
+  const derived = scryptSync(normalizedPassword, salt, SCRYPT_KEYLEN);
   return `${SCRYPT_PREFIX}$${toBase64Url(salt)}$${toBase64Url(derived)}`;
 }
 
@@ -29,6 +36,7 @@ export function verifyPassword(password, storedHash) {
 
   const salt = fromBase64Url(saltValue);
   const expected = fromBase64Url(hashValue);
-  const actual = scryptSync(password, salt, expected.length);
+  const normalizedPassword = normalizePasswordInput(password);
+  const actual = scryptSync(normalizedPassword, salt, expected.length);
   return timingSafeEqual(actual, expected);
 }

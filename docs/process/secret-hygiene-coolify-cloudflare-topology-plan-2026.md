@@ -6,7 +6,7 @@ This document captures the current planning pass for AWCMS Mini around operator 
 
 It uses `docs/process/ai-workflow-planning-templates.md` as a primary process reference and keeps the recommendations aligned with the current repository baseline:
 
-- EmDash `0.7.0` is the current reviewed package baseline in `awcms-mini`
+- EmDash `0.8.0` is the current reviewed package baseline in `awcms-mini`
 - AWCMS Mini remains single-tenant
 - Cloudflare-delivered frontend traffic plus Hono on Coolify remains the supported deployment baseline
 - PostgreSQL remains the system of record on a protected VPS managed through Coolify

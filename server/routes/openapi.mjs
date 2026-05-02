@@ -18,6 +18,8 @@ function createOpenApiDocument() {
       { name: "health", description: "Service health and runtime posture." },
       { name: "api", description: "API version metadata." },
       { name: "auth", description: "Authentication and session routes." },
+      { name: "notifications", description: "Outbound notifications and delivery logs." },
+      { name: "storage", description: "R2-backed file upload and download metadata routes." },
       { name: "authorization", description: "RBAC and ABAC protected catalog routes." },
       { name: "security", description: "Two-factor enrollment and recovery routes." },
     ],
@@ -172,6 +174,307 @@ function createOpenApiDocument() {
             401: {
               description: "Authentication required.",
               content: { "application/json": { schema: createJsonSchemaRef("ErrorEnvelope") } },
+            },
+          },
+        },
+      },
+      "/api/v1/auth/activate": {
+        get: {
+          tags: ["auth"],
+          summary: "Get invite activation metadata",
+          parameters: [
+            {
+              name: "token",
+              in: "query",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Activation metadata.",
+              content: { "application/json": { schema: createJsonSchemaRef("SimpleSuccessEnvelope") } },
+            },
+            400: {
+              description: "Invalid token.",
+              content: { "application/json": { schema: createJsonSchemaRef("ErrorEnvelope") } },
+            },
+          },
+        },
+        post: {
+          tags: ["auth"],
+          summary: "Submit invite activation form",
+          requestBody: {
+            required: true,
+            content: {
+              "multipart/form-data": {
+                schema: {
+                  type: "object",
+                  required: ["token", "password", "cf-turnstile-response"],
+                  properties: {
+                    token: { type: "string" },
+                    display_name: { type: "string" },
+                    password: { type: "string" },
+                    "cf-turnstile-response": { type: "string" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            302: {
+              description: "Redirects back to activation page with status or error.",
+            },
+          },
+        },
+      },
+      "/api/v1/files/upload-request": {
+        post: {
+          tags: ["storage"],
+          summary: "Create signed upload request",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: createJsonSchemaRef("UploadRequest"),
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: "Upload request accepted.",
+              content: { "application/json": { schema: createJsonSchemaRef("UploadRequestEnvelope") } },
+            },
+            400: {
+              description: "Upload input rejected.",
+              content: { "application/json": { schema: createJsonSchemaRef("ErrorEnvelope") } },
+            },
+            401: {
+              description: "Authentication required.",
+              content: { "application/json": { schema: createJsonSchemaRef("ErrorEnvelope") } },
+            },
+            403: {
+              description: "Permission denied.",
+              content: { "application/json": { schema: createJsonSchemaRef("ForbiddenEnvelope") } },
+            },
+          },
+        },
+      },
+      "/api/v1/files/upload/{id}": {
+        put: {
+          tags: ["storage"],
+          summary: "Upload object bytes using signed upload URL",
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+            {
+              name: "token",
+              in: "query",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              "application/octet-stream": {
+                schema: { type: "string", format: "binary" },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: "Upload accepted.",
+              content: { "application/json": { schema: createJsonSchemaRef("SimpleSuccessEnvelope") } },
+            },
+            401: {
+              description: "Upload token invalid.",
+              content: { "application/json": { schema: createJsonSchemaRef("ErrorEnvelope") } },
+            },
+            404: {
+              description: "File request not found.",
+              content: { "application/json": { schema: createJsonSchemaRef("ErrorEnvelope") } },
+            },
+          },
+        },
+      },
+      "/api/v1/files/complete-upload": {
+        post: {
+          tags: ["storage"],
+          summary: "Verify upload and mark metadata ready",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: createJsonSchemaRef("CompleteUploadRequest"),
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: "Upload verified.",
+              content: { "application/json": { schema: createJsonSchemaRef("SimpleSuccessEnvelope") } },
+            },
+            400: {
+              description: "Invalid file id.",
+              content: { "application/json": { schema: createJsonSchemaRef("ErrorEnvelope") } },
+            },
+            401: {
+              description: "Authentication required.",
+              content: { "application/json": { schema: createJsonSchemaRef("ErrorEnvelope") } },
+            },
+            403: {
+              description: "Permission denied.",
+              content: { "application/json": { schema: createJsonSchemaRef("ForbiddenEnvelope") } },
+            },
+            404: {
+              description: "File or storage object not found.",
+              content: { "application/json": { schema: createJsonSchemaRef("ErrorEnvelope") } },
+            },
+          },
+        },
+      },
+      "/api/v1/files/{id}/signed-url": {
+        get: {
+          tags: ["storage"],
+          summary: "Generate short-lived download URL",
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Download URL generated.",
+              content: { "application/json": { schema: createJsonSchemaRef("SignedUrlEnvelope") } },
+            },
+            401: {
+              description: "Authentication required.",
+              content: { "application/json": { schema: createJsonSchemaRef("ErrorEnvelope") } },
+            },
+            403: {
+              description: "Permission denied.",
+              content: { "application/json": { schema: createJsonSchemaRef("ForbiddenEnvelope") } },
+            },
+            404: {
+              description: "File not found.",
+              content: { "application/json": { schema: createJsonSchemaRef("ErrorEnvelope") } },
+            },
+          },
+        },
+      },
+      "/api/v1/notifications/email/send": {
+        post: {
+          tags: ["notifications"],
+          summary: "Send email notification",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: createJsonSchemaRef("NotificationSendRequest"),
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: "Notification accepted.",
+              content: { "application/json": { schema: createJsonSchemaRef("NotificationEnvelope") } },
+            },
+          },
+        },
+      },
+      "/api/v1/notifications/whatsapp/send": {
+        post: {
+          tags: ["notifications"],
+          summary: "Send WhatsApp notification",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: createJsonSchemaRef("NotificationSendRequest"),
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: "Notification accepted.",
+              content: { "application/json": { schema: createJsonSchemaRef("NotificationEnvelope") } },
+            },
+          },
+        },
+      },
+      "/api/v1/notifications/{id}": {
+        get: {
+          tags: ["notifications"],
+          summary: "Get notification status",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          responses: {
+            200: {
+              description: "Notification status.",
+              content: { "application/json": { schema: createJsonSchemaRef("NotificationEnvelope") } },
+            },
+            404: {
+              description: "Notification not found.",
+              content: { "application/json": { schema: createJsonSchemaRef("ErrorEnvelope") } },
+            },
+          },
+        },
+      },
+      "/api/v1/notifications/{id}/delivery-logs": {
+        get: {
+          tags: ["notifications"],
+          summary: "Get notification delivery logs",
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          responses: {
+            200: {
+              description: "Delivery log records.",
+              content: { "application/json": { schema: createJsonSchemaRef("NotificationLogsEnvelope") } },
+            },
+          },
+        },
+      },
+      "/api/v1/message-templates": {
+        get: {
+          tags: ["notifications"],
+          summary: "List message templates",
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: {
+              description: "Template list.",
+              content: { "application/json": { schema: createJsonSchemaRef("MessageTemplatesEnvelope") } },
+            },
+          },
+        },
+        post: {
+          tags: ["notifications"],
+          summary: "Create message template",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: createJsonSchemaRef("MessageTemplateCreateRequest"),
+              },
+            },
+          },
+          responses: {
+            201: {
+              description: "Template created.",
+              content: { "application/json": { schema: createJsonSchemaRef("MessageTemplateEnvelope") } },
             },
           },
         },
@@ -410,6 +713,130 @@ function createOpenApiDocument() {
             recoveryCode: { type: "string" },
           },
           additionalProperties: true,
+        },
+        UploadRequest: {
+          type: "object",
+          required: ["filename", "contentType", "size"],
+          properties: {
+            entityType: { type: "string" },
+            entityId: { type: "string" },
+            filename: { type: "string" },
+            contentType: { type: "string" },
+            size: { type: "integer", minimum: 1 },
+            checksumSha256: { type: "string" },
+            visibility: { type: "string", enum: ["private", "public"] },
+          },
+          additionalProperties: false,
+        },
+        NotificationSendRequest: {
+          type: "object",
+          required: ["recipient", "body"],
+          properties: {
+            recipient: { type: "string" },
+            subject: { type: "string" },
+            body: { type: "string" },
+            metadata: { type: "object", additionalProperties: true },
+          },
+          additionalProperties: false,
+        },
+        NotificationEnvelope: {
+          type: "object",
+          required: ["data"],
+          properties: {
+            data: { type: "object", additionalProperties: true },
+          },
+          additionalProperties: false,
+        },
+        NotificationLogsEnvelope: {
+          type: "object",
+          required: ["data"],
+          properties: {
+            data: { type: "array", items: { type: "object", additionalProperties: true } },
+          },
+          additionalProperties: false,
+        },
+        MessageTemplateCreateRequest: {
+          type: "object",
+          required: ["templateKey", "channel", "provider", "body"],
+          properties: {
+            templateKey: { type: "string" },
+            channel: { type: "string" },
+            provider: { type: "string" },
+            language: { type: "string" },
+            subject: { type: "string" },
+            body: { type: "string" },
+            status: { type: "string" },
+            metadata: { type: "object", additionalProperties: true },
+          },
+          additionalProperties: false,
+        },
+        MessageTemplatesEnvelope: {
+          type: "object",
+          required: ["data"],
+          properties: {
+            data: { type: "array", items: { type: "object", additionalProperties: true } },
+          },
+          additionalProperties: false,
+        },
+        MessageTemplateEnvelope: {
+          type: "object",
+          required: ["data"],
+          properties: {
+            data: { type: "object", additionalProperties: true },
+          },
+          additionalProperties: false,
+        },
+        CompleteUploadRequest: {
+          type: "object",
+          required: ["fileId"],
+          properties: {
+            fileId: { type: "string" },
+          },
+          additionalProperties: false,
+        },
+        UploadRequestEnvelope: {
+          type: "object",
+          required: ["data"],
+          properties: {
+            data: {
+              type: "object",
+              required: ["fileId", "uploadUrl", "method", "headers", "expiresInSeconds"],
+              properties: {
+                fileId: { type: "string" },
+                storageKey: { type: "string" },
+                uploadUrl: { type: "string" },
+                method: { const: "PUT" },
+                headers: { type: "object", additionalProperties: { type: "string" } },
+                expiresInSeconds: { type: "integer" },
+              },
+              additionalProperties: true,
+            },
+          },
+          additionalProperties: false,
+        },
+        SignedUrlEnvelope: {
+          type: "object",
+          required: ["data"],
+          properties: {
+            data: {
+              type: "object",
+              required: ["url"],
+              properties: {
+                url: { type: "string" },
+                expiresInSeconds: { anyOf: [{ type: "integer" }, { type: "null" }] },
+              },
+              additionalProperties: false,
+            },
+          },
+          additionalProperties: false,
+        },
+        SimpleSuccessEnvelope: {
+          type: "object",
+          required: ["data"],
+          properties: {
+            data: { type: "object", additionalProperties: true },
+          },
+          additionalProperties: false,
         },
         RefreshRequest: {
           type: "object",
