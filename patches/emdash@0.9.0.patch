@@ -292,7 +292,20 @@ index bbf59ce62a3a158812a4204c8534ffcb46fc365c..a2502000461ef495507b2b752f10bc30
  
 -export const POST: APIRoute = async ({ request, url, locals }) => {
 -	const { emdash } = locals;
++async function hasSetupOptionsTable(db) {
++	try {
++		const result = await sql`SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'options' LIMIT 1`.execute(db);
++		return result.rows.length > 0;
++	} catch {
++		return false;
++	}
++}
++
 +async function shouldRunSetupCoreMigrations(db) {
++	if (await hasSetupOptionsTable(db)) {
++		return false;
++	}
++
 +	try {
 +		const applied = await db.selectFrom("_emdash_migrations").select("name").limit(1).execute();
 +		if (applied.length > 0) {
