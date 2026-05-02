@@ -1,6 +1,6 @@
 # Plugin Permission Registration
 
-Plugins should declare permissions through the plugin definition and descriptor `permissions` arrays so plugin-defined capabilities can be normalized into the same catalog shape as core permissions.
+Plugins should declare permissions through the plugin definition and descriptor `permissions` arrays, while the descriptor `capabilities` field follows EmDash host terminology for runtime loading and sandbox access.
 
 ## Contract
 
@@ -53,7 +53,7 @@ export function createPlugin() {
 }
 ```
 
-The same normalized permission array should be reused by the plugin definition and the plugin descriptor so route guards and host registration stay aligned.
+The same normalized permission array should be reused by the plugin definition and the plugin descriptor so route guards, host registration, and capability-gated loading stay aligned.
 
 ## Normalized Shape
 
