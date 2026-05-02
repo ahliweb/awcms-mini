@@ -42,6 +42,7 @@ Current active planning and documentation issues reflected by these docs:
 Current verification note:
 
 - `#260` remains the final acceptance gate and is blocked by operator evidence for `#261`.
+- Current Coolify posture audits show accepted metadata gaps, while `pnpm audit:database-role` still times out from this workspace.
 
 Recently completed operator cleanup:
 

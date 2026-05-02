@@ -9,6 +9,15 @@ Operator-side rotation and lock verification for production/runtime secrets mana
 - `COOLIFY_ACCESS_TOKEN` remains local-only management-plane state.
 - Backend runtime secrets are expected to stay locked/runtime-scoped in Coolify.
 - The current audit notes preserve accepted management-plane cosmetic gaps for PostgreSQL SSL and bootstrap role metadata.
+- `pnpm audit:coolify-token` currently passes.
+- `pnpm audit:coolify-postgres` reports accepted cosmetic gaps for `enable_ssl=false`, `postgres_user=postgres`, and the root server SSH posture.
+- `pnpm audit:coolify-server-ssh` reports the accepted root SSH posture gap with key-only access.
+- `pnpm audit:database-role` still times out from this workspace, so old-credential revocation proof remains operator-side.
+
+## Local Operator Inventory
+
+- `COOLIFY_POSTGRES_RESOURCE_UUID` and `COOLIFY_POSTGRES_SERVER_UUID` are required only for read-only posture audits in this workspace.
+- `COOLIFY_POSTGRES_SERVER_IP` is treated as non-secret operator inventory for audit comparison.
 
 ## Canonical References
 
