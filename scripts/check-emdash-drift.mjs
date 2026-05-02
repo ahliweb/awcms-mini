@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..");
-const patchPath = path.resolve(repoRoot, "patches/emdash@0.8.0.patch");
+const patchPath = path.resolve(repoRoot, "patches/emdash@0.9.0.patch");
 
 function resolveReferenceRoot() {
   const envReferenceRoot = process.env.EMDASH_REFERENCE_ROOT?.trim();

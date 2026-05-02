@@ -41,7 +41,7 @@ Known current conditions:
 
 - Astro `6.1.8`
 - React `19.2.5`
-- EmDash `0.8.0`
+- EmDash `0.9.0`
 - PostgreSQL
 - Kysely `0.28.16`
 - Cloudflare adapter via `@astrojs/cloudflare`
