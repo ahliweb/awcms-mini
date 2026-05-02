@@ -43,10 +43,39 @@ pg-dump-<database_name>-<unix_timestamp>.dmp
 
 ## R2/S3 Backup Destination
 
-The target R2 bucket is `coolify-backup-awcms-mini`. S3 storage must be configured
-in the Coolify dashboard before `save_s3` can be enabled on the backup schedule.
+### Bucket
 
-See the GitHub issue tracking this setup for step-by-step instructions.
+- **Name**: `coolify-backup-awcms-mini`
+- **Location**: APAC
+- **S3 endpoint**: `https://5255727b7269584897c8c97ebdd3347f.r2.cloudflarestorage.com`
+- **Region**: `auto`
+
+### Setup (manual — no public API for R2 token creation)
+
+1. **Create R2 API token** in Cloudflare Dashboard → R2 → Manage R2 API Tokens:
+   - Permission: **Object Read & Write**
+   - Scope: restrict to bucket `coolify-backup-awcms-mini`
+   - Save the **Access Key ID** and **Secret Access Key** immediately
+
+2. **Add S3 storage** in Coolify Dashboard → Storage → S3 Storages → Add:
+   - Name: `coolify-backup-awcms-mini`
+   - Endpoint: `https://5255727b7269584897c8c97ebdd3347f.r2.cloudflarestorage.com`
+   - Bucket: `coolify-backup-awcms-mini`
+   - Region: `auto`
+   - Access Key: from R2 API token
+   - Secret Key: from R2 API token
+   - Click **Validate Connection & Continue**
+
+3. **Enable S3 on backup config** from the database Backups page, or via CLI:
+
+   ```bash
+   pnpm coolify:backup-setup --s3-storage-uuid <s3_storage_uuid_from_coolify>
+   ```
+
+4. **Verify** by triggering a manual backup and checking the R2 bucket:
+   ```bash
+   pnpm audit:coolify-backup
+   ```
 
 ## Restore Procedure
 
