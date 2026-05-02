@@ -106,6 +106,10 @@ HEALTHCHECK_EXPECT_DATABASE_SSLMODE=verify-full \
 pnpm healthcheck
 ```
 
+### Setup Recovery
+
+If the EmDash setup wizard reports `Failed to run database migrations` on a partially bootstrapped database, the current setup flow skips replaying core migrations once the `options` table already exists. Retry the setup POST after confirming the backend is pointed at the intended PostgreSQL resource.
+
 ## Architecture Boundary
 
 ```
