@@ -195,7 +195,7 @@ Use these focused checks when the release touches governance or security surface
 - [ ] The deployed backend storage configuration still points at `awcms-mini-s3` when R2-backed media storage is enabled
 - [ ] The deployed runtime secret for `DATABASE_URL` matches the reviewed PostgreSQL hostname and SSL mode for the environment
 - [ ] Cloudflare-side hostname, Turnstile, and R2 configuration changes are reflected in the current operator notes before release signoff
-- [ ] When issue `#180` or related EmDash compatibility work is in scope, `https://awcms-mini.ahlikoding.com/_emdash/api/setup/status` still returns success after the release window
+- [ ] When issue `#180` or related EmDash compatibility work is in scope, `https://awcms-mini.ahlikoding.com/_emdash/api/setup/status` still returns success after the release window and accepts the reviewed fresh-setup payload on first-run deployments
 
 ### PostgreSQL Posture
 
