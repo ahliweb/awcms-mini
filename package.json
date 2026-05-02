@@ -39,24 +39,20 @@
     "dev:api": "NODE_ENV=development node --watch ./server/index.mjs"
   },
   "dependencies": {
-    "@astrojs/cloudflare": "^13.1.10",
+    "@astrojs/cloudflare": "^13.2.2",
     "@astrojs/node": "^10.0.5",
-    "@astrojs/react": "^5.0.3",
-    "astro": "^6.1.8",
+    "@astrojs/react": "^5.0.4",
+    "astro": "^6.1.10",
     "better-sqlite3": "^12.9.0",
-    "emdash": "link:../emdash-awcms/packages/core",
-    "@emdash-cms/admin": "link:../emdash-awcms/packages/admin",
-    "@emdash-cms/auth": "link:../emdash-awcms/packages/auth",
-    "@emdash-cms/blocks": "link:../emdash-awcms/packages/blocks",
-    "@emdash-cms/gutenberg-to-portable-text": "link:../emdash-awcms/packages/gutenberg-to-portable-text",
-    "jose": "^6.2.2",
+    "emdash": "0.8.0",
+    "jose": "^6.2.3",
     "kysely": "^0.28.16",
     "pg": "^8.16.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.4",
+    "@astrojs/check": "^0.9.9",
     "@types/node": "^25.6.0",
     "@types/pg": "^8.15.6",
     "prettier": "^3.8.3",
@@ -67,6 +63,8 @@
     "overrides": {
       "kysely": "0.28.16"
     },
-    "patchedDependencies": {}
+    "patchedDependencies": {
+      "emdash@0.8.0": "patches/emdash@0.8.0.patch"
+    }
   }
 }
