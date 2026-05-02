@@ -58,11 +58,14 @@ It does not treat EmDash as a copy target. It uses EmDash as an architectural re
 ### Current Confirmed Gaps
 
 - Several GitHub sync issues are still umbrella-sized and should be split into smaller execution issues.
-- OpenAPI is not yet implemented for the Hono API.
-- The R2 upload-request and completion flow is not yet implemented on the Hono API.
-- Notification transport providers are not yet implemented on the Hono API.
 - Deployment and architecture docs are partially updated but still fragmented across older and newer target-topology documents.
 - Broad security hardening remains larger than one issue and should be tracked as dependency-ordered slices.
+
+### Recently Completed Gaps
+
+- OpenAPI 3.1 document is implemented for all current Hono API routes at `GET /openapi.json`.
+- R2 upload-request, signed upload, and completion flow are implemented on the Hono API at `/api/v1/files/*`.
+- Notification transport providers (Mailketing email, Starsender WhatsApp) are implemented on the Hono API at `/api/v1/notifications/*` and `/api/v1/webhooks/*`.
 
 ## EmDash Reference Inventory
 
