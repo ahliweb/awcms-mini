@@ -22,23 +22,24 @@ It is based on:
 
 ## Current Baseline
 
-### Confirmed Repository State
+### Confirmed Repository State (Updated)
 
 - AWCMS Mini remains EmDash-first and single-tenant.
-- The supported app runtime baseline is Cloudflare-hosted.
+- The maintained production path is Cloudflare Pages frontend + Hono backend on Coolify VPS + PostgreSQL Docker.
 - PostgreSQL remains the single system of record and is expected to remain on a protected VPS managed through Coolify.
-- `wrangler.jsonc` already defines the Worker baseline, static asset binding, and observability, but does not yet declare custom-domain routes, R2 bindings, or environment-specific hostname separation.
+- `wrangler.jsonc` now declares the custom-domain route (`awcms-mini.ahlikoding.com`), the R2 binding (`MEDIA_BUCKET` → `awcms-mini-s3`), and the required worker secrets. Maintained as historical reference only.
 - Turnstile server-side validation already exists for selected public flows when `TURNSTILE_SECRET_KEY` is configured.
-- The repository already has a private-by-default R2 storage service baseline, but the deployment docs still assume operator-managed binding configuration rather than full Cloudflare MCP-assisted automation.
-- The repository already exposes `/api/v1/*` under the Cloudflare-hosted runtime and keeps the EmDash admin surface under `/_emdash/admin`.
+- The repository has a Hono-backed file upload/download API (`/api/v1/files/*`) with JWT-signed access tokens and the R2 storage service. The Hono backend accesses R2 via S3-compatible API using `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`.
+- `.env.example` and runtime config (`src/config/runtime.mjs`) reference `R2_MEDIA_BUCKET_NAME=awcms-mini-s3`, `R2_MEDIA_BUCKET_BINDING=MEDIA_BUCKET`, and `SITE_URL=https://awcms-mini.ahlikoding.com`.
+- The Coolify-managed PostgreSQL database is referenced by `COOLIFY_POSTGRES_RESOURCE_UUID='kbzbui977dnkhdzl8xcw6v90'` in local-only operator config (`.env.local`), with the app connection string targeting `id1.ahlikoding.com` with `sslmode=verify-full`.
 
-### Confirmed Deployment Gap
+### Confirmed Infrastructure Gap (Updated)
 
-- The repo does not yet document or automate separate public and admin subdomains for the same AWCMS Mini deployment.
-- The repo does not yet document a full automation plan for provisioning `awcms-mini.ahlikoding.com` and `awcms-mini-admin.ahlikoding.com` through Cloudflare-managed custom domains.
-- The repo does not yet document a full automation plan for Turnstile widgets and hostname management across both target subdomains.
-- The repo does not yet document a full automation plan for creating and binding the `awcms-mini-s3` R2 bucket.
-- The currently available Cloudflare MCP session did not return visible zone, Worker, KV, custom-domain, or R2 inventory during this planning pass, so the plan below should be treated as the intended automation path and verified against live account state during implementation.
+- The Cloudflare R2 bucket `awcms-mini-s3` must be created in Cloudflare, and R2 S3-compatible API credentials (`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`) must be provisioned.
+- The domain `awcms-mini.ahlikoding.com` must be configured as a Cloudflare Pages custom domain pointing at the frontend deployment, with `PUBLIC_API_BASE_URL` targeting the Hono backend origin.
+- The Coolify-managed PostgreSQL resource `kbzbui977dnkhdzl8xcw6v90` must have `DATABASE_URL` set as a locked runtime secret in the Coolify Hono backend service.
+- The current Cloudflare MCP session can't reach the Cloudflare API; manual operator setup via Cloudflare dashboard and Coolify UI is required for the infrastructure provisioning steps.
+- All repository code references, environment example files, and runtime configuration are aligned with these three resource names.
 
 ## Planning Goal
 
