@@ -6,8 +6,20 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..");
-const referenceRoot = path.resolve(repoRoot, "../emdash-awcms/packages/core");
 const patchPath = path.resolve(repoRoot, "patches/emdash@0.8.0.patch");
+
+function resolveReferenceRoot() {
+  const envReferenceRoot = process.env.EMDASH_REFERENCE_ROOT?.trim();
+  const candidates = [
+    envReferenceRoot ? path.resolve(envReferenceRoot) : null,
+    path.resolve(repoRoot, "../emdash/packages/core"),
+    path.resolve(repoRoot, "../emdash-awcms/packages/core"),
+  ].filter(Boolean);
+
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
+}
+
+const referenceRoot = resolveReferenceRoot();
 
 function runGitApply(args) {
   return spawnSync("git", args, {
