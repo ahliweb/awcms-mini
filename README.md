@@ -45,6 +45,7 @@ Known current conditions:
 - PostgreSQL
 - Kysely `0.28.16`
 - Cloudflare adapter via `@astrojs/cloudflare`
+- Hono backend API as the bridge between Cloudflare Pages/Workers and Coolify-managed PostgreSQL
 - Node adapter via `@astrojs/node` kept only as an explicit fallback build target during migration
 
 ## Quick Start

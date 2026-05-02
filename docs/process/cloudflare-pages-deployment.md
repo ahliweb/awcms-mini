@@ -5,6 +5,8 @@
 Define the current frontend deployment baseline for Cloudflare Pages while keeping the Hono API as the only data and auth source.
 That boundary preserves the upstream EmDash application shape while letting Pages/Workers talk only to Hono.
 
+Cloudflare Pages and Workers act as API clients of Hono. The Hono backend serves as the seamless bridge between the Cloudflare edge and the Coolify-managed PostgreSQL database.
+
 ## Required Frontend Boundaries
 
 - Frontend traffic is served from Cloudflare Pages.
