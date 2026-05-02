@@ -36,16 +36,17 @@ Current planning reference:
 
 Current active planning and documentation issues reflected by these docs:
 
-- `#260` - final verification umbrella for the current architecture sync and runtime acceptance gate
-- `#261` - operator secret rotation and lock verification for Coolify-managed runtime secrets
+- none. The current verification and operator issues are closed.
 
 Current verification note:
 
-- `#260` remains the final acceptance gate and is blocked by operator evidence for `#261`.
-- Current Coolify posture audits show accepted metadata gaps, while `pnpm audit:database-role` still times out from this workspace.
+- `#260` and `#261` are closed.
+- Current Coolify posture audits still show the accepted metadata gaps, but the credential rotation and live runtime validation are complete.
 
 Recently completed operator cleanup:
 
+- `#261` - operator secret rotation and lock verification for Coolify-managed runtime secrets
+- `#260` - final verification umbrella for the current architecture sync and runtime acceptance gate
 - `#268` - operator removal of Cloudflare Tunnel and cloudflared from the Coolify-managed server
 
 ## Accuracy Rule

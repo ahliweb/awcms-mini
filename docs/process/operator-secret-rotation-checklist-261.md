@@ -12,7 +12,9 @@ Operator-side rotation and lock verification for production/runtime secrets mana
 - `pnpm audit:coolify-token` currently passes.
 - `pnpm audit:coolify-postgres` reports accepted cosmetic gaps for `enable_ssl=false`, `postgres_user=postgres`, and the root server SSH posture.
 - `pnpm audit:coolify-server-ssh` reports the accepted root SSH posture gap with key-only access.
-- `pnpm audit:database-role` still times out from this workspace, so old-credential revocation proof remains operator-side.
+- The app database credential has been rotated through Coolify-managed Postgres access.
+- Old credential auth failed and new credential auth succeeded during the rotation run.
+- `pnpm verify:live-runtime -- https://awcms-mini.ahlikoding.com` passes after the rotation and restart.
 
 ## Local Operator Inventory
 
@@ -56,11 +58,9 @@ These secrets are provisioned and rotated via Cloudflare MCP automation, not man
 ## Required Evidence To Attach On #261
 
 - Redacted Coolify API output or console screenshot showing updated secret timestamps for rotated values.
-- Redacted proof that old database credential no longer authenticates.
+- Redacted proof that old database credential no longer authenticates and the new credential succeeds.
 - Runtime validation outputs:
-  - `pnpm healthcheck`
-  - `pnpm test:unit` (optional in deployment window)
-  - `pnpm verify:live-runtime -- <site-url>` when applicable
+  - `pnpm verify:live-runtime -- https://awcms-mini.ahlikoding.com`
 
 ## Rollback Rule
 
