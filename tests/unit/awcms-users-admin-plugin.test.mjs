@@ -827,7 +827,7 @@ test("awcms users admin plugin exposes admin pages and read-only routes", async 
     assert.deepEqual(manifest.capabilities, ["read:users"]);
     assert.equal(manifest.adminEntry, "/src/plugins/awcms-users-admin/admin.tsx");
     assert.equal(manifest.adminPages.length, 10);
-    assert.equal(manifest.adminWidgets, undefined);
+    assert.deepEqual(manifest.adminWidgets, []);
     assert.equal(manifest.permissions.length, USER_ADMIN_PLUGIN_PERMISSIONS.length);
     assert.equal(manifest.permissions.some((entry) => entry.code === "audit.logs.read"), true);
   } finally {

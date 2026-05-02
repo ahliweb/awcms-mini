@@ -2245,6 +2245,7 @@ export function awcmsUsersAdminPlugin() {
       { path: "/permissions", label: "Permission Matrix", icon: "grid" },
       { path: "/user", label: "User Detail", icon: "user" },
     ],
+    adminWidgets: [],
   };
 }
 
