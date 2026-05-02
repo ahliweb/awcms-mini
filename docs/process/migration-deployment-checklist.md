@@ -166,7 +166,7 @@ Validate the live system in this order.
 
 ### Plugin Contract
 
-- [ ] Plugin permission manifests still normalize correctly
+- [ ] Plugin permission catalogs still normalize correctly
 - [ ] Declarative plugin route authorization still works for protected routes
 - [ ] Plugin service authorization helpers still evaluate declared permissions correctly
 - [ ] Plugin audit helper still appends plugin-tagged audit entries

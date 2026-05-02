@@ -46,7 +46,7 @@ Plugins should consume shared governance services instead of bypassing them with
 The internal governance sample plugin demonstrates the contract end to end:
 
 - runtime definition and registration descriptor
-- permission manifest
+- capabilities and permission catalog
 - protected route declaration
 - service-level authorization
 - scoped resource resolution
