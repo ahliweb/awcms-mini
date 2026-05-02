@@ -1,6 +1,7 @@
 # Plugin Permission Registration
 
 Plugins should declare permissions through the plugin definition and descriptor `permissions` arrays, while the descriptor `capabilities` field follows EmDash host terminology for runtime loading and sandbox access.
+When the plugin exposes admin UI, the same descriptor may also include `adminEntry`, `adminPages`, and `adminWidgets`.
 
 ## Contract
 

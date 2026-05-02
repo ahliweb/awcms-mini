@@ -228,6 +228,8 @@ export function internalGovernanceSamplePlugin() {
     format: "native",
     entrypoint: "/src/plugins/internal-governance-sample/index.mjs",
     capabilities: [],
+    adminPages: [],
+    adminWidgets: [],
     permissions: SAMPLE_PLUGIN_PERMISSIONS,
   };
 }

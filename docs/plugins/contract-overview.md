@@ -15,7 +15,7 @@ Mini adds governance-aware contract helpers so plugins can participate in the sa
 Mini currently provides:
 
 - EmDash plugin definitions created with `definePlugin(...)`
-- first-party plugin descriptors that register `id`, `entrypoint`, `format`, `capabilities`, and permissions with the host
+- first-party plugin descriptors that register `id`, `entrypoint`, `format`, `capabilities`, `permissions`, and any admin surface fields (`adminEntry`, `adminPages`, `adminWidgets`) with the host
 - plugin permission registration helper
 - plugin route authorization helper
 - plugin service authorization helper
@@ -33,7 +33,7 @@ Mini keeps setup, runtime bootstrap, database ledgers, and route authorization a
 ## Current Terminology
 
 - A plugin definition is the runtime object returned from `definePlugin(...)`.
-- A plugin descriptor is the registration object Mini exposes for EmDash to discover and load a plugin entrypoint, capability list, and permission catalog.
+- A plugin descriptor is the registration object Mini exposes for EmDash to discover and load a plugin entrypoint, capability list, permission catalog, and optional admin surface.
 - Plugin routes are the handler entries declared inside the plugin definition.
 - First-party admin experience currently ships through the `awcms-users-admin` plugin rather than a separate admin shell.
 
