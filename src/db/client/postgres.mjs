@@ -5,6 +5,25 @@ import { getRuntimeConfig } from "../../config/runtime.mjs";
 
 const { Pool } = pg;
 
+export function resolvePostgresSslOptions(runtimeConfig = getRuntimeConfig()) {
+  try {
+    const parsed = new URL(runtimeConfig.databaseUrl);
+    const sslmode = parsed.searchParams.get("sslmode");
+
+    if (sslmode === "verify-full") {
+      return { rejectUnauthorized: true };
+    }
+
+    if (sslmode === "require" || sslmode === "verify-ca" || sslmode === "prefer") {
+      return { rejectUnauthorized: false };
+    }
+  } catch {
+    // Fall back to the reviewed production TLS posture below.
+  }
+
+  return undefined;
+}
+
 export function resolvePostgresConnectionTarget(runtimeConfig = getRuntimeConfig(), options = {}) {
   return {
     transport: "direct",
@@ -22,6 +41,7 @@ export function buildPostgresPoolConfig(runtimeConfig = getRuntimeConfig(), opti
     connectionString: resolvePostgresConnectionString(runtimeConfig, options),
     connectionTimeoutMillis: runtimeConfig.databaseConnectTimeoutMs,
     allowExitOnIdle: true,
+    ssl: resolvePostgresSslOptions(runtimeConfig),
   };
 }
 

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   buildPostgresPoolConfig,
+  resolvePostgresSslOptions,
   resolvePostgresConnectionString,
   resolvePostgresConnectionTarget,
 } from "../../src/db/client/postgres.mjs";
@@ -170,6 +171,7 @@ test("buildPostgresPoolConfig keeps DATABASE_URL as the transport source of trut
     connectionString: "postgres://awcms_mini_app:secret@id1.ahlikoding.com:5432/awcms_mini?sslmode=verify-full",
     connectionTimeoutMillis: 10000,
     allowExitOnIdle: true,
+    ssl: { rejectUnauthorized: true },
   });
 });
 
@@ -181,8 +183,24 @@ test("buildPostgresPoolConfig preserves reviewed interim SSL modes when explicit
   });
 
   assert.equal(config.connectionString, "postgres://awcms_mini_app:secret@db.example.internal:5432/awcms_mini?sslmode=require");
-   assert.equal(config.connectionTimeoutMillis, 5000);
-   assert.equal(config.allowExitOnIdle, true);
+  assert.equal(config.connectionTimeoutMillis, 5000);
+  assert.equal(config.allowExitOnIdle, true);
+  assert.deepEqual(config.ssl, { rejectUnauthorized: false });
+});
+
+test("resolvePostgresSslOptions maps reviewed SSL modes for production", () => {
+  assert.deepEqual(
+    resolvePostgresSslOptions({
+      databaseUrl: "postgres://awcms_mini_app:secret@id1.ahlikoding.com:5432/awcms_mini?sslmode=verify-full",
+    }),
+    { rejectUnauthorized: true },
+  );
+  assert.deepEqual(
+    resolvePostgresSslOptions({
+      databaseUrl: "postgres://awcms_mini_app:secret@db.example.internal:5432/awcms_mini?sslmode=require",
+    }),
+    { rejectUnauthorized: false },
+  );
 });
 
 test("describeDatabaseHealthPosture reports direct transport without exposing credentials", () => {
