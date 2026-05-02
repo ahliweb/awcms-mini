@@ -30,7 +30,8 @@ index 604ec6e2e32351244be7fb03cdffb10e83388f04..2649d48de58e2cc8ff2667ace1a50d74
 +			await new Promise((resolve) => setTimeout(resolve, RUNTIME_INIT_POLL_MS));
 +		}
 +		if (runtimeInstance) return runtimeInstance;
- 	}
+  }
+
  	runtimeInitializing = true;
 +	runtimeInitializingSince = Date.now();
  	try {
@@ -540,4 +541,31 @@ index 719e9aef4960f292778fb7e0fafe4e2f2e4c13fb..d08deaf586baebab8631186be6ff6cec
 +		const useExternalAuth = authMode?.type === "external";
  
  		// In external auth mode (not atproto), setup is complete if flag is set (no users required initially)
- 		if (useExternalAuth && isComplete) {
+  		if (useExternalAuth && isComplete) {
+
+diff --git a/src/astro/routes/api/setup/index.ts b/src/astro/routes/api/setup/index.ts
+index 2649d48de58e2cc8ff2667ace1a50d74b784f09a..2649d48de58e2cc8ff2667ace1a50d74b784f09a 100644
+--- a/src/astro/routes/api/setup/index.ts
++++ b/src/astro/routes/api/setup/index.ts
+@@
+ async function shouldRunSetupCoreMigrations(db) {
++	if (await hasSetupOptionsTable(db)) {
++		return false;
++	}
+
+ 	try {
+		const applied = await db.selectFrom("_emdash_migrations").select("name").limit(1).execute();
+		if (applied.length > 0) {
+			return false;
+		}
+	} catch {
+		// Missing EmDash ledger can still be valid on Mini-owned schemas.
+	}
+
+	try {
+		const miniMigrations = await db.selectFrom("kysely_migration").select("name").limit(1).execute();
+		return miniMigrations.length === 0;
+	} catch {
+		return true;
+	}
+ }
