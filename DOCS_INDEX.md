@@ -101,6 +101,7 @@ This file maps the current documentation set for AWCMS Mini.
 - `docs/process/emdash-sync-atomic-issue-map-2026.md`
 - `docs/process/operator-secret-rotation-checklist-261.md`
 - `docs/process/operator-cloudflared-removal-checklist-268.md`
+- `docs/process/infrastructure-resource-setup.md`
 
 ### Supporting Reference
 
