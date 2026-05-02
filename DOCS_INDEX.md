@@ -20,7 +20,6 @@ This file maps the current documentation set for AWCMS Mini.
 - `docs/architecture/database-migrations.md`
 - `docs/architecture/runtime-config.md`
 - `docs/architecture/naming-conventions.md`
-- `docs/architecture/no-hyperdrive-adr.md`
 
 ### Governance
 

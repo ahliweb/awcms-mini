@@ -8,7 +8,7 @@ Define the current frontend deployment baseline for Cloudflare Pages while keepi
 
 - Frontend traffic is served from Cloudflare Pages.
 - Frontend data and auth calls must go through `PUBLIC_API_BASE_URL`.
-- Frontend must not use direct PostgreSQL, Supabase, Hyperdrive, or provider API keys.
+- Frontend must not use direct PostgreSQL, Supabase, or provider API keys.
 - Backend secrets (`DATABASE_URL`, `TURNSTILE_SECRET_KEY`, `R2_SECRET_ACCESS_KEY`, `MAILKETING_API_KEY`, `STARSENDER_API_KEY`) stay backend-only.
 
 ## Required Public Variables
