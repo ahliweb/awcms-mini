@@ -76,6 +76,9 @@ test("internal governance sample plugin exercises the governance contract end to
     assert.equal(SAMPLE_PLUGIN_PERMISSIONS.some((entry) => entry.code === "sample.records.flag"), true);
 
     const manifest = internalGovernanceSamplePlugin();
+    assert.deepEqual(manifest.capabilities, []);
+    assert.deepEqual(manifest.adminPages, []);
+    assert.deepEqual(manifest.adminWidgets, []);
     assert.equal(manifest.permissions.length, SAMPLE_PLUGIN_PERMISSIONS.length);
 
     const listBody = await plugin.routes["records/list"].handler({

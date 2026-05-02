@@ -6,9 +6,11 @@ import { fileURLToPath } from "node:url";
 const driftScriptPath = fileURLToPath(new URL("../../scripts/check-emdash-drift.mjs", import.meta.url));
 const packageJsonPath = fileURLToPath(new URL("../../package.json", import.meta.url));
 
-test("EmDash drift checker targets the linked reference checkout", async () => {
+test("EmDash drift checker targets the canonical reference checkout", async () => {
   const contents = await readFile(driftScriptPath, "utf8");
 
+  assert.match(contents, /EMDASH_REFERENCE_ROOT/);
+  assert.match(contents, /\.\.\/emdash\/packages\/core/);
   assert.match(contents, /\.\.\/emdash-awcms\/packages\/core/);
   assert.match(contents, /apply", "--check", "--exclude=dist\/\*\*"/);
   assert.match(contents, /apply", "--reverse", "--check", "--exclude=dist\/\*\*"/);

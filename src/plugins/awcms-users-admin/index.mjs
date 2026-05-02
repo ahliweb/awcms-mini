@@ -2231,6 +2231,7 @@ export function awcmsUsersAdminPlugin() {
     format: "native",
     entrypoint: "/src/plugins/awcms-users-admin/index.mjs",
     adminEntry: "/src/plugins/awcms-users-admin/admin.tsx",
+    capabilities: ["read:users"],
     permissions: USER_ADMIN_PLUGIN_PERMISSIONS,
     adminPages: [
       { path: "/", label: "Users", icon: "users" },

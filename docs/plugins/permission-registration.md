@@ -1,6 +1,7 @@
 # Plugin Permission Registration
 
-Plugins should declare permissions through the plugin definition and descriptor `permissions` arrays so plugin-defined capabilities can be normalized into the same catalog shape as core permissions.
+Plugins should declare permissions through the plugin definition and descriptor `permissions` arrays, while the descriptor `capabilities` field follows EmDash host terminology for runtime loading and sandbox access.
+When the plugin exposes admin UI, the same descriptor may also include `adminEntry`, `adminPages`, and `adminWidgets`.
 
 ## Contract
 
@@ -53,7 +54,7 @@ export function createPlugin() {
 }
 ```
 
-The same normalized permission array should be reused by the plugin definition and the plugin descriptor so route guards and host registration stay aligned.
+The same normalized permission array should be reused by the plugin definition and the plugin descriptor so route guards, host registration, and capability-gated loading stay aligned.
 
 ## Normalized Shape
 
@@ -74,5 +75,5 @@ The helper also adds `plugin_id` so later contract layers can trace where the de
 
 - Permission codes must be unique across all registered plugins.
 - Every declaration must provide non-empty `code`, `domain`, `resource`, and `action` values.
-- Plugins should treat this manifest as the source of truth for route guards, service authorization, and audit helpers added in later contract steps.
+- Plugins should treat this permission catalog as the source of truth for route guards, service authorization, and audit helpers added in later contract steps.
 - Plugin permissions should remain additive overlays on top of EmDash host conventions, not a second permission system.
