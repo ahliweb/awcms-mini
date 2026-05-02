@@ -4,6 +4,12 @@
 
 Operator-side removal of Cloudflare Tunnel (`cloudflared`) from Coolify/VPS runtime where no longer required.
 
+## Current Reviewed Posture
+
+- The reviewed server posture reports `isCloudflareTunnel=false`.
+- PostgreSQL remains private on the Coolify-managed VPS and is not publicly exposed.
+- The supported path remains Cloudflare frontend delivery plus Hono on Coolify.
+
 ## Canonical References
 
 - Cloudflare Tunnel token security guidance:

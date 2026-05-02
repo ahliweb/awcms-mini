@@ -145,12 +145,14 @@ It does not treat EmDash as a copy target. It uses EmDash as an architectural re
 - `#248` Hono scaffold baseline: closed
 - `#257` remove deprecated direct edge-to-database transport from the active runtime path: closed
 
-### Broad Issues That Need Atomic Follow-Ons
+### Current Open Operator And Verification Issues
 
-- `#251` auth umbrella
-- `#258` security umbrella
-- `#259` docs umbrella
 - `#260` final verification umbrella
+- `#261` Coolify-managed runtime secret rotation and lock verification
+
+### Recently Completed Operator Cleanup
+
+- `#268` Cloudflare Tunnel / cloudflared removal from the Coolify-managed server
 
 ### Candidate For Closure Based On Current State
 
@@ -159,6 +161,10 @@ It does not treat EmDash as a copy target. It uses EmDash as an architectural re
 ### Candidate For Partial Completion But Not Closure
 
 - `#250` ABAC/RBAC baseline: route-level ABAC and role/permission endpoints are present, but the original issue body still over-aggregates plugin, permission-catalog, and audit scope that should be checked or split more precisely before closure.
+
+### Current Final-Gate Note
+
+- `#260` stays open until `#261` has attached operator evidence and runtime validation.
 
 ## Atomic Follow-On Issue Map
 

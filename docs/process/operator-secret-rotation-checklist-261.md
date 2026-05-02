@@ -4,6 +4,12 @@
 
 Operator-side rotation and lock verification for production/runtime secrets managed outside repository code.
 
+## Current Reviewed Posture
+
+- `COOLIFY_ACCESS_TOKEN` remains local-only management-plane state.
+- Backend runtime secrets are expected to stay locked/runtime-scoped in Coolify.
+- The current audit notes preserve accepted management-plane cosmetic gaps for PostgreSQL SSL and bootstrap role metadata.
+
 ## Canonical References
 
 - OWASP Secrets Management Cheat Sheet: rotate secrets on compromise suspicion and validate rollout before finalizing.

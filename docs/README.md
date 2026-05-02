@@ -36,9 +36,16 @@ Current planning reference:
 
 Current active planning and documentation issues reflected by these docs:
 
-- `#201` - refresh core repository guidance and skills for the current Cloudflare/Coolify runtime posture
-- `#199` - update AI workflow planning templates for the current live runtime and operator posture
-- `#200` - align env examples and secret-handling docs with current VPS-managed tunnel rotation and key-only SSH recovery
+- `#260` - final verification umbrella for the current architecture sync and runtime acceptance gate
+- `#261` - operator secret rotation and lock verification for Coolify-managed runtime secrets
+
+Current verification note:
+
+- `#260` remains the final acceptance gate and is blocked by operator evidence for `#261`.
+
+Recently completed operator cleanup:
+
+- `#268` - operator removal of Cloudflare Tunnel and cloudflared from the Coolify-managed server
 
 ## Accuracy Rule
 
