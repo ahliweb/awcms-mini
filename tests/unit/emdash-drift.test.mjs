@@ -12,6 +12,7 @@ test("EmDash drift checker targets the canonical reference checkout", async () =
   assert.match(contents, /EMDASH_REFERENCE_ROOT/);
   assert.match(contents, /\.\.\/emdash\/packages\/core/);
   assert.match(contents, /\.\.\/emdash-awcms\/packages\/core/);
+  assert.match(contents, /patches\/emdash@0\.9\.0\.patch/);
   assert.match(contents, /apply", "--check", "--exclude=dist\/\*\*"/);
   assert.match(contents, /apply", "--reverse", "--check", "--exclude=dist\/\*\*"/);
   assert.match(contents, /EmDash compatibility patch drift detected/);
