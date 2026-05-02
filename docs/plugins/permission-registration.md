@@ -74,5 +74,5 @@ The helper also adds `plugin_id` so later contract layers can trace where the de
 
 - Permission codes must be unique across all registered plugins.
 - Every declaration must provide non-empty `code`, `domain`, `resource`, and `action` values.
-- Plugins should treat this manifest as the source of truth for route guards, service authorization, and audit helpers added in later contract steps.
+- Plugins should treat this permission catalog as the source of truth for route guards, service authorization, and audit helpers added in later contract steps.
 - Plugin permissions should remain additive overlays on top of EmDash host conventions, not a second permission system.
