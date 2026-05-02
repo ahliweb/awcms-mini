@@ -7,6 +7,7 @@ This document records the current architecture decision for how Cloudflare Pages
 ## Decision
 
 For the current AWCMS Mini baseline, Cloudflare Pages may serve frontend traffic, but PostgreSQL must stay behind the Hono backend API.
+Pages and Workers should remain API clients of Hono, not database clients.
 
 Do not adopt a deployment shape where Cloudflare Workers, Pages Functions, or other edge runtime code connects to PostgreSQL directly.
 
@@ -20,7 +21,7 @@ Direct database access from those edge surfaces is not the recommended baseline 
 
 ## Current Repository Context
 
-- AWCMS Mini is still one EmDash-first application.
+- AWCMS Mini is still one EmDash-first application, with the upstream EmDash structure preserved so repository updates stay low-friction.
 - Public, auth, admin, Turnstile, and runtime configuration assumptions are still part of one reviewed application boundary.
 - The current maintained runtime baseline is Cloudflare-delivered frontend traffic plus Hono on Coolify for backend API and PostgreSQL access.
 - The current single-host baseline uses `/_emdash/` as the reviewed browser entry alias into the existing EmDash admin surface.

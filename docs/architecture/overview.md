@@ -10,6 +10,8 @@ This document summarizes the current system shape for operators and contributors
 
 EmDash remains the host architecture.
 
+Mini keeps that upstream shape intact so repository updates from EmDash can be merged without recreating the core.
+
 EmDash owns:
 
 - the Astro-based runtime shell
@@ -64,6 +66,8 @@ Hono Backend API — Coolify-managed VPS
 PostgreSQL is not exposed to the public internet. All database access goes through the Hono backend API.
 
 Cloudflare Pages, Workers, and Edge Functions may call the Hono backend API, but they do not connect to PostgreSQL directly.
+
+That keeps Cloudflare-facing runtime surfaces as API clients while PostgreSQL stays behind the Hono boundary.
 
 ## Layer Map
 

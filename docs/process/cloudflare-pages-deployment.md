@@ -3,6 +3,7 @@
 ## Purpose
 
 Define the current frontend deployment baseline for Cloudflare Pages while keeping the Hono API as the only data and auth source.
+That boundary preserves the upstream EmDash application shape while letting Pages/Workers talk only to Hono.
 
 ## Required Frontend Boundaries
 

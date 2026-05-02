@@ -14,6 +14,9 @@ It keeps EmDash as the host architecture and adds Mini-specific governance featu
 - governance-aware internal plugin contracts
 - EmDash admin extensions for governance operations
 
+Cloudflare Pages and Workers act as clients of the Hono API, while PostgreSQL stays behind that backend boundary.
+That preserves the original EmDash architecture shape so upstream EmDash updates remain straightforward to merge.
+
 ## Current Status
 
 This repository is implementation-heavy and now includes:
