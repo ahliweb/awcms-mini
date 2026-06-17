@@ -36,7 +36,7 @@ function extractVersionId(output) {
 loadLocalEnvFiles();
 applyLocalCloudflareRuntimeEnv();
 
-run("pnpm", ["build"], process.env);
+run("bun", ["run", "build"], process.env);
 
 const uploadOutput = run(
   "npx",

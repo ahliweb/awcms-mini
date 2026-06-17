@@ -3,7 +3,7 @@
  *
  * Starts the Hono application using the @hono/node-server adapter.
  * Run with: node server/index.mjs
- * Or via: pnpm start (defined in package.json)
+ * Or via: bun run start:api (defined in package.json)
  */
 
 import { serve } from "@hono/node-server";

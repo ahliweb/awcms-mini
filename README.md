@@ -3,6 +3,7 @@
 > ## 🏛️ Architecture Update (2026-06-17)
 >
 > Penyelarasan dengan fondasi product line AWCMS. Keputusan yang berlaku untuk repo ini:
+>
 > - **PostgreSQL murni tanpa Supabase** (sudah sesuai; pertahankan) — ADR-014.
 > - **RLS wajib (enforced) pada semua tabel** data/ber-`tenant_id` — ADR-015. Tracking: #310.
 > - **SIKESRA & SatuSehatKobar dibangun di AWCMS-Mini** — ADR-016. Tracking: #311, #312.
@@ -63,7 +64,7 @@ Known current conditions:
 1. Install dependencies:
 
 ```bash
-pnpm install
+bun install
 ```
 
 2. Set the runtime environment values you need for the target deployment.
@@ -77,7 +78,7 @@ Required production baseline:
 - `MINI_TOTP_ENCRYPTION_KEY`
 - `TRUSTED_PROXY_MODE=cloudflare` for the supported Cloudflare-hosted path
 
-Optional rollout verification inputs for `pnpm healthcheck`:
+Optional rollout verification inputs for `bun run healthcheck`:
 
 - `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT`
 - `HEALTHCHECK_EXPECT_DATABASE_HOSTNAME`
@@ -130,19 +131,19 @@ If production must temporarily run before hostname validation is fully ready, ke
 3. Apply migrations:
 
 ```bash
-pnpm db:migrate
+bun run db:migrate
 ```
 
 4. Start the dev server:
 
 ```bash
-pnpm dev
+bun run dev
 ```
 
 5. Validate runtime health:
 
 ```bash
-pnpm healthcheck
+bun run healthcheck
 ```
 
 Example direct-path rollout verification:
@@ -151,7 +152,7 @@ Example direct-path rollout verification:
 HEALTHCHECK_EXPECT_DATABASE_TRANSPORT=direct \
 HEALTHCHECK_EXPECT_DATABASE_HOSTNAME=id1.ahlikoding.com \
 HEALTHCHECK_EXPECT_DATABASE_SSLMODE=verify-full \
-pnpm healthcheck
+bun run healthcheck
 ```
 
 The reviewed browser entry for the EmDash-hosted admin surface is `/_emdash/`, which redirects into the current EmDash admin surface under `/_emdash/admin`.
@@ -165,7 +166,7 @@ Current single-host baseline:
 
 Cloudflare Pages plus Hono deployment baseline:
 
-- `pnpm build` produces the frontend build output
+- `bun run build` produces the frontend build output
 - Cloudflare Pages serves the frontend and calls the backend through `PUBLIC_API_BASE_URL`
 - Hono runs on Coolify and is the only approved database access layer
 - non-interactive Cloudflare automation should keep `CLOUDFLARE_API_TOKEN` in `.env.local` or approved CI/CD secret storage rather than tracked files
@@ -178,31 +179,31 @@ Cloudflare Pages plus Hono deployment baseline:
 ## Common Commands
 
 ```bash
-pnpm smoke:cloudflare-admin
-pnpm verify:live-runtime
-pnpm check:secret-hygiene
-pnpm check
-pnpm lint
-pnpm format
-pnpm typecheck
-pnpm test:unit
-pnpm build
-pnpm healthcheck
-pnpm db:migrate
-pnpm db:migrate:status
-pnpm db:migrate:down
-pnpm db:migrate:emdash:status
-pnpm db:migrate:emdash:repair
-pnpm db:seed:administrative-regions
+bun run smoke:cloudflare-admin
+bun run verify:live-runtime
+bun run check:secret-hygiene
+bun run check
+bun run lint
+bun run format
+bun run typecheck
+bun run test:unit
+bun run build
+bun run healthcheck
+bun run db:migrate
+bun run db:migrate:status
+bun run db:migrate:down
+bun run db:migrate:emdash:status
+bun run db:migrate:emdash:repair
+bun run db:seed:administrative-regions
 ```
 
 Validation baseline:
 
-- `pnpm check:secret-hygiene` is the focused regression check for maintained scripts, config examples, and operator docs that must not gain hardcoded credentials or inline tokens.
-- `pnpm verify:live-runtime` is the focused combined verification path for the reviewed direct PostgreSQL backend posture, reusing `pnpm healthcheck`, `pnpm db:migrate:emdash:verify`, and `pnpm smoke:cloudflare-admin`.
-- `pnpm smoke:cloudflare-admin` is the focused live-target smoke check for the reviewed `/_emdash/` admin alias and `/_emdash/admin/setup` shell path.
-- Use `pnpm check` as the default local pre-change validation path.
-- `pnpm lint` and `pnpm format` currently cover the maintained docs/config surface with Prettier.
+- `bun run check:secret-hygiene` is the focused regression check for maintained scripts, config examples, and operator docs that must not gain hardcoded credentials or inline tokens.
+- `bun run verify:live-runtime` is the focused combined verification path for the reviewed direct PostgreSQL backend posture, reusing `bun run healthcheck`, `bun run db:migrate:emdash:verify`, and `bun run smoke:cloudflare-admin`.
+- `bun run smoke:cloudflare-admin` is the focused live-target smoke check for the reviewed `/_emdash/` admin alias and `/_emdash/admin/setup` shell path.
+- Use `bun run check` as the default local pre-change validation path.
+- `bun run lint` and `bun run format` currently cover the maintained docs/config surface with Prettier.
 - Keep issue-specific validation commands in addition to the baseline when a task requires them.
 
 ## Repository Structure

@@ -1,12 +1,17 @@
-FROM node:22-alpine
+# Runtime utama AWCMS-Mini = Bun (ADR-019).
+# Base alpine/musl agar native module (transitif, mis. better-sqlite3 via emdash)
+# kompatibel dengan runtime alpine.
+FROM oven/bun:1-alpine
 
 RUN apk add --no-cache ca-certificates curl
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
+COPY package.json bun.lock ./
 
-RUN npm install -g pnpm@10.28.0 && pnpm install --prod --frozen-lockfile
+# --production: hanya dependencies (devDependencies tidak dibutuhkan runtime)
+# --frozen-lockfile: gagal bila bun.lock tidak sinkron dengan package.json
+RUN bun install --production --frozen-lockfile
 
 COPY . .
 
@@ -16,4 +21,5 @@ ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 
 EXPOSE 3000
 
-CMD ["pnpm", "start:api"]
+# Server Hono dijalankan oleh Bun (terverifikasi: @hono/node-server jalan di Bun).
+CMD ["bun", "server/index.mjs"]

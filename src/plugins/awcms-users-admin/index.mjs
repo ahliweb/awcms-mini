@@ -1031,7 +1031,7 @@ async function listAdministrativeRegionsHandler(ctx) {
     items: items.map(normalizeAdministrativeRegionRow),
     importStatus: {
       source: "src/db/data/administrative-regions.seed.json",
-      command: "pnpm db:seed:administrative-regions",
+      command: "bun run db:seed:administrative-regions",
       latestUpdatedAt,
       total: items.length,
     },
