@@ -1,38 +1,42 @@
 /**
- * Structured request logger middleware.
- * Logs method, path, status, duration, and request ID for every request.
- * Writes to stdout as JSON in production, pretty-printed in development.
+ * Structured request logger middleware (Pino, ADR-021).
+ * Mencatat method, path, status, durasi, dan requestId untuk setiap request
+ * sebagai JSON terstruktur via Pino, dengan redaction field sensitif.
+ *
+ * Child logger ber-`requestId` dipasang di `c.set("logger", ...)` agar
+ * handler/route dapat memakai logger yang sudah terkorelasi.
  */
 
 import { createMiddleware } from "hono/factory";
 
-const isDev = process.env.NODE_ENV !== "production";
-
-function log(entry) {
-  if (isDev) {
-    const { method, path, status, durationMs, requestId } = entry;
-    console.log(`[${requestId ?? "-"}] ${method} ${path} → ${status} (${durationMs}ms)`);
-  } else {
-    console.log(JSON.stringify(entry));
-  }
-}
+import { rootLogger } from "../../src/observability/logger.mjs";
 
 /**
- * @param {object} [_options]
+ * @param {object} [options]
+ * @param {import("pino").Logger} [options.logger] - Override logger (untuk test).
  */
-export function middlewareLogger(_options = {}) {
+export function middlewareLogger(options = {}) {
+  const baseLogger = options.logger ?? rootLogger;
+
   return createMiddleware(async (c, next) => {
+    const requestId = c.get("requestId") ?? null;
+    const log = requestId ? baseLogger.child({ requestId }) : baseLogger;
+
+    // Sediakan child logger ke handler berikutnya.
+    c.set("logger", log);
+
     const start = Date.now();
     await next();
     const durationMs = Date.now() - start;
 
-    log({
-      ts: new Date().toISOString(),
-      requestId: c.get("requestId") ?? null,
-      method: c.req.method,
-      path: new URL(c.req.url).pathname,
-      status: c.res.status,
-      durationMs,
-    });
+    log.info(
+      {
+        method: c.req.method,
+        path: new URL(c.req.url).pathname,
+        status: c.res.status,
+        durationMs,
+      },
+      "request.completed",
+    );
   });
 }
