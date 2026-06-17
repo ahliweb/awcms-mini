@@ -1,5 +1,8 @@
 export const DEFAULT_DATABASE_URL = "postgres://localhost:5432/awcms_mini_dev";
 export const DEFAULT_DATABASE_TRANSPORT = "direct";
+// Mode pooling default = session (app long-running Hono; konteks sesi & RLS
+// set_config terjaga). Lihat personal-coding awcms-shared-standards.md §7.1.
+export const DEFAULT_DATABASE_POOLING_MODE = "session";
 export const DEFAULT_RUNTIME_TARGET = "node";
 export const DEFAULT_TRUSTED_PROXY_MODE = "direct";
 export const DEFAULT_R2_MEDIA_BUCKET_BINDING = "MEDIA_BUCKET";
@@ -26,7 +29,11 @@ function normalizeRuntimeTarget(value) {
 }
 
 function normalizeDatabaseTransport(value) {
-  return value === "direct" ? value : DEFAULT_DATABASE_TRANSPORT;
+  return value === "direct" || value === "pooler" ? value : DEFAULT_DATABASE_TRANSPORT;
+}
+
+function normalizeDatabasePoolingMode(value) {
+  return value === "session" || value === "transaction" ? value : DEFAULT_DATABASE_POOLING_MODE;
 }
 
 function normalizeOptionalString(value) {
@@ -118,6 +125,8 @@ export function getRuntimeConfig() {
   return {
     databaseUrl: process.env.DATABASE_URL || DEFAULT_DATABASE_URL,
     databaseTransport: normalizeDatabaseTransport(process.env.DATABASE_TRANSPORT),
+    databasePoolerUrl: normalizeOptionalString(process.env.DATABASE_POOLER_URL),
+    databasePoolingMode: normalizeDatabasePoolingMode(process.env.DATABASE_POOLING_MODE),
     databaseConnectTimeoutMs: normalizePositiveInteger(
       process.env.DATABASE_CONNECT_TIMEOUT_MS,
       DEFAULT_DATABASE_CONNECT_TIMEOUT_MS,
