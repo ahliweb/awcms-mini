@@ -1329,7 +1329,7 @@ test("awcms users admin plugin exposes administrative region inspection route", 
     assert.equal(body.items[0].type, "province");
     assert.equal(body.items[1].path, "province_jb/regency_bdg");
     assert.equal(body.importStatus.source, "src/db/data/administrative-regions.seed.json");
-    assert.equal(body.importStatus.command, "pnpm db:seed:administrative-regions");
+    assert.equal(body.importStatus.command, "bun run db:seed:administrative-regions");
     assert.equal(body.importStatus.latestUpdatedAt, "2026-04-11T10:00:00.000Z");
     assert.equal(authorizationCalls[0].context.permission_code, "governance.administrative_regions.assign");
   } finally {

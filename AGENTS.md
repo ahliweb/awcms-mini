@@ -82,8 +82,8 @@ Use them when the task matches their scope.
 ## Validation Guidance
 
 - Use targeted unit tests first.
-- Run `pnpm typecheck` for UI or TypeScript-adjacent work.
-- Run `pnpm test:unit` when a change touches shared behavior.
+- Run `bun run typecheck` for UI or TypeScript-adjacent work.
+- Run `bun run test:unit` when a change touches shared behavior.
 - Review operator impact against:
   - `docs/process/migration-deployment-checklist.md`
   - `docs/security/emergency-recovery-runbook.md`
