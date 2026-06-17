@@ -1,4 +1,4 @@
-import { definePlugin, PluginRouteError } from "emdash";
+import { definePlugin, PluginRouteError } from "../../cms/plugin-runtime.mjs";
 
 import { getDatabase } from "../../db/index.mjs";
 import { createAdministrativeRegionRepository } from "../../db/repositories/administrative-regions.mjs";

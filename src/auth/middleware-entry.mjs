@@ -1,5 +1,6 @@
 import { defineMiddleware } from "astro:middleware";
-import { runWithContext } from "emdash";
+
+import { runWithContext } from "../cms/context.mjs";
 
 import { redirectAdminEntryAlias, redirectAdminHostEntry } from "./admin-host-routing.mjs";
 
