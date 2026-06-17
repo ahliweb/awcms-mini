@@ -1,5 +1,15 @@
 # AWCMS Mini
 
+> ## 🏛️ Architecture Update (2026-06-17)
+>
+> Penyelarasan dengan fondasi product line AWCMS. Keputusan yang berlaku untuk repo ini:
+> - **PostgreSQL murni tanpa Supabase** (sudah sesuai; pertahankan) — ADR-014.
+> - **RLS wajib (enforced) pada semua tabel** data/ber-`tenant_id` — ADR-015. Tracking: #310.
+> - **SIKESRA & SatuSehatKobar dibangun di AWCMS-Mini** — ADR-016. Tracking: #311, #312.
+> - Konektivitas DB via **pooler OSS** (Supavisor/PgBouncer); Hyperdrive ditunda — ADR-013.
+>
+> Backlog penyelarasan: #310 (RLS), #311 (SIKESRA-Mini), #312 (SatuSehatKobar), #313 (2FA/ABAC hardening), #314 (docs).
+
 AWCMS Mini is an EmDash-first, single-tenant governance overlay built on Astro, PostgreSQL, Kysely, and the EmDash CMS integration.
 
 It keeps EmDash as the host architecture and adds Mini-specific governance features for:
