@@ -26,7 +26,11 @@ const ACTIVE_PLUGINS = [
     getManifest: () => import("./sikesra/manifest.json", { with: { type: "json" } }),
     getModule: () => import("./sikesra/index.mjs"),
   },
-  // SatuSehatKobar akan ditambahkan setelah issue #312 selesai
+  // SatuSehat Kobar — integrasi SatuSehat Kemenkes (ADR-016, issue #312)
+  {
+    getManifest: () => import("./satu-sehat-kobar/manifest.json", { with: { type: "json" } }),
+    getModule: () => import("./satu-sehat-kobar/index.mjs"),
+  },
 ];
 
 /**
