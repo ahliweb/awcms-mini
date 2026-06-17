@@ -43,12 +43,13 @@ const ACTIVE_PLUGINS = [
  * 3. Seed permission ke DB (idempotent)
  * 4. Jalankan migration plugin jika pluginModule.migrate tersedia
  *
- * @param {{ db?: import("kysely").Kysely<unknown> }} [options]
+ * @param {{ db?: import("kysely").Kysely<unknown>; plugins?: Array<{ getManifest: Function; getModule: Function }> }} [options]
+ *   plugins di-inject untuk testing; default = ACTIVE_PLUGINS.
  */
-export async function loadAllPlugins({ db } = {}) {
+export async function loadAllPlugins({ db, plugins = ACTIVE_PLUGINS } = {}) {
   const database = db ?? getDatabase();
 
-  for (const { getManifest, getModule } of ACTIVE_PLUGINS) {
+  for (const { getManifest, getModule } of plugins) {
     const manifestMod = await getManifest();
     const manifest = manifestMod.default ?? manifestMod;
 
