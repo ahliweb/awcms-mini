@@ -1,4 +1,4 @@
-import { definePlugin, PluginRouteError } from "emdash";
+import { definePlugin, PluginRouteError } from "../../cms/plugin-runtime.mjs";
 
 import { collectRegisteredPluginPermissions } from "../permission-registration.mjs";
 import { createAuthorizedPluginRoute } from "../route-authorization.mjs";

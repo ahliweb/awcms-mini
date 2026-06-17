@@ -1,4 +1,4 @@
-import { PluginRouteError } from "emdash";
+import { PluginRouteError } from "../cms/plugin-runtime.mjs";
 import { createPluginServiceAuthorizationHelper } from "./service-authorization.mjs";
 
 function createPermissionIndex(permissions) {
