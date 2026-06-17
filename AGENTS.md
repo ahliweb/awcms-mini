@@ -39,6 +39,31 @@ It is not:
 4. Use shared plugin helpers in `src/plugins/` instead of duplicating permission, auth, audit, or region-scoping logic.
 5. Keep jobs, roles, logical regions, and administrative regions as separate concepts.
 
+## Plugin Contract Rules (ADR-018)
+
+Every plugin MUST:
+
+1. Provide a `manifest.json` that passes `validatePluginManifest()` from `src/plugins/manifest.mjs`.
+2. Set `kind: "awcms-mini-plugin"` and `data.adapter: "postgres"`, `data.rls: "required"`.
+3. Declare all permissions using namespace `awcms:{module}:{resource}:{action}`.
+4. Include a `migrate.mjs` that calls `buildPluginRlsStatements()` for every table it creates.
+5. Use `createPluginRepository()` from `src/db/plugin-adapter.mjs` — never raw Kysely without schema scoping.
+6. Be registered via `src/plugins/loader.mjs` → `ACTIVE_PLUGINS`.
+
+**Security constraints (hard rules):**
+- NIK and other highly-restricted identifiers must be encrypted before DB write — store `nik_enc`, never `nik`.
+- `nik_enc` must be stripped from output by default (reveal only via audited endpoint).
+- File binaries go to R2 — never store in DB columns. Store only `r2_key` (path, not URL).
+- Do not expose raw R2 keys or URLs to clients.
+
+## RLS Rules (ADR-015)
+
+- RLS is enforced on all per-user tables via migration `040_rls_per_user_tables.mjs`.
+- All plugin tables require RLS via `buildPluginRlsStatements()` in their `migrate.mjs`.
+- The `server/middleware/db-context.mjs` sets `app.current_user_id` and `app.is_admin` per request.
+- `app.is_admin = 'true'` is set for actors with `staff_level >= 7` (admin bypass for listing operations).
+- Run `pnpm check:rls-coverage` (FF6) to verify RLS is active on all required tables.
+
 ## Required Reading By Task Type
 
 ### Governance Or Security Work
@@ -53,9 +78,12 @@ Read:
 
 Read:
 
-1. `docs/plugins/contract-overview.md`
-2. `docs/plugins/permission-registration.md`
-3. `src/plugins/internal-governance-sample/index.mjs`
+1. `src/plugins/manifest.mjs` — kontrak manifest + validator (ADR-018)
+2. `src/db/plugin-adapter.mjs` — base repository + RLS helper + konteks DB
+3. `src/plugins/registry.mjs` — register, seed permission, list plugin
+4. `src/plugins/loader.mjs` — ACTIVE_PLUGINS (tambahkan entry plugin baru di sini)
+5. `src/plugins/sikesra/` — contoh plugin nyata pertama (referensi implementasi)
+6. `src/plugins/internal-governance-sample/index.mjs` — contoh plugin lama (pola definePlugin)
 
 ### Admin Work
 

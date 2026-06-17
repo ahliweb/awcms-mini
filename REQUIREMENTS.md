@@ -66,15 +66,20 @@ Required admin capabilities:
 
 Plugins must remain EmDash-compatible and consume shared governance helpers.
 
-Required plugin contract pieces:
+Required plugin contract pieces (ADR-018):
 
-- permission registration
-- route authorization helper
-- service authorization helper
-- audit helper
-- region-awareness helper
+- `manifest.json` validated by `src/plugins/manifest.mjs` (`kind: awcms-mini-plugin`, `data.rls: required`)
+- permission declaration with namespace `awcms:{module}:{resource}:{action}`
+- data adapter via `src/db/plugin-adapter.mjs` (not raw Kysely)
+- `migrate.mjs` that enables RLS via `buildPluginRlsStatements()` on every table
+- entry in `src/plugins/loader.mjs` `ACTIVE_PLUGINS`
+- route authorization helper (`src/plugins/route-authorization.mjs`)
+- service authorization helper (`src/plugins/service-authorization.mjs`)
+- audit helper (`src/plugins/audit-helper.mjs`)
 
 Plugins must not bypass shared governance services or write arbitrary policy state without shared validation.
+
+Row-Level Security (RLS) must be enforced on all plugin tables and all sensitive per-user tables (ADR-015). Run `pnpm check:rls-coverage` to verify.
 
 ## Documentation Requirements
 
