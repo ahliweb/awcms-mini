@@ -1,0 +1,41 @@
+{
+  "id": "sikesra",
+  "name": "SIKESRA — Sistem Kesehatan Rakyat",
+  "version": "0.1.0",
+  "kind": "awcms-mini-plugin",
+  "appliesTo": ["awcms-mini"],
+  "permissions": [
+    "awcms:sikesra:subject:read",
+    "awcms:sikesra:subject:create",
+    "awcms:sikesra:subject:update",
+    "awcms:sikesra:subject:delete",
+    "awcms:sikesra:record:read",
+    "awcms:sikesra:record:create",
+    "awcms:sikesra:record:update",
+    "awcms:sikesra:document:read",
+    "awcms:sikesra:document:create",
+    "awcms:sikesra:document:download"
+  ],
+  "data": {
+    "adapter": "postgres",
+    "schema": "sikesra",
+    "rls": "required"
+  },
+  "audit": {
+    "required": true,
+    "events": [
+      "subject.create",
+      "subject.update",
+      "subject.delete",
+      "record.create",
+      "record.update",
+      "document.create",
+      "document.download"
+    ]
+  },
+  "admin": {
+    "menuGroup": "Kesehatan",
+    "menuOrder": 10,
+    "pages": []
+  }
+}

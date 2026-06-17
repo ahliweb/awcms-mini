@@ -21,7 +21,12 @@ import { getDatabase } from "../db/index.mjs";
  *   },
  */
 const ACTIVE_PLUGINS = [
-  // Plugin akan ditambahkan di sini setelah issue #311 (SIKESRA) dan #312 (SatuSehatKobar) selesai
+  // SIKESRA — Sistem Kesehatan Rakyat (ADR-016, issue #311)
+  {
+    getManifest: () => import("./sikesra/manifest.json", { with: { type: "json" } }),
+    getModule: () => import("./sikesra/index.mjs"),
+  },
+  // SatuSehatKobar akan ditambahkan setelah issue #312 selesai
 ];
 
 /**
