@@ -22,5 +22,5 @@ test("package.json exposes the drift check command", async () => {
   const contents = await readFile(packageJsonPath, "utf8");
   const pkg = JSON.parse(contents);
 
-  assert.equal(pkg.scripts["check:emdash-drift"], "node ./scripts/check-emdash-drift.mjs");
+  assert.equal(pkg.scripts["check:emdash-drift"], "bun ./scripts/check-emdash-drift.mjs");
 });
