@@ -1,11 +1,11 @@
 /**
- * Seam runtime plugin (decoupling EmDash, ADR-020 Fase 2).
+ * Seam runtime plugin (decoupling EmDash, ADR-020).
  *
- * Membungkus `definePlugin` & `PluginRouteError` dari EmDash agar kode plugin
- * tidak mengimpor `emdash` langsung. Pada Fase 3 (#318), `definePlugin` diganti
- * registry/loader native dan `PluginRouteError` diganti tipe error native —
- * cukup menukar implementasi di balik seam ini.
+ * Sejak Fase 3 (#327), implementasi sudah **native**: `definePlugin`
+ * (`./define-plugin.mjs`) dan `PluginRouteError` (`./plugin-route-error.mjs`) —
+ * tidak lagi mengimpor `emdash`. Seam dipertahankan agar call-site plugin tetap
+ * stabil bila implementasi di baliknya berubah lagi.
  */
 
-// eslint-disable-next-line no-restricted-imports -- satu-satunya tempat boleh impor emdash (seam)
-export { definePlugin, PluginRouteError } from "emdash";
+export { definePlugin } from "./define-plugin.mjs";
+export { PluginRouteError } from "./plugin-route-error.mjs";
