@@ -16,10 +16,11 @@ This file maps the current documentation set for AWCMS Mini.
 - `docs/architecture/overview.md`
 - `docs/architecture/constraints.md`
 - `docs/architecture/repository-layout.md`
-- `docs/architecture/database-access.md`
+- `docs/architecture/database-access.md` (termasuk Connection Pooler: mode Session/Transaction, ADR-013)
 - `docs/architecture/database-migrations.md`
 - `docs/architecture/runtime-config.md`
 - `docs/architecture/naming-conventions.md`
+- `docs/architecture/emdash-touchpoint-inventory.md` (inventaris ketergantungan EmDash; decoupling ADR-020)
 
 ### Governance
 
