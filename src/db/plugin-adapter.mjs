@@ -4,17 +4,43 @@
 import { sql } from "kysely";
 
 import { getDatabase } from "./index.mjs";
+import { withTransaction } from "./transactions.mjs";
 
 /**
  * Set konteks user aktif di PostgreSQL untuk RLS policy plugin.
- * Wajib dipanggil setiap request (via Hono middleware) sebelum query plugin dijalankan.
- * Memakai set_config dengan local=true agar berlaku hanya untuk transaksi/request ini.
+ * Memakai set_config dengan local=true → berlaku hanya untuk transaksi saat ini.
  *
- * @param {import("kysely").Kysely<unknown>} db
- * @param {string} userId - ID user yang sedang aktif (dari session)
+ * PENTING: `local=true` di-discard di akhir transaksi/statement. Agar konteks ini
+ * benar-benar diterapkan ke query RLS, set_config dan query-nya **WAJIB berada di
+ * transaksi yang sama** (koneksi yang sama). Gunakan `withUserContext()` — jangan
+ * panggil ini lalu query terpisah (koneksi pool bisa berbeda → konteks hilang).
+ *
+ * @param {import("kysely").Kysely<unknown>|import("kysely").Transaction<unknown>} executor
+ * @param {string} userId - ID user yang sedang aktif (dari session/actor)
  */
-export async function setPluginDbContext(db, userId) {
-  await sql`select set_config('app.current_user_id', ${userId ?? ""}, true)`.execute(db);
+export async function setPluginDbContext(executor, userId) {
+  await sql`select set_config('app.current_user_id', ${userId ?? ""}, true)`.execute(executor);
+}
+
+/**
+ * Jalankan `callback` di dalam **satu transaksi** yang konteks RLS-nya
+ * (`app.current_user_id`) sudah di-set lebih dulu — sehingga set_config(local) dan
+ * query callback berbagi koneksi yang sama dan RLS policy benar-benar diterapkan.
+ *
+ * Inilah cara yang benar menerapkan konteks RLS pada jalur request dengan connection
+ * pool (ADR-013/015): konteks per-operasi via transaksi, bukan set_config standalone.
+ *
+ * @template T
+ * @param {import("kysely").Kysely<unknown>} db
+ * @param {string} userId
+ * @param {(trx: import("kysely").Transaction<unknown>) => Promise<T>} callback
+ * @returns {Promise<T>}
+ */
+export async function withUserContext(db, userId, callback) {
+  return withTransaction(db, async (trx) => {
+    await setPluginDbContext(trx, userId);
+    return callback(trx);
+  });
 }
 
 /**

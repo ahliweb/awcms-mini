@@ -12,6 +12,7 @@
  */
 
 import { getDatabase } from "../../../db/index.mjs";
+import { withUserContext } from "../../../db/plugin-adapter.mjs";
 import { normalizeSearchQuery, buildSearchResult } from "../../../search/query-contract.mjs";
 
 const SCHEMA = "satu_sehat_kobar";
@@ -50,7 +51,6 @@ export function toPatientSearchDto(row) {
  * @param {(info: { q: string|null; count: number }) => (void|Promise<void>)} [deps.onAudit]
  */
 export async function searchPatients(input = {}, deps = {}) {
-  const db = deps.db ?? getDatabase();
   const query = normalizeSearchQuery(input, { allowedSortFields: PATIENT_SEARCH_SORT_FIELDS });
 
   const applyFilters = (qb) => {
@@ -67,18 +67,24 @@ export async function searchPatients(input = {}, deps = {}) {
     return next;
   };
 
-  const countRow = await applyFilters(db.withSchema(SCHEMA).selectFrom(TABLE))
-    .select((eb) => eb.fn.countAll().as("count"))
-    .executeTakeFirst();
-  const total = Number(countRow?.count ?? 0);
+  const runQueries = async (executor) => {
+    const countRow = await applyFilters(executor.withSchema(SCHEMA).selectFrom(TABLE))
+      .select((eb) => eb.fn.countAll().as("count"))
+      .executeTakeFirst();
+    const rows = await applyFilters(executor.withSchema(SCHEMA).selectFrom(TABLE))
+      .select(PATIENT_SEARCH_COLUMNS)
+      .orderBy(query.sort.field, query.sort.dir)
+      .orderBy("id", "asc")
+      .limit(query.pageSize)
+      .offset(query.offset)
+      .execute();
+    return { total: Number(countRow?.count ?? 0), rows };
+  };
 
-  const rows = await applyFilters(db.withSchema(SCHEMA).selectFrom(TABLE))
-    .select(PATIENT_SEARCH_COLUMNS)
-    .orderBy(query.sort.field, query.sort.dir)
-    .orderBy("id", "asc")
-    .limit(query.pageSize)
-    .offset(query.offset)
-    .execute();
+  // executor injectable untuk test; di produksi bungkus dalam transaksi + konteks RLS.
+  const { total, rows } = deps.executor
+    ? await runQueries(deps.executor)
+    : await withUserContext(deps.db ?? getDatabase(), deps.actorId ?? "", runQueries);
 
   if (typeof deps.onAudit === "function") {
     await deps.onAudit({ q: query.q, count: total });

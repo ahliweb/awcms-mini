@@ -70,6 +70,7 @@ export function routeApiV1Search(options = {}) {
     async (c) => {
       const result = await searchSubjects(readSearchQuery(c), {
         db: options.database,
+        actorId: c.get("actor")?.id, // konteks RLS (withUserContext di service)
         onAudit: buildSearchAudit(c, options, {
           action: "sikesra.subject.search",
           entityType: "sikesra_subject",
@@ -90,6 +91,7 @@ export function routeApiV1Search(options = {}) {
     async (c) => {
       const result = await searchPatients(readSearchQuery(c), {
         db: options.database,
+        actorId: c.get("actor")?.id, // konteks RLS (withUserContext di service)
         onAudit: buildSearchAudit(c, options, {
           action: "satu_sehat_kobar.patient.search",
           entityType: "satu_sehat_patient",
