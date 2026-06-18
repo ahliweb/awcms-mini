@@ -10,6 +10,7 @@ import { serve } from "@hono/node-server";
 
 import { loadLocalEnvFiles } from "../scripts/_local-env.mjs";
 import { getRuntimeConfig } from "../src/config/runtime.mjs";
+import { loadAllPlugins } from "../src/plugins/loader.mjs";
 import { createApp } from "./app.mjs";
 
 if (process.env.NODE_ENV !== "production") {
@@ -19,6 +20,19 @@ if (process.env.NODE_ENV !== "production") {
 const runtimeConfig = getRuntimeConfig();
 const port = Number(process.env.PORT) || 3000;
 const app = createApp({ runtimeConfig });
+
+// Muat plugin aktif (register + seed permission + jalankan migration schema plugin)
+// sebelum melayani request. Idempoten (IF NOT EXISTS + onConflict doNothing).
+// Set PLUGINS_AUTOLOAD=false bila migrasi plugin dijalankan sebagai langkah terpisah.
+if (process.env.PLUGINS_AUTOLOAD !== "false") {
+  try {
+    await loadAllPlugins();
+    console.log("[server] plugins loaded (registry + permissions + schema migrations)");
+  } catch (error) {
+    console.error("[server] FATAL: gagal memuat plugin:", error);
+    process.exit(1);
+  }
+}
 
 serve(
   {
