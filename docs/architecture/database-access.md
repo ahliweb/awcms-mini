@@ -32,8 +32,10 @@ PostgreSQL diakses via **connection pooler open-source** (Supavisor/PgBouncer/Pg
 ### Aturan transaction mode (§7.2)
 
 - Driver `pg` + Kysely **tidak** memprepare statement (query tanpa `name`) → aman di transaction mode tanpa flag `prepare:false` khusus. Jangan beri `name` pada query di hot path.
-- RLS: `set_config('app.current_user_id', ..., true)` + query yang memakainya **WAJIB** satu transaksi (lihat `withTransaction`).
+- RLS: `set_config('app.current_user_id', ..., true)` + query yang memakainya **WAJIB** satu transaksi. Gunakan **`withUserContext(db, userId, cb)`** (`src/db/plugin-adapter.mjs`) — bukan `set_config` standalone (koneksi pool bisa berbeda → konteks hilang).
 - Negative test isolasi RLS **WAJIB** dijalankan via pooler.
+
+> **✅ Terverifikasi (2026-06-19):** isolasi RLS via `withUserContext` **bekerja melalui PgBouncer transaction-mode** dengan role non-superuser — `searchSubjects` ber-`actorId` mengembalikan hanya baris milik actor (userA→2, userB→1, asing→0), baik koneksi direct maupun via pooler. Catatan operasional: **app WAJIB konek sebagai role non-superuser** (superuser bypass RLS).
 
 ### Setup operator (Coolify)
 
