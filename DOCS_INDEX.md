@@ -21,6 +21,7 @@ This file maps the current documentation set for AWCMS Mini.
 - `docs/architecture/runtime-config.md`
 - `docs/architecture/naming-conventions.md`
 - `docs/architecture/emdash-touchpoint-inventory.md` (inventaris ketergantungan EmDash; decoupling ADR-020)
+- `docs/architecture/ahliweb-architecture-decisions.md` (matriks ADR-013…023 per produk; source of truth: personal-coding)
 
 ### Governance
 
