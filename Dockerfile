@@ -1,9 +1,12 @@
 # Runtime utama AWCMS-Mini = Bun (ADR-019).
-# Base alpine/musl agar native module (transitif, mis. better-sqlite3 via emdash)
-# kompatibel dengan runtime alpine.
-FROM oven/bun:1-alpine
+#
+# Stage `deps`: install dependencies + kompilasi native module.
+# better-sqlite3 (transitif via emdash) tidak punya prebuilt untuk ABI Bun+musl,
+# sehingga node-gyp mengompilasinya dari source → butuh toolchain (python3/make/g++).
+# Toolchain hanya ada di stage ini agar image runtime tetap lean.
+FROM oven/bun:1-alpine AS deps
 
-RUN apk add --no-cache ca-certificates curl
+RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
@@ -13,6 +16,15 @@ COPY package.json bun.lock ./
 # --frozen-lockfile: gagal bila bun.lock tidak sinkron dengan package.json
 RUN bun install --production --frozen-lockfile
 
+# Stage runtime: base bun:1-alpine yang sama (musl-match) tanpa toolchain build.
+FROM oven/bun:1-alpine
+
+RUN apk add --no-cache ca-certificates curl
+
+WORKDIR /app
+
+# node_modules (termasuk better-sqlite3.node musl) dari stage deps.
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ENV NODE_ENV=production

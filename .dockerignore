@@ -1,0 +1,28 @@
+# Dependencies di-install di dalam image (stage deps) — jangan salin dari host.
+node_modules
+
+# VCS & CI
+.git
+.github
+
+# Build & runtime artifacts
+dist
+.astro
+.wrangler
+
+# Lockfile non-Bun & env lokal
+pnpm-lock.yaml
+package-lock.json
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+
+# Test & coverage
+coverage
+*.log
