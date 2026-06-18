@@ -4,13 +4,13 @@ Requirements reference for AWCMS Mini, structured to mirror the concise reposito
 
 ## Purpose
 
-Define the current product and implementation requirements for AWCMS Mini as an EmDash-first, single-tenant governance overlay.
+Define the current product and implementation requirements for AWCMS Mini as a single-tenant governance overlay on its own stack (Astro + Hono + PostgreSQL + Bun); EmDash = rujukan arsitektur saja (ADR-020).
 
 ## Core Requirements
 
-- EmDash must remain the canonical host architecture.
+- Stack sendiri: **Astro + Hono + PostgreSQL** (pg + Kysely), runtime **Bun** (ADR-019). EmDash = rujukan arsitektur saja; paket `emdash` dilepas bertahap (ADR-020).
 - Mini must stay single-tenant.
-- PostgreSQL must remain the single system-of-record database.
+- PostgreSQL must remain the single system-of-record database (**PostgreSQL-only, no SQLite**).
 - Kysely must remain the canonical migration and query layer.
 - Mini-specific features must be additive governance overlays rather than a second platform core.
 
@@ -64,7 +64,7 @@ Required admin capabilities:
 
 ## Plugin Requirements
 
-Plugins must remain EmDash-compatible and consume shared governance helpers.
+Plugins use the **native plugin contract** (manifest-based, ADR-018) and consume shared governance helpers. Selama decoupling (ADR-020), kebutuhan runtime EmDash diakses lewat seam `src/cms/`, bukan import `emdash` langsung.
 
 Required plugin contract pieces (ADR-018):
 

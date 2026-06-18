@@ -18,26 +18,50 @@ If a lower-priority document conflicts with a higher-priority one, follow the hi
 
 AWCMS Mini is:
 
-- EmDash-first
 - single-tenant
-- PostgreSQL-backed
-- Kysely-based
+- own stack: **Astro + Hono + PostgreSQL** (pg + Kysely), runtime **Bun**
 - governance-overlay focused
+- **EmDash = rujukan arsitektur saja** (ADR-020; paket `emdash` dilepas bertahap via seam `src/cms/`)
 
 It is not:
 
 - a multi-tenant platform
 - a Supabase-based runtime
-- a second admin shell outside EmDash
-- a replacement for EmDash core architecture
+- SQLite-based (PostgreSQL-only)
+- bergantung pada paket `emdash` sebagai host/runtime (target: lepas penuh)
 
 ## Core Execution Rules
 
-1. Extend EmDash; do not recreate a parallel platform core.
+1. **EmDash = rujukan arsitektur saja (ADR-020)** — paket `emdash` sedang dilepas bertahap (epic decoupling). **DILARANG** menambah `import ... from "emdash"` baru di luar seam `src/cms/`. Pakai stack sendiri (Astro + Hono + PostgreSQL).
 2. Keep Mini-specific work in governance overlays, services, plugins, and admin extensions.
 3. Prefer explicit service-layer enforcement over UI-only logic.
 4. Use shared plugin helpers in `src/plugins/` instead of duplicating permission, auth, audit, or region-scoping logic.
 5. Keep jobs, roles, logical regions, and administrative regions as separate concepts.
+
+## Toolchain & Runtime (ADR-019)
+
+- Package manager + runtime = **Bun** (`bun install`, `bun run`, `bun server/index.mjs`; Docker `oven/bun:1-alpine`).
+- **Test runner = `node --test`** (bukan `bun test` — belum dukung nested `node:test`, bun#5090). Dev/CI menyediakan Node bersama Bun.
+- **PostgreSQL-only** — tidak ada SQLite (better-sqlite3 hanya transitif via emdash, dilepas saat Fase 5).
+
+## Logging (ADR-021)
+
+- Gunakan **Pino** via `src/observability/logger.mjs` (`rootLogger`, `childLoggerForRequest`). Jangan `console.*` ad-hoc di jalur HTTP.
+- Child logger ber-`requestId` (lihat `server/middleware/logger.mjs`).
+- **Redaction wajib** field sensitif (password/token/secret/NIK/header auth) — sudah dikonfigurasi di logger.
+
+## Search / CQRS (ADR-023)
+
+- Pencarian = **query side terpisah** (read-only) di `src/search/` + `src/plugins/<x>/search/`. Jangan campur ke repository CRUD.
+- Pakai `normalizeSearchQuery`/`buildSearchResult` dari `src/search/query-contract.mjs` (paginasi + sort whitelist anti-injection).
+- Kembalikan **read DTO/projection** (bukan entity). Field sensitif (`password_hash`, `nik_enc`, `metadata`, nilai `ihs_number`) **tidak pernah** keluar dari search.
+- Data sensitif: sediakan hook audit (`onAudit`). Skala besar → OpenSearch di balik kontrak query yang sama (PostgreSQL bila belum besar).
+
+## EmDash Seam (ADR-020, decoupling)
+
+- Semua akses runtime EmDash lewat seam `src/cms/` (`context.mjs`, `plugin-runtime.mjs`). Lihat `src/cms/README.md`.
+- Fitness guard: `tests/unit/cms-seam.test.mjs` gagal bila ada import `emdash` langsung di luar `src/cms/`.
+- Touchpoint tersisa (`emdash/*` subpath) terinventaris di `docs/architecture/emdash-touchpoint-inventory.md`.
 
 ## Plugin Contract Rules (ADR-018)
 
@@ -51,6 +75,7 @@ Every plugin MUST:
 6. Be registered via `src/plugins/loader.mjs` → `ACTIVE_PLUGINS`.
 
 **Security constraints (hard rules):**
+
 - NIK and other highly-restricted identifiers must be encrypted before DB write — store `nik_enc`, never `nik`.
 - `nik_enc` must be stripped from output by default (reveal only via audited endpoint).
 - File binaries go to R2 — never store in DB columns. Store only `r2_key` (path, not URL).
@@ -62,7 +87,7 @@ Every plugin MUST:
 - All plugin tables require RLS via `buildPluginRlsStatements()` in their `migrate.mjs`.
 - The `server/middleware/db-context.mjs` sets `app.current_user_id` and `app.is_admin` per request.
 - `app.is_admin = 'true'` is set for actors with `staff_level >= 7` (admin bypass for listing operations).
-- Run `pnpm check:rls-coverage` (FF6) to verify RLS is active on all required tables.
+- Run `bun run check:rls-coverage` (FF6) to verify RLS is active on all required tables.
 
 ## Required Reading By Task Type
 
