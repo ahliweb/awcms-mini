@@ -78,7 +78,7 @@ test("sikesra-search: searchSubjects memakai schema sikesra + DTO tanpa NIK", as
     rows: [{ id: "s1", full_name: "Budi", gender: "M", classification: "highly_restricted", created_at: "2026-01-01T00:00:00.000Z", nik_enc: "LEAK", metadata: { a: 1 } }],
     count: 5,
   });
-  const result = await searchSubjects({ q: "budi", page: 1, pageSize: 20 }, { db });
+  const result = await searchSubjects({ q: "budi", page: 1, pageSize: 20 }, { executor: db });
 
   assert.equal(captured.schema, "sikesra");
   assert.equal(result.total, 5);
@@ -90,13 +90,13 @@ test("sikesra-search: searchSubjects memakai schema sikesra + DTO tanpa NIK", as
 test("sikesra-search: onAudit dipanggil dengan q & count (audit data sensitif)", async () => {
   const { db } = createStubDb({ rows: [], count: 3 });
   let audited = null;
-  await searchSubjects({ q: "x" }, { db, onAudit: (info) => { audited = info; } });
+  await searchSubjects({ q: "x" }, { executor: db, onAudit: (info) => { audited = info; } });
   assert.deepEqual(audited, { q: "x", count: 3 });
 });
 
 test("sikesra-search: sort field di luar whitelist → fallback created_at", async () => {
   const { db, captured } = createStubDb({ rows: [], count: 0 });
-  await searchSubjects({ sort: { field: "nik_enc", dir: "asc" } }, { db });
+  await searchSubjects({ sort: { field: "nik_enc", dir: "asc" } }, { executor: db });
   assert.equal(captured.orderBy[0][0], "created_at");
   assert.ok(!SUBJECT_SEARCH_SORT_FIELDS.includes("nik_enc"));
 });
