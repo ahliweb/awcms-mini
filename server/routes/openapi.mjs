@@ -22,6 +22,7 @@ function createOpenApiDocument() {
       { name: "storage", description: "R2-backed file upload and download metadata routes." },
       { name: "authorization", description: "RBAC and ABAC protected catalog routes." },
       { name: "security", description: "Two-factor enrollment and recovery routes." },
+      { name: "search", description: "CQRS query-side search routes (read-only, ADR-023)." },
     ],
     paths: {
       "/health": {
@@ -521,6 +522,66 @@ function createOpenApiDocument() {
           },
         },
       },
+      "/api/v1/search/users": {
+        get: {
+          tags: ["search"],
+          summary: "Search users (CQRS query side)",
+          description: "Read-only user search. Mengembalikan read DTO (tanpa password_hash). Butuh permission admin.users.read.",
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: "q", in: "query", required: false, schema: { type: "string" }, description: "Kata kunci (ILIKE email/username/display_name)." },
+            { name: "page", in: "query", required: false, schema: { type: "integer", minimum: 1 }, description: "Halaman 1-based (default 1)." },
+            { name: "pageSize", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 100 }, description: "Ukuran halaman (default 20, maks 100)." },
+            { name: "sortField", in: "query", required: false, schema: { type: "string", enum: ["created_at", "email", "username", "display_name"] } },
+            { name: "sortDir", in: "query", required: false, schema: { type: "string", enum: ["asc", "desc"] } },
+          ],
+          responses: {
+            200: { description: "Search result.", content: { "application/json": { schema: createJsonSchemaRef("SearchEnvelope") } } },
+            401: { description: "Authentication required.", content: { "application/json": { schema: createJsonSchemaRef("ErrorEnvelope") } } },
+            403: { description: "Permission denied.", content: { "application/json": { schema: createJsonSchemaRef("ForbiddenEnvelope") } } },
+          },
+        },
+      },
+      "/api/v1/search/sikesra/subjects": {
+        get: {
+          tags: ["search"],
+          summary: "Search SIKESRA subjects (sensitive, audited)",
+          description: "Read-only. Data highly_restricted: DTO tanpa NIK. Butuh permission awcms:sikesra:subject:read. Pencarian diaudit.",
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: "q", in: "query", required: false, schema: { type: "string" }, description: "Kata kunci (ILIKE full_name)." },
+            { name: "page", in: "query", required: false, schema: { type: "integer", minimum: 1 } },
+            { name: "pageSize", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 100 } },
+            { name: "sortField", in: "query", required: false, schema: { type: "string", enum: ["created_at", "full_name"] } },
+            { name: "sortDir", in: "query", required: false, schema: { type: "string", enum: ["asc", "desc"] } },
+          ],
+          responses: {
+            200: { description: "Search result (DTO tanpa NIK).", content: { "application/json": { schema: createJsonSchemaRef("SearchEnvelope") } } },
+            401: { description: "Authentication required.", content: { "application/json": { schema: createJsonSchemaRef("ErrorEnvelope") } } },
+            403: { description: "Permission denied.", content: { "application/json": { schema: createJsonSchemaRef("ForbiddenEnvelope") } } },
+          },
+        },
+      },
+      "/api/v1/search/satusehat/patients": {
+        get: {
+          tags: ["search"],
+          summary: "Search SatuSehat patients (sensitive, audited)",
+          description: "Read-only. Data restricted: DTO tanpa NIK & nilai IHS number (hanya hasIhs). Butuh permission awcms:satu_sehat_kobar:patient:read. Pencarian diaudit.",
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: "q", in: "query", required: false, schema: { type: "string" }, description: "Kata kunci (ILIKE full_name)." },
+            { name: "page", in: "query", required: false, schema: { type: "integer", minimum: 1 } },
+            { name: "pageSize", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 100 } },
+            { name: "sortField", in: "query", required: false, schema: { type: "string", enum: ["created_at", "full_name"] } },
+            { name: "sortDir", in: "query", required: false, schema: { type: "string", enum: ["asc", "desc"] } },
+          ],
+          responses: {
+            200: { description: "Search result (DTO tanpa NIK/IHS value).", content: { "application/json": { schema: createJsonSchemaRef("SearchEnvelope") } } },
+            401: { description: "Authentication required.", content: { "application/json": { schema: createJsonSchemaRef("ErrorEnvelope") } } },
+            403: { description: "Permission denied.", content: { "application/json": { schema: createJsonSchemaRef("ForbiddenEnvelope") } } },
+          },
+        },
+      },
       "/api/v1/security/2fa/setup": {
         post: {
           tags: ["security"],
@@ -937,6 +998,25 @@ function createOpenApiDocument() {
           required: ["data"],
           properties: {
             data: { type: "array", items: { type: "object", additionalProperties: true } },
+          },
+          additionalProperties: false,
+        },
+        SearchEnvelope: {
+          type: "object",
+          required: ["data"],
+          properties: {
+            data: {
+              type: "object",
+              required: ["items", "page", "pageSize", "total"],
+              properties: {
+                items: { type: "array", items: { type: "object", additionalProperties: true }, description: "Read DTO/projection (field sensitif tidak disertakan)." },
+                page: { type: "integer" },
+                pageSize: { type: "integer" },
+                total: { type: "integer" },
+                totalPages: { type: "integer" },
+              },
+              additionalProperties: false,
+            },
           },
           additionalProperties: false,
         },
