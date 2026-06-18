@@ -30,18 +30,21 @@ async function checkRlsCoverage() {
   const db = createDatabase();
 
   try {
-    // Query pg_tables + pg_policies untuk cek status RLS
+    // Cek status RLS via pg_class (relrowsecurity/relforcerowsecurity) — pg_tables
+    // hanya punya rowsecurity, BUKAN forcerowsecurity.
     const rlsStatus = await sql`
       select
-        schemaname as schema,
-        tablename as "table",
-        rowsecurity as rls_enabled,
-        forcerowsecurity as rls_forced
-      from pg_tables
-      where (schemaname, tablename) in (
-        select unnest(array[${sql.join(REQUIRED_RLS_TABLES.map((t) => t.schema), sql`, `)}]::text[]),
-               unnest(array[${sql.join(REQUIRED_RLS_TABLES.map((t) => t.table), sql`, `)}]::text[])
-      )
+        n.nspname as schema,
+        c.relname as "table",
+        c.relrowsecurity as rls_enabled,
+        c.relforcerowsecurity as rls_forced
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      where c.relkind = 'r'
+        and (n.nspname, c.relname) in (
+          select unnest(array[${sql.join(REQUIRED_RLS_TABLES.map((t) => t.schema), sql`, `)}]::text[]),
+                 unnest(array[${sql.join(REQUIRED_RLS_TABLES.map((t) => t.table), sql`, `)}]::text[])
+        )
     `.execute(db);
 
     const statusMap = new Map(rlsStatus.rows.map((r) => [`${r.schema}.${r.table}`, r]));

@@ -72,7 +72,10 @@ export async function seedPluginPermissions(db, manifest) {
         const parts = p.split(":");
         // Format: "awcms:{module}:{resource}:{action}" → parts[1]=module, [2]=resource, [3]=action
         const [, domain, resource, action] = parts;
-        return { code: p, domain, resource, action };
+        // id eksplisit & ringkas (kolom permissions.id varchar(64)); code sudah unik
+        // (mengandung module), jadi tidak perlu prefix pluginId yang membuat id panjang.
+        const id = `perm_${p.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")}`;
+        return { id, code: p, domain, resource, action };
       }),
     },
   ]);
