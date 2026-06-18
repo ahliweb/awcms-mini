@@ -13,6 +13,7 @@ import { routeApiV1MessageTemplates } from "./api-v1-message-templates.mjs";
 import { routeApiV1Notifications } from "./api-v1-notifications.mjs";
 import { routeApiV1Permissions } from "./api-v1-permissions.mjs";
 import { routeApiV1Roles } from "./api-v1-roles.mjs";
+import { routeApiV1Search } from "./api-v1-search.mjs";
 import { routeApiV1Security } from "./api-v1-security.mjs";
 import { routeApiV1Webhooks } from "./api-v1-webhooks.mjs";
 
@@ -30,6 +31,7 @@ export function routeApiV1(options = {}) {
   app.route("/notifications", routeApiV1Notifications(options));
   app.route("/permissions", routeApiV1Permissions(options));
   app.route("/roles", routeApiV1Roles(options));
+  app.route("/search", routeApiV1Search(options));
   app.route("/security", routeApiV1Security(options));
   app.route("/webhooks", routeApiV1Webhooks(options));
 
