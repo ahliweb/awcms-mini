@@ -50,7 +50,16 @@ export async function migrate(db) {
     .column("ihs_number")
     .execute();
 
-  for (const stmt of buildPluginRlsStatements("satu_sehat_kobar", "patients")) {
+  // Region scoping (#353): kolom region + index untuk akses berbasis penugasan.
+  // NULL-safe — baris lama (region NULL) tetap hanya creator/admin.
+  await sql`alter table satu_sehat_kobar.patients add column if not exists administrative_region_id varchar(64)`.execute(db);
+  await sql`create index if not exists ssk_patients_admin_region_idx on satu_sehat_kobar.patients (administrative_region_id)`.execute(db);
+
+  // Enable RLS — model assignment/role-based (#353): creator OR admin OR penugasan region aktif.
+  for (const stmt of buildPluginRlsStatements("satu_sehat_kobar", "patients", {
+    regionColumn: "administrative_region_id",
+    adminBypass: true,
+  })) {
     await sql.raw(stmt).execute(db);
   }
 

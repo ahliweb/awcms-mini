@@ -53,8 +53,18 @@ export async function migrate(db) {
     .column("deleted_at")
     .execute();
 
-  // Enable RLS pada sikesra.subjects
-  for (const stmt of buildPluginRlsStatements("sikesra", "subjects")) {
+  // Region scoping (#353): kolom region + index untuk akses berbasis penugasan.
+  // NULL-safe — baris lama (region NULL) tetap hanya creator/admin. Pengisian
+  // region saat create = tugas app layer (follow-up domain).
+  await sql`alter table sikesra.subjects add column if not exists administrative_region_id varchar(64)`.execute(db);
+  await sql`create index if not exists sikesra_subjects_admin_region_idx on sikesra.subjects (administrative_region_id)`.execute(db);
+
+  // Enable RLS pada sikesra.subjects — model assignment/role-based (#353):
+  // creator OR admin OR penugasan region aktif (lintas-creator; audit wajib di service).
+  for (const stmt of buildPluginRlsStatements("sikesra", "subjects", {
+    regionColumn: "administrative_region_id",
+    adminBypass: true,
+  })) {
     await sql.raw(stmt).execute(db);
   }
 

@@ -44,26 +44,60 @@ export async function withUserContext(db, userId, callback) {
 }
 
 /**
- * Hasilkan array SQL string untuk mengaktifkan RLS + policy isolasi per user pada tabel plugin.
+ * Hasilkan array SQL string untuk mengaktifkan RLS + policy akses pada tabel plugin.
  * Dipanggil di dalam migrate.mjs plugin setelah createTable, bukan di runtime.
  *
- * Policy yang dibuat: user hanya bisa membaca/mengubah record yang created_by = user aktif.
- * Untuk data highly_restricted (contoh: SIKESRA), ini wajib diperkuat dengan permission check
- * di service layer (defense-in-depth).
+ * Model akses (keputusan #353 — assignment/role-based):
+ *   1. **Creator** — `created_by = app.current_user_id` (selalu).
+ *   2. **Admin bypass** (opsional) — `app.is_admin = 'true'` (di-set middleware admin).
+ *   3. **Region assignment** (opsional) — bila `regionColumn` diberikan, user yang
+ *      punya **penugasan aktif** ke region baris (via `user_administrative_region_assignments`)
+ *      boleh akses **lintas-creator**. NULL-safe: baris dengan region NULL hanya
+ *      diakses creator/admin (tidak melebar).
+ *
+ * Akses lintas-creator pada data sensitif (highly_restricted: SIKESRA) **WAJIB
+ * diaudit** + permission ketat di service layer (defense-in-depth) — lihat
+ * `server/routes/api-v1-search.mjs` (onAudit).
+ *
+ * Idempotent: policy lama (`plugin_user_isolation`) & baru (`plugin_access`)
+ * di-`drop ... if exists` sebelum dibuat ulang → aman dijalankan berkali-kali.
  *
  * @param {string} schema - Nama schema plugin (snake_case, contoh: "sikesra")
  * @param {string} tableName - Nama tabel (contoh: "subjects")
+ * @param {{ regionColumn?: string, adminBypass?: boolean, createdByColumn?: string }} [options]
  * @returns {string[]} Array SQL string yang harus dieksekusi berurutan
  */
-export function buildPluginRlsStatements(schema, tableName) {
+export function buildPluginRlsStatements(schema, tableName, options = {}) {
   const qualified = `${schema}.${tableName}`;
+  const createdByColumn = options.createdByColumn ?? "created_by";
+  const clauses = [
+    `${qualified}.${createdByColumn} = current_setting('app.current_user_id', true)::text`,
+  ];
+
+  if (options.adminBypass) {
+    clauses.push(`current_setting('app.is_admin', true) = 'true'`);
+  }
+
+  if (options.regionColumn) {
+    // Lintas-creator HANYA bila region baris terisi DAN user punya penugasan aktif
+    // ke region tsb. `ends_at is null` = penugasan masih berlaku (effective-dated).
+    clauses.push(
+      `(${qualified}.${options.regionColumn} is not null and exists (
+         select 1 from public.user_administrative_region_assignments ura
+         where ura.user_id = current_setting('app.current_user_id', true)
+           and ura.administrative_region_id = ${qualified}.${options.regionColumn}
+           and ura.ends_at is null
+       ))`,
+    );
+  }
 
   return [
     `alter table ${qualified} enable row level security`,
     `alter table ${qualified} force row level security`,
-    // Policy: user hanya bisa akses record yang dia buat (single-tenant, per-user isolation)
-    `create policy plugin_user_isolation on ${qualified}
-       using (created_by = current_setting('app.current_user_id', true)::text)`,
+    `drop policy if exists plugin_user_isolation on ${qualified}`,
+    `drop policy if exists plugin_access on ${qualified}`,
+    `create policy plugin_access on ${qualified}
+       using (${clauses.join("\n         or ")})`,
   ];
 }
 

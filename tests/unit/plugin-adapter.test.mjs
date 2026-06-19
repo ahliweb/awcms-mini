@@ -9,33 +9,47 @@ import { buildPluginRlsStatements, createPluginRepository } from "../../src/db/p
 //
 // Integration test RLS (negative test) membutuhkan DB nyata dan dipisah ke test terpisah.
 
-test("plugin adapter: buildPluginRlsStatements menghasilkan 3 SQL string", () => {
+test("plugin adapter: buildPluginRlsStatements (default) — enable+force+drop×2+create = 5 statement", () => {
   const stmts = buildPluginRlsStatements("sikesra", "subjects");
-  assert.equal(stmts.length, 3, "Harus menghasilkan tepat 3 SQL statement");
+  assert.equal(stmts.length, 5, "Harus menghasilkan 5 SQL statement (idempotent: 2 drop policy)");
 });
 
-test("plugin adapter: buildPluginRlsStatements — statement pertama enable RLS", () => {
+test("plugin adapter: buildPluginRlsStatements — enable & force RLS", () => {
   const stmts = buildPluginRlsStatements("sikesra", "subjects");
-  assert.ok(
-    stmts[0].includes("enable row level security"),
-    `Statement pertama harus enable RLS, dapat: "${stmts[0]}"`,
-  );
-  assert.ok(stmts[0].includes("sikesra.subjects"), 'Harus menyebut "sikesra.subjects"');
+  assert.ok(stmts[0].includes("enable row level security"));
+  assert.ok(stmts[0].includes("sikesra.subjects"));
+  assert.ok(stmts[1].includes("force row level security"));
 });
 
-test("plugin adapter: buildPluginRlsStatements — statement kedua force RLS", () => {
-  const stmts = buildPluginRlsStatements("sikesra", "subjects");
-  assert.ok(
-    stmts[1].includes("force row level security"),
-    `Statement kedua harus force RLS, dapat: "${stmts[1]}"`,
-  );
+test("plugin adapter: buildPluginRlsStatements — idempotent (drop policy lama & baru)", () => {
+  const stmts = buildPluginRlsStatements("sikesra", "subjects").join("\n");
+  assert.match(stmts, /drop policy if exists plugin_user_isolation on sikesra\.subjects/);
+  assert.match(stmts, /drop policy if exists plugin_access on sikesra\.subjects/);
 });
 
-test("plugin adapter: buildPluginRlsStatements — statement ketiga create policy isolasi user", () => {
-  const stmts = buildPluginRlsStatements("sikesra", "subjects");
-  assert.ok(stmts[2].includes("create policy"), 'Statement ketiga harus "create policy"');
-  assert.ok(stmts[2].includes("current_setting"), 'Policy harus memakai current_setting');
-  assert.ok(stmts[2].includes("app.current_user_id"), 'Policy harus memakai app.current_user_id');
+test("plugin adapter: buildPluginRlsStatements (default) — policy creator-only", () => {
+  const policy = buildPluginRlsStatements("sikesra", "subjects").at(-1);
+  assert.ok(policy.includes("create policy plugin_access"));
+  assert.ok(policy.includes("sikesra.subjects.created_by = current_setting('app.current_user_id', true)"));
+  // Tanpa opsi: tidak ada admin bypass / region.
+  assert.ok(!policy.includes("app.is_admin"), "default tidak boleh admin bypass");
+  assert.ok(!policy.includes("user_administrative_region_assignments"), "default tidak boleh region");
+});
+
+test("plugin adapter: buildPluginRlsStatements (assignment) — creator OR admin OR region (#353)", () => {
+  const policy = buildPluginRlsStatements("sikesra", "subjects", {
+    regionColumn: "administrative_region_id",
+    adminBypass: true,
+  }).at(-1);
+  // Creator
+  assert.match(policy, /sikesra\.subjects\.created_by = current_setting\('app\.current_user_id', true\)/);
+  // Admin bypass
+  assert.match(policy, /current_setting\('app\.is_admin', true\) = 'true'/);
+  // Region assignment, NULL-safe + penugasan aktif (ends_at is null)
+  assert.match(policy, /sikesra\.subjects\.administrative_region_id is not null/);
+  assert.match(policy, /user_administrative_region_assignments ura/);
+  assert.match(policy, /ura\.administrative_region_id = sikesra\.subjects\.administrative_region_id/);
+  assert.match(policy, /ura\.ends_at is null/);
 });
 
 test("plugin adapter: buildPluginRlsStatements — memakai schema + tableName yang diberikan", () => {
