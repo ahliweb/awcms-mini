@@ -1,4 +1,4 @@
-import { apiFetch, parseApiResponse } from "emdash/plugin-utils";
+import { apiFetch, parseApiResponse } from "../../cms/plugin-admin-utils";
 import * as React from "react";
 
 const API_BASE = "/_emdash/api/plugins/awcms-users-admin";
