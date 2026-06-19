@@ -1,10 +1,10 @@
 /**
- * Seam konteks request (decoupling EmDash, ADR-020 Fase 2).
+ * Seam konteks request (decoupling EmDash, ADR-020).
  *
- * Membungkus `runWithContext` dari EmDash agar kode app tidak mengimpor `emdash`
- * langsung. Saat helper konteks native siap (AsyncLocalStorage), implementasi di
- * balik seam ini ditukar tanpa mengubah call-site.
+ * Sejak Fase 3, implementasi sudah **native** (`./request-context.mjs`,
+ * AsyncLocalStorage) — tidak lagi mengimpor `emdash`. Seam dipertahankan agar
+ * call-site (`src/auth/middleware-entry.mjs`) tetap stabil bila implementasi
+ * di baliknya berubah lagi.
  */
 
-// eslint-disable-next-line no-restricted-imports -- satu-satunya tempat boleh impor emdash (seam)
-export { runWithContext } from "emdash";
+export { runWithContext, getRequestContext } from "./request-context.mjs";
