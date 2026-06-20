@@ -22,6 +22,7 @@
     "smoke:deployed-runtime-health": "bun ./scripts/smoke-deployed-runtime-health.mjs",
     "smoke:cloudflare-admin": "bun ./scripts/smoke-cloudflare-admin.mjs",
     "verify:live-runtime": "bun ./scripts/verify-live-runtime.mjs",
+    "verify:rls": "bun ./scripts/verify-rls-region-assignment.mjs",
     "check:emdash-drift": "bun ./scripts/check-emdash-drift.mjs",
     "check:rls-coverage": "bun ./scripts/check-rls-coverage.mjs",
     "check:plugin-manifests": "bun ./scripts/check-plugin-manifests.mjs",
