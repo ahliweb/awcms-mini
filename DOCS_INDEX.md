@@ -34,6 +34,7 @@ This file maps the current documentation set for AWCMS Mini.
 ### Security
 
 - `docs/security/operations.md`
+- `docs/security/database-concurrency.md` (pencegahan race condition PostgreSQL; helper `src/db/concurrency.mjs`, #360)
 - `docs/security/emergency-recovery-runbook.md`
 - `docs/security/rate-limit-storage-strategy.md`
 - `docs/security/security-baseline.md`

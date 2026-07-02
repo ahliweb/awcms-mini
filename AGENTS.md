@@ -44,6 +44,13 @@ It is not:
 - **Test runner = `node --test`** (bukan `bun test` — belum dukung nested `node:test`, bun#5090). Dev/CI menyediakan Node bersama Bun.
 - **PostgreSQL-only** — tidak ada SQLite (better-sqlite3 hanya transitif via emdash, dilepas saat Fase 5).
 
+## Concurrency (#360)
+
+- **DILARANG** pola `SELECT` → logika aplikasi → `UPDATE` tanpa lock/atomic update pada write kritikal (approval, status, counter/kuota, penomoran, provisioning).
+- Prefer **atomic update** / **guarded status transition** (expected status di `WHERE`) / **`ON CONFLICT`** UPSERT. Butuh validasi kompleks → `SELECT ... FOR UPDATE`.
+- Resource logis (numbering, provisioning) → advisory lock via `withAdvisoryXactLock` + `buildAdvisoryLockKey`. Invariant lintas-tabel → `withSerializableRetry`. Helper di `src/db/concurrency.mjs` (re-export dari `src/db/index.mjs`).
+- Jangan `MAX(number)+1` untuk penomoran. Standar lengkap: `docs/security/database-concurrency.md`.
+
 ## Logging (ADR-021)
 
 - Gunakan **Pino** via `src/observability/logger.mjs` (`rootLogger`, `childLoggerForRequest`). Jangan `console.*` ad-hoc di jalur HTTP.
