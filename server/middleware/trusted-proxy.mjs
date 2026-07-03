@@ -25,7 +25,7 @@ export function middlewareTrustedProxy(options = {}) {
     }
 
     if (!clientIp) {
-      // Fall back to the raw socket address via the standard header set by @hono/node-server
+      // Fall back to the first hop in the standard X-Forwarded-For header set by the upstream proxy.
       clientIp = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
     }
 

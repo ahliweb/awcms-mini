@@ -155,7 +155,7 @@ Common database `reason` values and next checks:
 
 ## Validation
 
-- `node --test tests/unit/cloudflare-admin-smoke.test.mjs`
+- `bun test tests/unit/cloudflare-admin-smoke.test.mjs`
 - `pnpm typecheck`
 - `pnpm build`
 - `pnpm healthcheck`
