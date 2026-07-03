@@ -6,24 +6,29 @@ This document summarizes the current system shape for operators and contributors
 
 ## Core Split
 
-### EmDash Core
+### Native Mini Core
 
-EmDash remains the host architecture.
+AWCMS Mini's target core is its own Astro, Hono, PostgreSQL, Kysely, and Bun stack.
 
-Mini keeps that upstream shape intact so repository updates from EmDash can be merged without recreating the core.
-
-EmDash owns:
-
-- the Astro-based runtime shell
-- the admin host and plugin surface
-- the CMS-oriented route and integration model
-- the baseline auth/session boundary that Mini extends rather than replaces
-
-### Mini Overlay
-
-AWCMS Mini adds governance overlays on top of EmDash.
+The codebase is still in a staged decoupling period. Existing EmDash touchpoints are compatibility seams, not the architecture target.
 
 Mini owns:
+
+- the Astro-based frontend and route surface
+- the Hono backend API
+- the PostgreSQL schema, migrations, and Kysely repositories
+- the governance/admin/plugin seams used by first-party modules
+- the auth, session, and security service layer
+
+### Compatibility Seam
+
+Remaining EmDash runtime access must go through `src/cms/` and the inventoried touchpoints in `docs/architecture/emdash-touchpoint-inventory.md`.
+
+New work must not add direct `emdash` imports outside the seam.
+
+### Governance Modules
+
+AWCMS Mini adds governance modules for:
 
 - user governance and lifecycle controls
 - explicit RBAC and ABAC services
@@ -41,8 +46,8 @@ Mini owns:
 - Database: PostgreSQL running as a Docker service on the same VPS
 - Object storage: Cloudflare R2
 - Query and migration layer: Kysely
-- Extension model: internal EmDash-compatible plugins
-- Admin surface: EmDash admin extended by Mini governance pages
+- Extension model: native internal plugins with compatibility seams during decoupling
+- Admin surface: Mini governance pages behind the reviewed admin/plugin surface
 - Email notifications: Mailketing Email API (backend-only)
 - WhatsApp notifications: Starsender WhatsApp API (backend-only)
 
@@ -73,7 +78,7 @@ That keeps Cloudflare-facing runtime surfaces as API clients while PostgreSQL st
 
 ### Host Layer
 
-EmDash provides the application shell and extension seams.
+Astro and Hono provide the application shell and API surface. `src/cms/` contains the compatibility seam for remaining EmDash references during ADR-020 decoupling.
 
 ### Database Layer
 
@@ -97,7 +102,7 @@ Mini overlays service-layer policy and support tables for:
 
 ### Plugin Layer
 
-Mini extends EmDash through internal plugins instead of introducing a second framework core.
+Mini uses internal plugins and shared governance helpers instead of introducing a second unrelated framework core.
 
 The current contract includes:
 
@@ -106,7 +111,7 @@ The current contract includes:
 - plugin service authorization helper
 - plugin audit helper
 - plugin region-awareness helper
-- plugin descriptors that register first-party plugins with EmDash
+- plugin descriptors that register first-party plugins with the current host seam
 
 ## Primary Admin Surface
 
@@ -135,6 +140,7 @@ The current implementation is optimized for:
 ## Cross-References
 
 - `docs/architecture/constraints.md`
+- `docs/architecture/secure-modular-monolith.md`
 - `docs/architecture/runtime-config.md`
 - `docs/architecture/repository-layout.md`
 - `docs/governance/auth-and-authorization.md`

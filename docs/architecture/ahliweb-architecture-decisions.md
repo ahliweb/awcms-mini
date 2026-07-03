@@ -48,6 +48,14 @@ Legenda: ✅ berlaku · — tidak relevan · ❌ sengaja tidak diberlakukan.
 6. **Logging Pino** (ADR-021): `src/observability/logger.mjs` + redaction; jangan `console.*` ad-hoc.
 7. **CQRS search** (ADR-023): query side read-only `src/search/` + `src/plugins/<x>/search/`; read DTO, masking, sort whitelist, audit data sensitif. Tier 2 (Kafka) hanya saat skala besar.
 
+## Keputusan repo-local tambahan
+
+| ID            | Keputusan                                                                                                  | Status  | Rujukan                                                             |
+| ------------- | ---------------------------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------- |
+| MINI-RADR-001 | Secure Modular Monolith adalah arsitektur default AWCMS Mini: satu deployable, modul berbatas, Bun runtime | Adopted | `docs/architecture/secure-modular-monolith.md`, GitHub issue `#361` |
+
+Catatan: `MINI-RADR-001` adalah keputusan repo-local untuk mengikat issue `#361` ke dokumen operasional Mini. Nomor ini tidak mengubah matriks ADR product-line `ADR-013…023` di atas.
+
 ---
 
 ## Referensi

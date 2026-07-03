@@ -11,9 +11,9 @@
 >
 > Backlog penyelarasan: #310 (RLS), #311 (SIKESRA-Mini), #312 (SatuSehatKobar), #313 (2FA/ABAC hardening), #314 (docs).
 
-AWCMS Mini is an EmDash-first, single-tenant governance overlay built on Astro, PostgreSQL, Kysely, and the EmDash CMS integration.
+AWCMS Mini is a single-tenant secure modular monolith built on Astro, Hono, PostgreSQL, Kysely, and Bun.
 
-It keeps EmDash as the host architecture and adds Mini-specific governance features for:
+It uses EmDash as an architecture reference during the decoupling period, with remaining runtime touchpoints isolated behind the `src/cms/` seam. Mini-specific governance features include:
 
 - user lifecycle management
 - RBAC and ABAC authorization
@@ -23,12 +23,12 @@ It keeps EmDash as the host architecture and adds Mini-specific governance featu
 - TOTP-based 2FA, recovery, lockouts, and step-up
 - audit logs and security events
 - governance-aware internal plugin contracts
-- EmDash admin extensions for governance operations
+- Mini admin/plugin extensions for governance operations
 
-Mini stays EmDash-compatible so upstream repository updates can land without rebuilding a second CMS core.
+Mini keeps decoupling work gradual and reversible so the repository can move from legacy EmDash touchpoints to the native Mini stack without introducing a second competing core.
 
 Cloudflare Pages and Workers act as clients of the Hono API, while PostgreSQL stays behind that backend boundary.
-That preserves the original EmDash architecture shape so upstream EmDash updates remain straightforward to merge.
+Remaining legacy-compatible paths are treated as compatibility surfaces until their native replacements are complete.
 
 ## Current Status
 
@@ -74,7 +74,7 @@ Required production baseline:
 - `DATABASE_URL`
 - `MINI_RUNTIME_TARGET=cloudflare`
 - `SITE_URL`
-- optional `ADMIN_SITE_URL` for a dedicated admin hostname that still points to the same EmDash admin surface
+- optional `ADMIN_SITE_URL` for a dedicated admin hostname that still points to the same reviewed admin surface
 - `MINI_TOTP_ENCRYPTION_KEY`
 - `TRUSTED_PROXY_MODE=cloudflare` for the supported Cloudflare-hosted path
 
@@ -155,13 +155,13 @@ HEALTHCHECK_EXPECT_DATABASE_SSLMODE=verify-full \
 bun run healthcheck
 ```
 
-The reviewed browser entry for the EmDash-hosted admin surface is `/_emdash/`, which redirects into the current EmDash admin surface under `/_emdash/admin`.
+The reviewed browser entry for the current compatibility admin surface is `/_emdash/`, which redirects into `/_emdash/admin`.
 
 Current single-host baseline:
 
 - `SITE_URL` remains the canonical public hostname
 - `https://awcms-mini.ahlikoding.com/_emdash/` is the reviewed admin entry URL
-- the runtime redirects that alias to the current EmDash admin surface under `/_emdash/admin`
+- the runtime redirects that alias to the current compatibility admin surface under `/_emdash/admin`
 - `ADMIN_SITE_URL`, when configured for compatibility, remains only an optional entry host for the same admin surface
 
 Cloudflare Pages plus Hono deployment baseline:
@@ -213,7 +213,7 @@ src/
   auth/          Mini auth handlers, middleware, and step-up flows
   config/        runtime config parsing
   db/            Kysely client, migrations, repositories, transactions
-  integrations/  Astro + EmDash integration wiring
+  integrations/  Astro/runtime integration wiring
   plugins/       admin extension and plugin governance helpers
   security/      policy and runtime security helpers
   services/      governance, audit, security, and authorization services
@@ -239,13 +239,14 @@ Use this order when reading or updating repository guidance:
 - `DOCS_INDEX.md` - documentation map
 - `docs/README.md` - docs folder entrypoint
 - `docs/architecture/overview.md` - system summary
+- `docs/architecture/secure-modular-monolith.md` - module boundary and Bun/toolchain standard
 - `docs/process/migration-deployment-checklist.md` - release checklist
 - `docs/security/emergency-recovery-runbook.md` - recovery guidance
 
 ## Related Notes
 
 - The repository follows an issue-driven workflow documented in `docs/process/github-issue-workflow.md`.
-- The current codebase is intentionally EmDash-first and must not drift toward a second standalone CMS core.
+- The current codebase is intentionally a native Mini secure modular monolith in transition; new work must not add direct `emdash` imports outside `src/cms/`.
 
 ## License
 

@@ -1,21 +1,21 @@
 # Plugin Governance Contract Overview
 
-## EmDash Core Vs Mini Overlay
+## Native Contract And Compatibility Seam
 
-### EmDash Core
+### Native Mini Contract
 
-EmDash owns the plugin host model and runtime extension surface.
+Mini owns the plugin manifest, permission registration, route authorization, service authorization, audit, and region-awareness helpers.
 
-### Mini Overlay
+### Compatibility Seam
 
-Mini adds governance-aware contract helpers so plugins can participate in the same permission, authorization, audit, and region-scoping model as first-party governance features.
+During ADR-020 decoupling, host registration may still pass through compatibility seams. New plugin work should target the native Mini contract and must not add direct `emdash` imports outside `src/cms/`.
 
 ## Contract Pieces
 
 Mini currently provides:
 
-- EmDash plugin definitions created with `definePlugin(...)`
-- first-party plugin descriptors that register `id`, `entrypoint`, `format`, `capabilities`, `permissions`, and any admin surface fields (`adminEntry`, `adminPages`, `adminWidgets`) with the host
+- native plugin definitions created with `definePlugin(...)`
+- first-party plugin descriptors that register `id`, `entrypoint`, `format`, `capabilities`, `permissions`, and any admin surface fields (`adminEntry`, `adminPages`, `adminWidgets`) with the current host seam
 - plugin permission registration helper
 - plugin route authorization helper
 - plugin service authorization helper
@@ -24,9 +24,9 @@ Mini currently provides:
 
 ## Supported Boundaries
 
-Mini keeps setup, runtime bootstrap, database ledgers, and route authorization aligned with EmDash by using supported seams first.
+Mini keeps setup, runtime bootstrap, database ledgers, and route authorization aligned through reviewed seams.
 
-- add behavior through `definePlugin(...)`, adapters, or shared helpers when EmDash exposes a plugin or service seam
+- add behavior through `definePlugin(...)`, adapters, or shared helpers
 - keep host-routing, runtime-init, and setup-bootstrap overrides out of Mini-local forks unless a compatibility issue explicitly tracks them
 - treat patch drift as a release concern and verify it before changing the EmDash compatibility baseline
 

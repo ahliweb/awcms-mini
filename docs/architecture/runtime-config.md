@@ -15,7 +15,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 
 ### `DATABASE_URL`
 
-- Purpose: PostgreSQL connection string used by the EmDash database adapter.
+- Purpose: PostgreSQL connection string used by the Mini backend database adapter.
 - Scope: server-only runtime configuration.
 - Example: `postgres://localhost:5432/awcms_mini_dev`
 - Default fallback: `postgres://localhost:5432/awcms_mini_dev`
@@ -42,20 +42,20 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 
 ### `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT`
 
-- Purpose: optional non-secret expectation used by `pnpm healthcheck` to fail fast when the runtime uses the wrong reviewed database transport.
+- Purpose: optional non-secret expectation used by `bun run healthcheck` to fail fast when the runtime uses the wrong reviewed database transport.
 - Supported values: `direct`.
 - Scope: rollout verification input, not a runtime secret.
 - Default behavior: unset, so the healthcheck reports posture without asserting it.
 
 ### `HEALTHCHECK_EXPECT_DATABASE_HOSTNAME`
 
-- Purpose: optional non-secret expectation used by `pnpm healthcheck` when direct transport should point at a reviewed hostname.
+- Purpose: optional non-secret expectation used by `bun run healthcheck` when direct transport should point at a reviewed hostname.
 - Scope: rollout verification input, not a runtime secret.
 - Example: `id1.ahlikoding.com`.
 
 ### `HEALTHCHECK_EXPECT_DATABASE_SSLMODE`
 
-- Purpose: optional non-secret expectation used by `pnpm healthcheck` when direct transport should enforce a reviewed PostgreSQL SSL mode.
+- Purpose: optional non-secret expectation used by `bun run healthcheck` when direct transport should enforce a reviewed PostgreSQL SSL mode.
 - Scope: rollout verification input, not a runtime secret.
 - Example: `verify-full`.
 
@@ -84,7 +84,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 
 ### `ADMIN_SITE_URL`
 
-- Purpose: optional dedicated admin hostname that still resolves to the same EmDash admin surface.
+- Purpose: optional dedicated admin hostname that still resolves to the same reviewed admin surface.
 - Scope: server/runtime configuration.
 - Format: absolute URL such as `https://cms-admin.example.com`.
 - Current behavior: when `SITE_URL` and `ADMIN_SITE_URL` are both configured, requests to the admin hostname root redirect to the configured admin entry path instead of introducing a second admin shell.
@@ -94,7 +94,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - Purpose: pathname used as the admin-host entry redirect target.
 - Scope: server/runtime configuration.
 - Default fallback: `/_emdash/`.
-- Rule: this should remain an EmDash admin path, not a second standalone admin application.
+- Rule: this should remain the reviewed admin entry path while the compatibility route exists, not a second standalone admin application.
 
 ### `TRUSTED_PROXY_MODE`
 
@@ -222,7 +222,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - document security-sensitive secrets explicitly when code depends on them
 - prefer a dedicated `MINI_TOTP_ENCRYPTION_KEY` over the `APP_SECRET` fallback for TOTP secret encryption
 - document public-origin and trusted-proxy assumptions explicitly for Cloudflare-fronted deployments
-- if `ADMIN_SITE_URL` is configured, treat it as an entry hostname for the same EmDash admin surface rather than a second admin runtime
+- if `ADMIN_SITE_URL` is configured, treat it as an entry hostname for the same reviewed admin surface rather than a second admin runtime
 - for remote PostgreSQL deployments, prefer TLS-enabled connections and host-level access restriction
 - store Turnstile secrets in Cloudflare-managed secrets or equivalent server-only runtime configuration
 - keep the Cloudflare Worker required-secret list in `wrangler.jsonc` aligned with the real runtime secret contract so local/dev and deploy validation fail clearly when reviewed secrets are missing
@@ -231,7 +231,7 @@ This document defines the base runtime configuration contract for the AWCMS Mini
 - store `EDGE_API_JWT_SECRET` in Cloudflare-managed secrets or equivalent server-only runtime configuration
 - keep R2 buckets private by default and access them through Cloudflare bindings, not REST calls from runtime code
 - keep object metadata, ownership, and authorization state in PostgreSQL even when object bytes live in R2
-- keep edge API routes versioned under `/api/v1/*` and separate from EmDash admin/plugin APIs under `/_emdash/api/*`
+- keep edge API routes versioned under `/api/v1/*` and separate from admin/plugin compatibility APIs under `/_emdash/api/*`
 - disable cross-origin browser access unless an explicit origin allowlist is configured
 - keep edge API refresh tokens opaque, hashed at rest, and rotation-backed in PostgreSQL
 
@@ -274,7 +274,7 @@ For the intended production topology, configure at least:
 - `MINI_TOTP_ENCRYPTION_KEY`
 - `TRUSTED_PROXY_MODE=cloudflare`
 
-For optional rollout verification with `pnpm healthcheck`, also configure as needed:
+For optional rollout verification with `bun run healthcheck`, also configure as needed:
 
 - optional `HEALTHCHECK_EXPECT_DATABASE_TRANSPORT`
 - optional `HEALTHCHECK_EXPECT_DATABASE_HOSTNAME`
