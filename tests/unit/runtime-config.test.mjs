@@ -19,6 +19,24 @@ test("getRuntimeConfig defaults databaseConnectTimeoutMs to the reviewed fail-fa
   }
 });
 
+test("getRuntimeConfig accepts transport 'hyperdrive' and reads HYPERDRIVE_CONNECTION_STRING", async () => {
+  const previousTransport = process.env.DATABASE_TRANSPORT;
+  const previousUrl = process.env.HYPERDRIVE_CONNECTION_STRING;
+  process.env.DATABASE_TRANSPORT = "hyperdrive";
+  process.env.HYPERDRIVE_CONNECTION_STRING = "postgres://app:secret@127.0.0.1:6432/awcms_mini";
+
+  try {
+    const config = getRuntimeConfig();
+    assert.equal(config.databaseTransport, "hyperdrive");
+    assert.equal(config.databaseHyperdriveUrl, "postgres://app:secret@127.0.0.1:6432/awcms_mini");
+  } finally {
+    if (previousTransport === undefined) delete process.env.DATABASE_TRANSPORT;
+    else process.env.DATABASE_TRANSPORT = previousTransport;
+    if (previousUrl === undefined) delete process.env.HYPERDRIVE_CONNECTION_STRING;
+    else process.env.HYPERDRIVE_CONNECTION_STRING = previousUrl;
+  }
+});
+
 test("getRuntimeConfig accepts an explicit positive DATABASE_CONNECT_TIMEOUT_MS", async () => {
   const previous = process.env.DATABASE_CONNECT_TIMEOUT_MS;
   process.env.DATABASE_CONNECT_TIMEOUT_MS = "4500";

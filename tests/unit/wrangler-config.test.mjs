@@ -27,6 +27,16 @@ test("wrangler config defines the reviewed database transport defaults", async (
   assert.match(contents, /"DATABASE_TRANSPORT"\s*:\s*"direct"/);
 });
 
+test("wrangler config binds HYPERDRIVE for planet-scale Postgres access", async () => {
+  const contents = await readFile(wranglerConfigPath, "utf8");
+
+  assert.match(contents, /"hyperdrive"\s*:\s*\[/);
+  assert.match(contents, /"binding"\s*:\s*"HYPERDRIVE"/);
+  assert.match(contents, /"id"\s*:\s*"902ae11cf213499181d085a479e13cfa"/);
+  // Hyperdrive butuh nodejs_compat untuk driver pg.
+  assert.match(contents, /"nodejs_compat"/);
+});
+
 test("wrangler config declares the reviewed required Worker secrets", async () => {
   const contents = await readFile(wranglerConfigPath, "utf8");
 

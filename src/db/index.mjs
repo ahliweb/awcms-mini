@@ -1,4 +1,4 @@
-import { createDatabase } from "./client/postgres.mjs";
+import { applyHyperdriveBindingFromEnv, createDatabase, setHyperdriveConnectionString } from "./client/postgres.mjs";
 import {
   acquireAdvisoryXactLock,
   buildAdvisoryLockKey,
@@ -32,9 +32,11 @@ export async function destroyDatabase() {
 
 export {
   acquireAdvisoryXactLock,
+  applyHyperdriveBindingFromEnv,
   buildAdvisoryLockKey,
   classifyDatabaseError,
   createDatabase,
+  setHyperdriveConnectionString,
   DATABASE_ERROR_KIND,
   defineTransactionStrategy,
   isDatabaseErrorKind,

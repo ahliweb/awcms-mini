@@ -5,6 +5,38 @@ import { getRuntimeConfig } from "../../config/runtime.mjs";
 
 const { Pool } = pg;
 
+// Connection string Hyperdrive bersifat runtime (berasal dari binding Worker
+// `env.HYPERDRIVE.connectionString`), bukan env statis. Worker/middleware
+// meng-inject-nya sekali via setHyperdriveConnectionString(); nilai ini
+// diprioritaskan di atas config statis saat transport = "hyperdrive".
+let injectedHyperdriveConnectionString = null;
+
+function normalizeConnectionString(value) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+/**
+ * Inject connection string Hyperdrive dari binding Worker. Panggil sekali di
+ * entrypoint Worker/middleware Cloudflare: `setHyperdriveConnectionString(env.HYPERDRIVE?.connectionString)`.
+ * Memanggil dengan nilai kosong akan menghapus injeksi (kembali ke config statis).
+ */
+export function setHyperdriveConnectionString(value) {
+  injectedHyperdriveConnectionString = normalizeConnectionString(value);
+  return injectedHyperdriveConnectionString;
+}
+
+/**
+ * Convenience: inject dari objek `env` Worker (mengambil `env.HYPERDRIVE.connectionString`).
+ * No-op bila binding tidak ada. Kembalikan connection string yang ter-inject (atau null).
+ */
+export function applyHyperdriveBindingFromEnv(env) {
+  return setHyperdriveConnectionString(env?.HYPERDRIVE?.connectionString);
+}
+
+export function getInjectedHyperdriveConnectionString() {
+  return injectedHyperdriveConnectionString;
+}
+
 function sslOptionsFromConnectionString(connectionString) {
   try {
     const parsed = new URL(connectionString);
@@ -42,6 +74,28 @@ export function resolvePostgresPoolingMode(runtimeConfig = getRuntimeConfig()) {
 }
 
 export function resolvePostgresConnectionTarget(runtimeConfig = getRuntimeConfig(), options = {}) {
+  // Transport "hyperdrive": akses planet-scale via Cloudflare Hyperdrive.
+  // Connection string diambil dari (prioritas): opsi eksplisit → binding Worker
+  // yang di-inject → config statis (HYPERDRIVE_CONNECTION_STRING). Hyperdrive
+  // melakukan pooling di sisi server, jadi klien memakai transaction mode.
+  if (runtimeConfig.databaseTransport === "hyperdrive") {
+    const hyperdriveConnectionString =
+      normalizeConnectionString(options.hyperdriveConnectionString) ??
+      injectedHyperdriveConnectionString ??
+      normalizeConnectionString(runtimeConfig.databaseHyperdriveUrl);
+
+    if (hyperdriveConnectionString) {
+      return {
+        transport: "hyperdrive",
+        source: "HYPERDRIVE",
+        connectionString: hyperdriveConnectionString,
+        poolingMode: "transaction",
+      };
+    }
+    // Binding belum ter-inject (mis. dijalankan di luar Worker) → fallback aman
+    // ke pooler/direct di bawah agar tidak crash.
+  }
+
   // Transport "pooler" (ADR-013): pakai DATABASE_POOLER_URL bila tersedia.
   // Default tetap "direct" (DATABASE_URL) agar backward-compatible.
   if (runtimeConfig.databaseTransport === "pooler" && runtimeConfig.databasePoolerUrl) {

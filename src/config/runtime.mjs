@@ -29,7 +29,9 @@ function normalizeRuntimeTarget(value) {
 }
 
 function normalizeDatabaseTransport(value) {
-  return value === "direct" || value === "pooler" ? value : DEFAULT_DATABASE_TRANSPORT;
+  // "hyperdrive": akses planet-scale via Cloudflare Hyperdrive binding (hanya
+  // berfungsi di runtime Worker; connection string di-inject dari binding).
+  return value === "direct" || value === "pooler" || value === "hyperdrive" ? value : DEFAULT_DATABASE_TRANSPORT;
 }
 
 function normalizeDatabasePoolingMode(value) {
@@ -126,6 +128,10 @@ export function getRuntimeConfig() {
     databaseUrl: process.env.DATABASE_URL || DEFAULT_DATABASE_URL,
     databaseTransport: normalizeDatabaseTransport(process.env.DATABASE_TRANSPORT),
     databasePoolerUrl: normalizeOptionalString(process.env.DATABASE_POOLER_URL),
+    // Fallback statis untuk connection string Hyperdrive (mis. `wrangler dev`
+    // localConnectionString atau .dev.vars). Di produksi Worker, nilai ini
+    // di-inject dari binding via setHyperdriveConnectionString().
+    databaseHyperdriveUrl: normalizeOptionalString(process.env.HYPERDRIVE_CONNECTION_STRING),
     databasePoolingMode: normalizeDatabasePoolingMode(process.env.DATABASE_POOLING_MODE),
     databaseConnectTimeoutMs: normalizePositiveInteger(
       process.env.DATABASE_CONNECT_TIMEOUT_MS,

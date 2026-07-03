@@ -17,12 +17,13 @@ PostgreSQL diakses via **connection pooler open-source** (Supavisor/PgBouncer/Pg
 
 ### Environment
 
-| Env                     | Default                                    | Keterangan                                                            |
-| ----------------------- | ------------------------------------------ | --------------------------------------------------------------------- |
-| `DATABASE_URL`          | `postgres://localhost:5432/awcms_mini_dev` | Koneksi direct (fallback & dev/diagnostik)                            |
-| `DATABASE_TRANSPORT`    | `direct`                                   | `direct` \| `pooler`                                                  |
-| `DATABASE_POOLER_URL`   | _(kosong)_                                 | Connection string ke pooler; dipakai bila `DATABASE_TRANSPORT=pooler` |
-| `DATABASE_POOLING_MODE` | `session`                                  | `session` (app long-running, default) \| `transaction` (serverless)   |
+| Env                            | Default                                    | Keterangan                                                                                        |
+| ------------------------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                 | `postgres://localhost:5432/awcms_mini_dev` | Koneksi direct (fallback & dev/diagnostik)                                                        |
+| `DATABASE_TRANSPORT`           | `direct`                                   | `direct` \| `pooler` \| `hyperdrive`                                                              |
+| `DATABASE_POOLER_URL`          | _(kosong)_                                 | Connection string ke pooler; dipakai bila `DATABASE_TRANSPORT=pooler`                             |
+| `DATABASE_POOLING_MODE`        | `session`                                  | `session` (app long-running, default) \| `transaction` (serverless)                               |
+| `HYPERDRIVE_CONNECTION_STRING` | _(kosong)_                                 | Fallback statis Hyperdrive (`wrangler dev`/non-Worker); di produksi Worker di-inject dari binding |
 
 ### Mode pooling
 
@@ -43,6 +44,32 @@ PostgreSQL diakses via **connection pooler open-source** (Supavisor/PgBouncer/Pg
 2. Set `DATABASE_TRANSPORT=pooler` + `DATABASE_POOLER_URL=<url-pooler>` di environment app.
 3. Set `DATABASE_POOLING_MODE=session` (default) untuk awcms-mini.
 4. Pertahankan `DATABASE_URL` (direct) untuk migrasi/diagnostik.
+
+## Hyperdrive — akses planet-scale (runtime Worker)
+
+Cloudflare Hyperdrive menyediakan koneksi PostgreSQL yang di-pool & di-cache di edge global. **Hanya berfungsi saat query DB dijalankan di dalam runtime Cloudflare Worker/Pages Functions** — bukan di jalur Hono/Coolify VPS (arsitektur aktif saat ini). Jadi transport ini adalah jalur opt-in untuk deployment berbasis Worker.
+
+### Cara kerja di kode
+
+- Binding `HYPERDRIVE` dideklarasikan di `wrangler.jsonc` (butuh `nodejs_compat` untuk driver `pg`).
+- Di dalam Worker, connection string tersedia di `env.HYPERDRIVE.connectionString` (ephemeral, bukan env statis).
+- Entrypoint/middleware Worker meng-inject-nya sekali:
+
+  ```js
+  import { applyHyperdriveBindingFromEnv } from "./db/client/postgres.mjs";
+  // di handler Worker (punya akses `env`):
+  applyHyperdriveBindingFromEnv(env); // = setHyperdriveConnectionString(env.HYPERDRIVE?.connectionString)
+  ```
+
+- Dengan `DATABASE_TRANSPORT=hyperdrive`, `resolvePostgresConnectionTarget()` memakai connection string (prioritas: opsi eksplisit → binding ter-inject → `HYPERDRIVE_CONNECTION_STRING`) dan **pooling mode `transaction`** (Hyperdrive sudah mem-pool di sisi server). Bila belum ter-inject (mis. dijalankan di luar Worker), otomatis **fallback aman ke `direct`**.
+
+### Catatan operasional
+
+- **RLS `withUserContext` tetap wajib**: Hyperdrive berbagi koneksi antar-request, jadi konteks user harus di dalam satu transaksi (sama seperti pooler transaction-mode).
+- **TLS**: koneksi Worker→Hyperdrive tidak butuh SSL klien (Hyperdrive yang menerminasi TLS ke origin); jangan set `sslmode` pada `HYPERDRIVE_CONNECTION_STRING`.
+- **App tetap konek sebagai role non-superuser** (superuser bypass RLS).
+- Verifikasi resource: `wrangler hyperdrive list` / `wrangler hyperdrive get <id>`.
+- ADR-013 semula menunda Hyperdrive; transport ini menyiapkan jalurnya tanpa mengubah runtime aktif (Hono/Coolify tetap default).
 
 ## Rules
 

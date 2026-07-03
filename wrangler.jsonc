@@ -43,5 +43,16 @@
       "binding": "MEDIA_BUCKET",
       "bucket_name": "awcms-mini-s3"
     }
+  ],
+  // Cloudflare Hyperdrive — akses PostgreSQL planet-scale dari runtime Worker.
+  // Aktif hanya saat DB diakses di dalam Worker (transport "hyperdrive" +
+  // connection string di-inject dari binding via setHyperdriveConnectionString).
+  // Untuk `wrangler dev` lokal, isi localConnectionString dengan DB dev.
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "902ae11cf213499181d085a479e13cfa"
+      // "localConnectionString": "postgres://awcms_mini_dev:password@localhost:5432/awcms_mini_dev"
+    }
   ]
 }
