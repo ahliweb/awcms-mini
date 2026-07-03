@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document describes the current repository layout for AWCMS Mini and the ownership boundaries that keep Mini aligned with EmDash-first architecture.
+This document describes the current repository layout for AWCMS Mini and the ownership boundaries that keep Mini aligned with the secure modular monolith architecture.
 
 This layout is constrained by:
 
@@ -12,10 +12,10 @@ This layout is constrained by:
 
 ## Layout Principles
 
-- EmDash remains the host architecture.
-- The repository should not introduce a second application shell.
+- Astro, Hono, PostgreSQL, Kysely, and Bun are the target implementation stack.
+- The repository should not introduce a second unrelated application shell.
 - Runtime, database, services, security, pages, and plugin code should stay separated by responsibility.
-- Governance overlays should be additive and should not blur into EmDash core responsibilities.
+- Governance overlays should be additive and should not blur service, database, admin, and plugin responsibilities.
 - Documentation should live alongside implementation but remain clearly separated from runtime code.
 
 ## Top-Level Layout
@@ -93,9 +93,9 @@ This layout is constrained by:
 
 ### `src/integrations/`
 
-- Purpose: integration glue between Astro, EmDash, and Mini-specific runtime hooks.
+- Purpose: integration glue between Astro, compatibility seams, and Mini-specific runtime hooks.
 - Responsibilities:
-  - EmDash integration bootstrap
+  - runtime integration bootstrap
   - runtime registration helpers that belong near framework wiring
 - Must not absorb:
   - domain service orchestration
@@ -128,7 +128,7 @@ src/db/
 
 ### `src/auth/`
 
-- Purpose: auth and session implementation on top of EmDash's auth boundary.
+- Purpose: auth and session implementation for the native Mini security boundary.
 - Responsibilities:
   - login/logout handlers
   - session orchestration
@@ -191,7 +191,7 @@ src/services/
 
 - Purpose: first-party internal plugins and plugin integration support.
 - Responsibilities:
-  - EmDash plugin definitions via `definePlugin(...)`
+  - native plugin definitions via `definePlugin(...)`
   - plugin descriptors used for host registration
   - plugin contracts and helpers
   - first-party plugin implementation such as `awcms-users-admin`
@@ -203,6 +203,25 @@ src/services/
 - Purpose: repository-level live configuration entrypoint when the host runtime expects it.
 - Constraint:
   - keep runtime-specific configuration close to the framework boundary and out of service code
+
+### `src/modules/`
+
+- Purpose: future bounded contexts that justify the secure modular monolith module pattern.
+- Shape:
+
+```text
+src/modules/{module}/
+|-- public/
+|-- internal/
+|-- migrations/
+`-- tests/
+```
+
+- Constraints:
+  - other modules may import only from `src/modules/{module}/public`
+  - direct imports into another module's `internal` directory are forbidden
+  - circular dependencies between modules are forbidden
+  - `tests/unit/module-boundaries.test.mjs` guards these rules
 
 ## `tests/` Layout
 
@@ -237,7 +256,7 @@ Test layout should mirror `src/` ownership where practical.
 
 ### Admin vs Plugins
 
-- first-party admin experience currently ships through the `awcms-users-admin` EmDash plugin.
+- first-party admin experience currently ships through the `awcms-users-admin` plugin.
 - `src/plugins/` owns plugin registration, admin route wiring, plugin descriptors, and plugin-specific logic.
 - admin pages for plugin features should still consume shared services and policy helpers.
 
@@ -253,7 +272,7 @@ Test layout should mirror `src/` ownership where practical.
 - Do not create directories before there is a concrete issue requiring them.
 - When a new directory is proposed, it should have a clear ownership boundary.
 - If a feature starts to span multiple domains, prefer keeping composition in services rather than introducing a new top-level application layer.
-- If EmDash already provides the relevant location or extension seam, use that seam instead of inventing a parallel structure.
+- If `src/cms/` or an existing Mini service/plugin seam provides the relevant location, use that seam instead of inventing a parallel structure.
 
 ## Forbidden Layout Patterns
 
@@ -268,7 +287,7 @@ Test layout should mirror `src/` ownership where practical.
 
 If a proposed file placement conflicts with this document, prefer the simplest location that:
 
-- preserves EmDash-first architecture,
+- preserves the secure modular monolith architecture,
 - keeps database, service, security, and UI concerns separate,
 - avoids introducing a second platform core,
 - stays compatible with the issue-driven workflow.

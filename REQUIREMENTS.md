@@ -28,12 +28,12 @@ Define the current product and implementation requirements for AWCMS Mini as a s
 - TOTP-based 2FA with recovery codes
 - Forced password reset and account recovery flows
 - Audit logs and security events for privileged actions
-- EmDash-compatible internal plugin governance contract
-- EmDash admin extensions for governance operations
+- native internal plugin governance contract with compatibility seams while EmDash decoupling is in progress
+- Mini admin/plugin extensions for governance operations
 
 ## Admin Requirements
 
-Mini must keep governance operations inside the EmDash admin experience.
+Mini must keep governance operations inside the approved Mini admin surface.
 
 Required admin capabilities:
 
@@ -79,7 +79,7 @@ Required plugin contract pieces (ADR-018):
 
 Plugins must not bypass shared governance services or write arbitrary policy state without shared validation.
 
-Row-Level Security (RLS) must be enforced on all plugin tables and all sensitive per-user tables (ADR-015). Run `pnpm check:rls-coverage` to verify.
+Row-Level Security (RLS) must be enforced on all plugin tables and all sensitive per-user tables (ADR-015). Run `bun run check:rls-coverage` to verify.
 
 ## Documentation Requirements
 

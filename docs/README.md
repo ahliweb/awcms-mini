@@ -38,6 +38,10 @@ Current active planning and documentation issues reflected by these docs:
 
 - none. The current verification and operator issues are closed.
 
+Current architecture note:
+
+- `architecture/secure-modular-monolith.md` defines the default AWCMS Mini module boundary, Bun/toolchain policy, PostgreSQL ownership model, and per-module security baseline.
+
 Current verification note:
 
 - `#260` and `#261` are closed.
@@ -55,6 +59,6 @@ These docs should describe the real repository state, not just the intended plan
 
 ## Validation Baseline
 
-- `pnpm check` is the default aggregate validation path for routine local changes.
-- `pnpm lint` and `pnpm format` currently use Prettier on the maintained docs/config surface, not the entire repository.
+- `bun run check` is the default aggregate validation path for routine local changes.
+- `bun run lint` and `bun run format` currently use Prettier on the maintained docs/config surface, not the entire repository.
 - Keep any issue-specific validation commands in addition to that baseline.

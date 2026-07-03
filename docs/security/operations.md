@@ -46,9 +46,9 @@ Mini owns the security-hardening layer:
 - Edge API access tokens are short-lived JWT Bearer tokens signed with `jose` using an explicit issuer, audience, expiration, and algorithm allowlist.
 - Edge API refresh tokens are opaque random values, hashed at rest in PostgreSQL, rotated on use, and revoked when the backing session is revoked.
 - Password-based token issuance does not bypass current account-state or enrolled-2FA checks.
-- Admin and plugin APIs remain isolated under `/_emdash/api/*` and should not be treated as external-client APIs.
-- The reviewed browser entry for the EmDash admin surface is `/_emdash/`, which redirects to the current `/_emdash/admin` route on the same host.
-- If a dedicated admin hostname is configured for compatibility, it should remain only an entry host for the same EmDash admin surface.
+- Admin and plugin APIs remain isolated under `/_emdash/api/*` compatibility routes and should not be treated as external-client APIs.
+- The reviewed browser entry for the current compatibility admin surface is `/_emdash/`, which redirects to the current `/_emdash/admin` route on the same host.
+- If a dedicated admin hostname is configured for compatibility, it should remain only an entry host for the same reviewed admin surface.
 
 ## Deployment Expectations
 

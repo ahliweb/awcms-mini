@@ -14,34 +14,35 @@ If an implementation choice conflicts with this document, the implementation sho
 
 ## Core Rule
 
-AWCMS Mini is EmDash-first.
+AWCMS Mini is a secure modular monolith on its own stack.
 
 This means:
 
-- EmDash is the canonical host architecture.
-- EmDash owns the CMS structure, runtime shape, admin baseline, content architecture, auth boundary, and plugin model.
-- AWCMS concepts may be used only as non-conflicting governance overlays.
-- If EmDash and AWCMS concepts conflict, EmDash wins.
+- Astro, Hono, PostgreSQL, Kysely, and Bun are the canonical implementation stack.
+- EmDash is an architecture reference during decoupling, not the target runtime dependency.
+- Remaining EmDash touchpoints must stay isolated behind `src/cms/` or documented compatibility seams.
+- AWCMS concepts may be used only as single-tenant Mini governance overlays.
+- If older EmDash-first planning text conflicts with `REQUIREMENTS.md`, `AGENTS.md`, or ADR-020, follow the newer ADR-020 native-stack rule.
 
 ## Canonical Technical Direction
 
 The implementation should assume the following are fixed unless a later issue explicitly changes them:
 
-- Host architecture: EmDash
+- Host architecture: secure modular monolith
 - Database: PostgreSQL
 - Query and migration layer: Kysely
 - System model: single-tenant only
-- Extension model: EmDash-compatible internal plugins
-- Admin model: EmDash admin extended carefully
-- Public rendering model: EmDash public/content architecture
+- Extension model: native internal plugins with compatibility seams during decoupling
+- Admin model: native Mini governance/admin surfaces built through reviewed seams
+- Public rendering model: Astro frontend calling the Hono backend API
 - Security model: backend and service-layer enforcement first
 
 ## Scope Guardrails
 
 ### Allowed
 
-- EmDash core features used as the foundation
-- PostgreSQL-backed EmDash deployment
+- Astro/Hono runtime features used through reviewed seams
+- PostgreSQL-backed Mini deployment
 - Kysely-based migrations, queries, and transactions
 - Governance overlay tables and services for:
   - roles hierarchy
@@ -52,31 +53,31 @@ The implementation should assume the following are fixed unless a later issue ex
   - administrative regions
   - 2FA and security controls
   - audit and security event logging
-- EmDash-compatible plugin extensions that consume shared governance services
-- EmDash admin extensions for governance screens
+- native plugin extensions that consume shared governance services
+- Mini admin/plugin extensions for governance screens
 
 ### Forbidden
 
 - Supabase in any core runtime, database, auth, or migration role
 - multi-tenant logic of any kind
 - tenant-scoped data model patterns such as `tenant_id`
-- direct porting of AWCMS modules/resources outside the EmDash host/plugin model
-- a separate competing admin shell outside EmDash
+- direct porting of AWCMS modules/resources outside the Mini module/plugin model
+- a separate competing admin shell outside the approved Mini admin surface
 - visual editor work in v1
 - universal PostgreSQL RLS as the primary authorization mechanism
 - collapsing role hierarchy into job hierarchy
 - collapsing logical/detail regions into administrative regions
 - expanding Mini into a general ERP platform
 
-## EmDash-First Rules
+## EmDash Decoupling Rules
 
 The following rules are mandatory for all implementation work:
 
-- Prefer extending EmDash through supported runtime, admin, service, and plugin seams.
-- Do not recreate core CMS primitives that EmDash already provides.
-- Do not bypass EmDash's admin or plugin model to introduce a second platform core.
-- Keep Mini-specific code additive wherever possible.
-- Prefer shapes that could coexist with upstream EmDash rather than diverge from it.
+- Do not add new direct `import ... from "emdash"` usage outside `src/cms/`.
+- Keep compatibility touchpoints inventoried in `docs/architecture/emdash-touchpoint-inventory.md`.
+- Use native Mini services, plugins, and database helpers for new runtime behavior.
+- Keep migration phases reversible and deployable until the `emdash` package can be removed.
+- Do not introduce a second unrelated CMS/admin core while decoupling.
 
 ## Governance Overlay Rules
 
@@ -93,9 +94,8 @@ Allowed overlay behavior:
 
 Forbidden overlay behavior:
 
-- replacing EmDash content architecture,
-- replacing EmDash plugin architecture,
-- replacing EmDash admin with a second admin platform,
+- bypassing the native Mini service/plugin contract,
+- creating an unreviewed parallel admin platform,
 - importing AWCMS multi-tenant assumptions into Mini,
 - treating jobs or regions as hidden permission systems.
 
@@ -171,7 +171,7 @@ Forbidden rules:
 
 ## Plugin Constraints
 
-Plugins should remain EmDash-compatible.
+Plugins should follow the native Mini manifest contract.
 
 Required rules:
 
@@ -188,9 +188,9 @@ Forbidden rules:
 
 ## Admin Constraints
 
-- Governance screens should be implemented as EmDash admin extensions.
-- User, role, permission, job, region, security, and audit screens should stay inside the EmDash admin experience.
-- Mini must not create a second standalone admin architecture.
+- Governance screens should use reviewed Mini admin/plugin seams.
+- User, role, permission, job, region, security, and audit screens should stay inside the approved Mini admin surface.
+- Mini must not create an unrelated second standalone admin architecture.
 
 ## Security Constraints
 
