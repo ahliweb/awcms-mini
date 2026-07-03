@@ -30,7 +30,7 @@
     "lint": "bunx prettier --check README.md DOCS_INDEX.md REQUIREMENTS.md SECURITY.md AGENTS.md docs/**/*.md package.json",
     "format": "bunx prettier --write README.md DOCS_INDEX.md REQUIREMENTS.md SECURITY.md AGENTS.md docs/**/*.md package.json",
     "typecheck": "bun ./scripts/run-with-local-env.mjs astro check",
-    "test:unit": "node --test tests/unit/**/*.test.mjs",
+    "test:unit": "bun test tests/unit/",
     "healthcheck": "bun ./scripts/healthcheck.mjs",
     "db:migrate": "bun ./scripts/db-migrate.mjs latest",
     "db:migrate:down": "bun ./scripts/db-migrate.mjs down",
