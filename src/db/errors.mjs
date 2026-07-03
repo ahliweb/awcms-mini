@@ -143,6 +143,29 @@ export function describeDatabaseErrorReason(error) {
   return DATABASE_ERROR_REASON.UNKNOWN;
 }
 
+/**
+ * Petunjuk remediasi aman (tanpa membocorkan kredensial/pesan mentah) per reason.
+ * Dipakai di /health agar operator langsung tahu langkah perbaikan — khususnya
+ * kasus `credential_format` yang menyebabkan 503 saat deploy Coolify (#303):
+ * DATABASE_URL tanpa password atau password ber-karakter khusus yang tidak
+ * di-percent-encode → pg gagal parse → SASL "client password must be a string".
+ */
+export const DATABASE_ERROR_REMEDIATION = {
+  [DATABASE_ERROR_REASON.CREDENTIAL_FORMAT]:
+    "DATABASE_URL password missing or contains unescaped characters — percent-encode the password (RFC 3986) and confirm the secret is injected before the health probe runs.",
+  [DATABASE_ERROR_REASON.REFUSED]:
+    "Postgres refused the connection — verify the service is running and reachable on the configured host/port.",
+  [DATABASE_ERROR_REASON.DNS]: "Database hostname did not resolve — check the host in DATABASE_URL and private-network DNS.",
+  [DATABASE_ERROR_REASON.CONNECTION_TIMEOUT]:
+    "Connection timed out — check network path/pooler and databaseConnectTimeoutMs.",
+  [DATABASE_ERROR_REASON.TLS]: "TLS/certificate mismatch — verify sslmode and the server certificate.",
+  [DATABASE_ERROR_REASON.TERMINATED]: "Connection terminated — check pooler/idle limits or a server restart.",
+};
+
+export function describeDatabaseErrorRemediation(reason) {
+  return DATABASE_ERROR_REMEDIATION[reason] ?? null;
+}
+
 export function formatDatabaseErrorDiagnostic(error) {
   const kind = classifyDatabaseError(error);
   const reason = describeDatabaseErrorReason(error);

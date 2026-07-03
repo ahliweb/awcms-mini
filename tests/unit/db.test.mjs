@@ -13,6 +13,7 @@ import {
   DATABASE_ERROR_REASON,
   classifyDatabaseError,
   describeDatabaseErrorReason,
+  describeDatabaseErrorRemediation,
   extractDatabaseErrorMessage,
   formatDatabaseErrorDiagnostic,
 } from "../../src/db/errors.mjs";
@@ -115,6 +116,23 @@ test("describeDatabaseErrorReason identifies connection timeout failures", () =>
 test("describeDatabaseErrorReason identifies DNS failures", () => {
   const reason = describeDatabaseErrorReason(new Error("getaddrinfo ENOTFOUND id1.ahlikoding.com"));
   assert.equal(reason, DATABASE_ERROR_REASON.DNS);
+});
+
+test("credential_format from a passwordless/malformed DATABASE_URL yields an actionable remediation hint (#303)", () => {
+  // pg melempar ini saat password tidak ada/bukan string (mis. secret Coolify
+  // belum di-inject atau password ber-karakter khusus tanpa percent-encode).
+  const error = new Error("SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string");
+  assert.equal(classifyDatabaseError(error), DATABASE_ERROR_KIND.AUTHENTICATION);
+  assert.equal(describeDatabaseErrorReason(error), DATABASE_ERROR_REASON.CREDENTIAL_FORMAT);
+
+  const hint = describeDatabaseErrorRemediation(DATABASE_ERROR_REASON.CREDENTIAL_FORMAT);
+  assert.match(hint, /percent-encode/i);
+  // Petunjuk tidak boleh membocorkan kredensial/pesan mentah.
+  assert.doesNotMatch(hint, /password must be a string/i);
+});
+
+test("describeDatabaseErrorRemediation returns null for reasons without a hint", () => {
+  assert.equal(describeDatabaseErrorRemediation(DATABASE_ERROR_REASON.UNKNOWN), null);
 });
 
 test("classifyDatabaseError identifies aggregate ETIMEDOUT failures as connection blockers", () => {

@@ -8,6 +8,7 @@
 import { Hono } from "hono";
 
 import { checkDatabaseHealth, describeDatabaseHealthPosture } from "../../src/db/health.mjs";
+import { describeDatabaseErrorRemediation } from "../../src/db/errors.mjs";
 
 /**
  * @param {object} [options]
@@ -34,6 +35,10 @@ export function routeHealth(options = {}) {
               : {
                   kind: database.kind,
                   reason: database.reason,
+                  // Petunjuk remediasi aman (tanpa pesan/kredensial mentah); null bila tak ada.
+                  ...(describeDatabaseErrorRemediation(database.reason)
+                    ? { hint: describeDatabaseErrorRemediation(database.reason) }
+                    : {}),
                 }),
             posture,
           },
