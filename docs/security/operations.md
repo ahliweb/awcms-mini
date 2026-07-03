@@ -111,6 +111,23 @@ Mini now supports:
 
 These are rollout tools, not permanent substitutes for full enforcement.
 
+### ABAC enforcement mode (env-controlled)
+
+ABAC **enforces by default** — when unset, every flag below is `false`, so sensitive
+denies (`DENY_REGION_SCOPE_MISMATCH`, `DENY_PROTECTED_TARGET`) block the request.
+Set a flag to `true` only for a temporary audit-only rollout, where the deny is
+**logged but allowed** (reason `ALLOW_ABAC_AUDIT_ONLY`) so you can observe impact
+before enforcing. Revert to enforce by unsetting (or `false`).
+
+| Env var                                 | Effect when `true`                           |
+| --------------------------------------- | -------------------------------------------- |
+| `MINI_ABAC_AUDIT_ONLY`                  | Audit-only for all sensitive ABAC deny paths |
+| `MINI_ABAC_REGION_SCOPE_AUDIT_ONLY`     | Audit-only for region-scope mismatch only    |
+| `MINI_ABAC_PROTECTED_TARGET_AUDIT_ONLY` | Audit-only for protected-target only         |
+
+Only the exact string `true` (case-insensitive) enables a flag; any other value is enforce.
+An explicit `featureFlags` passed to `createAuthorizationService()` overrides the env.
+
 ## Cross-References
 
 - `docs/security/emergency-recovery-runbook.md`
