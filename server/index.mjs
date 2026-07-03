@@ -2,7 +2,7 @@
  * AWCMS Mini — Hono server entry point
  *
  * Starts the Hono application on Bun's native HTTP server (`Bun.serve`).
- * Bun is the primary server runtime (ADR-025 / #361); no Node HTTP adapter needed.
+ * Bun is the primary server runtime (ADR-019 / #361); no Node HTTP adapter needed.
  * Run via: bun run start:api  (or `bun run dev:api` for watch mode).
  */
 

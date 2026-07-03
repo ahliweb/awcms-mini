@@ -13,26 +13,26 @@
 | Status          | Referensi (mirror dari personal-coding) |
 | Source of truth | `ahliweb/personal-coding`               |
 | Berlaku untuk   | `awcms-mini`                            |
-| Last updated    | 2026-06-18                              |
+| Last updated    | 2026-07-03                              |
 | Classification  | internal                                |
 
 ---
 
 ## Matriks keberlakuan ADR per produk
 
-| ADR     | Keputusan                                                                                        |            Micro            |              **Mini**              |           AWCMS            |
-| ------- | ------------------------------------------------------------------------------------------------ | :-------------------------: | :--------------------------------: | :------------------------: |
-| ADR-013 | Konektivitas PostgreSQL via **pooler OSS** (Supavisor/PgBouncer/PgCat); mode Session/Transaction |           — (D1)            |             ✅ Session             |    ✅ edge=Transaction     |
-| ADR-014 | **PostgreSQL murni tanpa Supabase**                                                              |           — (D1)            |                 ✅                 |        ✅ (migrasi)        |
-| ADR-015 | **RLS wajib** semua tabel                                                                        |   — (D1 prefix isolation)   |                 ✅                 |             ✅             |
-| ADR-016 | SIKESRA & SatuSehatKobar = **plugin di Mini**; plugin Micro di-deprecate                         |        ✅ deprecate         |              ✅ host               |             —              |
-| ADR-017 | AWCMS = platform modular **ERP ala Odoo**                                                        |              —              |                 —                  |             ✅             |
-| ADR-018 | **Kontrak plugin manifest + data adapter**                                                       |    ✅ adapter D1/EmDash     |     ✅ adapter PostgreSQL+RLS      |             ✅             |
-| ADR-019 | **Toolchain + runtime Bun**                                                                      | ❌ (ikut EmDash/Cloudflare) | ✅ runtime Bun; test `node --test` | ✅ admin/mcp; edge=Workers |
-| ADR-020 | **EmDash = rujukan saja** (Mini/AWCMS); full EmDash hanya Micro                                  |     ✅ **full EmDash**      |          ✅ rujukan saja           |      ✅ rujukan saja       |
-| ADR-021 | **Logging Pino** (Workers-native di edge)                                                        |     — (EmDash/Workers)      |              ✅ Pino               |     ✅ Workers-native      |
-| ADR-022 | **Tiga rujukan arsitektur** (Supabase/Odoo/EmDash)                                               |              —              |                 ✅                 |             ✅             |
-| ADR-023 | **CQRS pencarian** (Tier 1 PostgreSQL; Tier 2 Kafka skala besar)                                 |              —              |                 ✅                 |             ✅             |
+| ADR     | Keputusan                                                                                        |            Micro            |            **Mini**             |           AWCMS            |
+| ------- | ------------------------------------------------------------------------------------------------ | :-------------------------: | :-----------------------------: | :------------------------: |
+| ADR-013 | Konektivitas PostgreSQL via **pooler OSS** (Supavisor/PgBouncer/PgCat); mode Session/Transaction |           — (D1)            |           ✅ Session            |    ✅ edge=Transaction     |
+| ADR-014 | **PostgreSQL murni tanpa Supabase**                                                              |           — (D1)            |               ✅                |        ✅ (migrasi)        |
+| ADR-015 | **RLS wajib** semua tabel                                                                        |   — (D1 prefix isolation)   |               ✅                |             ✅             |
+| ADR-016 | SIKESRA & SatuSehatKobar = **plugin di Mini**; plugin Micro di-deprecate                         |        ✅ deprecate         |             ✅ host             |             —              |
+| ADR-017 | AWCMS = platform modular **ERP ala Odoo**                                                        |              —              |                —                |             ✅             |
+| ADR-018 | **Kontrak plugin manifest + data adapter**                                                       |    ✅ adapter D1/EmDash     |    ✅ adapter PostgreSQL+RLS    |             ✅             |
+| ADR-019 | **Toolchain + runtime Bun**                                                                      | ❌ (ikut EmDash/Cloudflare) | ✅ runtime Bun; test `bun test` | ✅ admin/mcp; edge=Workers |
+| ADR-020 | **EmDash = rujukan saja** (Mini/AWCMS); full EmDash hanya Micro                                  |     ✅ **full EmDash**      |         ✅ rujukan saja         |      ✅ rujukan saja       |
+| ADR-021 | **Logging Pino** (Workers-native di edge)                                                        |     — (EmDash/Workers)      |             ✅ Pino             |     ✅ Workers-native      |
+| ADR-022 | **Tiga rujukan arsitektur** (Supabase/Odoo/EmDash)                                               |              —              |               ✅                |             ✅             |
+| ADR-023 | **CQRS pencarian** (Tier 1 PostgreSQL; Tier 2 Kafka skala besar)                                 |              —              |               ✅                |             ✅             |
 
 Legenda: ✅ berlaku · — tidak relevan · ❌ sengaja tidak diberlakukan.
 
@@ -40,7 +40,7 @@ Legenda: ✅ berlaku · — tidak relevan · ❌ sengaja tidak diberlakukan.
 
 ## Aturan operasional repo ini (turunan ADR)
 
-1. **Runtime Bun** (ADR-019): `bun install`/`bun run`/`bun server/index.mjs`, Docker `oven/bun:1-alpine`. **Test runner = `node --test`** (bun test belum dukung nested node:test). PostgreSQL-only.
+1. **Runtime Bun** (ADR-019): `bun install`/`bun run`/`bun server/index.mjs`, Docker `oven/bun:1-alpine`. Server HTTP Hono = **`Bun.serve` native** (bukan `@hono/node-server`); Astro SSR (`@astrojs/node`) jalan di atas Bun via Node-compat. **Test runner = `bun test tests/unit/`** (kompatibel penuh `node:test`, 526 test). PostgreSQL-only.
 2. **EmDash seam** (ADR-020): dilarang `import ... from "emdash"` di luar `src/cms/`. Guard: `tests/unit/cms-seam.test.mjs`. Inventaris touchpoint: `docs/architecture/emdash-touchpoint-inventory.md`.
 3. **Plugin contract** (ADR-018): manifest `kind: awcms-mini-plugin`, `data.adapter: postgres`, `data.rls: required`; FF7 `bun run check:plugin-manifests`.
 4. **RLS wajib** (ADR-015): `buildPluginRlsStatements()` per tabel plugin; FF6 `bun run check:rls-coverage`.

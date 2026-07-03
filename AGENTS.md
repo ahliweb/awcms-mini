@@ -41,7 +41,8 @@ It is not:
 ## Toolchain & Runtime (ADR-019)
 
 - Package manager + runtime = **Bun** (`bun install`, `bun run`, `bun server/index.mjs`; Docker `oven/bun:1-alpine`).
-- **Test runner = `node --test`** (bukan `bun test` — belum dukung nested `node:test`, bun#5090). Dev/CI menyediakan Node bersama Bun.
+- **Server HTTP = `Bun.serve` native** (`server/index.mjs`) — bukan `@hono/node-server`. Astro SSR (`@astrojs/node`) tetap jalan di atas Bun via Node-compat.
+- **Test runner = `bun test tests/unit/`** — kompatibel penuh dengan `node:test` (526 test, ~15× lebih cepat dari `node --test`). Catatan lama soal bun#5090 sudah tidak berlaku sejak Bun 1.3.x.
 - **PostgreSQL-only** — tidak ada SQLite (better-sqlite3 hanya transitif via emdash, dilepas saat Fase 5).
 
 ## Concurrency (#360)
