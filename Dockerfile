@@ -33,5 +33,5 @@ ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 
 EXPOSE 3000
 
-# Server Hono dijalankan oleh Bun (terverifikasi: @hono/node-server jalan di Bun).
+# Server Hono berjalan di Bun.serve native (ADR-019); tidak ada adapter Node HTTP.
 CMD ["bun", "server/index.mjs"]
