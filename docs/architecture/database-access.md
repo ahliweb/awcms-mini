@@ -38,6 +38,8 @@ PostgreSQL diakses via **connection pooler open-source** (Supavisor/PgBouncer/Pg
 
 > **✅ Terverifikasi (2026-06-19):** isolasi RLS via `withUserContext` **bekerja melalui PgBouncer transaction-mode** dengan role non-superuser — `searchSubjects` ber-`actorId` mengembalikan hanya baris milik actor (userA→2, userB→1, asing→0), baik koneksi direct maupun via pooler. Catatan operasional: **app WAJIB konek sebagai role non-superuser** (superuser bypass RLS).
 
+> **✅ Terverifikasi (2026-06-20) — RLS region/assignment (#353):** `buildPluginRlsStatements()` produksi (regionColumn + adminBypass) diuji terhadap PostgreSQL nyata dengan role login **non-superuser** khusus. Hasil sesuai model #353: creator lihat baris sendiri; user dengan penugasan **aktif** (`ends_at is null`) lihat **lintas-creator** di region-nya; baris region NULL **tidak melebar** (hanya creator); penugasan **kedaluwarsa** tidak memberi akses; `app.is_admin='true'` melihat semua; user asing → 0. Harness reusable: `bun run verify:rls` (`scripts/verify-rls-region-assignment.mjs`) — self-seeding + self-cleaning, idempotent.
+
 ### Setup operator (Coolify)
 
 1. Jalankan PgBouncer/Supavisor sebagai service yang menunjuk PostgreSQL utama.
