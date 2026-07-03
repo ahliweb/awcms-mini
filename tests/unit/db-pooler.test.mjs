@@ -158,6 +158,20 @@ test("hyperdrive: applyHyperdriveBindingFromEnv tanpa binding = no-op (null)", (
   assert.equal(getInjectedHyperdriveConnectionString(), null);
 });
 
+test("hyperdrive: applyHyperdriveBindingFromEnv tanpa binding TIDAK meng-clobber injeksi sebelumnya", () => {
+  // Penting untuk middleware yang dipanggil tiap request: runtime Node (tanpa
+  // binding) tidak boleh menghapus connection string yang sudah di-set.
+  setHyperdriveConnectionString(HYPERDRIVE_URL);
+  try {
+    assert.equal(applyHyperdriveBindingFromEnv(undefined), HYPERDRIVE_URL);
+    assert.equal(applyHyperdriveBindingFromEnv({ HYPERDRIVE: {} }), HYPERDRIVE_URL);
+    assert.equal(applyHyperdriveBindingFromEnv({ HYPERDRIVE: { connectionString: "  " } }), HYPERDRIVE_URL);
+    assert.equal(getInjectedHyperdriveConnectionString(), HYPERDRIVE_URL);
+  } finally {
+    setHyperdriveConnectionString(null);
+  }
+});
+
 test("hyperdrive: buildPostgresPoolConfig memakai Hyperdrive URL (tanpa SSL paksa)", () => {
   setHyperdriveConnectionString(null);
   const config = buildPostgresPoolConfig({

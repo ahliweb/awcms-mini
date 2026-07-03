@@ -27,10 +27,16 @@ export function setHyperdriveConnectionString(value) {
 
 /**
  * Convenience: inject dari objek `env` Worker (mengambil `env.HYPERDRIVE.connectionString`).
- * No-op bila binding tidak ada. Kembalikan connection string yang ter-inject (atau null).
+ * Aman dipanggil di runtime non-Worker: bila binding/connection string tidak ada,
+ * ini **no-op** dan TIDAK menghapus injeksi sebelumnya (tidak clobber config).
+ * Kembalikan connection string yang ter-inject saat ini (atau null).
  */
 export function applyHyperdriveBindingFromEnv(env) {
-  return setHyperdriveConnectionString(env?.HYPERDRIVE?.connectionString);
+  const connectionString = env?.HYPERDRIVE?.connectionString;
+  if (!normalizeConnectionString(connectionString)) {
+    return injectedHyperdriveConnectionString;
+  }
+  return setHyperdriveConnectionString(connectionString);
 }
 
 export function getInjectedHyperdriveConnectionString() {

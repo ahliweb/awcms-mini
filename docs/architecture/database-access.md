@@ -53,15 +53,9 @@ Cloudflare Hyperdrive menyediakan koneksi PostgreSQL yang di-pool & di-cache di 
 
 - Binding `HYPERDRIVE` dideklarasikan di `wrangler.jsonc` (butuh `nodejs_compat` untuk driver `pg`).
 - Di dalam Worker, connection string tersedia di `env.HYPERDRIVE.connectionString` (ephemeral, bukan env statis).
-- Entrypoint/middleware Worker meng-inject-nya sekali:
-
-  ```js
-  import { applyHyperdriveBindingFromEnv } from "./db/client/postgres.mjs";
-  // di handler Worker (punya akses `env`):
-  applyHyperdriveBindingFromEnv(env); // = setHyperdriveConnectionString(env.HYPERDRIVE?.connectionString)
-  ```
-
+- **Injeksi sudah tersambung otomatis** di middleware `src/auth/middleware-entry.mjs` — tiap request memanggil `applyHyperdriveBindingFromEnv(context.locals?.runtime?.env)` sebelum DB diakses. No-op & tidak clobber di runtime non-Worker (Node/Hono), jadi aman untuk kedua target.
 - Dengan `DATABASE_TRANSPORT=hyperdrive`, `resolvePostgresConnectionTarget()` memakai connection string (prioritas: opsi eksplisit → binding ter-inject → `HYPERDRIVE_CONNECTION_STRING`) dan **pooling mode `transaction`** (Hyperdrive sudah mem-pool di sisi server). Bila belum ter-inject (mis. dijalankan di luar Worker), otomatis **fallback aman ke `direct`**.
+- **Saklar aktivasi:** cukup set `DATABASE_TRANSPORT=hyperdrive` di environment Worker. Default committed tetap `direct` agar posture produksi (Hono/Coolify) tidak berubah.
 
 ### Catatan operasional
 
