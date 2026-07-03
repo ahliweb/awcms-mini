@@ -1,12 +1,10 @@
 /**
  * AWCMS Mini — Hono server entry point
  *
- * Starts the Hono application using the @hono/node-server adapter.
- * Run with: node server/index.mjs
- * Or via: bun run start:api (defined in package.json)
+ * Starts the Hono application on Bun's native HTTP server (`Bun.serve`).
+ * Bun is the primary server runtime (ADR-025 / #361); no Node HTTP adapter needed.
+ * Run via: bun run start:api  (or `bun run dev:api` for watch mode).
  */
-
-import { serve } from "@hono/node-server";
 
 import { loadLocalEnvFiles } from "../scripts/_local-env.mjs";
 import { getRuntimeConfig } from "../src/config/runtime.mjs";
@@ -34,15 +32,17 @@ if (process.env.PLUGINS_AUTOLOAD !== "false") {
   }
 }
 
-serve(
-  {
-    fetch: app.fetch,
-    port,
-  },
-  (info) => {
-    console.log(`[server] AWCMS Mini API listening on port ${info.port}`);
-    console.log(`[server] NODE_ENV=${process.env.NODE_ENV ?? "development"}`);
-    console.log(`[server] DATABASE_TRANSPORT=${runtimeConfig.databaseTransport}`);
-    console.log(`[server] SITE_URL=${runtimeConfig.siteUrl ?? "(unset)"}`);
-  },
-);
+if (typeof Bun === "undefined") {
+  console.error("[server] FATAL: server/index.mjs requires the Bun runtime. Run via `bun run start:api`.");
+  process.exit(1);
+}
+
+const server = Bun.serve({
+  port,
+  fetch: app.fetch,
+});
+
+console.log(`[server] AWCMS Mini API listening on port ${server.port}`);
+console.log(`[server] NODE_ENV=${process.env.NODE_ENV ?? "development"}`);
+console.log(`[server] DATABASE_TRANSPORT=${runtimeConfig.databaseTransport}`);
+console.log(`[server] SITE_URL=${runtimeConfig.siteUrl ?? "(unset)"}`);
