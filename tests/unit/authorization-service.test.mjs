@@ -7,6 +7,7 @@ import {
   createAuthorizationLogicalRegionContextResolver,
   createAuthorizationService,
 } from "../../src/services/authorization/service.mjs";
+import { readAuthorizationFeatureFlagsFromEnv } from "../../src/services/authorization/flags.mjs";
 
 function createAuthorizationContextDatabase(state) {
   return {
@@ -388,6 +389,67 @@ test("authorization service can switch logical region scope denies into audit-on
   assert.equal(result.reason.details.original_reason_code, "DENY_REGION_SCOPE_MISMATCH");
   assert.equal(auditOnlyReports.length, 1);
   assert.equal(auditOnlyReports[0].denied_result.reason.code, "DENY_REGION_SCOPE_MISMATCH");
+});
+
+test("readAuthorizationFeatureFlagsFromEnv defaults to ENFORCE and only opts in on explicit 'true' (#313)", () => {
+  // Env kosong → semua false = enforce (tidak mengunci akses siapa pun).
+  assert.deepEqual(readAuthorizationFeatureFlagsFromEnv({}), {
+    abac_audit_only: false,
+    abac_region_scope_audit_only: false,
+    abac_protected_target_audit_only: false,
+  });
+
+  // Hanya string "true" (case-insensitive) yang mengaktifkan audit-only.
+  const flags = readAuthorizationFeatureFlagsFromEnv({
+    MINI_ABAC_REGION_SCOPE_AUDIT_ONLY: "TRUE",
+    MINI_ABAC_PROTECTED_TARGET_AUDIT_ONLY: "1",
+    MINI_ABAC_AUDIT_ONLY: "yes",
+  });
+  assert.equal(flags.abac_region_scope_audit_only, true);
+  assert.equal(flags.abac_protected_target_audit_only, false);
+  assert.equal(flags.abac_audit_only, false);
+});
+
+test("authorization service enforces region-scope deny by default, but env flag flips it to audit-only (#313)", async () => {
+  const buildService = () =>
+    createAuthorizationService({
+      logicalRegionContextResolver: async (evaluation) => ({
+        ...evaluation,
+        subject: { ...evaluation.subject, logical_region_ids: ["region_root", "region_north"] },
+        resource: { ...evaluation.resource, logical_region_ids: ["region_south"] },
+      }),
+      permissionResolver: {
+        async getEffectivePermissions() {
+          return { user_id: "user_manager", permission_codes: ["admin.users.read"] };
+        },
+      },
+    });
+  const evaluation = {
+    subject: { kind: "user", user_id: "user_manager" },
+    resource: { kind: "user", target_user_id: "user_target" },
+    context: { permission_code: "admin.users.read", action: "read" },
+  };
+
+  const previous = process.env.MINI_ABAC_REGION_SCOPE_AUDIT_ONLY;
+  try {
+    // Default (env tak di-set) → ENFORCE: deny tetap deny.
+    delete process.env.MINI_ABAC_REGION_SCOPE_AUDIT_ONLY;
+    const enforced = await buildService().evaluate(evaluation);
+    assert.equal(enforced.allowed, false);
+    assert.equal(enforced.reason.code, "DENY_REGION_SCOPE_MISMATCH");
+
+    // Flip env → audit-only: deny di-downgrade jadi allow tercatat.
+    process.env.MINI_ABAC_REGION_SCOPE_AUDIT_ONLY = "true";
+    const audited = await buildService().evaluate(evaluation);
+    assert.equal(audited.allowed, true);
+    assert.equal(audited.reason.code, "ALLOW_ABAC_AUDIT_ONLY");
+  } finally {
+    if (previous === undefined) {
+      delete process.env.MINI_ABAC_REGION_SCOPE_AUDIT_ONLY;
+    } else {
+      process.env.MINI_ABAC_REGION_SCOPE_AUDIT_ONLY = previous;
+    }
+  }
 });
 
 test("authorization service allows requests when target logical region falls within actor subtree scope", async () => {

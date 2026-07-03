@@ -21,7 +21,7 @@ import {
   evaluateScopedAllowRules,
   evaluateStaffLevelDenyRule,
 } from "./rules.mjs";
-import { normalizeAuthorizationFeatureFlags, shouldUseAuditOnlyMode } from "./flags.mjs";
+import { normalizeAuthorizationFeatureFlags, readAuthorizationFeatureFlagsFromEnv, shouldUseAuditOnlyMode } from "./flags.mjs";
 
 function createPermissionMissingResult(permissionCode) {
   return createAuthorizationResult({
@@ -243,7 +243,9 @@ function createAuthorizationAdministrativeRegionContextResolver(database) {
 
 export function createAuthorizationService(options = {}) {
   const database = options.database ?? getDatabase();
-  const featureFlags = normalizeAuthorizationFeatureFlags(options.featureFlags);
+  // Flag eksplisit menang; jika tidak, ambil dari env (default semua false = ENFORCE).
+  // Env yang tak di-set → perilaku identik dengan sebelumnya (tidak mengunci akses).
+  const featureFlags = normalizeAuthorizationFeatureFlags(options.featureFlags ?? readAuthorizationFeatureFlagsFromEnv());
   const cache = options.cache ?? createNoopAuthorizationCache();
   const resolveCurrentJobContext =
     options.jobContextResolver ?? (options.database ? createAuthorizationJobContextResolver(database) : async (subject) => subject);
