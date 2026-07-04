@@ -1,5 +1,5 @@
 ---
-"awpos": patch
+"awcms-mini": patch
 ---
 
 Tambah infrastruktur versioning: SemVer + Changesets, `package.json` anchor,

@@ -1,8 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: AWCMS-Mini AGENTS.md (kontrak kerja)
-    url: https://github.com/ahliweb/awcms-mini/blob/main/AGENTS.md
-    about: Baca aturan wajib dan alur kerja sebelum membuat issue.
-  - name: AWCMS-Mini Issue Backlog (doc 06)
-    url: https://github.com/ahliweb/awcms-mini/blob/main/docs/awcms-mini/06_github_issues_detail.md
-    about: Cek backlog atomic dan pakai issue yang sudah ada sebelum membuka yang baru.

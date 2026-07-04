@@ -1,31 +1,31 @@
-# AWCMS-Mini — Base Modular Monolith Standard
+# AWCMS-Mini — Standar Modular Monolith
 
-AWCMS-Mini adalah **base modular monolith** (Bun + Astro + PostgreSQL) yang menjadi **standar pengembangan semua aplikasi AhliWeb**. Arsitektur, dokumen, dan konvensinya mengikuti paket perencanaan **AWPOS** (`docs/awpos` pada repo awpos) — AWPOS adalah contoh aplikasi domain pertama di atas base ini.
+AWCMS-Mini adalah baseline standar pengembangan aplikasi AhliWeb yang mengikuti paket arsitektur dan proses dari repo referensi **AWPOS**. Repo ini dipertahankan sebagai baseline dokumen, agent, skill, versioning, dan roadmap sebelum kode aplikasi dibuat ulang secara bertahap.
 
-> **Status:** Foundation (Sprint 1) selesai & tervalidasi — buildable, teruji, siap dilanjutkan dari Issue 1.1. Coding agent & kontributor **wajib membaca [`AGENTS.md`](AGENTS.md) lebih dulu**.
+> **Status:** repository ini kembali ke baseline **docs-only** agar konteksnya sejajar dengan `ahliweb/awpos`. Kode runtime aplikasi belum ada di branch ini. Implementasi dimulai ulang dari **Issue 0.1** sesuai dokumen roadmap. Coding agent dan kontributor wajib membaca [`AGENTS.md`](AGENTS.md) terlebih dahulu.
 
-## Arsitektur tingkat tinggi
+## Target Arsitektur
 
 ```mermaid
 flowchart TB
   subgraph Client["Client"]
-    ADM[Admin]
+    ADM[Admin / Operator]
     APP[Aplikasi domain]
   end
 
   subgraph App["AWCMS-Mini — Bun + Astro 7 (Modular Monolith)"]
     API[REST API /api/v1<br/>OpenAPI]
     MW[Middleware:<br/>Auth · Tenant · ABAC · Idempotency · Audit]
-    MOD[Modul base:<br/>Tenant · Identity · Profile · Localization ·<br/>Observability · Pooling · Workflow · Reporting · UI · Security · Sync]
+    MOD[Modul domain dan base]
     EVT[Domain events<br/>AsyncAPI]
   end
 
   subgraph Data["Data & Storage"]
-    PG[(PostgreSQL<br/>RLS FORCE + Audit)]
-    FILE[Local file storage]
+    PG[(PostgreSQL<br/>RLS + Audit)]
+    FILE[File storage]
   end
 
-  subgraph Ext["Provider eksternal (OPSIONAL, non-blocking)"]
+  subgraph Ext["Provider eksternal opsional"]
     R2[Cloudflare R2]
     WA[WhatsApp]
     MAIL[Email]
@@ -41,52 +41,64 @@ flowchart TB
   MOD -. queue/outbox .-> R2
   MOD -. queue/outbox .-> WA
   MOD -. queue/outbox .-> MAIL
+  MOD -. safe aggregate views .-> AI
 ```
 
-## Stack final
+Provider eksternal terhubung lewat outbox/queue dan tidak menjadi dependency transaksi kritikal.
 
-- Runtime: **Bun** · Web: **Astro 7** (SSR) · Database: **PostgreSQL** (postgres.js)
+## Stack Target
+
+- Runtime: **Bun**
+- Web framework: **Astro 7**
+- Database: **PostgreSQL**
 - Arsitektur: **Modular monolith, microservice-ready**
-- Security baseline: **RBAC + ABAC (default deny) + RLS FORCE + Audit Log**
-- Kontrak: **OpenAPI** (REST) + **AsyncAPI** (domain event)
-- Versioning: **SemVer + Changesets**
+- Security baseline: **RBAC + ABAC + PostgreSQL RLS + Audit Log**
+- API contract: **OpenAPI**
+- Event contract: **AsyncAPI**
+- Versioning: **Semantic Versioning + Changesets**
 
-## Quick start
+## Paket Dokumen
 
-```bash
-bun install
-docker compose up -d postgres
-cp .env.example .env
-bun run db:migrate
-bun run dev            # http://localhost:4321 → /api/v1/health
+Dokumen lengkap berada di:
+
+```text
+docs/awcms-mini/
 ```
 
-Validasi lengkap: `bun run production:preflight` (atau langkah individual: `bun test`, `bun run api:spec:check`, `bun run security:readiness`, `bun run build`).
+Urutan dokumen:
 
-## Yang sudah tersedia (Foundation)
+1. `01_canvas_induk.md`
+2. `02_prd_detail_per_modul.md`
+3. `03_srs_detail_per_modul.md`
+4. `04_erd_data_dictionary.md`
+5. `05_openapi_asyncapi_detail.md`
+6. `06_github_issues_detail.md`
+7. `07_sprint_testing_production_readiness.md`
+8. `08_sop_operasional_user_guide.md`
+9. `09_roadmap_repository_commit.md`
+10. `10_template_kode_coding_standard.md`
+11. `11_implementation_blueprint.md`
+12. `12_generator_prompt.md`
+13. `13_final_master_index_traceability.md`
+14. `14_ui_ux_design_system.md`
+15. `15_frontend_architecture_integration.md`
+16. `16_backend_data_access_integration.md`
+17. `17_default_seed_rbac_abac.md`
+18. `18_configuration_env_reference.md`
+19. `19_glossary_terminology.md`
 
-- **Module contract + registry** — `src/modules/index.ts`, 11 modul base skeleton ber-TODO.
-- **Helper standar `_shared`** — response envelope, error code, tenant context, ABAC guard (default deny), audit + redaction, domain event envelope, idempotency, validasi input.
-- **`src/lib`** — config fail-fast (doc 18), logger Pino + redaction, pool postgres.js, `withTenant` (RLS `SET LOCAL`), transaction wrapper, scrypt password, JWT sesi, storage lokal, i18n.
-- **Database** — migration runner berurutan + checksum, schema 001–004 (foundation, tenant/identity/profile, RBAC/ABAC, observability) dengan **RLS FORCE teruji**.
-- **Kontrak** — OpenAPI + AsyncAPI baseline; `api:spec:check` menjaga konsistensi kontrak ↔ modul.
-- **Ops** — health & pool health endpoint, contract test, security readiness, production preflight, Docker Compose PostgreSQL, profil deploy.
+## Untuk Kontributor dan Coding Agent
 
-## Paket dokumen
-
-Dokumen 01–19 di [`docs/awcms-mini/`](docs/awcms-mini/README.md) (struktur sama dengan paket AWPOS): canvas induk, PRD, SRS, ERD, OpenAPI/AsyncAPI, issues, sprint/testing, SOP, roadmap repo, coding standard, blueprint, generator prompt, traceability, UI/UX, frontend, backend/data access, seed RBAC/ABAC, env reference, glossary.
-
-## Membangun aplikasi baru di atas base
-
-1. Gunakan base ini; **jangan ubah lapisan `_shared`/`lib`** kecuali lewat issue base.
-2. Tambah modul domain di `src/modules/` + daftarkan di registry; migration lanjut nomor berikutnya (`005_awcms_...`); kontrak di `openapi/modules/` + AsyncAPI.
-3. Susun paket dokumen 01–19 aplikasi Anda — paket AWPOS adalah contoh terisi penuh.
-4. Ikuti `AGENTS.md`, skill proyek [`.claude/skills/`](.claude/skills/README.md), dan subagents [`.claude/agents/`](.claude/agents/).
+1. Baca [`AGENTS.md`](AGENTS.md).
+2. Baca dokumen di `docs/awcms-mini/` sesuai task.
+3. Gunakan skill proyek di [`.claude/skills/`](.claude/skills/README.md).
+4. Kerjakan atomic per issue; migration, OpenAPI, AsyncAPI, test, dan SOP ditambahkan saat implementasi runtime dimulai.
+5. Sertakan laporan implementasi dan validasi sesuai Definition of Done.
 
 ## Versioning
 
-SemVer + [Changesets](.changeset/README.md); riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Baseline `0.0.0`; rilis bertag pertama `0.1.0` (Foundation).
+Proyek memakai Semantic Versioning dengan [Changesets](.changeset/README.md). Riwayat rilis ada di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset.
 
-## Lisensi & arsip
+## Status Repository
 
-Lihat [`LICENSE.md`](LICENSE.md). Implementasi sebelumnya (Astro+Hono+emdash, single-tenant) diarsip di branch `legacy/pre-awpos-standard`.
+Repo ini telah dibersihkan agar hanya menyimpan konteks yang punya padanan di `ahliweb/awpos` dengan adaptasi nama AWCMS-Mini. Struktur runtime sebelumnya sudah dihapus dari branch ini dan dapat dibuat ulang mengikuti dokumen Bagian 9-12 serta aturan di `AGENTS.md`.
