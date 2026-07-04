@@ -1,23 +1,39 @@
 # AWCMS-Mini — Modular Monolith Standard
 
-AWCMS-Mini adalah baseline standar pengembangan aplikasi AhliWeb berbasis **Bun + Astro 7 + PostgreSQL**. Struktur repo, dokumen, skill, dan proses mengikuti repo referensi AWPOS, tetapi konteksnya disesuaikan menjadi base modular monolith yang bisa dipakai untuk aplikasi domain berikutnya.
+[![CI](https://github.com/ahliweb/awcms-mini/actions/workflows/ci.yml/badge.svg)](https://github.com/ahliweb/awcms-mini/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/ahliweb/awcms-mini/actions/workflows/codeql.yml/badge.svg)](https://github.com/ahliweb/awcms-mini/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-informational.svg)](LICENSE)
+[![Runtime: Bun](https://img.shields.io/badge/runtime-Bun-black.svg)](https://bun.sh)
 
-> **Status:** repository ini masih berupa **paket perencanaan (docs-only)**. Belum ada kode aplikasi. Implementasi dimulai dari **Issue 0.1**. Coding agent & kontributor **wajib membaca [`AGENTS.md`](AGENTS.md) lebih dulu**.
+AWCMS-Mini adalah **base modular monolith standar** AhliWeb berbasis **Bun + Astro 7 + PostgreSQL**. Ia berisi lapisan **reusable** (multi-tenant, RBAC/ABAC/RLS, audit, offline-first, kontrak OpenAPI/AsyncAPI, coding standard, skill proyek) yang menjadi fondasi aplikasi turunan. Aplikasi domain (mis. AWPOS untuk retail/POS) dibangun **di atas** base ini dengan menambah modulnya sendiri.
+
+> **Status:** paket perencanaan & standar (**docs-only**). Kode aplikasi dimulai dari **Issue 0.1**. Kontributor & coding agent **wajib membaca [`AGENTS.md`](AGENTS.md) lebih dulu**.
+
+## Daftar isi
+
+- [Arsitektur tingkat tinggi](#arsitektur-tingkat-tinggi)
+- [Stack](#stack)
+- [Prinsip utama](#prinsip-utama)
+- [Paket dokumen](#paket-dokumen)
+- [Untuk kontributor](#untuk-kontributor)
+- [Keamanan](#keamanan)
+- [Tata kelola & komunitas](#tata-kelola--komunitas)
+- [Versioning](#versioning)
+- [Lisensi](#lisensi)
 
 ## Arsitektur tingkat tinggi
 
 ```mermaid
 flowchart TB
   subgraph Client["Client / LAN"]
-    APP[Aplikasi domain<br/>keyboard-first bila perlu]
-    ADM[Admin / Petugas]
-    CUST[Customer Portal]
+    ADM[Admin]
+    APP[Aplikasi turunan<br/>modul domain]
   end
 
   subgraph App["AWCMS-Mini — Bun + Astro 7 (Modular Monolith)"]
     API[REST API /api/v1<br/>OpenAPI]
     MW[Middleware:<br/>Auth · Tenant · ABAC · Idempotency · Audit]
-    MOD[Modul reusable + domain:<br/>Tenant · Identity · Profile · Access ·<br/>Sync · Workflow · Reporting · UI · Domain modules]
+    MOD[Modul base:<br/>Tenant · Identity · Profile · Access ·<br/>Sync · Workflow · Reporting · UI · Observability]
     EVT[Domain events<br/>AsyncAPI]
   end
 
@@ -28,73 +44,58 @@ flowchart TB
 
   subgraph Ext["Provider eksternal (OPSIONAL, non-blocking)"]
     R2[Cloudflare R2]
-    WA[StarSender WhatsApp]
-    MAIL[Mailketing Email]
-    AI[AI Analyst]
+    PROV[Provider domain<br/>mis. pesan/notifikasi]
   end
 
-  APP --> API
   ADM --> API
-  CUST --> API
+  APP --> API
   API --> MW --> MOD
   MOD --> PG
   MOD --> FILE
   MOD --> EVT
   MOD -. queue/outbox .-> R2
-  MOD -. queue/outbox .-> WA
-  MOD -. queue/outbox .-> MAIL
-  MOD -. safe aggregate views .-> AI
+  MOD -. queue/outbox .-> PROV
 ```
 
-Provider eksternal terhubung lewat **outbox/queue**, bukan jalur langsung transaksi — sehingga aplikasi tetap dapat menjalankan alur kritikal saat koneksi eksternal bermasalah.
+Provider eksternal terhubung lewat **outbox/queue**, bukan jalur langsung transaksi — sehingga alur kritikal tetap jalan saat koneksi eksternal bermasalah.
 
 ## Prinsip offline-first
 
 ```mermaid
 flowchart LR
-  Tx[Transaksi operasional] --> Local[(DB lokal / LAN)]
+  Tx[Aksi operasional] --> Local[(DB lokal / LAN)]
   Local --> Outbox[Outbox event + object queue]
   Outbox -->|saat online| Sync[Sync push/pull<br/>HMAC signed]
   Sync --> Server[(Server pusat)]
-  Outbox -->|saat online| Deliver[Kirim receipt WA/email · upload R2]
+  Outbox -->|saat online| Deliver[Kirim ke provider · upload R2]
   Server -->|conflict| Manual[Resolusi manual + audit]
 ```
 
-## Stack final
+## Stack
 
-- Runtime: **Bun**
-- Backend platform: **Bun-only**; Node.js hanya boleh sebagai pengecualian tertulis bila Bun belum mendukung kebutuhan teknis tertentu.
-- Web framework: **Astro 7**
-- Database: **PostgreSQL**
-- Arsitektur: **Modular monolith, microservice-ready**
-- Mode operasi: **Offline-first / LAN-first**, optional online sync
-- Storage file optional: **Cloudflare R2**
-- Bot/security optional untuk public form: Cloudflare Turnstile jika dibutuhkan
-- Security baseline: **RBAC + ABAC + PostgreSQL RLS + Audit Log**
-- API contract: **OpenAPI**
-- Event contract: **AsyncAPI**
+- Runtime: **Bun** ([ADR-0002](docs/adr/0002-bun-only-runtime.md) — Bun-only; Node.js hanya lewat pengecualian tertulis)
+- Web framework: **Astro 7** (SSR di atas Bun)
+- Database: **PostgreSQL** dengan **RLS** ([ADR-0003](docs/adr/0003-postgresql-rls-multi-tenant.md))
+- Arsitektur: **Modular monolith, microservice-ready** ([ADR-0001](docs/adr/0001-modular-monolith-architecture.md))
+- Mode operasi: **Offline-first / LAN-first**, optional online sync ([ADR-0006](docs/adr/0006-offline-first-sync-outbox.md))
+- Storage file opsional: **Cloudflare R2**
+- Security baseline: **RBAC + ABAC + PostgreSQL RLS + Audit Log** ([ADR-0004](docs/adr/0004-rbac-abac-default-deny.md))
+- Kontrak: **OpenAPI** + **AsyncAPI** ([ADR-0007](docs/adr/0007-openapi-asyncapi-contracts.md))
 
 ## Prinsip utama
 
-1. Alur operasional kritikal harus tetap berjalan tanpa internet bila mode offline/LAN diaktifkan.
-2. Provider eksternal seperti R2, WhatsApp, email, dan AI tidak boleh menjadi dependency transaksi operasional.
-3. Transaksi posted harus immutable, idempotent, atomic, dan audit-ready.
-4. Stok harus dikelola dengan stock movement append-only dan locking saat mutation.
-5. Multi-tenant wajib memakai `tenant_id`, RLS, tenant context, dan ABAC.
-6. Data sensitif seperti password, token, NPWP, NIK, email, nomor HP, dan receipt token wajib dilindungi.
-7. Master/config/draft yang bisa dihapus memakai **soft delete**; list default menyembunyikan `deleted_at`, restore/purge harus berizin dan diaudit.
-8. Dokumentasi, migration, API contract, test, dan SOP harus mengikuti implementasi nyata.
-9. Backend wajib berjalan di Bun. Node.js tidak menjadi platform backend; pengecualian hanya boleh dengan izin maintainer dan catatan docs yang menyebut alasan, batas waktu, dan rencana migrasi kembali ke Bun.
+1. Alur operasional kritikal tetap berjalan tanpa internet bila mode offline/LAN diaktifkan.
+2. Provider eksternal (R2, pesan, dsb.) tidak boleh menjadi dependency alur kritikal dan tidak boleh dipanggil di dalam DB transaction.
+3. Data yang sudah posted (bila aplikasi turunan memilikinya) bersifat immutable, idempotent, atomic, dan audit-ready.
+4. Multi-tenant wajib memakai `tenant_id`, RLS, tenant context, dan ABAC.
+5. Data sensitif (password, token, NPWP, NIK, email, nomor HP) wajib di-hash/mask/redact.
+6. Master/config/draft yang bisa dihapus memakai **soft delete**; list default menyembunyikan `deleted_at`, restore/purge harus berizin dan diaudit ([ADR-0005](docs/adr/0005-soft-delete-and-immutability.md)).
+7. Dokumentasi, migration, API contract, test, dan SOP mengikuti implementasi nyata.
+8. Backend **Bun-only**; pengecualian Node.js hanya dengan izin maintainer + catatan docs.
 
 ## Paket dokumen
 
-Dokumen lengkap berada di folder:
-
-```text
-docs/awcms-mini/
-```
-
-Rantai dokumen dari kebutuhan bisnis sampai siap coding:
+Paket dokumen master ada di [`docs/awcms-mini/`](docs/awcms-mini/README.md). Rantai dari kebutuhan sampai siap koding:
 
 ```mermaid
 flowchart LR
@@ -113,82 +114,52 @@ flowchart LR
   M --> N([Ready for Coding])
   D --> TD[16 Backend & DB]
   E --> TD
-  E --> UX[14 UI/UX] --> FE[15 Frontend & Integrasi]
+  E --> UX[14 UI/UX] --> FE[15 Frontend]
   TD --> N
   FE --> N
   T17[17 Seed/RBAC/ABAC] --> N
   T18[18 Config/Env] --> N
+  SEC[20 Threat Model] -. gates .-> N
 ```
 
-Urutan dokumen:
+- **01–13** perencanaan → kontrak → eksekusi; **14–18** desain teknis; **19** glossary; **20** threat model & arsitektur keamanan.
+- **Catatan penting:** dokumen **02–19** memakai domain retail/POS (gaya AWPOS) sebagai **contoh ilustratif** — polanya reusable, entitas/endpoint/layarnya adalah ilustrasi domain yang diganti aplikasi turunan. Lihat [`docs/awcms-mini/README.md`](docs/awcms-mini/README.md) §Reusable vs domain turunan.
+- **Keputusan arsitektural** dicatat di [`docs/adr/`](docs/adr/README.md).
+- **Snapshot GitHub issue** aktual di [`docs/awcms-mini/github/`](docs/awcms-mini/github/README.md).
 
-1. `01_canvas_induk.md`
-2. `02_prd_detail_per_modul.md`
-3. `03_srs_detail_per_modul.md`
-4. `04_erd_data_dictionary.md`
-5. `05_openapi_asyncapi_detail.md`
-6. `06_github_issues_detail.md`
-7. `07_sprint_testing_production_readiness.md`
-8. `08_sop_operasional_user_guide.md`
-9. `09_roadmap_repository_commit.md`
-10. `10_template_kode_coding_standard.md`
-11. `11_implementation_blueprint.md`
-12. `12_generator_prompt.md`
-13. `13_final_master_index_traceability.md`
-14. `14_ui_ux_design_system.md`
-15. `15_frontend_architecture_integration.md`
-16. `16_backend_data_access_integration.md`
-17. `17_default_seed_rbac_abac.md`
-18. `18_configuration_env_reference.md`
-19. `19_glossary_terminology.md`
+## Untuk kontributor
 
-Dokumen 14–18 adalah **desain teknis implementasi** (UI/UX, frontend, backend, database, seed/RBAC/ABAC, konfigurasi) yang melengkapi 01–13 agar siap dikoding; dokumen 19 adalah **glossary** rujukan istilah.
-
-Snapshot GitHub issue aktual dicatat terpisah di [`docs/awcms-mini/github/`](docs/awcms-mini/github/). Folder tersebut memisahkan issue `OPEN` dan `CLOSED`, maksimal 100 issue per file, serta menyertakan proses refresh snapshot, label, dan milestone.
-
-Mulai implementasi dari **Issue 0.1 — Initialize AWCMS-Mini Modular Monolith Repository Structure**.
-
-## Urutan implementasi awal
-
-```text
-Issue 0.1 — Initialize repository structure
-Issue 0.2 — Add SQL migration runner
-Issue 0.3 — Add OpenAPI and AsyncAPI baseline
-Issue 12.1 — Add initial setup wizard API
-Issue 2.1 — Add tenant and office schema
-Issue 2.2 — Add central profile schema
-Issue 2.3 — Add identity login
-Issue 2.4 — Add RBAC and ABAC
-Issue 3.1 — Add product catalog MVP
-Issue 3.2 — Add stock balance and stock movement
-Issue 3.3 — Add checkout session and cart
-Issue 3.4 — Add idempotent atomic transaction posting
-```
-
-## Untuk kontributor & coding agent
-
-1. Baca [`AGENTS.md`](AGENTS.md) — kontrak kerja, aturan wajib, guardrail keamanan, alur task.
-2. Baca dokumen di `docs/awcms-mini/` sesuai kebutuhan task (lihat peta dokumen di `AGENTS.md`).
-3. Gunakan **skill proyek** di [`.claude/skills/`](.claude/skills/README.md) — mis. `awcms-mini-implement-issue`, `awcms-mini-new-migration`, `awcms-mini-new-endpoint` — agar standar dokumen diterapkan konsisten.
+1. Baca [`AGENTS.md`](AGENTS.md) — kontrak kerja, aturan wajib, guardrail keamanan.
+2. Baca [`CONTRIBUTING.md`](CONTRIBUTING.md) — alur kontribusi, setup, konvensi commit, Definition of Done.
+3. Gunakan **skill proyek** di [`.claude/skills/`](.claude/skills/README.md) agar standar diterapkan konsisten.
 4. Kerjakan **atomic** per issue; migration bila schema berubah, OpenAPI bila API berubah, AsyncAPI bila event berubah.
-5. Sertakan laporan implementasi dan pastikan validasi (`db:migrate`, `api:spec:check`, `test`, `build`) pass.
+5. Validasi (`bun run check`, `bun test`, `bun run build`) sebelum PR.
 
-### Skill proyek tersedia
+### Mulai dari
 
-`awcms-mini-implement-issue` · `awcms-mini-new-module` · `awcms-mini-new-migration` · `awcms-mini-new-endpoint` · `awcms-mini-new-event` · `awcms-mini-idempotency` · `awcms-mini-abac-guard` · `awcms-mini-audit-log` · `awcms-mini-sensitive-data` · `awcms-mini-sync-hmac` · `awcms-mini-security-review` · `awcms-mini-pr-review` · `awcms-mini-testing` · `awcms-mini-production-preflight` · `awcms-mini-ui-screen` · `awcms-mini-release` · `awcms-mini-legacy-migration`. Detail: [`.claude/skills/README.md`](.claude/skills/README.md).
+Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/awcms-mini/06_github_issues_detail.md). Urutan awal: **Issue 0.1 → 0.2 → 0.3 → 12.1**, lalu Tenant/Identity/Profile (2.1–2.4).
 
-### Subagents tersedia
+## Keamanan
 
-`awcms-mini-coder` (implementasi issue) · `awcms-mini-reviewer` (review PR, read-only) · `awcms-mini-security-auditor` (audit keamanan + verdict go-live, read-only). Definisi di [`.claude/agents/`](.claude/agents/). Alur: issue → coder → reviewer → auditor (modul sensitif) → merge.
+- Kebijakan pelaporan kerentanan: [`SECURITY.md`](SECURITY.md) (gunakan private vulnerability reporting — **jangan** issue publik).
+- Model ancaman & arsitektur keamanan: [`docs/awcms-mini/20_threat_model_security_architecture.md`](docs/awcms-mini/20_threat_model_security_architecture.md).
+- Automasi: Dependabot, CodeQL, secret scanning, CI hygiene (Bun-only + no-`.env`).
 
-## AWCMS-Mini sebagai standar pengembangan
+## Tata kelola & komunitas
 
-AWCMS-Mini disusun agar dapat dijadikan **template/contoh** membangun aplikasi di atas standar yang sama. Lapisan **reusable** (modular monolith + module contract, RBAC/ABAC/RLS + audit, konvensi migration/OpenAPI/AsyncAPI, design system & shell, offline-first, skill proyek, standar commit/preflight) dipertahankan; lapisan **spesifik domain** diganti sesuai kebutuhan aplikasi baru. Rincian pemetaan reusable vs domain ada di [`docs/awcms-mini/README.md`](docs/awcms-mini/README.md).
+| Dokumen                                    | Isi                                 |
+| ------------------------------------------ | ----------------------------------- |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md)       | Cara berkontribusi                  |
+| [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Standar perilaku komunitas          |
+| [`GOVERNANCE.md`](GOVERNANCE.md)           | Peran, pengambilan keputusan, rilis |
+| [`SUPPORT.md`](SUPPORT.md)                 | Kanal bantuan                       |
+| [`SECURITY.md`](SECURITY.md)               | Kebijakan keamanan                  |
+| [`docs/adr/`](docs/adr/README.md)          | Architecture Decision Records       |
 
 ## Versioning
 
-Proyek memakai **Semantic Versioning** dengan **[Changesets](.changeset/README.md)**; riwayat rilis di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset (`bun run changeset`). Baseline saat ini `0.0.0`; rilis bertag pertama `0.1.0` (Foundation) sesuai doc 09. Detail: [`docs/awcms-mini/09_roadmap_repository_commit.md`](docs/awcms-mini/09_roadmap_repository_commit.md).
+**Semantic Versioning** + **[Changesets](.changeset/README.md)**; riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Baseline `0.0.0`; rilis bertag pertama `0.1.0` (Foundation).
 
-## Status repository
+## Lisensi
 
-Dokumen ini adalah baseline perencanaan teknis (**docs-only**, belum ada kode aplikasi; sudah ada tooling versioning). Audit standar pengembangan terakhir tersedia di [`docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`](docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md). Implementasi kode dimulai setelah struktur repository dibuat mengikuti dokumen Bagian 9–12 dan aturan di `AGENTS.md`.
+Dilisensikan di bawah lisensi **MIT** — lihat [`LICENSE`](LICENSE). Audit standar pengembangan terakhir: [`docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`](docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md).

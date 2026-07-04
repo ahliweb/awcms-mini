@@ -11,7 +11,7 @@ Ikuti `docs/awcms-mini/10_template_kode_coding_standard.md`.
 
 ```mermaid
 flowchart TD
-  A[Baca Idempotency-Key header] --> B{Key ada di awcms-mini_idempotency_keys?}
+  A[Baca Idempotency-Key header] --> B{Key ada di awcms_mini_idempotency_keys?}
   B -- Tidak --> C[Hitung request hash stabil] --> D[Jalankan mutation dalam transaction] --> E[Simpan key + hash + response/resource] --> F[Return response]
   B -- Ya --> G{hash sama?}
   G -- Ya --> H[Return response tersimpan]
@@ -24,7 +24,7 @@ flowchart TD
 2. Request hash stabil dari body ternormalisasi (urutan field konsisten).
 3. Key sama + hash sama → replay response tersimpan (aman).
 4. Key sama + hash beda → `409 IDEMPOTENCY_CONFLICT`.
-5. Simpan status/resource hasil mutation di `awcms-mini_idempotency_keys`.
+5. Simpan status/resource hasil mutation di `awcms_mini_idempotency_keys`.
 6. Kombinasikan dengan stock lock (`SELECT ... FOR UPDATE`) & transaction wrapper.
 7. Deadlock retry harus aman karena idempotency.
 8. Retention key: 7–30 hari.

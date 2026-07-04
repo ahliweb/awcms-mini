@@ -28,13 +28,13 @@ flowchart LR
 
 ## Klasifikasi
 
-| Data | Level | Kontrol |
-|---|---|---|
-| Password hash, API key/token | Critical | Never expose / env only |
-| NPWP/NIK/NITKU | High | Mask + ABAC tax role |
-| Phone/WhatsApp/email | High | Mask + hash lookup |
-| Address | Medium/High | Need-to-know |
-| Tax invoice/XML | High | Tax role, audit, checksum |
+| Data                         | Level       | Kontrol                   |
+| ---------------------------- | ----------- | ------------------------- |
+| Password hash, API key/token | Critical    | Never expose / env only   |
+| NPWP/NIK/NITKU               | High        | Mask + ABAC tax role      |
+| Phone/WhatsApp/email         | High        | Mask + hash lookup        |
+| Address                      | Medium/High | Need-to-know              |
+| Tax invoice/XML              | High        | Tax role, audit, checksum |
 
 ## Verifikasi
 

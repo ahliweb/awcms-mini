@@ -1,5 +1,7 @@
 # Bagian 12 — Generator Prompt dan Instruksi Eksekusi Repository AWCMS-Mini
 
+> **Standar base + contoh domain.** Dokumen ini adalah **standar/pola reusable** base AWCMS-Mini. Contoh yang dipakai memakai domain retail/POS bergaya AWPOS sebagai ilustrasi — ganti detail domainnya dengan kebutuhan aplikasi turunan Anda. Lihat [README paket dokumen](README.md) §Reusable vs domain turunan.
+
 ## Tujuan
 
 Dokumen ini berisi prompt untuk coding agent/developer agar implementasi AWCMS-Mini berjalan konsisten, aman, atomic, dan audit-ready.
@@ -8,29 +10,29 @@ Dokumen ini berisi prompt untuk coding agent/developer agar implementasi AWCMS-M
 
 Prompt di dokumen ini kini tersedia sebagai **skill proyek** di `.claude/skills/` (katalog: `.claude/skills/README.md`). Panggil skill agar standar diterapkan konsisten alih-alih menyalin prompt manual.
 
-| Prompt / kebutuhan | Skill |
-|---|---|
-| Prompt Induk / Per Issue | `awcms-mini-implement-issue` |
+| Prompt / kebutuhan            | Skill                                                                                                                                    |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Prompt Induk / Per Issue      | `awcms-mini-implement-issue`                                                                                                             |
 | Prompt Skeleton / Sprint 1–12 | `awcms-mini-implement-issue` + `awcms-mini-new-module` / `awcms-mini-new-migration` / `awcms-mini-new-endpoint` / `awcms-mini-new-event` |
-| Idempotent posting (Sprint 5) | `awcms-mini-idempotency` |
-| RBAC/ABAC (Sprint 3) | `awcms-mini-abac-guard` |
-| Sync HMAC (Sprint 8) | `awcms-mini-sync-hmac` |
-| Logging/masking (Sprint 6) | `awcms-mini-audit-log` + `awcms-mini-sensitive-data` |
-| Prompt Review PR | `awcms-mini-pr-review` |
-| Prompt Security Review | `awcms-mini-security-review` |
-| Prompt Production Preflight | `awcms-mini-production-preflight` |
-| Testing | `awcms-mini-testing` |
-| UI/UX (Sprint 11) | `awcms-mini-ui-screen` |
-| Release/versioning | `awcms-mini-release` |
-| Legacy migration (Epic 1) | `awcms-mini-legacy-migration` |
+| Idempotent posting (Sprint 5) | `awcms-mini-idempotency`                                                                                                                 |
+| RBAC/ABAC (Sprint 3)          | `awcms-mini-abac-guard`                                                                                                                  |
+| Sync HMAC (Sprint 8)          | `awcms-mini-sync-hmac`                                                                                                                   |
+| Logging/masking (Sprint 6)    | `awcms-mini-audit-log` + `awcms-mini-sensitive-data`                                                                                     |
+| Prompt Review PR              | `awcms-mini-pr-review`                                                                                                                   |
+| Prompt Security Review        | `awcms-mini-security-review`                                                                                                             |
+| Prompt Production Preflight   | `awcms-mini-production-preflight`                                                                                                        |
+| Testing                       | `awcms-mini-testing`                                                                                                                     |
+| UI/UX (Sprint 11)             | `awcms-mini-ui-screen`                                                                                                                   |
+| Release/versioning            | `awcms-mini-release`                                                                                                                     |
+| Legacy migration (Epic 1)     | `awcms-mini-legacy-migration`                                                                                                            |
 
 Selain skill, prompt utama juga tersedia sebagai **subagent** siap-delegasi di `.claude/agents/`:
 
-| Prompt | Subagent | Mode |
-|---|---|---|
-| Prompt Induk / Per Issue | `awcms-mini-coder` | Implementasi penuh |
-| Prompt Review PR | `awcms-mini-reviewer` | Read-only |
-| Prompt Security Review | `awcms-mini-security-auditor` | Read-only, verdict go-live |
+| Prompt                   | Subagent                      | Mode                       |
+| ------------------------ | ----------------------------- | -------------------------- |
+| Prompt Induk / Per Issue | `awcms-mini-coder`            | Implementasi penuh         |
+| Prompt Review PR         | `awcms-mini-reviewer`         | Read-only                  |
+| Prompt Security Review   | `awcms-mini-security-auditor` | Read-only, verdict go-live |
 
 Alur otomasi: issue → `awcms-mini-coder` → `awcms-mini-reviewer` → (modul sensitif) `awcms-mini-security-auditor` → merge.
 

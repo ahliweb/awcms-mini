@@ -42,9 +42,9 @@ flowchart LR
 ## Backup & restore (wajib teruji)
 
 ```bash
-pg_dump --format=custom --file=/backup/awcms-mini_$(date +%Y%m%d_%H%M%S).dump "$DATABASE_URL"
-createdb awcms-mini_restore_test
-pg_restore --dbname=awcms-mini_restore_test --clean --if-exists /backup/awcms-mini_YYYYMMDD_HHMMSS.dump
+pg_dump --format=custom --file=/backup/awcms_mini_$(date +%Y%m%d_%H%M%S).dump "$DATABASE_URL"
+createdb awcms_mini_restore_test
+pg_restore --dbname=awcms_mini_restore_test --clean --if-exists /backup/awcms_mini_YYYYMMDD_HHMMSS.dump
 ```
 
 Validasi restore: tenant/user/produk/stok/transaksi terbaca · login test · POS smoke test · report smoke test.

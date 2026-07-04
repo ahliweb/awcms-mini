@@ -22,12 +22,30 @@ Ikuti `docs/awcms-mini/03_srs_detail_per_modul.md`, `docs/awcms-mini/10_template
 type AccessRequest = {
   moduleKey: string;
   activityCode: string;
-  action: "read"|"create"|"update"|"delete"|"post"|"cancel"|"approve"|"export"|"send"|"configure"|"analyze"|"assign";
-  resourceType?: string; resourceId?: string;
+  action:
+    | "read"
+    | "create"
+    | "update"
+    | "delete"
+    | "post"
+    | "cancel"
+    | "approve"
+    | "export"
+    | "send"
+    | "configure"
+    | "analyze"
+    | "assign";
+  resourceType?: string;
+  resourceId?: string;
   resourceAttributes?: Record<string, unknown>;
   environmentAttributes?: Record<string, unknown>;
 };
-type AccessDecision = { allowed: boolean; reason: string; decisionId?: string; matchedPolicy?: string };
+type AccessDecision = {
+  allowed: boolean;
+  reason: string;
+  decisionId?: string;
+  matchedPolicy?: string;
+};
 ```
 
 ## Prosedur

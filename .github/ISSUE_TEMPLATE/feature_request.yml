@@ -1,0 +1,46 @@
+name: Feature request
+description: Usulkan kemampuan baru atau peningkatan pada base AWCMS-Mini.
+title: "[feat] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Untuk fitur **domain aplikasi turunan** (mis. katalog, POS, gudang), buat issue di repo aplikasi tersebut — AWCMS-Mini hanya berisi kemampuan **base generik**. Lihat `docs/awcms-mini/README.md` §Reusable vs domain turunan.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Masalah / kebutuhan
+      description: Masalah apa yang ingin diselesaikan? Untuk siapa?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Usulan solusi
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatif yang dipertimbangkan
+    validations:
+      required: false
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Apakah ini kemampuan base generik?
+      options:
+        - "Ya — reusable untuk semua aplikasi turunan"
+        - "Tidak yakin"
+        - "Tidak — spesifik domain (mungkin salah repo)"
+    validations:
+      required: true
+  - type: textarea
+    id: docs
+    attributes:
+      label: Dampak dokumentasi / standar
+      description: Doc/ADR/kontrak mana yang perlu berubah bila fitur ini diterima?
+    validations:
+      required: false

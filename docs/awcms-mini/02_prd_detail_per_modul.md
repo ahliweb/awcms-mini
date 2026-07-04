@@ -1,5 +1,7 @@
 # Bagian 2 — PRD Detail Per Modul
 
+> **Contoh domain (ilustratif).** Dokumen ini memakai domain retail/POS bergaya AWPOS sebagai contoh berjalan. **Pola & standar**-nya reusable untuk base AWCMS-Mini; **entitas, endpoint, layar, dan istilah domain** (produk, POS, gudang, pajak, CRM, AI, dsb.) adalah ilustrasi yang **diganti** oleh aplikasi turunan. Lihat [README paket dokumen](README.md) §Reusable vs domain turunan.
+
 ## Tujuan PRD
 
 Dokumen ini menjelaskan kebutuhan produk AWCMS-Mini dari sisi bisnis, pengguna, fitur, prioritas, dan acceptance criteria per modul.
@@ -21,24 +23,26 @@ flowchart LR
 
 ## Persona utama
 
-| Persona | Kebutuhan |
-|---|---|
-| Owner | Monitoring omzet, stok, approval, laporan, risiko bisnis |
-| Admin | Setup tenant, user, produk, stok, laporan, konfigurasi |
-| Kasir | Transaksi cepat, search/scan produk, payment, receipt |
-| Petugas Gudang | Transfer, receiving, cycle count, stok bin/lot |
-| Tax Officer | Tax profile, VAT invoice, Coretax batch export |
-| CRM Staff | Contact, consent, receipt WhatsApp/email |
-| Business Analyst | Laporan agregat dan AI insight aman |
-| Customer | Buka receipt, download PDF, consent |
-| Admin Teknis | Deployment, backup, restore, troubleshooting |
+| Persona          | Kebutuhan                                                |
+| ---------------- | -------------------------------------------------------- |
+| Owner            | Monitoring omzet, stok, approval, laporan, risiko bisnis |
+| Admin            | Setup tenant, user, produk, stok, laporan, konfigurasi   |
+| Kasir            | Transaksi cepat, search/scan produk, payment, receipt    |
+| Petugas Gudang   | Transfer, receiving, cycle count, stok bin/lot           |
+| Tax Officer      | Tax profile, VAT invoice, Coretax batch export           |
+| CRM Staff        | Contact, consent, receipt WhatsApp/email                 |
+| Business Analyst | Laporan agregat dan AI insight aman                      |
+| Customer         | Buka receipt, download PDF, consent                      |
+| Admin Teknis     | Deployment, backup, restore, troubleshooting             |
 
 ## Modul 1 — Tenant Admin
 
 ### Problem
+
 AWCMS-Mini harus mendukung tenant, toko, cabang, office, gudang, dan lokasi fisik.
 
 ### Scope
+
 - Tenant master.
 - Office/cabang/toko/gudang.
 - Physical location.
@@ -46,6 +50,7 @@ AWCMS-Mini harus mendukung tenant, toko, cabang, office, gudang, dan lokasi fisi
 - Setup lock.
 
 ### Acceptance criteria
+
 - Tenant pertama dapat dibuat.
 - Owner pertama dapat dibuat.
 - Office pertama dapat dibuat.
@@ -56,9 +61,11 @@ AWCMS-Mini harus mendukung tenant, toko, cabang, office, gudang, dan lokasi fisi
 ## Modul 2 — Identity & Access
 
 ### Problem
+
 Setiap user harus memiliki login dan hak akses sesuai tugas.
 
 ### Scope
+
 - Identity login.
 - Tenant user membership.
 - Role.
@@ -67,6 +74,7 @@ Setiap user harus memiliki login dan hak akses sesuai tugas.
 - Access decision log.
 
 ### Acceptance criteria
+
 - Owner/admin/operator dapat login.
 - ABAC default deny.
 - Deny overrides allow.
@@ -76,9 +84,11 @@ Setiap user harus memiliki login dan hak akses sesuai tugas.
 ## Modul 3 — Central Profile
 
 ### Problem
+
 Data user, customer, supplier, CRM contact, dan tax party tidak boleh terduplikasi.
 
 ### Scope
+
 - Profile person/organization.
 - Identifier email, phone, WhatsApp, NPWP, NIK.
 - Masked value.
@@ -86,6 +96,7 @@ Data user, customer, supplier, CRM contact, dan tax party tidak boleh terduplika
 - Dedup/merge request.
 
 ### Acceptance criteria
+
 - Customer bisa di-resolve dari WhatsApp/email.
 - Identifier duplicate tidak membuat profile baru.
 - Profile bisa di-link ke user/customer/tax/CRM.
@@ -95,9 +106,11 @@ Data user, customer, supplier, CRM contact, dan tax party tidak boleh terduplika
 ## Modul 4 — Catalog & Inventory
 
 ### Problem
+
 POS membutuhkan master produk, harga, satuan, stok, dan movement.
 
 ### Scope
+
 - Category.
 - Brand.
 - Unit.
@@ -107,6 +120,7 @@ POS membutuhkan master produk, harga, satuan, stok, dan movement.
 - Stock movement.
 
 ### Acceptance criteria
+
 - Produk bisa dibuat.
 - SKU unik per tenant.
 - Barcode unik jika diisi.
@@ -117,9 +131,11 @@ POS membutuhkan master produk, harga, satuan, stok, dan movement.
 ## Modul 5 — Sales POS
 
 ### Problem
+
 Kasir membutuhkan transaksi cepat, aman, dan tidak dobel.
 
 ### Scope
+
 - Checkout session.
 - Cart/line item.
 - Payment.
@@ -130,6 +146,7 @@ Kasir membutuhkan transaksi cepat, aman, dan tidak dobel.
 - Receipt request.
 
 ### Acceptance criteria
+
 - Kasir bisa checkout.
 - Total dihitung server-side.
 - Posting mengurangi stok.
@@ -141,9 +158,11 @@ Kasir membutuhkan transaksi cepat, aman, dan tidak dobel.
 ## Modul 6 — Shared Stock Routing
 
 ### Problem
+
 Beberapa tenant bisa berbagi stok di lokasi fisik yang sama, dengan transaksi diarahkan ke tenant tertentu.
 
 ### Scope
+
 - Stock pool.
 - Stock pool member.
 - Product mapping.
@@ -152,6 +171,7 @@ Beberapa tenant bisa berbagi stok di lokasi fisik yang sama, dengan transaksi di
 - Settlement guardrail.
 
 ### Acceptance criteria
+
 - Stock pool memiliki member tenant.
 - Routing rule memilih tenant berdasarkan kondisi.
 - Legal basis dicatat.
@@ -161,9 +181,11 @@ Beberapa tenant bisa berbagi stok di lokasi fisik yang sama, dengan transaksi di
 ## Modul 7 — Warehouse Management
 
 ### Problem
+
 Multi gudang memerlukan warehouse, zone, bin, lot, serial, transfer, in-transit, dan cycle count.
 
 ### Scope
+
 - Warehouse.
 - Zone.
 - Bin.
@@ -176,6 +198,7 @@ Multi gudang memerlukan warehouse, zone, bin, lot, serial, transfer, in-transit,
 - Stock adjustment request.
 
 ### Acceptance criteria
+
 - Warehouse dibuat dari office.
 - Bin code unik per warehouse.
 - Transfer antar gudang dapat shipped/received.
@@ -187,9 +210,11 @@ Multi gudang memerlukan warehouse, zone, bin, lot, serial, transfer, in-transit,
 ## Modul 8 — Accounting Tax/Coretax
 
 ### Problem
+
 AWCMS-Mini perlu siap pajak Indonesia dan Coretax tanpa mengasumsikan upload API resmi.
 
 ### Scope
+
 - Tax profile.
 - NITKU/ID TKU.
 - Party tax profile.
@@ -199,6 +224,7 @@ AWCMS-Mini perlu siap pajak Indonesia dan Coretax tanpa mengasumsikan upload API
 - Checksum dan approval.
 
 ### Acceptance criteria
+
 - NPWP/NIK/NITKU dimasking.
 - VAT invoice dapat digenerate dari sales posted.
 - Missing tax data terdeteksi.
@@ -208,9 +234,11 @@ AWCMS-Mini perlu siap pajak Indonesia dan Coretax tanpa mengasumsikan upload API
 ## Modul 9 — CRM Communication
 
 ### Problem
+
 Customer membutuhkan bukti transaksi digital melalui PDF, WhatsApp, dan email.
 
 ### Scope
+
 - Receipt PDF.
 - CRM contact.
 - Contact channel.
@@ -221,6 +249,7 @@ Customer membutuhkan bukti transaksi digital melalui PDF, WhatsApp, dan email.
 - Customer portal.
 
 ### Acceptance criteria
+
 - Receipt PDF dibuat.
 - Consent dicek sebelum mengirim.
 - Offline masuk queue.
@@ -231,9 +260,11 @@ Customer membutuhkan bukti transaksi digital melalui PDF, WhatsApp, dan email.
 ## Modul 10 — Sync Storage
 
 ### Problem
+
 Node offline perlu sinkron ke server pusat saat online.
 
 ### Scope
+
 - Sync node.
 - Outbox/inbox.
 - Push/pull.
@@ -243,6 +274,7 @@ Node offline perlu sinkron ke server pusat saat online.
 - Object queue/R2.
 
 ### Acceptance criteria
+
 - Push/pull signed.
 - Duplicate batch tidak dobel.
 - Conflict immutable tercatat.
@@ -251,9 +283,11 @@ Node offline perlu sinkron ke server pusat saat online.
 ## Modul 11 — AI Business Analyst
 
 ### Problem
+
 Owner membutuhkan insight bisnis cepat tanpa membuka data mentah sensitif.
 
 ### Scope
+
 - Safe aggregate views.
 - Read-only tools.
 - Tool policy.
@@ -261,6 +295,7 @@ Owner membutuhkan insight bisnis cepat tanpa membuka data mentah sensitif.
 - Hermes adapter optional.
 
 ### Acceptance criteria
+
 - AI tidak bisa raw SQL.
 - AI tidak bisa mutation.
 - AI tidak expose PII mentah.
@@ -269,6 +304,7 @@ Owner membutuhkan insight bisnis cepat tanpa membuka data mentah sensitif.
 ## Modul 12 — UI Experience
 
 ### Scope
+
 - Admin shell.
 - POS fullscreen.
 - Customer receipt portal.
@@ -277,6 +313,7 @@ Owner membutuhkan insight bisnis cepat tanpa membuka data mentah sensitif.
 - Navigation role-aware.
 
 ### Acceptance criteria
+
 - Admin melihat dashboard.
 - Kasir transaksi keyboard-first.
 - Customer portal mobile-friendly.
@@ -285,6 +322,7 @@ Owner membutuhkan insight bisnis cepat tanpa membuka data mentah sensitif.
 ## Modul 13 — Observability, Pooling, Workflow, Security
 
 ### Scope
+
 - Structured log.
 - Audit log.
 - DB pool.
@@ -294,6 +332,7 @@ Owner membutuhkan insight bisnis cepat tanpa membuka data mentah sensitif.
 - Go-live gates.
 
 ### Acceptance criteria
+
 - Correlation ID tersedia.
 - Secret diredaksi.
 - Pool health dapat dicek.

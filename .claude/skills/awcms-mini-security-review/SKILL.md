@@ -27,14 +27,14 @@ Ikuti `docs/awcms-mini/12_generator_prompt.md` (Prompt Security Review) dan `doc
 
 ## Fokus per area
 
-| Area | Cek utama |
-|---|---|
-| Identity | password hash modern, login lockout, failed login audit |
-| POS | idempotency, stock lock, atomic, immutable |
-| Tax | NPWP/NIK/NITKU masked, export approval + audit |
-| CRM | consent, provider key env, phone/email masked |
-| Sync | HMAC, anti-replay, node inactive ditolak |
-| AI | read-only, safe aggregate views, no raw PII |
+| Area        | Cek utama                                                                    |
+| ----------- | ---------------------------------------------------------------------------- |
+| Identity    | password hash modern, login lockout, failed login audit                      |
+| POS         | idempotency, stock lock, atomic, immutable                                   |
+| Tax         | NPWP/NIK/NITKU masked, export approval + audit                               |
+| CRM         | consent, provider key env, phone/email masked                                |
+| Sync        | HMAC, anti-replay, node inactive ditolak                                     |
+| AI          | read-only, safe aggregate views, no raw PII                                  |
 | Master data | soft delete hidden by default, restore conflict check, purge retention/legal |
 
 ## Output

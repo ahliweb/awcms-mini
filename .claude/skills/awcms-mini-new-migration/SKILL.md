@@ -35,7 +35,7 @@ sql/NNN_awcms_mini_<area>_<description>.sql
 ```sql
 BEGIN;
 
-CREATE TABLE IF NOT EXISTS awcms-mini_<name> (
+CREATE TABLE IF NOT EXISTS awcms_mini_<name> (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL,
   code text,
@@ -52,16 +52,16 @@ CREATE TABLE IF NOT EXISTS awcms-mini_<name> (
   restored_by uuid
 );
 
-CREATE INDEX IF NOT EXISTS idx_awcms-mini_<name>_tenant
-  ON awcms-mini_<name> (tenant_id);
-CREATE INDEX IF NOT EXISTS idx_awcms-mini_<name>_tenant_created
-  ON awcms-mini_<name> (tenant_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_awcms-mini_<name>_active
-  ON awcms-mini_<name> (tenant_id, created_at DESC)
+CREATE INDEX IF NOT EXISTS idx_awcms_mini_<name>_tenant
+  ON awcms_mini_<name> (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_awcms_mini_<name>_tenant_created
+  ON awcms_mini_<name> (tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_awcms_mini_<name>_active
+  ON awcms_mini_<name> (tenant_id, created_at DESC)
   WHERE deleted_at IS NULL;
 
-ALTER TABLE awcms-mini_<name> ENABLE ROW LEVEL SECURITY;
-CREATE POLICY awcms-mini_<name>_tenant_isolation ON awcms-mini_<name>
+ALTER TABLE awcms_mini_<name> ENABLE ROW LEVEL SECURITY;
+CREATE POLICY awcms_mini_<name>_tenant_isolation ON awcms_mini_<name>
   USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
 
 COMMIT;

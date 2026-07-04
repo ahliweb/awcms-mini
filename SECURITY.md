@@ -4,10 +4,10 @@ AWCMS-Mini is the Bun + Astro 7 + PostgreSQL baseline for AhliWeb application de
 
 ## Supported Versions
 
-| Version | Supported |
-|---|---|
-| `main` | Yes, planning baseline and active development |
-| Tagged releases before `0.1.0` | No |
+| Version                        | Supported                                     |
+| ------------------------------ | --------------------------------------------- |
+| `main`                         | Yes, planning baseline and active development |
+| Tagged releases before `0.1.0` | No                                            |
 
 The first production-support target is `0.1.0` after the foundation scaffold is implemented.
 
@@ -41,3 +41,30 @@ Do not open public issues for exploitable vulnerabilities. Public issues are acc
 3. Add or update tests, docs, and audit notes when the issue changes behavior or operating procedure.
 4. Verify with available Bun commands and GitHub security checks.
 5. Publish an advisory only after the fix is available or an agreed disclosure window is reached.
+
+## Target Response Times
+
+Best-effort targets for good-faith private reports:
+
+| Stage                       | Target                                                    |
+| --------------------------- | --------------------------------------------------------- |
+| Acknowledge receipt         | within 3 business days                                    |
+| Initial severity assessment | within 7 business days                                    |
+| Fix or mitigation plan      | within 30 days for high/critical                          |
+| Coordinated disclosure      | after fix is available, or 90 days, whichever comes first |
+
+These are goals, not guarantees; timelines depend on severity and complexity.
+
+## Scope
+
+**In scope:** documented security controls and standards in this repository (RBAC/ABAC/RLS design, audit/masking rules, idempotency, sync HMAC), CI/workflow configuration, dependency manifests, and — once application code exists — the code under `src/`, `server/`, `scripts/`, and `sql/`.
+
+**Out of scope:** third-party services and providers referenced only as optional integrations, findings that require a compromised host or physical access, and issues in example/illustrative domain content that do not affect the base standard.
+
+## Safe Harbor
+
+We consider good-faith security research conducted under this policy to be authorized. If you make a good-faith effort to comply with this policy during your research, we will not pursue or support legal action against you for that research. Good faith includes: using only synthetic/test data, not accessing or modifying data you do not own, not degrading service for others, and giving us a reasonable time to remediate before any disclosure. If in doubt, ask first via the private advisory channel.
+
+## Recognition
+
+With your consent, we are happy to credit reporters in the advisory and release notes.

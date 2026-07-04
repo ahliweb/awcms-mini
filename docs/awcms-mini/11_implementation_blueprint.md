@@ -1,5 +1,7 @@
 # Bagian 11 — Implementation Blueprint per Sprint
 
+> **Contoh domain (ilustratif).** Dokumen ini memakai domain retail/POS bergaya AWPOS sebagai contoh berjalan. **Pola & standar**-nya reusable untuk base AWCMS-Mini; **entitas, endpoint, layar, dan istilah domain** (produk, POS, gudang, pajak, CRM, AI, dsb.) adalah ilustrasi yang **diganti** oleh aplikasi turunan. Lihat [README paket dokumen](README.md) §Reusable vs domain turunan.
+
 ## Tujuan
 
 Dokumen ini menjadi blueprint praktis untuk membuat skeleton repository AWCMS-Mini secara bertahap berdasarkan sprint.
@@ -133,7 +135,7 @@ import type { ModuleDescriptor } from "./_shared/module-contract";
 export const modules: ModuleDescriptor[] = [];
 
 export function getModuleByKey(
-  moduleKey: string,
+  moduleKey: string
 ): ModuleDescriptor | undefined {
   return modules.find((module) => module.key === moduleKey);
 }
@@ -149,7 +151,7 @@ export const GET: APIRoute = async () =>
   ok({
     status: "ok",
     service: "awcms-mini",
-    timestamp: new Date().toISOString(),
+    timestamp: new Date().toISOString()
   });
 ```
 
