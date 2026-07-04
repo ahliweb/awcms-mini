@@ -5,6 +5,7 @@
   "description": "AWCMS-Mini — Modular Monolith Standard (documentation baseline; app code starts at Issue 0.1)",
   "license": "UNLICENSED",
   "type": "module",
+  "packageManager": "bun@1.3.14",
   "scripts": {
     "changeset": "changeset",
     "changeset:version": "changeset version",

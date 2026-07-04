@@ -10,7 +10,7 @@ Terkait: `14_ui_ux_design_system.md` (desain), `16_backend_data_access_integrati
 
 | Aspek | Keputusan |
 |---|---|
-| Framework | Astro 7, output **server (SSR)** via adapter Bun/Node |
+| Framework | Astro 7, output **server (SSR)** dijalankan di runtime Bun |
 | Interaktivitas | **Astro islands** + TypeScript; framework island opsional (mis. Preact) hanya untuk pulau kompleks (POS, chat AI) |
 | Styling | CSS variables (design token doc 14), scoped styles |
 | Rendering | Halaman authed = SSR; customer portal = SSR; aset statis di-cache SW |
@@ -18,7 +18,7 @@ Terkait: `14_ui_ux_design_system.md` (desain), `16_backend_data_access_integrati
 | Offline | PWA: service worker + IndexedDB outbox untuk POS/receipt |
 | State | Lokal per-island + store ringan untuk keranjang POS; hindari SPA global besar |
 
-Alasan: SSR menjaga waktu muat cepat di LAN, aman untuk cookie httpOnly, dan tetap ringan; islands membatasi JS hanya di area interaktif.
+Alasan: SSR menjaga waktu muat cepat di LAN, aman untuk cookie httpOnly, dan tetap ringan; islands membatasi JS hanya di area interaktif. Backend/SSR dijalankan dengan **Bun** sebagai platform runtime; Node.js bukan target platform server utama.
 
 ## Lapisan frontend
 

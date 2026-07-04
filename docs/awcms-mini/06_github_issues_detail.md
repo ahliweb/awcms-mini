@@ -363,36 +363,18 @@ Selain doc 01–05, setiap epic wajib membaca dokumen desain teknis terkait:
 
 ---
 
-# Status: issues sudah dibuat di GitHub
+# Status: backlog rencana issue
 
-Seluruh 38 issue di dokumen ini telah dibuat di `ahliweb/awcms-mini` (2026-07-04) lengkap dengan label, milestone M0–M8, dokumen acuan, dependency, dan checklist DoD.
+Dokumen ini adalah template/backlog rencana issue atomic untuk AWCMS-Mini. Snapshot live GitHub terbaru (2026-07-04T10:31:41Z) mencatat **0 issue** di `ahliweb/awcms-mini`; karena itu, nomor issue historis tidak boleh dipakai sebagai rujukan state saat ini.
 
-| Issue | Link | Issue | Link |
-|---|---|---|---|
-| 0.1 | [#1](https://github.com/ahliweb/awcms-mini/issues/1) | 6.1 | [#21](https://github.com/ahliweb/awcms-mini/issues/21) |
-| 0.2 | [#2](https://github.com/ahliweb/awcms-mini/issues/2) | 6.2 | [#22](https://github.com/ahliweb/awcms-mini/issues/22) |
-| 0.3 | [#3](https://github.com/ahliweb/awcms-mini/issues/3) | 6.3 | [#23](https://github.com/ahliweb/awcms-mini/issues/23) |
-| 1.1 | [#4](https://github.com/ahliweb/awcms-mini/issues/4) | 7.1 | [#24](https://github.com/ahliweb/awcms-mini/issues/24) |
-| 1.2 | [#5](https://github.com/ahliweb/awcms-mini/issues/5) | 7.2 | [#25](https://github.com/ahliweb/awcms-mini/issues/25) |
-| 2.1 | [#6](https://github.com/ahliweb/awcms-mini/issues/6) | 7.3 | [#26](https://github.com/ahliweb/awcms-mini/issues/26) |
-| 2.2 | [#7](https://github.com/ahliweb/awcms-mini/issues/7) | 7.4 | [#27](https://github.com/ahliweb/awcms-mini/issues/27) |
-| 2.3 | [#8](https://github.com/ahliweb/awcms-mini/issues/8) | 8.1 | [#28](https://github.com/ahliweb/awcms-mini/issues/28) |
-| 2.4 | [#9](https://github.com/ahliweb/awcms-mini/issues/9) | 8.2 | [#29](https://github.com/ahliweb/awcms-mini/issues/29) |
-| 3.1 | [#10](https://github.com/ahliweb/awcms-mini/issues/10) | 8.3 | [#30](https://github.com/ahliweb/awcms-mini/issues/30) |
-| 3.2 | [#11](https://github.com/ahliweb/awcms-mini/issues/11) | 9.1 | [#31](https://github.com/ahliweb/awcms-mini/issues/31) |
-| 3.3 | [#12](https://github.com/ahliweb/awcms-mini/issues/12) | 9.2 | [#32](https://github.com/ahliweb/awcms-mini/issues/32) |
-| 3.4 | [#13](https://github.com/ahliweb/awcms-mini/issues/13) | 10.1 | [#33](https://github.com/ahliweb/awcms-mini/issues/33) |
-| 4.1 | [#14](https://github.com/ahliweb/awcms-mini/issues/14) | 10.2 | [#34](https://github.com/ahliweb/awcms-mini/issues/34) |
-| 4.2 | [#15](https://github.com/ahliweb/awcms-mini/issues/15) | 10.3 | [#35](https://github.com/ahliweb/awcms-mini/issues/35) |
-| 4.3 | [#16](https://github.com/ahliweb/awcms-mini/issues/16) | 11.1 | [#36](https://github.com/ahliweb/awcms-mini/issues/36) |
-| 4.4 | [#17](https://github.com/ahliweb/awcms-mini/issues/17) | 12.1 | [#37](https://github.com/ahliweb/awcms-mini/issues/37) |
-| 5.1 | [#18](https://github.com/ahliweb/awcms-mini/issues/18) | 12.2 | [#38](https://github.com/ahliweb/awcms-mini/issues/38) |
-| 5.2 | [#19](https://github.com/ahliweb/awcms-mini/issues/19) | | |
-| 5.3 | [#20](https://github.com/ahliweb/awcms-mini/issues/20) | | |
+Jika backlog ini ingin diaktifkan kembali di GitHub:
 
-Mulai dari [#1 — Issue 0.1](https://github.com/ahliweb/awcms-mini/issues/1). Issue berstatus `status:blocked` menunggu dependency-nya selesai; ubah ke `status:ready` saat blocker ditutup.
+1. Buat ulang issue dari daftar epic dan issue di atas.
+2. Pasang label, milestone, dependency, dokumen acuan, dan checklist DoD sesuai isi issue.
+3. Mulai dari Issue 0.1, lalu ubah status issue yang dependency-nya sudah selesai dari `status:blocked` menjadi `status:ready`.
+4. Refresh snapshot di [`github/README.md`](github/README.md), `github/issues-open-NNN.md`, `github/issues-closed-NNN.md`, dan `github/labels-milestones.md`.
 
-Snapshot isi issue GitHub aktual dicatat di [`github/README.md`](github/README.md). Snapshot dipisah menjadi file `issues-open-NNN.md` dan `issues-closed-NNN.md`, dengan batas maksimal 100 issue per file. Dokumen ini tetap menjadi template/rencana issue atomic; folder `github/` menjadi arsip state GitHub yang direfresh dari `gh`.
+Snapshot isi GitHub aktual dicatat di [`github/README.md`](github/README.md). Snapshot dipisah menjadi file `issues-open-NNN.md` dan `issues-closed-NNN.md`, dengan batas maksimal 100 issue per file. Dokumen ini tetap menjadi template/rencana issue atomic; folder `github/` menjadi arsip state GitHub yang direfresh dari `gh`.
 
 # Sprint awal rekomendasi
 

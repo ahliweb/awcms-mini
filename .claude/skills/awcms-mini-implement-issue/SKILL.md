@@ -38,6 +38,7 @@ flowchart TD
 - High-risk action: `awcms-mini-audit-log`; high-risk mutation: `awcms-mini-idempotency`.
 - Resource deletable: soft delete + restore/purge policy; jangan hapus posted/append-only entity.
 - Provider eksternal lewat outbox/queue, **tidak** di dalam DB transaction.
+- Backend/tooling wajib Bun-only. Jangan menambah Node.js/npm/npx/pnpm/yarn atau adapter server Node.js kecuali Bun belum mendukung capability tersebut, maintainer sudah memberi izin eksplisit, dan pengecualian dicatat di docs/audit.
 
 ## Validasi wajib
 

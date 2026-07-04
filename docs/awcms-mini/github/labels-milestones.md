@@ -3,34 +3,14 @@
 | Metadata | Nilai |
 |---|---|
 | Repository | `ahliweb/awcms-mini` |
-| Snapshot | 2026-07-04T09:53:29.329Z |
-| Total labels | 41 |
-| Total milestones | 9 |
+| Snapshot | 2026-07-04T10:31:41Z |
+| Total labels | 76 |
+| Total milestones | 19 |
 
 ## Labels
 
 | Label | Deskripsi | Warna |
 |---|---|---|
-| `area:ai` | Area ai | `#c5def5` |
-| `area:api` | Area api | `#c5def5` |
-| `area:architecture` | Area architecture | `#c5def5` |
-| `area:auth` | Area auth | `#c5def5` |
-| `area:crm` | Area crm | `#c5def5` |
-| `area:database` | Area database | `#c5def5` |
-| `area:deployment` | Area deployment | `#c5def5` |
-| `area:frontend` | Area frontend | `#c5def5` |
-| `area:inventory` | Area inventory | `#c5def5` |
-| `area:logging` | Area logging | `#c5def5` |
-| `area:migration` | Area migration | `#c5def5` |
-| `area:pos` | Area pos | `#c5def5` |
-| `area:profile` | Area profile | `#c5def5` |
-| `area:reporting` | Area reporting | `#c5def5` |
-| `area:security` | Area security | `#c5def5` |
-| `area:sync` | Area sync | `#c5def5` |
-| `area:tax` | Area tax | `#c5def5` |
-| `area:tenant` | Area tenant | `#c5def5` |
-| `area:ui-ux` | Area ui-ux | `#c5def5` |
-| `area:warehouse` | Area warehouse | `#c5def5` |
 | `bug` | Something isn't working | `#d73a4a` |
 | `documentation` | Improvements or additions to documentation | `#0075ca` |
 | `duplicate` | This issue or pull request already exists | `#cfd3d7` |
@@ -38,31 +18,98 @@
 | `good first issue` | Good for newcomers | `#7057ff` |
 | `help wanted` | Extra attention is needed | `#008672` |
 | `invalid` | This doesn't seem right | `#e4e669` |
-| `priority:p0` | Kritis | `#b60205` |
-| `priority:p1` | Tinggi | `#d93f0b` |
-| `priority:p2` | Normal | `#fbca04` |
 | `question` | Further information is requested | `#d876e3` |
-| `status:blocked` | Terblokir dependency | `#d93f0b` |
-| `status:needs-review` | Perlu review | `#fbca04` |
-| `status:ready` | Siap dikerjakan | `#0e8a16` |
-| `type:docs` | Dokumentasi | `#0075ca` |
-| `type:epic` | Epic besar | `#6f42c1` |
-| `type:feature` | Fitur baru | `#0e8a16` |
-| `type:security` | Keamanan | `#d93f0b` |
-| `type:task` | Task teknis | `#1d76db` |
-| `type:test` | Testing | `#fbca04` |
 | `wontfix` | This will not be worked on | `#ffffff` |
+| `type:task` | Atomic implementation task | `#0e8a16` |
+| `workflow:issue-driven` | Work must be implemented through an issue-based flow | `#5319e7` |
+| `source:backlog` | Created from the atomic backlog | `#1d76db` |
+| `priority:high` | High-priority planned work | `#b60205` |
+| `area:auth` | Identity, auth, and sessions | `#bfdadc` |
+| `area:foundation` | Foundation and runtime work | `#c2e0c6` |
+| `area:authorization` | RBAC and ABAC work | `#f9d0c4` |
+| `area:governance` | Jobs and region governance work | `#d4c5f9` |
+| `area:security` | Security and 2FA work | `#fbca04` |
+| `area:audit` | Audit and observability work | `#7057ff` |
+| `area:admin` | Admin UI work | `#0e8a16` |
+| `area:plugins` | Plugin integration work | `#5319e7` |
+| `area:docs` | Documentation and workflow process work | `#006b75` |
+| `dependencies` | Pull requests that update a dependency file | `#0366d6` |
+| `javascript` | Pull requests that update javascript code | `#168700` |
+| `security` |  | `#ededed` |
+| `operator-action` |  | `#ededed` |
+| `sikesra` | SIKESRA application planning and implementation | `#1d76db` |
+| `uiux` | UI and UX work | `#5319e7` |
+| `mvp` | MVP scope | `#0e8a16` |
+| `admin` | Admin UI work | `#0e8a16` |
+| `dashboard` | Dashboard UI | `#c2e0c6` |
+| `forms` | Form UI | `#bfdadc` |
+| `registry` | Registry data UI | `#1d76db` |
+| `verification` | Verification workflow | `#fbca04` |
+| `documents` | Document upload and management | `#006b75` |
+| `import-excel` | Excel import workflow | `#d4c5f9` |
+| `audit-log` | Audit log UI or behavior | `#7057ff` |
+| `export-report` | Reports and export | `#d4c5f9` |
+| `rbac-abac` | RBAC and ABAC controls | `#f9d0c4` |
+| `region-scope` | Administrative region scope | `#d4c5f9` |
+| `sensitive-data` | Sensitive data handling | `#b60205` |
+| `accessibility` | Accessibility requirements | `#0052cc` |
+| `responsive` | Responsive UI behavior | `#a2eeef` |
+| `backend-needed` | Requires backend support | `#fbca04` |
+| `testing` | Testing work | `#5319e7` |
+| `blocked` | Blocked by dependency | `#d73a4a` |
+| `good-first-implementation` | Good first implementation task | `#7057ff` |
+| `priority: critical` | Critical priority | `#b60205` |
+| `priority: high` | High priority | `#d93f0b` |
+| `priority: medium` | Medium priority | `#fbca04` |
+| `priority: low` | Low priority | `#c2e0c6` |
+| `type: epic` | Epic tracking issue | `#3f51b5` |
+| `type: feature` | Feature work | `#0e8a16` |
+| `type: task` | Implementation task | `#1d76db` |
+| `type: bug` | Bug fix | `#d73a4a` |
+| `type: docs` | Documentation work | `#0075ca` |
+| `type: security` | Security work | `#b60205` |
+| `type: test` | Test work | `#5319e7` |
+| `coolify` | Coolify-managed infrastructure | `#0052cc` |
+| `deployment` | Deployment and runtime configuration | `#006b75` |
+| `r2` | Cloudflare R2 storage | `#1d76db` |
+| `environment` | Environment variable and runtime configuration | `#c2e0c6` |
+| `architecture` |  | `#ededed` |
+| `configuration` |  | `#ededed` |
+| `backend` |  | `#ededed` |
+| `hono` |  | `#ededed` |
+| `database` |  | `#ededed` |
+| `governance` |  | `#ededed` |
+| `authentication` |  | `#ededed` |
+| `storage` |  | `#ededed` |
+| `integrations` |  | `#ededed` |
+| `notifications` |  | `#ededed` |
+| `cloudflare` |  | `#ededed` |
+| `frontend` |  | `#ededed` |
+| `devops` |  | `#ededed` |
+| `cleanup` |  | `#ededed` |
 
 ## Milestones
 
+Catatan: tabel ini adalah snapshot metadata GitHub saat refresh. Deskripsi milestone lama tidak mengubah arsitektur target; otoritas arsitektur tetap `README.md`, `AGENTS.md`, dan dokumen utama `docs/awcms-mini/`.
+
 | No | Title | State | Open | Closed | Due | Description |
 |---:|---|---|---:|---:|---|---|
-| 1 | M0 — Repository Foundation | `open` | 4 | 0 | - | Skeleton, migration runner, OpenAPI/AsyncAPI (docs: 09,10,11,16,18) |
-| 2 | M1 — Legacy Migration & Data Model | `open` | 2 | 0 | - | Toolkit migrasi legacy (docs: 04,07) |
-| 3 | M2 — Identity, Tenant, Profile | `open` | 4 | 0 | - | Tenant, profile, auth, access (docs: 03,04,16,17) |
-| 4 | M3 — POS MVP | `open` | 4 | 0 | - | Product, stock, checkout, posting (docs: 03,04,05,10,16) |
-| 5 | M4 — Inventory & Warehouse | `open` | 4 | 0 | - | WMS, transfer, cycle count (docs: 03,04,05,08) |
-| 6 | M5 — CRM, Receipt, Sync | `open` | 6 | 0 | - | Receipt, WA/email, sync/R2 (docs: 03,05,15,16,18) |
-| 7 | M6 — Tax/Coretax Readiness | `open` | 4 | 0 | - | Tax profile, VAT, Coretax batch (docs: 03,04,05,19) |
-| 8 | M7 — Reporting, AI, UI/UX | `open` | 5 | 0 | - | Dashboard, UI, AI analyst (docs: 14,15,05) |
-| 9 | M8 — Security, Performance, Production | `open` | 5 | 0 | - | Logging, pooling, security readiness, deployment (docs: 16,07,17,18) |
+| 1 | E0 Foundation Decisions | `open` | 0 | 0 | - | Freeze architecture and repository conventions |
+| 2 | E1 Runtime and Database Bootstrap | `open` | 0 | 0 | - | Stand up EmDash host integration with PostgreSQL and Kysely |
+| 3 | E2 Identity and Session Core | `open` | 0 | 0 | - | Implement users, profiles, sessions, and auth event tracking |
+| 4 | E3 RBAC Core | `open` | 0 | 0 | - | Implement roles, permissions, assignments, and matrix support |
+| 5 | E4 ABAC Core | `open` | 0 | 0 | - | Add service-layer contextual authorization |
+| 6 | E5 Jobs Hierarchy | `open` | 0 | 0 | - | Add organizational structure and reporting lines |
+| 7 | E6 Logical Regions | `open` | 0 | 0 | - | Add 10-level operational region hierarchy |
+| 8 | E7 Administrative Regions | `open` | 0 | 0 | - | Add Indonesian legal region hierarchy |
+| 9 | E8 Security Hardening | `open` | 0 | 0 | - | Add TOTP, recovery, step-up, lockouts, and rate limits |
+| 10 | E9 Audit and Observability | `open` | 0 | 0 | - | Add append-only audit and security event visibility |
+| 11 | E10 Admin Surfaces | `open` | 0 | 0 | - | Deliver governance admin screens on EmDash admin |
+| 12 | E11 Plugin Governance Contract | `open` | 0 | 0 | - | Extend governance into EmDash-compatible plugins |
+| 13 | E12 Rollout Safety and Docs | `open` | 0 | 0 | - | Add flags, rollout controls, and operator docs |
+| 14 | SIKESRA UI/UX MVP - Sprint 1: Layout, Navigation, and Core Components | `open` | 0 | 0 | - | SIKESRA UI/UX MVP sprint 1 planning |
+| 15 | SIKESRA UI/UX MVP - Sprint 2: Dashboard and Registry Data | `open` | 0 | 0 | - | SIKESRA UI/UX MVP sprint 2 planning |
+| 16 | SIKESRA UI/UX MVP - Sprint 3: Module Forms | `open` | 0 | 0 | - | SIKESRA UI/UX MVP sprint 3 planning |
+| 17 | SIKESRA UI/UX MVP - Sprint 4: Code, Documents, and Verification | `open` | 0 | 0 | - | SIKESRA UI/UX MVP sprint 4 planning |
+| 18 | SIKESRA UI/UX MVP - Sprint 5: Import, Export, Audit, and Access Management | `open` | 0 | 0 | - | SIKESRA UI/UX MVP sprint 5 planning |
+| 19 | SIKESRA UI/UX MVP - Hardening: Accessibility, Security UX, Tests, and Documentation | `open` | 0 | 0 | - | SIKESRA UI/UX MVP hardening planning |

@@ -63,6 +63,7 @@ awcms-mini/
 
 ```json
 {
+  "packageManager": "bun@1.3.14",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
@@ -77,6 +78,8 @@ awcms-mini/
   }
 }
 ```
+
+Semua script di atas wajib dijalankan dengan Bun. Jangan menambahkan `node`, `npm`, `npx`, `pnpm`, atau `yarn` sebagai jalur eksekusi. Bila ada tooling yang belum didukung Bun, ikuti protokol pengecualian di `AGENTS.md` dan doc 16 sebelum menambahkannya.
 
 ## Minimal `.env.example`
 

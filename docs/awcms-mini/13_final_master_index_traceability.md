@@ -34,13 +34,13 @@ Dokumen ini menjadi master index final untuk seluruh paket dokumen AWCMS-Mini, s
 AWCMS-Mini adalah standar modular monolith berbasis AWCMS-Mini dengan stack final:
 
 ```text
-Bun + Astro 7 + PostgreSQL + Modular Monolith + Offline-first/LAN-first
+Bun-only backend + Astro 7 + PostgreSQL + Modular Monolith + Offline-first/LAN-first
 ```
 
 Keputusan teknis:
 
 1. PostgreSQL sebagai database utama.
-2. Bun sebagai runtime.
+2. Bun sebagai runtime dan backend platform; Node.js hanya boleh lewat pengecualian tertulis bila Bun belum mendukung capability yang diperlukan.
 3. Astro 7 sebagai web framework.
 4. Modular monolith, microservice-ready.
 5. Offline-first/LAN-first.

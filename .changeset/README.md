@@ -7,7 +7,7 @@ Folder ini dikelola oleh [Changesets](https://github.com/changesets/changesets) 
 1. Setelah membuat perubahan yang mempengaruhi perilaku, tambahkan changeset:
 
    ```bash
-   bun run changeset      # atau: npx changeset
+   bun run changeset
    ```
 
    Pilih tingkat bump (**patch/minor/major**) dan tulis ringkasan perubahan. File markdown baru muncul di `.changeset/`.

@@ -20,6 +20,7 @@ Aturan wajib (ringkas dari AGENTS.md — patuhi semuanya):
 8. Provider eksternal via outbox, tidak dalam DB transaction; POS harus jalan offline.
 9. UI mengikuti doc 14/15 (skill `awcms-mini-ui-screen`).
 10. Tambah changeset bila perubahan mempengaruhi perilaku (`bun run changeset`).
+11. Backend dan tooling wajib Bun-only. Jangan menambah Node.js/npm/npx/pnpm/yarn atau adapter server Node.js. Jika Bun belum mendukung kebutuhan teknis, minta izin maintainer dan catat pengecualian di docs/audit sebelum implementasi dilanjutkan.
 
 Validasi sebelum selesai: `bun run db:migrate`, `bun run api:spec:check`, `bun test`, `bun run build` (yang tersedia). Bila command gagal: laporkan command, error summary, likely cause, status partial/blocked, next step — jangan klaim sukses.
 

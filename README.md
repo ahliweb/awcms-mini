@@ -63,6 +63,7 @@ flowchart LR
 ## Stack final
 
 - Runtime: **Bun**
+- Backend platform: **Bun-only**; Node.js hanya boleh sebagai pengecualian tertulis bila Bun belum mendukung kebutuhan teknis tertentu.
 - Web framework: **Astro 7**
 - Database: **PostgreSQL**
 - Arsitektur: **Modular monolith, microservice-ready**
@@ -83,6 +84,7 @@ flowchart LR
 6. Data sensitif seperti password, token, NPWP, NIK, email, nomor HP, dan receipt token wajib dilindungi.
 7. Master/config/draft yang bisa dihapus memakai **soft delete**; list default menyembunyikan `deleted_at`, restore/purge harus berizin dan diaudit.
 8. Dokumentasi, migration, API contract, test, dan SOP harus mengikuti implementasi nyata.
+9. Backend wajib berjalan di Bun. Node.js tidak menjadi platform backend; pengecualian hanya boleh dengan izin maintainer dan catatan docs yang menyebut alasan, batas waktu, dan rencana migrasi kembali ke Bun.
 
 ## Paket dokumen
 

@@ -9,6 +9,7 @@ Membangun **AWCMS-Mini Modular Monolith Standard** sebagai sistem standar modula
 | Area | Keputusan |
 |---|---|
 | Runtime | Bun |
+| Backend platform | Bun-only; Node.js hanya lewat pengecualian tertulis |
 | Web | Astro 7 |
 | Database | PostgreSQL |
 | Arsitektur | Modular monolith, microservice-ready |

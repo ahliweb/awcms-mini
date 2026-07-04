@@ -10,6 +10,7 @@ Terkait: `10_template_kode_coding_standard.md` (aturan), `04_erd_data_dictionary
 
 | Aspek | Keputusan |
 |---|---|
+| Backend platform | **Bun runtime**; semua script backend dijalankan dengan `bun` |
 | Driver | `postgres` (postgres.js) atau `Bun.sql` — parameterized, mendukung pool |
 | Pola akses | Repository per modul (`infrastructure/repository.ts`) |
 | RLS context | `SET LOCAL app.current_tenant_id` di dalam transaction |
@@ -32,7 +33,26 @@ flowchart LR
   Tx --> Outbox[Transactional outbox]
 ```
 
-Aturan: service memanggil repository; repository hanya query terparametrisasi + mapper; tidak ada business logic di repository (doc 10).
+Aturan: service memanggil repository; repository hanya query terparametrisasi + mapper; tidak ada business logic di repository (doc 10). Proses backend wajib berjalan di runtime Bun; Node.js bukan platform server utama.
+
+## Kebijakan Bun-only dan pengecualian Node.js
+
+Backend AWCMS-Mini menggunakan **Bun-only**:
+
+- Jalankan backend, migration, test, build, preflight, dan script operasional melalui `bun` atau `bun run`.
+- Gunakan `bun.lock` sebagai lockfile dan `packageManager: "bun@..."` sebagai deklarasi package manager.
+- Dilarang menambah `node`, `npm`, `npx`, `pnpm`, `yarn`, adapter server Node.js, atau dependency yang memaksa proses backend berjalan di Node.js.
+- Library yang kompatibel dengan Bun boleh dipakai, walaupun berasal dari ekosistem npm, selama tidak membutuhkan runtime Node.js sebagai platform server.
+
+Pengecualian Node.js hanya boleh bila semua kondisi berikut terpenuhi:
+
+1. Bun belum mendukung capability yang diperlukan, atau library Bun-compatible belum tersedia.
+2. Maintainer memberi izin eksplisit sebelum dependency/tooling ditambahkan.
+3. Dokumen terkait mencatat alasan, alternatif Bun yang sudah dicoba, scope file/package, batas waktu atau kondisi pencabutan pengecualian, dan rencana migrasi kembali ke Bun.
+4. Audit standar pengembangan diperbarui dengan entry pengecualian.
+5. CI/preflight menandai pengecualian tersebut agar tidak menjadi pola default.
+
+Tanpa lima syarat tersebut, perubahan yang menambahkan Node.js runtime/tooling dianggap tidak memenuhi Definition of Done.
 
 ## RLS context (kritis untuk multi-tenant)
 

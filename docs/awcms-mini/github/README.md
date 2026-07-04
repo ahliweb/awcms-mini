@@ -1,68 +1,51 @@
 # Dokumentasi GitHub AWCMS-Mini
 
-Dokumen ini mencatat snapshot isi GitHub repository `ahliweb/awcms-mini` dan proses pengelolaan issue. Snapshot issue dipisahkan antara `OPEN` dan `CLOSED`, dengan batas maksimal 100 issue per file.
+Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folder ini adalah **snapshot state GitHub**, bukan backlog rencana; backlog rencana tetap berada di `docs/awcms-mini/06_github_issues_detail.md`. Metadata label/milestone di folder ini adalah salinan faktual dari GitHub saat refresh; bila ada deskripsi lama yang berbeda dari arsitektur Bun + Astro 7 + PostgreSQL, ikuti `README.md`, `AGENTS.md`, dan dokumen utama `docs/awcms-mini/`.
 
 | Metadata | Nilai |
 |---|---|
 | Repository | `ahliweb/awcms-mini` |
-| Snapshot | 2026-07-04T09:53:29.329Z |
-| Total issue | 38 |
-| Open issue | 38 |
+| Snapshot | 2026-07-04T10:31:41Z |
+| Total issue | 0 |
+| Open issue | 0 |
 | Closed issue | 0 |
-| Labels | 41 |
-| Milestones | 9 |
+| Labels | 76 |
+| Milestones | 19 |
 | Max issue per file | 100 |
 
 ## File snapshot
 
 | State | File | Jumlah issue |
 |---|---|---:|
-| OPEN | [issues-open-001.md](issues-open-001.md) | 38 |
+| OPEN | [issues-open-001.md](issues-open-001.md) | 0 |
 | CLOSED | [issues-closed-001.md](issues-closed-001.md) | 0 |
-| LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) | 50 |
+| LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) | 76 labels, 19 milestones |
 
 ## Aturan pencatatan
 
 1. Snapshot issue GitHub disimpan di folder ini, bukan menggantikan `06_github_issues_detail.md` yang tetap menjadi template issue rencana.
-2. File issue wajib dipisah berdasarkan state: `issues-open-NNN.md` dan `issues-closed-NNN.md`.
-3. Satu file issue tidak boleh berisi lebih dari 100 issue. Jika jumlah issue melewati 100, buat halaman berikutnya dengan nomor berurutan.
-4. Setiap issue dicatat dengan metadata, body, label, milestone, assignee, timestamp, URL, dan komentar.
-5. Jangan menyalin token, secret, dump database, atau data customer asli ke issue maupun snapshot docs.
-6. Saat issue diubah di GitHub, refresh snapshot ini agar docs tetap sinkron dengan state GitHub terbaru.
+2. File issue dipisah berdasarkan state: `issues-open-NNN.md` dan `issues-closed-NNN.md`.
+3. Satu file issue tidak boleh berisi lebih dari 100 issue.
+4. Jangan menyalin token, secret, dump database, atau data customer asli ke issue maupun snapshot docs.
+5. Saat issue, label, atau milestone berubah di GitHub, refresh snapshot ini agar docs tetap sinkron dengan state GitHub terbaru.
 
 ## Proses refresh snapshot
 
 ```bash
 gh auth status
-gh issue list --repo ahliweb/awcms-mini --state all --limit 1000 --json number,title,state,createdAt,updatedAt,closedAt,author,labels,assignees,milestone,url,body,comments > /tmp/awcms-mini_issues.json
-gh label list --repo ahliweb/awcms-mini --limit 200 --json name,description,color > /tmp/awcms-mini_labels.json
-gh api repos/ahliweb/awcms-mini/milestones --paginate > /tmp/awcms-mini_milestones.json
+gh issue list --repo ahliweb/awcms-mini --state all --limit 1000 --json number,title,state,createdAt,updatedAt,closedAt,author,labels,assignees,milestone,url,body,comments
+gh label list --repo ahliweb/awcms-mini --limit 500 --json name,description,color
+gh api 'repos/ahliweb/awcms-mini/milestones?state=all&per_page=100'
 ```
 
-Setelah data diambil, regenerate file di folder ini dengan pembagian state dan batas 100 issue per file, lalu update `README.md`, `docs/awcms-mini/README.md`, `06_github_issues_detail.md`, `09_roadmap_repository_commit.md`, `13_final_master_index_traceability.md`, dan `CHANGELOG.md` bila struktur dokumentasi berubah.
-
-## Alur issue
-
-```mermaid
-flowchart LR
-  D[Docs 06 issue template] --> G[GitHub issue dibuat]
-  G --> T{Siap dikerjakan?}
-  T -- Ya --> R[status:ready]
-  T -- Belum --> B[status:blocked + blocked by]
-  R --> W[Branch atomic + implementasi]
-  W --> V[Validasi: migrate/spec/test/build]
-  V --> P[PR + review]
-  P --> C[Issue closed]
-  B --> R
-  C --> S[Snapshot closed direfresh]
-```
+Setelah data diambil, regenerate file di folder ini dengan pembagian state dan batas 100 issue per file, lalu update metadata di `README.md`, `docs/awcms-mini/README.md`, `06_github_issues_detail.md`, `09_roadmap_repository_commit.md`, `13_final_master_index_traceability.md`, dan `CHANGELOG.md` bila struktur dokumentasi berubah.
 
 ## Ringkasan state saat snapshot
 
 | State | Jumlah | Catatan |
 |---|---:|---|
-| OPEN | 38 | Masih menjadi backlog aktif. |
-| CLOSED | 0 | Belum ada issue closed saat snapshot dibuat. |
+| OPEN | 0 | Tidak ada issue terbuka di GitHub saat snapshot ini dibuat. |
+| CLOSED | 0 | Tidak ada issue historis yang tersisa di GitHub issue list saat snapshot ini dibuat. |
 
 ## Hubungan dengan dokumen utama
 
@@ -70,3 +53,4 @@ flowchart LR
 - `docs/awcms-mini/github/` adalah snapshot state GitHub aktual.
 - `docs/awcms-mini/09_roadmap_repository_commit.md` mengatur urutan branch, commit, PR, release, dan changeset.
 - `AGENTS.md` tetap menjadi kontrak kerja agent dan developer.
+- Metadata GitHub tidak menjadi otoritas arsitektur; arsitektur target tetap Bun + Astro 7 + PostgreSQL sesuai dokumen utama.

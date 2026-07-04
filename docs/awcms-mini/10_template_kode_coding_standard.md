@@ -17,6 +17,16 @@ Dokumen ini menetapkan standar coding AWCMS-Mini untuk TypeScript/Bun/Astro/Post
 9. Semua sensitive data dimasking/redacted.
 10. Resource deletable memakai soft delete; query default menyaring `deleted_at IS NULL`.
 11. Error response standard dan tidak expose stack trace.
+12. Backend dan semua tooling repository berjalan dengan **Bun**. Jangan menambah Node.js runtime/tooling (`node`, `npm`, `npx`, `pnpm`, `yarn`, adapter server Node.js) kecuali Bun belum mendukung kebutuhan teknis tersebut dan pengecualian sudah disetujui serta dicatat di docs.
+
+## Standar platform backend
+
+- Runtime backend wajib **Bun**.
+- Package manager wajib **Bun** (`packageManager` di `package.json` mengunci versi Bun).
+- Script repository wajib dipanggil melalui `bun` atau `bun run`.
+- Prefer API/runtime Bun (`Bun.serve`, `Bun.sql` bila dipakai, `bun test`) selama sesuai kebutuhan.
+- Jangan menambahkan Node.js sebagai runtime server utama, npm-family package manager, atau adapter yang mengharuskan proses backend berjalan di Node.js.
+- Jika Bun belum mendukung kebutuhan teknis tertentu, buka pengecualian kecil dan sementara: minta izin maintainer, catat alasan dan alternatif Bun yang sudah dicoba, cantumkan file/package terdampak, tentukan rencana migrasi kembali ke Bun, dan update audit/docs sebelum merge.
 
 ## Aliran request antar layer
 

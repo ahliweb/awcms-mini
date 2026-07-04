@@ -10,6 +10,7 @@ Dokumen ini adalah **kontrak kerja** untuk coding agent (Claude Code, Codex, dsb
 |---|---|
 | Produk | standar modular monolith berbasis AWCMS-Mini |
 | Runtime | Bun |
+| Backend platform | **Bun-only**; Node.js dilarang kecuali pengecualian terdokumentasi |
 | Web framework | Astro 7 |
 | Database | PostgreSQL |
 | Arsitektur | Modular monolith, microservice-ready |
@@ -61,6 +62,7 @@ flowchart TD
 11. **Provider eksternal** (R2, WhatsApp, email, AI) **tidak boleh** jadi dependency transaksi operasional dan **tidak boleh** dipanggil di dalam DB transaction.
 12. **Immutable** — posted sales document & posted stock movement bersifat append-only; koreksi lewat cancel/return/reversal/adjustment.
 13. **Soft delete** — master/config/draft tenant-scoped yang bisa dihapus wajib memakai soft delete (`deleted_at`, `deleted_by`, `delete_reason`) dengan filter default `deleted_at IS NULL`; restore/purge hanya untuk role berizin, diaudit, dan tidak berlaku untuk dokumen posted immutable.
+14. **Backend Bun-only** — backend, scripts, test, migration, build, dan tooling repository wajib memakai `bun`. Dilarang menambah runtime/tooling Node.js (`node`, `npm`, `npx`, `pnpm`, `yarn`, server adapter Node.js, atau package yang memaksa runtime Node.js) kecuali Bun belum mendukung kebutuhan teknis tersebut. Pengecualian wajib mendapat izin eksplisit dari maintainer, mencatat alasan/masa berlaku/alternatif Bun yang dicoba di docs terkait, dan menambahkan entry di `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`.
 
 ## Guardrail keamanan (ringkas dari doc 10 & 13)
 

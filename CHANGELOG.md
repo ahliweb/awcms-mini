@@ -14,7 +14,7 @@ Baseline paket dokumentasi & tooling. Belum ada kode aplikasi yang dirilis; rili
 - `AGENTS.md` — kontrak kerja coding agent.
 - 17 **skill proyek** Claude Code di `.claude/skills/`.
 - Audit standar pengembangan software untuk baseline docs-only (`docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`).
-- Snapshot dokumentasi GitHub issue di `docs/awcms-mini/github/`, terpisah open/closed dengan batas 100 issue per file, plus label/milestone dan proses refresh.
+- Snapshot dokumentasi GitHub di `docs/awcms-mini/github/`, terpisah open/closed dengan batas 100 issue per file, plus label/milestone dan proses refresh; snapshot live 2026-07-04T10:31:41Z mencatat 0 issue, 76 label, dan 19 milestone.
 - Diagram Mermaid di seluruh dokumen kunci.
 - Versioning (SemVer) + **Changesets** + `CHANGELOG.md` + `package.json` anchor + `bun.lock` + `.gitignore`.
 

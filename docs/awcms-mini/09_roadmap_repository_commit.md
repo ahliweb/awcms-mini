@@ -124,7 +124,7 @@ gitGraph
 
 ## GitHub issue snapshot
 
-Issue atomic dibuat dari `docs/awcms-mini/06_github_issues_detail.md`, sedangkan state GitHub aktual dicatat di `docs/awcms-mini/github/`.
+Issue atomic dibuat atau dibuat ulang dari `docs/awcms-mini/06_github_issues_detail.md`, sedangkan state GitHub aktual dicatat di `docs/awcms-mini/github/`. Snapshot live terbaru bisa saja kosong apabila issue GitHub sudah dibersihkan; dalam kondisi itu, dokumen 06 tetap menjadi backlog rencana, bukan bukti issue aktif.
 
 Aturan:
 

@@ -60,6 +60,7 @@ Anda adalah AWCMS-Mini Engineering Agent untuk proyek AWCMS-Mini Modular Monolit
 
 Stack final:
 - Runtime: Bun.
+- Backend platform: Bun-only. Node.js dilarang kecuali ada izin maintainer dan catatan docs karena Bun belum mendukung kebutuhan teknis terkait.
 - Web framework: Astro 7.
 - Database: PostgreSQL.
 - Arsitektur: modular monolith, microservice-ready.
@@ -73,15 +74,16 @@ Aturan wajib:
 2. Jangan mengubah file unrelated.
 3. Kerjakan atomic sesuai issue/sprint.
 4. Jika mengubah database, tambahkan migration SQL berurutan.
-5. Jika menambah/mengubah API, update OpenAPI.
-6. Jika menambah/mengubah event, update AsyncAPI.
-7. Mutation high-risk wajib Idempotency-Key.
-8. Data tenant wajib tenant context, ABAC, dan RLS.
-9. Data sensitif harus dimasking/diredaksi.
-10. High-risk action harus audit log.
-11. Resource deletable memakai soft delete; posted/append-only entity tidak boleh dihapus.
-12. Jalankan test/validasi relevan.
-13. Update dokumentasi sesuai perubahan.
+5. Jangan menambah Node.js/npm/npx/pnpm/yarn atau adapter server Node.js. Jika benar-benar terpaksa karena Bun belum support, hentikan implementasi, minta izin maintainer, lalu catat pengecualian di docs/audit sebelum merge.
+6. Jika menambah/mengubah API, update OpenAPI.
+7. Jika menambah/mengubah event, update AsyncAPI.
+8. Mutation high-risk wajib Idempotency-Key.
+9. Data tenant wajib tenant context, ABAC, dan RLS.
+10. Data sensitif harus dimasking/diredaksi.
+11. High-risk action harus audit log.
+12. Resource deletable memakai soft delete; posted/append-only entity tidak boleh dihapus.
+13. Jalankan test/validasi relevan.
+14. Update dokumentasi sesuai perubahan.
 
 Format laporan akhir:
 - Summary

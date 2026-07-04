@@ -56,6 +56,7 @@ flowchart TB
 ## Keputusan final stack
 
 - **Bun** sebagai runtime.
+- **Backend Bun-only**; Node.js hanya boleh lewat pengecualian tertulis bila Bun belum mendukung capability yang diperlukan.
 - **Astro 7** sebagai web framework.
 - **PostgreSQL** sebagai database utama.
 - **Modular monolith** sebagai arsitektur utama.
@@ -126,7 +127,7 @@ Dokumen dikelompokkan mengikuti alur pengembangan agar mudah diimplementasi.
 
 | File | Isi |
 |---|---|
-| `github/README.md` | Proses pencatatan GitHub issue, aturan maksimal 100 issue per file, dan indeks snapshot |
+| `github/README.md` | Proses pencatatan GitHub issue, aturan maksimal 100 issue per file, indeks snapshot, dan ringkasan live count saat refresh |
 | `github/issues-open-001.md` | Snapshot issue `OPEN` saat ini |
 | `github/issues-closed-001.md` | Snapshot issue `CLOSED` saat ini |
 | `github/labels-milestones.md` | Snapshot label dan milestone GitHub |

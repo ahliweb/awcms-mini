@@ -7,6 +7,8 @@ Status repository saat audit: **PASS untuk baseline perencanaan docs-only**, **B
 Stack target sudah konsisten di dokumen:
 
 - Runtime: **Bun**.
+- Package manager: **Bun** (`packageManager: bun@1.3.14`).
+- Backend platform: **Bun-only**. Node.js tidak boleh dipakai kecuali ada izin maintainer dan catatan pengecualian di docs karena Bun belum mendukung kebutuhan teknis terkait.
 - Web framework: **Astro 7**.
 - Database: **PostgreSQL**.
 - Arsitektur: modular monolith, microservice-ready.
@@ -29,6 +31,7 @@ Audit membaca seluruh isi repo saat ini:
 |---|---|---|
 | Status repo | PASS | Repo jujur menyatakan docs-only dan belum mengklaim app production-ready. |
 | Stack target | PASS | Bun, Astro 7, dan PostgreSQL konsisten di README, AGENTS, doc 01, 10, 11, 13, 15, 16, 18. |
+| Backend platform Bun-only | PASS | Dokumen menetapkan Bun sebagai runtime backend dan melarang Node.js/tooling npm-family tanpa pengecualian tertulis. |
 | Governance agent | PASS | `AGENTS.md`, 17 skill, dan 3 subagent tersedia; alur implementasi/review/security jelas. |
 | Roadmap issue | PASS | Issue 0.1–12.2 terdokumentasi; snapshot GitHub open/closed ada di `docs/awcms-mini/github/`; urutan implementasi tidak melompat ke POS sebelum tenant/auth/access. |
 | Security baseline | PASS | RBAC, ABAC default deny, RLS, audit, masking, idempotency, soft delete, HMAC sync, provider outbox tercakup. |
@@ -54,7 +57,19 @@ Audit membaca seluruh isi repo saat ini:
 
 - `package.json` sudah memakai `type: "module"` dan script Changesets.
 - `bun.lock` sudah tersedia untuk mengunci dependency baseline.
+- `package.json` mengunci package manager ke `bun@1.3.14`.
 - Target script Bun lengkap sudah didefinisikan di doc 11: `dev`, `build`, `db:migrate`, `api:spec:check`, `api:contract:test`, `test`, `security:readiness`, `production:preflight`, `db:pool:health`.
+- Node.js exception protocol sudah didefinisikan di `AGENTS.md`, doc 10, doc 12, dan doc 16.
+
+### 2.1 Pengecualian Node.js
+
+Status saat audit: **tidak ada pengecualian Node.js yang disetujui**.
+
+Jika di masa depan Bun belum mendukung kebutuhan teknis tertentu, pengecualian wajib dicatat di tabel ini sebelum merge:
+
+| Tanggal | Scope | Alasan Bun belum cukup | Izin maintainer | Alternatif Bun yang dicoba | Rencana pencabutan |
+|---|---|---|---|---|---|
+| — | — | — | — | — | — |
 
 Catatan: script aplikasi belum ada di `package.json` karena repository belum melewati Issue 0.1.
 
@@ -108,7 +123,7 @@ Hasil:
    - `CHANGELOG.md` disesuaikan dari 14 skill menjadi 17 skill.
    - `bun.lock` ditambahkan untuk reproducible dependency baseline.
    - Dokumen audit ini ditambahkan sebagai rujukan repo-local.
-   - Snapshot GitHub issue open/closed, label, milestone, dan proses refresh ditambahkan di `docs/awcms-mini/github/`.
+  - Snapshot GitHub issue open/closed, label, milestone, dan proses refresh ditambahkan di `docs/awcms-mini/github/`; snapshot live 2026-07-04T10:31:41Z mencatat 0 issue, 76 label, dan 19 milestone.
 
 ## Rekomendasi berikutnya
 
