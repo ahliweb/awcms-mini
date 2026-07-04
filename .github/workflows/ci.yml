@@ -36,6 +36,9 @@ jobs:
       - name: Docs checks (mermaid, internal links, naming)
         run: bun run check:docs
 
+      - name: Typecheck (tsc --noEmit)
+        run: bun run typecheck
+
   hygiene:
     name: Repo hygiene (Bun-only + no secrets)
     runs-on: ubuntu-latest

@@ -49,7 +49,9 @@ Prasyarat: **Bun** (versi terkunci di `package.json` `packageManager`/`engines`)
 Jalankan yang relevan dengan perubahan Anda:
 
 ```bash
-bun run lint                 # prettier check dokumen (bila tersedia)
+bun run check                # lint + check:docs + typecheck (gate CI utama)
+bun run lint                 # prettier check dokumen
+bun run typecheck            # tsc --noEmit
 bun test                     # unit + integration test (setelah kode ada)
 bun run api:spec:check       # bila mengubah OpenAPI/AsyncAPI
 bun run db:migrate           # bila menambah migration

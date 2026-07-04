@@ -150,6 +150,18 @@ flowchart LR
 
 Aturan: reviewer & auditor **read-only** (temuan dikembalikan ke coder); auditor memberi verdict go-live — critical finding = BLOCKED (gate doc 07).
 
+## Perintah yang sudah tersedia sekarang
+
+```bash
+bun install
+bun run check                # lint + check:docs + typecheck (gate CI)
+bun run lint                 # prettier --check
+bun run check:docs           # validasi mermaid, tautan internal, penamaan
+bun run typecheck            # tsc --noEmit
+bun run changeset            # tambah changeset (versioning)
+bun run changeset:version    # konsumsi changeset -> bump versi + CHANGELOG
+```
+
 ## Perintah standar (target)
 
 Skrip berikut menjadi target repository (lihat doc 11). Sebelum Issue 0.1 selesai, sebagian belum tersedia.
