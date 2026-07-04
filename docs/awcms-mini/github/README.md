@@ -5,7 +5,7 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-04T14:15:43Z            |
+| Snapshot     | 2026-07-04T22:11:08Z            |
 | Total issue  | 38                              |
 | Open issue   | 18                              |
 | Closed issue | 20                              |
@@ -47,14 +47,24 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 | OPEN   |     18 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 0, 2, 6, 8, 9, 10, 11, 12).         |
 | CLOSED |     20 | Ditutup `not planned` — konten domain POS/retail dipindahkan ke aplikasi turunan contoh, bukan bagian base. |
 
-### Reconciliation (2026-07-05)
+### Reconciliation #2 (2026-07-04, lanjutan)
 
-Setelah penambahan standar profesional repo publik (lisensi MIT, governance/community files, ADR `docs/adr/`, doc 20 threat model, CI kualitas dokumentasi), issue GitHub diselaraskan dengan kondisi terbaru. **Tidak ada perubahan pada jumlah/label/milestone** (tetap 18 open, 20 closed, 98 label, 24 milestone — snapshot penuh terakhir 2026-07-04T14:15:43Z tetap akurat untuk metadata). Perubahan hanya pada **body issue**:
+Audit menyeluruh (bandingkan **setiap field** tiap issue — Problem/Scope/Out of Scope/Acceptance Criteria/Security Notes/Testing/Reference Docs — terhadap `docs/awcms-mini/06_github_issues_detail.md` per issue, plus label & milestone terhadap tabel rekomendasi doc 06) menemukan 14 dari 18 issue open masih drift dari doc 06 saat ini. **Tidak ada perubahan jumlah/label/milestone** (tetap 18 open, 20 closed, 98 label, 24 milestone — semua label doc 06 terverifikasi ada di GitHub, semua milestone issue terverifikasi cocok tabel rekomendasi). Perbaikan hanya pada **body issue**:
+
+- **2 konflik konten nyata** (leftover bahasa domain dari sebelum genericization, belum ikut ter-update saat itu):
+  - **#371** (0.1): "Out of Scope" masih menyebut "POS, inventory, provider eksternal" → diganti "modul domain aplikasi turunan (katalog, transaksi, dsb.)" sesuai doc 06.
+  - **#377** (2.2): "Acceptance Criteria" masih menyebut "user/customer/tax/CRM" → diganti "entitas modul lain" sesuai doc 06.
+- **12 issue dengan Reference Docs basi** (dibuat sebelum `docs/adr/` dan doc 20 ada, tidak ikut diperbarui saat #379/#405 direconcile sebelumnya): #371, #372, #373 (Epic 0 → +ADR 0001-0002, 0007), #376, #377, #378 (Epic 2 → +ADR 0003-0004), #391, #392, #393 (Epic 6 → +ADR 0006), #403, #404 (Epic 10 → +doc 20 +ADR 0003-0005, menyamakan pola #405), #406 (Epic 11 → +ADR 0004).
+- Issue yang **sudah cocok** tanpa perubahan: #379, #398, #401, #405, #407, #408 (Reference Docs sudah sesuai tabel doc 06 — epic 8/9/12 memang tidak punya ADR spesifik di tabel).
+
+### Reconciliation #1 (2026-07-05)
+
+Setelah penambahan standar profesional repo publik (lisensi MIT, governance/community files, ADR `docs/adr/`, doc 20 threat model, CI kualitas dokumentasi), issue GitHub diselaraskan dengan kondisi terbaru saat itu:
 
 - **#405** (10.3 — Production Security Readiness): Reference Docs ditambah doc 20 (threat model) + ADR 0003–0005; readiness wajib memverifikasi kontrol pada threat model dan konsisten dengan ADR.
 - **#379** (2.4 — RBAC and ABAC): Reference Docs ditambah doc 20 + `docs/adr/0004-rbac-abac-default-deny.md`.
 
-Backlog `docs/awcms-mini/06_github_issues_detail.md` §Dokumen acuan per epic juga diselaraskan untuk merujuk ADR + doc 20 per epic.
+Backlog `docs/awcms-mini/06_github_issues_detail.md` §Dokumen acuan per epic juga diselaraskan untuk merujuk ADR + doc 20 per epic. (Reconciliation #1 ini ternyata tidak lengkap — 12 issue lain baru menyusul di Reconciliation #2 di atas.)
 
 ### Genericization (2026-07-04)
 

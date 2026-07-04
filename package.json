@@ -1,6 +1,6 @@
 {
   "name": "awcms-mini",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "description": "AWCMS-Mini — Modular Monolith Standard (documentation baseline; app code starts at Issue 0.1)",
   "license": "MIT",

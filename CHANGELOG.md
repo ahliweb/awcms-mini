@@ -8,6 +8,16 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 Belum ada perubahan yang menunggu rilis berikutnya.
 
+## [0.0.3] - 2026-07-04
+
+### Fixed
+
+- **Audit menyeluruh GitHub issues vs doc 06**: membandingkan setiap field (Problem/Scope/Out of Scope/Acceptance Criteria/Security Notes/Testing/Reference Docs) tiap issue open terhadap `docs/awcms-mini/06_github_issues_detail.md`, plus label & milestone terhadap tabel rekomendasi. Ditemukan 14/18 issue drift:
+  - **2 konflik konten nyata** — leftover bahasa domain dari genericization sebelumnya yang belum lengkap: `#371` (Out of Scope masih "POS, inventory, provider eksternal") dan `#377` (Acceptance Criteria masih "user/customer/tax/CRM").
+  - **12 issue dengan Reference Docs basi** — dibuat sebelum `docs/adr/` dan doc 20 ada: `#371`-`#373` (Epic 0), `#376`-`#378` (Epic 2), `#391`-`#393` (Epic 6), `#403`-`#404` (Epic 10), `#406` (Epic 11).
+  - Tidak ada perubahan jumlah/label/milestone (tetap 18 open/20 closed/98 label/24 milestone) — seluruh label doc 06 terverifikasi ada di GitHub, seluruh milestone issue terverifikasi cocok tabel rekomendasi.
+- Snapshot `docs/awcms-mini/github/` (README, issues-open-001, issues-closed-001, labels-milestones) di-refresh; `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` dilengkapi entri yang sebelumnya belum tercatat (tsconfig.json/typecheck 0.0.1, unit testing 0.0.2).
+
 ## [0.0.2] - 2026-07-05
 
 ### Added
@@ -74,6 +84,7 @@ Baseline paket dokumentasi, standar profesional repo publik, & tooling. Belum ad
 
 Aplikasi turunan (mis. AWPOS) memakai peta versinya sendiri di atas base ini.
 
-[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.0.2...HEAD
+[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.0.3...HEAD
+[0.0.3]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.0.2...awcms-mini@0.0.3
 [0.0.2]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.0.1...awcms-mini@0.0.2
 [0.0.1]: https://github.com/ahliweb/awcms-mini/commits/main
