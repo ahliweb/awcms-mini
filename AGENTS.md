@@ -60,7 +60,7 @@ flowchart TD
 9. **Masking** — data sensitif (password, token, NPWP, NIK, phone, email, receipt token) wajib dimask/redact; jangan pernah masuk response/log/audit mentah.
 10. **No secret** — jangan commit `.env`, token, dump DB, backup, atau data customer asli.
 11. **Provider eksternal** (R2, WhatsApp, email, AI) **tidak boleh** jadi dependency transaksi operasional dan **tidak boleh** dipanggil di dalam DB transaction.
-12. **Immutable** — posted sales document & posted stock movement bersifat append-only; koreksi lewat cancel/return/reversal/adjustment.
+12. **Immutable** — dokumen/data yang sudah posted (bila aplikasi turunan memilikinya, mis. transaksi domain) bersifat append-only; koreksi lewat reversal/adjustment, bukan overwrite/delete.
 13. **Soft delete** — master/config/draft tenant-scoped yang bisa dihapus wajib memakai soft delete (`deleted_at`, `deleted_by`, `delete_reason`) dengan filter default `deleted_at IS NULL`; restore/purge hanya untuk role berizin, diaudit, dan tidak berlaku untuk dokumen posted immutable.
 14. **Backend Bun-only** — backend, scripts, test, migration, build, dan tooling repository wajib memakai `bun`. Dilarang menambah runtime/tooling Node.js (`node`, `npm`, `npx`, `pnpm`, `yarn`, server adapter Node.js, atau package yang memaksa runtime Node.js) kecuali Bun belum mendukung kebutuhan teknis tersebut. Pengecualian wajib mendapat izin eksplisit dari maintainer, mencatat alasan/masa berlaku/alternatif Bun yang dicoba di docs terkait, dan menambahkan entry di `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`.
 
@@ -189,7 +189,7 @@ awcms-mini/
 ├── src/
 │   ├── lib/                 # db, logging, auth, files, errors, i18n
 │   ├── modules/             # modular monolith (lihat daftar modul)
-│   └── pages/               # api/v1, admin, pos, customer
+│   └── pages/               # api/v1, admin
 ├── sql/                     # migration NNN_awcms_mini_<area>_<desc>.sql
 ├── scripts/                 # db-migrate, api-spec-check, dst.
 ├── openapi/                 # kontrak REST
@@ -202,7 +202,9 @@ awcms-mini/
 
 ## Peta modul
 
-`_shared`, `tenant-admin`, `identity-access`, `profile-identity`, `catalog-inventory`, `sales-pos`, `shared-stock-routing`, `warehouse-management`, `accounting-tax`, `crm-communication`, `sync-storage`, `ai-analyst`, `localization-ui`, `observability-logging`, `database-connectivity`, `workflow-approval`, `management-reporting`, `ui-experience`, `production-security-readiness`.
+`_shared`, `tenant-admin`, `identity-access`, `profile-identity`, `sync-storage`, `localization-ui`, `observability-logging`, `database-connectivity`, `workflow-approval`, `management-reporting`, `ui-experience`, `production-security-readiness`.
+
+Ini adalah modul **base generik** milik AWCMS-Mini sendiri. Modul domain (mis. katalog produk, POS, gudang, pajak, CRM, AI analyst) **bukan bagian repo ini** — itu ditambahkan di aplikasi turunan contoh (mis. AWPOS) di atas base ini; lihat `docs/awcms-mini/README.md` §Reusable vs domain turunan.
 
 Struktur tiap modul: `module.ts`, `domain/`, `application/`, `infrastructure/`, `api/`, `README.md`.
 
@@ -215,13 +217,14 @@ flowchart LR
   T --> P[Profile 2.2]
   P --> A[Identity 2.3]
   A --> R[RBAC/ABAC 2.4]
-  R --> C[Product 3.1]
-  C --> K[Stock 3.2]
-  K --> CO[Checkout 3.3]
-  CO --> PO[Atomic Posting 3.4]
+  R --> OBS[Logging/Pooling/Security 10.1-10.3]
+  OBS --> SY[Sync Storage 6.1-6.3]
+  SY --> UI[UI Shell/Reporting 8.1 . 9.1]
+  UI --> WF[Workflow Approval 11.1]
+  WF --> DEP[Deployment 12.2]
 ```
 
-Alasan urutan: aplikasi domain tidak aman tanpa tenant/auth/profile/access; posting/transaksi kritikal tidak boleh dibuat sebelum idempotency + locking siap; provider eksternal & AI menyusul; production diaktifkan hanya setelah security readiness pass.
+Alasan urutan: aplikasi turunan tidak aman tanpa tenant/auth/profile/access; observability/pooling/security readiness disiapkan sebelum modul lain bergantung padanya; provider eksternal (sync/R2) menyusul; production diaktifkan hanya setelah security readiness pass.
 
 ## Konvensi commit
 
@@ -230,7 +233,7 @@ Alasan urutan: aplikasi domain tidak aman tanpa tenant/auth/profile/access; post
 ```
 
 Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `security`, `perf`, `ci`, `build`.
-Scopes: `foundation`, `db`, `api`, `auth`, `access`, `profile`, `tenant`, `inventory`, `pos`, `warehouse`, `tax`, `crm`, `sync`, `ai`, `ui`, `logging`, `pooling`, `workflow`, `reporting`, `security`, `docs`.
+Scopes: `foundation`, `db`, `api`, `auth`, `access`, `profile`, `tenant`, `sync`, `ui`, `logging`, `pooling`, `workflow`, `reporting`, `security`, `docs`. Aplikasi turunan menambah scope domainnya sendiri (mis. `pos`, `inventory`, `warehouse`, `tax`, `crm`).
 
 Branch: `feature/<issue>-<name>`, `fix/<issue>-<name>`, `release/vX.Y.Z`, `hotfix/vX.Y.Z-<name>`.
 
