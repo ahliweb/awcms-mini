@@ -28,6 +28,27 @@ Dokumen ini menetapkan standar coding AWCMS-Mini untuk TypeScript/Bun/Astro/Post
 - Jangan menambahkan Node.js sebagai runtime server utama, npm-family package manager, atau adapter yang mengharuskan proses backend berjalan di Node.js.
 - Jika Bun belum mendukung kebutuhan teknis tertentu, buka pengecualian kecil dan sementara: minta izin maintainer, catat alasan dan alternatif Bun yang sudah dicoba, cantumkan file/package terdampak, tentukan rencana migrasi kembali ke Bun, dan update audit/docs sebelum merge.
 
+### Yang DIIZINKAN (bukan pelanggaran Bun-only)
+
+- **Import `node:*`** (`node:crypto`, `node:fs/promises`, `node:path`, `node:os`, dst.) adalah **API bawaan Bun** — Bun mengimplementasikan permukaan API Node, jadi ini **tidak** menarik runtime Node.js. Gunakan bebas; jangan dilarang. (Hindari mengandalkan modul Node yang belum diimplementasikan Bun.)
+- **`@types/*` (mis. `@types/bun`)** hanya tipe di `devDependencies`; tidak menarik runtime Node.js. Prefer `@types/bun` (sudah mencakup global mirip Node) daripada `@types/node`.
+- Package **pure-JS** yang berjalan di atas Bun tanpa memaksa proses Node.
+
+### Yang DILARANG (tanpa pengecualian tertulis)
+
+- Binary/tooling `node`, `npm`, `npx`, `pnpm`, `yarn` di script `package.json`, CI, atau `deploy/`.
+- Adapter/server yang **mengharuskan** proses backend berjalan di runtime Node.js.
+- Menjalankan test dengan runner Node (`node --test`); test runner wajib `bun test`.
+
+### Aturan konkret
+
+- **Server HTTP**: `Bun.serve` native. Framework di atasnya (mis. Hono) harus dijalankan lewat `Bun.serve`, bukan adapter Node.
+- **Database**: `Bun.sql` (klien Postgres native Bun) atau `postgres` (postgres.js, pure-JS). Hindari `pg` yang lebih berat/berorientasi Node.
+- **Bin dengan shebang `#!/usr/bin/env node`** (mis. `astro`, `vite`): panggil lewat **`bun --bun`** (mis. `bun --bun astro build`, `bun --bun astro dev`) agar Bun yang mengeksekusi, bukan binary `node` yang mungkin terpasang di mesin. Tanpa `--bun`, `bun run` mengikuti shebang dan bisa jatuh ke Node.
+- **SSR Astro**: Astro belum punya adapter Bun first-party. Dua opsi tersanksi:
+  1. **Rekomendasi** — pisahkan seam: API/backend di `Bun.serve` (+Hono) native; Astro hanya untuk frontend/SSR.
+  2. Pakai `@astrojs/node` (standalone) **dijalankan di atas Bun** (`bun ./dist/server/entry.mjs`) dan build via `bun --bun astro build`. Ini satu-satunya pemakaian paket ber-nama "node" yang diizinkan (runtime tetap Bun); catat sebagai pengecualian di `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` bila dipakai.
+
 ## Aliran request antar layer
 
 ```mermaid
@@ -48,20 +69,20 @@ Route tipis → guard → validasi → service → repository → DB. Data sensi
 
 Standar di dokumen ini ditegakkan oleh skill proyek di `.claude/skills/` (katalog: `.claude/skills/README.md`).
 
-| Bagian standar | Skill |
-|---|---|
-| Struktur modul & descriptor | `awcms-mini-new-module` |
-| SQL migration standard | `awcms-mini-new-migration` |
-| API handler rules & response helper | `awcms-mini-new-endpoint` |
-| Domain event envelope | `awcms-mini-new-event` |
-| Idempotency wrapper rules | `awcms-mini-idempotency` |
-| ABAC guard | `awcms-mini-abac-guard` |
-| Audit helper & redaction | `awcms-mini-audit-log` |
-| Masking/redaction data sensitif | `awcms-mini-sensitive-data` |
-| Sync HMAC standard | `awcms-mini-sync-hmac` |
-| Pull request checklist | `awcms-mini-pr-review` |
-| UI/komponen (doc 14/15) | `awcms-mini-ui-screen` |
-| Rilis & CHANGELOG (doc 09) | `awcms-mini-release` |
+| Bagian standar                      | Skill                       |
+| ----------------------------------- | --------------------------- |
+| Struktur modul & descriptor         | `awcms-mini-new-module`     |
+| SQL migration standard              | `awcms-mini-new-migration`  |
+| API handler rules & response helper | `awcms-mini-new-endpoint`   |
+| Domain event envelope               | `awcms-mini-new-event`      |
+| Idempotency wrapper rules           | `awcms-mini-idempotency`    |
+| ABAC guard                          | `awcms-mini-abac-guard`     |
+| Audit helper & redaction            | `awcms-mini-audit-log`      |
+| Masking/redaction data sensitif     | `awcms-mini-sensitive-data` |
+| Sync HMAC standard                  | `awcms-mini-sync-hmac`      |
+| Pull request checklist              | `awcms-mini-pr-review`      |
+| UI/komponen (doc 14/15)             | `awcms-mini-ui-screen`      |
+| Rilis & CHANGELOG (doc 09)          | `awcms-mini-release`        |
 
 ## Struktur modul
 
@@ -96,17 +117,18 @@ export const warehouseManagementModule: ModuleDescriptor = {
   name: "Warehouse Management",
   version: "0.1.0",
   status: "active",
-  description: "Multi warehouse, zone, bin, lot, transfer, in-transit, cycle count, and warehouse stock operations.",
+  description:
+    "Multi warehouse, zone, bin, lot, transfer, in-transit, cycle count, and warehouse stock operations.",
   dependencies: [
     "tenant_admin",
     "identity_access",
     "catalog_inventory",
     "workflow_approval",
-    "observability_logging"
+    "observability_logging",
   ],
   api: {
     openApiPath: "openapi/modules/warehouse-management.openapi.yaml",
-    basePath: "/api/v1"
+    basePath: "/api/v1",
   },
   events: {
     asyncApiPath: "asyncapi/modules/warehouse-events.asyncapi.yaml",
@@ -114,10 +136,13 @@ export const warehouseManagementModule: ModuleDescriptor = {
       "warehouse.transfer.created",
       "warehouse.transfer.shipped",
       "warehouse.transfer.received",
-      "warehouse.cycle_count.variance_detected"
+      "warehouse.cycle_count.variance_detected",
     ],
-    subscribes: ["inventory.stock.adjustment.posted", "sales.transaction.posted"]
-  }
+    subscribes: [
+      "inventory.stock.adjustment.posted",
+      "sales.transaction.posted",
+    ],
+  },
 };
 ```
 
@@ -174,11 +199,32 @@ export function ok<T>(data: T, meta?: ApiMeta): Response {
 }
 
 export function created<T>(data: T, meta?: ApiMeta): Response {
-  return Response.json({ success: true, data, meta } satisfies ApiSuccess<T>, { status: 201 });
+  return Response.json({ success: true, data, meta } satisfies ApiSuccess<T>, {
+    status: 201,
+  });
 }
 
-export function fail(status: number, code: string, message: string, options?: { details?: Array<{ field?: string; message: string; code?: string }>; correlationId?: string }): Response {
-  return Response.json({ success: false, error: { code, message, details: options?.details, correlationId: options?.correlationId } } satisfies ApiErrorResponse, { status });
+export function fail(
+  status: number,
+  code: string,
+  message: string,
+  options?: {
+    details?: Array<{ field?: string; message: string; code?: string }>;
+    correlationId?: string;
+  },
+): Response {
+  return Response.json(
+    {
+      success: false,
+      error: {
+        code,
+        message,
+        details: options?.details,
+        correlationId: options?.correlationId,
+      },
+    } satisfies ApiErrorResponse,
+    { status },
+  );
 }
 ```
 
@@ -188,9 +234,18 @@ export function fail(status: number, code: string, message: string, options?: { 
 export class ApiError extends Error {
   public readonly status: number;
   public readonly code: string;
-  public readonly details?: Array<{ field?: string; message: string; code?: string }>;
+  public readonly details?: Array<{
+    field?: string;
+    message: string;
+    code?: string;
+  }>;
 
-  constructor(params: { status: number; code: string; message: string; details?: Array<{ field?: string; message: string; code?: string }> }) {
+  constructor(params: {
+    status: number;
+    code: string;
+    message: string;
+    details?: Array<{ field?: string; message: string; code?: string }>;
+  }) {
     super(params.message);
     this.status = params.status;
     this.code = params.code;
@@ -222,7 +277,19 @@ Catatan: pada production, `tenantUserId` dan `identityId` tidak boleh dipercaya 
 export type AccessRequest = {
   moduleKey: string;
   activityCode: string;
-  action: "read" | "create" | "update" | "delete" | "post" | "cancel" | "approve" | "export" | "send" | "configure" | "analyze" | "assign";
+  action:
+    | "read"
+    | "create"
+    | "update"
+    | "delete"
+    | "post"
+    | "cancel"
+    | "approve"
+    | "export"
+    | "send"
+    | "configure"
+    | "analyze"
+    | "assign";
   resourceType?: string;
   resourceId?: string;
   resourceAttributes?: Record<string, unknown>;
@@ -460,14 +527,14 @@ Aturan:
 
 ## TypeScript standard
 
-| Item | Standard |
-|---|---|
-| File | kebab-case |
-| Type/interface | PascalCase |
-| Function/variable | camelCase |
-| Global constant | UPPER_SNAKE_CASE |
-| Module key | snake_case |
-| DB table/column | snake_case |
+| Item              | Standard         |
+| ----------------- | ---------------- |
+| File              | kebab-case       |
+| Type/interface    | PascalCase       |
+| Function/variable | camelCase        |
+| Global constant   | UPPER_SNAKE_CASE |
+| Module key        | snake_case       |
+| DB table/column   | snake_case       |
 
 Aturan:
 

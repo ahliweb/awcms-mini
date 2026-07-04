@@ -14,6 +14,16 @@ Terkait: `11_implementation_blueprint.md` (skeleton), `15/16` (FE/BE), `07_sprin
 4. POS tidak boleh gagal karena provider off.
 5. Konfigurasi tervalidasi saat boot; nilai wajib yang hilang menghentikan start dengan pesan jelas.
 6. Soft delete adalah perilaku platform wajib, bukan feature flag; retention/purge dikontrol policy dan workflow.
+7. Runtime, build, dan seluruh tooling wajib **Bun** (Bun-only); tidak ada binary `node` di jalur dev/build/deploy (lihat doc 10 §Standar platform backend & AGENTS.md aturan 14).
+
+## Runtime & tooling (Bun-only)
+
+- **Runtime & package manager**: Bun (`packageManager: bun@x.y.z` mengunci versi). Semua script `package.json` dipanggil via `bun`/`bun run`; tidak ada `node`/`npm`/`npx`/`pnpm`/`yarn`.
+- **Build/dev**: bin dengan shebang node (astro/vite) dijalankan `bun --bun …` agar tidak jatuh ke binary `node`. Jangan sediakan varian script `build:node`.
+- **Server**: `Bun.serve` native; jika memakai `@astrojs/node` (standalone) untuk SSR, entry dijalankan `bun ./dist/server/entry.mjs` (runtime tetap Bun) — pengecualian tercatat di `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`.
+- **Database**: `Bun.sql` atau `postgres` (postgres.js).
+- **Deployment**: `deploy/systemd` `ExecStart` memakai path `bun`; image container memakai basis `oven/bun` (bukan `node`). CI memakai Bun-only (setup-bun, `bun install --frozen-lockfile`, `bun test`, `bun --bun astro build`).
+- **Diizinkan** (bukan pelanggaran): import `node:*` (API bawaan Bun) dan `@types/*` di devDependencies — keduanya tidak menarik runtime Node.js.
 
 ## Presedensi
 
@@ -32,69 +42,69 @@ Legenda: Wajib = perlu untuk boot; Sensitif = jangan bocor ke log/response.
 
 ### Inti aplikasi
 
-| Var | Wajib | Default | Sensitif | Fungsi |
-|---|---|---|---|---|
-| `APP_ENV` | Ya | `development` | – | development/staging/production |
-| `APP_URL` | Ya | `http://localhost:4321` | – | Base URL aplikasi |
-| `APP_TIMEZONE` | Ya | `Asia/Jakarta` | – | Timezone default |
-| `APP_DEFAULT_LOCALE` | – | `id` | – | Locale default |
-| `LOG_LEVEL` | – | `info` | – | debug/info/warn/error |
+| Var                  | Wajib | Default                 | Sensitif | Fungsi                         |
+| -------------------- | ----- | ----------------------- | -------- | ------------------------------ |
+| `APP_ENV`            | Ya    | `development`           | –        | development/staging/production |
+| `APP_URL`            | Ya    | `http://localhost:4321` | –        | Base URL aplikasi              |
+| `APP_TIMEZONE`       | Ya    | `Asia/Jakarta`          | –        | Timezone default               |
+| `APP_DEFAULT_LOCALE` | –     | `id`                    | –        | Locale default                 |
+| `LOG_LEVEL`          | –     | `info`                  | –        | debug/info/warn/error          |
 
 ### Database & pool
 
-| Var | Wajib | Default | Sensitif | Fungsi |
-|---|---|---|---|---|
-| `DATABASE_URL` | Ya | – | Ya | Koneksi PostgreSQL |
-| `DATABASE_POOL_MAX` | – | `20` | – | Maks koneksi pool |
-| `DATABASE_STATEMENT_TIMEOUT_MS` | – | `15000` | – | Timeout statement |
-| `DATABASE_PGBOUNCER` | – | `false` | – | Mode PgBouncer (transaction) |
+| Var                             | Wajib | Default | Sensitif | Fungsi                       |
+| ------------------------------- | ----- | ------- | -------- | ---------------------------- |
+| `DATABASE_URL`                  | Ya    | –       | Ya       | Koneksi PostgreSQL           |
+| `DATABASE_POOL_MAX`             | –     | `20`    | –        | Maks koneksi pool            |
+| `DATABASE_STATEMENT_TIMEOUT_MS` | –     | `15000` | –        | Timeout statement            |
+| `DATABASE_PGBOUNCER`            | –     | `false` | –        | Mode PgBouncer (transaction) |
 
 ### Auth & keamanan
 
-| Var | Wajib | Default | Sensitif | Fungsi |
-|---|---|---|---|---|
-| `AUTH_JWT_SECRET` | Ya | – | Ya | Signing token sesi |
-| `AUTH_SESSION_TTL_MIN` | – | `120` | – | Umur sesi |
-| `AUTH_COOKIE_SECURE` | – | `true` | – | Cookie hanya HTTPS di prod |
-| `AUTH_LOGIN_MAX_ATTEMPTS` | – | `5` | – | Lockout login |
+| Var                       | Wajib | Default | Sensitif | Fungsi                     |
+| ------------------------- | ----- | ------- | -------- | -------------------------- |
+| `AUTH_JWT_SECRET`         | Ya    | –       | Ya       | Signing token sesi         |
+| `AUTH_SESSION_TTL_MIN`    | –     | `120`   | –        | Umur sesi                  |
+| `AUTH_COOKIE_SECURE`      | –     | `true`  | –        | Cookie hanya HTTPS di prod |
+| `AUTH_LOGIN_MAX_ATTEMPTS` | –     | `5`     | –        | Lockout login              |
 
 ### Sync & node
 
-| Var | Wajib | Default | Sensitif | Fungsi |
-|---|---|---|---|---|
-| `AWCMS-Mini_NODE_ID` | Ya | `local-dev-node` | – | Identitas node |
-| `AWCMS-Mini_SYNC_ENABLED` | – | `false` | – | Aktifkan sync hybrid |
-| `AWCMS-Mini_SYNC_HMAC_SECRET` | bila sync | – | Ya | Signature HMAC |
-| `AWCMS-Mini_SYNC_MAX_SKEW_SEC` | – | `300` | – | Toleransi anti-replay |
+| Var                            | Wajib     | Default          | Sensitif | Fungsi                |
+| ------------------------------ | --------- | ---------------- | -------- | --------------------- |
+| `AWCMS-Mini_NODE_ID`           | Ya        | `local-dev-node` | –        | Identitas node        |
+| `AWCMS-Mini_SYNC_ENABLED`      | –         | `false`          | –        | Aktifkan sync hybrid  |
+| `AWCMS-Mini_SYNC_HMAC_SECRET`  | bila sync | –                | Ya       | Signature HMAC        |
+| `AWCMS-Mini_SYNC_MAX_SKEW_SEC` | –         | `300`            | –        | Toleransi anti-replay |
 
 ### Storage
 
-| Var | Wajib | Default | Sensitif | Fungsi |
-|---|---|---|---|---|
-| `STORAGE_DRIVER` | – | `local` | – | local/r2 |
-| `LOCAL_STORAGE_PATH` | – | `./storage` | – | Path file lokal |
-| `R2_ENABLED` | – | `false` | – | Aktifkan R2 |
-| `R2_ACCOUNT_ID` | bila R2 | – | Ya | Akun R2 |
-| `R2_ACCESS_KEY_ID` | bila R2 | – | Ya | Kredensial R2 |
-| `R2_SECRET_ACCESS_KEY` | bila R2 | – | Ya | Kredensial R2 |
-| `R2_BUCKET` | bila R2 | – | – | Bucket |
+| Var                    | Wajib   | Default     | Sensitif | Fungsi          |
+| ---------------------- | ------- | ----------- | -------- | --------------- |
+| `STORAGE_DRIVER`       | –       | `local`     | –        | local/r2        |
+| `LOCAL_STORAGE_PATH`   | –       | `./storage` | –        | Path file lokal |
+| `R2_ENABLED`           | –       | `false`     | –        | Aktifkan R2     |
+| `R2_ACCOUNT_ID`        | bila R2 | –           | Ya       | Akun R2         |
+| `R2_ACCESS_KEY_ID`     | bila R2 | –           | Ya       | Kredensial R2   |
+| `R2_SECRET_ACCESS_KEY` | bila R2 | –           | Ya       | Kredensial R2   |
+| `R2_BUCKET`            | bila R2 | –           | –        | Bucket          |
 
 ### Provider CRM (opsional)
 
-| Var | Wajib | Default | Sensitif | Fungsi |
-|---|---|---|---|---|
-| `STARSENDER_ENABLED` | – | `false` | – | WhatsApp receipt |
-| `STARSENDER_API_KEY` | bila aktif | – | Ya | API key StarSender |
-| `MAILKETING_ENABLED` | – | `false` | – | Email receipt |
-| `MAILKETING_API_TOKEN` | bila aktif | – | Ya | Token Mailketing |
+| Var                    | Wajib      | Default | Sensitif | Fungsi             |
+| ---------------------- | ---------- | ------- | -------- | ------------------ |
+| `STARSENDER_ENABLED`   | –          | `false` | –        | WhatsApp receipt   |
+| `STARSENDER_API_KEY`   | bila aktif | –       | Ya       | API key StarSender |
+| `MAILKETING_ENABLED`   | –          | `false` | –        | Email receipt      |
+| `MAILKETING_API_TOKEN` | bila aktif | –       | Ya       | Token Mailketing   |
 
 ### AI analyst (opsional)
 
-| Var | Wajib | Default | Sensitif | Fungsi |
-|---|---|---|---|---|
-| `AI_ANALYST_ENABLED` | – | `false` | – | Aktifkan AI analyst |
-| `AI_PROVIDER_API_KEY` | bila aktif | – | Ya | Kredensial AI |
-| `AI_MODEL` | – | – | – | Model yang dipakai |
+| Var                   | Wajib      | Default | Sensitif | Fungsi              |
+| --------------------- | ---------- | ------- | -------- | ------------------- |
+| `AI_ANALYST_ENABLED`  | –          | `false` | –        | Aktifkan AI analyst |
+| `AI_PROVIDER_API_KEY` | bila aktif | –       | Ya       | Kredensial AI       |
+| `AI_MODEL`            | –          | –       | –        | Model yang dipakai  |
 
 ## Feature flag
 
@@ -152,12 +162,12 @@ AI_ANALYST_ENABLED=false
 
 ## Profil per-environment
 
-| Environment | Karakteristik |
-|---|---|
-| development | Semua provider off, DB lokal, cookie tidak secure |
-| staging | Meniru prod, data uji, backup aktif |
-| production (online) | HTTPS, secret manager, backup+restore teruji, sync opsional |
-| **offline/LAN** | Tanpa internet; sync/R2/WA/email off atau tertunda; POS penuh jalan; backup lokal |
+| Environment         | Karakteristik                                                                     |
+| ------------------- | --------------------------------------------------------------------------------- |
+| development         | Semua provider off, DB lokal, cookie tidak secure                                 |
+| staging             | Meniru prod, data uji, backup aktif                                               |
+| production (online) | HTTPS, secret manager, backup+restore teruji, sync opsional                       |
+| **offline/LAN**     | Tanpa internet; sync/R2/WA/email off atau tertunda; POS penuh jalan; backup lokal |
 
 ## Topologi deployment LAN-first
 
