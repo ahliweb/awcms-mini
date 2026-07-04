@@ -124,7 +124,7 @@ Hasil:
    - `CHANGELOG.md` disesuaikan dari 14 skill menjadi 17 skill.
    - `bun.lock` ditambahkan untuk reproducible dependency baseline.
    - Dokumen audit ini ditambahkan sebagai rujukan repo-local.
-   - Snapshot GitHub issue open/closed, label, milestone, security, dan proses refresh ditambahkan di `docs/awcms-mini/github/`; snapshot live 2026-07-04T11:08:54Z mencatat 0 issue, 76 label, 19 milestone, 0 open Dependabot alert, 0 open code-scanning alert, dan 0 secret-scanning alert.
+   - Snapshot GitHub issue open/closed, label, milestone, security, dan proses refresh ditambahkan di `docs/awcms-mini/github/`; snapshot live 2026-07-04T11:16:36Z mencatat 0 issue, 76 label, 19 milestone, 0 open Dependabot alert, 0 open code-scanning alert, dan 0 secret-scanning alert.
    - `SECURITY.md`, `.github/dependabot.yml`, dan `.github/workflows/codeql.yml` ditambahkan sebagai baseline GitHub Security.
 
 ## Rekomendasi berikutnya

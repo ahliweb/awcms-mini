@@ -1,6 +1,6 @@
 # GitHub Security Setup AWCMS-Mini
 
-Snapshot: 2026-07-04T11:08:54Z
+Snapshot: 2026-07-04T11:16:36Z
 
 Dokumen ini mencatat konfigurasi GitHub Security untuk `ahliweb/awcms-mini` sesuai baseline repo: Bun + Astro 7 + PostgreSQL, docs-only sampai scaffold Issue 0.1 tersedia.
 
@@ -18,8 +18,9 @@ Dokumen ini mencatat konfigurasi GitHub Security untuk `ahliweb/awcms-mini` sesu
 | Secret scanning push protection | Enabled |
 | Secret scanning non-provider patterns | Disabled pada GitHub saat setup |
 | Secret scanning validity checks | Disabled pada GitHub saat setup |
-| Code scanning | Enabled lewat `.github/workflows/codeql.yml` untuk GitHub Actions; tambah `javascript-typescript` setelah scaffold Astro/Bun tersedia |
+| Code scanning | Enabled lewat `.github/workflows/codeql.yml` untuk GitHub Actions; default setup `not-configured` agar tidak konflik dengan advanced workflow |
 | Private vulnerability reporting | Enabled; gunakan link GitHub advisory di `SECURITY.md` |
+| Latest CodeQL run | Success pada `main` commit `5f080b0` |
 
 ## Alert Count Saat Setup
 
@@ -35,7 +36,7 @@ Dokumen ini mencatat konfigurasi GitHub Security untuk `ahliweb/awcms-mini` sesu
 |---|---|
 | `SECURITY.md` | Instruksi pelaporan vulnerability dan baseline kontrol keamanan. |
 | `.github/dependabot.yml` | Dependabot weekly untuk ecosystem `bun` dan `github-actions`. |
-| `.github/workflows/codeql.yml` | CodeQL advanced setup untuk GitHub Actions pada baseline docs-only. |
+| `.github/workflows/codeql.yml` | CodeQL advanced setup untuk GitHub Actions pada baseline docs-only; tambah `javascript-typescript` setelah scaffold Astro/Bun tersedia. |
 | `docs/awcms-mini/github/security.md` | Snapshot audit konfigurasi security repo. |
 
 ## Catatan Bun
