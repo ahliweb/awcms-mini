@@ -1,5 +1,5 @@
 name: Modification Task
-description: Create an implementation task that follows the repository's issue-based workflow.
+description: Buat task implementasi atomic sesuai alur kerja repository (AGENTS.md + doc 06).
 title: "[AWM] "
 labels:
   - type:task
@@ -7,34 +7,34 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use this form for any repository modification work.
+        Gunakan form ini untuk semua pekerjaan modifikasi repository.
 
-        Workflow rules:
-        - Start from an issue before changing code or docs.
-        - Keep the change atomic and dependency-aware.
-        - Reference the relevant architecture and planning documents.
-        - Preserve EmDash-first constraints and Mini scope boundaries.
+        Aturan alur kerja:
+        - Mulai dari issue sebelum mengubah kode/dokumen; satu issue = satu PR atomic.
+        - Rujuk `AGENTS.md` dan `docs/awcms-mini/06_github_issues_detail.md`.
+        - Schema berubah → migration; API berubah → OpenAPI; event berubah → AsyncAPI.
+        - Mutation high-risk → idempotency; high-risk action → audit; data sensitif → mask.
   - type: textarea
     id: summary
     attributes:
       label: Summary
-      description: State the exact change to be made.
-      placeholder: Implement the smallest correct change.
+      description: Nyatakan perubahan persis yang akan dibuat.
+      placeholder: Implementasikan perubahan terkecil yang benar.
     validations:
       required: true
   - type: textarea
     id: rationale
     attributes:
       label: Rationale
-      description: Explain why this work is needed and which planning document or issue it comes from.
-      placeholder: Derived from AWM backlog item or follow-up issue.
+      description: Alasan pekerjaan ini dan dokumen/issue asalnya.
+      placeholder: Diturunkan dari docs/awcms-mini/06_github_issues_detail.md Issue X.Y.
     validations:
       required: true
   - type: textarea
     id: scope
     attributes:
       label: Scope
-      description: List what is in scope and explicitly note exclusions.
+      description: Daftar yang in-scope dan eksplisit yang out-of-scope.
       placeholder: |
         In scope:
         - ...
@@ -47,18 +47,15 @@ body:
     id: dependencies
     attributes:
       label: Dependencies
-      description: List blocking issues, related issues, or required prerequisites.
+      description: Issue pemblokir/terkait atau prasyarat.
       placeholder: |
-        Blocks:
-        - none
-
         Depends on:
         - #123
   - type: textarea
     id: acceptance
     attributes:
       label: Acceptance Criteria
-      description: Define concrete completion conditions.
+      description: Kondisi selesai yang konkret.
       placeholder: |
         - [ ] ...
         - [ ] ...
@@ -68,10 +65,9 @@ body:
     id: validation
     attributes:
       label: Validation
-      description: Define how the change should be verified.
+      description: Cara verifikasi perubahan.
       placeholder: |
-        - Unit tests
-        - Integration test
-        - Manual UI smoke test
+        - bun test / bun run api:spec:check / bun run db:migrate / bun run build
+        - Catatan security (tenant/ABAC/RLS/audit/idempotency/masking)
     validations:
       required: true
