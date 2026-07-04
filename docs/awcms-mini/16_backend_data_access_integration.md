@@ -124,7 +124,7 @@ Event domain, pesan CRM, dan sync **ditulis dalam transaction yang sama** dengan
 
 ```mermaid
 flowchart LR
-  Tx[Transaction bisnis] --> OB[(awcms-mini_*_outbox)]
+  Tx[Transaction bisnis] --> OB[(awcms_mini_*_outbox)]
   OB --> Disp[Dispatcher worker]
   Disp -->|event| Bus[Konsumer internal]
   Disp -->|CRM| Prov[StarSender/Mailketing]
@@ -132,7 +132,7 @@ flowchart LR
   Disp -->|gagal| Retry[Backoff + retry]
 ```
 
-Tabel terkait: `awcms-mini_sync_outbox`, `awcms-mini_message_outbox`, `awcms-mini_object_sync_queue`. Status: `pending → sent/failed`, dengan `next_retry_at`.
+Tabel terkait: `awcms_mini_sync_outbox`, `awcms_mini_message_outbox`, `awcms_mini_object_sync_queue`. Status: `pending → sent/failed`, dengan `next_retry_at`.
 
 ## Connection pooling dan backpressure
 
@@ -181,7 +181,7 @@ flowchart TD
 
 ## Idempotency store
 
-- Tabel `awcms-mini_idempotency_keys` menyimpan `key`, request hash, status, response/resource.
+- Tabel `awcms_mini_idempotency_keys` menyimpan `key`, request hash, status, response/resource.
 - Alur di skill `awcms-mini-idempotency` (doc 10). Retention 7–30 hari (doc 04).
 
 ## Repository dan mapper
@@ -198,7 +198,7 @@ flowchart TD
 Soft delete adalah update status data, bukan `DELETE` SQL pada jalur operasional.
 
 ```sql
-UPDATE awcms-mini_products
+UPDATE awcms_mini_products
 SET deleted_at = now(),
     deleted_by = $actor_tenant_user_id,
     delete_reason = $reason,
@@ -228,7 +228,7 @@ Aturan:
 | Enum-like             | `text` + `CHECK`                            |
 | Soft delete timestamp | `timestamptz` (`deleted_at`, `restored_at`) |
 
-Nama tabel/kolom `snake_case`, prefiks `awcms-mini_` (doc 04/10).
+Nama tabel/kolom `snake_case`, prefiks `awcms_mini_` (doc 04/10).
 
 ## Acceptance criteria
 

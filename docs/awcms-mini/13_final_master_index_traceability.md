@@ -6,28 +6,28 @@ Dokumen ini menjadi master index final untuk seluruh paket dokumen AWCMS-Mini, s
 
 ## Master index dokumen
 
-| Bagian | File | Fungsi |
-|---:|---|---|
-| 1 | `01_canvas_induk.md` | Canvas arsitektur dan fase pengembangan |
-| 2 | `02_prd_detail_per_modul.md` | Kebutuhan produk per modul |
-| 3 | `03_srs_detail_per_modul.md` | Spesifikasi teknis per modul |
-| 4 | `04_erd_data_dictionary.md` | ERD, data dictionary, RLS, index |
-| 5 | `05_openapi_asyncapi_detail.md` | API contract dan event contract |
-| 6 | `06_github_issues_detail.md` | Issue atomic siap copy-paste |
-| 7 | `07_sprint_testing_production_readiness.md` | Sprint, testing, go-live |
-| 8 | `08_sop_operasional_user_guide.md` | SOP operasional dan user guide |
-| 9 | `09_roadmap_repository_commit.md` | Roadmap repo, branch, commit, release |
-| 10 | `10_template_kode_coding_standard.md` | Template kode dan coding standard |
-| 11 | `11_implementation_blueprint.md` | Skeleton dan blueprint per sprint |
-| 12 | `12_generator_prompt.md` | Prompt eksekusi coding agent |
-| 13 | `13_final_master_index_traceability.md` | Master index dan traceability |
-| 14 | `14_ui_ux_design_system.md` | Design system, token, komponen, layar, a11y, i18n |
-| 15 | `15_frontend_architecture_integration.md` | Arsitektur frontend, API client, auth, offline-first |
-| 16 | `16_backend_data_access_integration.md` | Data access, pooling, RLS, transaction, outbox |
-| 17 | `17_default_seed_rbac_abac.md` | Role default, permission matrix, ABAC policy, seed |
-| 18 | `18_configuration_env_reference.md` | Referensi env, feature flag, topologi deployment |
-| 19 | `19_glossary_terminology.md` | Glossary & terminologi lintas dokumen |
-| GitHub | `github/README.md` | Snapshot issue aktual, label, milestone, dan proses refresh |
+| Bagian | File                                        | Fungsi                                                      |
+| -----: | ------------------------------------------- | ----------------------------------------------------------- |
+|      1 | `01_canvas_induk.md`                        | Canvas arsitektur dan fase pengembangan                     |
+|      2 | `02_prd_detail_per_modul.md`                | Kebutuhan produk per modul                                  |
+|      3 | `03_srs_detail_per_modul.md`                | Spesifikasi teknis per modul                                |
+|      4 | `04_erd_data_dictionary.md`                 | ERD, data dictionary, RLS, index                            |
+|      5 | `05_openapi_asyncapi_detail.md`             | API contract dan event contract                             |
+|      6 | `06_github_issues_detail.md`                | Issue atomic siap copy-paste                                |
+|      7 | `07_sprint_testing_production_readiness.md` | Sprint, testing, go-live                                    |
+|      8 | `08_sop_operasional_user_guide.md`          | SOP operasional dan user guide                              |
+|      9 | `09_roadmap_repository_commit.md`           | Roadmap repo, branch, commit, release                       |
+|     10 | `10_template_kode_coding_standard.md`       | Template kode dan coding standard                           |
+|     11 | `11_implementation_blueprint.md`            | Skeleton dan blueprint per sprint                           |
+|     12 | `12_generator_prompt.md`                    | Prompt eksekusi coding agent                                |
+|     13 | `13_final_master_index_traceability.md`     | Master index dan traceability                               |
+|     14 | `14_ui_ux_design_system.md`                 | Design system, token, komponen, layar, a11y, i18n           |
+|     15 | `15_frontend_architecture_integration.md`   | Arsitektur frontend, API client, auth, offline-first        |
+|     16 | `16_backend_data_access_integration.md`     | Data access, pooling, RLS, transaction, outbox              |
+|     17 | `17_default_seed_rbac_abac.md`              | Role default, permission matrix, ABAC policy, seed          |
+|     18 | `18_configuration_env_reference.md`         | Referensi env, feature flag, topologi deployment            |
+|     19 | `19_glossary_terminology.md`                | Glossary & terminologi lintas dokumen                       |
+| GitHub | `github/README.md`                          | Snapshot issue aktual, label, milestone, dan proses refresh |
 
 ## Executive summary final
 
@@ -69,180 +69,180 @@ flowchart LR
 
 ## Traceability — Business Need ke Modul
 
-| Business Need | Modul | Output |
-|---|---|---|
-| Multi tenant toko/cabang | Tenant Admin | Tenant, office, physical location |
-| User login dan role | Identity & Access | Identity, tenant user, role |
-| Hak akses fleksibel | Identity & Access | RBAC, ABAC, decision log |
-| Profil terpusat | Central Profile | Profile, identifier, entity link |
-| Master produk | Catalog Inventory | Product, category, unit, price |
-| Arsip master data aman | Semua modul master | Soft delete, restore, purge policy |
-| Stok toko/gudang | Catalog Inventory | Balance, movement |
-| Transaksi operasional | Sales POS | Checkout, payment, sales document |
-| Posting aman | Sales POS + Inventory | Idempotency, stock lock, audit |
-| Shared stock | Shared Stock Routing | Pool, routing rule, decision |
-| Multi gudang | Warehouse | Warehouse, bin, lot, transfer |
-| Receipt digital | CRM | PDF, WA/email outbox, portal |
-| Offline sync | Sync Storage | Outbox, inbox, conflict |
-| Data pajak | Accounting Tax | Tax profile, NITKU, VAT invoice |
-| Coretax-ready | Accounting Tax | XML batch, checksum, approval |
-| Dashboard | Reporting | Sales/stock/tax/sync reports |
-| AI insight | AI Analyst | Safe read-only tools |
-| UI admin/operator | UI Experience | Admin shell, POS screen |
-| Audit/troubleshooting | Observability | Logs, audit, security events |
-| DB reliability | DB Connectivity | Pool, queue, circuit breaker |
-| Approval high-risk | Workflow | Workflow instance/task/decision |
-| Go-live aman | Production Security | Readiness, findings, gates |
+| Business Need            | Modul                 | Output                             |
+| ------------------------ | --------------------- | ---------------------------------- |
+| Multi tenant toko/cabang | Tenant Admin          | Tenant, office, physical location  |
+| User login dan role      | Identity & Access     | Identity, tenant user, role        |
+| Hak akses fleksibel      | Identity & Access     | RBAC, ABAC, decision log           |
+| Profil terpusat          | Central Profile       | Profile, identifier, entity link   |
+| Master produk            | Catalog Inventory     | Product, category, unit, price     |
+| Arsip master data aman   | Semua modul master    | Soft delete, restore, purge policy |
+| Stok toko/gudang         | Catalog Inventory     | Balance, movement                  |
+| Transaksi operasional    | Sales POS             | Checkout, payment, sales document  |
+| Posting aman             | Sales POS + Inventory | Idempotency, stock lock, audit     |
+| Shared stock             | Shared Stock Routing  | Pool, routing rule, decision       |
+| Multi gudang             | Warehouse             | Warehouse, bin, lot, transfer      |
+| Receipt digital          | CRM                   | PDF, WA/email outbox, portal       |
+| Offline sync             | Sync Storage          | Outbox, inbox, conflict            |
+| Data pajak               | Accounting Tax        | Tax profile, NITKU, VAT invoice    |
+| Coretax-ready            | Accounting Tax        | XML batch, checksum, approval      |
+| Dashboard                | Reporting             | Sales/stock/tax/sync reports       |
+| AI insight               | AI Analyst            | Safe read-only tools               |
+| UI admin/operator        | UI Experience         | Admin shell, POS screen            |
+| Audit/troubleshooting    | Observability         | Logs, audit, security events       |
+| DB reliability           | DB Connectivity       | Pool, queue, circuit breaker       |
+| Approval high-risk       | Workflow              | Workflow instance/task/decision    |
+| Go-live aman             | Production Security   | Readiness, findings, gates         |
 
 ## Traceability — PRD → SRS → ERD → API → Issue → Sprint → Test
 
-| Need | SRS Area | Tabel | API | Issue | Sprint | Test |
-|---|---|---|---|---|---:|---|
-| Setup tenant | Tenant Admin | `awcms-mini_tenants`, `awcms-mini_offices` | `/setup/initialize` | 12.1 | 1–2 | setup test |
-| Login | Identity | `awcms-mini_identities`, `awcms-mini_tenant_users` | `/auth/login` | 2.3 | 2 | login test |
-| Access control | ABAC | `awcms-mini_roles`, `awcms-mini_abac_policies` | `/access/evaluate` | 2.4 | 3 | default deny |
-| Customer profile | Profile | `awcms-mini_profiles`, identifiers | `/profiles/resolve` | 2.2 | 2 | resolver |
-| Product | Inventory | `awcms-mini_products` | `/inventory/products` | 3.1 | 4 | CRUD/search |
-| Soft delete master | Shared + modul domain | `deleted_at`, `deleted_by` | `DELETE/restore/includeDeleted` | 0.1/0.3 + domain | 1–4 | archive/restore |
-| Stock | Inventory | `awcms-mini_stock_balances`, movements | `/inventory/stock-balances` | 3.2 | 4 | movement |
-| Checkout | Sales | `awcms-mini_checkout_sessions` | `/sales/checkout-sessions` | 3.3 | 5 | checkout |
-| Posting | Sales | `awcms-mini_sales_documents`, idempotency | `/sales/.../post` | 3.4 | 5 | idempotency/rollback |
-| Receipt | CRM | `awcms-mini_receipt_pdfs` | `/crm/receipts/{id}/send` | 5.1 | 7 | PDF |
-| WA/email | CRM | `awcms-mini_message_outbox` | `/crm/receipts/{id}/send` | 5.2/5.3 | 7 | provider mock |
-| Sync | Sync | `awcms-mini_sync_outbox`, inbox | `/sync/push` | 6.1 | 8 | HMAC |
-| Conflict | Sync | `awcms-mini_sync_conflicts` | `/sync/conflicts/{id}/resolve` | 6.2 | 8 | conflict |
-| Warehouse | WMS | `awcms-mini_warehouses`, bins | `/warehouses` | 4.1 | 9 | location |
-| Transfer | WMS | transfer tables | `/warehouse-transfers` | 4.3 | 9 | transfer |
-| Cycle count | WMS | cycle count tables | `/cycle-counts` | 4.4 | 9 | variance |
-| VAT invoice | Tax | `awcms-mini_vat_invoices` | `/tax/vat-invoices/generate` | 7.3 | 10 | validation |
-| Coretax | Tax | `awcms-mini_coretax_batches` | `/tax/coretax/batches` | 7.4 | 10 | XML/checksum |
-| UI | UI | UI registry | `/ui/navigation` | 8.1/8.2 | 11 | render |
-| Reports | Reporting | report views | `/reports/sales/daily` | 9.1 | 11 | tenant-aware |
-| AI | AI | `awcms-mini_ai_tool_calls` | `/ai/business-analyst/chat` | 9.2 | 11 | no PII/SQL |
-| Logs | Observability | `awcms-mini_log_events` | `/logs/recent` | 10.1 | 6 | redaction |
-| Pooling | DB | `awcms-mini_db_pool_*` | `/database/pool/health` | 10.2 | 6 | health/load |
-| Workflow | Workflow | `awcms-mini_workflow_*` | `/workflow/tasks/{id}/decision` | 11.1 | 12 | approval |
-| Security | Security | `awcms-mini_security_*` | `/security/go-live-gates/evaluate` | 10.3 | 12 | go-live gate |
+| Need               | SRS Area              | Tabel                                              | API                                | Issue            | Sprint | Test                 |
+| ------------------ | --------------------- | -------------------------------------------------- | ---------------------------------- | ---------------- | -----: | -------------------- |
+| Setup tenant       | Tenant Admin          | `awcms_mini_tenants`, `awcms_mini_offices`         | `/setup/initialize`                | 12.1             |    1–2 | setup test           |
+| Login              | Identity              | `awcms_mini_identities`, `awcms_mini_tenant_users` | `/auth/login`                      | 2.3              |      2 | login test           |
+| Access control     | ABAC                  | `awcms_mini_roles`, `awcms_mini_abac_policies`     | `/access/evaluate`                 | 2.4              |      3 | default deny         |
+| Customer profile   | Profile               | `awcms_mini_profiles`, identifiers                 | `/profiles/resolve`                | 2.2              |      2 | resolver             |
+| Product            | Inventory             | `awcms_mini_products`                              | `/inventory/products`              | 3.1              |      4 | CRUD/search          |
+| Soft delete master | Shared + modul domain | `deleted_at`, `deleted_by`                         | `DELETE/restore/includeDeleted`    | 0.1/0.3 + domain |    1–4 | archive/restore      |
+| Stock              | Inventory             | `awcms_mini_stock_balances`, movements             | `/inventory/stock-balances`        | 3.2              |      4 | movement             |
+| Checkout           | Sales                 | `awcms_mini_checkout_sessions`                     | `/sales/checkout-sessions`         | 3.3              |      5 | checkout             |
+| Posting            | Sales                 | `awcms_mini_sales_documents`, idempotency          | `/sales/.../post`                  | 3.4              |      5 | idempotency/rollback |
+| Receipt            | CRM                   | `awcms_mini_receipt_pdfs`                          | `/crm/receipts/{id}/send`          | 5.1              |      7 | PDF                  |
+| WA/email           | CRM                   | `awcms_mini_message_outbox`                        | `/crm/receipts/{id}/send`          | 5.2/5.3          |      7 | provider mock        |
+| Sync               | Sync                  | `awcms_mini_sync_outbox`, inbox                    | `/sync/push`                       | 6.1              |      8 | HMAC                 |
+| Conflict           | Sync                  | `awcms_mini_sync_conflicts`                        | `/sync/conflicts/{id}/resolve`     | 6.2              |      8 | conflict             |
+| Warehouse          | WMS                   | `awcms_mini_warehouses`, bins                      | `/warehouses`                      | 4.1              |      9 | location             |
+| Transfer           | WMS                   | transfer tables                                    | `/warehouse-transfers`             | 4.3              |      9 | transfer             |
+| Cycle count        | WMS                   | cycle count tables                                 | `/cycle-counts`                    | 4.4              |      9 | variance             |
+| VAT invoice        | Tax                   | `awcms_mini_vat_invoices`                          | `/tax/vat-invoices/generate`       | 7.3              |     10 | validation           |
+| Coretax            | Tax                   | `awcms_mini_coretax_batches`                       | `/tax/coretax/batches`             | 7.4              |     10 | XML/checksum         |
+| UI                 | UI                    | UI registry                                        | `/ui/navigation`                   | 8.1/8.2          |     11 | render               |
+| Reports            | Reporting             | report views                                       | `/reports/sales/daily`             | 9.1              |     11 | tenant-aware         |
+| AI                 | AI                    | `awcms_mini_ai_tool_calls`                         | `/ai/business-analyst/chat`        | 9.2              |     11 | no PII/SQL           |
+| Logs               | Observability         | `awcms_mini_log_events`                            | `/logs/recent`                     | 10.1             |      6 | redaction            |
+| Pooling            | DB                    | `awcms_mini_db_pool_*`                             | `/database/pool/health`            | 10.2             |      6 | health/load          |
+| Workflow           | Workflow              | `awcms_mini_workflow_*`                            | `/workflow/tasks/{id}/decision`    | 11.1             |     12 | approval             |
+| Security           | Security              | `awcms_mini_security_*`                            | `/security/go-live-gates/evaluate` | 10.3             |     12 | go-live gate         |
 
 ## Matrix Modul vs Migration
 
-| Modul | Migration |
-|---|---|
-| Foundation | `001_awcms-mini_foundation_schema.sql` |
-| Tenant Admin | `002_awcms-mini_tenant_identity_schema.sql` |
-| Catalog Inventory | `003_awcms-mini_catalog_inventory_schema.sql` |
-| Sales POS | `004_awcms-mini_sales_pos_schema.sql` |
-| Sync Storage | `005_awcms-mini_sync_storage_r2_schema.sql` |
-| CRM | `006_awcms-mini_crm_receipt_communication_schema.sql` |
-| Accounting Tax | `007_awcms-mini_accounting_tax_coretax_schema.sql` |
-| AI | `008_awcms-mini_ai_hermes_business_analyst_schema.sql` |
-| i18n | `009_awcms-mini_i18n_po_schema.sql` |
-| Theme | `010_awcms-mini_theme_mode_schema.sql` |
-| ABAC | `011_awcms-mini_abac_access_control_schema.sql` |
-| Contracts | `012_awcms-mini_modular_monolith_contracts_schema.sql` |
-| Logging | `013_awcms-mini_logging_observability_schema.sql` |
-| Profile | `014_awcms-mini_central_profile_management_schema.sql` |
-| Profile Stabilization | `015_awcms-mini_profile_stabilization_schema.sql` |
-| Workflow | `016_awcms-mini_workflow_approval_audit_schema.sql` |
-| Reporting | `017_awcms-mini_management_dashboard_reporting_schema.sql` |
-| Legacy Migration | `018_awcms-mini_legacy_migration_backfill_toolkit_schema.sql` |
-| Performance Sync | `019_awcms-mini_performance_sync_validation_schema.sql` |
-| Production Security | `020_awcms-mini_production_security_readiness_schema.sql` |
-| DB Pooling | `021_awcms-mini_database_connection_pooling_schema.sql` |
-| UI Experience | `022_awcms-mini_ui_ux_persona_experience_schema.sql` |
-| Warehouse | `023_awcms-mini_warehouse_management_schema.sql` |
-| Idempotency | `024_awcms-mini_transaction_integrity_idempotency_hardening.sql` |
-| Setup Wizard | `025_awcms-mini_setup_wizard_extension.sql` |
-| Dashboard Views | `026_awcms-mini_dashboard_materialized_views.sql` |
+| Modul                 | Migration                                                        |
+| --------------------- | ---------------------------------------------------------------- |
+| Foundation            | `001_awcms_mini_foundation_schema.sql`                           |
+| Tenant Admin          | `002_awcms_mini_tenant_identity_schema.sql`                      |
+| Catalog Inventory     | `003_awcms_mini_catalog_inventory_schema.sql`                    |
+| Sales POS             | `004_awcms_mini_sales_pos_schema.sql`                            |
+| Sync Storage          | `005_awcms_mini_sync_storage_r2_schema.sql`                      |
+| CRM                   | `006_awcms_mini_crm_receipt_communication_schema.sql`            |
+| Accounting Tax        | `007_awcms_mini_accounting_tax_coretax_schema.sql`               |
+| AI                    | `008_awcms_mini_ai_hermes_business_analyst_schema.sql`           |
+| i18n                  | `009_awcms_mini_i18n_po_schema.sql`                              |
+| Theme                 | `010_awcms_mini_theme_mode_schema.sql`                           |
+| ABAC                  | `011_awcms_mini_abac_access_control_schema.sql`                  |
+| Contracts             | `012_awcms_mini_modular_monolith_contracts_schema.sql`           |
+| Logging               | `013_awcms_mini_logging_observability_schema.sql`                |
+| Profile               | `014_awcms_mini_central_profile_management_schema.sql`           |
+| Profile Stabilization | `015_awcms_mini_profile_stabilization_schema.sql`                |
+| Workflow              | `016_awcms_mini_workflow_approval_audit_schema.sql`              |
+| Reporting             | `017_awcms_mini_management_dashboard_reporting_schema.sql`       |
+| Legacy Migration      | `018_awcms_mini_legacy_migration_backfill_toolkit_schema.sql`    |
+| Performance Sync      | `019_awcms_mini_performance_sync_validation_schema.sql`          |
+| Production Security   | `020_awcms_mini_production_security_readiness_schema.sql`        |
+| DB Pooling            | `021_awcms_mini_database_connection_pooling_schema.sql`          |
+| UI Experience         | `022_awcms_mini_ui_ux_persona_experience_schema.sql`             |
+| Warehouse             | `023_awcms_mini_warehouse_management_schema.sql`                 |
+| Idempotency           | `024_awcms_mini_transaction_integrity_idempotency_hardening.sql` |
+| Setup Wizard          | `025_awcms_mini_setup_wizard_extension.sql`                      |
+| Dashboard Views       | `026_awcms_mini_dashboard_materialized_views.sql`                |
 
 ## Matrix Modul vs Security Control
 
-| Control | Modul |
-|---|---|
-| No hardcoded secrets | Semua |
-| Password hashing | Identity |
-| Tenant isolation | Semua tenant-scoped |
-| RBAC/ABAC | Identity Access |
-| RLS | Semua tenant-scoped |
-| Audit log | Observability + semua high-risk |
-| Idempotency | POS, Warehouse, Tax, CRM, Sync, Workflow |
-| Soft delete | Master/config/draft tenant-scoped; restore/purge by permission |
-| Input validation | Semua API |
-| Sensitive masking | Profile, CRM, Tax, Logs, AI |
-| Stock lock | Inventory, POS, Warehouse |
-| Immutable transaction | Sales POS |
-| Sync HMAC | Sync |
-| File checksum | Sync/R2, Tax export |
-| Consent | CRM |
-| AI read-only | AI Analyst |
-| Tax export approval | Tax + Workflow |
-| Go-live gate | Production Security |
-| Backup/restore | Deployment/Ops |
+| Control               | Modul                                                          |
+| --------------------- | -------------------------------------------------------------- |
+| No hardcoded secrets  | Semua                                                          |
+| Password hashing      | Identity                                                       |
+| Tenant isolation      | Semua tenant-scoped                                            |
+| RBAC/ABAC             | Identity Access                                                |
+| RLS                   | Semua tenant-scoped                                            |
+| Audit log             | Observability + semua high-risk                                |
+| Idempotency           | POS, Warehouse, Tax, CRM, Sync, Workflow                       |
+| Soft delete           | Master/config/draft tenant-scoped; restore/purge by permission |
+| Input validation      | Semua API                                                      |
+| Sensitive masking     | Profile, CRM, Tax, Logs, AI                                    |
+| Stock lock            | Inventory, POS, Warehouse                                      |
+| Immutable transaction | Sales POS                                                      |
+| Sync HMAC             | Sync                                                           |
+| File checksum         | Sync/R2, Tax export                                            |
+| Consent               | CRM                                                            |
+| AI read-only          | AI Analyst                                                     |
+| Tax export approval   | Tax + Workflow                                                 |
+| Go-live gate          | Production Security                                            |
+| Backup/restore        | Deployment/Ops                                                 |
 
 ## Matrix Security Control vs Skill
 
-| Control | Skill penegak |
-|---|---|
-| Tenant isolation + RBAC/ABAC + RLS | `awcms-mini-abac-guard` |
-| Idempotency high-risk | `awcms-mini-idempotency` |
-| Audit log high-risk | `awcms-mini-audit-log` |
-| Sensitive masking | `awcms-mini-sensitive-data` |
-| Sync HMAC + file checksum | `awcms-mini-sync-hmac` |
-| Migration aman (RLS/index) | `awcms-mini-new-migration` |
-| Soft delete policy | `awcms-mini-new-migration`, `awcms-mini-new-endpoint`, `awcms-mini-abac-guard`, `awcms-mini-audit-log` |
-| API/event contract | `awcms-mini-new-endpoint`, `awcms-mini-new-event` |
-| Testing berlapis | `awcms-mini-testing` |
-| Review keamanan | `awcms-mini-security-review` + agent `awcms-mini-security-auditor` |
-| Review PR / DoD | `awcms-mini-pr-review` + agent `awcms-mini-reviewer` |
-| Go-live gate | `awcms-mini-production-preflight` |
-| UI/design system/a11y | `awcms-mini-ui-screen` |
-| Rilis/CHANGELOG | `awcms-mini-release` |
-| Legacy migration | `awcms-mini-legacy-migration` |
-| Implementasi issue | skill `awcms-mini-implement-issue` + agent `awcms-mini-coder` |
+| Control                            | Skill penegak                                                                                          |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Tenant isolation + RBAC/ABAC + RLS | `awcms-mini-abac-guard`                                                                                |
+| Idempotency high-risk              | `awcms-mini-idempotency`                                                                               |
+| Audit log high-risk                | `awcms-mini-audit-log`                                                                                 |
+| Sensitive masking                  | `awcms-mini-sensitive-data`                                                                            |
+| Sync HMAC + file checksum          | `awcms-mini-sync-hmac`                                                                                 |
+| Migration aman (RLS/index)         | `awcms-mini-new-migration`                                                                             |
+| Soft delete policy                 | `awcms-mini-new-migration`, `awcms-mini-new-endpoint`, `awcms-mini-abac-guard`, `awcms-mini-audit-log` |
+| API/event contract                 | `awcms-mini-new-endpoint`, `awcms-mini-new-event`                                                      |
+| Testing berlapis                   | `awcms-mini-testing`                                                                                   |
+| Review keamanan                    | `awcms-mini-security-review` + agent `awcms-mini-security-auditor`                                     |
+| Review PR / DoD                    | `awcms-mini-pr-review` + agent `awcms-mini-reviewer`                                                   |
+| Go-live gate                       | `awcms-mini-production-preflight`                                                                      |
+| UI/design system/a11y              | `awcms-mini-ui-screen`                                                                                 |
+| Rilis/CHANGELOG                    | `awcms-mini-release`                                                                                   |
+| Legacy migration                   | `awcms-mini-legacy-migration`                                                                          |
+| Implementasi issue                 | skill `awcms-mini-implement-issue` + agent `awcms-mini-coder`                                          |
 
 ## Matrix Modul vs SOP
 
-| SOP | Modul utama |
-|---|---|
-| Instalasi awal | Deployment/Foundation |
-| Setup tenant | Tenant Admin |
-| Tambah user/role | Identity + Profile |
-| Input produk | Inventory |
-| Input stok awal | Inventory/Warehouse |
-| Transaksi operasional | Sales POS |
-| Cancel/retur | Sales POS + Workflow |
-| Warehouse transfer | Warehouse |
-| Cycle count | Warehouse |
-| Stock adjustment | Inventory/Warehouse + Workflow |
-| Receipt WA/email | CRM |
-| Customer portal | CRM/UI |
-| Offline sync | Sync |
-| Pajak/Coretax | Accounting Tax |
-| Reporting | Reporting |
-| AI Analyst | AI |
-| Backup/restore | Deployment/Database |
-| Troubleshooting | Observability/DB |
-| Handover | Semua |
+| SOP                   | Modul utama                    |
+| --------------------- | ------------------------------ |
+| Instalasi awal        | Deployment/Foundation          |
+| Setup tenant          | Tenant Admin                   |
+| Tambah user/role      | Identity + Profile             |
+| Input produk          | Inventory                      |
+| Input stok awal       | Inventory/Warehouse            |
+| Transaksi operasional | Sales POS                      |
+| Cancel/retur          | Sales POS + Workflow           |
+| Warehouse transfer    | Warehouse                      |
+| Cycle count           | Warehouse                      |
+| Stock adjustment      | Inventory/Warehouse + Workflow |
+| Receipt WA/email      | CRM                            |
+| Customer portal       | CRM/UI                         |
+| Offline sync          | Sync                           |
+| Pajak/Coretax         | Accounting Tax                 |
+| Reporting             | Reporting                      |
+| AI Analyst            | AI                             |
+| Backup/restore        | Deployment/Database            |
+| Troubleshooting       | Observability/DB               |
+| Handover              | Semua                          |
 
 ## Matrix kesiapan implementasi
 
 Kelengkapan dokumen per kebutuhan implementasi. "Design/spec ready" = cukup untuk mulai koding; DDL penuh & schema OpenAPI penuh sengaja diproduksi per-migration/per-endpoint saat implementasi (bukan pra-tulis).
 
-| Kebutuhan | Dokumen | Status |
-|---|---|---|
-| Arsitektur & fase | 01 | Ready |
-| Kebutuhan produk & teknis | 02, 03 | Ready |
-| ERD & data dictionary | 04 | Ready (ringkas; DDL penuh per-migration) |
-| Kontrak API/event | 05 | Ready (daftar; schema penuh per-endpoint) |
-| Issue, sprint, testing | 06, 07 | Ready |
-| SOP operasional | 08 | Ready |
-| Roadmap, coding standard, blueprint, prompt | 09–12 | Ready |
-| **UI/UX design system & layar** | 14 | Ready |
-| **Frontend & integrasi (offline-first)** | 15 | Ready |
-| **Backend data access & DB integrasi** | 16 | Ready |
-| **Seed, RBAC, ABAC policy** | 17 | Ready |
-| **Konfigurasi & environment** | 18 | Ready |
-| Skill proyek | `.claude/skills/` | Ready |
+| Kebutuhan                                   | Dokumen           | Status                                    |
+| ------------------------------------------- | ----------------- | ----------------------------------------- |
+| Arsitektur & fase                           | 01                | Ready                                     |
+| Kebutuhan produk & teknis                   | 02, 03            | Ready                                     |
+| ERD & data dictionary                       | 04                | Ready (ringkas; DDL penuh per-migration)  |
+| Kontrak API/event                           | 05                | Ready (daftar; schema penuh per-endpoint) |
+| Issue, sprint, testing                      | 06, 07            | Ready                                     |
+| SOP operasional                             | 08                | Ready                                     |
+| Roadmap, coding standard, blueprint, prompt | 09–12             | Ready                                     |
+| **UI/UX design system & layar**             | 14                | Ready                                     |
+| **Frontend & integrasi (offline-first)**    | 15                | Ready                                     |
+| **Backend data access & DB integrasi**      | 16                | Ready                                     |
+| **Seed, RBAC, ABAC policy**                 | 17                | Ready                                     |
+| **Konfigurasi & environment**               | 18                | Ready                                     |
+| Skill proyek                                | `.claude/skills/` | Ready                                     |
 
 Diproduksi saat implementasi (bukan pra-tulis): DDL lengkap tiap tabel (via migration), schema request/response penuh tiap endpoint (via OpenAPI), string i18n aktual, dan aset UI final.
 
@@ -273,21 +273,21 @@ Alasan:
 
 ## Minimal MVP Boundary
 
-| Area | Minimum |
-|---|---|
-| Tenant | tenant, office, setup locked |
-| Auth | owner/admin/operator login |
-| Access | role dasar, ABAC default deny |
-| Profile | customer profile resolver |
-| Product | create/list/search product |
-| Stock | balance, movement |
-| POS | checkout, cart, payment, post |
-| Transaction safety | idempotency, stock lock, rollback |
-| Receipt | PDF local |
-| Audit | transaction audit |
-| Backup | pg_dump + restore tested |
-| Docs | admin/operator SOP basic |
-| Soft delete | master data hidden by default, restore audited |
+| Area               | Minimum                                        |
+| ------------------ | ---------------------------------------------- |
+| Tenant             | tenant, office, setup locked                   |
+| Auth               | owner/admin/operator login                     |
+| Access             | role dasar, ABAC default deny                  |
+| Profile            | customer profile resolver                      |
+| Product            | create/list/search product                     |
+| Stock              | balance, movement                              |
+| POS                | checkout, cart, payment, post                  |
+| Transaction safety | idempotency, stock lock, rollback              |
+| Receipt            | PDF local                                      |
+| Audit              | transaction audit                              |
+| Backup             | pg_dump + restore tested                       |
+| Docs               | admin/operator SOP basic                       |
+| Soft delete        | master data hidden by default, restore audited |
 
 ## Production-ready Boundary
 

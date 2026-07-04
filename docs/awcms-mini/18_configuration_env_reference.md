@@ -29,11 +29,11 @@ Terkait: `11_implementation_blueprint.md` (skeleton), `15/16` (FE/BE), `07_sprin
 
 ```mermaid
 flowchart LR
-  Def[Default kode] --> Env[Environment variable] --> Set[awcms-mini_tenant_settings - per tenant] --> Eff[Konfigurasi efektif]
+  Def[Default kode] --> Env[Environment variable] --> Set[awcms_mini_tenant_settings - per tenant] --> Eff[Konfigurasi efektif]
 ```
 
 - Runtime/secret (DB, JWT, HMAC, provider key): dari **environment**.
-- Preferensi tenant (locale, theme, flag fitur tampilan): dari **`awcms-mini_tenant_settings`**.
+- Preferensi tenant (locale, theme, flag fitur tampilan): dari **`awcms_mini_tenant_settings`**.
 - Retention soft delete/purge dapat menjadi tenant policy, tetapi tidak boleh menonaktifkan audit, RLS, atau default filter `deleted_at IS NULL`.
 
 ## Referensi environment variable
@@ -72,10 +72,10 @@ Legenda: Wajib = perlu untuk boot; Sensitif = jangan bocor ke log/response.
 
 | Var                            | Wajib     | Default          | Sensitif | Fungsi                |
 | ------------------------------ | --------- | ---------------- | -------- | --------------------- |
-| `AWCMS-Mini_NODE_ID`           | Ya        | `local-dev-node` | –        | Identitas node        |
-| `AWCMS-Mini_SYNC_ENABLED`      | –         | `false`          | –        | Aktifkan sync hybrid  |
-| `AWCMS-Mini_SYNC_HMAC_SECRET`  | bila sync | –                | Ya       | Signature HMAC        |
-| `AWCMS-Mini_SYNC_MAX_SKEW_SEC` | –         | `300`            | –        | Toleransi anti-replay |
+| `AWCMS_MINI_NODE_ID`           | Ya        | `local-dev-node` | –        | Identitas node        |
+| `AWCMS_MINI_SYNC_ENABLED`      | –         | `false`          | –        | Aktifkan sync hybrid  |
+| `AWCMS_MINI_SYNC_HMAC_SECRET`  | bila sync | –                | Ya       | Signature HMAC        |
+| `AWCMS_MINI_SYNC_MAX_SKEW_SEC` | –         | `300`            | –        | Toleransi anti-replay |
 
 ### Storage
 
@@ -132,7 +132,7 @@ APP_DEFAULT_LOCALE=id
 LOG_LEVEL=info
 
 # Database
-DATABASE_URL=postgres://awcms-mini:awcms-mini_password@localhost:5432/awcms-mini
+DATABASE_URL=postgres://awcms-mini:awcms_mini_password@localhost:5432/awcms-mini
 DATABASE_POOL_MAX=20
 DATABASE_STATEMENT_TIMEOUT_MS=15000
 DATABASE_PGBOUNCER=false
@@ -144,10 +144,10 @@ AUTH_COOKIE_SECURE=true
 AUTH_LOGIN_MAX_ATTEMPTS=5
 
 # Sync
-AWCMS-Mini_NODE_ID=local-dev-node
-AWCMS-Mini_SYNC_ENABLED=false
-AWCMS-Mini_SYNC_HMAC_SECRET=change-me
-AWCMS-Mini_SYNC_MAX_SKEW_SEC=300
+AWCMS_MINI_NODE_ID=local-dev-node
+AWCMS_MINI_SYNC_ENABLED=false
+AWCMS_MINI_SYNC_HMAC_SECRET=change-me
+AWCMS_MINI_SYNC_MAX_SKEW_SEC=300
 
 # Storage
 STORAGE_DRIVER=local
@@ -204,5 +204,5 @@ flowchart TB
 - Boot memvalidasi env; var wajib hilang menghentikan start dengan pesan aman.
 - Provider off tidak menghentikan POS; pesan/objek masuk queue.
 - Secret hanya dari env; tidak ada di kode/commit/log/response.
-- Preferensi tenant (locale/theme) dari `awcms-mini_tenant_settings`, bukan hardcode.
+- Preferensi tenant (locale/theme) dari `awcms_mini_tenant_settings`, bukan hardcode.
 - Profil offline/LAN berjalan penuh tanpa internet.

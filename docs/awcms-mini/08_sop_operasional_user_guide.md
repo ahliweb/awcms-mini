@@ -22,14 +22,14 @@ Dokumen ini menjadi panduan operasional AWCMS-Mini untuk admin, owner, operator,
 
 ### Prasyarat minimum
 
-| Komponen | Minimum |
-|---|---|
-| CPU | 2 core |
-| RAM | 4 GB |
-| Storage | 80 GB SSD |
-| OS | Linux Mint / Ubuntu |
-| Database | PostgreSQL |
-| Runtime | Bun |
+| Komponen | Minimum             |
+| -------- | ------------------- |
+| CPU      | 2 core              |
+| RAM      | 4 GB                |
+| Storage  | 80 GB SSD           |
+| OS       | Linux Mint / Ubuntu |
+| Database | PostgreSQL          |
+| Runtime  | Bun                 |
 
 ### Langkah development/local
 
@@ -105,18 +105,18 @@ Checklist:
 
 ### Role standar
 
-| Role | Fungsi |
-|---|---|
-| Owner | Akses penuh dan approval utama |
-| Admin | Kelola sistem, produk, user, laporan |
-| Kasir | Transaksi POS |
-| Manager | Approval transaksi/stok/operasional |
-| Petugas Gudang | Transfer, receiving, cycle count |
-| Inventory Staff | Produk, stok, adjustment terbatas |
-| Tax Officer | Pajak dan Coretax |
-| CRM Staff | Kontak dan receipt delivery |
-| Business Analyst | Laporan agregat dan AI analyst |
-| Auditor | Audit trail read-only |
+| Role             | Fungsi                               |
+| ---------------- | ------------------------------------ |
+| Owner            | Akses penuh dan approval utama       |
+| Admin            | Kelola sistem, produk, user, laporan |
+| Kasir            | Transaksi POS                        |
+| Manager          | Approval transaksi/stok/operasional  |
+| Petugas Gudang   | Transfer, receiving, cycle count     |
+| Inventory Staff  | Produk, stok, adjustment terbatas    |
+| Tax Officer      | Pajak dan Coretax                    |
+| CRM Staff        | Kontak dan receipt delivery          |
+| Business Analyst | Laporan agregat dan AI analyst       |
+| Auditor          | Audit trail read-only                |
 
 ### Tambah user
 
@@ -231,15 +231,15 @@ Langkah:
 
 ### Shortcut
 
-| Shortcut | Fungsi |
-|---|---|
-| F2 | Fokus search/barcode |
-| F4 | Ubah quantity |
-| F6 | Diskon sesuai izin |
-| F8 | Hold transaksi |
-| F9 | Pembayaran |
-| F10 | Posting transaksi |
-| Esc | Tutup dialog |
+| Shortcut | Fungsi               |
+| -------- | -------------------- |
+| F2       | Fokus search/barcode |
+| F4       | Ubah quantity        |
+| F6       | Diskon sesuai izin   |
+| F8       | Hold transaksi       |
+| F9       | Pembayaran           |
+| F10      | Posting transaksi    |
+| Esc      | Tutup dialog         |
 
 ### Alur transaksi operasional
 
@@ -435,14 +435,14 @@ Catatan: AWCMS-Mini bersifat Coretax-ready/XML-ready, tidak mengasumsikan API up
 Backup:
 
 ```bash
-pg_dump --format=custom --file=/backup/awcms-mini_$(date +%Y%m%d_%H%M%S).dump "$DATABASE_URL"
+pg_dump --format=custom --file=/backup/awcms_mini_$(date +%Y%m%d_%H%M%S).dump "$DATABASE_URL"
 ```
 
 Restore test:
 
 ```bash
-createdb awcms-mini_restore_test
-pg_restore --dbname=awcms-mini_restore_test --clean --if-exists /backup/awcms-mini_YYYYMMDD_HHMMSS.dump
+createdb awcms_mini_restore_test
+pg_restore --dbname=awcms_mini_restore_test --clean --if-exists /backup/awcms_mini_YYYYMMDD_HHMMSS.dump
 ```
 
 Validasi restore:

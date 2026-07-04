@@ -55,37 +55,37 @@ flowchart LR
 
 ## Milestone rekomendasi
 
-| Milestone | Fokus |
-|---|---|
-| M0 — Repository Foundation | Skeleton, migration runner, OpenAPI/AsyncAPI |
-| M1 — Legacy Migration & Data Model | Toolkit migrasi legacy |
-| M2 — Identity, Tenant, Profile | Tenant, profile, auth, access |
-| M3 — POS MVP | Product, stock, checkout, posting |
-| M4 — Inventory & Warehouse | WMS, transfer, cycle count |
-| M5 — CRM, Receipt, Sync | Receipt, WA/email, sync/R2 |
-| M6 — Tax/Coretax Readiness | Tax profile, VAT, Coretax batch |
-| M7 — Reporting, AI, UI/UX | Dashboard, UI, AI analyst |
+| Milestone                              | Fokus                                            |
+| -------------------------------------- | ------------------------------------------------ |
+| M0 — Repository Foundation             | Skeleton, migration runner, OpenAPI/AsyncAPI     |
+| M1 — Legacy Migration & Data Model     | Toolkit migrasi legacy                           |
+| M2 — Identity, Tenant, Profile         | Tenant, profile, auth, access                    |
+| M3 — POS MVP                           | Product, stock, checkout, posting                |
+| M4 — Inventory & Warehouse             | WMS, transfer, cycle count                       |
+| M5 — CRM, Receipt, Sync                | Receipt, WA/email, sync/R2                       |
+| M6 — Tax/Coretax Readiness             | Tax profile, VAT, Coretax batch                  |
+| M7 — Reporting, AI, UI/UX              | Dashboard, UI, AI analyst                        |
 | M8 — Security, Performance, Production | Logging, pooling, security readiness, deployment |
 
 ## Dokumen acuan per epic
 
 Selain doc 01–05, setiap epic wajib membaca dokumen desain teknis terkait:
 
-| Epic | Dokumen acuan utama |
-|---|---|
-| 0 Foundation | 09, 10, 11, 16 (migration runner, pool), 18 (env) |
-| 1 Legacy Migration | 04, 07 (legacy checklist) |
-| 2 Tenant/Identity/Profile | 03, 04, 16 (RLS/SET LOCAL), **17 (seed/RBAC/ABAC)** |
-| 3 POS MVP | 03, 04, 05, 10 (idempotency/lock), 16 (posting sequence) |
-| 4 Warehouse | 03, 04, 05, 08 (state machine transfer) |
-| 5 CRM Receipt | 03, 05, 18 (provider flag), 16 (outbox) |
-| 6 Sync & R2 | 03, 10 (HMAC), 15 (offline client), 16 (outbox) |
-| 7 Tax/Coretax | 03, 04, 05, 19 (istilah NITKU/DPP) |
-| 8 UI/UX | **14 (design system/layar)**, **15 (frontend/offline)** |
-| 9 Reporting & AI | 03, 05, 14 (dashboard UI) |
-| 10 Logging/Pooling/Security | **16 (pool/backpressure)**, 07, 03 |
-| 11 Workflow | 03, 17 (self-approval policy) |
-| 12 Setup & Deployment | **17 (seed wizard)**, **18 (env/topologi)**, 07 |
+| Epic                        | Dokumen acuan utama                                      |
+| --------------------------- | -------------------------------------------------------- |
+| 0 Foundation                | 09, 10, 11, 16 (migration runner, pool), 18 (env)        |
+| 1 Legacy Migration          | 04, 07 (legacy checklist)                                |
+| 2 Tenant/Identity/Profile   | 03, 04, 16 (RLS/SET LOCAL), **17 (seed/RBAC/ABAC)**      |
+| 3 POS MVP                   | 03, 04, 05, 10 (idempotency/lock), 16 (posting sequence) |
+| 4 Warehouse                 | 03, 04, 05, 08 (state machine transfer)                  |
+| 5 CRM Receipt               | 03, 05, 18 (provider flag), 16 (outbox)                  |
+| 6 Sync & R2                 | 03, 10 (HMAC), 15 (offline client), 16 (outbox)          |
+| 7 Tax/Coretax               | 03, 04, 05, 19 (istilah NITKU/DPP)                       |
+| 8 UI/UX                     | **14 (design system/layar)**, **15 (frontend/offline)**  |
+| 9 Reporting & AI            | 03, 05, 14 (dashboard UI)                                |
+| 10 Logging/Pooling/Security | **16 (pool/backpressure)**, 07, 03                       |
+| 11 Workflow                 | 03, 17 (self-approval policy)                            |
+| 12 Setup & Deployment       | **17 (seed wizard)**, **18 (env/topologi)**, 07          |
 
 ---
 
@@ -129,7 +129,7 @@ Selain doc 01–05, setiap epic wajib membaca dokumen desain teknis terkait:
 
 ## Issue 1.1 — Add Legacy Migration Toolkit Schema
 
-**Scope:** `awcms-mini_legacy_migration_runs`, mappings, row counts, validation errors, backfill tasks, mapping awal tabel legacy.
+**Scope:** `awcms_mini_legacy_migration_runs`, mappings, row counts, validation errors, backfill tasks, mapping awal tabel legacy.
 
 **Acceptance criteria:** Dry-run bisa mencatat row count dan error; password legacy tidak digunakan ulang.
 
@@ -145,13 +145,13 @@ Selain doc 01–05, setiap epic wajib membaca dokumen desain teknis terkait:
 
 ## Issue 2.1 — Add Tenant and Office Schema
 
-**Scope:** `awcms-mini_tenants`, `awcms-mini_offices`, `awcms-mini_tenant_settings`, `awcms-mini_physical_locations`, RLS, unique tenant/office code, soft delete untuk office/location.
+**Scope:** `awcms_mini_tenants`, `awcms_mini_offices`, `awcms_mini_tenant_settings`, `awcms_mini_physical_locations`, RLS, unique tenant/office code, soft delete untuk office/location.
 
 **Acceptance criteria:** Tenant dan office dapat dibuat, tipe office lengkap, duplicate ditolak, tenant inactive ditolak transaksi, office/location soft-deleted tidak muncul di list default dan restore diaudit.
 
 ## Issue 2.2 — Add Central Profile Schema
 
-**Scope:** `awcms-mini_profiles`, identifiers, channels, addresses, entity links, audit logs, merge request, soft delete/restore profile/contact master.
+**Scope:** `awcms_mini_profiles`, identifiers, channels, addresses, entity links, audit logs, merge request, soft delete/restore profile/contact master.
 
 **Acceptance criteria:** Profile bisa link ke user/customer/tax/CRM; identifier dimasking; duplicate resolver bekerja; profile soft-deleted tidak di-resolve untuk transaksi baru kecuali di-restore.
 
@@ -229,7 +229,7 @@ Selain doc 01–05, setiap epic wajib membaca dokumen desain teknis terkait:
 
 ## Issue 5.1 — Add PDF Receipt Generator
 
-**Scope:** Receipt template, PDF generation, local file metadata, `awcms-mini_receipt_pdfs`.
+**Scope:** Receipt template, PDF generation, local file metadata, `awcms_mini_receipt_pdfs`.
 
 **Acceptance criteria:** Sales posted menghasilkan PDF receipt, authorized download.
 

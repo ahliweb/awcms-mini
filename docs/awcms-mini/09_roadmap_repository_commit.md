@@ -113,14 +113,14 @@ gitGraph
   merge develop tag: "v0.1.0"
 ```
 
-| Branch | Fungsi |
-|---|---|
-| `main` | Stabil/production-ready |
-| `develop` | Integrasi fitur |
-| `feature/<issue>-<name>` | Fitur atomic |
-| `fix/<issue>-<name>` | Bug fix |
-| `release/vX.Y.Z` | Release prep |
-| `hotfix/vX.Y.Z-<name>` | Hotfix production |
+| Branch                   | Fungsi                  |
+| ------------------------ | ----------------------- |
+| `main`                   | Stabil/production-ready |
+| `develop`                | Integrasi fitur         |
+| `feature/<issue>-<name>` | Fitur atomic            |
+| `fix/<issue>-<name>`     | Bug fix                 |
+| `release/vX.Y.Z`         | Release prep            |
+| `hotfix/vX.Y.Z-<name>`   | Hotfix production       |
 
 ## GitHub issue snapshot
 
@@ -247,32 +247,32 @@ Scopes: `foundation`, `db`, `api`, `auth`, `access`, `profile`, `tenant`, `inven
 ## Migration order final rekomendasi
 
 ```text
-001_awcms-mini_foundation_schema.sql
-002_awcms-mini_tenant_identity_schema.sql
-003_awcms-mini_catalog_inventory_schema.sql
-004_awcms-mini_sales_pos_schema.sql
-005_awcms-mini_sync_storage_r2_schema.sql
-006_awcms-mini_crm_receipt_communication_schema.sql
-007_awcms-mini_accounting_tax_coretax_schema.sql
-008_awcms-mini_ai_hermes_business_analyst_schema.sql
-009_awcms-mini_i18n_po_schema.sql
-010_awcms-mini_theme_mode_schema.sql
-011_awcms-mini_abac_access_control_schema.sql
-012_awcms-mini_modular_monolith_contracts_schema.sql
-013_awcms-mini_logging_observability_schema.sql
-014_awcms-mini_central_profile_management_schema.sql
-015_awcms-mini_profile_stabilization_schema.sql
-016_awcms-mini_workflow_approval_audit_schema.sql
-017_awcms-mini_management_dashboard_reporting_schema.sql
-018_awcms-mini_legacy_migration_backfill_toolkit_schema.sql
-019_awcms-mini_performance_sync_validation_schema.sql
-020_awcms-mini_production_security_readiness_schema.sql
-021_awcms-mini_database_connection_pooling_schema.sql
-022_awcms-mini_ui_ux_persona_experience_schema.sql
-023_awcms-mini_warehouse_management_schema.sql
-024_awcms-mini_transaction_integrity_idempotency_hardening.sql
-025_awcms-mini_setup_wizard_extension.sql
-026_awcms-mini_dashboard_materialized_views.sql
+001_awcms_mini_foundation_schema.sql
+002_awcms_mini_tenant_identity_schema.sql
+003_awcms_mini_catalog_inventory_schema.sql
+004_awcms_mini_sales_pos_schema.sql
+005_awcms_mini_sync_storage_r2_schema.sql
+006_awcms_mini_crm_receipt_communication_schema.sql
+007_awcms_mini_accounting_tax_coretax_schema.sql
+008_awcms_mini_ai_hermes_business_analyst_schema.sql
+009_awcms_mini_i18n_po_schema.sql
+010_awcms_mini_theme_mode_schema.sql
+011_awcms_mini_abac_access_control_schema.sql
+012_awcms_mini_modular_monolith_contracts_schema.sql
+013_awcms_mini_logging_observability_schema.sql
+014_awcms_mini_central_profile_management_schema.sql
+015_awcms_mini_profile_stabilization_schema.sql
+016_awcms_mini_workflow_approval_audit_schema.sql
+017_awcms_mini_management_dashboard_reporting_schema.sql
+018_awcms_mini_legacy_migration_backfill_toolkit_schema.sql
+019_awcms_mini_performance_sync_validation_schema.sql
+020_awcms_mini_production_security_readiness_schema.sql
+021_awcms_mini_database_connection_pooling_schema.sql
+022_awcms_mini_ui_ux_persona_experience_schema.sql
+023_awcms_mini_warehouse_management_schema.sql
+024_awcms_mini_transaction_integrity_idempotency_hardening.sql
+025_awcms_mini_setup_wizard_extension.sql
+026_awcms_mini_dashboard_materialized_views.sql
 ```
 
 Catatan: setelah production, migration tidak boleh di-rename sembarangan. Koreksi harus migration baru.
@@ -337,18 +337,18 @@ flowchart LR
   V9 --> V10[v1.0.0<br/>production MVP]
 ```
 
-| Versi | Isi |
-|---|---|
+| Versi    | Isi                                   |
+| -------- | ------------------------------------- |
 | `v0.1.0` | Foundation, tenant, identity, profile |
-| `v0.2.0` | Product, stock, POS checkout |
-| `v0.3.0` | Atomic posting, logging, pooling |
-| `v0.4.0` | Receipt, CRM, sync |
-| `v0.5.0` | Warehouse basic |
-| `v0.6.0` | Tax/Coretax readiness |
-| `v0.7.0` | UI admin/operator/customer |
-| `v0.8.0` | Reporting dan AI |
-| `v0.9.0` | Security readiness dan deployment |
-| `v1.0.0` | Production-ready MVP |
+| `v0.2.0` | Product, stock, POS checkout          |
+| `v0.3.0` | Atomic posting, logging, pooling      |
+| `v0.4.0` | Receipt, CRM, sync                    |
+| `v0.5.0` | Warehouse basic                       |
+| `v0.6.0` | Tax/Coretax readiness                 |
+| `v0.7.0` | UI admin/operator/customer            |
+| `v0.8.0` | Reporting dan AI                      |
+| `v0.9.0` | Security readiness dan deployment     |
+| `v1.0.0` | Production-ready MVP                  |
 
 ### SemVer
 

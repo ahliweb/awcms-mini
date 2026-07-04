@@ -120,7 +120,7 @@ Hasil:
 
 1. Repository **sudah sesuai standar sebagai planning baseline** untuk pengembangan software Bun + Astro + PostgreSQL.
 2. Repository **belum boleh diklaim sebagai aplikasi Bun/Astro/PostgreSQL yang buildable** sampai Issue 0.1 selesai.
-3. Tidak ada secret nyata yang terdeteksi; nilai seperti `change-me` dan `awcms-mini_password` hanya placeholder dokumentasi `.env.example`.
+3. Tidak ada secret nyata yang terdeteksi; nilai seperti `change-me` dan `awcms_mini_password` hanya placeholder dokumentasi `.env.example`.
 4. Perbaikan yang dilakukan dari audit ini:
    - `CHANGELOG.md` disesuaikan dari 14 skill menjadi 17 skill.
    - `bun.lock` ditambahkan untuk reproducible dependency baseline.
