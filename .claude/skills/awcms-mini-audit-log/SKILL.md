@@ -1,6 +1,6 @@
 ---
 name: awcms-mini-audit-log
-description: Tulis audit log untuk aksi high-risk AWCMS-Mini dengan redaction. Gunakan pada login, setup initialize, access assignment, profile resolve/merge, workflow decision, sync conflict resolution, dan security readiness decision; aplikasi domain menambah aksinya sendiri (posting, adjustment, export, dsb.). Sesuai doc 03 & 10.
+description: Tulis audit log untuk aksi high-risk AWCMS-Mini dengan redaction. Gunakan pada login, access assignment, profile merge, price change, transaction posted/cancel/return, stock adjustment, warehouse transfer, Coretax export, sync conflict resolution, AI tool call, dan security readiness decision. Sesuai doc 03 & 10.
 ---
 
 # AWCMS-Mini — Audit Log (High-Risk)
@@ -26,15 +26,16 @@ type AuditEventInput = {
 
 ## Aksi yang WAJIB diaudit
 
-Base: login failed/success · setup initialize · access assignment · profile resolve/link/merge · workflow decision · sync conflict resolution · security readiness decision. Aplikasi domain menambah daftar high-risk-nya (mis. AWPOS: posting, cancel/return, adjustment, transfer, export).
+Login failed/success · access assignment · profile merge · product price change · soft delete/restore/purge · transaction posted/cancel/return · stock adjustment · warehouse transfer · Coretax export · sync conflict resolution · AI tool call · security readiness decision.
 
 ## Aturan
 
-1. Audit **tenant-scoped** (`tenant_id`), tulis ke `awcms_audit_events`.
-2. **Redaksi dulu** attributes — jangan pernah masukkan: password, token, API key, `authorization`, NPWP/NIK penuh, phone/WhatsApp/email penuh, token akses apa pun.
+1. Audit **tenant-scoped** (`tenant_id`), tulis ke `awcms-mini_audit_events`.
+2. **Redaksi dulu** attributes — jangan pernah masukkan: password, token, API key, `authorization`, NPWP/NIK penuh, phone/WhatsApp/email penuh, receipt token.
 3. Audit **melengkapi**, bukan menggantikan, domain event & structured log.
 4. Sertakan `correlationId` untuk trace.
 5. Untuk denial high-risk, koordinasikan dengan decision log (`awcms-mini-abac-guard`).
+6. Soft delete/restore/purge wajib menyertakan reason dan tidak boleh membawa PII mentah di attributes.
 
 ## Redaction keys
 
@@ -43,5 +44,6 @@ Base: login failed/success · setup initialize · access assignment · profile r
 ## Verifikasi
 
 - Aksi high-risk menghasilkan satu audit event.
+- Soft delete, restore, dan purge menghasilkan audit event terpisah.
 - Tidak ada secret/PII mentah di kolom attributes.
 - Retention audit: 1–5 tahun sesuai kebutuhan.

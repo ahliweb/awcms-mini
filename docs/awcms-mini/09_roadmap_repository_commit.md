@@ -1,47 +1,91 @@
-# Bagian 9 — Roadmap Repository dan Urutan Commit
+# Bagian 9 — Roadmap Teknis Repository dan Urutan Commit
+
+## Tujuan
+
+Dokumen ini menjadi panduan teknis implementasi repository AWCMS-Mini: struktur folder, branch, commit atomic, migration order, API/UI/testing order, release versioning, merge/deploy checklist, dan template laporan implementasi.
 
 ## Prinsip repository
 
-1. Setiap perubahan atomic; jangan campur perubahan unrelated.
-2. Database change → migration; API change → OpenAPI; event change → AsyncAPI.
-3. Mutation high-risk → idempotent; high-risk action → audit.
-4. Jangan commit `.env`, token, backup, dump DB, data asli.
+1. Setiap perubahan atomic.
+2. Jangan campur perubahan unrelated.
+3. Database change harus migration.
+4. API change harus OpenAPI.
+5. Event change harus AsyncAPI.
+6. High-risk mutation harus idempotent.
+7. High-risk action harus audit.
+8. Resource deletable memakai soft delete; posted/append-only entity tidak dihapus.
+9. Jangan commit `.env`, token, backup, dump DB, data customer asli.
 
 ## Struktur repository final
 
 ```text
 awcms-mini/
-├── AGENTS.md                # kontrak kerja agent/kontributor
+├── AGENTS.md
 ├── README.md
-├── CHANGELOG.md             # digenerate Changesets
-├── .changeset/
-├── .claude/skills/          # skill proyek Claude Code
-├── .claude/agents/          # subagents (coder, reviewer, security-auditor)
+├── CHANGELOG.md         # digenerate Changesets
+├── .changeset/          # config + changeset entries
+├── .claude/skills/      # skill proyek Claude Code
 ├── package.json
+├── bun.lock
 ├── astro.config.mjs
 ├── tsconfig.json
 ├── .env.example
 ├── .gitignore
 ├── docker-compose.yml
 ├── src/
-│   ├── lib/                 # config, errors, logging, database, auth, files, i18n
-│   ├── modules/             # _shared + modul base (+ modul domain aplikasi)
-│   └── pages/               # index + api/v1
-├── sql/                     # NNN_awcms_<area>_<desc>.sql
-├── scripts/                 # db-migrate, api-spec-check, readiness, preflight
+├── sql/
+├── scripts/
 ├── openapi/
 ├── asyncapi/
-├── docs/awcms-mini/         # paket dokumen 01–19
-├── deploy/                  # systemd, nginx, pgbouncer, backup
+├── docs/
+├── deploy/
 ├── tests/
-└── fixtures/
+├── fixtures/
+└── public/
+```
+
+## Struktur source
+
+```text
+src/
+├── lib/
+│   ├── db.ts
+│   ├── database/
+│   ├── logging/
+│   ├── auth/
+│   ├── files/
+│   └── errors/
+├── modules/
+│   ├── _shared/
+│   ├── tenant-admin/
+│   ├── identity-access/
+│   ├── profile-identity/
+│   ├── catalog-inventory/
+│   ├── sales-pos/
+│   ├── warehouse-management/
+│   ├── accounting-tax/
+│   ├── crm-communication/
+│   ├── sync-storage/
+│   ├── ai-analyst/
+│   ├── localization-ui/
+│   ├── observability-logging/
+│   ├── database-connectivity/
+│   ├── workflow-approval/
+│   ├── management-reporting/
+│   ├── ui-experience/
+│   └── production-security-readiness/
+└── pages/
+    ├── api/v1/
+    ├── admin/
+    ├── pos/
+    └── customer/
 ```
 
 ## Struktur modul standard
 
 ```text
 src/modules/<module>/
-├── module.ts        # ModuleDescriptor (didaftarkan di src/modules/index.ts)
+├── module.ts
 ├── domain/
 ├── application/
 ├── infrastructure/
@@ -51,67 +95,326 @@ src/modules/<module>/
 
 ## Branch strategy
 
-| Branch                      | Fungsi                                                           |
-| --------------------------- | ---------------------------------------------------------------- |
-| `main`                      | Stabil/production-ready                                          |
-| `feature/<issue>-<name>`    | Fitur atomic                                                     |
-| `fix/<issue>-<name>`        | Bug fix                                                          |
-| `release/vX.Y.Z`            | Release prep                                                     |
-| `hotfix/vX.Y.Z-<name>`      | Hotfix production                                                |
-| `legacy/pre-awpos-standard` | Arsip implementasi lama (Hono + emdash) sebelum refaktor standar |
+```mermaid
+gitGraph
+  commit id: "init"
+  branch develop
+  checkout develop
+  commit id: "foundation"
+  branch feature/0.1-skeleton
+  commit id: "skeleton"
+  checkout develop
+  merge feature/0.1-skeleton
+  branch feature/2.1-tenant
+  commit id: "tenant schema"
+  checkout develop
+  merge feature/2.1-tenant
+  checkout main
+  merge develop tag: "v0.1.0"
+```
+
+| Branch | Fungsi |
+|---|---|
+| `main` | Stabil/production-ready |
+| `develop` | Integrasi fitur |
+| `feature/<issue>-<name>` | Fitur atomic |
+| `fix/<issue>-<name>` | Bug fix |
+| `release/vX.Y.Z` | Release prep |
+| `hotfix/vX.Y.Z-<name>` | Hotfix production |
+
+## GitHub issue snapshot
+
+Issue atomic dibuat dari `docs/awcms-mini/06_github_issues_detail.md`, sedangkan state GitHub aktual dicatat di `docs/awcms-mini/github/`.
+
+Aturan:
+
+1. Snapshot issue dipisahkan berdasarkan state: `issues-open-NNN.md` dan `issues-closed-NNN.md`.
+2. Setiap file snapshot berisi maksimal 100 issue.
+3. Snapshot memuat metadata issue, body, label, milestone, assignee, timestamp, URL, dan komentar.
+4. Label dan milestone dicatat di `docs/awcms-mini/github/labels-milestones.md`.
+5. Refresh snapshot dilakukan setelah perubahan massal issue, sebelum audit sprint, dan sebelum laporan release.
 
 ## Commit convention
+
+Format:
 
 ```text
 <type>(<scope>): <summary>
 ```
 
-Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `security`, `perf`, `ci`, `build`.
-Scopes base: `foundation`, `db`, `api`, `auth`, `access`, `profile`, `tenant`, `ui`, `logging`, `pooling`, `workflow`, `reporting`, `security`, `sync`, `docs`. Aplikasi domain menambah scope-nya sendiri (mis. `pos`, `inventory`).
-
-## Urutan commit fase berikutnya
-
-Sprint 2: `feat(tenant): add setup wizard API and default seed` → `feat(auth): add identity login with lockout` → `feat(auth): add auth middleware and tenant context` → `feat(profile): add profile resolver and identifier masking`.
-
-Sprint 3: `feat(access): seed permission catalog and default roles` → `feat(access): implement ABAC evaluator with deny by default` → `feat(access): add access assignment API and decision log`.
-
-Sprint 4: `feat(logging): add audit log security event repositories` → `feat(pooling): add database pool gate and backpressure`.
-
-## Migration order
+Contoh:
 
 ```text
-001_awcms_foundation_schema.sql                 ✅
-002_awcms_tenant_identity_profile_schema.sql    ✅
-003_awcms_access_control_schema.sql             ✅
-004_awcms_observability_schema.sql              ✅
-005_awcms_workflow_approval_schema.sql          (rencana)
-006_awcms_i18n_theme_schema.sql                 (rencana)
-007_awcms_sync_storage_schema.sql               (rencana)
-008_awcms_security_readiness_schema.sql         (rencana)
+feat(profile): add central profile schema
+feat(pos): add idempotent transaction posting
+fix(warehouse): prevent over receiving transfer lines
+docs(security): add production readiness checklist
+test(access): add ABAC default deny tests
 ```
 
-Migration yang sudah applied **tidak boleh diubah** (checksum drift = error); koreksi lewat migration baru. Aplikasi domain melanjutkan nomor berikutnya.
+Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `security`, `perf`, `ci`, `build`.
 
-## Versioning (SemVer + Changesets)
+Scopes: `foundation`, `db`, `api`, `auth`, `access`, `profile`, `tenant`, `inventory`, `pos`, `warehouse`, `tax`, `crm`, `sync`, `ai`, `ui`, `logging`, `pooling`, `workflow`, `reporting`, `security`, `docs`.
 
-- Setiap PR yang mengubah perilaku wajib satu changeset (`bun run changeset`); docs-only/chore boleh tanpa.
-- Rilis: `bun run changeset:version` → bump + CHANGELOG → tag `vX.Y.Z` (skill `awcms-mini-release`).
-- Baseline `0.0.0`; rilis pertama `0.1.0` (Foundation — refaktor standar ini).
+## Urutan commit atomic utama
 
-| Versi  | Isi                                           |
-| ------ | --------------------------------------------- |
-| v0.1.0 | Foundation + schema base + kontrak + skeleton |
-| v0.2.0 | Setup wizard, login, profile                  |
-| v0.3.0 | RBAC/ABAC evaluator + assignment              |
-| v0.4.0 | Observability + pooling                       |
-| v0.5.0 | Workflow + admin shell                        |
-| v0.6.0 | Sync opsional                                 |
-| v1.0.0 | Base production-ready (gates doc 07)          |
+### Sprint 1
+
+1. `feat(foundation): initialize Bun Astro modular monolith skeleton`
+2. `feat(db): add SQL migration runner`
+3. `feat(api): add OpenAPI and AsyncAPI baseline contracts`
+4. `feat(shared): add soft delete repository conventions`
+5. `chore(deploy): add local PostgreSQL Docker Compose profile`
+
+### Sprint 2
+
+1. `feat(tenant): add tenant office and physical location schema`
+2. `feat(profile): add central profile management schema`
+3. `feat(profile): add profile resolver and entity linking service`
+4. `feat(auth): add identity login and tenant user membership`
+
+### Sprint 3
+
+1. `feat(access): add RBAC ABAC schema and activity registry`
+2. `feat(access): implement ABAC evaluator with deny by default`
+3. `feat(access): add access assignment API and audit trail`
+
+### Sprint 4
+
+1. `feat(inventory): add product catalog schema`
+2. `feat(inventory): add product CRUD and search API`
+3. `feat(inventory): add product soft delete and restore API`
+4. `feat(inventory): add stock balance and stock movement service`
+
+### Sprint 5
+
+1. `feat(pos): add checkout session and cart schema`
+2. `feat(pos): add checkout cart API`
+3. `feat(shared): add idempotency key service`
+4. `feat(pos): implement idempotent atomic transaction posting`
+
+### Sprint 6
+
+1. `feat(logging): add structured logger and request correlation`
+2. `feat(logging): add cross-module audit event helper`
+3. `feat(pooling): add database pool gate and backpressure`
+4. `chore(deploy): add optional PgBouncer deployment profile`
+
+### Sprint 7
+
+1. `feat(crm): add receipt PDF generator`
+2. `feat(crm): add CRM contacts channels and consent`
+3. `feat(crm): add StarSender WhatsApp receipt provider`
+4. `feat(crm): add Mailketing email receipt provider`
+5. `feat(ui): add customer receipt portal`
+
+### Sprint 8
+
+1. `feat(sync): add offline sync outbox inbox and signed API`
+2. `feat(sync): add sync conflict tracking and resolution`
+3. `feat(sync): add R2 object sync queue`
+
+### Sprint 9
+
+1. `feat(warehouse): add warehouse zone bin and bin balance schema`
+2. `feat(warehouse): add warehouse zone and bin APIs`
+3. `feat(warehouse): add lot batch serial and expiry tracking`
+4. `feat(warehouse): add transfer order shipment and receipt workflow`
+5. `feat(warehouse): add cycle count and stock adjustment request`
+
+### Sprint 10
+
+1. `feat(tax): add tenant tax profile and business unit schema`
+2. `feat(tax): add party and product tax profiles`
+3. `feat(tax): add VAT invoice staging from sales document`
+4. `feat(tax): add Coretax XML batch export workflow`
+
+### Sprint 11
+
+1. `feat(ui): add UI persona screen and navigation registry`
+2. `feat(ui): build admin shell with modular navigation`
+3. `feat(pos-ui): build keyboard-first cashier POS screen`
+4. `feat(reporting): add management reporting views and dashboard API`
+5. `feat(ai): add safe AI business analyst tools`
+
+### Sprint 12
+
+1. `feat(workflow): add cross-module approval workflow engine`
+2. `security(production): add production security readiness gates`
+3. `chore(deploy): add offline LAN and production deployment profiles`
+4. `docs(handover): add operational SOP and handover manual`
+
+## Migration order final rekomendasi
+
+```text
+001_awcms-mini_foundation_schema.sql
+002_awcms-mini_tenant_identity_schema.sql
+003_awcms-mini_catalog_inventory_schema.sql
+004_awcms-mini_sales_pos_schema.sql
+005_awcms-mini_sync_storage_r2_schema.sql
+006_awcms-mini_crm_receipt_communication_schema.sql
+007_awcms-mini_accounting_tax_coretax_schema.sql
+008_awcms-mini_ai_hermes_business_analyst_schema.sql
+009_awcms-mini_i18n_po_schema.sql
+010_awcms-mini_theme_mode_schema.sql
+011_awcms-mini_abac_access_control_schema.sql
+012_awcms-mini_modular_monolith_contracts_schema.sql
+013_awcms-mini_logging_observability_schema.sql
+014_awcms-mini_central_profile_management_schema.sql
+015_awcms-mini_profile_stabilization_schema.sql
+016_awcms-mini_workflow_approval_audit_schema.sql
+017_awcms-mini_management_dashboard_reporting_schema.sql
+018_awcms-mini_legacy_migration_backfill_toolkit_schema.sql
+019_awcms-mini_performance_sync_validation_schema.sql
+020_awcms-mini_production_security_readiness_schema.sql
+021_awcms-mini_database_connection_pooling_schema.sql
+022_awcms-mini_ui_ux_persona_experience_schema.sql
+023_awcms-mini_warehouse_management_schema.sql
+024_awcms-mini_transaction_integrity_idempotency_hardening.sql
+025_awcms-mini_setup_wizard_extension.sql
+026_awcms-mini_dashboard_materialized_views.sql
+```
+
+Catatan: setelah production, migration tidak boleh di-rename sembarangan. Koreksi harus migration baru.
+
+## Urutan API implementation
+
+1. Shared response/error helper.
+2. Tenant context middleware.
+3. Auth middleware.
+4. ABAC middleware.
+5. Idempotency middleware.
+6. Soft delete query/repository helper.
+7. Audit helper.
+8. Logging middleware.
+9. `/setup/status` dan `/setup/initialize`.
+10. `/auth/login` dan `/auth/me`.
+11. `/access/evaluate`.
+12. `/profiles/resolve`.
+13. `/inventory/products`.
+14. Soft delete/restore endpoint untuk master data yang deletable.
+15. `/inventory/stock-balances`.
+16. `/sales/checkout-sessions`.
+17. `/sales/checkout-sessions/{id}/post`.
+18. `/crm/receipts/{id}/send`.
+19. `/sync/push` dan `/sync/pull`.
+20. `/warehouses` dan `/warehouse-transfers`.
+21. `/tax/vat-invoices/generate`.
+22. `/reports/sales/daily`.
+23. `/ai/business-analyst/chat`.
+24. `/security/go-live-gates/evaluate`.
+
+## Urutan UI implementation
+
+1. Design tokens.
+2. Base layout.
+3. Button/input/select/dialog/table/status components.
+4. Login.
+5. Setup wizard.
+6. Admin shell.
+7. Dashboard.
+8. User/access management.
+9. Product catalog.
+10. POS fullscreen.
+11. Customer receipt portal.
+12. Warehouse.
+13. Tax.
+14. Reports.
+15. Logs/security readiness.
+
+## Versioning
+
+```mermaid
+flowchart LR
+  V1[v0.1.0<br/>foundation/tenant/identity] --> V2[v0.2.0<br/>product/stock/checkout]
+  V2 --> V3[v0.3.0<br/>atomic posting/logging/pool]
+  V3 --> V4[v0.4.0<br/>receipt/CRM/sync]
+  V4 --> V5[v0.5.0<br/>warehouse]
+  V5 --> V6[v0.6.0<br/>tax/Coretax]
+  V6 --> V7[v0.7.0<br/>UI]
+  V7 --> V8[v0.8.0<br/>reporting/AI]
+  V8 --> V9[v0.9.0<br/>security/deploy]
+  V9 --> V10[v1.0.0<br/>production MVP]
+```
+
+| Versi | Isi |
+|---|---|
+| `v0.1.0` | Foundation, tenant, identity, profile |
+| `v0.2.0` | Product, stock, POS checkout |
+| `v0.3.0` | Atomic posting, logging, pooling |
+| `v0.4.0` | Receipt, CRM, sync |
+| `v0.5.0` | Warehouse basic |
+| `v0.6.0` | Tax/Coretax readiness |
+| `v0.7.0` | UI admin/operator/customer |
+| `v0.8.0` | Reporting dan AI |
+| `v0.9.0` | Security readiness dan deployment |
+| `v1.0.0` | Production-ready MVP |
+
+### SemVer
+
+- **MAJOR** — perubahan tidak-kompatibel (breaking) pada API/kontrak/schema publik.
+- **MINOR** — fitur baru yang kompatibel ke belakang.
+- **PATCH** — bug fix kompatibel.
+- Pra-1.0.0: perubahan minor boleh membawa penyesuaian yang belum stabil.
+
+### Versioning dengan Changesets
+
+Versi & `CHANGELOG.md` dikelola dengan [Changesets](../../.changeset/README.md). Alur:
+
+```mermaid
+flowchart LR
+  PR[PR mengubah perilaku] --> CS[Tambah changeset<br/>bun run changeset]
+  CS --> Merge[Merge ke main]
+  Merge --> Rel[Rilis: bun run changeset:version]
+  Rel --> Bump[Bump versi package.json]
+  Rel --> Log[Update CHANGELOG.md]
+  Bump --> Tag[Tag vX.Y.Z + release]
+```
+
+Aturan:
+
+- **Setiap PR** yang mengubah perilaku (fitur, fix, schema/API/event) **wajib menyertakan satu changeset** dengan tingkat bump SemVer + ringkasan.
+- Perubahan **docs-only/chore** boleh tanpa changeset.
+- Baseline saat ini `0.0.0` (belum ada kode dirilis); rilis bertag pertama = `0.1.0` (Foundation).
+- `CHANGELOG.md` mengikuti format Keep a Changelog; entri versi digenerate dari changeset.
+- Proses rilis ter-otomasi lewat skill `awcms-mini-release` (status → version → tag → GitHub release).
 
 ## PR checklist
 
-Scope sesuai issue · tanpa unrelated change · no secret · build pass · test pass · migration/OpenAPI/AsyncAPI bila relevan · security notes · docs update · changeset.
+- Scope sesuai issue.
+- Tidak ada unrelated change.
+- No secret/data customer.
+- Build pass.
+- Test relevan pass.
+- Migration jika schema berubah.
+- OpenAPI jika API berubah.
+- AsyncAPI jika event berubah.
+- Security notes terpenuhi.
+- Soft delete policy terpenuhi untuk resource deletable.
+- Docs update.
+- Changeset ditambahkan jika perubahan mempengaruhi perilaku.
 
 ## Pre-deploy checklist
 
-Lihat doc 07 / `bun run production:preflight`.
+```bash
+bun install
+bun run db:migrate
+bun run api:spec:check
+bun test
+bun run build
+bun run db:pool:health
+bun run security:readiness
+```
+
+## Template laporan implementasi
+
+```text
+Summary:
+Files changed:
+Commands run:
+Test results:
+Security notes:
+Documentation updates:
+Remaining limitations:
+Next recommended step:
+```

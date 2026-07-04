@@ -33,14 +33,14 @@ type DomainEventEnvelope<TPayload> = {
 2. Bump `eventVersion`/`schemaVersion` bila payload berubah tidak-kompatibel.
 3. **Payload tidak boleh** membawa raw PII/tax identity (mask dulu — `awcms-mini-sensitive-data`).
 4. Publish **setelah** commit transaction (atau lewat outbox), bukan menggantikan audit.
-5. Node hybrid: event masuk `awcms_sync_outbox` untuk sync (`awcms-mini-sync-hmac`).
+5. Node hybrid: event masuk `awcms-mini_sync_outbox` untuk sync (`awcms-mini-sync-hmac`).
 6. **Update AsyncAPI** (`asyncapi/`) untuk event & payload baru; jalankan `api:spec:check`.
 
 ## Event inti (producer → consumer)
 
 - `sales.transaction.posted` → Inventory, Tax, CRM, Sync, Reporting, Audit.
-- `access.assignment.changed` → Audit, Reporting.
-- `workflow.task.approved/rejected` → modul peminta, Audit.
+- `warehouse.transfer.shipped/received` → Inventory, Sync, Reporting.
+- `tax.vat_invoice.generated`, `tax.coretax.batch_exported` → Reporting, Audit.
 - `crm.message.sent`, `sync.conflict.detected`, `workflow.task.approved`, `security.golive.blocked`.
 
 ## Verifikasi

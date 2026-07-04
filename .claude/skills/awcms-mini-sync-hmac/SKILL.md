@@ -1,6 +1,6 @@
 ---
 name: awcms-mini-sync-hmac
-description: Amankan sinkronisasi offline-online AWCMS-Mini dengan HMAC signature dan anti-replay. Gunakan saat implementasi sync push/pull, verifikasi request node, atau R2 object queue. Sesuai doc 03 & 10.
+description: Amankan sinkronisasi offline-online AWCMS-Mini dengan HMAC signature dan anti-replay. Gunakan saat implementasi sync push/pull, verifikasi request node, atau R2 object queue. Sesuai doc 08 & 10.
 ---
 
 # AWCMS-Mini — Sync HMAC & Offline Sync
@@ -13,7 +13,7 @@ Ikuti `docs/awcms-mini/08_sop_operasional_user_guide.md` dan `docs/awcms-mini/10
 signature = HMAC(secret, "<timestamp>.<body>")
 ```
 
-Header: `X-AWCMS-Node-ID`, `X-AWCMS-Timestamp`, `X-AWCMS-Signature`.
+Header: `X-AWCMS-Mini-Node-ID`, `X-AWCMS-Mini-Timestamp`, `X-AWCMS-Mini-Signature`.
 
 ## Aturan validasi
 
@@ -41,7 +41,7 @@ sequenceDiagram
 
 ## R2 object queue (opsional)
 
-- File lokal disimpan dulu, masuk `awcms_object_sync_queue`.
+- File lokal disimpan dulu, masuk `awcms-mini_object_sync_queue`.
 - Upload saat online; **checksum diverifikasi**; retry aman.
 
 ## Verifikasi (test)

@@ -14,6 +14,7 @@ Ikuti `docs/awcms-mini/03_srs_detail_per_modul.md`, `docs/awcms-mini/10_template
 3. **RLS tetap wajib** walau ABAC sudah cek (defense in depth).
 4. Akses ditolak yang high-risk → catat di decision log.
 5. UI hiding **bukan** kontrol utama; backend tetap validasi.
+6. Archive/restore/purge soft delete default deny sampai permission eksplisit tersedia.
 
 ## Bentuk request/decision
 
@@ -42,9 +43,10 @@ flowchart LR
 
 - Set tenant context di **awal** transaction: `SET app.current_tenant_id = ...`.
 - Query tenant-scoped **wajib** filter `tenant_id` (jangan hanya andalkan RLS).
-- Contoh batas peran: Staff ditolak access control/assign role; self-approval ditolak; cross-tenant selalu blocked.
+- Query resource soft-deletable default `deleted_at IS NULL`; `includeDeleted`, `restore`, dan `purge` wajib ABAC eksplisit.
+- Contoh batas peran: operator ditolak akses pajak/export/assign role; cross-tenant selalu blocked.
 - `tenantUserId`/`identityId` berasal dari auth middleware, **bukan** header public mentah.
 
 ## Verifikasi (test)
 
-- default deny; deny overrides allow; cashier limit; tax officer access; cross-tenant blocked; decision log tercatat.
+- default deny; deny overrides allow; cashier limit; tax officer access; cross-tenant blocked; archive/restore denied tanpa permission; decision log tercatat.

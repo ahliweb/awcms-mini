@@ -1,29 +1,30 @@
 # AGENTS.md — Panduan Agent & Kontributor AWCMS-Mini
 
-Dokumen ini adalah kontrak kerja untuk coding agent (Claude Code, Codex, dsb.) maupun developer manusia yang mengimplementasikan AWCMS-Mini. Setiap sesi implementasi wajib membaca file ini terlebih dahulu, lalu dokumen terkait di `docs/awcms-mini/`.
+Dokumen ini adalah **kontrak kerja** untuk coding agent (Claude Code, Codex, dsb.) maupun developer manusia yang mengimplementasikan AWCMS-Mini. Setiap sesi implementasi **wajib membaca file ini terlebih dahulu**, lalu dokumen terkait di `docs/awcms-mini/`.
 
-> AWCMS-Mini pada branch ini adalah baseline docs-only yang disejajarkan dengan repo referensi `ahliweb/awpos`. Belum ada kode runtime aplikasi di branch ini. Implementasi dimulai ulang dari **Issue 0.1 — Initialize AWCMS-Mini Modular Monolith Repository Structure**.
+> AWCMS-Mini saat ini masih berupa **paket perencanaan (docs-only)**. Belum ada kode aplikasi. Implementasi dimulai dari **Issue 0.1 — Initialize AWCMS-Mini Modular Monolith Repository Structure**.
 
-## Ringkasan Proyek
+## Ringkasan proyek
 
 | Aspek | Keputusan |
-| --- | --- |
-| Produk | Standar modular monolith untuk aplikasi AhliWeb |
-| Runtime target | Bun |
-| Web framework target | Astro 7 |
-| Database target | PostgreSQL |
-| Arsitektur target | Modular monolith, microservice-ready |
+|---|---|
+| Produk | standar modular monolith berbasis AWCMS-Mini |
+| Runtime | Bun |
+| Web framework | Astro 7 |
+| Database | PostgreSQL |
+| Arsitektur | Modular monolith, microservice-ready |
+| Mode operasi | Offline-first / LAN-first, optional online sync |
 | Security baseline | RBAC + ABAC + PostgreSQL RLS + Audit Log |
 | API contract | OpenAPI |
 | Event contract | AsyncAPI |
-| Bahasa dokumen | Indonesia teknis |
+| Bahasa dokumen | Indonesia (teknis) |
 
-## Alur Kerja Wajib Setiap Task
+## Alur kerja wajib setiap task
 
 ```mermaid
 flowchart TD
   A[Terima issue / sprint] --> B[Baca AGENTS.md + docs terkait]
-  B --> C[Baca kode, sql, openapi, asyncapi terkait bila sudah ada]
+  B --> C[Baca kode, sql, openapi, asyncapi terkait]
   C --> D{Scope jelas & atomic?}
   D -- Tidak --> E[Klarifikasi / pecah issue]
   E --> C
@@ -38,29 +39,30 @@ flowchart TD
   K -- Ya --> L[Update AsyncAPI]
   K -- Tidak --> M[Tulis / update test]
   L --> M
-  M --> N[Jalankan validasi sesuai task]
+  M --> N[Jalankan validasi: migrate, spec-check, test, build]
   N --> O{Semua pass?}
   O -- Tidak --> F
   O -- Ya --> P[Update docs + laporan implementasi]
   P --> Q[Commit atomic + PR]
 ```
 
-## Aturan Wajib
+## Aturan wajib (non-negotiable)
 
-1. Baca README, `docs/awcms-mini/`, `package.json`, dan file implementasi terkait sebelum mengedit.
-2. Kerjakan satu issue/sprint secara atomic; jangan ubah file yang tidak berkaitan.
-3. Setiap perubahan schema harus migration SQL baru yang berurutan.
-4. Setiap API baru/berubah harus memperbarui OpenAPI.
-5. Setiap domain event baru/berubah harus memperbarui AsyncAPI.
-6. Mutation high-risk wajib memakai `Idempotency-Key`.
-7. Data tenant-scoped wajib tenant context + ABAC + RLS.
-8. High-risk action wajib audit log.
-9. Data sensitif seperti password, token, NPWP, NIK, phone, email, dan receipt token wajib dimask/redact; jangan masuk response/log/audit mentah.
-10. Jangan commit `.env`, token, dump DB, backup, atau data customer asli.
-11. Provider eksternal tidak boleh menjadi dependency transaksi kritikal dan tidak boleh dipanggil di dalam DB transaction.
-12. Dokumen, migration, API contract, test, dan SOP harus mengikuti implementasi nyata.
+1. **Baca dulu** README, `docs/awcms-mini/`, `package.json`, `sql/`, `src/modules/`, `openapi/`, `asyncapi/` sebelum mengedit.
+2. **Atomic** — kerjakan satu issue/sprint; jangan ubah file yang tidak berkaitan.
+3. **Migration** — setiap perubahan schema harus migration SQL baru yang berurutan (tidak me-rename migration lama yang sudah rilis).
+4. **OpenAPI** — setiap API baru/berubah harus diperbarui di `openapi/`.
+5. **AsyncAPI** — setiap domain event baru/berubah harus diperbarui di `asyncapi/`.
+6. **Idempotency** — mutation high-risk wajib `Idempotency-Key` (lihat daftar di doc 05 & 10).
+7. **Tenant safety** — data tenant-scoped wajib tenant context + ABAC + RLS.
+8. **Audit** — high-risk action wajib audit log.
+9. **Masking** — data sensitif (password, token, NPWP, NIK, phone, email, receipt token) wajib dimask/redact; jangan pernah masuk response/log/audit mentah.
+10. **No secret** — jangan commit `.env`, token, dump DB, backup, atau data customer asli.
+11. **Provider eksternal** (R2, WhatsApp, email, AI) **tidak boleh** jadi dependency transaksi operasional dan **tidak boleh** dipanggil di dalam DB transaction.
+12. **Immutable** — posted sales document & posted stock movement bersifat append-only; koreksi lewat cancel/return/reversal/adjustment.
+13. **Soft delete** — master/config/draft tenant-scoped yang bisa dihapus wajib memakai soft delete (`deleted_at`, `deleted_by`, `delete_reason`) dengan filter default `deleted_at IS NULL`; restore/purge hanya untuk role berizin, diaudit, dan tidak berlaku untuk dokumen posted immutable.
 
-## Guardrail Keamanan
+## Guardrail keamanan (ringkas dari doc 10 & 13)
 
 ```mermaid
 flowchart LR
@@ -77,20 +79,21 @@ flowchart LR
   Mask --> Res[Standard response helper]
 ```
 
-- Default deny, deny overrides allow.
-- RLS tetap wajib walau ABAC sudah cek.
+- **Default deny**, deny overrides allow.
+- RLS tetap wajib walau ABAC sudah cek (defense in depth).
+- Query list/detail default menyembunyikan soft-deleted record; akses arsip/restore/purge butuh permission eksplisit.
 - Error response standard, tidak expose stack trace.
 - Provider secret hanya dari environment variable.
 
-## Skill Proyek
+## Skill proyek (`.claude/skills/`)
 
-Skill proyek berada di [`.claude/skills/`](.claude/skills/README.md). Skill merujuk `docs/awcms-mini/*` sebagai sumber kebenaran; bila standar berubah, perbarui dokumen dan skill terkait.
+AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode standar dokumen agar diterapkan konsisten. Model memanggilnya otomatis saat relevan, atau kamu panggil manual via `/<nama-skill>`. Katalog lengkap: [`.claude/skills/README.md`](.claude/skills/README.md).
 
-| Butuh... | Skill |
-| --- | --- |
-| Kerjakan issue/sprint atomic | `awcms-mini-implement-issue` |
+| Butuh… | Skill |
+|---|---|
+| Kerjakan issue/sprint atomic (orkestrator) | `awcms-mini-implement-issue` |
 | Scaffold modul baru | `awcms-mini-new-module` |
-| Migration SQL | `awcms-mini-new-migration` |
+| Migration SQL (tabel/index/RLS) | `awcms-mini-new-migration` |
 | Endpoint REST + OpenAPI | `awcms-mini-new-endpoint` |
 | Domain event + AsyncAPI | `awcms-mini-new-event` |
 | Idempotency mutation high-risk | `awcms-mini-idempotency` |
@@ -102,43 +105,77 @@ Skill proyek berada di [`.claude/skills/`](.claude/skills/README.md). Skill meru
 | Review pull request | `awcms-mini-pr-review` |
 | Tulis test berlapis | `awcms-mini-testing` |
 | Preflight & go-live | `awcms-mini-production-preflight` |
-| Layar/komponen UI | `awcms-mini-ui-screen` |
-| Rilis versi | `awcms-mini-release` |
-| Migrasi data legacy | `awcms-mini-legacy-migration` |
+| Layar/komponen UI sesuai design system | `awcms-mini-ui-screen` |
+| Rilis versi (Changesets, tag, CHANGELOG) | `awcms-mini-release` |
+| Migrasi data legacy (dry-run, backfill) | `awcms-mini-legacy-migration` |
 
-## Subagents
+```mermaid
+flowchart LR
+  II[awcms-mini-implement-issue] --> NM[new-module]
+  II --> MIG[new-migration]
+  II --> EP[new-endpoint]
+  II --> EV[new-event]
+  II --> TST[testing]
+  EP --> ABAC[abac-guard]
+  EP --> IDEM[idempotency]
+  ABAC --> AUD[audit-log]
+  EP --> SD[sensitive-data]
+  EV --> SYNC[sync-hmac]
+  II --> PR[pr-review] --> SEC[security-review] --> PF[production-preflight]
+```
 
-Subagent proyek berada di [`.claude/agents/`](.claude/agents/).
+Skill merujuk `docs/awcms-mini/*` sebagai sumber kebenaran; bila standar berubah, perbarui doc **dan** skill terkait.
 
-| Agent | Peran | Tools |
-| --- | --- | --- |
-| `awcms-mini-coder` | Implementasi issue end-to-end | Semua |
-| `awcms-mini-reviewer` | Review PR/diff terhadap DoD | Read-only |
-| `awcms-mini-security-auditor` | Audit keamanan modul + verdict go-live | Read-only |
+## Subagents (`.claude/agents/`)
 
-Reviewer dan auditor bersifat read-only; temuan dikembalikan ke coder. Critical finding berarti BLOCKED.
+Untuk delegasi kerja penuh, tersedia subagent yang memetakan prompt di doc 12:
 
-## Perintah Standar Saat Ini
+| Agent | Peran | Prompt asal (doc 12) | Tools |
+|---|---|---|---|
+| `awcms-mini-coder` | Implementasi issue end-to-end | Prompt Induk / Per Issue | Semua |
+| `awcms-mini-reviewer` | Review PR/diff terhadap DoD | Prompt Review PR | Read-only |
+| `awcms-mini-security-auditor` | Audit keamanan modul + verdict go-live | Prompt Security Review | Read-only |
+
+```mermaid
+flowchart LR
+  Issue[GitHub issue] --> C[awcms-mini-coder<br/>implementasi + laporan]
+  C --> R[awcms-mini-reviewer<br/>verdict + temuan]
+  R -->|modul sensitif| S[awcms-mini-security-auditor<br/>PASS / BLOCKED]
+  R -->|approve| M[Merge]
+  S -->|PASS| M
+  S -->|BLOCKED| C
+```
+
+Aturan: reviewer & auditor **read-only** (temuan dikembalikan ke coder); auditor memberi verdict go-live — critical finding = BLOCKED (gate doc 07).
+
+## Perintah standar (target)
+
+Skrip berikut menjadi target repository (lihat doc 11). Sebelum Issue 0.1 selesai, sebagian belum tersedia.
 
 ```bash
 bun install
-bun run changeset
-bun run changeset:status
-bun run changeset:version
-bun run changeset:tag
+bun run dev                 # astro dev
+bun run build               # astro build
+bun run db:migrate          # jalankan migration berurutan
+bun run api:spec:check      # validasi OpenAPI/AsyncAPI
+bun run api:contract:test   # contract test API
+bun test                    # unit + integration test
+bun run db:pool:health      # cek kesehatan pool DB
+bun run security:readiness  # cek security readiness
+bun run production:preflight # preflight sebelum go-live
+bun run changeset           # tambah changeset (versioning)
+bun run changeset:version   # konsumsi changeset -> bump versi + CHANGELOG
 ```
 
-Perintah runtime seperti `dev`, `build`, `db:migrate`, `api:spec:check`, `test`, dan `production:preflight` ditambahkan kembali saat Issue 0.1 membuat struktur aplikasi.
-
-## Struktur Repository Target
+## Struktur repository (target)
 
 ```text
 awcms-mini/
-├── AGENTS.md
-├── CHANGELOG.md
-├── .changeset/
-├── .claude/skills/
-├── .claude/agents/
+├── AGENTS.md                # file ini
+├── CHANGELOG.md             # versioning (Changesets)
+├── .changeset/              # config + changeset entries
+├── .claude/skills/          # 17 skill proyek (implement-issue, new-migration, dst.)
+├── .claude/agents/          # subagents (coder, reviewer, security-auditor)
 ├── README.md
 ├── package.json
 ├── astro.config.mjs
@@ -147,25 +184,50 @@ awcms-mini/
 ├── .gitignore
 ├── docker-compose.yml
 ├── src/
-├── sql/
-├── scripts/
-├── openapi/
-├── asyncapi/
-├── docs/awcms-mini/
-├── deploy/
+│   ├── lib/                 # db, logging, auth, files, errors, i18n
+│   ├── modules/             # modular monolith (lihat daftar modul)
+│   └── pages/               # api/v1, admin, pos, customer
+├── sql/                     # migration NNN_awcms_mini_<area>_<desc>.sql
+├── scripts/                 # db-migrate, api-spec-check, dst.
+├── openapi/                 # kontrak REST
+├── asyncapi/                # kontrak event
+├── docs/awcms-mini/         # paket dokumen 01–19
+├── deploy/                  # systemd, nginx, pgbouncer, backup
 ├── tests/
 └── fixtures/
 ```
 
-Struktur target di atas belum ada seluruhnya pada branch docs-only ini. Tambahkan kembali secara bertahap sesuai issue dan dokumen Bagian 9-12.
+## Peta modul
 
-## Konvensi Commit
+`_shared`, `tenant-admin`, `identity-access`, `profile-identity`, `catalog-inventory`, `sales-pos`, `shared-stock-routing`, `warehouse-management`, `accounting-tax`, `crm-communication`, `sync-storage`, `ai-analyst`, `localization-ui`, `observability-logging`, `database-connectivity`, `workflow-approval`, `management-reporting`, `ui-experience`, `production-security-readiness`.
+
+Struktur tiap modul: `module.ts`, `domain/`, `application/`, `infrastructure/`, `api/`, `README.md`.
+
+## Urutan implementasi (jangan dilompati)
+
+```mermaid
+flowchart LR
+  F[Foundation 0.1-0.3] --> S[Setup Wizard 12.1]
+  S --> T[Tenant/Office 2.1]
+  T --> P[Profile 2.2]
+  P --> A[Identity 2.3]
+  A --> R[RBAC/ABAC 2.4]
+  R --> C[Product 3.1]
+  C --> K[Stock 3.2]
+  K --> CO[Checkout 3.3]
+  CO --> PO[Atomic Posting 3.4]
+```
+
+Alasan urutan: aplikasi domain tidak aman tanpa tenant/auth/profile/access; posting/transaksi kritikal tidak boleh dibuat sebelum idempotency + locking siap; provider eksternal & AI menyusul; production diaktifkan hanya setelah security readiness pass.
+
+## Konvensi commit
 
 ```text
 <type>(<scope>): <summary>
 ```
 
 Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `security`, `perf`, `ci`, `build`.
+Scopes: `foundation`, `db`, `api`, `auth`, `access`, `profile`, `tenant`, `inventory`, `pos`, `warehouse`, `tax`, `crm`, `sync`, `ai`, `ui`, `logging`, `pooling`, `workflow`, `reporting`, `security`, `docs`.
 
 Branch: `feature/<issue>-<name>`, `fix/<issue>-<name>`, `release/vX.Y.Z`, `hotfix/vX.Y.Z-<name>`.
 
@@ -174,15 +236,29 @@ Branch: `feature/<issue>-<name>`, `fix/<issue>-<name>`, `release/vX.Y.Z`, `hotfi
 - Scope sesuai issue, tidak ada unrelated change.
 - Migration jika schema berubah; OpenAPI jika API berubah; AsyncAPI jika event berubah.
 - Input validation, Auth/ABAC/RLS, audit high-risk, sensitive masking.
-- Test relevan pass; build pass bila runtime sudah tersedia.
+- Soft delete diterapkan untuk resource yang deletable; dokumen posted tetap immutable dan tidak di-soft-delete.
+- Test relevan pass; build pass.
 - Docs diperbarui.
-- Changeset ditambahkan bila perubahan mempengaruhi perilaku.
+- **Changeset** ditambahkan (`bun run changeset`) bila perubahan mempengaruhi perilaku; docs-only/chore boleh tanpa.
 - Laporan implementasi disertakan.
 
-## Peta Dokumen
+## Template laporan implementasi
 
-| Butuh memahami... | Baca |
-| --- | --- |
+```text
+Summary:
+Files changed:
+Commands run:
+Test results:
+Security notes:
+Documentation updates:
+Remaining limitations:
+Next recommended step:
+```
+
+## Peta dokumen (baca sesuai kebutuhan task)
+
+| Butuh memahami… | Baca |
+|---|---|
 | Arsitektur & fase | `docs/awcms-mini/01_canvas_induk.md` |
 | Kebutuhan produk | `docs/awcms-mini/02_prd_detail_per_modul.md` |
 | Spesifikasi teknis | `docs/awcms-mini/03_srs_detail_per_modul.md` |
@@ -196,14 +272,15 @@ Branch: `feature/<issue>-<name>`, `fix/<issue>-<name>`, `release/vX.Y.Z`, `hotfi
 | Blueprint skeleton | `docs/awcms-mini/11_implementation_blueprint.md` |
 | Prompt eksekusi | `docs/awcms-mini/12_generator_prompt.md` |
 | Master index/traceability | `docs/awcms-mini/13_final_master_index_traceability.md` |
-| UI/UX dan design token | `docs/awcms-mini/14_ui_ux_design_system.md` |
-| Frontend & integrasi | `docs/awcms-mini/15_frontend_architecture_integration.md` |
+| UI/UX, design token, layar | `docs/awcms-mini/14_ui_ux_design_system.md` |
+| Frontend & integrasi, offline-first | `docs/awcms-mini/15_frontend_architecture_integration.md` |
 | Data access, pooling, RLS, outbox | `docs/awcms-mini/16_backend_data_access_integration.md` |
 | Role default, permission, ABAC seed | `docs/awcms-mini/17_default_seed_rbac_abac.md` |
 | Env, feature flag, deployment | `docs/awcms-mini/18_configuration_env_reference.md` |
 | Glossary & terminologi | `docs/awcms-mini/19_glossary_terminology.md` |
+| Snapshot GitHub issue aktual, label, milestone, dan proses refresh | `docs/awcms-mini/github/README.md` |
 
-## Mulai Dari Sini
+## Mulai dari sini
 
 ```text
 Kerjakan Issue 0.1 — Initialize AWCMS-Mini Modular Monolith Repository Structure.

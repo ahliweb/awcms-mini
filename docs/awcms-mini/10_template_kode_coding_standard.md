@@ -1,146 +1,488 @@
-# Bagian 10 — Template Kode dan Coding Standard
+# Bagian 10 — Template Implementasi Kode dan Coding Standard
+
+## Tujuan
+
+Dokumen ini menetapkan standar coding AWCMS-Mini untuk TypeScript/Bun/Astro/PostgreSQL agar implementasi konsisten, aman, testable, dan maintainable.
 
 ## Prinsip coding
 
-1. TypeScript strict (`astro/tsconfigs/strict`).
-2. API route tipis; business logic di service (application layer).
-3. Query database hanya di repository (infrastructure layer).
-4. Semua input user divalidasi (`_shared/validation.ts`).
-5. Mutation high-risk idempotent (`_shared/idempotency.ts`).
-6. Operasi multi-table memakai transaction (`lib/database/transaction.ts`).
-7. Akses tenant-scoped memakai `withTenant` + ABAC + RLS.
-8. High-risk action → audit (`_shared/audit.ts`).
-9. Data sensitif dimask/redact (`lib/logging/redact.ts`).
-10. Error response standard — tidak expose stack trace (`toErrorResponse`).
+1. TypeScript strict.
+2. API route tipis; business logic di service.
+3. Query database di repository/infrastructure.
+4. Semua input user divalidasi.
+5. Semua mutation high-risk idempotent.
+6. Semua operasi multi-table memakai transaction.
+7. Semua akses tenant-scoped memakai tenant context, ABAC, dan RLS.
+8. Semua high-risk action audit log.
+9. Semua sensitive data dimasking/redacted.
+10. Resource deletable memakai soft delete; query default menyaring `deleted_at IS NULL`.
+11. Error response standard dan tidak expose stack trace.
 
 ## Aliran request antar layer
 
 ```mermaid
 flowchart LR
-  R[API route - src/pages/api/v1] --> G[guardAccess - ABAC]
+  R[API route - tipis] --> G[ABAC guard]
   G --> V[Validasi input]
-  V --> S[Service - application/]
-  S --> Repo[Repository - infrastructure/]
+  V --> S[Service - business logic]
+  S --> Repo[Repository - query]
   Repo --> DB[(PostgreSQL + RLS)]
   S --> M[Mapper - safe DTO]
-  M --> Resp[ok/created/fail]
-  S -. high-risk .-> Aud[buildAuditEvent]
+  M --> Resp[Response helper]
+  S -. high-risk .-> Aud[Audit]
 ```
+
+Route tipis → guard → validasi → service → repository → DB. Data sensitif lewat mapper sebelum keluar.
+
+## Skill pendukung
+
+Standar di dokumen ini ditegakkan oleh skill proyek di `.claude/skills/` (katalog: `.claude/skills/README.md`).
+
+| Bagian standar | Skill |
+|---|---|
+| Struktur modul & descriptor | `awcms-mini-new-module` |
+| SQL migration standard | `awcms-mini-new-migration` |
+| API handler rules & response helper | `awcms-mini-new-endpoint` |
+| Domain event envelope | `awcms-mini-new-event` |
+| Idempotency wrapper rules | `awcms-mini-idempotency` |
+| ABAC guard | `awcms-mini-abac-guard` |
+| Audit helper & redaction | `awcms-mini-audit-log` |
+| Masking/redaction data sensitif | `awcms-mini-sensitive-data` |
+| Sync HMAC standard | `awcms-mini-sync-hmac` |
+| Pull request checklist | `awcms-mini-pr-review` |
+| UI/komponen (doc 14/15) | `awcms-mini-ui-screen` |
+| Rilis & CHANGELOG (doc 09) | `awcms-mini-release` |
 
 ## Struktur modul
 
 ```text
 src/modules/<module>/
-├── module.ts              # ModuleDescriptor
-├── domain/                # entities, value-objects, events
-├── application/           # services, commands, queries
-├── infrastructure/        # repository, mappers
-├── api/                   # handlers dipanggil route tipis
+├── module.ts
+├── domain/
+│   ├── entities.ts
+│   ├── value-objects.ts
+│   └── events.ts
+├── application/
+│   ├── services.ts
+│   ├── commands.ts
+│   └── queries.ts
+├── infrastructure/
+│   ├── repository.ts
+│   └── mappers.ts
+├── api/
+│   ├── routes.ts
+│   ├── schemas.ts
+│   └── handlers.ts
 └── README.md
 ```
 
-Route Astro di `src/pages/api/v1/...` hanya: ambil context → panggil handler modul → return Response.
-
-## Sumber tunggal helper (JANGAN duplikasi)
-
-| Kebutuhan               | Pakai                                                          |
-| ----------------------- | -------------------------------------------------------------- |
-| Module descriptor       | `_shared/module-contract.ts`                                   |
-| Response envelope       | `_shared/api-response.ts` (`ok/created/fail`)                  |
-| Error + code standar    | `_shared/api-error.ts` (`apiError`)                            |
-| Tenant context + header | `_shared/tenant-context.ts`                                    |
-| ABAC guard              | `_shared/access.ts` (`guardAccess`, default deny)              |
-| Audit                   | `_shared/audit.ts` (`buildAuditEvent`)                         |
-| Domain event            | `_shared/domain-event.ts` (`createDomainEvent`)                |
-| Idempotency             | `_shared/idempotency.ts` + `lib/database/idempotency-store.ts` |
-| Validasi input          | `_shared/validation.ts`                                        |
-| Transaction/RLS         | `lib/database/transaction.ts` (`withTenant`)                   |
-| Logger                  | `lib/logging/logger.ts` (redaction bawaan)                     |
-| Konfigurasi             | `lib/config.ts` (`getConfig`)                                  |
-
-## Template module descriptor
-
-Lihat modul base mana pun, mis. [`src/modules/identity-access/module.ts`](../../src/modules/identity-access/module.ts). Wajib: `key` snake_case, `dependencies` merujuk key terdaftar, `api.openApiPath` dan `events.asyncApiPath` menunjuk file kontrak nyata (dicek `api:spec:check`), lalu daftarkan di `src/modules/index.ts`.
-
-## Template API route + handler
+## Template Module Descriptor
 
 ```ts
-// src/pages/api/v1/<area>/<resource>.ts — route tipis
-import type { APIRoute } from "astro";
-import { toErrorResponse } from "../../../../modules/_shared/api-response";
-import { traceIdsFromRequest } from "../../../../modules/_shared/tenant-context";
-import { handleCreateResource } from "../../../../modules/<module>/api/handlers";
+import type { ModuleDescriptor } from "../_shared/module-contract";
 
-export const POST: APIRoute = async ({ request, locals }) => {
-  const { correlationId } = traceIdsFromRequest(request);
-  try {
-    return await handleCreateResource(request, locals);
-  } catch (error) {
-    return toErrorResponse(error, correlationId);
+export const warehouseManagementModule: ModuleDescriptor = {
+  key: "warehouse_management",
+  name: "Warehouse Management",
+  version: "0.1.0",
+  status: "active",
+  description: "Multi warehouse, zone, bin, lot, transfer, in-transit, cycle count, and warehouse stock operations.",
+  dependencies: [
+    "tenant_admin",
+    "identity_access",
+    "catalog_inventory",
+    "workflow_approval",
+    "observability_logging"
+  ],
+  api: {
+    openApiPath: "openapi/modules/warehouse-management.openapi.yaml",
+    basePath: "/api/v1"
+  },
+  events: {
+    asyncApiPath: "asyncapi/modules/warehouse-events.asyncapi.yaml",
+    publishes: [
+      "warehouse.transfer.created",
+      "warehouse.transfer.shipped",
+      "warehouse.transfer.received",
+      "warehouse.cycle_count.variance_detected"
+    ],
+    subscribes: ["inventory.stock.adjustment.posted", "sales.transaction.posted"]
   }
 };
 ```
 
-Handler modul: ambil `TenantContext` dari locals → `guardAccess` → `parseJsonBody` + `rejectUnknownFields` + validasi field → (high-risk) `requireIdempotencyKey` → service.
-
-## Template service + repository
+## Module contract
 
 ```ts
-// application/services.ts
-export async function createResource(
-  context: TenantContext,
-  command: CreateResourceCommand,
-) {
-  return withTenant(context.tenantId, async (tx) => {
-    const row = await insertResource(tx, context.tenantId, command); // repository
-    await insertAuditEvent(tx, buildAuditEvent({/* high-risk */}));
-    return toResourceDto(row); // mapper safe DTO
-  });
+export type ModuleStatus = "active" | "experimental" | "deprecated";
+
+export type ModuleDescriptor = {
+  key: string;
+  name: string;
+  version: string;
+  status: ModuleStatus;
+  description: string;
+  dependencies: string[];
+  api?: {
+    openApiPath: string;
+    basePath: string;
+  };
+  events?: {
+    asyncApiPath?: string;
+    publishes?: string[];
+    subscribes?: string[];
+  };
+};
+```
+
+## API response helper
+
+```ts
+export type ApiMeta = {
+  correlationId?: string;
+  requestId?: string;
+};
+
+export type ApiSuccess<T> = {
+  success: true;
+  data: T;
+  meta?: ApiMeta;
+};
+
+export type ApiErrorResponse = {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+    details?: Array<{ field?: string; message: string; code?: string }>;
+    correlationId?: string;
+  };
+};
+
+export function ok<T>(data: T, meta?: ApiMeta): Response {
+  return Response.json({ success: true, data, meta } satisfies ApiSuccess<T>);
+}
+
+export function created<T>(data: T, meta?: ApiMeta): Response {
+  return Response.json({ success: true, data, meta } satisfies ApiSuccess<T>, { status: 201 });
+}
+
+export function fail(status: number, code: string, message: string, options?: { details?: Array<{ field?: string; message: string; code?: string }>; correlationId?: string }): Response {
+  return Response.json({ success: false, error: { code, message, details: options?.details, correlationId: options?.correlationId } } satisfies ApiErrorResponse, { status });
 }
 ```
 
-Repository rules: hanya query terparametrisasi (tagged template `sql\`\``); filter `tenant_id`eksplisit; tidak ada business logic; tidak return row sensitif mentah. Service rules: terima`TenantContext`, tidak membaca `Request`, kembalikan DTO aman, mudah di-unit-test.
+## ApiError
 
-## Idempotency wrapper
+```ts
+export class ApiError extends Error {
+  public readonly status: number;
+  public readonly code: string;
+  public readonly details?: Array<{ field?: string; message: string; code?: string }>;
 
-Alur (diimplementasi `_shared/idempotency.ts`): `requireIdempotencyKey` → `computeRequestHash` → `store.find` → `evaluateReplay` (replay/konflik/fresh) → `store.start` → mutation → `store.complete`. Simpan response via store dalam transaction yang sama dengan mutation.
+  constructor(params: { status: number; code: string; message: string; details?: Array<{ field?: string; message: string; code?: string }> }) {
+    super(params.message);
+    this.status = params.status;
+    this.code = params.code;
+    this.details = params.details;
+  }
+}
+```
 
-## Transaction & locking
+## Tenant context
 
-1. `withTenant` men-set RLS context di awal transaction (`set_config(..., true)` = `SET LOCAL`).
-2. Jangan buka transaction lama-lama; jangan panggil provider eksternal di dalamnya.
-3. Baris yang di-update bersamaan (counter/saldo): `SELECT ... FOR UPDATE`, urutkan lock berdasarkan ID.
-4. Statement timeout global dari `DATABASE_STATEMENT_TIMEOUT_MS`.
+```ts
+export type TenantContext = {
+  tenantId: string;
+  tenantUserId: string;
+  identityId: string;
+  profileId?: string;
+  defaultOfficeId?: string;
+  roles: string[];
+  correlationId?: string;
+  requestId?: string;
+};
+```
+
+Catatan: pada production, `tenantUserId` dan `identityId` tidak boleh dipercaya langsung dari public header. Nilai harus berasal dari auth middleware yang memvalidasi token.
+
+## ABAC guard
+
+```ts
+export type AccessRequest = {
+  moduleKey: string;
+  activityCode: string;
+  action: "read" | "create" | "update" | "delete" | "post" | "cancel" | "approve" | "export" | "send" | "configure" | "analyze" | "assign";
+  resourceType?: string;
+  resourceId?: string;
+  resourceAttributes?: Record<string, unknown>;
+  environmentAttributes?: Record<string, unknown>;
+};
+
+export type AccessDecision = {
+  allowed: boolean;
+  reason: string;
+  decisionId?: string;
+  matchedPolicy?: string;
+};
+```
+
+Aturan:
+
+- Semua endpoint non-public wajib guard.
+- Default deny.
+- Deny overrides allow.
+- RLS tetap wajib.
+- Access denied high-risk masuk decision log.
+- Untuk resource soft-deletable, action `delete` berarti soft delete. Tambahkan action `restore` dan `purge` pada kontrak modul yang membutuhkan pemulihan atau purge retention; keduanya default deny sampai permission/ABAC eksplisit tersedia.
+
+## Audit helper
+
+```ts
+export type AuditEventInput = {
+  tenantId: string;
+  actorTenantUserId?: string;
+  moduleKey: string;
+  action: string;
+  resourceType: string;
+  resourceId?: string;
+  severity?: "info" | "warning" | "critical";
+  message: string;
+  attributes?: Record<string, unknown>;
+  correlationId?: string;
+};
+```
+
+Aturan audit:
+
+- Jangan memasukkan password/token/API key/NPWP/NIK penuh/phone/email penuh.
+- Gunakan redaction sebelum audit attributes.
+- Audit tenant-scoped.
+- Soft delete, restore, dan purge high-risk wajib audit dengan reason dan resource identity yang sudah aman.
+
+## Soft delete helper
+
+```ts
+export type SoftDeleteColumns = {
+  deletedAt?: string | null;
+  deletedBy?: string | null;
+  deleteReason?: string | null;
+  restoredAt?: string | null;
+  restoredBy?: string | null;
+};
+
+export type ListOptions = {
+  includeDeleted?: boolean;
+  onlyDeleted?: boolean;
+};
+```
+
+Aturan repository:
+
+- `list` dan `getById` default menambahkan `deleted_at IS NULL`.
+- `includeDeleted`/`onlyDeleted` hanya boleh dipakai setelah ABAC archive permission.
+- Soft delete mengisi `deleted_at`, `deleted_by`, `delete_reason`, dan menaikkan `sync_version`.
+- Restore mengosongkan `deleted_at`, `deleted_by`, `delete_reason`, mengisi `restored_at`/`restored_by`, lalu validasi ulang unique business key.
+- Purge memakai jalur terpisah dengan retention/legal check; jangan memutus FK transaksi/audit.
+- DTO publik memakai status `deleted`/`archived` seperlunya tanpa membuka PII mentah.
+
+## Domain event envelope
+
+```ts
+export type DomainEventEnvelope<TPayload> = {
+  eventId: string;
+  eventType: string;
+  eventVersion: string;
+  tenantId: string;
+  nodeId?: string;
+  aggregateType: string;
+  aggregateId: string;
+  occurredAt: string;
+  actor?: { tenantUserId?: string; profileId?: string };
+  correlationId?: string;
+  causationId?: string;
+  payload: TPayload;
+  metadata: {
+    sourceModule: string;
+    schemaVersion: string;
+  };
+};
+```
+
+## Idempotency wrapper rules
+
+```mermaid
+flowchart TD
+  A[Terima Idempotency-Key] --> B{Key sudah ada?}
+  B -- Tidak --> C[Hitung request hash] --> D[Jalankan mutation] --> E[Simpan key + hash + response] --> F[Return response]
+  B -- Ya --> G{Hash sama?}
+  G -- Ya --> H[Return response tersimpan]
+  G -- Tidak --> I[409 IDEMPOTENCY_CONFLICT]
+```
+
+Mutation high-risk harus:
+
+1. Membaca header `Idempotency-Key`.
+2. Menghitung request hash stabil.
+3. Jika key sama dan hash sama, return response tersimpan.
+4. Jika key sama dan hash berbeda, return `IDEMPOTENCY_CONFLICT`.
+5. Menyimpan status/resource hasil mutation.
+
+Endpoint wajib idempotency:
+
+- POS posting.
+- Cancel/return.
+- Profile resolve/link/merge.
+- Warehouse transfer approve/ship/receive.
+- Cycle count submit.
+- Stock adjustment.
+- VAT invoice generate.
+- Coretax batch.
+- Receipt send.
+- Sync push.
+- Workflow decision.
+
+## Transaction wrapper rules
+
+1. Gunakan transaction untuk mutation multi-table.
+2. Set RLS context pada awal transaction.
+3. Jangan buka transaction terlalu lama.
+4. Jangan call provider eksternal di dalam transaction.
+5. Gunakan `SELECT ... FOR UPDATE` untuk stok yang berubah.
+6. Gunakan timeout.
+
+## Repository rules
+
+1. Repository hanya query database.
+2. Tidak ada business logic kompleks.
+3. Gunakan parameterized query.
+4. Jangan string interpolation input user.
+5. Query tenant-scoped wajib filter `tenant_id`.
+6. Jangan return row mentah yang mengandung data sensitif langsung ke API.
+
+## Service rules
+
+1. Business validation di service.
+2. Service menerima `TenantContext`.
+3. Service tidak membaca `Request` langsung.
+4. Service mengembalikan DTO aman.
+5. Service menulis audit untuk high-risk.
+6. Service mudah diuji unit test.
+
+## API handler rules
+
+1. Route tipis.
+2. Ambil tenant/auth context.
+3. Cek ABAC.
+4. Validasi body/query.
+5. Gunakan transaction jika mutation.
+6. Gunakan response helper.
+7. Gunakan error handler standar.
+
+## Validation standard
+
+- Semua input divalidasi.
+- UUID divalidasi.
+- Enum divalidasi.
+- String length dibatasi.
+- Numeric finite dan range checked.
+- Unknown field ditangani.
+
+## Stock locking standard
+
+- Lock row balance dengan `FOR UPDATE`.
+- Urutkan lock berdasarkan product ID untuk mengurangi deadlock.
+- Jangan call provider saat lock aktif.
+- Deadlock retry harus aman dengan idempotency.
+
+## Sync HMAC standard
+
+Signature berdasarkan:
+
+```text
+<timestamp>.<body>
+```
+
+Validasi:
+
+- Signature wajib ada.
+- Timestamp valid.
+- Max skew default 300 detik.
+- Timing-safe compare.
+
+## Logger redaction
+
+Redact key yang mengandung:
+
+- password
+- passwordHash
+- token
+- accessToken
+- refreshToken
+- apiKey
+- secret
+- authorization
+- npwp
+- nik
+- phone
+- whatsapp
+- email
 
 ## SQL migration standard
 
-- Nama `NNN_awcms_<area>_<desc>.sql`, nomor berurutan unik.
-- **Tanpa `BEGIN`/`COMMIT`** — runner membungkus per file (di-enforce runner + test).
-- `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, `DROP POLICY IF EXISTS` sebelum `CREATE POLICY`.
-- Tenant-scoped: `tenant_id` + RLS ENABLE+FORCE+policy (template doc 04); FK child index; `timestamptz`; `numeric`; enum-like `text + CHECK`.
+Format nama:
+
+```text
+NNN_awcms_mini_<area>_<description>.sql
+```
+
+Aturan:
+
+- `CREATE TABLE IF NOT EXISTS` jika aman.
+- `CREATE INDEX IF NOT EXISTS`.
+- Tenant-scoped table wajib `tenant_id`.
+- RLS wajib.
+- FK child index wajib.
+- CHECK constraint untuk status enum-like.
+- `timestamptz`, bukan timestamp polos.
+- `numeric` untuk uang/quantity.
 - Tidak menyimpan password/API key plaintext.
-
-## Logger & redaction
-
-- `rootLogger()` / `childLoggerForRequest({ requestId, ... })`; dilarang `console.*` di jalur HTTP.
-- Redaction otomatis untuk key sensitif (daftar di `SENSITIVE_KEY_PATTERNS`): password, token, apiKey, secret, authorization, npwp, nik, phone, whatsapp, email, dst.
 
 ## TypeScript standard
 
-| Item              | Standard                     |
-| ----------------- | ---------------------------- |
-| File              | kebab-case                   |
-| Type/interface    | PascalCase                   |
-| Function/variabel | camelCase                    |
-| Konstanta global  | UPPER_SNAKE_CASE             |
-| Module key        | snake_case                   |
-| Tabel/kolom DB    | snake_case, prefiks `awcms_` |
+| Item | Standard |
+|---|---|
+| File | kebab-case |
+| Type/interface | PascalCase |
+| Function/variable | camelCase |
+| Global constant | UPPER_SNAKE_CASE |
+| Module key | snake_case |
+| DB table/column | snake_case |
 
-Hindari `any` (pakai `unknown` untuk input belum valid); type eksplisit untuk command/result; jangan expose row DB mentah.
+Aturan:
 
-## Pull request checklist & laporan
+- Hindari `any`.
+- Gunakan `unknown` untuk input belum valid.
+- Gunakan type eksplisit untuk command/result.
+- Jangan expose DB row mentah.
+- Gunakan mapper untuk data sensitif.
 
-Lihat doc 09 (checklist) dan template laporan implementasi:
+## Pull request checklist
+
+- Scope sesuai issue.
+- Tidak ada unrelated change.
+- No secret/data customer.
+- Migration jika schema berubah.
+- OpenAPI jika API berubah.
+- AsyncAPI jika event berubah.
+- Input validation.
+- Auth/ABAC/RLS.
+- Audit high-risk.
+- Sensitive data masked.
+- Test pass.
+- Docs updated.
+
+## Implementation report template
 
 ```text
 Summary:

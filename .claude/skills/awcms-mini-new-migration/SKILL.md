@@ -1,6 +1,6 @@
 ---
 name: awcms-mini-new-migration
-description: Buat migration SQL PostgreSQL AWCMS-Mini yang benar. Gunakan setiap kali menambah/mengubah tabel, kolom, index, constraint, atau RLS. Menegakkan penamaan NNN_awcms_<area>_<desc>.sql, tenant_id, RLS, index FK, timestamptz, dan numeric sesuai doc 04 & 10.
+description: Buat migration SQL PostgreSQL AWCMS-Mini yang benar. Gunakan setiap kali menambah/mengubah tabel, kolom, index, constraint, atau RLS. Menegakkan penamaan NNN_awcms_mini_<area>_<desc>.sql, tenant_id, RLS, index FK, timestamptz, dan numeric sesuai doc 04 & 10.
 ---
 
 # AWCMS-Mini — New SQL Migration
@@ -10,7 +10,7 @@ Ikuti standar di `docs/awcms-mini/04_erd_data_dictionary.md` dan `docs/awcms-min
 ## Penamaan
 
 ```text
-sql/NNN_awcms_<area>_<description>.sql
+sql/NNN_awcms_mini_<area>_<description>.sql
 ```
 
 - `NNN` berurutan, nol di depan (mis. `023`).
@@ -28,13 +28,14 @@ sql/NNN_awcms_<area>_<description>.sql
 7. **RLS wajib** untuk tabel tenant-scoped (lihat template).
 8. Bungkus dengan `BEGIN; ... COMMIT;`.
 9. **Tidak** menyimpan password/API key/secret plaintext.
+10. Tabel master/config/draft yang deletable wajib soft delete (`deleted_at`, `deleted_by`, `delete_reason`) + index/partial unique aktif.
 
 ## Template
 
 ```sql
 BEGIN;
 
-CREATE TABLE IF NOT EXISTS awcms_<name> (
+CREATE TABLE IF NOT EXISTS awcms-mini_<name> (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL,
   code text,
@@ -43,16 +44,24 @@ CREATE TABLE IF NOT EXISTS awcms_<name> (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   created_by uuid,
-  updated_by uuid
+  updated_by uuid,
+  deleted_at timestamptz,
+  deleted_by uuid,
+  delete_reason text,
+  restored_at timestamptz,
+  restored_by uuid
 );
 
-CREATE INDEX IF NOT EXISTS idx_awcms_<name>_tenant
-  ON awcms_<name> (tenant_id);
-CREATE INDEX IF NOT EXISTS idx_awcms_<name>_tenant_created
-  ON awcms_<name> (tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_awcms-mini_<name>_tenant
+  ON awcms-mini_<name> (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_awcms-mini_<name>_tenant_created
+  ON awcms-mini_<name> (tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_awcms-mini_<name>_active
+  ON awcms-mini_<name> (tenant_id, created_at DESC)
+  WHERE deleted_at IS NULL;
 
-ALTER TABLE awcms_<name> ENABLE ROW LEVEL SECURITY;
-CREATE POLICY awcms_<name>_tenant_isolation ON awcms_<name>
+ALTER TABLE awcms-mini_<name> ENABLE ROW LEVEL SECURITY;
+CREATE POLICY awcms-mini_<name>_tenant_isolation ON awcms-mini_<name>
   USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
 
 COMMIT;
@@ -61,6 +70,8 @@ COMMIT;
 ## Append-only & immutable
 
 - Posted sales document & stock movement: **append-only**, tidak di-update/delete. Koreksi lewat reversal/return/adjustment.
+- Jangan tambahkan soft delete ke entitas posted/append-only/audit/security log/exported tax batch.
+- Untuk business key yang boleh dipakai ulang setelah arsip, gunakan partial unique index `WHERE deleted_at IS NULL`.
 
 ## Verifikasi
 
@@ -68,4 +79,4 @@ COMMIT;
 bun run db:migrate   # tidak double-run, berhenti saat error
 ```
 
-Setelah migrate: cek row count kritis, constraint/index, dan RLS aktif. Update ERD/data dictionary bila perlu (doc 04) dan matrix migration (doc 13).
+Setelah migrate: cek row count kritis, constraint/index, partial unique soft delete, dan RLS aktif. Update ERD/data dictionary bila perlu (doc 04) dan matrix migration (doc 13).

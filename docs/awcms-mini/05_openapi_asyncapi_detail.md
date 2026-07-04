@@ -1,28 +1,31 @@
-# Bagian 5 — OpenAPI dan AsyncAPI Base
+# Bagian 5 — OpenAPI dan AsyncAPI Detail
 
 ## Tujuan
 
-Baseline kontrak API dan domain event base. **Semua API baru wajib diperbarui di `openapi/`; semua event baru wajib diperbarui di `asyncapi/`.** Konsistensi kontrak ↔ registry modul dijaga `bun run api:spec:check`.
-
-## File kontrak
-
-| File                                              | Isi                                              |
-| ------------------------------------------------- | ------------------------------------------------ |
-| `openapi/awcms-mini-public-api.openapi.yaml`      | Kontrak REST base (`/api/v1`)                    |
-| `asyncapi/awcms-mini-domain-events.asyncapi.yaml` | Kontrak domain event base                        |
-| `openapi/modules/*.openapi.yaml`                  | Kontrak modul domain aplikasi turunan (konvensi) |
+Dokumen ini menjadi baseline kontrak API dan domain event AWCMS-Mini. Semua API baru wajib diperbarui di OpenAPI. Semua event baru wajib diperbarui di AsyncAPI.
 
 ## Standard API
 
-Base path `/api/v1`. Envelope response (diimplementasi `_shared/api-response.ts`):
+Base path:
+
+```text
+/api/v1
+```
+
+Response sukses:
 
 ```json
 {
   "success": true,
   "data": {},
-  "meta": { "correlationId": "corr_...", "requestId": "req_..." }
+  "meta": {
+    "correlationId": "corr_...",
+    "requestId": "req_..."
+  }
 }
 ```
+
+Response error:
 
 ```json
 {
@@ -36,73 +39,298 @@ Base path `/api/v1`. Envelope response (diimplementasi `_shared/api-response.ts`
 }
 ```
 
-## Header standard (konstanta `_shared/tenant-context.ts`)
+## Header standard
 
-| Header              | Wajib                       | Fungsi         |
-| ------------------- | --------------------------- | -------------- |
-| `Authorization`     | Ya kecuali public           | Bearer token   |
-| `X-AWCMS-Tenant-ID` | Ya untuk API tenant-scoped  | Tenant aktif   |
-| `Idempotency-Key`   | Ya untuk mutation high-risk | Anti duplicate |
-| `X-Correlation-ID`  | Opsional                    | Trace request  |
-| `X-Request-ID`      | Opsional                    | Trace client   |
-| `Accept-Language`   | Opsional                    | Locale         |
-| `X-AWCMS-Node-ID`   | Ya untuk sync               | Sync node      |
-| `X-AWCMS-Timestamp` | Ya untuk signed sync        | Anti replay    |
-| `X-AWCMS-Signature` | Ya untuk sync               | HMAC signature |
+| Header | Wajib | Fungsi |
+|---|---:|---|
+| `Authorization` | Ya kecuali public | Bearer token |
+| `X-AWCMS-Mini-Tenant-ID` | Ya untuk tenant-scoped API | Tenant aktif |
+| `Idempotency-Key` | Ya untuk mutation high-risk | Anti duplicate mutation |
+| `X-Correlation-ID` | Opsional | Trace request |
+| `X-Request-ID` | Opsional | Trace client request |
+| `Accept-Language` | Opsional | Locale |
+| `X-AWCMS-Mini-Node-ID` | Ya untuk sync | Sync node |
+| `X-AWCMS-Mini-Timestamp` | Ya untuk signed sync | Anti replay |
+| `X-AWCMS-Mini-Signature` | Ya untuk sync | HMAC signature |
+
+## Soft delete API standard
+
+DELETE pada resource tenant-scoped yang deletable berarti **soft delete**, bukan physical delete. Endpoint harus terdokumentasi di OpenAPI dengan perilaku berikut:
+
+| Pola | Fungsi | Catatan |
+|---|---|---|
+| `DELETE /<resources>/{id}` | Soft delete resource | Isi `deleted_at`, `deleted_by`, `delete_reason`; high-risk perlu `Idempotency-Key` |
+| `POST /<resources>/{id}/restore` | Restore resource | Validasi konflik unique key, status lifecycle, ABAC, dan audit |
+| `POST /<resources>/{id}/purge-request` | Request purge/anonymize | Hanya retention/legal; approval bila policy aktif |
+| `GET /<resources>?includeDeleted=true` | List termasuk arsip | Hanya role berizin; default `false` |
+
+Default response list/detail tidak menampilkan soft-deleted record. Detail soft-deleted tanpa permission mengembalikan `RESOURCE_NOT_FOUND`; dengan permission arsip boleh mengembalikan data masked dengan status `deleted`.
+
+## Endpoint wajib idempotency
+
+- `POST /sales/checkout-sessions/{id}/post`
+- `POST /sales/documents/{id}/cancel-request`
+- `POST /profiles/resolve`
+- `POST /profiles/{id}/links`
+- `POST /profiles/merge-requests`
+- `DELETE /profiles/{id}`
+- `POST /profiles/{id}/restore`
+- `DELETE /inventory/products/{id}`
+- `POST /inventory/products/{id}/restore`
+- `POST /warehouse-transfers`
+- `POST /warehouse-transfers/{id}/approve`
+- `POST /warehouse-transfers/{id}/ship`
+- `POST /warehouse-transfers/{id}/receive`
+- `POST /cycle-counts`
+- `POST /stock-adjustment-requests`
+- `POST /tax/vat-invoices/generate`
+- `POST /tax/coretax/batches`
+- `POST /crm/receipts/{id}/send`
+- `POST /sync/push`
+- `POST /workflow/tasks/{id}/decision`
 
 ## Error code standard
 
-Sumber tunggal `_shared/api-error.ts` (tabel lengkap di doc 03).
+| Code | HTTP | Keterangan |
+|---|---:|---|
+| `VALIDATION_ERROR` | 400 | Data tidak valid |
+| `AUTH_REQUIRED` | 401 | Belum login |
+| `TOKEN_EXPIRED` | 401 | Token kadaluarsa |
+| `ACCESS_DENIED` | 403 | Tidak punya akses |
+| `TENANT_REQUIRED` | 400 | Tenant wajib |
+| `RESOURCE_NOT_FOUND` | 404 | Resource tidak ditemukan |
+| `RESOURCE_DELETED` | 410 | Resource sudah di-soft-delete dan butuh restore/arsip permission |
+| `IDEMPOTENCY_REQUIRED` | 400 | Header idempotency wajib |
+| `IDEMPOTENCY_CONFLICT` | 409 | Key dipakai request berbeda |
+| `WORKFLOW_APPROVAL_REQUIRED` | 409 | Perlu approval |
+| `STOCK_NOT_AVAILABLE` | 409 | Stok tidak cukup |
+| `SYNC_CONFLICT` | 409 | Konflik sync |
+| `DATABASE_BUSY` | 503 | Pool/DB sibuk |
+| `PROVIDER_ERROR` | 502 | Provider eksternal gagal |
+| `INTERNAL_ERROR` | 500 | Error internal |
 
-## Endpoint base
+## API endpoint summary per modul
 
-### Terimplementasi
+### Foundation
 
-| Method | Endpoint                | Fungsi                  |
-| ------ | ----------------------- | ----------------------- |
-| GET    | `/health`               | Health check            |
-| GET    | `/database/pool/health` | Kesehatan pool database |
+| Method | Endpoint | Fungsi |
+|---|---|---|
+| GET | `/health` | Health check |
 
-### Kontrak berikutnya (skeleton modul, doc 03)
+### Tenant Admin
 
-| Modul            | Endpoint                                                                             |
-| ---------------- | ------------------------------------------------------------------------------------ |
-| tenant_admin     | `/setup/status`, `/setup/initialize`, `/tenants/current`, `/offices`                 |
-| identity_access  | `/auth/login                                                                         | logout | me`, `/access/modules | evaluate   | assignments | decision-logs` |
-| profile_identity | `/profiles`, `/profiles/resolve`, `/profiles/{id}/links`, `/profiles/merge-requests` |
-| observability    | `/logs/recent                                                                        | audit  | security`             |
-| workflow         | `/workflow/tasks`, `/workflow/tasks/{id}/decision`                                   |
-| security         | `/security/go-live-gates/evaluate`                                                   |
-| sync (opsional)  | `/sync/push                                                                          | pull   | status                | conflicts` |
+| Method | Endpoint | Fungsi |
+|---|---|---|
+| GET | `/setup/status` | Status setup |
+| POST | `/setup/initialize` | Setup tenant pertama |
+| GET | `/tenants/current` | Tenant aktif |
+| GET/POST | `/offices` | List/create office |
+| PATCH | `/offices/{officeId}` | Update office |
+| DELETE | `/offices/{officeId}` | Soft delete office jika aman |
+| POST | `/offices/{officeId}/restore` | Restore office |
 
-Endpoint wajib idempotency pada base: `POST /setup/initialize`, `POST /profiles/resolve`, `POST /profiles/{id}/links`, `POST /profiles/merge-requests`, `POST /access/assignments`, `POST /workflow/tasks/{id}/decision`, `POST /sync/push`.
+### Identity & Access
+
+| Method | Endpoint | Fungsi |
+|---|---|---|
+| POST | `/auth/login` | Login |
+| POST | `/auth/logout` | Logout |
+| GET | `/auth/me` | User aktif |
+| GET | `/access/modules` | Daftar module/activity |
+| POST | `/access/evaluate` | Evaluasi ABAC |
+| POST | `/access/assignments` | Assign access |
+| GET | `/access/decision-logs` | Decision log |
+
+### Profile Identity
+
+| Method | Endpoint | Fungsi |
+|---|---|---|
+| GET/POST | `/profiles` | List/create profile |
+| GET | `/profiles/{profileId}` | Detail profile |
+| POST | `/profiles/resolve` | Resolve/create profile |
+| POST | `/profiles/{profileId}/links` | Link entity |
+| GET | `/profiles/dedup-candidates` | Kandidat duplikat |
+| POST | `/profiles/merge-requests` | Request merge |
+| DELETE | `/profiles/{profileId}` | Soft delete profile/contact master |
+| POST | `/profiles/{profileId}/restore` | Restore profile |
+
+### Catalog Inventory
+
+| Method | Endpoint | Fungsi |
+|---|---|---|
+| GET/POST | `/inventory/products` | List/create product |
+| GET/PATCH | `/inventory/products/{productId}` | Detail/update product |
+| DELETE | `/inventory/products/{productId}` | Soft delete product |
+| POST | `/inventory/products/{productId}/restore` | Restore product |
+| GET | `/inventory/stock-balances` | Stok |
+| GET | `/inventory/stock-movements` | Mutasi stok |
+| POST | `/inventory/stock-adjustment-requests` | Request adjustment |
+| GET | `/inventory/lots` | Lot/batch |
+
+### Sales POS
+
+| Method | Endpoint | Fungsi |
+|---|---|---|
+| POST | `/sales/checkout-sessions` | Buat checkout |
+| GET | `/sales/checkout-sessions/{id}` | Detail checkout |
+| POST | `/sales/checkout-sessions/{id}/items` | Tambah item |
+| PATCH | `/sales/checkout-sessions/{id}/items/{lineId}` | Update item |
+| DELETE | `/sales/checkout-sessions/{id}/items/{lineId}` | Hapus item |
+| POST | `/sales/checkout-sessions/{id}/payments` | Tambah payment |
+| POST | `/sales/checkout-sessions/{id}/post` | Posting transaksi |
+| POST | `/sales/checkout-sessions/{id}/hold` | Hold transaksi |
+| GET | `/sales/documents/{id}` | Detail sales document |
+| POST | `/sales/documents/{id}/cancel-request` | Request cancel |
+
+### Warehouse Management
+
+| Method | Endpoint | Fungsi |
+|---|---|---|
+| GET/POST | `/warehouses` | List/create warehouse |
+| GET | `/warehouses/{warehouseId}/stock` | Stok gudang |
+| GET/POST | `/warehouses/{warehouseId}/bins` | Bin list/create |
+| DELETE | `/warehouses/{warehouseId}/bins/{binId}` | Soft delete bin jika saldo kosong |
+| POST | `/warehouses/{warehouseId}/bins/{binId}/restore` | Restore bin |
+| POST | `/warehouse-transfers` | Buat transfer |
+| POST | `/warehouse-transfers/{id}/approve` | Approve |
+| POST | `/warehouse-transfers/{id}/ship` | Ship |
+| POST | `/warehouse-transfers/{id}/receive` | Receive |
+| POST | `/cycle-counts` | Buat cycle count |
+
+### Accounting Tax/Coretax
+
+| Method | Endpoint | Fungsi |
+|---|---|---|
+| GET/POST | `/tax/profiles` | Tax profile |
+| GET/POST | `/tax/business-units` | NITKU/ID TKU |
+| GET/POST | `/tax/party-profiles` | Party tax profile |
+| POST | `/tax/vat-invoices/generate` | Generate VAT invoice |
+| GET | `/tax/vat-invoices` | List invoice |
+| POST | `/tax/vat-invoices/{id}/validate` | Validasi |
+| POST | `/tax/coretax/batches` | Coretax batch export |
+
+### CRM Communication
+
+| Method | Endpoint | Fungsi |
+|---|---|---|
+| GET/POST | `/crm/contacts` | CRM contacts |
+| PATCH | `/crm/contacts/{id}/consent` | Consent |
+| POST | `/crm/receipts/{receiptPdfId}/send` | Kirim receipt |
+| GET | `/crm/messages` | Message outbox |
+| POST | `/crm/messages/{id}/retry` | Retry |
+| DELETE | `/crm/contacts/{id}` | Soft delete contact/channel |
+| POST | `/crm/contacts/{id}/restore` | Restore contact |
+| POST | `/webhooks/crm/starsender` | Webhook StarSender |
+| POST | `/webhooks/crm/mailketing` | Webhook Mailketing |
+
+### Sync Storage
+
+| Method | Endpoint | Fungsi |
+|---|---|---|
+| POST | `/sync/push` | Push event |
+| POST | `/sync/pull` | Pull event |
+| GET | `/sync/status` | Sync status |
+| GET | `/sync/conflicts` | List conflict |
+| POST | `/sync/conflicts/{id}/resolve` | Resolve conflict |
+| POST | `/sync/objects/presign` | Object upload/presign |
+
+### AI, Reports, Logs, Workflow, Security
+
+| Modul | Endpoint utama |
+|---|---|
+| AI | `POST /ai/business-analyst/chat` |
+| Reports | `GET /reports/sales/daily`, `GET /reports/warehouse/dashboard` |
+| Logs | `GET /logs/recent`, `GET /logs/audit`, `GET /logs/security` |
+| DB Pool | `GET /database/pool/health` |
+| Workflow | `GET /workflow/tasks`, `POST /workflow/tasks/{id}/decision` |
+| Security | `POST /security/go-live-gates/evaluate` |
+
+## Siklus request API
+
+```mermaid
+sequenceDiagram
+  participant C as Client
+  participant API as /api/v1
+  participant MW as Middleware chain
+  participant SVC as Service
+  participant DB as PostgreSQL
+  C->>API: HTTP + Authorization + X-AWCMS-Mini-Tenant-ID + Idempotency-Key
+  API->>MW: Auth → Tenant/RLS → ABAC → Idempotency → Logging
+  MW->>SVC: Context tervalidasi
+  SVC->>DB: Transaction (bila mutation)
+  DB-->>SVC: Result
+  SVC-->>C: { success, data, meta } atau { success:false, error }
+```
 
 ## AsyncAPI event envelope
 
-Diimplementasi `_shared/domain-event.ts` (`createDomainEvent`) — lihat schema `DomainEventEnvelope` di file AsyncAPI. Event **tidak boleh membawa raw sensitive data**.
+```json
+{
+  "eventId": "uuid",
+  "eventType": "sales.transaction.posted",
+  "eventVersion": "1.0",
+  "tenantId": "uuid",
+  "nodeId": "uuid-node",
+  "aggregateType": "sales_document",
+  "aggregateId": "uuid",
+  "occurredAt": "2026-07-04T09:00:00+07:00",
+  "actor": {
+    "tenantUserId": "uuid",
+    "profileId": "uuid"
+  },
+  "correlationId": "corr_001",
+  "causationId": "event-before-id",
+  "payload": {},
+  "metadata": {
+    "sourceModule": "sales_pos",
+    "schemaVersion": "1.0"
+  }
+}
+```
 
-## Event base terdaftar
+Soft delete event memakai envelope yang sama. Pola nama event: `<module>.<resource>.soft_deleted`, `<module>.<resource>.restored`, dan `<module>.<resource>.purge_requested` bila event perlu disinkronkan atau dikonsumsi modul lain. Payload tidak boleh membawa PII mentah; gunakan identifier, status, dan metadata audit yang sudah diredaksi.
 
-| Event                       | Producer                      |
-| --------------------------- | ----------------------------- |
-| `tenant.created`            | tenant_admin                  |
-| `tenant.office.updated`     | tenant_admin                  |
-| `identity.login.succeeded`  | identity_access               |
-| `identity.login.failed`     | identity_access               |
-| `access.assignment.changed` | identity_access               |
-| `profile.created`           | profile_identity              |
-| `profile.merged`            | profile_identity              |
-| `security.event.recorded`   | observability_logging         |
-| `database.pool.saturated`   | database_connectivity         |
-| `workflow.task.approved`    | workflow_approval             |
-| `workflow.task.rejected`    | workflow_approval             |
-| `sync.conflict.detected`    | sync_storage                  |
-| `security.golive.blocked`   | production_security_readiness |
+## Event fan-out — `sales.transaction.posted`
 
-`api:spec:check` memastikan setiap `publishes` pada module descriptor terdaftar sebagai channel AsyncAPI — event baru tanpa kontrak akan gagal CI.
+```mermaid
+flowchart LR
+  POS[Sales POS<br/>posting atomic] -->|publish| EVT{{sales.transaction.posted}}
+  EVT --> INV[Inventory<br/>stock movement]
+  EVT --> TAX[Accounting Tax<br/>VAT invoice staging]
+  EVT --> CRM[CRM<br/>receipt + outbox]
+  EVT --> SYNC[Sync Storage<br/>outbox event]
+  EVT --> RPT[Reporting<br/>agregat harian]
+  EVT --> AUD[Audit event]
+```
+
+## Event utama
+
+| Event | Producer | Consumer |
+|---|---|---|
+| `tenant.created` | Tenant Admin | Audit, reporting |
+| `identity.login.succeeded` | Identity | Audit/security |
+| `profile.created` | Profile | CRM, reporting |
+| `inventory.product.created` | Inventory | Reporting, sync |
+| `inventory.product.soft_deleted` | Inventory | POS cache, reporting, sync |
+| `inventory.product.restored` | Inventory | POS cache, reporting, sync |
+| `sales.transaction.posted` | Sales POS | Inventory, Tax, CRM, Sync, Reporting |
+| `sales.receipt.generated` | CRM/Sales | CRM, sync |
+| `warehouse.transfer.shipped` | Warehouse | Inventory, Sync, Reporting |
+| `warehouse.transfer.received` | Warehouse | Inventory, Sync, Reporting |
+| `tax.vat_invoice.generated` | Tax | Reporting, audit |
+| `tax.coretax.batch_exported` | Tax | Sync, audit |
+| `crm.message.sent` | CRM | Reporting, audit |
+| `sync.conflict.detected` | Sync | Workflow, audit |
+| `workflow.task.approved` | Workflow | Requesting module |
+| `database.pool.saturated` | DB Connectivity | Observability, security |
+| `security.golive.blocked` | Security | Owner/admin |
 
 ## Contract testing requirement
 
-- `bun run api:contract:test` memverifikasi envelope endpoint publik terhadap server berjalan.
-- Setiap endpoint baru menambah case contract test + entri OpenAPI + (bila high-risk) daftar idempotency.
-- Tenant-scoped API wajib tenant header; sensitive fields tidak tampil penuh.
+- Semua endpoint punya success/error response schema.
+- Tenant-scoped API wajib tenant header.
+- Mutation high-risk wajib idempotency.
+- Sensitive fields tidak tampil penuh.
+- Event envelope lengkap.
+- Event payload sesuai schema.
+- Event tidak membawa raw sensitive data.

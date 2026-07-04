@@ -1,6 +1,6 @@
 ---
 name: awcms-mini-sensitive-data
-description: Tangani data sensitif AWCMS-Mini (email, phone, WhatsApp, NPWP, NIK, token) dengan normalize, hash lookup, dan masking. Gunakan saat menyimpan/menampilkan identifier, membuat profile identifier, atau menyusun DTO/response/log. Sesuai doc 04.
+description: Tangani data sensitif AWCMS-Mini (email, phone, WhatsApp, NPWP, NIK, NITKU, receipt token) dengan normalize, hash lookup, dan masking. Gunakan saat menyimpan/menampilkan identifier, membuat profile identifier, atau menyusun DTO/response/log. Sesuai doc 04.
 ---
 
 # AWCMS-Mini — Sensitive Data Handling

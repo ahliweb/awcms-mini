@@ -1,80 +1,198 @@
 # Bagian 18 — Configuration dan Environment Reference
 
+## Tujuan
+
+Dokumen ini melengkapi referensi konfigurasi lengkap AWCMS-Mini: seluruh environment variable, feature flag opsional, presedensi konfigurasi, profil per-environment, penanganan secret, dan topologi deployment offline/LAN-first. Melengkapi `.env.example` minimal di doc 11.
+
+Terkait: `11_implementation_blueprint.md` (skeleton), `15/16` (FE/BE), `07_sprint_testing_production_readiness.md` (deployment).
+
 ## Prinsip konfigurasi
 
-1. Semua secret hanya dari **environment**; `.env` di-ignore, `.env.example` placeholder.
-2. Provider eksternal **opsional** via feature flag; default off; fitur off tidak menghentikan aplikasi.
-3. Konfigurasi tervalidasi saat boot (`src/lib/config.ts` — fail-fast, pesan hanya nama variabel).
-4. Presedensi: default kode → environment → `awcms_tenant_settings` (preferensi tenant).
+1. Semua secret hanya dari **environment**, tidak pernah di kode/commit.
+2. `.env` di-ignore; `.env.example` hanya placeholder.
+3. Provider eksternal **opsional** via feature flag; default off.
+4. POS tidak boleh gagal karena provider off.
+5. Konfigurasi tervalidasi saat boot; nilai wajib yang hilang menghentikan start dengan pesan jelas.
+6. Soft delete adalah perilaku platform wajib, bukan feature flag; retention/purge dikontrol policy dan workflow.
+
+## Presedensi
+
+```mermaid
+flowchart LR
+  Def[Default kode] --> Env[Environment variable] --> Set[awcms-mini_tenant_settings - per tenant] --> Eff[Konfigurasi efektif]
+```
+
+- Runtime/secret (DB, JWT, HMAC, provider key): dari **environment**.
+- Preferensi tenant (locale, theme, flag fitur tampilan): dari **`awcms-mini_tenant_settings`**.
+- Retention soft delete/purge dapat menjadi tenant policy, tetapi tidak boleh menonaktifkan audit, RLS, atau default filter `deleted_at IS NULL`.
 
 ## Referensi environment variable
 
-Diimplementasi dan divalidasi oleh `loadConfig()` (`tests/lib/config.test.ts`).
+Legenda: Wajib = perlu untuk boot; Sensitif = jangan bocor ke log/response.
 
 ### Inti aplikasi
 
-| Var                  | Wajib | Default                 | Sensitif | Fungsi                         |
-| -------------------- | ----- | ----------------------- | -------- | ------------------------------ |
-| `APP_ENV`            | –     | `development`           | –        | development/staging/production |
-| `APP_URL`            | –     | `http://localhost:4321` | –        | Base URL                       |
-| `APP_TIMEZONE`       | –     | `Asia/Jakarta`          | –        | Timezone default               |
-| `APP_DEFAULT_LOCALE` | –     | `id`                    | –        | Locale default                 |
-| `LOG_LEVEL`          | –     | `info`                  | –        | debug/info/warn/error          |
+| Var | Wajib | Default | Sensitif | Fungsi |
+|---|---|---|---|---|
+| `APP_ENV` | Ya | `development` | – | development/staging/production |
+| `APP_URL` | Ya | `http://localhost:4321` | – | Base URL aplikasi |
+| `APP_TIMEZONE` | Ya | `Asia/Jakarta` | – | Timezone default |
+| `APP_DEFAULT_LOCALE` | – | `id` | – | Locale default |
+| `LOG_LEVEL` | – | `info` | – | debug/info/warn/error |
 
 ### Database & pool
 
-| Var                             | Wajib  | Default | Sensitif | Fungsi                                       |
-| ------------------------------- | ------ | ------- | -------- | -------------------------------------------- |
-| `DATABASE_URL`                  | **Ya** | –       | Ya       | Koneksi PostgreSQL                           |
-| `DATABASE_POOL_MAX`             | –      | `20`    | –        | Maks koneksi pool                            |
-| `DATABASE_STATEMENT_TIMEOUT_MS` | –      | `15000` | –        | Timeout statement                            |
-| `DATABASE_PGBOUNCER`            | –      | `false` | –        | Mode PgBouncer (matikan prepared statements) |
+| Var | Wajib | Default | Sensitif | Fungsi |
+|---|---|---|---|---|
+| `DATABASE_URL` | Ya | – | Ya | Koneksi PostgreSQL |
+| `DATABASE_POOL_MAX` | – | `20` | – | Maks koneksi pool |
+| `DATABASE_STATEMENT_TIMEOUT_MS` | – | `15000` | – | Timeout statement |
+| `DATABASE_PGBOUNCER` | – | `false` | – | Mode PgBouncer (transaction) |
 
 ### Auth & keamanan
 
-| Var                       | Wajib  | Default              | Sensitif | Fungsi                                                 |
-| ------------------------- | ------ | -------------------- | -------- | ------------------------------------------------------ |
-| `AUTH_JWT_SECRET`         | **Ya** | –                    | Ya       | Signing token sesi (placeholder ditolak di production) |
-| `AUTH_SESSION_TTL_MIN`    | –      | `120`                | –        | Umur sesi                                              |
-| `AUTH_COOKIE_SECURE`      | –      | `true` di production | –        | Cookie hanya HTTPS                                     |
-| `AUTH_LOGIN_MAX_ATTEMPTS` | –      | `5`                  | –        | Lockout login                                          |
+| Var | Wajib | Default | Sensitif | Fungsi |
+|---|---|---|---|---|
+| `AUTH_JWT_SECRET` | Ya | – | Ya | Signing token sesi |
+| `AUTH_SESSION_TTL_MIN` | – | `120` | – | Umur sesi |
+| `AUTH_COOKIE_SECURE` | – | `true` | – | Cookie hanya HTTPS di prod |
+| `AUTH_LOGIN_MAX_ATTEMPTS` | – | `5` | – | Lockout login |
 
-### Sync & node (opsional)
+### Sync & node
 
-| Var                       | Wajib     | Default          | Sensitif | Fungsi                |
-| ------------------------- | --------- | ---------------- | -------- | --------------------- |
-| `AWCMS_NODE_ID`           | –         | `local-dev-node` | –        | Identitas node        |
-| `AWCMS_SYNC_ENABLED`      | –         | `false`          | –        | Aktifkan sync         |
-| `AWCMS_SYNC_HMAC_SECRET`  | bila sync | –                | Ya       | Signature HMAC        |
-| `AWCMS_SYNC_MAX_SKEW_SEC` | –         | `300`            | –        | Toleransi anti-replay |
+| Var | Wajib | Default | Sensitif | Fungsi |
+|---|---|---|---|---|
+| `AWCMS-Mini_NODE_ID` | Ya | `local-dev-node` | – | Identitas node |
+| `AWCMS-Mini_SYNC_ENABLED` | – | `false` | – | Aktifkan sync hybrid |
+| `AWCMS-Mini_SYNC_HMAC_SECRET` | bila sync | – | Ya | Signature HMAC |
+| `AWCMS-Mini_SYNC_MAX_SKEW_SEC` | – | `300` | – | Toleransi anti-replay |
 
-### Storage & provider (opsional, default off)
+### Storage
 
-| Var                                                                                      | Wajib                          | Default     | Sensitif |
-| ---------------------------------------------------------------------------------------- | ------------------------------ | ----------- | -------- |
-| `STORAGE_DRIVER`                                                                         | –                              | `local`     | –        |
-| `LOCAL_STORAGE_PATH`                                                                     | –                              | `./storage` | –        |
-| `R2_ENABLED` (+`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`) | flag; kredensial wajib bila on | `false`     | Ya       |
-| `STARSENDER_ENABLED` (+`STARSENDER_API_KEY`)                                             | idem                           | `false`     | Ya       |
-| `MAILKETING_ENABLED` (+`MAILKETING_API_TOKEN`)                                           | idem                           | `false`     | Ya       |
-| `AI_ANALYST_ENABLED` (+`AI_PROVIDER_API_KEY`, `AI_MODEL`)                                | idem                           | `false`     | Ya       |
+| Var | Wajib | Default | Sensitif | Fungsi |
+|---|---|---|---|---|
+| `STORAGE_DRIVER` | – | `local` | – | local/r2 |
+| `LOCAL_STORAGE_PATH` | – | `./storage` | – | Path file lokal |
+| `R2_ENABLED` | – | `false` | – | Aktifkan R2 |
+| `R2_ACCOUNT_ID` | bila R2 | – | Ya | Akun R2 |
+| `R2_ACCESS_KEY_ID` | bila R2 | – | Ya | Kredensial R2 |
+| `R2_SECRET_ACCESS_KEY` | bila R2 | – | Ya | Kredensial R2 |
+| `R2_BUCKET` | bila R2 | – | – | Bucket |
 
-**Flag aktif tanpa kredensial = gagal boot** (tervalidasi test).
+### Provider CRM (opsional)
+
+| Var | Wajib | Default | Sensitif | Fungsi |
+|---|---|---|---|---|
+| `STARSENDER_ENABLED` | – | `false` | – | WhatsApp receipt |
+| `STARSENDER_API_KEY` | bila aktif | – | Ya | API key StarSender |
+| `MAILKETING_ENABLED` | – | `false` | – | Email receipt |
+| `MAILKETING_API_TOKEN` | bila aktif | – | Ya | Token Mailketing |
+
+### AI analyst (opsional)
+
+| Var | Wajib | Default | Sensitif | Fungsi |
+|---|---|---|---|---|
+| `AI_ANALYST_ENABLED` | – | `false` | – | Aktifkan AI analyst |
+| `AI_PROVIDER_API_KEY` | bila aktif | – | Ya | Kredensial AI |
+| `AI_MODEL` | – | – | – | Model yang dipakai |
+
+## Feature flag
+
+```mermaid
+flowchart LR
+  Boot[Boot] --> Val[Validasi env]
+  Val --> Flags{Feature flags}
+  Flags -->|R2 off| L[Storage lokal]
+  Flags -->|StarSender off| Q1[WA masuk queue - tak terkirim]
+  Flags -->|Mailketing off| Q2[Email masuk queue - tak terkirim]
+  Flags -->|AI off| NoAi[Endpoint AI nonaktif]
+  Flags -->|Sync off| LanOnly[LAN-only]
+```
+
+Aturan: fitur off tidak menghentikan POS; pesan/objek tetap masuk queue dan menunggu fitur diaktifkan.
+
+## `.env.example` lengkap (rekomendasi)
+
+```env
+# Inti
+APP_ENV=development
+APP_URL=http://localhost:4321
+APP_TIMEZONE=Asia/Jakarta
+APP_DEFAULT_LOCALE=id
+LOG_LEVEL=info
+
+# Database
+DATABASE_URL=postgres://awcms-mini:awcms-mini_password@localhost:5432/awcms-mini
+DATABASE_POOL_MAX=20
+DATABASE_STATEMENT_TIMEOUT_MS=15000
+DATABASE_PGBOUNCER=false
+
+# Auth
+AUTH_JWT_SECRET=change-me-in-production
+AUTH_SESSION_TTL_MIN=120
+AUTH_COOKIE_SECURE=true
+AUTH_LOGIN_MAX_ATTEMPTS=5
+
+# Sync
+AWCMS-Mini_NODE_ID=local-dev-node
+AWCMS-Mini_SYNC_ENABLED=false
+AWCMS-Mini_SYNC_HMAC_SECRET=change-me
+AWCMS-Mini_SYNC_MAX_SKEW_SEC=300
+
+# Storage
+STORAGE_DRIVER=local
+LOCAL_STORAGE_PATH=./storage
+R2_ENABLED=false
+
+# Provider opsional (default off)
+STARSENDER_ENABLED=false
+MAILKETING_ENABLED=false
+AI_ANALYST_ENABLED=false
+```
 
 ## Profil per-environment
 
-| Environment | Karakteristik                                                                  |
-| ----------- | ------------------------------------------------------------------------------ |
-| development | Provider off, DB lokal (docker compose), cookie tidak secure                   |
-| staging     | Meniru production, data uji, backup aktif                                      |
-| production  | HTTPS, secret manager, backup+restore teruji, role DB non-superuser            |
-| offline/LAN | Tanpa internet; sync/provider off/tertunda; aplikasi penuh jalan; backup lokal |
+| Environment | Karakteristik |
+|---|---|
+| development | Semua provider off, DB lokal, cookie tidak secure |
+| staging | Meniru prod, data uji, backup aktif |
+| production (online) | HTTPS, secret manager, backup+restore teruji, sync opsional |
+| **offline/LAN** | Tanpa internet; sync/R2/WA/email off atau tertunda; POS penuh jalan; backup lokal |
 
 ## Topologi deployment LAN-first
 
-Satu server LAN menjalankan aplikasi (Bun, `deploy/systemd`) + PostgreSQL; klien via jaringan lokal (reverse proxy `deploy/nginx`); PgBouncer opsional (`deploy/pgbouncer`); backup lokal (`deploy/backup`). Provider eksternal & sync hanya saat online.
+```mermaid
+flowchart TB
+  subgraph LAN["Toko / LAN"]
+    P1[Aplikasi Operasional 1]
+    P2[Aplikasi Operasional 2]
+    A1[Admin]
+    Srv[AWCMS-Mini - Bun/Astro]
+    DB[(PostgreSQL)]
+    Bak[Backup lokal]
+    Srv --- DB
+    Srv --- Bak
+    P1 --- Srv
+    P2 --- Srv
+    A1 --- Srv
+  end
+  Srv -. saat online .-> Cloud[(Server pusat / R2 / provider)]
+```
+
+- Satu server LAN menjalankan aplikasi + PostgreSQL; klien via jaringan lokal.
+- Provider eksternal & sync hanya saat online; POS tidak bergantung padanya.
+- Deployment: `deploy/systemd`, `deploy/nginx`, `deploy/pgbouncer`, `deploy/backup` (doc 11).
 
 ## Validasi konfigurasi saat boot
 
-- Var wajib hilang / flag tanpa kredensial → `ConfigError` berisi daftar masalah (nama var saja, tanpa nilai).
-- Secret tidak pernah masuk log — redaction logger + pesan error aman.
+- Var wajib hilang → gagal start dengan pesan jelas (tanpa membocorkan nilai).
+- Flag aktif tanpa kredensial (mis. `R2_ENABLED=true` tanpa key) → gagal start.
+- Secret tidak pernah masuk log (redaction, doc 10).
+
+## Acceptance criteria
+
+- Boot memvalidasi env; var wajib hilang menghentikan start dengan pesan aman.
+- Provider off tidak menghentikan POS; pesan/objek masuk queue.
+- Secret hanya dari env; tidak ada di kode/commit/log/response.
+- Preferensi tenant (locale/theme) dari `awcms-mini_tenant_settings`, bukan hardcode.
+- Profil offline/LAN berjalan penuh tanpa internet.

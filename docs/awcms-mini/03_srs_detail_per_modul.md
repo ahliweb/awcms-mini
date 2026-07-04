@@ -1,166 +1,397 @@
-# Bagian 3 — SRS Detail per Modul Base
+# Bagian 3 — SRS Detail Per Modul
 
 ## Tujuan SRS
 
-Menetapkan spesifikasi teknis modul base yang siap diimplementasi: requirement fungsional, validasi, dan security per modul. Modul domain mengikuti pola dokumen ini di paket aplikasinya.
+Dokumen ini menjabarkan kebutuhan teknis AWCMS-Mini per modul, mencakup functional requirement, non-functional requirement, validation, audit, security, dan integration point.
 
 ## Pipeline request lintas modul
 
 ```mermaid
-flowchart LR
-  Req[Request] --> Auth[Auth middleware]
-  Auth --> Tenant[Tenant context + RLS set]
-  Tenant --> ABAC[ABAC guard - default deny]
-  ABAC --> Valid[Input validation - _shared/validation]
-  Valid --> Idem{Mutation high-risk?}
-  Idem -- Ya --> Key[Idempotency-Key check]
-  Idem -- Tidak --> Svc[Service + Transaction]
-  Key --> Svc
-  Svc --> Audit[Audit high-risk]
-  Audit --> Mask[Mapper - safe DTO]
-  Mask --> Res[Response helper _shared/api-response]
+sequenceDiagram
+  participant C as Client
+  participant A as Auth MW
+  participant T as Tenant/RLS MW
+  participant G as ABAC Guard
+  participant I as Idempotency MW
+  participant S as Service (transaction)
+  participant DB as PostgreSQL
+  participant AU as Audit
+  C->>A: Request + Bearer token
+  A->>A: Validasi token
+  A->>T: Set tenant context
+  T->>DB: SET app.current_tenant_id
+  T->>G: Evaluasi akses (default deny)
+  G-->>C: 403 ACCESS_DENIED (jika ditolak)
+  G->>I: Cek Idempotency-Key (mutation high-risk)
+  I-->>C: 409 IDEMPOTENCY_CONFLICT (jika hash beda)
+  I->>S: Jalankan service
+  S->>DB: Query/mutation (FOR UPDATE bila stok)
+  S->>AU: Audit high-risk
+  S-->>C: Response standar (data ter-mask)
 ```
 
 ## Requirement umum lintas modul
 
 ### Multi-tenant
 
-1. Semua tabel tenant-scoped punya `tenant_id` + RLS `FORCE` + policy `app.current_tenant_id`.
-2. Semua akses lewat `withTenant()` (`SET LOCAL` via `set_config(..., true)`).
-3. Query tetap memfilter `tenant_id` eksplisit (defense in depth).
+- Semua tabel tenant-scoped wajib memiliki `tenant_id`.
+- Semua query tenant-scoped wajib memfilter tenant aktif.
+- RLS wajib aktif pada tabel tenant-scoped.
+- Tenant context wajib diset dalam transaction.
 
 ### Security
 
-1. Endpoint non-public wajib auth + ABAC guard (`guardAccess`, default deny).
-2. Error response standard (`toErrorResponse`) — tidak pernah stack trace.
-3. Secret hanya dari environment (doc 18); redaction wajib (doc 10).
+- Auth wajib kecuali endpoint public eksplisit.
+- ABAC default deny.
+- Data sensitif wajib dimasking.
+- Error response tidak boleh expose stack trace.
+- Provider secret hanya dari environment.
 
 ### Transaction safety
 
-1. Mutation multi-table dalam `withTransaction`/`withTenant`.
-2. Mutation high-risk wajib `Idempotency-Key` (`requireIdempotencyKey` + `evaluateReplay`).
-3. Provider eksternal tidak dipanggil di dalam transaction.
+- Mutation high-risk wajib `Idempotency-Key`.
+- Transaksi POS wajib atomic.
+- Stock row/bin balance yang berubah wajib dikunci.
+- Posted sales document immutable.
+- Movement stok append-only.
+
+### Soft delete
+
+- Resource master/config/draft yang deletable wajib memakai soft delete: isi `deleted_at`, `deleted_by`, dan `delete_reason`; jangan `DELETE` fisik pada jalur operasional normal.
+- Query list/detail default wajib `deleted_at IS NULL`; include archived/deleted hanya lewat permission eksplisit dan parameter API terdokumentasi.
+- Restore dan purge adalah aksi high-risk: butuh ABAC, audit, dan idempotency bila endpoint mutation dapat diulang.
+- Posted sales document, posted stock movement, audit log, security event, sync conflict, VAT invoice exported/accepted, dan Coretax batch exported tidak boleh di-soft-delete; koreksi lewat reversal/cancel/return/adjustment atau status lifecycle.
+- Soft-deleted record tetap tenant-scoped, tetap terkena RLS, dan tetap masuk retention/legal hold.
 
 ### Audit
 
-1. High-risk action → `buildAuditEvent` → insert `awcms_audit_events` di transaction yang sama.
-2. Attributes selalu melalui `redactSensitive`.
+Audit wajib untuk:
+
+- Login failed/success.
+- Access assignment.
+- Profile merge.
+- Product price change.
+- Soft delete, restore, dan purge resource tenant-scoped.
+- Transaction posted/cancel/return.
+- Stock adjustment.
+- Warehouse transfer.
+- Coretax export.
+- Sync conflict resolution.
+- AI tool call.
+- Security readiness decision.
 
 ## 1. Tenant Admin
 
 ### Functional requirement
 
-1. `GET /setup/status` → `{ initialized: boolean }`.
-2. `POST /setup/initialize` → buat tenant + owner identity + tenant_user + office pertama + seed doc 17, idempotent, terkunci setelah sukses.
-3. CRUD office (create/read/update; nonaktif via status, bukan delete).
-4. Tenant settings key-value (`awcms_tenant_settings`).
+- Sistem dapat membuat tenant pertama melalui setup wizard.
+- Sistem dapat membuat office dengan tipe `head_office`, `branch`, `store`, `warehouse`, `other`.
+- Sistem dapat mengunci setup setelah selesai.
+- Sistem dapat menonaktifkan tenant/office.
 
 ### Validation
 
-- `tenant_code`/`office_code`: slug, unik (per scope), maks 64.
-- `office_type` enum; `parent_office_id` harus office tenant yang sama.
+- `tenant_code` unik.
+- `office_code` unik per tenant.
+- Setup initialize ditolak jika setup locked.
 
 ### Security
 
-- `setup/initialize` publik hanya saat belum initialized; setelah itu 403.
-- Office management: permission `tenant_admin.office_management.*`.
+- Endpoint setup hanya public sebelum setup locked.
+- Setelah locked, setup initialize ditolak.
+- Tenant inactive tidak dapat dipakai transaksi.
 
 ## 2. Identity & Access
 
 ### Functional requirement
 
-1. `POST /auth/login` → verifikasi scrypt, terapkan lockout (`failed_login_count`, `locked_until`), terbitkan JWT sesi (lib/auth/session).
-2. `GET /auth/me` → context user + roles (safe DTO).
-3. `POST /auth/logout` → invalidasi sesi.
-4. `GET /access/modules` → registry module/activity dari katalog permission.
-5. `POST /access/evaluate` → jalankan evaluator ABAC, kembalikan `AccessDecision`.
-6. `POST /access/assignments` → assign role/permission (idempotent, audit).
-7. `GET /access/decision-logs` → decision log (Auditor/Owner).
-
-### Aturan evaluator (doc 17)
-
-- Default deny; allow hanya dari role→permission; deny policy selalu menang.
-- Setiap deny high-risk ditulis ke `awcms_abac_decision_logs`.
-- Evaluasi memakai `AccessRequest` (module, activity, action, atribut resource/environment).
+- User dapat login.
+- User terkait ke tenant melalui `tenant_user`.
+- Role dapat diassign.
+- ABAC mengevaluasi action berdasarkan module, activity, resource, context, dan environment.
 
 ### Validation
 
-- Login identifier maks 255; password minimal 8; percobaan gagal → hitung lockout.
+- Password wajib memenuhi policy.
+- Login identifier unik.
+- Tenant user inactive ditolak.
 
 ### Security
 
-- Login gagal tidak membocorkan mana yang salah (identifier vs password).
-- Event `identity.login.succeeded/failed` diterbitkan; login failed = security event.
+- Password disimpan dalam hash modern.
+- Failed login dicatat.
+- Default deny.
+- Deny overrides allow.
 
-## 3. Profile Identity
+## 3. Central Profile
 
 ### Functional requirement
 
-1. CRUD profile; `POST /profiles/resolve` (idempotent) mencari via `value_hash`, membuat bila tidak ada.
-2. Identifier: normalisasi per tipe (email lowercase, phone E.164) → hash + mask.
-3. Entity link: kaitkan profile ke entitas modul lain (module, type, id).
-4. Merge request → approval (workflow) → tandai `merged_into_profile_id`.
+- Membuat profile person/organization.
+- Menambahkan identifier.
+- Resolve profile berdasarkan email/phone/WhatsApp/NPWP/NIK/customer code.
+- Link profile ke entity lintas modul.
+- Merge profile melalui workflow.
 
 ### Validation
 
-- `identifier_type` enum; nilai dinormalisasi sebelum hash; duplikat per `(tenant, type, hash)` ditolak/di-resolve.
+- Identifier dinormalisasi.
+- Identifier hash unik per tenant/type.
+- Profile merge tidak boleh source = target.
 
 ### Security
 
-- Response hanya `masked_value`; nilai mentah tidak disimpan (hanya hash + mask).
-- Resolve/link/merge = high-risk → idempotency + audit.
+- Identifier sensitif dimasking.
+- Raw value tidak tampil ke response umum.
+- Merge high-risk diaudit dan membutuhkan approval.
 
-## 4. Localization UI
+## 4. Catalog & Inventory
 
-1. Kamus terjemahan per locale + fallback (`resolveLocale`, q-aware).
-2. `ar` dirender RTL (`textDirection`).
-3. Preferensi `default_locale`/`default_theme` dari `awcms_tenants` / `awcms_tenant_settings`.
+### Functional requirement
 
-## 5. Observability Logging
+- CRUD produk.
+- Product search by SKU, barcode, nama.
+- Harga aktif berdasarkan periode.
+- Stok per office.
+- Stock movement append-only.
 
-1. Repository insert log/audit/security event (attributes sudah ter-redact).
-2. `GET /logs/*` read-only, pagination keyset, ABAC (Auditor).
-3. `correlation_id`/`request_id` dari `traceIdsFromRequest`.
+### Validation
 
-## 6. Database Connectivity
+- SKU unik per tenant.
+- Barcode unik jika ada.
+- Quantity tidak boleh negatif kecuali movement delta yang valid.
+- Product inactive tidak boleh dijual.
 
-1. Pool gate per work class: `critical_transaction` > `interactive` > `reporting` > `background_sync` > `maintenance`.
-2. Antrean penuh/timeout → `503 DATABASE_BUSY` + event `database.pool.saturated`.
-3. `GET /database/pool/health` (sudah tersedia) melaporkan status/latensi.
+### Security
 
-## 7. Workflow Approval
+- Price update butuh permission.
+- Adjustment stok butuh reason dan audit.
 
-1. Definisi workflow per jenis aksi; instance + task + decision.
-2. `POST /workflow/tasks/{id}/decision` idempotent; self-approval ditolak (ABAC policy 7).
-3. Hasil decision diterbitkan sebagai event `workflow.task.approved/rejected`.
+## 5. Sales POS
 
-## 8. Management Reporting
+### Functional requirement
 
-1. Kontrak query read-only: DTO projection, sort whitelist, pagination keyset.
-2. Tidak ada akses tabel mentah modul lain — hanya view yang dideklarasikan.
+- Membuat checkout.
+- Menambahkan/mengubah/menghapus item.
+- Menghitung total server-side.
+- Menambahkan payment.
+- Posting transaksi.
+- Membuat sales document, lines, payments, stock movements, audit, domain event.
 
-## 9. UI Experience
+### Validation
 
-1. Admin shell membaca module registry (`src/modules/index.ts`) + permission → navigasi.
-2. Design token doc 14; theme light/dark/system.
+- Checkout status harus `draft` atau `held` sebelum posting.
+- Payment cukup.
+- Stock tersedia.
+- Idempotency key wajib.
 
-## 10. Production Security Readiness
+### Security
 
-1. `scripts/security-readiness.ts`: env hygiene, RLS coverage, validitas migration, config production.
-2. Go-live gate: critical finding = BLOCKED (exit non-zero).
+- Kasir hanya akses office sesuai ABAC.
+- Discount mengikuti permission.
+- Error stok user-friendly.
+- Provider eksternal tidak dipanggil dalam DB transaction.
 
-## 11. Sync Storage (opsional)
+## 6. Shared Stock Routing
 
-1. Signature HMAC `timestamp.body`, skew maks `AWCMS_SYNC_MAX_SKEW_SEC` (default 300), timing-safe compare.
-2. Duplicate event idempotent; conflict → resolusi manual + audit.
+### Functional requirement
+
+- Membuat stock pool.
+- Menambahkan member tenant.
+- Mapping product antar tenant.
+- Routing transaksi berdasarkan rule.
+- Mencatat routing decision.
+
+### Validation
+
+- Rule harus punya legal basis.
+- Effective date valid.
+- Target tenant harus member pool.
+
+### Security
+
+- Routing rule create/approve butuh permission.
+- Routing decision diaudit.
+
+## 7. Warehouse Management
+
+### Functional requirement
+
+- Warehouse dari office.
+- Zone dan bin.
+- Bin balance.
+- Lot/batch/serial/expired.
+- Transfer order, shipment, receipt.
+- In-transit balance.
+- Cycle count.
+- Stock adjustment request.
+
+### Validation
+
+- Source dan destination warehouse tidak boleh sama.
+- Ship tidak boleh melebihi approved quantity.
+- Receive tidak boleh melebihi shipped quantity.
+- Expired/damaged masuk quarantine.
+
+### Security
+
+- Warehouse scope via ABAC.
+- Adjustment membutuhkan reason.
+- High-risk adjustment membutuhkan approval.
+
+## 8. Accounting Tax/Coretax
+
+### Functional requirement
+
+- Tax profile tenant.
+- Tax business unit/NITKU.
+- Party tax profile.
+- Product tax profile.
+- Generate VAT invoice dari sales posted.
+- Validate VAT invoice.
+- Coretax XML batch export.
+
+### Validation
+
+- Missing NPWP/NITKU/product tax profile menghasilkan error validasi.
+- VAT invoice exported/accepted locked.
+- Batch export menyimpan checksum.
+
+### Security
+
+- Tax data dimasking untuk non-tax role.
+- Export membutuhkan audit dan approval jika policy aktif.
+
+## 9. CRM Communication
+
+### Functional requirement
+
+- Generate receipt PDF.
+- Simpan file lokal.
+- Queue WhatsApp/email message.
+- Dispatch via provider saat online.
+- Retry failed message.
+- Customer portal tokenized.
+
+### Validation
+
+- Consent wajib aktif.
+- Channel valid.
+- Receipt PDF harus tersedia.
+
+### Security
+
+- Provider API key dari env.
+- Phone/email dimasking.
+- Token receipt tidak sequential.
+
+## 10. Sync Storage
+
+### Functional requirement
+
+- Register sync node.
+- Push/pull event.
+- Store checkpoint.
+- Detect conflict.
+- Resolve conflict manual.
+- Upload object queue to R2 optional.
+
+### Validation
+
+- HMAC valid.
+- Timestamp anti replay.
+- Duplicate event idempotent.
+
+### Security
+
+- Node inactive ditolak.
+- Posted transaction immutable.
+- Conflict high-risk butuh audit.
+
+## 11. AI Business Analyst
+
+### Functional requirement
+
+- Chat endpoint.
+- Safe aggregate tools.
+- Tool policy.
+- Audit tool call.
+
+### Security
+
+- Read-only.
+- No raw SQL.
+- No mutation.
+- No raw PII/tax identity.
+
+## 12. UI Experience
+
+### Functional requirement
+
+- Admin dashboard.
+- POS fullscreen.
+- Customer receipt portal.
+- Navigation role-aware.
+- Dark/light/system theme.
+- i18n minimal ID/EN.
+
+### Security
+
+- UI hiding bukan kontrol utama.
+- Backend tetap validasi permission.
+
+## 13. Observability, Pooling, Workflow, Security
+
+### Functional requirement
+
+- Structured log.
+- Audit log.
+- Pool health.
+- Backpressure.
+- Workflow approval.
+- Security readiness.
+- Go-live gates.
+
+### Security
+
+- Redaction wajib.
+- Critical security control fail memblokir go-live.
 
 ## Error code standar
 
-Lihat `src/modules/_shared/api-error.ts` — satu-satunya sumber: `VALIDATION_ERROR` 400, `AUTH_REQUIRED`/`TOKEN_EXPIRED` 401, `ACCESS_DENIED` 403, `TENANT_REQUIRED` 400, `RESOURCE_NOT_FOUND` 404, `IDEMPOTENCY_REQUIRED` 400, `IDEMPOTENCY_CONFLICT` 409, `WORKFLOW_APPROVAL_REQUIRED` 409, `SYNC_CONFLICT` 409, `DATABASE_BUSY` 503, `PROVIDER_ERROR` 502, `INTERNAL_ERROR` 500.
+```mermaid
+flowchart TD
+  E[Exception di service] --> K{Tipe error}
+  K -->|Validasi| V[400 VALIDATION_ERROR]
+  K -->|Belum login| A1[401 AUTH_REQUIRED]
+  K -->|Tak berhak| A2[403 ACCESS_DENIED]
+  K -->|Idempotency| I[400/409 IDEMPOTENCY_*]
+  K -->|Stok kurang| ST[409 STOCK_NOT_AVAILABLE]
+  K -->|Konflik sync| SY[409 SYNC_CONFLICT]
+  K -->|Pool sibuk| D[503 DATABASE_BUSY]
+  K -->|Tak terduga| IN[500 INTERNAL_ERROR<br/>tanpa stack trace]
+  V & A1 & A2 & I & ST & SY & D & IN --> R[Response error standar + correlationId]
+```
+
+| Code | HTTP | Arti |
+|---|---:|---|
+| `VALIDATION_ERROR` | 400 | Data tidak valid |
+| `AUTH_REQUIRED` | 401 | Belum login |
+| `ACCESS_DENIED` | 403 | Tidak punya akses |
+| `TENANT_REQUIRED` | 400 | Tenant wajib |
+| `RESOURCE_NOT_FOUND` | 404 | Resource tidak ditemukan |
+| `IDEMPOTENCY_REQUIRED` | 400 | Idempotency key wajib |
+| `IDEMPOTENCY_CONFLICT` | 409 | Key dipakai request berbeda |
+| `STOCK_NOT_AVAILABLE` | 409 | Stok tidak cukup |
+| `SYNC_CONFLICT` | 409 | Konflik sync |
+| `DATABASE_BUSY` | 503 | Pool/DB sibuk |
+| `INTERNAL_ERROR` | 500 | Kesalahan internal |
 
 ## Testing requirement minimum
 
-- Unit: helper `_shared` + lib (sudah ada di `tests/`), evaluator ABAC (saat dibangun), service per modul.
-- Integration: migration runner terhadap PostgreSQL nyata; RLS isolation test (pola di doc 07).
-- Contract: `bun run api:contract:test` terhadap server berjalan.
-- Fitness: `validateModuleRegistry` + `api:spec:check` menjaga konsistensi modul/kontrak.
+- Unit test untuk business logic.
+- Integration test untuk migration, RLS, POS posting, warehouse transfer.
+- API contract test untuk OpenAPI.
+- AsyncAPI event validation.
+- Security test untuk cross-tenant dan access denied.
+- Performance test untuk POS concurrent dan DB pool.

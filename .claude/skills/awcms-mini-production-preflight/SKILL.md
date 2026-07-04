@@ -22,11 +22,11 @@ bun run production:preflight
 
 ## Checklist go-live
 
-**Application:** build pass · migration pass · OpenAPI valid · setup wizard locked · role default ada · ABAC default deny tested · RLS tested · logging aktif.
+**Application:** build pass · migration pass · OpenAPI valid · setup wizard locked · role default ada · ABAC default deny tested · RLS tested · soft delete default filter tested · logging aktif.
 
-**Database:** versi sesuai target · PostgreSQL tidak public · least-privilege user · backup aktif · restore tested · index utama ada · pool sehat · slow query monitoring.
+**Database:** versi sesuai target · PostgreSQL tidak public · least-privilege user · backup aktif · restore tested · index utama ada · partial index soft delete ada bila relevan · pool sehat · slow query monitoring.
 
-**Security:** no hardcoded secret · `.env` aman & tidak dikomit · password hash modern · login lockout · RLS aktif · ABAC aktif · audit aktif · tax data masked · CRM opt-out respected · AI read-only · sync HMAC bila hybrid · error tanpa stack trace · **no critical finding**.
+**Security:** no hardcoded secret · `.env` aman & tidak dikomit · password hash modern · login lockout · RLS aktif · ABAC aktif · audit aktif · restore/purge berizin dan diaudit · tax data masked · CRM opt-out respected · AI read-only · sync HMAC bila hybrid · error tanpa stack trace · **no critical finding**.
 
 ## Gate
 
@@ -40,12 +40,12 @@ flowchart LR
 ## Backup & restore (wajib teruji)
 
 ```bash
-pg_dump --format=custom --file=/backup/awcms_$(date +%Y%m%d_%H%M%S).dump "$DATABASE_URL"
-createdb awcms_restore_test
-pg_restore --dbname=awcms_restore_test --clean --if-exists /backup/awcms_YYYYMMDD_HHMMSS.dump
+pg_dump --format=custom --file=/backup/awcms-mini_$(date +%Y%m%d_%H%M%S).dump "$DATABASE_URL"
+createdb awcms-mini_restore_test
+pg_restore --dbname=awcms-mini_restore_test --clean --if-exists /backup/awcms-mini_YYYYMMDD_HHMMSS.dump
 ```
 
-Validasi restore: tenant/user/profile/access terbaca · login test · health & pool health smoke · smoke modul domain aplikasi.
+Validasi restore: tenant/user/produk/stok/transaksi terbaca · login test · POS smoke test · report smoke test.
 
 ## Output
 

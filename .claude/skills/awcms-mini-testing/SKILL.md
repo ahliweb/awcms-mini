@@ -11,33 +11,33 @@ Ikuti `docs/awcms-mini/07_sprint_testing_production_readiness.md`. Jalankan deng
 
 ```mermaid
 flowchart TB
-  E[Security & Performance] --> D[API contract - OpenAPI/AsyncAPI] --> C[Integration - migration/RLS/service] --> B[Unit - logic murni]
+  E[Security & Performance] --> D[API contract - OpenAPI/AsyncAPI] --> C[Integration - migration/posting/transfer] --> B[Unit - logic murni]
 ```
 
 ## Target unit test
 
-ABAC evaluator · profile resolver · idempotency (hash/replay/conflict) · validasi input · redaction · config fail-fast · module registry · plan migration · HMAC signature. (Contoh nyata: `tests/` di repo ini.)
+ABAC evaluator · profile resolver · soft delete/restore guard · product price selection · stock movement calc · checkout total · idempotency service · posting guard · VAT calc · warehouse transfer state machine · cycle count variance · HMAC signature · AI tool policy.
 
 ## Target integration test
 
-Migration dari DB kosong (apply/rerun/status) · setup wizard · login + lockout · profile resolve · assignment · ABAC & isolasi RLS dengan role non-superuser (pola doc 07).
+Migration dari DB kosong · setup wizard · login owner/operator · product create/soft-delete/restore · opening stock · checkout/posting · stok berkurang · receipt PDF · sync outbox event · VAT draft · warehouse transfer · ABAC & RLS.
 
 ## API contract test
 
-OpenAPI valid · success/error schema standar · tenant header ada · idempotency header ada · pagination konsisten · sensitive data tidak tampil penuh.
+OpenAPI valid · success/error schema standar · tenant header ada · idempotency header ada · pagination konsisten · includeDeleted/restore/purge contract konsisten · sensitive data tidak tampil penuh.
 
 ## Security test
 
-Tenant A tidak baca Tenant B · Staff tidak assign role · self-approval ditolak · password/token/API key tidak di response/log · NPWP/NIK/phone/email masked · sync HMAC invalid ditolak.
+Tenant A tidak baca Tenant B · archive view butuh permission · operator tidak export Coretax · operator tidak assign role · customer hanya receipt miliknya · password/token/API key tidak di response/log · NPWP/NIK/phone/email masked · sync HMAC invalid ditolak · AI raw PII/SQL ditolak.
 
 ## Performance target awal
 
-Health < 100ms · login < 500ms · evaluasi ABAC < 100ms · pool acquire critical < 500ms · sync push small batch < 2s. Aplikasi domain menetapkan budget layarnya sendiri.
+Product search < 300ms · add item < 300ms · post transaksi < 1.5s · receipt PDF < 3s · sales daily report < 2s · pool acquire critical < 500ms · sync push small batch < 2s.
 
 ## Lokasi
 
 ```text
-tests/{shared,lib,modules} (base) + tests/<modul-domain> per aplikasi
+tests/{access,auth,profile,inventory,pos,sync,warehouse,tax,crm,security}
 ```
 
 ## Aturan

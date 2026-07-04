@@ -1,118 +1,287 @@
-# Bagian 4 — ERD dan Data Dictionary Base
+# Bagian 4 — ERD dan Data Dictionary Detail
 
 ## Tujuan
 
-Baseline database base AWCMS-Mini: ERD, ownership tabel, data dictionary, index, RLS, klasifikasi data, dan retention. Schema domain ditambahkan aplikasi turunan dengan pola yang sama.
+Dokumen ini menjadi baseline database AWCMS-Mini: ERD konseptual, ownership tabel, data dictionary ringkas, index, RLS, klasifikasi data, migration order, dan retention.
 
 ## Prinsip database
 
-1. Tabel tenant-scoped wajib `tenant_id`; PK `uuid` (`gen_random_uuid()`).
-2. `timestamptz` untuk waktu; `numeric` untuk uang/quantity; `text + CHECK` untuk enum-like.
-3. FK child wajib index; tabel tenant-scoped wajib RLS **ENABLE + FORCE** + policy.
-4. Data sensitif: simpan `value_hash` (lookup) + `masked_value` (tampilan) — bukan nilai mentah.
-5. Migration berurutan `NNN_awcms_<area>_<desc>.sql`, dijalankan runner ber-checksum; **tanpa BEGIN/COMMIT di file** (runner membungkus transaction).
-6. Koreksi data lewat migration/reversal baru — tidak mengedit migration lama.
+1. Semua tabel tenant-scoped wajib `tenant_id`.
+2. Primary key menggunakan UUID.
+3. Timestamp menggunakan `timestamptz`.
+4. Monetary/quantity menggunakan `numeric`, bukan floating point.
+5. Posted transaction dan posted stock movement append-only.
+6. Koreksi memakai reversal/return/adjustment.
+7. FK child wajib index.
+8. Tabel tenant-scoped wajib RLS.
+9. Data sensitif dimasking, di-hash untuk lookup/dedup jika relevan.
+10. Migration harus berurutan dan audit-ready.
+11. Resource yang deletable memakai soft delete; physical delete hanya untuk purge retention/legal yang berizin.
 
-## ERD konseptual base
+## ERD konseptual utama
 
 ```mermaid
 erDiagram
-  AWCMS_TENANTS ||--o{ AWCMS_OFFICES : owns
-  AWCMS_TENANTS ||--o{ AWCMS_TENANT_SETTINGS : configures
-  AWCMS_TENANTS ||--o{ AWCMS_TENANT_USERS : has
-  AWCMS_IDENTITIES ||--o{ AWCMS_TENANT_USERS : joins
-  AWCMS_PROFILES ||--o{ AWCMS_PROFILE_IDENTIFIERS : has
-  AWCMS_PROFILES ||--o{ AWCMS_PROFILE_ENTITY_LINKS : links
-  AWCMS_PROFILES ||--o{ AWCMS_PROFILE_MERGE_REQUESTS : merges
-  AWCMS_TENANT_USERS ||--o{ AWCMS_TENANT_USER_ROLES : assigned
-  AWCMS_ROLES ||--o{ AWCMS_TENANT_USER_ROLES : grants
-  AWCMS_ROLES ||--o{ AWCMS_ROLE_PERMISSIONS : maps
-  AWCMS_PERMISSIONS ||--o{ AWCMS_ROLE_PERMISSIONS : referenced
-  AWCMS_TENANTS ||--o{ AWCMS_ABAC_POLICIES : scopes
-  AWCMS_TENANTS ||--o{ AWCMS_ABAC_DECISION_LOGS : records
-  AWCMS_TENANTS ||--o{ AWCMS_AUDIT_EVENTS : audits
+  AWCMS-Mini_TENANTS ||--o{ AWCMS-Mini_OFFICES : owns
+  AWCMS-Mini_TENANTS ||--o{ AWCMS-Mini_TENANT_USERS : has
+  AWCMS-Mini_PROFILES ||--o{ AWCMS-Mini_PROFILE_IDENTIFIERS : has
+  AWCMS-Mini_PROFILES ||--o{ AWCMS-Mini_PROFILE_ENTITY_LINKS : links
+  AWCMS-Mini_IDENTITIES ||--o{ AWCMS-Mini_TENANT_USERS : joins
+  AWCMS-Mini_TENANTS ||--o{ AWCMS-Mini_PRODUCTS : owns
+  AWCMS-Mini_PRODUCTS ||--o{ AWCMS-Mini_PRODUCT_PRICES : priced
+  AWCMS-Mini_PRODUCTS ||--o{ AWCMS-Mini_STOCK_BALANCES : stocked
+  AWCMS-Mini_STOCK_BALANCES ||--o{ AWCMS-Mini_STOCK_MOVEMENTS : changes
+  AWCMS-Mini_CHECKOUT_SESSIONS ||--o{ AWCMS-Mini_CHECKOUT_LINES : contains
+  AWCMS-Mini_CHECKOUT_SESSIONS ||--|| AWCMS-Mini_SALES_DOCUMENTS : posts_to
+  AWCMS-Mini_SALES_DOCUMENTS ||--o{ AWCMS-Mini_SALES_DOCUMENT_LINES : contains
+  AWCMS-Mini_SALES_DOCUMENTS ||--o{ AWCMS-Mini_RECEIPT_PDFS : generates
+  AWCMS-Mini_OFFICES ||--o{ AWCMS-Mini_WAREHOUSES : extends
+  AWCMS-Mini_WAREHOUSES ||--o{ AWCMS-Mini_WAREHOUSE_ZONES : contains
+  AWCMS-Mini_WAREHOUSE_ZONES ||--o{ AWCMS-Mini_WAREHOUSE_BINS : contains
+  AWCMS-Mini_WAREHOUSE_BINS ||--o{ AWCMS-Mini_WAREHOUSE_BIN_BALANCES : stores
+  AWCMS-Mini_WAREHOUSE_TRANSFER_ORDERS ||--o{ AWCMS-Mini_WAREHOUSE_TRANSFER_LINES : contains
+  AWCMS-Mini_TAX_PROFILES ||--o{ AWCMS-Mini_TAX_BUSINESS_UNITS : has
+  AWCMS-Mini_SALES_DOCUMENTS ||--o{ AWCMS-Mini_VAT_INVOICES : stages
+  AWCMS-Mini_CRM_CONTACTS ||--o{ AWCMS-Mini_MESSAGE_OUTBOX : receives
+  AWCMS-Mini_SYNC_NODES ||--o{ AWCMS-Mini_SYNC_OUTBOX : produces
+  AWCMS-Mini_WORKFLOW_INSTANCES ||--o{ AWCMS-Mini_WORKFLOW_TASKS : creates
 ```
 
 ## Global column standard
 
-| Kolom        | Tipe        | Fungsi                       |
-| ------------ | ----------- | ---------------------------- |
-| `id`         | uuid        | Primary key                  |
-| `tenant_id`  | uuid        | Isolasi tenant               |
-| `status`     | text+CHECK  | Status lifecycle             |
-| `created_at` | timestamptz | Waktu dibuat                 |
-| `updated_at` | timestamptz | Waktu update                 |
-| `created_by` | uuid        | Actor pembuat (bila relevan) |
-| `updated_by` | uuid        | Actor update (bila relevan)  |
+| Kolom | Tipe | Fungsi |
+|---|---|---|
+| `id` | uuid | Primary key |
+| `tenant_id` | uuid | Isolasi tenant |
+| `code` | text | Kode bisnis |
+| `status` | text | Status lifecycle |
+| `created_at` | timestamptz | Waktu dibuat |
+| `updated_at` | timestamptz | Waktu update |
+| `created_by` | uuid | Actor pembuat |
+| `updated_by` | uuid | Actor update |
+| `deleted_at` | timestamptz | Soft delete jika relevan |
+| `deleted_by` | uuid | Actor yang mengarsipkan/menghapus soft |
+| `delete_reason` | text | Alasan soft delete/purge |
+| `restored_at` | timestamptz | Waktu restore jika resource mendukung restore |
+| `restored_by` | uuid | Actor restore |
+| `sync_version` | bigint | Version untuk sync |
+| `origin_node_id` | uuid | Node asal offline/sync |
+| `idempotency_key` | text | Idempotency mutation |
 
-Aplikasi domain menambahkan `sync_version`, `origin_node_id`, `idempotency_key` bila perlu (pola doc 04 AWPOS).
+## Table ownership matrix
 
-## Table ownership matrix (terimplementasi, migration 001–004)
+| Module | Table utama |
+|---|---|
+| Foundation | `awcms_modules`, `awcms_mini_schema_migrations`, `awcms-mini_system_events` |
+| Tenant Admin | `awcms-mini_tenants`, `awcms-mini_offices`, `awcms-mini_physical_locations`, `awcms-mini_tenant_settings` |
+| Profile Identity | `awcms-mini_profiles`, `awcms-mini_profile_identifiers`, `awcms-mini_profile_channels`, `awcms-mini_profile_addresses`, `awcms-mini_profile_entity_links`, `awcms-mini_profile_merge_requests` |
+| Identity Access | `awcms-mini_identities`, `awcms-mini_tenant_users`, `awcms-mini_roles`, `awcms-mini_permissions`, `awcms-mini_abac_policies`, `awcms-mini_abac_decision_logs` |
+| Catalog Inventory | `awcms-mini_products`, `awcms-mini_product_categories`, `awcms-mini_units`, `awcms-mini_product_prices`, `awcms-mini_stock_balances`, `awcms-mini_stock_movements` |
+| Sales POS | `awcms-mini_checkout_sessions`, `awcms-mini_checkout_lines`, `awcms-mini_sales_documents`, `awcms-mini_sales_document_lines`, `awcms-mini_sales_payments`, `awcms-mini_idempotency_keys` |
+| Shared Stock Routing | `awcms-mini_stock_pools`, `awcms-mini_stock_pool_members`, `awcms-mini_transaction_routing_rules`, `awcms-mini_transaction_routing_decisions` |
+| Warehouse | `awcms-mini_warehouses`, `awcms-mini_warehouse_zones`, `awcms-mini_warehouse_bins`, `awcms-mini_inventory_lots`, `awcms-mini_inventory_serials`, `awcms-mini_warehouse_bin_balances`, `awcms-mini_warehouse_transfer_orders`, `awcms-mini_cycle_count_plans` |
+| Accounting Tax | `awcms-mini_tax_profiles`, `awcms-mini_tax_business_units`, `awcms-mini_party_tax_profiles`, `awcms-mini_product_tax_profiles`, `awcms-mini_vat_invoices`, `awcms-mini_coretax_batches` |
+| CRM | `awcms-mini_crm_contacts`, `awcms-mini_crm_contact_channels`, `awcms-mini_receipt_pdfs`, `awcms-mini_message_outbox`, `awcms-mini_message_attempts` |
+| Sync Storage | `awcms-mini_sync_nodes`, `awcms-mini_sync_outbox`, `awcms-mini_sync_inbox`, `awcms-mini_sync_conflicts`, `awcms-mini_object_sync_queue` |
+| AI Analyst | `awcms-mini_ai_sessions`, `awcms-mini_ai_messages`, `awcms-mini_ai_tool_calls`, `awcms-mini_ai_tool_policies` |
+| Logging | `awcms-mini_log_events`, `awcms-mini_audit_events`, `awcms-mini_security_events` |
+| Workflow | `awcms-mini_workflow_definitions`, `awcms-mini_workflow_instances`, `awcms-mini_workflow_tasks`, `awcms-mini_workflow_decisions` |
+| Reporting | report views/materialized views |
+| Production Security | `awcms-mini_security_controls`, `awcms-mini_security_readiness_assessments`, `awcms-mini_security_findings`, `awcms-mini_go_live_gates` |
 
-| Module                | Tabel                                                                                                                                                                                            | Migration |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
-| Foundation            | `awcms_schema_migrations`, `awcms_modules`, `awcms_system_events`, `awcms_idempotency_keys`                                                                                                      | 001       |
-| Tenant Admin          | `awcms_tenants`, `awcms_offices`, `awcms_tenant_settings`                                                                                                                                        | 002       |
-| Profile Identity      | `awcms_profiles`, `awcms_profile_identifiers`, `awcms_profile_entity_links`, `awcms_profile_merge_requests`                                                                                      | 002       |
-| Identity & Access     | `awcms_identities`, `awcms_tenant_users` (002); `awcms_permissions`, `awcms_roles`, `awcms_role_permissions`, `awcms_tenant_user_roles`, `awcms_abac_policies`, `awcms_abac_decision_logs` (003) | 002–003   |
-| Observability Logging | `awcms_log_events`, `awcms_audit_events`, `awcms_security_events`                                                                                                                                | 004       |
+## Data dictionary ringkas per modul
 
-Tabel workflow, readiness, sync, i18n dibuat lewat migration baru saat modulnya diimplementasi (lihat README modul terkait).
+### `awcms-mini_tenants`
 
-## Catatan data dictionary penting
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `id` | uuid | PK |
+| `tenant_code` | text | Unik global |
+| `tenant_name` | text | Nama operasional |
+| `legal_name` | text | Nama legal |
+| `status` | text | active/inactive/suspended |
+| `default_locale` | text | id/en/ms/ar |
+| `default_theme` | text | light/dark/system |
 
-### `awcms_tenants` / `awcms_identities` / `awcms_permissions` — global (tanpa RLS tenant)
+Index: unique `tenant_code`.
 
-- `awcms_tenants`: root kepemilikan — akses hanya lewat service tenant-admin.
-- `awcms_identities`: login global; `password_hash` (scrypt) **tidak pernah** keluar response/log; lockout via `failed_login_count`, `locked_until`.
-- `awcms_permissions`: katalog global `module_key.activity_code.action` — memetakan kemampuan kode, bukan data tenant.
+### `awcms-mini_offices`
 
-### `awcms_profile_identifiers`
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `tenant_id` | uuid | Tenant scope |
+| `office_code` | text | Unik per tenant |
+| `office_name` | text | Nama kantor/toko/gudang |
+| `office_type` | text | head_office/branch/store/warehouse/other |
+| `parent_office_id` | uuid | Hierarki |
+| `status` | text | active/inactive |
 
-- `value_hash` unik per `(tenant_id, identifier_type, value_hash)` untuk dedup.
-- `masked_value` untuk tampilan; nilai mentah tidak disimpan.
+Index: `(tenant_id, office_code)`, `(tenant_id, office_type)`.
 
-### `awcms_idempotency_keys`
+### `awcms-mini_profiles`
 
-- Unik `(tenant_id, idempotency_key)`; simpan `request_hash`, `status`, `response_status`, `response_body`.
+Canonical profile untuk user/customer/supplier/contact.
+
+Kolom penting: `tenant_id`, `profile_type`, `display_name`, `legal_name`, `status`, `verification_status`, `risk_level`, `merged_into_profile_id`.
+
+### `awcms-mini_profile_identifiers`
+
+Identifier sensitif seperti email, phone, WhatsApp, NPWP, NIK.
+
+Kolom penting: `identifier_type`, `normalized_value`, `value_hash`, `masked_value`, `is_primary`, `verification_status`.
+
+Constraint: unique `(tenant_id, identifier_type, value_hash)`.
+
+### `awcms-mini_identities`
+
+Login identity.
+
+Kolom penting: `profile_id`, `login_identifier`, `password_hash`, `status`, `failed_login_count`, `locked_until`, `last_login_at`.
+
+Catatan: `password_hash` tidak pernah keluar response/API/log.
+
+### `awcms-mini_products`
+
+Product master.
+
+Kolom penting: `tenant_id`, `sku`, `barcode`, `product_name`, `category_id`, `base_unit_id`, `tracking_type`, `status`.
+
+Constraint: unique `(tenant_id, sku)`, unique `(tenant_id, barcode)` jika barcode tidak null.
+
+### `awcms-mini_stock_balances`
+
+Saldo stok per office.
+
+Kolom penting: `tenant_id`, `product_id`, `office_id`, `quantity_on_hand`, `quantity_reserved`, `quantity_available`.
+
+Constraint: unique `(tenant_id, product_id, office_id)`.
+
+### `awcms-mini_stock_movements`
+
+Mutasi stok append-only.
+
+Kolom penting: `product_id`, `office_id`, `movement_type`, `quantity_delta`, `reference_module`, `reference_type`, `reference_id`, `posted_at`.
+
+### `awcms-mini_checkout_sessions`
+
+Draft transaksi operasional.
+
+Kolom penting: `cashier_user_id`, `office_id`, `customer_profile_id`, `status`, `gross_total`, `discount_total`, `tax_total`, `net_total`.
+
+### `awcms-mini_sales_documents`
+
+Transaksi posted immutable.
+
+Kolom penting: `source_checkout_id`, `document_no`, `office_id`, `customer_profile_id`, `status`, `gross_total`, `tax_total`, `net_total`, `posted_at`.
+
+Constraint: unique `(tenant_id, document_no)`.
+
+### `awcms-mini_warehouse_bin_balances`
+
+Saldo stok detail per bin/lot/serial.
+
+Kolom penting: `warehouse_id`, `zone_id`, `bin_id`, `product_id`, `lot_id`, `serial_id`, `quantity_on_hand`, `quantity_reserved`, `quantity_available`.
+
+### `awcms-mini_vat_invoices`
+
+VAT invoice staging.
+
+Kolom penting: `sales_document_id`, `tax_profile_id`, `tax_business_unit_id`, `invoice_no`, `status`, `dpp_total`, `vat_total`, `luxury_tax_total`.
+
+### `awcms-mini_message_outbox`
+
+Queue pengiriman WhatsApp/email.
+
+Kolom penting: `contact_id`, `channel_type`, `provider_code`, `message_type`, `payload_json`, `status`, `next_retry_at`.
+
+### `awcms-mini_sync_outbox`
+
+Event lokal yang perlu disinkronkan.
+
+Kolom penting: `node_id`, `event_type`, `aggregate_type`, `aggregate_id`, `payload_json`, `status`.
+
+## Soft delete standard
+
+Soft delete adalah mekanisme default untuk master/config/draft tenant-scoped yang perlu bisa diarsipkan tanpa memutus referensi historis.
+
+| Kategori data | Kebijakan |
+|---|---|
+| Tenant/office/location, profile/contact/channel, product/category/brand/unit, warehouse zone/bin, rule/config | Soft delete didukung jika tidak melanggar constraint bisnis aktif |
+| Checkout/cart draft/held | Boleh cancel/soft delete sesuai lifecycle |
+| Posted sales document, posted sales line/payment, posted stock movement, audit/security log, exported tax batch | Tidak boleh soft delete; gunakan reversal/cancel/return/adjustment/status |
+| Data sensitif PII/tax | Soft delete tidak menghapus kewajiban masking; purge/anonymize mengikuti retention/legal |
+
+Aturan implementasi:
+
+- Kolom minimum: `deleted_at`, `deleted_by`, `delete_reason`; tambahkan `restored_at`/`restored_by` bila restore didukung.
+- Query list/detail default wajib menambahkan `deleted_at IS NULL`.
+- API hanya boleh menampilkan soft-deleted record bila ada permission eksplisit dan parameter seperti `includeDeleted=true`.
+- Unique business key yang boleh dipakai ulang setelah delete memakai partial unique index, contoh `UNIQUE (tenant_id, sku) WHERE deleted_at IS NULL`.
+- FK dari transaksi historis tetap mengarah ke record soft-deleted; mapper menampilkan status archived tanpa membuka data sensitif.
+- Restore wajib validasi konflik partial unique index, status lifecycle, dan ABAC.
+- Purge hanya untuk retention/legal hold yang memenuhi syarat, harus diaudit, dan tidak boleh memutus FK penting.
+- Untuk sync, soft delete dikirim sebagai tombstone event; jangan physical delete sebelum semua node menerima tombstone atau retention terpenuhi.
 
 ## RLS standard
 
+Setiap tabel tenant-scoped:
+
 ```sql
-ALTER TABLE nama_tabel ENABLE ROW LEVEL SECURITY;
-ALTER TABLE nama_tabel FORCE ROW LEVEL SECURITY;
-CREATE POLICY nama_tabel_tenant_isolation ON nama_tabel
-  USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);
+ALTER TABLE table_name ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY table_name_tenant_isolation
+  ON table_name
+  USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
 ```
 
-- `FORCE` agar owner tabel pun tunduk policy (kecuali superuser).
-- `current_setting(..., true)` mengembalikan NULL saat konteks belum di-set → tidak ada baris yang bocor.
-- Konteks di-set `withTenant()` via `set_config('app.current_tenant_id', $1, true)` = `SET LOCAL`, aman untuk PgBouncer transaction pooling.
-- Terverifikasi: insert tanpa konteks ditolak; cross-tenant ditolak; select terisolasi per tenant.
+RLS mengisolasi tenant; filter soft delete tetap wajib di query/repository agar arsip tidak bocor pada list/detail default.
 
 ## Index standard
 
-- `(tenant_id, created_at DESC)` untuk log/event/transaksi.
-- `(tenant_id, status, created_at)` untuk antrean/task.
-- Semua FK child ber-index; unique constraint sesuai identitas bisnis.
+- `(tenant_id)` untuk semua tabel tenant-scoped.
+- `(tenant_id, created_at DESC)` untuk transaksi/log/event.
+- `(tenant_id, status, created_at)` untuk workflow/outbox/task.
+- `(tenant_id, deleted_at)` atau partial index `WHERE deleted_at IS NULL` untuk tabel soft-deletable yang sering di-list.
+- FK child index.
+- Search index untuk produk/profile jika data besar.
+
+## Alur perlindungan data sensitif
+
+```mermaid
+flowchart LR
+  In[Input identifier<br/>email/phone/NPWP/NIK] --> Norm[Normalisasi]
+  Norm --> Hash[value_hash - untuk lookup/dedup unik]
+  Norm --> Mask[masked_value - untuk tampilan]
+  Hash --> Store[(Simpan di DB)]
+  Mask --> Store
+  Store --> Access{Role & ABAC}
+  Access -->|tax/authorized| Reveal[Nilai ter-mask sesuai kebijakan]
+  Access -->|umum| Masked[Hanya masked_value]
+  Store -. tidak pernah .-> Raw[Response/log/audit mentah]
+```
 
 ## Sensitive data classification
 
-| Data                      | Level    | Kontrol                         |
-| ------------------------- | -------- | ------------------------------- |
-| Password hash             | Critical | Never expose; scrypt; redaction |
-| API key/provider token    | Critical | Env only (doc 18)               |
-| NPWP/NIK                  | High     | Hash + mask; ABAC role khusus   |
-| Phone/WhatsApp/email      | High     | Hash lookup + mask              |
-| Audit/decision log        | Medium   | Tenant RLS; read-only Auditor   |
-| Idempotency response body | Medium   | Tenant RLS; retention pendek    |
+| Data | Level | Kontrol |
+|---|---|---|
+| Password hash | Critical | Never expose |
+| API key/provider token | Critical | Env only |
+| NPWP/NIK/NITKU | High | Mask, ABAC tax role |
+| Phone/WhatsApp/email | High | Mask/hash lookup |
+| Address | Medium/High | Need-to-know |
+| Sales transaction | Medium | Tenant RLS, audit |
+| Tax invoice/XML | High | Tax role, audit, checksum |
+| AI prompt/tool call | Medium | No raw PII |
 
 ## Retention awal
 
-| Data                 | Retention                  |
-| -------------------- | -------------------------- |
-| Idempotency key      | 7–30 hari                  |
-| Log event            | 30–90 hari                 |
-| Audit/security event | 1–5 tahun sesuai kebutuhan |
-| Decision log         | ≥ 1 tahun                  |
-| System events        | 90 hari                    |
+| Data | Retention |
+|---|---:|
+| Idempotency key | 7–30 hari |
+| HTTP request log | 30–90 hari |
+| Security/audit log | 1–5 tahun sesuai kebutuhan |
+| Tax records | Sesuai regulasi dan SOP |
+| CRM delivery log | 1 tahun |
+| AI session | 90–365 hari |
+| Sync conflict | Resolved + 1 tahun |
+| Transaction/stock movement | Long-term/archive |

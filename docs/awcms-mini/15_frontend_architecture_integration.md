@@ -1,79 +1,170 @@
-# Bagian 15 — Arsitektur Frontend dan Integrasi
+# Bagian 15 — Arsitektur Frontend dan Integrasi Frontend–Backend
 
 ## Tujuan
 
-Menetapkan arsitektur frontend base: Astro SSR, API client, auth flow, state, dan pola offline-first untuk aplikasi turunan.
+Dokumen ini melengkapi **arsitektur frontend** dan **integrasi frontend ↔ backend** yang sebelumnya belum terdefinisi: strategi rendering Astro, API client, autentikasi/sesi, **mekanisme offline-first (service worker + IndexedDB + outbox)**, state, form/validasi, dan kontrak layar→endpoint→event.
 
-## Arsitektur
+Terkait: `14_ui_ux_design_system.md` (desain), `16_backend_data_access_integration.md` (sisi backend/DB), `05_openapi_asyncapi_detail.md` (kontrak API/event). Skill penegak: **`awcms-mini-ui-screen`** (`.claude/skills/`).
+
+## Keputusan arsitektur frontend
+
+| Aspek | Keputusan |
+|---|---|
+| Framework | Astro 7, output **server (SSR)** via adapter Bun/Node |
+| Interaktivitas | **Astro islands** + TypeScript; framework island opsional (mis. Preact) hanya untuk pulau kompleks (POS, chat AI) |
+| Styling | CSS variables (design token doc 14), scoped styles |
+| Rendering | Halaman authed = SSR; customer portal = SSR; aset statis di-cache SW |
+| Data fetching | SSR initial load + client mutation via API client |
+| Offline | PWA: service worker + IndexedDB outbox untuk POS/receipt |
+| State | Lokal per-island + store ringan untuk keranjang POS; hindari SPA global besar |
+
+Alasan: SSR menjaga waktu muat cepat di LAN, aman untuk cookie httpOnly, dan tetap ringan; islands membatasi JS hanya di area interaktif.
+
+## Lapisan frontend
 
 ```mermaid
-flowchart LR
-  Browser --> Pages[Astro pages SSR]
-  Pages --> Islands[Island interaktif - hanya bila perlu]
-  Islands --> Client[API client fetch /api/v1]
-  Pages --> Client
-  Client --> API[Routes tipis src/pages/api/v1]
+flowchart TB
+  subgraph Astro["Astro (SSR + islands)"]
+    Pages[Pages/layout]
+    Islands[Islands interaktif: POS, forms, chat]
+  end
+  subgraph FE["Client runtime"]
+    Client[API client typed]
+    Store[POS cart store]
+    SW[Service worker]
+    IDB[(IndexedDB outbox/cache)]
+  end
+  API[/api/v1 backend/]
+  Pages -->|SSR fetch| API
+  Islands --> Client --> API
+  Islands --> Store
+  Client -->|saat offline| IDB
+  SW --> IDB
+  SW -->|background sync| API
 ```
 
-Prinsip:
+## API client
 
-1. **SSR-first** — halaman dirender server; JavaScript klien hanya untuk island interaktif.
-2. Satu **API client** dengan envelope-aware fetch; tidak ada `fetch` mentah tersebar.
-3. Semua data dari `/api/v1` — UI tidak query database langsung.
+Wrapper `fetch` bertipe di `src/lib/api-client.ts`.
 
-## API client standard
+Tanggung jawab:
+1. Base URL `/api/v1`.
+2. Inject header: `Authorization` (dari sesi), `X-AWCMS-Mini-Tenant-ID`, `X-Correlation-ID`, `Accept-Language`; `Idempotency-Key` untuk mutation high-risk.
+3. Normalisasi response `{ success, data, meta }` / `{ success:false, error }`.
+4. Map error code (doc 05) → pesan i18n + state UI (doc 14).
+5. Retry aman untuk GET; mutation high-risk retry hanya dengan idempotency key sama.
+6. Timeout + deteksi offline → fallback ke outbox (untuk aksi yang didukung offline).
+7. Untuk resource soft-deletable, list default tidak mengirim `includeDeleted`; archive view mengirim `includeDeleted=true` hanya setelah permission efektif tersedia.
 
 ```ts
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`/api/v1${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Request-ID": crypto.randomUUID(),
-      ...init?.headers,
-    },
-  });
-  const body = await response.json();
-  if (!body.success) throw new ApiClientError(body.error); // code+message+details
-  return body.data as T;
-}
+type ApiResult<T> =
+  | { ok: true; data: T; meta?: { correlationId?: string; requestId?: string } }
+  | { ok: false; error: { code: string; message: string; details?: unknown[] } };
+
+async function apiFetch<T>(path: string, init?: RequestInit & { idempotencyKey?: string }): Promise<ApiResult<T>> { /* ... */ }
 ```
 
-- Error `AUTH_REQUIRED`/`TOKEN_EXPIRED` → redirect login.
-- `details[].field` dipetakan ke pesan error field form.
-- Mutation high-risk mengirim `Idempotency-Key` (UUID per aksi, dipertahankan saat retry).
+## Autentikasi dan sesi
 
-## Auth flow
+- Login `POST /auth/login` → server set **cookie httpOnly + SameSite=Lax** (akses token) dan menyediakan konteks user.
+- Tenant aktif dipilih setelah login (bila user multi-tenant) → dikirim sebagai `X-AWCMS-Mini-Tenant-ID` dan disimpan di sesi.
+- SSR membaca cookie untuk render terproteksi; 401 → redirect `/login`.
+- `GET /auth/me` untuk hidrasi konteks (roles, default office, permission untuk filter navigasi).
+- Logout `POST /auth/logout` → invalidasi sesi + hapus cookie.
+- Token/secret **tidak pernah** disimpan di localStorage yang dapat diakses skrip pihak ketiga.
 
-1. Login → server set cookie sesi `HttpOnly` + `Secure` (production) + `SameSite=Lax`.
-2. Middleware Astro memverifikasi sesi → `locals.tenantContext`.
-3. Halaman SSR membaca `locals` — tidak menyimpan token di `localStorage`.
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant FE as Astro SSR
+  participant API as Backend
+  U->>FE: GET /admin
+  FE->>FE: Baca cookie sesi
+  alt tidak valid
+    FE-->>U: Redirect /login
+  else valid
+    FE->>API: GET /auth/me + data awal (tenant header)
+    API-->>FE: user, roles, permissions, data
+    FE-->>U: Render shell + navigasi terfilter
+  end
+```
+
+## Offline-first (inti sistem)
+
+POS **wajib** berjalan tanpa internet. Mekanisme:
+
+1. **App shell + aset** di-cache service worker (cache-first) agar UI POS terbuka offline.
+2. **Data master** (produk, harga, stok terakhir, customer yang relevan) di-cache ke IndexedDB saat online (stale-while-revalidate) untuk pencarian/scan offline.
+3. **Transaksi** yang di-post saat offline ditulis ke **IndexedDB outbox** dengan `Idempotency-Key` yang digenerate klien + status `pending`.
+4. **Background sync** (atau retry saat online) mengirim outbox ke backend; server idempotent (doc 10) mencegah duplikasi.
+5. **SyncIndicator** menampilkan jumlah antrean & status; konflik high-risk ditandai untuk resolusi manual (doc 08).
+
+```mermaid
+sequenceDiagram
+  participant K as Kasir (POS)
+  participant IDB as IndexedDB outbox
+  participant SW as Service worker
+  participant API as Backend
+  Note over K,API: OFFLINE
+  K->>IDB: Simpan transaksi + Idempotency-Key (pending)
+  K-->>K: Receipt lokal + total (optimistic)
+  Note over K,API: ONLINE kembali
+  SW->>IDB: Ambil item pending
+  SW->>API: POST /sales/.../post (Idempotency-Key sama)
+  API-->>SW: 200 (atau replay idempotent)
+  SW->>IDB: Tandai synced
+  API-->>SW: 409 SYNC_CONFLICT (jika ada) → tandai untuk review
+```
+
+Aturan offline:
+- Hanya operasi yang aman offline yang didukung (checkout & posting POS, receipt lokal). Operasi yang butuh server otoritatif (approval, export pajak) **tidak** dijalankan offline.
+- Stok yang ditampilkan offline adalah snapshot; server tetap otoritatif dan dapat menolak (`STOCK_NOT_AVAILABLE`) saat sync.
+- Provider eksternal (WA/email/R2) selalu lewat outbox server, bukan dari klien.
+- Soft delete yang terjadi offline disimpan sebagai mutation/tombstone dengan `Idempotency-Key`; UI lokal menyembunyikan resource sampai server menerima atau menolak saat sync.
 
 ## State management
 
-- Server state = sumber kebenaran; island kecil pakai state lokal.
-- Tidak ada global store sampai terbukti perlu; form memakai state form + optimistic update hanya untuk aksi idempotent.
+- **POS cart store**: store ringan (signals/nanostores) per sesi checkout; sumber kebenaran total tetap server saat posting.
+- **Server state**: di-fetch per halaman (SSR) + refetch pada mutation; hindari cache global yang basi.
+- **Form state**: lokal di island; submit → API client.
 
-## Pola offline-first (untuk aplikasi turunan)
+## Form dan validasi
 
-```mermaid
-flowchart LR
-  Action[Aksi user] --> Local[(Storage lokal/IndexedDB)]
-  Local --> Outbox[Outbox antrean aksi]
-  Outbox -->|online| Push[POST /sync/push - HMAC + Idempotency-Key]
-  Push -->|conflict| Manual[Resolusi manual + audit]
-  SW[Service worker] -. cache shell + asset .-> Browser
-```
+- Skema validasi bersama (mis. Zod) didefinisikan di `_shared` dan dipakai **klien & server** agar konsisten.
+- Klien memvalidasi untuk UX cepat; **server tetap otoritatif** (doc 10 — semua input divalidasi backend).
+- Error field dari `VALIDATION_ERROR.details` dipetakan ke FormField.
 
-1. Aksi ditulis ke storage lokal + outbox, UI merespons segera.
-2. Saat online, outbox di-push (idempotent — aman di-retry).
-3. Conflict tidak diselesaikan otomatis di klien; ditampilkan untuk resolusi manual.
-4. Service worker meng-cache app shell; data sensitif tidak di-cache tanpa enkripsi.
+## Kontrak integrasi layar → endpoint → event
 
-Base menyediakan kontrak (`sync_storage`, idempotency, event envelope); implementasi worker/IndexedDB menyusul di aplikasi yang membutuhkan (mis. POS kasir AWPOS).
+| Layar | Aksi | Endpoint | Event dihasilkan |
+|---|---|---|---|
+| Setup wizard | Inisialisasi | `POST /setup/initialize` | `tenant.created` |
+| Login | Masuk | `POST /auth/login` | `identity.login.succeeded` |
+| Produk | CRUD | `/inventory/products` | `inventory.product.created` |
+| Produk | Soft delete/restore | `DELETE /inventory/products/{id}`, `POST /inventory/products/{id}/restore` | `inventory.product.soft_deleted/restored` |
+| Stok awal | Opening balance | `/inventory/stock-adjustment-requests` | `inventory.stock.adjustment.posted` |
+| POS | Posting | `POST /sales/checkout-sessions/{id}/post` | `sales.transaction.posted` |
+| Receipt portal | Kirim/consent | `POST /crm/receipts/{id}/send` | `crm.message.sent` |
+| Warehouse | Transfer | `/warehouse-transfers/*` | `warehouse.transfer.shipped/received` |
+| Pajak | VAT/Coretax | `/tax/*` | `tax.vat_invoice.generated` |
+| Sync | Push/pull | `/sync/push`, `/sync/pull` | `sync.conflict.detected` |
 
-## Error & loading standard
+## Keamanan frontend
 
-- Setiap fetch punya state loading/empty/error eksplisit.
-- Error `DATABASE_BUSY` → tampilkan "sistem sibuk" + retry backoff; jangan retry otomatis mutation non-idempotent.
-- `correlationId` dari envelope ditampilkan pada error page untuk pelaporan.
+- Tidak ada secret/API key provider di klien (doc 10, doc 18).
+- CSP ketat; sanitasi input; hindari `innerHTML` tak aman (XSS).
+- Cookie httpOnly + SameSite untuk token; CSRF token untuk mutation berbasis cookie.
+- Navigasi/aksi disembunyikan sesuai permission, **bukan** kontrol utama — backend ABAC tetap wajib.
+- Data sensitif ditampilkan ter-mask (doc 04); jangan cache PII mentah di IndexedDB.
+- Archive view tidak boleh menjadi bypass tenant/ABAC; soft-deleted PII tetap masked dan tidak disimpan mentah di IndexedDB.
+
+## Acceptance criteria
+
+- Astro SSR render halaman authed; islands hanya di area interaktif.
+- API client menyuntik header wajib & idempotency; error termetakan ke UI.
+- Login berbasis cookie httpOnly; 401 redirect; navigasi terfilter permission.
+- POS terbuka & memposting transaksi **offline**, lalu tersinkron tanpa duplikasi.
+- SyncIndicator menampilkan antrean & status; konflik ditandai.
+- Validasi klien mengikuti skema bersama; server tetap otoritatif.
+- Tidak ada secret di klien; PII mentah tidak di-cache.
+- Archive/list restore flow memakai permission efektif, `includeDeleted`, dan state UI yang jelas.

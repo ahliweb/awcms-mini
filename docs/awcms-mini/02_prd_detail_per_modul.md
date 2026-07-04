@@ -1,114 +1,331 @@
-# Bagian 2 — PRD Detail per Modul Base
+# Bagian 2 — PRD Detail Per Modul
 
 ## Tujuan PRD
 
-Menjelaskan kebutuhan produk tiap modul base: problem, scope, dan acceptance criteria. Modul domain (POS, inventory, dsb.) berada di PRD aplikasi turunan (contoh: paket AWPOS doc 02).
+Dokumen ini menjelaskan kebutuhan produk AWCMS-Mini dari sisi bisnis, pengguna, fitur, prioritas, dan acceptance criteria per modul.
 
-## Persona utama base
+## Peta persona ke modul
 
-| Persona                    | Kebutuhan                                              |
-| -------------------------- | ------------------------------------------------------ |
-| Owner                      | Setup aplikasi, kontrol penuh akses, approval, go-live |
-| Admin                      | Kelola user, role, office, konfigurasi                 |
-| Staff                      | Menggunakan modul domain sesuai permission             |
-| Auditor                    | Membaca audit trail, log, decision log (read-only)     |
-| Developer aplikasi turunan | Base yang konsisten, terdokumentasi, aman by default   |
+```mermaid
+flowchart LR
+  Owner --> Reporting & Workflow
+  Admin --> Tenant & Identity & Inventory
+  Kasir --> POS
+  Gudang[Petugas Gudang] --> Warehouse
+  Tax[Tax Officer] --> AccountingTax[Accounting Tax]
+  CRMs[CRM Staff] --> CRM
+  Analyst[Business Analyst] --> AI & Reporting
+  Customer --> Portal[Customer Portal]
+  Teknis[Admin Teknis] --> Observability & Deployment
+```
 
-## Modul 1 — Tenant Admin (`tenant_admin`)
+## Persona utama
 
-### Problem
+| Persona | Kebutuhan |
+|---|---|
+| Owner | Monitoring omzet, stok, approval, laporan, risiko bisnis |
+| Admin | Setup tenant, user, produk, stok, laporan, konfigurasi |
+| Kasir | Transaksi cepat, search/scan produk, payment, receipt |
+| Petugas Gudang | Transfer, receiving, cycle count, stok bin/lot |
+| Tax Officer | Tax profile, VAT invoice, Coretax batch export |
+| CRM Staff | Contact, consent, receipt WhatsApp/email |
+| Business Analyst | Laporan agregat dan AI insight aman |
+| Customer | Buka receipt, download PDF, consent |
+| Admin Teknis | Deployment, backup, restore, troubleshooting |
 
-Aplikasi butuh unit kepemilikan data (tenant) + struktur office, dengan setup awal yang aman dan sekali jalan.
-
-### Scope
-
-- Tenant, office (hierarkis: head_office/branch/store/warehouse/other), tenant settings.
-- Setup wizard: buat tenant pertama + owner + seed default (doc 17), lalu terkunci.
-
-### Acceptance criteria
-
-- Setup hanya bisa dijalankan sekali (idempotent, locked setelah sukses).
-- Office unik per tenant (`tenant_id, office_code`).
-- Semua data tenant-scoped ter-RLS.
-
-## Modul 2 — Identity & Access (`identity_access`)
-
-### Problem
-
-Akses harus default deny, terpusat, dan bisa diaudit; login harus tahan brute force.
-
-### Scope
-
-- Identity login (lockout setelah N gagal), tenant user membership.
-- RBAC: role per tenant → permission `module.activity.action` (katalog global).
-- ABAC: policy allow/deny per tenant, evaluator default deny, deny overrides allow, decision log.
-
-### Acceptance criteria
-
-- Tanpa allow eksplisit semua akses ditolak; deny selalu menang.
-- Deny high-risk tercatat di `awcms_abac_decision_logs`.
-- `password_hash` tidak pernah keluar response/log; lockout aktif.
-
-## Modul 3 — Profile Identity (`profile_identity`)
+## Modul 1 — Tenant Admin
 
 ### Problem
-
-Data orang/organisasi tersebar dan duplikat; identifier sensitif (email, phone, NPWP, NIK) butuh perlindungan sejak disimpan.
+AWCMS-Mini harus mendukung tenant, toko, cabang, office, gudang, dan lokasi fisik.
 
 ### Scope
-
-- Central profile per tenant (user/customer/supplier/contact).
-- Identifier: normalisasi → `value_hash` (lookup/dedup) + `masked_value` (tampilan).
-- Resolver idempotent, entity link, merge request (butuh approval).
+- Tenant master.
+- Office/cabang/toko/gudang.
+- Physical location.
+- Setup wizard awal.
+- Setup lock.
 
 ### Acceptance criteria
+- Tenant pertama dapat dibuat.
+- Owner pertama dapat dibuat.
+- Office pertama dapat dibuat.
+- Setup tidak dapat dijalankan ulang setelah locked.
+- Tenant inactive tidak dapat melakukan transaksi.
+- Office/lokasi yang tidak dipakai dapat diarsipkan via soft delete tanpa menghapus riwayat transaksi.
 
-- Identifier unik per `(tenant, type, value_hash)`; nilai mentah tidak pernah tampil.
-- Resolve dengan identifier sama mengembalikan profile sama (idempotent).
-- Merge butuh approval dan meninggalkan jejak `merged_into_profile_id`.
+## Modul 2 — Identity & Access
 
-## Modul 4 — Localization UI (`localization_ui`)
+### Problem
+Setiap user harus memiliki login dan hak akses sesuai tugas.
 
-- Locale id/en/ms/ar (ar = RTL), fallback chain, preferensi per tenant (`default_locale`, `default_theme`).
-- Acceptance: teks UI tidak hardcode; penambahan locale tidak mengubah kode modul lain.
+### Scope
+- Identity login.
+- Tenant user membership.
+- Role.
+- Permission.
+- ABAC policy.
+- Access decision log.
 
-## Modul 5 — Observability Logging (`observability_logging`)
+### Acceptance criteria
+- Owner/admin/operator dapat login.
+- ABAC default deny.
+- Deny overrides allow.
+- Kasir tidak bisa akses pajak/export.
+- Access denied tercatat.
 
-- Log event, audit event, security event — tenant-scoped, ber-`correlation_id`.
-- Redaction wajib sebelum simpan; auditor bisa baca via API read-only.
-- Acceptance: high-risk action selalu menghasilkan audit event dalam transaction yang sama.
+## Modul 3 — Central Profile
 
-## Modul 6 — Database Connectivity (`database_connectivity`)
+### Problem
+Data user, customer, supplier, CRM contact, dan tax party tidak boleh terduplikasi.
 
-- Pool per work class, antrean + timeout → `503 DATABASE_BUSY`, circuit breaker, PgBouncer opsional.
-- Acceptance: saturasi memicu event `database.pool.saturated`; health endpoint melaporkan status.
+### Scope
+- Profile person/organization.
+- Identifier email, phone, WhatsApp, NPWP, NIK.
+- Masked value.
+- Entity link.
+- Dedup/merge request.
 
-## Modul 7 — Workflow Approval (`workflow_approval`)
+### Acceptance criteria
+- Customer bisa di-resolve dari WhatsApp/email.
+- Identifier duplicate tidak membuat profile baru.
+- Profile bisa di-link ke user/customer/tax/CRM.
+- Merge high-risk membutuhkan approval.
+- Profile/contact yang tidak aktif dapat diarsipkan; identifier sensitif tetap masked dan tidak dihapus fisik sebelum retention.
 
-- Approval generik untuk high-risk action modul lain; self-approval ditolak.
-- Acceptance: decision idempotent; task approve/reject menghasilkan event + audit.
+## Modul 4 — Catalog & Inventory
 
-## Modul 8 — Management Reporting (`management_reporting`)
+### Problem
+POS membutuhkan master produk, harga, satuan, stok, dan movement.
 
-- Kontrak laporan read-only (DTO projection, pagination keyset); sumber data view/materialized view.
-- Acceptance: laporan tidak pernah mengekspos kolom sensitif.
+### Scope
+- Category.
+- Brand.
+- Unit.
+- Product.
+- Product price.
+- Stock balance.
+- Stock movement.
 
-## Modul 9 — UI Experience (`ui_experience`)
+### Acceptance criteria
+- Produk bisa dibuat.
+- SKU unik per tenant.
+- Barcode unik jika diisi.
+- Produk inactive tidak bisa dijual.
+- Movement stok append-only.
+- Produk/kategori/brand/unit dapat diarsipkan via soft delete jika tidak sedang dipakai transaksi aktif.
 
-- Admin shell + navigation registry yang membaca module registry dan permission user.
-- Acceptance: modul baru muncul di navigasi hanya lewat registry + permission, tanpa hardcode.
+## Modul 5 — Sales POS
 
-## Modul 10 — Production Security Readiness (`production_security_readiness`)
+### Problem
+Kasir membutuhkan transaksi cepat, aman, dan tidak dobel.
 
-- Readiness assessment, finding, go-live gates; `scripts/security-readiness.ts` adalah pemeriksa statisnya.
-- Acceptance: critical finding = BLOCKED; go-live gate tidak bisa dilewati manual.
+### Scope
+- Checkout session.
+- Cart/line item.
+- Payment.
+- Posting transaksi.
+- Idempotency.
+- Stock lock.
+- Sales document.
+- Receipt request.
 
-## Modul 11 — Sync Storage (`sync_storage`, opsional)
+### Acceptance criteria
+- Kasir bisa checkout.
+- Total dihitung server-side.
+- Posting mengurangi stok.
+- Double click tidak membuat transaksi ganda.
+- Stok kurang menghasilkan error aman.
+- Transaksi posted immutable.
+- Cart/checkout draft dapat dibatalkan/diarsipkan; sales document posted tidak boleh di-soft-delete.
 
-- Sync push/pull HMAC-signed anti-replay, conflict manual, object queue (R2 opsional).
-- Acceptance: duplicate event idempotent; provider off tidak menghentikan aplikasi.
+## Modul 6 — Shared Stock Routing
 
-## Out of scope base
+### Problem
+Beberapa tenant bisa berbagi stok di lokasi fisik yang sama, dengan transaksi diarahkan ke tenant tertentu.
 
-- Logika bisnis domain (katalog, transaksi, pajak, CRM) — milik aplikasi turunan.
-- Integrasi provider spesifik — hanya kontrak adapter + feature flag yang disediakan base.
+### Scope
+- Stock pool.
+- Stock pool member.
+- Product mapping.
+- Routing rule.
+- Routing decision.
+- Settlement guardrail.
+
+### Acceptance criteria
+- Stock pool memiliki member tenant.
+- Routing rule memilih tenant berdasarkan kondisi.
+- Legal basis dicatat.
+- Routing decision diaudit.
+- Rule lama diarsipkan via soft delete agar histori routing tetap dapat diaudit.
+
+## Modul 7 — Warehouse Management
+
+### Problem
+Multi gudang memerlukan warehouse, zone, bin, lot, serial, transfer, in-transit, dan cycle count.
+
+### Scope
+- Warehouse.
+- Zone.
+- Bin.
+- Bin balance.
+- Lot/batch/expired.
+- Serial.
+- Transfer order.
+- Shipment/receipt.
+- Cycle count.
+- Stock adjustment request.
+
+### Acceptance criteria
+- Warehouse dibuat dari office.
+- Bin code unik per warehouse.
+- Transfer antar gudang dapat shipped/received.
+- Partial receipt didukung.
+- Damaged/expired masuk quarantine.
+- Cycle count menghasilkan variance dan adjustment request.
+- Zone/bin master dapat diarsipkan via soft delete jika tidak memiliki stok aktif; movement tetap append-only.
+
+## Modul 8 — Accounting Tax/Coretax
+
+### Problem
+AWCMS-Mini perlu siap pajak Indonesia dan Coretax tanpa mengasumsikan upload API resmi.
+
+### Scope
+- Tax profile.
+- NITKU/ID TKU.
+- Party tax profile.
+- Product tax profile.
+- VAT invoice staging.
+- Coretax batch XML-ready.
+- Checksum dan approval.
+
+### Acceptance criteria
+- NPWP/NIK/NITKU dimasking.
+- VAT invoice dapat digenerate dari sales posted.
+- Missing tax data terdeteksi.
+- Coretax batch membutuhkan approval jika policy aktif.
+- Tax profile lama diarsipkan via soft delete; faktur dan batch exported tetap immutable.
+
+## Modul 9 — CRM Communication
+
+### Problem
+Customer membutuhkan bukti transaksi digital melalui PDF, WhatsApp, dan email.
+
+### Scope
+- Receipt PDF.
+- CRM contact.
+- Contact channel.
+- Consent.
+- Message outbox.
+- StarSender adapter.
+- Mailketing adapter.
+- Customer portal.
+
+### Acceptance criteria
+- Receipt PDF dibuat.
+- Consent dicek sebelum mengirim.
+- Offline masuk queue.
+- Token receipt aman.
+- Customer hanya melihat receipt miliknya.
+- Contact/channel dapat diarsipkan via soft delete; delivery log dan receipt tetap mengikuti retention.
+
+## Modul 10 — Sync Storage
+
+### Problem
+Node offline perlu sinkron ke server pusat saat online.
+
+### Scope
+- Sync node.
+- Outbox/inbox.
+- Push/pull.
+- HMAC signature.
+- Checkpoint.
+- Conflict.
+- Object queue/R2.
+
+### Acceptance criteria
+- Push/pull signed.
+- Duplicate batch tidak dobel.
+- Conflict immutable tercatat.
+- File checksum diverifikasi.
+
+## Modul 11 — AI Business Analyst
+
+### Problem
+Owner membutuhkan insight bisnis cepat tanpa membuka data mentah sensitif.
+
+### Scope
+- Safe aggregate views.
+- Read-only tools.
+- Tool policy.
+- Tool call audit.
+- Hermes adapter optional.
+
+### Acceptance criteria
+- AI tidak bisa raw SQL.
+- AI tidak bisa mutation.
+- AI tidak expose PII mentah.
+- Semua tool call diaudit.
+
+## Modul 12 — UI Experience
+
+### Scope
+- Admin shell.
+- POS fullscreen.
+- Customer receipt portal.
+- Theme light/dark/system.
+- Locale ID/EN awal.
+- Navigation role-aware.
+
+### Acceptance criteria
+- Admin melihat dashboard.
+- Kasir transaksi keyboard-first.
+- Customer portal mobile-friendly.
+- UI punya loading/empty/error state.
+
+## Modul 13 — Observability, Pooling, Workflow, Security
+
+### Scope
+- Structured log.
+- Audit log.
+- DB pool.
+- Backpressure.
+- Workflow approval.
+- Production security readiness.
+- Go-live gates.
+
+### Acceptance criteria
+- Correlation ID tersedia.
+- Secret diredaksi.
+- Pool health dapat dicek.
+- High-risk action approval.
+- Critical security finding memblokir go-live.
+
+## MVP prioritas
+
+```mermaid
+flowchart TB
+  P1[1. Foundation] --> P2[2. Tenant/Profile/Auth/Access]
+  P2 --> P3[3. Product/Stock]
+  P3 --> P4[4. POS checkout/posting]
+  P4 --> P5[5. Receipt PDF local]
+  P5 --> P6[6. Audit log]
+  P6 --> P7[7. Backup/restore]
+  P7 --> Ready([MVP Ready])
+```
+
+1. Foundation.
+2. Tenant/profile/auth/access.
+3. Product/stock.
+4. POS checkout/posting.
+5. Receipt PDF local.
+6. Audit log.
+7. Backup/restore.
+
+## Out of scope MVP
+
+- Payment gateway.
+- Native mobile app.
+- Advanced BI.
+- Upload langsung Coretax.
+- AI mutation.
+- Microservice split.

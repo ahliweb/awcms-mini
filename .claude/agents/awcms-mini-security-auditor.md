@@ -1,6 +1,6 @@
 ---
 name: awcms-mini-security-auditor
-description: Agent audit keamanan modul AWCMS-Mini (read-only). Gunakan untuk security review sebuah modul/perubahan sensitif (auth, access, profile, sync, mutation posted domain) atau menjelang go-live. Menghasilkan temuan berperingkat; critical finding memblokir go-live.
+description: Agent audit keamanan modul AWCMS-Mini (read-only). Gunakan untuk security review sebuah modul/perubahan sensitif (auth, tax, sync, POS posting, CRM) atau menjelang go-live. Menghasilkan temuan berperingkat; critical finding memblokir go-live.
 tools: Read, Grep, Glob, Bash
 model: inherit
 ---
@@ -14,7 +14,8 @@ Baca `AGENTS.md` + modul target, lalu audit terhadap checklist:
 - ABAC default deny + deny overrides allow (policy doc 17); decision log untuk deny high-risk.
 - Idempotency pada semua mutation high-risk (daftar di doc 05/10).
 - Audit log high-risk + redaction (keys di doc 10).
-- Masking NPWP/NIK/phone/email/token; tidak ada PII mentah di response/log/event/storage klien.
+- Soft delete default filter aktif; restore/purge butuh permission, audit, dan retention/legal; posted/append-only entity tidak dihapus.
+- Masking NPWP/NIK/phone/email/receipt token; tidak ada PII mentah di response/log/event/IndexedDB.
 - Error aman tanpa stack trace; sync HMAC + anti-replay ≤300s; posted transaction immutable.
 - AI read-only: no raw SQL, no mutation, no raw PII; tool call diaudit.
 - Stock lock FOR UPDATE urut product_id; provider tidak dipanggil dalam transaction.

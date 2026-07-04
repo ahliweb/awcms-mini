@@ -2,7 +2,7 @@
   "name": "awcms-mini",
   "version": "0.0.0",
   "private": true,
-  "description": "AWCMS-Mini — standar modular monolith berbasis paket perencanaan AWPOS (documentation baseline; app code starts at Issue 0.1)",
+  "description": "AWCMS-Mini — Modular Monolith Standard (documentation baseline; app code starts at Issue 0.1)",
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {

@@ -50,7 +50,7 @@ export const <camelCase>Module: ModuleDescriptor = {
 
 ## Nama modul valid
 
-Base: `tenant-admin`, `identity-access`, `profile-identity`, `localization-ui`, `observability-logging`, `database-connectivity`, `workflow-approval`, `management-reporting`, `ui-experience`, `production-security-readiness`, `sync-storage`. Modul domain ditambahkan aplikasi turunan (contoh AWPOS: `catalog-inventory`, `sales-pos`, `warehouse-management`, `accounting-tax`, `crm-communication`, `ai-analyst`).
+`tenant-admin`, `identity-access`, `profile-identity`, `catalog-inventory`, `sales-pos`, `shared-stock-routing`, `warehouse-management`, `accounting-tax`, `crm-communication`, `sync-storage`, `ai-analyst`, `localization-ui`, `observability-logging`, `database-connectivity`, `workflow-approval`, `management-reporting`, `ui-experience`, `production-security-readiness`.
 
 ## Verifikasi
 

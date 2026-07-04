@@ -36,6 +36,7 @@ flowchart TD
 - Data tenant-scoped: tenant context + `awcms-mini-abac-guard` + RLS.
 - Data sensitif: `awcms-mini-sensitive-data`.
 - High-risk action: `awcms-mini-audit-log`; high-risk mutation: `awcms-mini-idempotency`.
+- Resource deletable: soft delete + restore/purge policy; jangan hapus posted/append-only entity.
 - Provider eksternal lewat outbox/queue, **tidak** di dalam DB transaction.
 
 ## Validasi wajib

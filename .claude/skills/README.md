@@ -16,6 +16,7 @@ Skill Claude Code tingkat-proyek untuk AWCMS-Mini. Setiap skill meng-encode stan
 | `awcms-mini-idempotency` | Mutation high-risk anti double-submit | 10 |
 | `awcms-mini-abac-guard` | Kontrol akses default-deny + RLS | 03, 10 |
 | `awcms-mini-audit-log` | Audit aksi high-risk + redaction | 03, 10 |
+| `awcms-mini-new-migration` + `awcms-mini-new-endpoint` | Soft delete/restore/purge resource deletable | 04, 05, 10, 16 |
 | `awcms-mini-sensitive-data` | Normalize/hash/mask identifier sensitif | 04 |
 | `awcms-mini-sync-hmac` | Sync push/pull bertanda HMAC + anti-replay | 08, 10 |
 | `awcms-mini-security-review` | Review keamanan modul | 12, 13 |

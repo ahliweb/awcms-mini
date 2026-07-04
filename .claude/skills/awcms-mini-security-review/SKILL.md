@@ -16,12 +16,13 @@ Ikuti `docs/awcms-mini/12_generator_prompt.md` (Prompt Security Review) dan `doc
 - [ ] RLS aktif pada semua tabel tenant-scoped.
 - [ ] Audit high-risk tertulis + redaksi (`awcms-mini-audit-log`).
 - [ ] Idempotency pada mutation high-risk (`awcms-mini-idempotency`).
+- [ ] Soft delete default filter aktif untuk resource deletable; restore/purge berizin, diaudit, dan tidak berlaku pada posted/append-only entity.
 - [ ] Data sensitif dimasking (`awcms-mini-sensitive-data`); tidak bocor ke response/log/event.
 - [ ] Error aman, tanpa stack trace.
 - [ ] Sync HMAC + anti-replay bila modul sync (`awcms-mini-sync-hmac`).
 - [ ] AI read-only: no raw SQL, no mutation, no raw PII/tax identity, tool call diaudit.
 - [ ] Stock lock (`FOR UPDATE`) & immutable posted transaction bila relevan.
-- [ ] Token/link publik non-sequential dan kadaluarsa; consent dicek sebelum kirim (bila ada modul komunikasi).
+- [ ] Consent dicek sebelum kirim (CRM); receipt token non-sequential.
 - [ ] File checksum diverifikasi (sync/R2, tax export).
 
 ## Fokus per area
@@ -29,11 +30,12 @@ Ikuti `docs/awcms-mini/12_generator_prompt.md` (Prompt Security Review) dan `doc
 | Area | Cek utama |
 |---|---|
 | Identity | password hash modern, login lockout, failed login audit |
-| Modul domain (mis. posting) | idempotency, row lock, atomic, immutable |
+| POS | idempotency, stock lock, atomic, immutable |
 | Tax | NPWP/NIK/NITKU masked, export approval + audit |
 | CRM | consent, provider key env, phone/email masked |
 | Sync | HMAC, anti-replay, node inactive ditolak |
 | AI | read-only, safe aggregate views, no raw PII |
+| Master data | soft delete hidden by default, restore conflict check, purge retention/legal |
 
 ## Output
 

@@ -17,16 +17,18 @@ Ikuti `docs/awcms-mini/12_generator_prompt.md` (Prompt Review PR), `docs/awcms-m
 6. Tenant context + ABAC + RLS untuk data tenant-scoped.
 7. Idempotency untuk mutation high-risk.
 8. Audit high-risk + redaction.
-9. Input validation lengkap; error response standar.
-10. Sensitive data masked.
-11. Test relevan ada & pass; build pass.
-12. Docs diperbarui; commit mengikuti convention `<type>(<scope>): <summary>`.
+9. Soft delete policy untuk resource deletable; posted/append-only entity tidak dihapus.
+10. Input validation lengkap; error response standar.
+11. Sensitive data masked.
+12. Test relevan ada & pass; build pass.
+13. Docs diperbarui; commit mengikuti convention `<type>(<scope>): <summary>`.
 
 ## Konsistensi kontrak
 
 - Migration ↔ ERD (doc 04) ↔ matrix migration (doc 13).
 - Endpoint ↔ OpenAPI ↔ tabel error/header (doc 05).
 - Event ↔ AsyncAPI ↔ `module.ts` publishes/subscribes.
+- Soft delete ↔ ERD kolom/index ↔ OpenAPI DELETE/restore/includeDeleted ↔ audit event.
 
 ## Output
 
