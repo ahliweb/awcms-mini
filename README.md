@@ -30,6 +30,21 @@ Mini keeps decoupling work gradual and reversible so the repository can move fro
 Cloudflare Pages and Workers act as clients of the Hono API, while PostgreSQL stays behind that backend boundary.
 Remaining legacy-compatible paths are treated as compatibility surfaces until their native replacements are complete.
 
+## Application Standard
+
+AWCMS Mini is the base standard for future single-tenant AWCMS applications.
+
+The reusable standard now lives in `docs/architecture/application-standard.md` and `src/modules/`. It adapts the reusable parts of the local AWPOS planning package:
+
+- modular monolith module descriptors
+- route-thin, service-first request flow
+- standard `/api/v1` success and error envelopes
+- domain event envelope for transactional outbox or future dispatch
+- RBAC baseline with ABAC refinement
+- audit, idempotency, masking, and concurrency guardrails
+
+AWPOS-specific POS and multi-tenant assumptions are intentionally not copied into Mini. New products may add their own domain modules on top of Mini, but the base repo remains single-tenant unless `REQUIREMENTS.md` changes first.
+
 ## Current Status
 
 This repository is implementation-heavy and now includes:
@@ -214,6 +229,7 @@ src/
   config/        runtime config parsing
   db/            Kysely client, migrations, repositories, transactions
   integrations/  Astro/runtime integration wiring
+  modules/       reusable module registry, API envelopes, and domain event contract
   plugins/       admin extension and plugin governance helpers
   security/      policy and runtime security helpers
   services/      governance, audit, security, and authorization services
@@ -239,6 +255,7 @@ Use this order when reading or updating repository guidance:
 - `DOCS_INDEX.md` - documentation map
 - `docs/README.md` - docs folder entrypoint
 - `docs/architecture/overview.md` - system summary
+- `docs/architecture/application-standard.md` - reusable Mini application standard adapted from AWPOS
 - `docs/architecture/secure-modular-monolith.md` - module boundary and Bun/toolchain standard
 - `docs/process/migration-deployment-checklist.md` - release checklist
 - `docs/security/emergency-recovery-runbook.md` - recovery guidance

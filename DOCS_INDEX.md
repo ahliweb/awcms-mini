@@ -15,6 +15,7 @@ This file maps the current documentation set for AWCMS Mini.
 
 - `docs/architecture/overview.md`
 - `docs/architecture/constraints.md`
+- `docs/architecture/application-standard.md` (standar reusable AWCMS Mini untuk aplikasi berikutnya; adaptasi reusable dari AWPOS tanpa multi-tenant/POS domain)
 - `docs/architecture/secure-modular-monolith.md` (standar default modular monolith, boundary modul, Bun/TypeScript)
 - `docs/architecture/repository-layout.md`
 - `docs/architecture/database-access.md` (termasuk Connection Pooler: mode Session/Transaction, ADR-013)

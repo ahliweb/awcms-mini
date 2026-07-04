@@ -35,6 +35,7 @@ This layout is constrained by:
 |   |-- config/
 |   |-- db/
 |   |-- integrations/
+|   |-- modules/
 |   |-- pages/
 |   |-- plugins/
 |   |-- security/
@@ -158,6 +159,31 @@ src/db/
   - plugin-specific UI logic
   - direct page rendering code
 
+### `src/modules/`
+
+- Purpose: reusable secure modular monolith contracts and the standard module registry for future Mini-based applications.
+- Current internal shape:
+
+```text
+src/modules/
+|-- _shared/
+|   |-- api-response.mjs
+|   |-- domain-event.mjs
+|   `-- module-contract.mjs
+`-- index.mjs
+```
+
+- Responsibilities:
+  - define first-party module descriptors
+  - keep module dependency metadata explicit
+  - provide standard API response envelopes
+  - provide standard single-tenant domain event envelopes
+  - guard new modules from copying AWPOS multi-tenant assumptions into Mini
+- Must not become:
+  - a second runtime framework
+  - a place for POS-specific AWPOS domain code
+  - a bypass around `src/services/`, `src/plugins/`, or `src/db/`
+
 ### `src/services/`
 
 - Purpose: domain orchestration and business operations.
@@ -204,22 +230,24 @@ src/services/
 - Constraint:
   - keep runtime-specific configuration close to the framework boundary and out of service code
 
-### `src/modules/`
+### Future `src/modules/{module}/`
 
-- Purpose: future bounded contexts that justify the secure modular monolith module pattern.
-- Shape:
+- Purpose: future bounded contexts that justify moving from shared services into a stricter module-owned layout.
+- Target shape:
 
 ```text
 src/modules/{module}/
-|-- public/
-|-- internal/
-|-- migrations/
-`-- tests/
+|-- module.mjs
+|-- domain/
+|-- application/
+|-- infrastructure/
+|-- api/
+`-- README.md
 ```
 
 - Constraints:
-  - other modules may import only from `src/modules/{module}/public`
-  - direct imports into another module's `internal` directory are forbidden
+  - other modules may import only reviewed public contracts
+  - direct imports into another module's `internal` directory are forbidden when `internal/` exists
   - circular dependencies between modules are forbidden
   - `tests/unit/module-boundaries.test.mjs` guards these rules
 

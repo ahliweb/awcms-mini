@@ -41,6 +41,7 @@ Current active planning and documentation issues reflected by these docs:
 Current architecture note:
 
 - `architecture/secure-modular-monolith.md` defines the default AWCMS Mini module boundary, Bun/toolchain policy, PostgreSQL ownership model, and per-module security baseline.
+- `architecture/application-standard.md` defines the reusable AWCMS Mini standard adapted from the AWPOS planning package while preserving Mini's single-tenant architecture.
 
 Current verification note:
 
