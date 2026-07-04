@@ -1,0 +1,22 @@
+# Profil PostgreSQL lokal untuk development AWCMS-Mini.
+# Jalankan: docker compose up -d postgres
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: awcms-mini-postgres
+    environment:
+      POSTGRES_USER: awcms
+      POSTGRES_PASSWORD: awcms_password
+      POSTGRES_DB: awcms_mini
+    ports:
+      - "5432:5432"
+    volumes:
+      - awcms_mini_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U awcms -d awcms_mini"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  awcms_mini_pgdata:
