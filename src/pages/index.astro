@@ -1,61 +1,22 @@
 ---
+import { listModules } from "../modules";
 
+const modules = listModules();
 ---
 
-<!doctype html>
-<html lang="en">
+<html lang="id">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AWCMS Mini</title>
   </head>
   <body>
     <main>
       <h1>AWCMS Mini</h1>
-      <p>
-        The EmDash host runtime is wired. Open the <a href="/_emdash/">admin panel</a>
-        after database setup to continue bootstrapping the site.
-      </p>
+      <p>Bun + Astro 7 modular monolith baseline.</p>
+      <ul>
+        {modules.map((module) => <li><strong>{module.key}</strong>: {module.description}</li>)}
+      </ul>
     </main>
-
-    <style>
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-
-      body {
-        align-items: center;
-        background: #f8fafc;
-        color: #0f172a;
-        display: flex;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        justify-content: center;
-        min-height: 100vh;
-      }
-
-      main {
-        max-width: 42rem;
-        padding: 2rem;
-        text-align: center;
-      }
-
-      h1 {
-        font-size: 2.25rem;
-        margin-bottom: 0.75rem;
-      }
-
-      p {
-        color: #475569;
-        font-size: 1.0625rem;
-        line-height: 1.6;
-      }
-
-      a {
-        color: #0f172a;
-        font-weight: 600;
-      }
-    </style>
   </body>
 </html>

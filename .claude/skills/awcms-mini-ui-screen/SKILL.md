@@ -1,0 +1,36 @@
+---
+name: awpos-ui-screen
+description: Implementasikan layar/komponen UI AWPOS sesuai design system. Gunakan saat membangun halaman admin/POS/portal, komponen UI, island interaktif, atau memasang design token/theme. Menegakkan token doc 14, state pattern, a11y AA, i18n, dan aturan offline-first doc 15.
+---
+
+# AWPOS — UI Screen / Component
+
+Ikuti **`docs/awpos/14_ui_ux_design_system.md`** (token, komponen, layout, layar) dan **`docs/awpos/15_frontend_architecture_integration.md`** (SSR/islands, API client, offline).
+
+## Checklist implementasi layar
+
+1. **Token dulu** — pakai CSS variables doc 14 (`--color-*`, `--sp-*`, `--fs-*`); jangan hardcode warna/ukuran. Theme via `data-theme` tanpa flash.
+2. **Komponen dari library** — Button/FormField/DataGrid/Dialog dst. dari `src/components/ui`; jangan duplikasi.
+3. **State pattern wajib** — loading (skeleton), empty (+CTA), error (pesan aman ter-i18n dari error code doc 05), success/submitting.
+4. **Island seperlunya** — halaman SSR; interaktivitas hanya di island (POS, form, chat). Data awal via SSR, mutation via API client.
+5. **API client** — semua call lewat `apiFetch` (header tenant/correlation/idempotency otomatis); jangan `fetch` mentah.
+6. **Navigasi role-aware** — filter menu dari permission `GET /auth/me`; backend tetap validasi (UI hiding bukan kontrol).
+7. **i18n** — semua string via katalog `namespace.key`; format IDR/tanggal `Asia/Jakarta`.
+8. **A11y (WCAG 2.1 AA)** — kontras ≥4.5:1, fokus terlihat, label eksplisit, dialog trap fokus + Esc, target sentuh ≥44px (mobile), status tidak hanya warna.
+9. **Masking** — data sensitif tampil lewat `MaskedText`; jangan cache PII mentah di IndexedDB.
+10. **POS khusus** — keyboard map F1–F10 (doc 14), cart optimistic dengan rollback, offline outbox + `SyncIndicator` (doc 15).
+
+## Wireframe & inventory
+
+Layout shell (admin/POS/portal) dan tabel route→persona→API ada di doc 14 §Screen inventory — patuhi route dan komponen utamanya.
+
+## Verifikasi
+
+- Render 4 state (loading/empty/error/ready) dapat didemokan.
+- Keyboard-only pass untuk POS; axe/kontras pass untuk AA.
+- Tidak ada string hardcode; tidak ada warna literal; tidak ada `fetch` mentah.
+- Offline: buka layar POS tanpa jaringan → tetap operasional, antrean terlihat.
+
+## Skill terkait
+
+`awpos-new-endpoint` (kontrak API), `awpos-sensitive-data` (masking), `awpos-testing` (render/state test).

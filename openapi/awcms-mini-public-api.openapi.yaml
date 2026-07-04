@@ -1,0 +1,34 @@
+openapi: 3.1.0
+info:
+  title: AWCMS Mini Public API
+  version: 0.1.0
+  description: Baseline OpenAPI contract for the AWCMS Mini modular monolith.
+servers:
+  - url: /api/v1
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service health payload.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    const: true
+                  data:
+                    type: object
+                    required: [status, service, timestamp]
+                    properties:
+                      status:
+                        type: string
+                      service:
+                        const: awcms-mini
+                      timestamp:
+                        type: string
+                        format: date-time

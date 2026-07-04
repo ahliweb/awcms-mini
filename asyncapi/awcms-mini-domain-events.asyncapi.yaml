@@ -1,0 +1,39 @@
+asyncapi: 3.0.0
+info:
+  title: AWCMS Mini Domain Events
+  version: 0.1.0
+  description: Baseline AsyncAPI contract for awcms-mini domain events.
+channels: {}
+operations: {}
+components:
+  messages:
+    DomainEvent:
+      payload:
+        type: object
+        required:
+          - eventId
+          - eventType
+          - eventVersion
+          - aggregateType
+          - aggregateId
+          - occurredAt
+          - payload
+          - metadata
+        properties:
+          eventId:
+            type: string
+          eventType:
+            type: string
+          eventVersion:
+            type: string
+          aggregateType:
+            type: string
+          aggregateId:
+            type: string
+          occurredAt:
+            type: string
+            format: date-time
+          payload:
+            type: object
+          metadata:
+            type: object

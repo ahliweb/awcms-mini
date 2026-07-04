@@ -1,165 +1,284 @@
-# AI Agent Guidance
+# AGENTS.md — Panduan Agent & Kontributor AWCMS Mini
 
-This file provides repository-local guidance to AI coding agents working in AWCMS Mini.
+Dokumen ini adalah **kontrak kerja** untuk coding agent (Claude Code, Codex, dsb.) maupun developer manusia yang mengimplementasikan AWCMS Mini. Setiap sesi implementasi **wajib membaca file ini terlebih dahulu**, lalu dokumen terkait di `docs/awcms-mini/`.
 
-## Documentation Authority
+> AWCMS Mini sudah direbaseline dari contoh lokal `/home/data/dev_bun/awpos` dan memiliki foundation code awal. Implementasi berikutnya harus melanjutkan urutan issue dari dokumen `docs/awcms-mini/09_roadmap_repository_commit.md`.
 
-All agent work must respect this order:
+## Ringkasan proyek
 
-1. `REQUIREMENTS.md`
-2. `AGENTS.md`
-3. `README.md`
-4. `DOCS_INDEX.md`
-5. focused implementation and operator docs under `docs/**`
+| Aspek             | Keputusan                                                   |
+| ----------------- | ----------------------------------------------------------- |
+| Produk            | baseline modular monolith AWCMS-Mini untuk aplikasi turunan |
+| Runtime           | Bun                                                         |
+| Web framework     | Astro 7                                                     |
+| Database          | PostgreSQL                                                  |
+| Arsitektur        | Modular monolith, microservice-ready                        |
+| Mode operasi      | Offline-first / LAN-first, optional online sync             |
+| Security baseline | RBAC + ABAC + PostgreSQL RLS + Audit Log                    |
+| API contract      | OpenAPI                                                     |
+| Event contract    | AsyncAPI                                                    |
+| Bahasa dokumen    | Indonesia (teknis)                                          |
 
-If a lower-priority document conflicts with a higher-priority one, follow the higher-priority document.
+## Alur kerja wajib setiap task
 
-## Project Shape
+```mermaid
+flowchart TD
+  A[Terima issue / sprint] --> B[Baca AGENTS.md + docs terkait]
+  B --> C[Baca kode, sql, openapi, asyncapi terkait]
+  C --> D{Scope jelas & atomic?}
+  D -- Tidak --> E[Klarifikasi / pecah issue]
+  E --> C
+  D -- Ya --> F[Implementasi minimal & atomic]
+  F --> G{Schema berubah?}
+  G -- Ya --> H[Tambah migration SQL berurutan]
+  G -- Tidak --> I{API berubah?}
+  H --> I
+  I -- Ya --> J[Update OpenAPI]
+  I -- Tidak --> K{Event berubah?}
+  J --> K
+  K -- Ya --> L[Update AsyncAPI]
+  K -- Tidak --> M[Tulis / update test]
+  L --> M
+  M --> N[Jalankan validasi: migrate, spec-check, test, build]
+  N --> O{Semua pass?}
+  O -- Tidak --> F
+  O -- Ya --> P[Update docs + laporan implementasi]
+  P --> Q[Commit atomic + PR]
+```
 
-AWCMS Mini is:
+## Aturan wajib (non-negotiable)
 
-- single-tenant
-- own stack: **Astro + Hono + PostgreSQL** (pg + Kysely), runtime **Bun**
-- governance-overlay focused
-- **EmDash = rujukan arsitektur saja** (ADR-020; paket `emdash` dilepas bertahap via seam `src/cms/`)
+1. **Baca dulu** README, `docs/awcms-mini/`, `package.json`, `sql/`, `src/modules/`, `openapi/`, `asyncapi/` sebelum mengedit.
+2. **Atomic** — kerjakan satu issue/sprint; jangan ubah file yang tidak berkaitan.
+3. **Migration** — setiap perubahan schema harus migration SQL baru yang berurutan (tidak me-rename migration lama yang sudah rilis).
+4. **OpenAPI** — setiap API baru/berubah harus diperbarui di `openapi/`.
+5. **AsyncAPI** — setiap domain event baru/berubah harus diperbarui di `asyncapi/`.
+6. **Idempotency** — mutation high-risk wajib `Idempotency-Key` (lihat daftar di doc 05 & 10).
+7. **Tenant safety** — data tenant-scoped wajib tenant context + ABAC + RLS.
+8. **Audit** — high-risk action wajib audit log.
+9. **Masking** — data sensitif (password, token, NPWP, NIK, phone, email, receipt token) wajib dimask/redact; jangan pernah masuk response/log/audit mentah.
+10. **No secret** — jangan commit `.env`, token, dump DB, backup, atau data customer asli.
+11. **Provider eksternal** (R2, WhatsApp, email, AI) **tidak boleh** jadi dependency transaksi kasir dan **tidak boleh** dipanggil di dalam DB transaction.
+12. **Immutable** — posted sales document & posted stock movement bersifat append-only; koreksi lewat cancel/return/reversal/adjustment.
 
-It is not:
+## Guardrail keamanan (ringkas dari doc 10 & 13)
 
-- a multi-tenant platform
-- a Supabase-based runtime
-- SQLite-based (PostgreSQL-only)
-- bergantung pada paket `emdash` sebagai host/runtime (target: lepas penuh)
+```mermaid
+flowchart LR
+  Req[Request] --> Auth[Auth middleware]
+  Auth --> Tenant[Tenant context + RLS set]
+  Tenant --> ABAC[ABAC guard - default deny]
+  ABAC --> Valid[Input validation]
+  Valid --> Idem{High-risk mutation?}
+  Idem -- Ya --> Key[Idempotency-Key check]
+  Idem -- Tidak --> Svc[Service + Transaction]
+  Key --> Svc
+  Svc --> Audit[Audit high-risk]
+  Audit --> Mask[Mask sensitive - safe DTO]
+  Mask --> Res[Standard response helper]
+```
 
-## Core Execution Rules
+- **Default deny**, deny overrides allow.
+- RLS tetap wajib walau ABAC sudah cek (defense in depth).
+- Error response standard, tidak expose stack trace.
+- Provider secret hanya dari environment variable.
 
-1. **EmDash = rujukan arsitektur saja (ADR-020)** — paket `emdash` sedang dilepas bertahap (epic decoupling). **DILARANG** menambah `import ... from "emdash"` baru di luar seam `src/cms/`. Pakai stack sendiri (Astro + Hono + PostgreSQL).
-2. Keep Mini-specific work in governance overlays, services, plugins, and admin extensions.
-3. Prefer explicit service-layer enforcement over UI-only logic.
-4. Use shared plugin helpers in `src/plugins/` instead of duplicating permission, auth, audit, or region-scoping logic.
-5. Keep jobs, roles, logical regions, and administrative regions as separate concepts.
+## Skill proyek (`.claude/skills/`)
 
-## Toolchain & Runtime (ADR-019)
+AWCMS Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode standar dokumen agar diterapkan konsisten. Model memanggilnya otomatis saat relevan, atau kamu panggil manual via `/<nama-skill>`. Katalog lengkap: [`.claude/skills/README.md`](.claude/skills/README.md).
 
-- Package manager + runtime = **Bun** (`bun install`, `bun run`, `bun server/index.mjs`; Docker `oven/bun:1-alpine`).
-- **Server HTTP = `Bun.serve` native** (`server/index.mjs`) — bukan `@hono/node-server`. Astro SSR (`@astrojs/node`) tetap jalan di atas Bun via Node-compat.
-- **Test runner = `bun test tests/unit/`** — kompatibel penuh dengan `node:test` (526 test, ~15× lebih cepat dari `node --test`). Catatan lama soal bun#5090 sudah tidak berlaku sejak Bun 1.3.x.
-- **PostgreSQL-only** — tidak ada SQLite (better-sqlite3 hanya transitif via emdash, dilepas saat Fase 5).
+| Butuh…                                     | Skill                             |
+| ------------------------------------------ | --------------------------------- |
+| Kerjakan issue/sprint atomic (orkestrator) | `awcms-mini-implement-issue`      |
+| Scaffold modul baru                        | `awcms-mini-new-module`           |
+| Migration SQL (tabel/index/RLS)            | `awcms-mini-new-migration`        |
+| Endpoint REST + OpenAPI                    | `awcms-mini-new-endpoint`         |
+| Domain event + AsyncAPI                    | `awcms-mini-new-event`            |
+| Idempotency mutation high-risk             | `awcms-mini-idempotency`          |
+| ABAC default-deny + RLS                    | `awcms-mini-abac-guard`           |
+| Audit high-risk + redaction                | `awcms-mini-audit-log`            |
+| Masking data sensitif                      | `awcms-mini-sensitive-data`       |
+| Sync HMAC + anti-replay                    | `awcms-mini-sync-hmac`            |
+| Review keamanan modul                      | `awcms-mini-security-review`      |
+| Review pull request                        | `awcms-mini-pr-review`            |
+| Tulis test berlapis                        | `awcms-mini-testing`              |
+| Preflight & go-live                        | `awcms-mini-production-preflight` |
+| Layar/komponen UI sesuai design system     | `awcms-mini-ui-screen`            |
+| Rilis versi (Changesets, tag, CHANGELOG)   | `awcms-mini-release`              |
+| Migrasi data legacy (dry-run, backfill)    | `awcms-mini-legacy-migration`     |
 
-## Concurrency (#360)
+```mermaid
+flowchart LR
+  II[awcms-mini-implement-issue] --> NM[new-module]
+  II --> MIG[new-migration]
+  II --> EP[new-endpoint]
+  II --> EV[new-event]
+  II --> TST[testing]
+  EP --> ABAC[abac-guard]
+  EP --> IDEM[idempotency]
+  ABAC --> AUD[audit-log]
+  EP --> SD[sensitive-data]
+  EV --> SYNC[sync-hmac]
+  II --> PR[pr-review] --> SEC[security-review] --> PF[production-preflight]
+```
 
-- **DILARANG** pola `SELECT` → logika aplikasi → `UPDATE` tanpa lock/atomic update pada write kritikal (approval, status, counter/kuota, penomoran, provisioning).
-- Prefer **atomic update** / **guarded status transition** (expected status di `WHERE`) / **`ON CONFLICT`** UPSERT. Butuh validasi kompleks → `SELECT ... FOR UPDATE`.
-- Resource logis (numbering, provisioning) → advisory lock via `withAdvisoryXactLock` + `buildAdvisoryLockKey`. Invariant lintas-tabel → `withSerializableRetry`. Helper di `src/db/concurrency.mjs` (re-export dari `src/db/index.mjs`).
-- Jangan `MAX(number)+1` untuk penomoran. Standar lengkap: `docs/security/database-concurrency.md`.
+Skill merujuk `docs/awcms-mini/*` sebagai sumber kebenaran; bila standar berubah, perbarui doc **dan** skill terkait.
 
-## Logging (ADR-021)
+## Subagents (`.claude/agents/`)
 
-- Gunakan **Pino** via `src/observability/logger.mjs` (`rootLogger`, `childLoggerForRequest`). Jangan `console.*` ad-hoc di jalur HTTP.
-- Child logger ber-`requestId` (lihat `server/middleware/logger.mjs`).
-- **Redaction wajib** field sensitif (password/token/secret/NIK/header auth) — sudah dikonfigurasi di logger.
+Untuk delegasi kerja penuh, tersedia subagent yang memetakan prompt di doc 12:
 
-## Search / CQRS (ADR-023)
+| Agent                         | Peran                                  | Prompt asal (doc 12)     | Tools     |
+| ----------------------------- | -------------------------------------- | ------------------------ | --------- |
+| `awcms-mini-coder`            | Implementasi issue end-to-end          | Prompt Induk / Per Issue | Semua     |
+| `awcms-mini-reviewer`         | Review PR/diff terhadap DoD            | Prompt Review PR         | Read-only |
+| `awcms-mini-security-auditor` | Audit keamanan modul + verdict go-live | Prompt Security Review   | Read-only |
 
-- Pencarian = **query side terpisah** (read-only) di `src/search/` + `src/plugins/<x>/search/`. Jangan campur ke repository CRUD.
-- Pakai `normalizeSearchQuery`/`buildSearchResult` dari `src/search/query-contract.mjs` (paginasi + sort whitelist anti-injection).
-- Kembalikan **read DTO/projection** (bukan entity). Field sensitif (`password_hash`, `nik_enc`, `metadata`, nilai `ihs_number`) **tidak pernah** keluar dari search.
-- Data sensitif: sediakan hook audit (`onAudit`). Skala besar → OpenSearch di balik kontrak query yang sama (PostgreSQL bila belum besar).
+```mermaid
+flowchart LR
+  Issue[GitHub issue] --> C[awcms-mini-coder<br/>implementasi + laporan]
+  C --> R[awcms-mini-reviewer<br/>verdict + temuan]
+  R -->|modul sensitif| S[awcms-mini-security-auditor<br/>PASS / BLOCKED]
+  R -->|approve| M[Merge]
+  S -->|PASS| M
+  S -->|BLOCKED| C
+```
 
-## EmDash Seam (ADR-020, decoupling)
+Aturan: reviewer & auditor **read-only** (temuan dikembalikan ke coder); auditor memberi verdict go-live — critical finding = BLOCKED (gate doc 07).
 
-- Semua akses runtime EmDash lewat seam `src/cms/` (`context.mjs`, `plugin-runtime.mjs`). Lihat `src/cms/README.md`.
-- Fitness guard: `tests/unit/cms-seam.test.mjs` gagal bila ada import `emdash` langsung di luar `src/cms/`.
-- Touchpoint tersisa (`emdash/*` subpath) terinventaris di `docs/architecture/emdash-touchpoint-inventory.md`.
+## Perintah standar (target)
 
-## Plugin Contract Rules (ADR-018)
+Skrip berikut tersedia sebagai baseline repository (lihat doc 11).
 
-Every plugin MUST:
+```bash
+bun install
+bun run dev                 # astro dev
+bun run build               # astro build
+bun run db:migrate          # jalankan migration berurutan
+bun run api:spec:check      # validasi OpenAPI/AsyncAPI
+bun run api:contract:test   # contract test API
+bun test                    # unit + integration test
+bun run db:pool:health      # cek kesehatan pool DB
+bun run security:readiness  # cek security readiness
+bun run production:preflight # preflight sebelum go-live
+bun run changeset           # tambah changeset (versioning)
+bun run changeset:version   # konsumsi changeset -> bump versi + CHANGELOG
+```
 
-1. Provide a `manifest.json` that passes `validatePluginManifest()` from `src/plugins/manifest.mjs`.
-2. Set `kind: "awcms-mini-plugin"` and `data.adapter: "postgres"`, `data.rls: "required"`.
-3. Declare all permissions using namespace `awcms:{module}:{resource}:{action}`.
-4. Include a `migrate.mjs` that calls `buildPluginRlsStatements()` for every table it creates.
-5. Use `createPluginRepository()` from `src/db/plugin-adapter.mjs` — never raw Kysely without schema scoping.
-6. Be registered via `src/plugins/loader.mjs` → `ACTIVE_PLUGINS`.
+## Struktur repository (target)
 
-**Security constraints (hard rules):**
+```text
+awcms-mini/
+├── AGENTS.md                # file ini
+├── CHANGELOG.md             # versioning (Changesets)
+├── .changeset/              # config + changeset entries
+├── .claude/skills/          # 17 skill proyek (implement-issue, new-migration, dst.)
+├── .claude/agents/          # subagents (coder, reviewer, security-auditor)
+├── README.md
+├── package.json
+├── astro.config.mjs
+├── tsconfig.json
+├── .env.example
+├── .gitignore
+├── docker-compose.yml
+├── src/
+│   ├── lib/                 # db, logging, auth, files, errors, i18n
+│   ├── modules/             # modular monolith (lihat daftar modul)
+│   └── pages/               # api/v1 dan UI entrypoint
+├── sql/                     # migration NNN_awcms_<area>_<desc>.sql
+├── scripts/                 # db-migrate, api-spec-check, dst.
+├── openapi/                 # kontrak REST
+├── asyncapi/                # kontrak event
+├── docs/awcms-mini/              # paket dokumen 01–13
+├── deploy/                  # systemd, nginx, pgbouncer, backup
+├── tests/
+└── fixtures/
+```
 
-- NIK and other highly-restricted identifiers must be encrypted before DB write — store `nik_enc`, never `nik`.
-- `nik_enc` must be stripped from output by default (reveal only via audited endpoint).
-- File binaries go to R2 — never store in DB columns. Store only `r2_key` (path, not URL).
-- Do not expose raw R2 keys or URLs to clients.
+## Peta modul
 
-## RLS Rules (ADR-015)
+`_shared`, `tenant-admin`, `identity-access`, `profile-identity`, `catalog-inventory`, `sales-pos`, `shared-stock-routing`, `warehouse-management`, `accounting-tax`, `crm-communication`, `sync-storage`, `ai-analyst`, `localization-ui`, `observability-logging`, `database-connectivity`, `workflow-approval`, `management-reporting`, `ui-experience`, `production-security-readiness`.
 
-- RLS is enforced on all per-user tables via migration `040_rls_per_user_tables.mjs`.
-- All plugin tables require RLS via `buildPluginRlsStatements()` in their `migrate.mjs`.
-- The `server/middleware/db-context.mjs` sets `app.current_user_id` and `app.is_admin` per request.
-- `app.is_admin = 'true'` is set for actors with `staff_level >= 7` (admin bypass for listing operations).
-- Run `bun run check:rls-coverage` (FF6) to verify RLS is active on all required tables.
+Struktur tiap modul: `module.ts`, `domain/`, `application/`, `infrastructure/`, `api/`, `README.md`.
 
-## Required Reading By Task Type
+## Urutan implementasi (jangan dilompati)
 
-### Governance Or Security Work
+```mermaid
+flowchart LR
+  F[Foundation 0.1-0.3] --> S[Setup Wizard 12.1]
+  S --> T[Tenant/Office 2.1]
+  T --> P[Profile 2.2]
+  P --> A[Identity 2.3]
+  A --> R[RBAC/ABAC 2.4]
+  R --> C[Product 3.1]
+  C --> K[Stock 3.2]
+  K --> CO[Checkout 3.3]
+  CO --> PO[Atomic Posting 3.4]
+```
 
-Read:
+Alasan urutan: POS tidak aman tanpa tenant/auth/profile/access; posting tidak boleh sebelum idempotency + stock lock; provider eksternal & AI menyusul; production diaktifkan hanya setelah security readiness pass.
 
-1. `docs/architecture/constraints.md`
-2. `docs/architecture/overview.md`
-3. relevant docs under `docs/governance/` and `docs/security/`
+## Konvensi commit
 
-### Plugin Work
+```text
+<type>(<scope>): <summary>
+```
 
-Read:
+Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `security`, `perf`, `ci`, `build`.
+Scopes: `foundation`, `db`, `api`, `auth`, `access`, `profile`, `tenant`, `inventory`, `pos`, `warehouse`, `tax`, `crm`, `sync`, `ai`, `ui`, `logging`, `pooling`, `workflow`, `reporting`, `security`, `docs`.
 
-1. `src/plugins/manifest.mjs` — kontrak manifest + validator (ADR-018)
-2. `src/db/plugin-adapter.mjs` — base repository + RLS helper + konteks DB
-3. `src/plugins/registry.mjs` — register, seed permission, list plugin
-4. `src/plugins/loader.mjs` — ACTIVE_PLUGINS (tambahkan entry plugin baru di sini)
-5. `src/plugins/sikesra/` — contoh plugin nyata pertama (referensi implementasi)
-6. `src/plugins/internal-governance-sample/index.mjs` — contoh plugin lama (pola definePlugin)
+Branch: `feature/<issue>-<name>`, `fix/<issue>-<name>`, `release/vX.Y.Z`, `hotfix/vX.Y.Z-<name>`.
 
-### Admin Work
+## Definition of Done
 
-Read:
+- Scope sesuai issue, tidak ada unrelated change.
+- Migration jika schema berubah; OpenAPI jika API berubah; AsyncAPI jika event berubah.
+- Input validation, Auth/ABAC/RLS, audit high-risk, sensitive masking.
+- Test relevan pass; build pass.
+- Docs diperbarui.
+- **Changeset** ditambahkan (`bun run changeset`) bila perubahan mempengaruhi perilaku; docs-only/chore boleh tanpa.
+- Laporan implementasi disertakan.
 
-1. `docs/admin/operations-guide.md`
-2. `src/plugins/awcms-users-admin/index.mjs`
-3. `src/plugins/awcms-users-admin/admin.tsx`
+## Template laporan implementasi
 
-### Documentation Work
+```text
+Summary:
+Files changed:
+Commands run:
+Test results:
+Security notes:
+Documentation updates:
+Remaining limitations:
+Next recommended step:
+```
 
-Read:
+## Peta dokumen (baca sesuai kebutuhan task)
 
-1. `docs/README.md`
-2. `skills/awcms-mini-docs/SKILL.md`
+| Butuh memahami…                     | Baca                                                        |
+| ----------------------------------- | ----------------------------------------------------------- |
+| Arsitektur & fase                   | `docs/awcms-mini/01_canvas_induk.md`                        |
+| Kebutuhan produk                    | `docs/awcms-mini/02_prd_detail_per_modul.md`                |
+| Spesifikasi teknis                  | `docs/awcms-mini/03_srs_detail_per_modul.md`                |
+| Database/ERD/RLS                    | `docs/awcms-mini/04_erd_data_dictionary.md`                 |
+| Kontrak API/event                   | `docs/awcms-mini/05_openapi_asyncapi_detail.md`             |
+| Issue atomic                        | `docs/awcms-mini/06_github_issues_detail.md`                |
+| Sprint/testing/go-live              | `docs/awcms-mini/07_sprint_testing_production_readiness.md` |
+| SOP operasional                     | `docs/awcms-mini/08_sop_operasional_user_guide.md`          |
+| Roadmap repo/commit                 | `docs/awcms-mini/09_roadmap_repository_commit.md`           |
+| Coding standard                     | `docs/awcms-mini/10_template_kode_coding_standard.md`       |
+| Blueprint skeleton                  | `docs/awcms-mini/11_implementation_blueprint.md`            |
+| Prompt eksekusi                     | `docs/awcms-mini/12_generator_prompt.md`                    |
+| Master index/traceability           | `docs/awcms-mini/13_final_master_index_traceability.md`     |
+| UI/UX, design token, layar          | `docs/awcms-mini/14_ui_ux_design_system.md`                 |
+| Frontend & integrasi, offline-first | `docs/awcms-mini/15_frontend_architecture_integration.md`   |
+| Data access, pooling, RLS, outbox   | `docs/awcms-mini/16_backend_data_access_integration.md`     |
+| Role default, permission, ABAC seed | `docs/awcms-mini/17_default_seed_rbac_abac.md`              |
+| Env, feature flag, deployment       | `docs/awcms-mini/18_configuration_env_reference.md`         |
+| Glossary & terminologi              | `docs/awcms-mini/19_glossary_terminology.md`                |
 
-## Current Repository Skills
+## Mulai dari sini
 
-- `skills/awcms-mini-governance-overlay/SKILL.md`
-- `skills/awcms-mini-docs/SKILL.md`
-
-Use them when the task matches their scope.
-
-## Validation Guidance
-
-- Use targeted unit tests first.
-- Run `bun run typecheck` for UI or TypeScript-adjacent work.
-- Run `bun run test:unit` when a change touches shared behavior.
-- Review operator impact against:
-  - `docs/process/migration-deployment-checklist.md`
-  - `docs/security/emergency-recovery-runbook.md`
-
-## Current Accuracy Notes
-
-Agents should not overstate the current implementation.
-
-In particular:
-
-- staged mandatory 2FA rollout configuration exists, but enforcement/persistence should be treated carefully and verified against current runtime behavior before documenting it as fully complete
-- ABAC audit-only rollout exists and should be documented as a rollout tool, not a permanent policy mode
-- the current deployment baseline is Cloudflare-delivered frontend traffic plus Hono on Coolify, with PostgreSQL accessed only through the backend API
-- the reviewed Coolify-managed VPS now uses key-only root SSH recovery and no longer treats password-based root SSH as the normal recovery path
-
-## Workflow Note
-
-The repository has historically followed an issue-driven workflow, but there may be moments when no open GitHub issue exists for a new local-docs or housekeeping request. In those cases, still keep changes atomic and well-scoped.
+```text
+Kerjakan Issue 0.1 — Initialize AWCMS Mini Modular Monolith Repository Structure.
+Lanjutkan sesuai urutan di doc 09 dan doc 12.
+```
