@@ -60,13 +60,7 @@ src/
 │   ├── tenant-admin/
 │   ├── identity-access/
 │   ├── profile-identity/
-│   ├── catalog-inventory/
-│   ├── sales-pos/
-│   ├── warehouse-management/
-│   ├── accounting-tax/
-│   ├── crm-communication/
 │   ├── sync-storage/
-│   ├── ai-analyst/
 │   ├── localization-ui/
 │   ├── observability-logging/
 │   ├── database-connectivity/
@@ -76,10 +70,10 @@ src/
 │   └── production-security-readiness/
 └── pages/
     ├── api/v1/
-    ├── admin/
-    ├── pos/
-    └── customer/
+    └── admin/
 ```
+
+Modul domain aplikasi turunan (mis. `catalog-inventory`, `sales-pos`, `warehouse-management`, `accounting-tax`, `crm-communication`, `ai-analyst` pada contoh AWPOS) ditambahkan di repo aplikasi tersebut, bukan bagian struktur base AWCMS-Mini.
 
 ## Struktur modul standard
 
@@ -146,15 +140,15 @@ Contoh:
 
 ```text
 feat(profile): add central profile schema
-feat(pos): add idempotent transaction posting
-fix(warehouse): prevent over receiving transfer lines
+feat(sync): add offline sync outbox and inbox
+fix(access): prevent privilege escalation on role assignment
 docs(security): add production readiness checklist
 test(access): add ABAC default deny tests
 ```
 
 Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `security`, `perf`, `ci`, `build`.
 
-Scopes: `foundation`, `db`, `api`, `auth`, `access`, `profile`, `tenant`, `inventory`, `pos`, `warehouse`, `tax`, `crm`, `sync`, `ai`, `ui`, `logging`, `pooling`, `workflow`, `reporting`, `security`, `docs`.
+Scopes: `foundation`, `db`, `api`, `auth`, `access`, `profile`, `tenant`, `sync`, `ui`, `logging`, `pooling`, `workflow`, `reporting`, `security`, `docs`. Aplikasi turunan menambah scope domainnya sendiri (mis. `pos`, `inventory`, `warehouse`, `tax`, `crm`).
 
 ## Urutan commit atomic utama
 
@@ -181,101 +175,53 @@ Scopes: `foundation`, `db`, `api`, `auth`, `access`, `profile`, `tenant`, `inven
 
 ### Sprint 4
 
-1. `feat(inventory): add product catalog schema`
-2. `feat(inventory): add product CRUD and search API`
-3. `feat(inventory): add product soft delete and restore API`
-4. `feat(inventory): add stock balance and stock movement service`
-
-### Sprint 5
-
-1. `feat(pos): add checkout session and cart schema`
-2. `feat(pos): add checkout cart API`
-3. `feat(shared): add idempotency key service`
-4. `feat(pos): implement idempotent atomic transaction posting`
-
-### Sprint 6
-
 1. `feat(logging): add structured logger and request correlation`
 2. `feat(logging): add cross-module audit event helper`
 3. `feat(pooling): add database pool gate and backpressure`
-4. `chore(deploy): add optional PgBouncer deployment profile`
+4. `security(production): add production security readiness checklist`
 
-### Sprint 7
-
-1. `feat(crm): add receipt PDF generator`
-2. `feat(crm): add CRM contacts channels and consent`
-3. `feat(crm): add StarSender WhatsApp receipt provider`
-4. `feat(crm): add Mailketing email receipt provider`
-5. `feat(ui): add customer receipt portal`
-
-### Sprint 8
+### Sprint 5
 
 1. `feat(sync): add offline sync outbox inbox and signed API`
 2. `feat(sync): add sync conflict tracking and resolution`
 3. `feat(sync): add R2 object sync queue`
 
-### Sprint 9
-
-1. `feat(warehouse): add warehouse zone bin and bin balance schema`
-2. `feat(warehouse): add warehouse zone and bin APIs`
-3. `feat(warehouse): add lot batch serial and expiry tracking`
-4. `feat(warehouse): add transfer order shipment and receipt workflow`
-5. `feat(warehouse): add cycle count and stock adjustment request`
-
-### Sprint 10
-
-1. `feat(tax): add tenant tax profile and business unit schema`
-2. `feat(tax): add party and product tax profiles`
-3. `feat(tax): add VAT invoice staging from sales document`
-4. `feat(tax): add Coretax XML batch export workflow`
-
-### Sprint 11
+### Sprint 6
 
 1. `feat(ui): add UI persona screen and navigation registry`
 2. `feat(ui): build admin shell with modular navigation`
-3. `feat(pos-ui): build keyboard-first cashier POS screen`
-4. `feat(reporting): add management reporting views and dashboard API`
-5. `feat(ai): add safe AI business analyst tools`
+3. `feat(reporting): add management reporting views and dashboard API`
 
-### Sprint 12
+### Sprint 7
 
 1. `feat(workflow): add cross-module approval workflow engine`
-2. `security(production): add production security readiness gates`
-3. `chore(deploy): add offline LAN and production deployment profiles`
-4. `docs(handover): add operational SOP and handover manual`
+2. `chore(deploy): add offline LAN and production deployment profiles`
+3. `docs(handover): add operational SOP and handover manual`
+
+Aplikasi turunan menambah sprint/commit domainnya sendiri setelah base ini siap (lihat pola sprint domain di paket dokumen AWPOS sebagai contoh).
 
 ## Migration order final rekomendasi
 
 ```text
 001_awcms_mini_foundation_schema.sql
 002_awcms_mini_tenant_identity_schema.sql
-003_awcms_mini_catalog_inventory_schema.sql
-004_awcms_mini_sales_pos_schema.sql
-005_awcms_mini_sync_storage_r2_schema.sql
-006_awcms_mini_crm_receipt_communication_schema.sql
-007_awcms_mini_accounting_tax_coretax_schema.sql
-008_awcms_mini_ai_hermes_business_analyst_schema.sql
+003_awcms_mini_central_profile_management_schema.sql
+004_awcms_mini_abac_access_control_schema.sql
+005_awcms_mini_logging_observability_schema.sql
+006_awcms_mini_database_connection_pooling_schema.sql
+007_awcms_mini_production_security_readiness_schema.sql
+008_awcms_mini_sync_storage_r2_schema.sql
 009_awcms_mini_i18n_po_schema.sql
 010_awcms_mini_theme_mode_schema.sql
-011_awcms_mini_abac_access_control_schema.sql
-012_awcms_mini_modular_monolith_contracts_schema.sql
-013_awcms_mini_logging_observability_schema.sql
-014_awcms_mini_central_profile_management_schema.sql
-015_awcms_mini_profile_stabilization_schema.sql
-016_awcms_mini_workflow_approval_audit_schema.sql
-017_awcms_mini_management_dashboard_reporting_schema.sql
-018_awcms_mini_legacy_migration_backfill_toolkit_schema.sql
-019_awcms_mini_performance_sync_validation_schema.sql
-020_awcms_mini_production_security_readiness_schema.sql
-021_awcms_mini_database_connection_pooling_schema.sql
-022_awcms_mini_ui_ux_persona_experience_schema.sql
-023_awcms_mini_warehouse_management_schema.sql
-024_awcms_mini_transaction_integrity_idempotency_hardening.sql
-025_awcms_mini_setup_wizard_extension.sql
-026_awcms_mini_dashboard_materialized_views.sql
+011_awcms_mini_ui_ux_persona_experience_schema.sql
+012_awcms_mini_management_dashboard_reporting_schema.sql
+013_awcms_mini_workflow_approval_audit_schema.sql
+014_awcms_mini_setup_wizard_extension.sql
+015_awcms_mini_modular_monolith_contracts_schema.sql
+016_awcms_mini_dashboard_materialized_views.sql
 ```
 
-Catatan: setelah production, migration tidak boleh di-rename sembarangan. Koreksi harus migration baru.
+Catatan: setelah production, migration tidak boleh di-rename sembarangan. Koreksi harus migration baru. Aplikasi turunan melanjutkan nomor migration domainnya sendiri mulai `017_...` dst.
 
 ## Urutan API implementation
 
@@ -291,18 +237,12 @@ Catatan: setelah production, migration tidak boleh di-rename sembarangan. Koreks
 10. `/auth/login` dan `/auth/me`.
 11. `/access/evaluate`.
 12. `/profiles/resolve`.
-13. `/inventory/products`.
-14. Soft delete/restore endpoint untuk master data yang deletable.
-15. `/inventory/stock-balances`.
-16. `/sales/checkout-sessions`.
-17. `/sales/checkout-sessions/{id}/post`.
-18. `/crm/receipts/{id}/send`.
-19. `/sync/push` dan `/sync/pull`.
-20. `/warehouses` dan `/warehouse-transfers`.
-21. `/tax/vat-invoices/generate`.
-22. `/reports/sales/daily`.
-23. `/ai/business-analyst/chat`.
-24. `/security/go-live-gates/evaluate`.
+13. Soft delete/restore endpoint untuk master data yang deletable.
+14. `/sync/push` dan `/sync/pull`.
+15. `/reports/*` (view generik: tenant activity, access/audit summary, sync health).
+16. `/security/go-live-gates/evaluate`.
+
+Aplikasi turunan menambah endpoint domainnya sendiri (mis. katalog, transaksi, gudang, pajak) setelah urutan base ini.
 
 ## Urutan UI implementation
 
@@ -314,41 +254,34 @@ Catatan: setelah production, migration tidak boleh di-rename sembarangan. Koreks
 6. Admin shell.
 7. Dashboard.
 8. User/access management.
-9. Product catalog.
-10. POS fullscreen.
-11. Customer receipt portal.
-12. Warehouse.
-13. Tax.
-14. Reports.
-15. Logs/security readiness.
+9. Reports generik (tenant activity, sync health, audit).
+10. Logs/security readiness.
+
+Aplikasi turunan menambah layar domainnya sendiri (mis. layar operasional, portal) setelah urutan base ini.
 
 ## Versioning
 
 ```mermaid
 flowchart LR
-  V1[v0.1.0<br/>foundation/tenant/identity] --> V2[v0.2.0<br/>product/stock/checkout]
-  V2 --> V3[v0.3.0<br/>atomic posting/logging/pool]
-  V3 --> V4[v0.4.0<br/>receipt/CRM/sync]
-  V4 --> V5[v0.5.0<br/>warehouse]
-  V5 --> V6[v0.6.0<br/>tax/Coretax]
-  V6 --> V7[v0.7.0<br/>UI]
-  V7 --> V8[v0.8.0<br/>reporting/AI]
-  V8 --> V9[v0.9.0<br/>security/deploy]
-  V9 --> V10[v1.0.0<br/>production MVP]
+  V1[v0.1.0<br/>foundation/tenant/identity] --> V2[v0.2.0<br/>RBAC/ABAC]
+  V2 --> V3[v0.3.0<br/>logging/pooling/security readiness]
+  V3 --> V4[v0.4.0<br/>sync storage]
+  V4 --> V5[v0.5.0<br/>UI shell/reporting]
+  V5 --> V6[v0.6.0<br/>workflow/deployment]
+  V6 --> V7[v1.0.0<br/>base production-ready]
 ```
 
-| Versi    | Isi                                   |
-| -------- | ------------------------------------- |
-| `v0.1.0` | Foundation, tenant, identity, profile |
-| `v0.2.0` | Product, stock, POS checkout          |
-| `v0.3.0` | Atomic posting, logging, pooling      |
-| `v0.4.0` | Receipt, CRM, sync                    |
-| `v0.5.0` | Warehouse basic                       |
-| `v0.6.0` | Tax/Coretax readiness                 |
-| `v0.7.0` | UI admin/operator/customer            |
-| `v0.8.0` | Reporting dan AI                      |
-| `v0.9.0` | Security readiness dan deployment     |
-| `v1.0.0` | Production-ready MVP                  |
+| Versi    | Isi                                             |
+| -------- | ----------------------------------------------- |
+| `v0.1.0` | Foundation, tenant, identity, profile           |
+| `v0.2.0` | RBAC/ABAC evaluator + assignment                |
+| `v0.3.0` | Logging, pooling, security readiness            |
+| `v0.4.0` | Sync storage (outbox/inbox, conflict, R2 queue) |
+| `v0.5.0` | UI shell, management reporting                  |
+| `v0.6.0` | Workflow approval, deployment profile           |
+| `v1.0.0` | Base production-ready (gates doc 07)            |
+
+Aplikasi turunan (mis. AWPOS) memakai baseline versinya sendiri di atas base ini (lihat versioning doc 09 milik aplikasi tersebut).
 
 ### SemVer
 

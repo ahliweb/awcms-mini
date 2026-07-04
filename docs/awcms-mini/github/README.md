@@ -2,23 +2,23 @@
 
 Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folder ini adalah **snapshot state GitHub**, bukan backlog rencana; backlog rencana tetap berada di `docs/awcms-mini/06_github_issues_detail.md`. Metadata label/milestone di folder ini adalah salinan faktual dari GitHub saat refresh; bila ada deskripsi lama yang berbeda dari arsitektur Bun + Astro 7 + PostgreSQL, ikuti `README.md`, `AGENTS.md`, dan dokumen utama `docs/awcms-mini/`.
 
-| Metadata     | Nilai                                |
-| ------------ | ------------------------------------ |
-| Repository   | `ahliweb/awcms-mini`                 |
-| Snapshot     | 2026-07-04T13:58:45Z                 |
-| Total issue  | 38                                   |
-| Open issue   | 38                                   |
-| Closed issue | 0                                    |
-| Labels       | 105 (32 doc 06 + 73 peninggalan)     |
-| Milestones   | 28 (9 doc 06 M0-M8 + 19 peninggalan) |
+| Metadata     | Nilai                           |
+| ------------ | ------------------------------- |
+| Repository   | `ahliweb/awcms-mini`            |
+| Snapshot     | 2026-07-04T14:15:43Z            |
+| Total issue  | 38                              |
+| Open issue   | 18                              |
+| Closed issue | 20                              |
+| Labels       | 98 (25 doc 06 + 73 peninggalan) |
+| Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
 ## File snapshot
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   38 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                    0 |
-| LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                            105 labels, 28 milestones |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   18 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   20 |
+| LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
 ## Aturan pencatatan
@@ -42,23 +42,26 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                                       |
-| ------ | -----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |     38 | Backlog `docs/awcms-mini/06_github_issues_detail.md` (Issue 0.1-12.2) diaktifkan penuh sebagai issue GitHub nyata, lengkap dengan label dan milestone doc 06. |
-| CLOSED |      0 | Belum ada issue yang selesai dikerjakan.                                                                                                                      |
+| State  | Jumlah | Catatan                                                                                                     |
+| ------ | -----: | ----------------------------------------------------------------------------------------------------------- |
+| OPEN   |     18 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 0, 2, 6, 8, 9, 10, 11, 12).         |
+| CLOSED |     20 | Ditutup `not planned` — konten domain POS/retail dipindahkan ke aplikasi turunan contoh, bukan bagian base. |
 
-### Aktivasi backlog (2026-07-04)
+### Genericization (2026-07-04)
 
-Backlog rencana di doc 06 diaktifkan menjadi 38 issue GitHub nyata (`#371`-`#408`):
+Repository awcms-mini adalah **contoh repo pengembangan umum** (base modular monolith reusable), bukan aplikasi domain. Backlog awal (38 issue, aktivasi pertama pada hari yang sama) ternyata memuat epic domain POS/retail yang salah tempat. Perbaikan yang dilakukan:
 
-- **Label baru**: 29 label ditambahkan sesuai taksonomi doc 06 (`type:*`, `priority:p0/p1/p2`, `area:*`, `status:*`); 3 label (`type:task`, `area:auth`, `area:security`) sudah cocok persis dengan label lama sehingga dipakai ulang tanpa duplikasi.
-- **Milestone baru**: 9 milestone `M0 — Repository Foundation` s/d `M8 — Security, Performance, Production` dibuat mengikuti tabel "Milestone rekomendasi" doc 06.
-- **Status awal**: hanya Sprint 1 (Issue 0.1, 0.2, 0.3, 12.1) diberi `status:ready`; 34 issue lain diberi `status:blocked` karena dependency milestone-nya belum selesai (sesuai instruksi doc 06 §Status: backlog aktif di GitHub).
-- **Label/milestone peninggalan** (SIKESRA/governance-overlay era — 73 label, 19 milestone) **tidak diubah/dihapus**; dipisahkan di `labels-milestones.md` agar tidak tercampur dengan taksonomi base saat ini.
+- **20 issue ditutup** (`not planned`, dengan komentar penjelasan): Legacy Migration (1.1-1.2), POS MVP (3.1-3.4), Warehouse Management (4.1-4.4), CRM Receipt Delivery (5.1-5.3), Accounting/Coretax (7.1-7.4), POS UI (8.2), Receipt Portal (8.3), AI Business Analyst (9.2).
+- **2 issue digeneralisasi**: 8.1 "Build Admin/Petugas Layout Shell" → "Build Admin Layout Shell"; 9.1 scope diubah dari view POS/tax/warehouse-specific menjadi view generik (tenant activity, access/audit summary, sync health, module usage).
+- **7 label dihapus** (dibuat keliru pada aktivasi pertama, tidak relevan untuk base generik): `area:pos`, `area:warehouse`, `area:tax`, `area:crm`, `area:ai`, `area:migration`, `area:inventory`.
+- **4 milestone dihapus** (jadi kosong setelah issue domain ditutup): `M1 — Legacy Migration & Data Model`, `M3 — POS MVP`, `M4 — Inventory & Warehouse`, `M6 — Tax/Coretax Readiness`.
+- **2 milestone di-rename**: `M5 — CRM, Receipt, Sync` → `M5 — Sync Storage` (drop CRM); `M7 — Reporting, AI, UI/UX` → `M7 — UI/UX & Reporting` (drop AI).
+- **Docs diperbaiki** agar konsisten dengan base generik: `docs/awcms-mini/06_github_issues_detail.md` ditulis ulang (backlog 18 issue), `docs/awcms-mini/01_canvas_induk.md` ditulis ulang (hapus modul/fase domain), `AGENTS.md` §Peta modul dan `docs/awcms-mini/09_roadmap_repository_commit.md` §Struktur source diperbaiki (hapus daftar modul domain).
+- **Label/milestone peninggalan** SIKESRA/governance-overlay era (73 label, 19 milestone) **tidak disentuh** — bukan buatan sesi ini, di luar wewenang untuk dihapus.
 
 ## Hubungan dengan dokumen utama
 
-- `docs/awcms-mini/06_github_issues_detail.md` adalah rencana/template issue atomic sekaligus sumber isi 38 issue yang sudah aktif di GitHub.
+- `docs/awcms-mini/06_github_issues_detail.md` adalah rencana/template issue atomic generik sekaligus sumber isi 18 issue yang aktif di GitHub.
 - `docs/awcms-mini/github/` adalah snapshot state GitHub aktual.
 - `docs/awcms-mini/github/security.md` mencatat setup GitHub Security dan alert count saat refresh.
 - `docs/awcms-mini/09_roadmap_repository_commit.md` mengatur urutan branch, commit, PR, release, dan changeset.
