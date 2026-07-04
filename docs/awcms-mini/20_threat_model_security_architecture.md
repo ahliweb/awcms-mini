@@ -89,13 +89,13 @@ flowchart LR
 
 ## Automasi keamanan repositori
 
-| Kontrol                                  | Lokasi                         |
-| ---------------------------------------- | ------------------------------ |
-| Secret scanning + push protection        | GitHub (setelan repo)          |
-| Dependabot alerts + updates              | `.github/dependabot.yml`       |
-| CodeQL code scanning                     | `.github/workflows/codeql.yml` |
-| Docs/hygiene + Bun-only + no-`.env` gate | `.github/workflows/ci.yml`     |
-| Private vulnerability reporting          | `SECURITY.md`                  |
+| Kontrol                                                             | Lokasi                         |
+| ------------------------------------------------------------------- | ------------------------------ |
+| Secret scanning + push protection                                   | GitHub (setelan repo)          |
+| Dependabot alerts + updates                                         | `.github/dependabot.yml`       |
+| CodeQL code scanning                                                | `.github/workflows/codeql.yml` |
+| Lint + docs-check + typecheck + unit test + Bun-only/no-`.env` gate | `.github/workflows/ci.yml`     |
+| Private vulnerability reporting                                     | `SECURITY.md`                  |
 
 ## Batasan (yang belum tercakup)
 

@@ -133,7 +133,7 @@ flowchart LR
 2. Baca [`CONTRIBUTING.md`](CONTRIBUTING.md) — alur kontribusi, setup, konvensi commit, Definition of Done.
 3. Gunakan **skill proyek** di [`.claude/skills/`](.claude/skills/README.md) agar standar diterapkan konsisten.
 4. Kerjakan **atomic** per issue; migration bila schema berubah, OpenAPI bila API berubah, AsyncAPI bila event berubah.
-5. Validasi (`bun run check`, `bun test`, `bun run build`) sebelum PR.
+5. Validasi (`bun run check` = lint + docs-check + typecheck + `bun test`; plus `bun run build` bila menyentuh kode aplikasi) sebelum PR.
 
 ### Mulai dari
 
@@ -158,7 +158,7 @@ Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/
 
 ## Versioning
 
-**Semantic Versioning** + **[Changesets](.changeset/README.md)**; riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Versi saat ini `0.0.1` (docs & tooling baseline); rilis bertag berikutnya `0.1.0` (Foundation).
+**Semantic Versioning** + **[Changesets](.changeset/README.md)**; riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Versi saat ini `0.0.2` (docs & tooling baseline); rilis bertag berikutnya `0.1.0` (Foundation).
 
 ## Lisensi
 
