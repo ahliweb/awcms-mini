@@ -131,6 +131,7 @@ Dokumen dikelompokkan mengikuti alur pengembangan agar mudah diimplementasi.
 | `github/issues-open-001.md` | Snapshot issue `OPEN` saat ini |
 | `github/issues-closed-001.md` | Snapshot issue `CLOSED` saat ini |
 | `github/labels-milestones.md` | Snapshot label dan milestone GitHub |
+| `github/security.md` | Snapshot setup GitHub Security, alert count, dan file security automation |
 
 ## Reading path (sesuai tujuan)
 

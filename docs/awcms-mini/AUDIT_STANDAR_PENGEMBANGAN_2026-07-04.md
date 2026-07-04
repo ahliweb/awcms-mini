@@ -41,7 +41,8 @@ Audit membaca seluruh isi repo saat ini:
 | Testing & readiness | PASS | Unit/integration/contract/security/performance target dan production preflight sudah ada. |
 | Versioning | PASS setelah perbaikan | Changesets tersedia; `bun.lock` ditambahkan untuk reproducible install. |
 | Runtime source | N/A | `src/`, `sql/`, `openapi/`, `asyncapi/`, `tests/`, `astro.config.mjs`, `.env.example`, `docker-compose.yml` belum ada karena masuk scope Issue 0.1. |
-| CI workflow | GAP terencana | Belum ada `.github/workflows`; perlu ditambahkan setelah script build/test/spec tersedia. |
+| Security automation | PASS | `SECURITY.md`, Dependabot config, CodeQL workflow untuk GitHub Actions, secret scanning, push protection, dan private vulnerability reporting tersedia. |
+| CI build/test workflow | GAP terencana | Workflow build/test/spec aplikasi belum ditambahkan karena script runtime masuk scope Issue 0.1. |
 
 ## Standar yang sudah terpenuhi sebagai baseline
 
@@ -123,7 +124,8 @@ Hasil:
    - `CHANGELOG.md` disesuaikan dari 14 skill menjadi 17 skill.
    - `bun.lock` ditambahkan untuk reproducible dependency baseline.
    - Dokumen audit ini ditambahkan sebagai rujukan repo-local.
-  - Snapshot GitHub issue open/closed, label, milestone, dan proses refresh ditambahkan di `docs/awcms-mini/github/`; snapshot live 2026-07-04T10:31:41Z mencatat 0 issue, 76 label, dan 19 milestone.
+   - Snapshot GitHub issue open/closed, label, milestone, security, dan proses refresh ditambahkan di `docs/awcms-mini/github/`; snapshot live 2026-07-04T11:08:54Z mencatat 0 issue, 76 label, 19 milestone, 0 open Dependabot alert, 0 open code-scanning alert, dan 0 secret-scanning alert.
+   - `SECURITY.md`, `.github/dependabot.yml`, dan `.github/workflows/codeql.yml` ditambahkan sebagai baseline GitHub Security.
 
 ## Rekomendasi berikutnya
 

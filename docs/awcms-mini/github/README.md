@@ -5,7 +5,7 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata | Nilai |
 |---|---|
 | Repository | `ahliweb/awcms-mini` |
-| Snapshot | 2026-07-04T10:37:33Z |
+| Snapshot | 2026-07-04T11:08:54Z |
 | Total issue | 0 |
 | Open issue | 0 |
 | Closed issue | 0 |
@@ -20,6 +20,7 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | OPEN | [issues-open-001.md](issues-open-001.md) | 0 |
 | CLOSED | [issues-closed-001.md](issues-closed-001.md) | 0 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) | 76 labels, 19 milestones |
+| SECURITY | [security.md](security.md) | Security policy, Dependabot, secret scanning, CodeQL |
 
 ## Aturan pencatatan
 
@@ -51,6 +52,7 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 - `docs/awcms-mini/06_github_issues_detail.md` adalah rencana/template issue atomic.
 - `docs/awcms-mini/github/` adalah snapshot state GitHub aktual.
+- `docs/awcms-mini/github/security.md` mencatat setup GitHub Security dan alert count saat refresh.
 - `docs/awcms-mini/09_roadmap_repository_commit.md` mengatur urutan branch, commit, PR, release, dan changeset.
 - `AGENTS.md` tetap menjadi kontrak kerja agent dan developer.
 - Metadata GitHub tidak menjadi otoritas arsitektur; arsitektur target tetap Bun + Astro 7 + PostgreSQL sesuai dokumen utama.
