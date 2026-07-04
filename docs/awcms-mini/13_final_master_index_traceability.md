@@ -8,28 +8,32 @@ Dokumen ini menjadi master index final untuk seluruh paket dokumen AWCMS-Mini, s
 
 ## Master index dokumen
 
-| Bagian | File                                        | Fungsi                                                      |
-| -----: | ------------------------------------------- | ----------------------------------------------------------- |
-|      1 | `01_canvas_induk.md`                        | Canvas arsitektur dan fase pengembangan                     |
-|      2 | `02_prd_detail_per_modul.md`                | Kebutuhan produk per modul                                  |
-|      3 | `03_srs_detail_per_modul.md`                | Spesifikasi teknis per modul                                |
-|      4 | `04_erd_data_dictionary.md`                 | ERD, data dictionary, RLS, index                            |
-|      5 | `05_openapi_asyncapi_detail.md`             | API contract dan event contract                             |
-|      6 | `06_github_issues_detail.md`                | Issue atomic siap copy-paste                                |
-|      7 | `07_sprint_testing_production_readiness.md` | Sprint, testing, go-live                                    |
-|      8 | `08_sop_operasional_user_guide.md`          | SOP operasional dan user guide                              |
-|      9 | `09_roadmap_repository_commit.md`           | Roadmap repo, branch, commit, release                       |
-|     10 | `10_template_kode_coding_standard.md`       | Template kode dan coding standard                           |
-|     11 | `11_implementation_blueprint.md`            | Skeleton dan blueprint per sprint                           |
-|     12 | `12_generator_prompt.md`                    | Prompt eksekusi coding agent                                |
-|     13 | `13_final_master_index_traceability.md`     | Master index dan traceability                               |
-|     14 | `14_ui_ux_design_system.md`                 | Design system, token, komponen, layar, a11y, i18n           |
-|     15 | `15_frontend_architecture_integration.md`   | Arsitektur frontend, API client, auth, offline-first        |
-|     16 | `16_backend_data_access_integration.md`     | Data access, pooling, RLS, transaction, outbox              |
-|     17 | `17_default_seed_rbac_abac.md`              | Role default, permission matrix, ABAC policy, seed          |
-|     18 | `18_configuration_env_reference.md`         | Referensi env, feature flag, topologi deployment            |
-|     19 | `19_glossary_terminology.md`                | Glossary & terminologi lintas dokumen                       |
-| GitHub | `github/README.md`                          | Snapshot issue aktual, label, milestone, dan proses refresh |
+| Bagian | File                                                                                                                | Fungsi                                                                          |
+| -----: | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+|      1 | `01_canvas_induk.md`                                                                                                | Canvas arsitektur dan fase pengembangan                                         |
+|      2 | `02_prd_detail_per_modul.md`                                                                                        | Kebutuhan produk per modul                                                      |
+|      3 | `03_srs_detail_per_modul.md`                                                                                        | Spesifikasi teknis per modul                                                    |
+|      4 | `04_erd_data_dictionary.md`                                                                                         | ERD, data dictionary, RLS, index                                                |
+|      5 | `05_openapi_asyncapi_detail.md`                                                                                     | API contract dan event contract                                                 |
+|      6 | `06_github_issues_detail.md`                                                                                        | Issue atomic siap copy-paste                                                    |
+|      7 | `07_sprint_testing_production_readiness.md`                                                                         | Sprint, testing, go-live                                                        |
+|      8 | `08_sop_operasional_user_guide.md`                                                                                  | SOP operasional dan user guide                                                  |
+|      9 | `09_roadmap_repository_commit.md`                                                                                   | Roadmap repo, branch, commit, release                                           |
+|     10 | `10_template_kode_coding_standard.md`                                                                               | Template kode dan coding standard                                               |
+|     11 | `11_implementation_blueprint.md`                                                                                    | Skeleton dan blueprint per sprint                                               |
+|     12 | `12_generator_prompt.md`                                                                                            | Prompt eksekusi coding agent                                                    |
+|     13 | `13_final_master_index_traceability.md`                                                                             | Master index dan traceability                                                   |
+|     14 | `14_ui_ux_design_system.md`                                                                                         | Design system, token, komponen, layar, a11y, i18n                               |
+|     15 | `15_frontend_architecture_integration.md`                                                                           | Arsitektur frontend, API client, auth, offline-first                            |
+|     16 | `16_backend_data_access_integration.md`                                                                             | Data access, pooling, RLS, transaction, outbox                                  |
+|     17 | `17_default_seed_rbac_abac.md`                                                                                      | Role default, permission matrix, ABAC policy, seed                              |
+|     18 | `18_configuration_env_reference.md`                                                                                 | Referensi env, feature flag, topologi deployment                                |
+|     19 | `19_glossary_terminology.md`                                                                                        | Glossary & terminologi lintas dokumen                                           |
+|     20 | `20_threat_model_security_architecture.md`                                                                          | Threat model (STRIDE), trust boundary, kontrol keamanan berlapis (dokumen base) |
+|    ADR | `../adr/README.md`                                                                                                  | Architecture Decision Records (keputusan base + alasan)                         |
+|   Gov. | `../../GOVERNANCE.md`, `../../CONTRIBUTING.md`, `../../SECURITY.md`, `../../CODE_OF_CONDUCT.md`, `../../SUPPORT.md` | Tata kelola, kontribusi, keamanan, komunitas                                    |
+|     CI | `../../.github/workflows/`                                                                                          | CodeQL + CI kualitas dokumentasi/hygiene (Bun-only, no-`.env`)                  |
+| GitHub | `github/README.md`                                                                                                  | Snapshot issue aktual, label, milestone, dan proses refresh                     |
 
 ## Executive summary final
 

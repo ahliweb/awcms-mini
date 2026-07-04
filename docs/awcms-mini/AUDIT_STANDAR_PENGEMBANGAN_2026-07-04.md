@@ -20,7 +20,7 @@ Stack target sudah konsisten di dokumen:
 Audit membaca seluruh isi repo saat ini:
 
 - Root docs dan metadata: `README.md`, `AGENTS.md`, `CHANGELOG.md`, `.gitignore`, `package.json`, `.changeset/`.
-- Paket dokumen `docs/awcms-mini/01` sampai `19`.
+- Paket dokumen `docs/awcms-mini/01` sampai `20` + Architecture Decision Records di `docs/adr/`.
 - Snapshot GitHub issue aktual di `docs/awcms-mini/github/`.
 - Skill dan subagent proyek di `.claude/skills/` dan `.claude/agents/`.
 - Struktur aktual repository dan gap terhadap target Issue 0.1.
@@ -129,6 +129,7 @@ Hasil:
    - Backlog doc 06 diaktifkan penuh di GitHub pada 2026-07-04T13:58:45Z: 38 issue (`#371`-`#408`), 29 label baru + 9 milestone baru (`M0`-`M8`) sesuai taksonomi doc 06, tanpa menghapus 73 label/19 milestone peninggalan proyek sebelumnya. Detail: `docs/awcms-mini/github/README.md`.
    - **Genericization pada 2026-07-04T14:15:43Z**: 38 issue awal ternyata memuat epic domain POS/retail yang tidak sesuai konteks AWCMS-Mini sebagai contoh repo pengembangan umum. 20 issue domain ditutup (`not planned`), 2 issue digeneralisasi wording-nya, 7 label domain dan 4 milestone domain yang jadi kosong dihapus, 2 milestone di-rename (drop CRM/AI). `docs/awcms-mini/06_github_issues_detail.md` dan `docs/awcms-mini/01_canvas_induk.md` ditulis ulang menjadi generik; `AGENTS.md` §Peta modul dan `docs/awcms-mini/09_roadmap_repository_commit.md` §Struktur source diperbaiki agar tidak lagi mencantumkan modul domain (katalog, POS, gudang, pajak, CRM, AI analyst) sebagai bagian base. Detail: `docs/awcms-mini/github/README.md` §Genericization.
    - `SECURITY.md`, `.github/dependabot.yml`, dan `.github/workflows/codeql.yml` ditambahkan sebagai baseline GitHub Security.
+   - **Pengerasan standar repo publik pada 2026-07-05**: lisensi `UNLICENSED` → **MIT** (`LICENSE`); berkas komunitas & tata kelola (`CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `GOVERNANCE.md`, `SUPPORT.md`, `.github/CODEOWNERS`, PR/issue templates); konfigurasi kualitas (`.editorconfig`, `.gitattributes`, `.prettierrc.json`); CI kualitas dokumentasi (`.github/workflows/ci.yml` + `scripts/check-docs.mjs`: validasi mermaid/tautan/penamaan, gate Bun-only/no-`.env`); **Architecture Decision Records** `docs/adr/` (0001–0007); **doc 20 — Threat Model & Arsitektur Keamanan**; `SECURITY.md` diperluas (scope, safe harbor, target response time). Berkas cruft `init` (1 byte) dihapus. Seluruh Markdown dijadikan prettier-clean. Issue GitHub `#405`/`#379` diselaraskan untuk merujuk doc 20 + ADR.
 
 ## Rekomendasi berikutnya
 

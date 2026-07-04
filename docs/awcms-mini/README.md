@@ -173,7 +173,7 @@ AWCMS-Mini sengaja disusun agar bisa dipakai sebagai **template/contoh** untuk m
 | Skill proyek `.claude/skills/`                                     | —                                             |
 | Standar commit/roadmap/preflight (09, 07)                          | —                                             |
 
-Untuk membangun aplikasi baru di atas AWCMS-Mini: pertahankan lapisan reusable, ganti lapisan spesifik domain dengan kebutuhan aplikasi Anda, dan ikuti alur dokumen 01 → 19.
+Untuk membangun aplikasi baru di atas AWCMS-Mini: pertahankan lapisan reusable, ganti lapisan spesifik domain dengan kebutuhan aplikasi Anda, dan ikuti alur dokumen 01 → 20 (plus ADR di [`../adr/`](../adr/README.md)).
 
 ## Versioning
 

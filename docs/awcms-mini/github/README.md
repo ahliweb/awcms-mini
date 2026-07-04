@@ -47,6 +47,15 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 | OPEN   |     18 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 0, 2, 6, 8, 9, 10, 11, 12).         |
 | CLOSED |     20 | Ditutup `not planned` — konten domain POS/retail dipindahkan ke aplikasi turunan contoh, bukan bagian base. |
 
+### Reconciliation (2026-07-05)
+
+Setelah penambahan standar profesional repo publik (lisensi MIT, governance/community files, ADR `docs/adr/`, doc 20 threat model, CI kualitas dokumentasi), issue GitHub diselaraskan dengan kondisi terbaru. **Tidak ada perubahan pada jumlah/label/milestone** (tetap 18 open, 20 closed, 98 label, 24 milestone — snapshot penuh terakhir 2026-07-04T14:15:43Z tetap akurat untuk metadata). Perubahan hanya pada **body issue**:
+
+- **#405** (10.3 — Production Security Readiness): Reference Docs ditambah doc 20 (threat model) + ADR 0003–0005; readiness wajib memverifikasi kontrol pada threat model dan konsisten dengan ADR.
+- **#379** (2.4 — RBAC and ABAC): Reference Docs ditambah doc 20 + `docs/adr/0004-rbac-abac-default-deny.md`.
+
+Backlog `docs/awcms-mini/06_github_issues_detail.md` §Dokumen acuan per epic juga diselaraskan untuk merujuk ADR + doc 20 per epic.
+
 ### Genericization (2026-07-04)
 
 Repository awcms-mini adalah **contoh repo pengembangan umum** (base modular monolith reusable), bukan aplikasi domain. Backlog awal (38 issue, aktivasi pertama pada hari yang sama) ternyata memuat epic domain POS/retail yang salah tempat. Perbaikan yang dilakukan:
