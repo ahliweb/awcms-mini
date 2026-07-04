@@ -8,17 +8,30 @@ Terkait: `14_ui_ux_design_system.md` (desain), `16_backend_data_access_integrati
 
 ## Keputusan arsitektur frontend
 
-| Aspek | Keputusan |
-|---|---|
-| Framework | Astro 7, output **server (SSR)** dijalankan di runtime Bun |
+| Aspek          | Keputusan                                                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Framework      | Astro 7, output **server (SSR)** dijalankan di runtime Bun                                                        |
 | Interaktivitas | **Astro islands** + TypeScript; framework island opsional (mis. Preact) hanya untuk pulau kompleks (POS, chat AI) |
-| Styling | CSS variables (design token doc 14), scoped styles |
-| Rendering | Halaman authed = SSR; customer portal = SSR; aset statis di-cache SW |
-| Data fetching | SSR initial load + client mutation via API client |
-| Offline | PWA: service worker + IndexedDB outbox untuk POS/receipt |
-| State | Lokal per-island + store ringan untuk keranjang POS; hindari SPA global besar |
+| Styling        | CSS variables (design token doc 14), scoped styles                                                                |
+| Rendering      | Halaman authed = SSR; customer portal = SSR; aset statis di-cache SW                                              |
+| Data fetching  | SSR initial load + client mutation via API client                                                                 |
+| Offline        | PWA: service worker + IndexedDB outbox untuk POS/receipt                                                          |
+| State          | Lokal per-island + store ringan untuk keranjang POS; hindari SPA global besar                                     |
 
 Alasan: SSR menjaga waktu muat cepat di LAN, aman untuk cookie httpOnly, dan tetap ringan; islands membatasi JS hanya di area interaktif. Backend/SSR dijalankan dengan **Bun** sebagai platform runtime; Node.js bukan target platform server utama.
+
+## Astro SSR di atas runtime Bun
+
+Astro **berjalan penuh di Bun** untuk semua fase: `bun install`, dev, build, dan runtime. Panggil bin Astro/Vite via `bun --bun astro …` (dev/build/preview) agar Bun yang mengeksekusi, bukan binary `node` (shebang bin default `#!/usr/bin/env node`).
+
+Nuansa satu-satunya: Astro **belum punya adapter SSR Bun first-party** (yang resmi: `@astrojs/node`, Cloudflare, Vercel, Netlify — verifikasi versi saat implementasi). Dua opsi tersanksi, keduanya tetap runtime Bun:
+
+| Opsi                               | Cara                                                                                                                | Kapan                                                  |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| **A. Pisahkan seam (rekomendasi)** | API/backend native `Bun.serve` (+Hono); Astro hanya frontend/SSR                                                    | Default base — paling "Bun-murni", cocok offline-first |
+| **B. `@astrojs/node` di atas Bun** | `output: "server"` + adapter node standalone; jalankan `bun ./dist/server/entry.mjs`; build `bun --bun astro build` | Bila ingin SSR Astro terpadu tanpa server terpisah     |
+
+Opsi B memakai paket ber-nama "node" tetapi **binary `node` tidak dipakai** — output-nya jalan di atas Node-compat Bun. Ini satu-satunya pemakaian paket "node" yang diizinkan; catat sebagai pengecualian di `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` bila dipilih (lihat doc 10 §Standar platform backend, doc 18 §Runtime & tooling). Output `static` (tanpa SSR) tidak butuh adapter dan bisa dilayani `Bun.serve` langsung.
 
 ## Lapisan frontend
 
@@ -48,6 +61,7 @@ flowchart TB
 Wrapper `fetch` bertipe di `src/lib/api-client.ts`.
 
 Tanggung jawab:
+
 1. Base URL `/api/v1`.
 2. Inject header: `Authorization` (dari sesi), `X-AWCMS-Mini-Tenant-ID`, `X-Correlation-ID`, `Accept-Language`; `Idempotency-Key` untuk mutation high-risk.
 3. Normalisasi response `{ success, data, meta }` / `{ success:false, error }`.
@@ -59,9 +73,17 @@ Tanggung jawab:
 ```ts
 type ApiResult<T> =
   | { ok: true; data: T; meta?: { correlationId?: string; requestId?: string } }
-  | { ok: false; error: { code: string; message: string; details?: unknown[] } };
+  | {
+      ok: false;
+      error: { code: string; message: string; details?: unknown[] };
+    };
 
-async function apiFetch<T>(path: string, init?: RequestInit & { idempotencyKey?: string }): Promise<ApiResult<T>> { /* ... */ }
+async function apiFetch<T>(
+  path: string,
+  init?: RequestInit & { idempotencyKey?: string },
+): Promise<ApiResult<T>> {
+  /* ... */
+}
 ```
 
 ## Autentikasi dan sesi
@@ -117,6 +139,7 @@ sequenceDiagram
 ```
 
 Aturan offline:
+
 - Hanya operasi yang aman offline yang didukung (checkout & posting POS, receipt lokal). Operasi yang butuh server otoritatif (approval, export pajak) **tidak** dijalankan offline.
 - Stok yang ditampilkan offline adalah snapshot; server tetap otoritatif dan dapat menolak (`STOCK_NOT_AVAILABLE`) saat sync.
 - Provider eksternal (WA/email/R2) selalu lewat outbox server, bukan dari klien.
@@ -136,18 +159,18 @@ Aturan offline:
 
 ## Kontrak integrasi layar → endpoint → event
 
-| Layar | Aksi | Endpoint | Event dihasilkan |
-|---|---|---|---|
-| Setup wizard | Inisialisasi | `POST /setup/initialize` | `tenant.created` |
-| Login | Masuk | `POST /auth/login` | `identity.login.succeeded` |
-| Produk | CRUD | `/inventory/products` | `inventory.product.created` |
-| Produk | Soft delete/restore | `DELETE /inventory/products/{id}`, `POST /inventory/products/{id}/restore` | `inventory.product.soft_deleted/restored` |
-| Stok awal | Opening balance | `/inventory/stock-adjustment-requests` | `inventory.stock.adjustment.posted` |
-| POS | Posting | `POST /sales/checkout-sessions/{id}/post` | `sales.transaction.posted` |
-| Receipt portal | Kirim/consent | `POST /crm/receipts/{id}/send` | `crm.message.sent` |
-| Warehouse | Transfer | `/warehouse-transfers/*` | `warehouse.transfer.shipped/received` |
-| Pajak | VAT/Coretax | `/tax/*` | `tax.vat_invoice.generated` |
-| Sync | Push/pull | `/sync/push`, `/sync/pull` | `sync.conflict.detected` |
+| Layar          | Aksi                | Endpoint                                                                   | Event dihasilkan                          |
+| -------------- | ------------------- | -------------------------------------------------------------------------- | ----------------------------------------- |
+| Setup wizard   | Inisialisasi        | `POST /setup/initialize`                                                   | `tenant.created`                          |
+| Login          | Masuk               | `POST /auth/login`                                                         | `identity.login.succeeded`                |
+| Produk         | CRUD                | `/inventory/products`                                                      | `inventory.product.created`               |
+| Produk         | Soft delete/restore | `DELETE /inventory/products/{id}`, `POST /inventory/products/{id}/restore` | `inventory.product.soft_deleted/restored` |
+| Stok awal      | Opening balance     | `/inventory/stock-adjustment-requests`                                     | `inventory.stock.adjustment.posted`       |
+| POS            | Posting             | `POST /sales/checkout-sessions/{id}/post`                                  | `sales.transaction.posted`                |
+| Receipt portal | Kirim/consent       | `POST /crm/receipts/{id}/send`                                             | `crm.message.sent`                        |
+| Warehouse      | Transfer            | `/warehouse-transfers/*`                                                   | `warehouse.transfer.shipped/received`     |
+| Pajak          | VAT/Coretax         | `/tax/*`                                                                   | `tax.vat_invoice.generated`               |
+| Sync           | Push/pull           | `/sync/push`, `/sync/pull`                                                 | `sync.conflict.detected`                  |
 
 ## Keamanan frontend
 

@@ -8,17 +8,17 @@ Terkait: `10_template_kode_coding_standard.md` (aturan), `04_erd_data_dictionary
 
 ## Keputusan teknis
 
-| Aspek | Keputusan |
-|---|---|
-| Backend platform | **Bun runtime**; semua script backend dijalankan dengan `bun` |
-| Driver | `postgres` (postgres.js) atau `Bun.sql` — parameterized, mendukung pool |
-| Pola akses | Repository per modul (`infrastructure/repository.ts`) |
-| RLS context | `SET LOCAL app.current_tenant_id` di dalam transaction |
-| Transaction | Wrapper eksplisit; `FOR UPDATE` untuk stok; timeout |
-| Event/provider | **Transactional outbox** (event, pesan CRM, sync) |
-| Soft delete | Repository default filter `deleted_at IS NULL`; restore/purge berizin |
-| Migration | Runner berurutan + checksum (`awcms_mini_schema_migrations`) |
-| Pool | Work-class + antrean + circuit breaker; PgBouncer opsional |
+| Aspek            | Keputusan                                                               |
+| ---------------- | ----------------------------------------------------------------------- |
+| Backend platform | **Bun runtime**; semua script backend dijalankan dengan `bun`           |
+| Driver           | `postgres` (postgres.js) atau `Bun.sql` — parameterized, mendukung pool |
+| Pola akses       | Repository per modul (`infrastructure/repository.ts`)                   |
+| RLS context      | `SET LOCAL app.current_tenant_id` di dalam transaction                  |
+| Transaction      | Wrapper eksplisit; `FOR UPDATE` untuk stok; timeout                     |
+| Event/provider   | **Transactional outbox** (event, pesan CRM, sync)                       |
+| Soft delete      | Repository default filter `deleted_at IS NULL`; restore/purge berizin   |
+| Migration        | Runner berurutan + checksum (`awcms_mini_schema_migrations`)            |
+| Pool             | Work-class + antrean + circuit breaker; PgBouncer opsional              |
 
 ## Lapisan akses data
 
@@ -43,6 +43,7 @@ Backend AWCMS-Mini menggunakan **Bun-only**:
 - Gunakan `bun.lock` sebagai lockfile dan `packageManager: "bun@..."` sebagai deklarasi package manager.
 - Dilarang menambah `node`, `npm`, `npx`, `pnpm`, `yarn`, adapter server Node.js, atau dependency yang memaksa proses backend berjalan di Node.js.
 - Library yang kompatibel dengan Bun boleh dipakai, walaupun berasal dari ekosistem npm, selama tidak membutuhkan runtime Node.js sebagai platform server.
+- **HTTP server** = `Bun.serve` native; **database driver** = `Bun.sql` atau `postgres` (postgres.js), bukan `pg`. Import `node:*` (mis. `node:crypto`) adalah API bawaan Bun dan **diizinkan**. Detail lengkap: doc 10 §Standar platform backend; SSR Astro di atas Bun: doc 15 §Astro SSR di atas runtime Bun.
 
 Pengecualian Node.js hanya boleh bila semua kondisi berikut terpenuhi:
 
@@ -66,14 +67,20 @@ COMMIT;
 ```
 
 Catatan penting:
+
 - Gunakan **`SET LOCAL`** (bukan `SET` sesi) agar aman dengan **PgBouncer transaction pooling** — konteks tidak bocor antar transaksi/koneksi.
 - Nilai berasal dari auth middleware, **bukan** header publik mentah.
 - RLS adalah pertahanan lapis kedua; query tetap memfilter `tenant_id` secara eksplisit.
 
 ```ts
-async function withTenant<T>(tenantId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
+async function withTenant<T>(
+  tenantId: string,
+  fn: (tx: Tx) => Promise<T>,
+): Promise<T> {
   return transaction(async (tx) => {
-    await tx.unsafe(`SET LOCAL app.current_tenant_id = '${assertUuid(tenantId)}'`);
+    await tx.unsafe(
+      `SET LOCAL app.current_tenant_id = '${assertUuid(tenantId)}'`,
+    );
     return fn(tx);
   });
 }
@@ -131,13 +138,13 @@ Tabel terkait: `awcms-mini_sync_outbox`, `awcms-mini_message_outbox`, `awcms-min
 
 Work class membatasi konkurensi per jenis beban agar transaksi operasional tetap prioritas.
 
-| Work class | Contoh | Prioritas |
-|---|---|---|
+| Work class             | Contoh                        | Prioritas |
+| ---------------------- | ----------------------------- | --------- |
 | `critical_transaction` | Posting POS, transfer receive | Tertinggi |
-| `interactive` | CRUD admin, search | Tinggi |
-| `reporting` | Laporan, dashboard | Sedang |
-| `background_sync` | Sync push/pull, outbox | Rendah |
-| `maintenance` | Migration, backup | Terjadwal |
+| `interactive`          | CRUD admin, search            | Tinggi    |
+| `reporting`            | Laporan, dashboard            | Sedang    |
+| `background_sync`      | Sync push/pull, outbox        | Rendah    |
+| `maintenance`          | Migration, backup             | Terjadwal |
 
 ```mermaid
 flowchart LR
@@ -212,13 +219,13 @@ Aturan:
 
 ## Tipe data & konvensi
 
-| Domain | Tipe PostgreSQL |
-|---|---|
-| ID | `uuid` (default `gen_random_uuid()`) |
-| Waktu | `timestamptz` |
-| Uang/quantity | `numeric` |
-| Payload fleksibel | `jsonb` |
-| Enum-like | `text` + `CHECK` |
+| Domain                | Tipe PostgreSQL                             |
+| --------------------- | ------------------------------------------- |
+| ID                    | `uuid` (default `gen_random_uuid()`)        |
+| Waktu                 | `timestamptz`                               |
+| Uang/quantity         | `numeric`                                   |
+| Payload fleksibel     | `jsonb`                                     |
+| Enum-like             | `text` + `CHECK`                            |
 | Soft delete timestamp | `timestamptz` (`deleted_at`, `restored_at`) |
 
 Nama tabel/kolom `snake_case`, prefiks `awcms-mini_` (doc 04/10).
