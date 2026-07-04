@@ -27,22 +27,22 @@ Audit membaca seluruh isi repo saat ini:
 
 ## Temuan utama
 
-| Area | Status | Catatan |
-|---|---|---|
-| Status repo | PASS | Repo jujur menyatakan docs-only dan belum mengklaim app production-ready. |
-| Stack target | PASS | Bun, Astro 7, dan PostgreSQL konsisten di README, AGENTS, doc 01, 10, 11, 13, 15, 16, 18. |
-| Backend platform Bun-only | PASS | Dokumen menetapkan Bun sebagai runtime backend dan melarang Node.js/tooling npm-family tanpa pengecualian tertulis. |
-| Governance agent | PASS | `AGENTS.md`, 17 skill, dan 3 subagent tersedia; alur implementasi/review/security jelas. |
-| Roadmap issue | PASS | Issue 0.1–12.2 terdokumentasi; snapshot GitHub open/closed ada di `docs/awcms-mini/github/`; urutan implementasi tidak melompat ke POS sebelum tenant/auth/access. |
-| Security baseline | PASS | RBAC, ABAC default deny, RLS, audit, masking, idempotency, soft delete, HMAC sync, provider outbox tercakup. |
-| Database standard | PASS | Migration berurutan, PostgreSQL types, RLS, index/FK, transaction wrapper, locking, outbox, pooling terdokumentasi. |
-| API/event contract | PASS | OpenAPI/AsyncAPI, response/error shape, idempotency header, soft delete API, tombstone event terdokumentasi. |
-| Frontend standard | PASS | Astro SSR/islands, PWA/offline-first, IndexedDB outbox, API client, a11y, i18n, design token terdokumentasi. |
-| Testing & readiness | PASS | Unit/integration/contract/security/performance target dan production preflight sudah ada. |
-| Versioning | PASS setelah perbaikan | Changesets tersedia; `bun.lock` ditambahkan untuk reproducible install. |
-| Runtime source | N/A | `src/`, `sql/`, `openapi/`, `asyncapi/`, `tests/`, `astro.config.mjs`, `.env.example`, `docker-compose.yml` belum ada karena masuk scope Issue 0.1. |
-| Security automation | PASS | `SECURITY.md`, Dependabot config, CodeQL workflow untuk GitHub Actions, secret scanning, push protection, dan private vulnerability reporting tersedia. |
-| CI build/test workflow | GAP terencana | Workflow build/test/spec aplikasi belum ditambahkan karena script runtime masuk scope Issue 0.1. |
+| Area                      | Status                 | Catatan                                                                                                                                                            |
+| ------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Status repo               | PASS                   | Repo jujur menyatakan docs-only dan belum mengklaim app production-ready.                                                                                          |
+| Stack target              | PASS                   | Bun, Astro 7, dan PostgreSQL konsisten di README, AGENTS, doc 01, 10, 11, 13, 15, 16, 18.                                                                          |
+| Backend platform Bun-only | PASS                   | Dokumen menetapkan Bun sebagai runtime backend dan melarang Node.js/tooling npm-family tanpa pengecualian tertulis.                                                |
+| Governance agent          | PASS                   | `AGENTS.md`, 17 skill, dan 3 subagent tersedia; alur implementasi/review/security jelas.                                                                           |
+| Roadmap issue             | PASS                   | Issue 0.1–12.2 terdokumentasi; snapshot GitHub open/closed ada di `docs/awcms-mini/github/`; urutan implementasi tidak melompat ke POS sebelum tenant/auth/access. |
+| Security baseline         | PASS                   | RBAC, ABAC default deny, RLS, audit, masking, idempotency, soft delete, HMAC sync, provider outbox tercakup.                                                       |
+| Database standard         | PASS                   | Migration berurutan, PostgreSQL types, RLS, index/FK, transaction wrapper, locking, outbox, pooling terdokumentasi.                                                |
+| API/event contract        | PASS                   | OpenAPI/AsyncAPI, response/error shape, idempotency header, soft delete API, tombstone event terdokumentasi.                                                       |
+| Frontend standard         | PASS                   | Astro SSR/islands, PWA/offline-first, IndexedDB outbox, API client, a11y, i18n, design token terdokumentasi.                                                       |
+| Testing & readiness       | PASS                   | Unit/integration/contract/security/performance target dan production preflight sudah ada.                                                                          |
+| Versioning                | PASS setelah perbaikan | Changesets tersedia; `bun.lock` ditambahkan untuk reproducible install.                                                                                            |
+| Runtime source            | N/A                    | `src/`, `sql/`, `openapi/`, `asyncapi/`, `tests/`, `astro.config.mjs`, `.env.example`, `docker-compose.yml` belum ada karena masuk scope Issue 0.1.                |
+| Security automation       | PASS                   | `SECURITY.md`, Dependabot config, CodeQL workflow untuk GitHub Actions, secret scanning, push protection, dan private vulnerability reporting tersedia.            |
+| CI build/test workflow    | GAP terencana          | Workflow build/test/spec aplikasi belum ditambahkan karena script runtime masuk scope Issue 0.1.                                                                   |
 
 ## Standar yang sudah terpenuhi sebagai baseline
 
@@ -69,8 +69,8 @@ Status saat audit: **tidak ada pengecualian Node.js yang disetujui**.
 Jika di masa depan Bun belum mendukung kebutuhan teknis tertentu, pengecualian wajib dicatat di tabel ini sebelum merge:
 
 | Tanggal | Scope | Alasan Bun belum cukup | Izin maintainer | Alternatif Bun yang dicoba | Rencana pencabutan |
-|---|---|---|---|---|---|
-| — | — | — | — | — | — |
+| ------- | ----- | ---------------------- | --------------- | -------------------------- | ------------------ |
+| —       | —     | —                      | —               | —                          | —                  |
 
 Catatan: script aplikasi belum ada di `package.json` karena repository belum melewati Issue 0.1.
 
@@ -79,6 +79,7 @@ Catatan: script aplikasi belum ada di `package.json` karena repository belum mel
 - Astro 7 dipilih eksplisit sebagai framework.
 - Doc 15 menetapkan Astro output server/SSR, islands untuk area interaktif, cookie httpOnly untuk sesi, dan service worker/IndexedDB untuk POS offline.
 - Doc 14 menetapkan design token, komponen UI, state pattern, a11y WCAG 2.1 AA, i18n, dan layout admin/POS/customer.
+- **Astro berjalan penuh di runtime Bun** (install/dev/build/runtime); bin Astro/Vite dipanggil `bun --bun`. Astro belum punya adapter SSR Bun first-party, sehingga SSR memakai salah satu opsi tersanksi (doc 15 §Astro SSR di atas runtime Bun): (A) seam API `Bun.serve`+Hono dengan Astro sebagai frontend — rekomendasi, atau (B) `@astrojs/node` standalone dijalankan `bun ./dist/server/entry.mjs`. Opsi B = satu-satunya pemakaian paket ber-nama "node" yang diizinkan (binary `node` tidak dipakai) dan wajib dicatat sebagai pengecualian di §2.1.
 
 Catatan: `astro.config.mjs`, pages, dan komponen belum ada karena masih target Issue 0.1 dan sprint UI.
 
@@ -92,14 +93,14 @@ Catatan: `sql/` dan migration runner belum ada karena masih target Issue 0.1–0
 
 ## Gap yang harus ditutup saat implementasi
 
-| Prioritas | Gap | Target penyelesaian |
-|---:|---|---|
-| P0 | Scaffold runtime belum ada (`src/`, `astro.config.mjs`, `tsconfig.json`, `.env.example`, `docker-compose.yml`). | Issue 0.1 |
-| P0 | Migration runner, OpenAPI/AsyncAPI validator, dan contract test belum ada. | Issue 0.2–0.3 |
-| P0 | CI workflow belum ada untuk `bun install --frozen-lockfile`, build, test, spec check. | Tambahkan di Issue 0.1/0.3 setelah script tersedia |
-| P1 | Markdown/link/spec lint belum otomatis. | Tambahkan script docs/spec validation pada Issue 0.3 |
-| P1 | Runtime enforcement belum bisa diuji: TypeScript strict, RLS integration, ABAC, idempotency, audit, masking. | Mulai Issue 2.1–3.4 sesuai urutan |
-| P1 | Production preflight masih berupa target script. | Issue 10.3 dan Sprint 12 |
+| Prioritas | Gap                                                                                                             | Target penyelesaian                                  |
+| --------: | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+|        P0 | Scaffold runtime belum ada (`src/`, `astro.config.mjs`, `tsconfig.json`, `.env.example`, `docker-compose.yml`). | Issue 0.1                                            |
+|        P0 | Migration runner, OpenAPI/AsyncAPI validator, dan contract test belum ada.                                      | Issue 0.2–0.3                                        |
+|        P0 | CI workflow belum ada untuk `bun install --frozen-lockfile`, build, test, spec check.                           | Tambahkan di Issue 0.1/0.3 setelah script tersedia   |
+|        P1 | Markdown/link/spec lint belum otomatis.                                                                         | Tambahkan script docs/spec validation pada Issue 0.3 |
+|        P1 | Runtime enforcement belum bisa diuji: TypeScript strict, RLS integration, ABAC, idempotency, audit, masking.    | Mulai Issue 2.1–3.4 sesuai urutan                    |
+|        P1 | Production preflight masih berupa target script.                                                                | Issue 10.3 dan Sprint 12                             |
 
 ## Verifikasi yang dijalankan
 

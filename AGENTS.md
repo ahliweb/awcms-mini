@@ -6,19 +6,19 @@ Dokumen ini adalah **kontrak kerja** untuk coding agent (Claude Code, Codex, dsb
 
 ## Ringkasan proyek
 
-| Aspek | Keputusan |
-|---|---|
-| Produk | standar modular monolith berbasis AWCMS-Mini |
-| Runtime | Bun |
-| Backend platform | **Bun-only**; Node.js dilarang kecuali pengecualian terdokumentasi |
-| Web framework | Astro 7 |
-| Database | PostgreSQL |
-| Arsitektur | Modular monolith, microservice-ready |
-| Mode operasi | Offline-first / LAN-first, optional online sync |
-| Security baseline | RBAC + ABAC + PostgreSQL RLS + Audit Log |
-| API contract | OpenAPI |
-| Event contract | AsyncAPI |
-| Bahasa dokumen | Indonesia (teknis) |
+| Aspek             | Keputusan                                                          |
+| ----------------- | ------------------------------------------------------------------ |
+| Produk            | standar modular monolith berbasis AWCMS-Mini                       |
+| Runtime           | Bun                                                                |
+| Backend platform  | **Bun-only**; Node.js dilarang kecuali pengecualian terdokumentasi |
+| Web framework     | Astro 7                                                            |
+| Database          | PostgreSQL                                                         |
+| Arsitektur        | Modular monolith, microservice-ready                               |
+| Mode operasi      | Offline-first / LAN-first, optional online sync                    |
+| Security baseline | RBAC + ABAC + PostgreSQL RLS + Audit Log                           |
+| API contract      | OpenAPI                                                            |
+| Event contract    | AsyncAPI                                                           |
+| Bahasa dokumen    | Indonesia (teknis)                                                 |
 
 ## Alur kerja wajib setiap task
 
@@ -91,25 +91,25 @@ flowchart LR
 
 AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode standar dokumen agar diterapkan konsisten. Model memanggilnya otomatis saat relevan, atau kamu panggil manual via `/<nama-skill>`. Katalog lengkap: [`.claude/skills/README.md`](.claude/skills/README.md).
 
-| Butuh… | Skill |
-|---|---|
-| Kerjakan issue/sprint atomic (orkestrator) | `awcms-mini-implement-issue` |
-| Scaffold modul baru | `awcms-mini-new-module` |
-| Migration SQL (tabel/index/RLS) | `awcms-mini-new-migration` |
-| Endpoint REST + OpenAPI | `awcms-mini-new-endpoint` |
-| Domain event + AsyncAPI | `awcms-mini-new-event` |
-| Idempotency mutation high-risk | `awcms-mini-idempotency` |
-| ABAC default-deny + RLS | `awcms-mini-abac-guard` |
-| Audit high-risk + redaction | `awcms-mini-audit-log` |
-| Masking data sensitif | `awcms-mini-sensitive-data` |
-| Sync HMAC + anti-replay | `awcms-mini-sync-hmac` |
-| Review keamanan modul | `awcms-mini-security-review` |
-| Review pull request | `awcms-mini-pr-review` |
-| Tulis test berlapis | `awcms-mini-testing` |
-| Preflight & go-live | `awcms-mini-production-preflight` |
-| Layar/komponen UI sesuai design system | `awcms-mini-ui-screen` |
-| Rilis versi (Changesets, tag, CHANGELOG) | `awcms-mini-release` |
-| Migrasi data legacy (dry-run, backfill) | `awcms-mini-legacy-migration` |
+| Butuh…                                     | Skill                             |
+| ------------------------------------------ | --------------------------------- |
+| Kerjakan issue/sprint atomic (orkestrator) | `awcms-mini-implement-issue`      |
+| Scaffold modul baru                        | `awcms-mini-new-module`           |
+| Migration SQL (tabel/index/RLS)            | `awcms-mini-new-migration`        |
+| Endpoint REST + OpenAPI                    | `awcms-mini-new-endpoint`         |
+| Domain event + AsyncAPI                    | `awcms-mini-new-event`            |
+| Idempotency mutation high-risk             | `awcms-mini-idempotency`          |
+| ABAC default-deny + RLS                    | `awcms-mini-abac-guard`           |
+| Audit high-risk + redaction                | `awcms-mini-audit-log`            |
+| Masking data sensitif                      | `awcms-mini-sensitive-data`       |
+| Sync HMAC + anti-replay                    | `awcms-mini-sync-hmac`            |
+| Review keamanan modul                      | `awcms-mini-security-review`      |
+| Review pull request                        | `awcms-mini-pr-review`            |
+| Tulis test berlapis                        | `awcms-mini-testing`              |
+| Preflight & go-live                        | `awcms-mini-production-preflight` |
+| Layar/komponen UI sesuai design system     | `awcms-mini-ui-screen`            |
+| Rilis versi (Changesets, tag, CHANGELOG)   | `awcms-mini-release`              |
+| Migrasi data legacy (dry-run, backfill)    | `awcms-mini-legacy-migration`     |
 
 ```mermaid
 flowchart LR
@@ -132,11 +132,11 @@ Skill merujuk `docs/awcms-mini/*` sebagai sumber kebenaran; bila standar berubah
 
 Untuk delegasi kerja penuh, tersedia subagent yang memetakan prompt di doc 12:
 
-| Agent | Peran | Prompt asal (doc 12) | Tools |
-|---|---|---|---|
-| `awcms-mini-coder` | Implementasi issue end-to-end | Prompt Induk / Per Issue | Semua |
-| `awcms-mini-reviewer` | Review PR/diff terhadap DoD | Prompt Review PR | Read-only |
-| `awcms-mini-security-auditor` | Audit keamanan modul + verdict go-live | Prompt Security Review | Read-only |
+| Agent                         | Peran                                  | Prompt asal (doc 12)     | Tools     |
+| ----------------------------- | -------------------------------------- | ------------------------ | --------- |
+| `awcms-mini-coder`            | Implementasi issue end-to-end          | Prompt Induk / Per Issue | Semua     |
+| `awcms-mini-reviewer`         | Review PR/diff terhadap DoD            | Prompt Review PR         | Read-only |
+| `awcms-mini-security-auditor` | Audit keamanan modul + verdict go-live | Prompt Security Review   | Read-only |
 
 ```mermaid
 flowchart LR
@@ -156,8 +156,9 @@ Skrip berikut menjadi target repository (lihat doc 11). Sebelum Issue 0.1 selesa
 
 ```bash
 bun install
-bun run dev                 # astro dev
-bun run build               # astro build
+bun run dev                 # bun --bun astro dev
+bun run build               # bun --bun astro build
+bun run start               # bun ./dist/server/entry.mjs (SSR di atas Bun)
 bun run db:migrate          # jalankan migration berurutan
 bun run api:spec:check      # validasi OpenAPI/AsyncAPI
 bun run api:contract:test   # contract test API
@@ -259,28 +260,28 @@ Next recommended step:
 
 ## Peta dokumen (baca sesuai kebutuhan task)
 
-| Butuh memahami… | Baca |
-|---|---|
-| Arsitektur & fase | `docs/awcms-mini/01_canvas_induk.md` |
-| Kebutuhan produk | `docs/awcms-mini/02_prd_detail_per_modul.md` |
-| Spesifikasi teknis | `docs/awcms-mini/03_srs_detail_per_modul.md` |
-| Database/ERD/RLS | `docs/awcms-mini/04_erd_data_dictionary.md` |
-| Kontrak API/event | `docs/awcms-mini/05_openapi_asyncapi_detail.md` |
-| Issue atomic | `docs/awcms-mini/06_github_issues_detail.md` |
-| Sprint/testing/go-live | `docs/awcms-mini/07_sprint_testing_production_readiness.md` |
-| SOP operasional | `docs/awcms-mini/08_sop_operasional_user_guide.md` |
-| Roadmap repo/commit | `docs/awcms-mini/09_roadmap_repository_commit.md` |
-| Coding standard | `docs/awcms-mini/10_template_kode_coding_standard.md` |
-| Blueprint skeleton | `docs/awcms-mini/11_implementation_blueprint.md` |
-| Prompt eksekusi | `docs/awcms-mini/12_generator_prompt.md` |
-| Master index/traceability | `docs/awcms-mini/13_final_master_index_traceability.md` |
-| UI/UX, design token, layar | `docs/awcms-mini/14_ui_ux_design_system.md` |
-| Frontend & integrasi, offline-first | `docs/awcms-mini/15_frontend_architecture_integration.md` |
-| Data access, pooling, RLS, outbox | `docs/awcms-mini/16_backend_data_access_integration.md` |
-| Role default, permission, ABAC seed | `docs/awcms-mini/17_default_seed_rbac_abac.md` |
-| Env, feature flag, deployment | `docs/awcms-mini/18_configuration_env_reference.md` |
-| Glossary & terminologi | `docs/awcms-mini/19_glossary_terminology.md` |
-| Snapshot GitHub issue aktual, label, milestone, dan proses refresh | `docs/awcms-mini/github/README.md` |
+| Butuh memahami…                                                    | Baca                                                        |
+| ------------------------------------------------------------------ | ----------------------------------------------------------- |
+| Arsitektur & fase                                                  | `docs/awcms-mini/01_canvas_induk.md`                        |
+| Kebutuhan produk                                                   | `docs/awcms-mini/02_prd_detail_per_modul.md`                |
+| Spesifikasi teknis                                                 | `docs/awcms-mini/03_srs_detail_per_modul.md`                |
+| Database/ERD/RLS                                                   | `docs/awcms-mini/04_erd_data_dictionary.md`                 |
+| Kontrak API/event                                                  | `docs/awcms-mini/05_openapi_asyncapi_detail.md`             |
+| Issue atomic                                                       | `docs/awcms-mini/06_github_issues_detail.md`                |
+| Sprint/testing/go-live                                             | `docs/awcms-mini/07_sprint_testing_production_readiness.md` |
+| SOP operasional                                                    | `docs/awcms-mini/08_sop_operasional_user_guide.md`          |
+| Roadmap repo/commit                                                | `docs/awcms-mini/09_roadmap_repository_commit.md`           |
+| Coding standard                                                    | `docs/awcms-mini/10_template_kode_coding_standard.md`       |
+| Blueprint skeleton                                                 | `docs/awcms-mini/11_implementation_blueprint.md`            |
+| Prompt eksekusi                                                    | `docs/awcms-mini/12_generator_prompt.md`                    |
+| Master index/traceability                                          | `docs/awcms-mini/13_final_master_index_traceability.md`     |
+| UI/UX, design token, layar                                         | `docs/awcms-mini/14_ui_ux_design_system.md`                 |
+| Frontend & integrasi, offline-first                                | `docs/awcms-mini/15_frontend_architecture_integration.md`   |
+| Data access, pooling, RLS, outbox                                  | `docs/awcms-mini/16_backend_data_access_integration.md`     |
+| Role default, permission, ABAC seed                                | `docs/awcms-mini/17_default_seed_rbac_abac.md`              |
+| Env, feature flag, deployment                                      | `docs/awcms-mini/18_configuration_env_reference.md`         |
+| Glossary & terminologi                                             | `docs/awcms-mini/19_glossary_terminology.md`                |
+| Snapshot GitHub issue aktual, label, milestone, dan proses refresh | `docs/awcms-mini/github/README.md`                          |
 
 ## Mulai dari sini
 

@@ -65,9 +65,10 @@ awcms-mini/
 {
   "packageManager": "bun@1.3.14",
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "preview": "astro preview",
+    "dev": "bun --bun astro dev",
+    "build": "bun --bun astro build",
+    "preview": "bun --bun astro preview",
+    "start": "bun ./dist/server/entry.mjs",
     "db:migrate": "bun scripts/db-migrate.ts",
     "api:spec:check": "bun scripts/api-spec-check.ts",
     "api:contract:test": "bun scripts/api-contract-test.ts",
@@ -79,7 +80,7 @@ awcms-mini/
 }
 ```
 
-Semua script di atas wajib dijalankan dengan Bun. Jangan menambahkan `node`, `npm`, `npx`, `pnpm`, atau `yarn` sebagai jalur eksekusi. Bila ada tooling yang belum didukung Bun, ikuti protokol pengecualian di `AGENTS.md` dan doc 16 sebelum menambahkannya.
+Semua script di atas wajib dijalankan dengan Bun. Bin Astro/Vite dipanggil lewat **`bun --bun`** agar Bun yang mengeksekusi, bukan binary `node` yang kebetulan terpasang (shebang bin-nya `#!/usr/bin/env node`). Server SSR hasil build dijalankan `bun ./dist/server/entry.mjs` (lihat doc 10 §Standar platform backend & doc 15). Jangan menambahkan `node`, `npm`, `npx`, `pnpm`, atau `yarn` sebagai jalur eksekusi. Bila ada tooling yang belum didukung Bun, ikuti protokol pengecualian di `AGENTS.md` dan doc 16 sebelum menambahkannya.
 
 ## Minimal `.env.example`
 
@@ -131,7 +132,9 @@ import type { ModuleDescriptor } from "./_shared/module-contract";
 
 export const modules: ModuleDescriptor[] = [];
 
-export function getModuleByKey(moduleKey: string): ModuleDescriptor | undefined {
+export function getModuleByKey(
+  moduleKey: string,
+): ModuleDescriptor | undefined {
   return modules.find((module) => module.key === moduleKey);
 }
 ```
@@ -142,11 +145,12 @@ export function getModuleByKey(moduleKey: string): ModuleDescriptor | undefined 
 import type { APIRoute } from "astro";
 import { ok } from "../../../../modules/_shared/api-response";
 
-export const GET: APIRoute = async () => ok({
-  status: "ok",
-  service: "awcms-mini",
-  timestamp: new Date().toISOString()
-});
+export const GET: APIRoute = async () =>
+  ok({
+    status: "ok",
+    service: "awcms-mini",
+    timestamp: new Date().toISOString(),
+  });
 ```
 
 ### Minimal foundation migration
