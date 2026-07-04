@@ -57,18 +57,18 @@ flowchart LR
 
 ## Dokumen acuan per epic
 
-Selain doc 01–05, setiap epic wajib membaca dokumen desain teknis terkait:
+Selain doc 01–05, setiap epic wajib membaca dokumen desain teknis terkait. Semua epic tunduk pada keputusan arsitektural di [`../adr/`](../adr/README.md) dan threat model di doc 20.
 
-| Epic                        | Dokumen acuan utama                                     |
-| --------------------------- | ------------------------------------------------------- |
-| 0 Foundation                | 09, 10, 11, 16 (migration runner, pool), 18 (env)       |
-| 2 Tenant/Identity/Profile   | 03, 04, 16 (RLS/SET LOCAL), **17 (seed/RBAC/ABAC)**     |
-| 6 Sync Storage              | 03, 10 (HMAC), 15 (offline client), 16 (outbox)         |
-| 8 UI Experience             | **14 (design system/layar)**, **15 (frontend/offline)** |
-| 9 Management Reporting      | 03, 05, 14 (dashboard UI)                               |
-| 10 Logging/Pooling/Security | **16 (pool/backpressure)**, 07, 03                      |
-| 11 Workflow Approval        | 03, 17 (self-approval policy)                           |
-| 12 Setup & Deployment       | **17 (seed wizard)**, **18 (env/topologi)**, 07         |
+| Epic                        | Dokumen acuan utama                                                      |
+| --------------------------- | ------------------------------------------------------------------------ |
+| 0 Foundation                | 09, 10, 11, 16 (migration runner, pool), 18 (env); ADR 0001–0002, 0007   |
+| 2 Tenant/Identity/Profile   | 03, 04, 16 (RLS/SET LOCAL), **17 (seed/RBAC/ABAC)**; ADR 0003–0004       |
+| 6 Sync Storage              | 03, 10 (HMAC), 15 (offline client), 16 (outbox); ADR 0006                |
+| 8 UI Experience             | **14 (design system/layar)**, **15 (frontend/offline)**                  |
+| 9 Management Reporting      | 03, 05, 14 (dashboard UI)                                                |
+| 10 Logging/Pooling/Security | **16 (pool/backpressure)**, 07, 03, **20 (threat model)**; ADR 0003–0005 |
+| 11 Workflow Approval        | 03, 17 (self-approval policy); ADR 0004                                  |
+| 12 Setup & Deployment       | **17 (seed wizard)**, **18 (env/topologi)**, 07                          |
 
 ---
 
@@ -229,7 +229,7 @@ Status awal issue yang tersisa:
 3. Setelah suatu issue selesai dan di-merge, ubah label issue yang dependency-nya baru terpenuhi dari `status:blocked` menjadi `status:ready` di GitHub.
 4. Refresh snapshot di [`github/README.md`](github/README.md), `github/issues-open-NNN.md`, `github/issues-closed-NNN.md`, dan `github/labels-milestones.md` setiap kali status/label/milestone berubah.
 
-Jika repo ini dipakai sebagai template untuk membangun aplikasi domain baru: **jangan** menambah epic domain ke backlog ini. Buat paket dokumen 01–19 dan backlog issue terpisah milik aplikasi turunan tersebut (pola: paket dokumen AWPOS), dan tambahkan modul domainnya di `src/modules/` di atas base ini.
+Jika repo ini dipakai sebagai template untuk membangun aplikasi domain baru: **jangan** menambah epic domain ke backlog ini. Buat paket dokumen 01–20 dan backlog issue terpisah milik aplikasi turunan tersebut (pola: paket dokumen AWPOS), dan tambahkan modul domainnya di `src/modules/` di atas base ini.
 
 Snapshot isi GitHub aktual dicatat di [`github/README.md`](github/README.md). Snapshot dipisah menjadi file `issues-open-NNN.md` dan `issues-closed-NNN.md`, dengan batas maksimal 100 issue per file. Dokumen ini tetap menjadi template/rencana issue atomic; folder `github/` menjadi arsip state GitHub yang direfresh dari `gh`.
 

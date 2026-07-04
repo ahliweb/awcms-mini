@@ -30,9 +30,14 @@ Baseline paket dokumentasi, standar profesional, & tooling. Belum ada kode aplik
 - Backlog issue & dokumen entry (01, 06, 09, `AGENTS.md`) digenerikkan: konten domain POS/retail dikeluarkan dari base; dokumen teknis 02–19 ditandai sebagai **contoh domain ilustratif**.
 - `README.md` dirapikan menjadi front door repo publik: badge, daftar isi, tautan tata kelola/keamanan/ADR, diagram arsitektur generik.
 
+### Removed
+
+- Berkas cruft `init` (1 byte, kosong) yang ter-track sejak sebelum standar ini.
+
 ### Fixed
 
 - Regresi penamaan `awcms-mini_*`/`AWCMS-Mini_*` → `awcms_mini_*`/`AWCMS_MINI_*` (identifier SQL/env) yang tersisa di `.claude/skills/`.
+- Referensi jumlah dokumen `01–19` → `01–20` dan penambahan doc 20 + ADR ke indeks (`AGENTS.md`, doc 13, doc 06, docs index). Issue GitHub `#405`/`#379` diselaraskan merujuk doc 20 + ADR.
 
 ## Peta versi rencana (base, dari doc 09)
 

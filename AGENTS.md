@@ -194,7 +194,8 @@ awcms-mini/
 ├── scripts/                 # db-migrate, api-spec-check, dst.
 ├── openapi/                 # kontrak REST
 ├── asyncapi/                # kontrak event
-├── docs/awcms-mini/         # paket dokumen 01–19
+├── docs/awcms-mini/         # paket dokumen 01–20
+├── docs/adr/                # architecture decision records
 ├── deploy/                  # systemd, nginx, pgbouncer, backup
 ├── tests/
 └── fixtures/
@@ -284,6 +285,9 @@ Next recommended step:
 | Role default, permission, ABAC seed                                | `docs/awcms-mini/17_default_seed_rbac_abac.md`              |
 | Env, feature flag, deployment                                      | `docs/awcms-mini/18_configuration_env_reference.md`         |
 | Glossary & terminologi                                             | `docs/awcms-mini/19_glossary_terminology.md`                |
+| Threat model & arsitektur keamanan                                 | `docs/awcms-mini/20_threat_model_security_architecture.md`  |
+| Keputusan arsitektural (ADR)                                       | `docs/adr/README.md`                                        |
+| Tata kelola, kontribusi, keamanan repo                             | `GOVERNANCE.md`, `CONTRIBUTING.md`, `SECURITY.md`           |
 | Snapshot GitHub issue aktual, label, milestone, dan proses refresh | `docs/awcms-mini/github/README.md`                          |
 
 ## Mulai dari sini
