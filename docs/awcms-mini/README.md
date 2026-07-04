@@ -4,6 +4,8 @@ Folder ini berisi paket dokumen master untuk pengembangan **AWCMS-Mini Modular M
 
 > Sebelum coding, baca [`../../AGENTS.md`](../../AGENTS.md) untuk aturan wajib dan alur kerja agent, serta gunakan **skill proyek** di [`../../.claude/skills/`](../../.claude/skills/README.md).
 
+> **Penting — konten domain vs base.** Dokumen **01, 06, 09** dan `AGENTS.md` sudah **generik (base)**. Dokumen **02–19** memakai domain retail/POS bergaya **AWPOS** sebagai **contoh ilustratif**: **pola & standar**-nya reusable, tetapi **entitas, endpoint, layar, dan istilah domain** (produk, POS, gudang, pajak, CRM, AI, dsb.) adalah ilustrasi yang **diganti** aplikasi turunan. Tiap dokumen 02–19 memuat banner penanda di bagian atasnya. Keputusan arsitektural base dicatat di [`../adr/`](../adr/README.md).
+
 ## Peta dokumen
 
 ```mermaid
@@ -38,6 +40,8 @@ flowchart TB
   end
   subgraph Referensi
     D19[19 Glossary]
+    D20[20 Threat Model]
+    ADR[docs/adr ADRs]
     GH[GitHub Snapshot]
   end
 
@@ -50,6 +54,8 @@ flowchart TB
   D3 --> D17
   D11 --> D18
   D19 -.rujukan istilah.-> D1
+  D20 -.gates keamanan.-> D7
+  ADR -.dasar keputusan.-> D1
   GH -.state aktual.-> D6
 ```
 
@@ -63,9 +69,7 @@ flowchart TB
 - **Microservice-ready**, tetapi tidak dipisah sejak awal.
 - **Offline-first / LAN-first**, dengan optional online sync.
 - **Cloudflare R2 optional** untuk object/file storage.
-- **StarSender optional** untuk WhatsApp receipt.
-- **Mailketing optional** untuk email receipt.
-- **AI analyst optional** melalui safe aggregate views.
+- **Provider eksternal opsional** (pesan/notifikasi/AI) via feature flag + outbox — ini adalah _slot_ base; provider konkret (mis. StarSender/Mailketing/AI analyst pada AWPOS) adalah contoh domain turunan.
 - **OpenAPI** untuk API contract.
 - **AsyncAPI** untuk domain event contract.
 
@@ -75,92 +79,99 @@ Dokumen dikelompokkan mengikuti alur pengembangan agar mudah diimplementasi.
 
 ### Lapisan A — Perencanaan (why & what)
 
-| No | File | Isi |
-|---:|---|---|
-| 1 | `01_canvas_induk.md` | Canvas induk tahapan pengembangan dan arsitektur |
-| 2 | `02_prd_detail_per_modul.md` | Product Requirement Document detail per modul |
-| 3 | `03_srs_detail_per_modul.md` | Software Requirement Specification detail |
+|  No | File                         | Isi                                              |
+| --: | ---------------------------- | ------------------------------------------------ |
+|   1 | `01_canvas_induk.md`         | Canvas induk tahapan pengembangan dan arsitektur |
+|   2 | `02_prd_detail_per_modul.md` | Product Requirement Document detail per modul    |
+|   3 | `03_srs_detail_per_modul.md` | Software Requirement Specification detail        |
 
 ### Lapisan B — Kontrak (interface)
 
-| No | File | Isi |
-|---:|---|---|
-| 4 | `04_erd_data_dictionary.md` | ERD, data dictionary, RLS, index, retention |
-| 5 | `05_openapi_asyncapi_detail.md` | Kontrak REST API dan domain event |
+|  No | File                            | Isi                                         |
+| --: | ------------------------------- | ------------------------------------------- |
+|   4 | `04_erd_data_dictionary.md`     | ERD, data dictionary, RLS, index, retention |
+|   5 | `05_openapi_asyncapi_detail.md` | Kontrak REST API dan domain event           |
 
 ### Lapisan C — Eksekusi (how & process)
 
-| No | File | Isi |
-|---:|---|---|
-| 6 | `06_github_issues_detail.md` | GitHub issues atomic siap copy-paste |
-| 7 | `07_sprint_testing_production_readiness.md` | Sprint plan, testing, go-live checklist |
-| 9 | `09_roadmap_repository_commit.md` | Roadmap repository, branch, commit, release |
-| 10 | `10_template_kode_coding_standard.md` | Template kode dan coding standard |
-| 11 | `11_implementation_blueprint.md` | Skeleton repository dan blueprint per sprint |
-| 12 | `12_generator_prompt.md` | Prompt eksekusi coding agent |
-| 13 | `13_final_master_index_traceability.md` | Master index, traceability matrix, checklist final |
+|  No | File                                        | Isi                                                |
+| --: | ------------------------------------------- | -------------------------------------------------- |
+|   6 | `06_github_issues_detail.md`                | GitHub issues atomic siap copy-paste               |
+|   7 | `07_sprint_testing_production_readiness.md` | Sprint plan, testing, go-live checklist            |
+|   9 | `09_roadmap_repository_commit.md`           | Roadmap repository, branch, commit, release        |
+|  10 | `10_template_kode_coding_standard.md`       | Template kode dan coding standard                  |
+|  11 | `11_implementation_blueprint.md`            | Skeleton repository dan blueprint per sprint       |
+|  12 | `12_generator_prompt.md`                    | Prompt eksekusi coding agent                       |
+|  13 | `13_final_master_index_traceability.md`     | Master index, traceability matrix, checklist final |
 
 ### Lapisan D — Desain teknis implementasi (build)
 
-| No | File | Isi |
-|---:|---|---|
-| 14 | `14_ui_ux_design_system.md` | Design system, token, komponen, layar, a11y, i18n |
-| 15 | `15_frontend_architecture_integration.md` | Arsitektur frontend, API client, auth, offline-first |
-| 16 | `16_backend_data_access_integration.md` | Data access, pooling, RLS, transaction, outbox, migration |
-| 17 | `17_default_seed_rbac_abac.md` | Role default, permission matrix, ABAC policy, seed |
-| 18 | `18_configuration_env_reference.md` | Referensi env, feature flag, topologi deployment |
+|  No | File                                      | Isi                                                       |
+| --: | ----------------------------------------- | --------------------------------------------------------- |
+|  14 | `14_ui_ux_design_system.md`               | Design system, token, komponen, layar, a11y, i18n         |
+|  15 | `15_frontend_architecture_integration.md` | Arsitektur frontend, API client, auth, offline-first      |
+|  16 | `16_backend_data_access_integration.md`   | Data access, pooling, RLS, transaction, outbox, migration |
+|  17 | `17_default_seed_rbac_abac.md`            | Role default, permission matrix, ABAC policy, seed        |
+|  18 | `18_configuration_env_reference.md`       | Referensi env, feature flag, topologi deployment          |
 
 ### Lapisan E — Operasi & referensi
 
-| No | File | Isi |
-|---:|---|---|
-| 8 | `08_sop_operasional_user_guide.md` | SOP operasional dan user guide |
-| 19 | `19_glossary_terminology.md` | Glossary & terminologi lintas dokumen |
+|  No | File                                       | Isi                                                                                                  |
+| --: | ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+|   8 | `08_sop_operasional_user_guide.md`         | SOP operasional dan user guide                                                                       |
+|  19 | `19_glossary_terminology.md`               | Glossary & terminologi lintas dokumen                                                                |
+|  20 | `20_threat_model_security_architecture.md` | Threat model (STRIDE), trust boundary, kontrol keamanan berlapis (dokumen base, bukan contoh domain) |
+
+### Architecture Decision Records
+
+| Folder                        | Isi                                                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| [`../adr/`](../adr/README.md) | Keputusan arsitektural base (modular monolith, Bun-only, RLS, RBAC/ABAC, soft delete, offline-first, kontrak) |
 
 ### Audit repo
 
-| File | Isi |
-|---|---|
+| File                                       | Isi                                                                                           |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------- |
 | `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` | Audit kepatuhan baseline docs-only terhadap standar pengembangan Bun, Astro 7, dan PostgreSQL |
 
 ### Snapshot GitHub
 
-| File | Isi |
-|---|---|
-| `github/README.md` | Proses pencatatan GitHub issue, aturan maksimal 100 issue per file, indeks snapshot, dan ringkasan live count saat refresh |
-| `github/issues-open-001.md` | Snapshot issue `OPEN` saat ini |
-| `github/issues-closed-001.md` | Snapshot issue `CLOSED` saat ini |
-| `github/labels-milestones.md` | Snapshot label dan milestone GitHub |
-| `github/security.md` | Snapshot setup GitHub Security, alert count, dan file security automation |
+| File                          | Isi                                                                                                                        |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `github/README.md`            | Proses pencatatan GitHub issue, aturan maksimal 100 issue per file, indeks snapshot, dan ringkasan live count saat refresh |
+| `github/issues-open-001.md`   | Snapshot issue `OPEN` saat ini                                                                                             |
+| `github/issues-closed-001.md` | Snapshot issue `CLOSED` saat ini                                                                                           |
+| `github/labels-milestones.md` | Snapshot label dan milestone GitHub                                                                                        |
+| `github/security.md`          | Snapshot setup GitHub Security, alert count, dan file security automation                                                  |
 
 ## Reading path (sesuai tujuan)
 
-| Tujuan | Urutan baca |
-|---|---|
-| Memahami produk & arsitektur | 01 → 02 → 03 → 19 |
-| Mulai coding (foundation) | AGENTS.md → 11 → 16 → 18 → 05 → 04 |
-| Implementasi modul backend | 03 (modul) → 04 → 05 → 10 → 16 → 17 |
-| Implementasi UI/frontend | 14 → 15 → 05 → 08 |
-| Setup akses & multi-tenant | 17 → 16 → 03 |
-| Testing & go-live | 07 → 12 → 13 |
-| Operasional & handover | 08 → 09 → 13 |
-| Audit standar repo | `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` → 09 → 11 |
-| Sinkronisasi GitHub issue | 06 → `github/README.md` → 09 → 13 |
+| Tujuan                       | Urutan baca                                          |
+| ---------------------------- | ---------------------------------------------------- |
+| Memahami produk & arsitektur | 01 → 02 → 03 → 19                                    |
+| Mulai coding (foundation)    | AGENTS.md → 11 → 16 → 18 → 05 → 04                   |
+| Implementasi modul backend   | 03 (modul) → 04 → 05 → 10 → 16 → 17                  |
+| Implementasi UI/frontend     | 14 → 15 → 05 → 08                                    |
+| Setup akses & multi-tenant   | 17 → 16 → 03                                         |
+| Testing & go-live            | 07 → 12 → 13                                         |
+| Operasional & handover       | 08 → 09 → 13                                         |
+| Audit standar repo           | `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` → 09 → 11 |
+| Sinkronisasi GitHub issue    | 06 → `github/README.md` → 09 → 13                    |
 
 ## AWCMS-Mini sebagai standar pengembangan
 
 AWCMS-Mini sengaja disusun agar bisa dipakai sebagai **template/contoh** untuk mengembangkan aplikasi lain di atas base yang sama. Bagian yang **generik & reusable** (pola AWCMS-Mini) vs **spesifik domain turunan**:
 
-| Reusable (pola AWCMS-Mini) | Spesifik domain turunan |
-|---|---|
-| Struktur modular monolith + module contract (10, 11) | Modul domain aplikasi (02, 03) |
-| Baseline keamanan RBAC + ABAC + RLS + audit (16, 17) | Matriks role & policy domain (17) |
-| Konvensi migration, OpenAPI, AsyncAPI (04, 05, 16) | Schema & endpoint domain (04, 05) |
+| Reusable (pola AWCMS-Mini)                                         | Spesifik domain turunan                       |
+| ------------------------------------------------------------------ | --------------------------------------------- |
+| Struktur modular monolith + module contract (10, 11)               | Modul domain aplikasi (02, 03)                |
+| Baseline keamanan RBAC + ABAC + RLS + audit (16, 17)               | Matriks role & policy domain (17)             |
+| Konvensi migration, OpenAPI, AsyncAPI (04, 05, 16)                 | Schema & endpoint domain (04, 05)             |
 | Soft delete tenant-safe untuk master/config/draft (04, 05, 10, 16) | Resource domain mana yang boleh restore/purge |
-| Design system & shell UI (14, 15) | Layar domain/operator/portal (14) |
-| Offline-first (service worker + outbox) (15, 16) | Alur transaksi/operasional domain (08) |
-| Skill proyek `.claude/skills/` | — |
-| Standar commit/roadmap/preflight (09, 07) | — |
+| Design system & shell UI (14, 15)                                  | Layar domain/operator/portal (14)             |
+| Offline-first (service worker + outbox) (15, 16)                   | Alur transaksi/operasional domain (08)        |
+| Skill proyek `.claude/skills/`                                     | —                                             |
+| Standar commit/roadmap/preflight (09, 07)                          | —                                             |
 
 Untuk membangun aplikasi baru di atas AWCMS-Mini: pertahankan lapisan reusable, ganti lapisan spesifik domain dengan kebutuhan aplikasi Anda, dan ikuti alur dokumen 01 → 19.
 

@@ -24,8 +24,8 @@ flowchart LR
 ## Aturan wajib
 
 1. **Backup legacy dulu**; verifikasi restore sebelum menyentuh data.
-2. Import mentah ke schema **`legacy`** terpisah — jangan langsung ke tabel `awcms-mini_*`.
-3. Semua run tercatat di `awcms-mini_legacy_migration_runs` (+ mappings, row counts, validation errors, backfill tasks).
+2. Import mentah ke schema **`legacy`** terpisah — jangan langsung ke tabel `awcms_mini_*`.
+3. Semua run tercatat di `awcms_mini_legacy_migration_runs` (+ mappings, row counts, validation errors, backfill tasks).
 4. **Password legacy tidak pernah digunakan ulang** — user diberi reset flow; hash lama tidak diimpor.
 5. Identifier (email/phone/NPWP/NIK) dinormalisasi lalu hash+mask via aturan `awcms-mini-sensitive-data`; duplikat di-resolve ke satu profile (bukan buat baru).
 6. Dry-run **tidak menulis data final**; critical error → exit code gagal (`legacy:preflight`).

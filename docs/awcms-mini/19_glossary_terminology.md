@@ -1,5 +1,7 @@
 # Bagian 19 — Glossary dan Terminologi
 
+> **Contoh domain (ilustratif).** Dokumen ini memakai domain retail/POS bergaya AWPOS sebagai contoh berjalan. **Pola & standar**-nya reusable untuk base AWCMS-Mini; **entitas, endpoint, layar, dan istilah domain** (produk, POS, gudang, pajak, CRM, AI, dsb.) adalah ilustrasi yang **diganti** oleh aplikasi turunan. Lihat [README paket dokumen](README.md) §Reusable vs domain turunan.
+
 ## Tujuan
 
 Dokumen ini menjadi rujukan istilah AWCMS-Mini agar seluruh paket dokumen (01–18) dan implementasi memakai definisi yang sama. Istilah dikelompokkan: arsitektur, keamanan/akses, POS & inventory, warehouse, pajak/Coretax, CRM, sync/offline, database, dan frontend/UI.

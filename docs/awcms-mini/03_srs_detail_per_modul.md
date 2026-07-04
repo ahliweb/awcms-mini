@@ -1,5 +1,7 @@
 # Bagian 3 — SRS Detail Per Modul
 
+> **Contoh domain (ilustratif).** Dokumen ini memakai domain retail/POS bergaya AWPOS sebagai contoh berjalan. **Pola & standar**-nya reusable untuk base AWCMS-Mini; **entitas, endpoint, layar, dan istilah domain** (produk, POS, gudang, pajak, CRM, AI, dsb.) adalah ilustrasi yang **diganti** oleh aplikasi turunan. Lihat [README paket dokumen](README.md) §Reusable vs domain turunan.
+
 ## Tujuan SRS
 
 Dokumen ini menjabarkan kebutuhan teknis AWCMS-Mini per modul, mencakup functional requirement, non-functional requirement, validation, audit, security, dan integration point.
@@ -373,19 +375,19 @@ flowchart TD
   V & A1 & A2 & I & ST & SY & D & IN --> R[Response error standar + correlationId]
 ```
 
-| Code | HTTP | Arti |
-|---|---:|---|
-| `VALIDATION_ERROR` | 400 | Data tidak valid |
-| `AUTH_REQUIRED` | 401 | Belum login |
-| `ACCESS_DENIED` | 403 | Tidak punya akses |
-| `TENANT_REQUIRED` | 400 | Tenant wajib |
-| `RESOURCE_NOT_FOUND` | 404 | Resource tidak ditemukan |
-| `IDEMPOTENCY_REQUIRED` | 400 | Idempotency key wajib |
-| `IDEMPOTENCY_CONFLICT` | 409 | Key dipakai request berbeda |
-| `STOCK_NOT_AVAILABLE` | 409 | Stok tidak cukup |
-| `SYNC_CONFLICT` | 409 | Konflik sync |
-| `DATABASE_BUSY` | 503 | Pool/DB sibuk |
-| `INTERNAL_ERROR` | 500 | Kesalahan internal |
+| Code                   | HTTP | Arti                        |
+| ---------------------- | ---: | --------------------------- |
+| `VALIDATION_ERROR`     |  400 | Data tidak valid            |
+| `AUTH_REQUIRED`        |  401 | Belum login                 |
+| `ACCESS_DENIED`        |  403 | Tidak punya akses           |
+| `TENANT_REQUIRED`      |  400 | Tenant wajib                |
+| `RESOURCE_NOT_FOUND`   |  404 | Resource tidak ditemukan    |
+| `IDEMPOTENCY_REQUIRED` |  400 | Idempotency key wajib       |
+| `IDEMPOTENCY_CONFLICT` |  409 | Key dipakai request berbeda |
+| `STOCK_NOT_AVAILABLE`  |  409 | Stok tidak cukup            |
+| `SYNC_CONFLICT`        |  409 | Konflik sync                |
+| `DATABASE_BUSY`        |  503 | Pool/DB sibuk               |
+| `INTERNAL_ERROR`       |  500 | Kesalahan internal          |
 
 ## Testing requirement minimum
 

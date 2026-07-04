@@ -1,5 +1,7 @@
 # Bagian 10 — Template Implementasi Kode dan Coding Standard
 
+> **Standar base + contoh domain.** Dokumen ini adalah **standar/pola reusable** base AWCMS-Mini. Contoh yang dipakai memakai domain retail/POS bergaya AWPOS sebagai ilustrasi — ganti detail domainnya dengan kebutuhan aplikasi turunan Anda. Lihat [README paket dokumen](README.md) §Reusable vs domain turunan.
+
 ## Tujuan
 
 Dokumen ini menetapkan standar coding AWCMS-Mini untuk TypeScript/Bun/Astro/PostgreSQL agar implementasi konsisten, aman, testable, dan maintainable.
@@ -124,11 +126,11 @@ export const warehouseManagementModule: ModuleDescriptor = {
     "identity_access",
     "catalog_inventory",
     "workflow_approval",
-    "observability_logging",
+    "observability_logging"
   ],
   api: {
     openApiPath: "openapi/modules/warehouse-management.openapi.yaml",
-    basePath: "/api/v1",
+    basePath: "/api/v1"
   },
   events: {
     asyncApiPath: "asyncapi/modules/warehouse-events.asyncapi.yaml",
@@ -136,13 +138,13 @@ export const warehouseManagementModule: ModuleDescriptor = {
       "warehouse.transfer.created",
       "warehouse.transfer.shipped",
       "warehouse.transfer.received",
-      "warehouse.cycle_count.variance_detected",
+      "warehouse.cycle_count.variance_detected"
     ],
     subscribes: [
       "inventory.stock.adjustment.posted",
-      "sales.transaction.posted",
-    ],
-  },
+      "sales.transaction.posted"
+    ]
+  }
 };
 ```
 
@@ -200,7 +202,7 @@ export function ok<T>(data: T, meta?: ApiMeta): Response {
 
 export function created<T>(data: T, meta?: ApiMeta): Response {
   return Response.json({ success: true, data, meta } satisfies ApiSuccess<T>, {
-    status: 201,
+    status: 201
   });
 }
 
@@ -211,7 +213,7 @@ export function fail(
   options?: {
     details?: Array<{ field?: string; message: string; code?: string }>;
     correlationId?: string;
-  },
+  }
 ): Response {
   return Response.json(
     {
@@ -220,10 +222,10 @@ export function fail(
         code,
         message,
         details: options?.details,
-        correlationId: options?.correlationId,
-      },
+        correlationId: options?.correlationId
+      }
     } satisfies ApiErrorResponse,
-    { status },
+    { status }
   );
 }
 ```

@@ -6,32 +6,46 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 ## [Unreleased]
 
-Baseline paket dokumentasi & tooling. Belum ada kode aplikasi yang dirilis; rilis bertag pertama direncanakan **0.1.0** (Foundation) sesuai `docs/awcms-mini/09_roadmap_repository_commit.md`.
+Baseline paket dokumentasi, standar profesional, & tooling. Belum ada kode aplikasi yang dirilis; rilis bertag pertama direncanakan **0.1.0** (Foundation) sesuai `docs/awcms-mini/09_roadmap_repository_commit.md`.
 
 ### Added
 
 - Paket dokumen master **01–19** (`docs/awcms-mini/`): perencanaan (01–03), kontrak (04–05), eksekusi (06–13), desain teknis implementasi (14–18), glossary (19).
+- **Bagian 20 — Threat Model & Arsitektur Keamanan** (`docs/awcms-mini/20_threat_model_security_architecture.md`).
+- **Architecture Decision Records** di `docs/adr/` (template + ADR 0001–0007: modular monolith, Bun-only, PostgreSQL+RLS, RBAC/ABAC default-deny, soft delete/immutability, offline-first/outbox, OpenAPI/AsyncAPI).
+- Berkas komunitas & tata kelola repo publik: `LICENSE` (MIT), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `GOVERNANCE.md`, `SUPPORT.md`, `.github/CODEOWNERS`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/ISSUE_TEMPLATE/` (bug/feature/documentation/config).
+- Konfigurasi kualitas: `.editorconfig`, `.gitattributes`, `.prettierrc.json`, `.prettierignore`.
+- CI kualitas dokumentasi & hygiene (`.github/workflows/ci.yml`): prettier check, pemeriksa docs Bun-native (`scripts/check-docs.mjs` — mermaid, tautan internal, penamaan), gate Bun-only + no-`.env`.
 - `AGENTS.md` — kontrak kerja coding agent.
 - 17 **skill proyek** Claude Code di `.claude/skills/`.
-- Audit standar pengembangan software untuk baseline docs-only (`docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`).
-- Snapshot dokumentasi GitHub di `docs/awcms-mini/github/`, terpisah open/closed dengan batas 100 issue per file, plus label/milestone/security dan proses refresh; snapshot live 2026-07-04T11:16:36Z mencatat 0 issue, 76 label, 19 milestone, 0 open Dependabot alert, 0 open code-scanning alert, dan 0 secret-scanning alert.
-- GitHub Security baseline: `SECURITY.md`, `.github/dependabot.yml`, dan `.github/workflows/codeql.yml`.
+- Audit standar pengembangan software (`docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`).
+- Snapshot dokumentasi GitHub di `docs/awcms-mini/github/` (open/closed terpisah, batas 100 issue/file, label/milestone/security + proses refresh).
+- GitHub Security baseline: `SECURITY.md` (diperluas: scope, safe harbor, target response time), `.github/dependabot.yml`, `.github/workflows/codeql.yml`.
 - Diagram Mermaid di seluruh dokumen kunci.
-- Versioning (SemVer) + **Changesets** + `CHANGELOG.md` + `package.json` anchor + `bun.lock` + `.gitignore`.
+- Versioning (SemVer) + **Changesets** + `CHANGELOG.md` + `package.json` (metadata lengkap) + `bun.lock` + `.gitignore`.
 
-## Peta versi rencana (dari doc 09)
+### Changed
+
+- **Lisensi** `UNLICENSED` → **MIT**; `package.json` dilengkapi metadata (repository, bugs, homepage, keywords, engines) dan script `lint`/`format`/`check:docs`/`check`.
+- Backlog issue & dokumen entry (01, 06, 09, `AGENTS.md`) digenerikkan: konten domain POS/retail dikeluarkan dari base; dokumen teknis 02–19 ditandai sebagai **contoh domain ilustratif**.
+- `README.md` dirapikan menjadi front door repo publik: badge, daftar isi, tautan tata kelola/keamanan/ADR, diagram arsitektur generik.
+
+### Fixed
+
+- Regresi penamaan `awcms-mini_*`/`AWCMS-Mini_*` → `awcms_mini_*`/`AWCMS_MINI_*` (identifier SQL/env) yang tersisa di `.claude/skills/`.
+
+## Peta versi rencana (base, dari doc 09)
 
 | Versi | Isi |
-|---|---|
+| --- | --- |
 | `0.1.0` | Foundation, tenant, identity, profile |
-| `0.2.0` | Product, stock, POS checkout |
-| `0.3.0` | Atomic posting, logging, pooling |
-| `0.4.0` | Receipt, CRM, sync |
-| `0.5.0` | Warehouse basic |
-| `0.6.0` | Tax/Coretax readiness |
-| `0.7.0` | UI admin/operator/customer |
-| `0.8.0` | Reporting dan AI |
-| `0.9.0` | Security readiness dan deployment |
-| `1.0.0` | Production-ready MVP |
+| `0.2.0` | RBAC/ABAC evaluator + assignment |
+| `0.3.0` | Logging, pooling, security readiness |
+| `0.4.0` | Sync storage (outbox/inbox, conflict, R2 queue) |
+| `0.5.0` | UI shell, management reporting |
+| `0.6.0` | Workflow approval, deployment profile |
+| `1.0.0` | Base production-ready |
+
+Aplikasi turunan (mis. AWPOS) memakai peta versinya sendiri di atas base ini.
 
 [Unreleased]: https://github.com/ahliweb/awcms-mini/commits/main

@@ -17,7 +17,7 @@ type AuditEventInput = {
   action: string;
   resourceType: string;
   resourceId?: string;
-  severity?: "info"|"warning"|"critical";
+  severity?: "info" | "warning" | "critical";
   message: string;
   attributes?: Record<string, unknown>; // WAJIB sudah diredaksi
   correlationId?: string;
@@ -30,7 +30,7 @@ Login failed/success · access assignment · profile merge · product price chan
 
 ## Aturan
 
-1. Audit **tenant-scoped** (`tenant_id`), tulis ke `awcms-mini_audit_events`.
+1. Audit **tenant-scoped** (`tenant_id`), tulis ke `awcms_mini_audit_events`.
 2. **Redaksi dulu** attributes — jangan pernah masukkan: password, token, API key, `authorization`, NPWP/NIK penuh, phone/WhatsApp/email penuh, receipt token.
 3. Audit **melengkapi**, bukan menggantikan, domain event & structured log.
 4. Sertakan `correlationId` untuk trace.

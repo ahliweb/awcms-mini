@@ -1,5 +1,7 @@
 # Bagian 17 — Default Seed, RBAC, dan ABAC Policy
 
+> **Contoh domain (ilustratif).** Dokumen ini memakai domain retail/POS bergaya AWPOS sebagai contoh berjalan. **Pola & standar**-nya reusable untuk base AWCMS-Mini; **entitas, endpoint, layar, dan istilah domain** (produk, POS, gudang, pajak, CRM, AI, dsb.) adalah ilustrasi yang **diganti** oleh aplikasi turunan. Lihat [README paket dokumen](README.md) §Reusable vs domain turunan.
+
 ## Tujuan
 
 Dokumen ini melengkapi data awal yang diperlukan agar **Setup Wizard (Issue 12.1)** dan **RBAC/ABAC (Issue 2.4)** dapat diimplementasikan: registry module/activity, daftar permission, matriks role → permission, ABAC default policy, dan seed default. Tanpa ini, akses tidak dapat dievaluasi secara konkret.

@@ -1,5 +1,7 @@
 # Bagian 16 — Backend Data Access dan Integrasi Database
 
+> **Standar base + contoh domain.** Dokumen ini adalah **standar/pola reusable** base AWCMS-Mini. Contoh yang dipakai memakai domain retail/POS bergaya AWPOS sebagai ilustrasi — ganti detail domainnya dengan kebutuhan aplikasi turunan Anda. Lihat [README paket dokumen](README.md) §Reusable vs domain turunan.
+
 ## Tujuan
 
 Dokumen ini melengkapi **integrasi backend ↔ database** yang sebelumnya hanya berupa aturan: driver & lapisan query konkret, connection pooling & backpressure, mekanisme RLS context (`SET LOCAL`), transaction wrapper & locking, transactional outbox, migration runner, dan idempotency store.
@@ -75,11 +77,11 @@ Catatan penting:
 ```ts
 async function withTenant<T>(
   tenantId: string,
-  fn: (tx: Tx) => Promise<T>,
+  fn: (tx: Tx) => Promise<T>
 ): Promise<T> {
   return transaction(async (tx) => {
     await tx.unsafe(
-      `SET LOCAL app.current_tenant_id = '${assertUuid(tenantId)}'`,
+      `SET LOCAL app.current_tenant_id = '${assertUuid(tenantId)}'`
     );
     return fn(tx);
   });

@@ -41,7 +41,7 @@ sequenceDiagram
 
 ## R2 object queue (opsional)
 
-- File lokal disimpan dulu, masuk `awcms-mini_object_sync_queue`.
+- File lokal disimpan dulu, masuk `awcms_mini_object_sync_queue`.
 - Upload saat online; **checksum diverifikasi**; retry aman.
 
 ## Verifikasi (test)

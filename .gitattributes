@@ -1,0 +1,19 @@
+# Normalisasi line ending: teks selalu LF di repo.
+* text=auto eol=lf
+
+# Berkas biner (jangan diubah/di-diff sebagai teks).
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+
+# Lockfile: teks LF, tetapi sembunyikan dari diff PR (mengurangi noise review).
+bun.lock text eol=lf linguist-generated=true -diff
+
+# Dokumentasi mendominasi statistik bahasa repo — biarkan apa adanya.
+docs/** linguist-documentation

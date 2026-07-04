@@ -1,5 +1,7 @@
 # Bagian 8 — SOP Operasional dan User Guide
 
+> **Contoh domain (ilustratif).** Dokumen ini memakai domain retail/POS bergaya AWPOS sebagai contoh berjalan. **Pola & standar**-nya reusable untuk base AWCMS-Mini; **entitas, endpoint, layar, dan istilah domain** (produk, POS, gudang, pajak, CRM, AI, dsb.) adalah ilustrasi yang **diganti** oleh aplikasi turunan. Lihat [README paket dokumen](README.md) §Reusable vs domain turunan.
+
 ## Tujuan
 
 Dokumen ini menjadi panduan operasional AWCMS-Mini untuk admin, owner, operator, petugas gudang, tax officer, CRM staff, customer, dan admin teknis.

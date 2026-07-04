@@ -1,5 +1,7 @@
 # Bagian 15 — Arsitektur Frontend dan Integrasi Frontend–Backend
 
+> **Standar base + contoh domain.** Dokumen ini adalah **standar/pola reusable** base AWCMS-Mini. Contoh yang dipakai memakai domain retail/POS bergaya AWPOS sebagai ilustrasi — ganti detail domainnya dengan kebutuhan aplikasi turunan Anda. Lihat [README paket dokumen](README.md) §Reusable vs domain turunan.
+
 ## Tujuan
 
 Dokumen ini melengkapi **arsitektur frontend** dan **integrasi frontend ↔ backend** yang sebelumnya belum terdefinisi: strategi rendering Astro, API client, autentikasi/sesi, **mekanisme offline-first (service worker + IndexedDB + outbox)**, state, form/validasi, dan kontrak layar→endpoint→event.
@@ -80,7 +82,7 @@ type ApiResult<T> =
 
 async function apiFetch<T>(
   path: string,
-  init?: RequestInit & { idempotencyKey?: string },
+  init?: RequestInit & { idempotencyKey?: string }
 ): Promise<ApiResult<T>> {
   /* ... */
 }
