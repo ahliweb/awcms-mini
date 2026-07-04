@@ -1,0 +1,17 @@
+; Contoh profil PgBouncer opsional untuk AWCMS-Mini (doc 16).
+; Mode transaction pooling — aplikasi sudah kompatibel:
+; - RLS context memakai SET LOCAL (set_config transaction-scoped)
+; - set DATABASE_PGBOUNCER=true agar prepared statements dimatikan
+[databases]
+awcms_mini = host=127.0.0.1 port=5432 dbname=awcms_mini
+
+[pgbouncer]
+listen_addr = 127.0.0.1
+listen_port = 6432
+auth_type = scram-sha-256
+auth_file = /etc/pgbouncer/userlist.txt
+pool_mode = transaction
+max_client_conn = 200
+default_pool_size = 20
+server_reset_query =
+ignore_startup_parameters = extra_float_digits

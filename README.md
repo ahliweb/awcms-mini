@@ -1,102 +1,92 @@
-# AWCMS Mini
+# AWCMS-Mini — Base Modular Monolith Standard
 
-AWCMS Mini adalah baseline **Bun + Astro 7 modular monolith** untuk pengembangan aplikasi AWCMS berikutnya. Repository ini sudah di-rebaseline mengikuti struktur, PRD, SRS, blueprint, coding standard, OpenAPI/AsyncAPI discipline, dan workflow dari contoh lokal `/home/data/dev_bun/awpos`.
+AWCMS-Mini adalah **base modular monolith** (Bun + Astro + PostgreSQL) yang menjadi **standar pengembangan semua aplikasi AhliWeb**. Arsitektur, dokumen, dan konvensinya mengikuti paket perencanaan **AWPOS** (`docs/awpos` pada repo awpos) — AWPOS adalah contoh aplikasi domain pertama di atas base ini.
 
-AWPOS dipakai sebagai contoh arsitektur lengkap. Di repo ini, paket dokumen hasil adaptasi berada di:
+> **Status:** Foundation (Sprint 1) selesai & tervalidasi — buildable, teruji, siap dilanjutkan dari Issue 1.1. Coding agent & kontributor **wajib membaca [`AGENTS.md`](AGENTS.md) lebih dulu**.
 
-```text
-docs/awcms-mini/
+## Arsitektur tingkat tinggi
+
+```mermaid
+flowchart TB
+  subgraph Client["Client"]
+    ADM[Admin]
+    APP[Aplikasi domain]
+  end
+
+  subgraph App["AWCMS-Mini — Bun + Astro 7 (Modular Monolith)"]
+    API[REST API /api/v1<br/>OpenAPI]
+    MW[Middleware:<br/>Auth · Tenant · ABAC · Idempotency · Audit]
+    MOD[Modul base:<br/>Tenant · Identity · Profile · Localization ·<br/>Observability · Pooling · Workflow · Reporting · UI · Security · Sync]
+    EVT[Domain events<br/>AsyncAPI]
+  end
+
+  subgraph Data["Data & Storage"]
+    PG[(PostgreSQL<br/>RLS FORCE + Audit)]
+    FILE[Local file storage]
+  end
+
+  subgraph Ext["Provider eksternal (OPSIONAL, non-blocking)"]
+    R2[Cloudflare R2]
+    WA[WhatsApp]
+    MAIL[Email]
+    AI[AI Analyst]
+  end
+
+  ADM --> API
+  APP --> API
+  API --> MW --> MOD
+  MOD --> PG
+  MOD --> FILE
+  MOD --> EVT
+  MOD -. queue/outbox .-> R2
+  MOD -. queue/outbox .-> WA
+  MOD -. queue/outbox .-> MAIL
 ```
 
-## Status
+## Stack final
 
-Foundation awal sudah tersedia:
+- Runtime: **Bun** · Web: **Astro 7** (SSR) · Database: **PostgreSQL** (postgres.js)
+- Arsitektur: **Modular monolith, microservice-ready**
+- Security baseline: **RBAC + ABAC (default deny) + RLS FORCE + Audit Log**
+- Kontrak: **OpenAPI** (REST) + **AsyncAPI** (domain event)
+- Versioning: **SemVer + Changesets**
 
-- Astro 7 server output
-- `/api/v1/health`
-- module registry di `src/modules/`
-- standard API response helper
-- domain event envelope helper
-- SQL migration runner baseline
-- OpenAPI baseline
-- AsyncAPI baseline
-- unit tests untuk module registry, response helper, dan migration loader
-
-## Stack
-
-- Runtime: Bun
-- Web framework: Astro 7
-- Database: PostgreSQL
-- Architecture: modular monolith, microservice-ready
-- API contract: OpenAPI
-- Event contract: AsyncAPI
-- Security baseline: RBAC + ABAC + RLS + audit log
-- Versioning: Changesets
-
-## Quick Start
+## Quick start
 
 ```bash
 bun install
-bun run dev
-bun run test
-bun run api:spec:check
-bun run build
-```
-
-Migration membutuhkan `DATABASE_URL`:
-
-```bash
+docker compose up -d postgres
+cp .env.example .env
 bun run db:migrate
+bun run dev            # http://localhost:4321 → /api/v1/health
 ```
 
-## Core Commands
+Validasi lengkap: `bun run production:preflight` (atau langkah individual: `bun test`, `bun run api:spec:check`, `bun run security:readiness`, `bun run build`).
 
-```bash
-bun run dev
-bun run build
-bun run db:migrate
-bun run api:spec:check
-bun run api:contract:test
-bun test
-bun run db:pool:health
-bun run security:readiness
-bun run production:preflight
-bun run changeset
-```
+## Yang sudah tersedia (Foundation)
 
-## Repository Layout
+- **Module contract + registry** — `src/modules/index.ts`, 11 modul base skeleton ber-TODO.
+- **Helper standar `_shared`** — response envelope, error code, tenant context, ABAC guard (default deny), audit + redaction, domain event envelope, idempotency, validasi input.
+- **`src/lib`** — config fail-fast (doc 18), logger Pino + redaction, pool postgres.js, `withTenant` (RLS `SET LOCAL`), transaction wrapper, scrypt password, JWT sesi, storage lokal, i18n.
+- **Database** — migration runner berurutan + checksum, schema 001–004 (foundation, tenant/identity/profile, RBAC/ABAC, observability) dengan **RLS FORCE teruji**.
+- **Kontrak** — OpenAPI + AsyncAPI baseline; `api:spec:check` menjaga konsistensi kontrak ↔ modul.
+- **Ops** — health & pool health endpoint, contract test, security readiness, production preflight, Docker Compose PostgreSQL, profil deploy.
 
-```text
-src/
-  lib/                 shared db, logging, auth, files, errors, i18n foundation
-  modules/             modular monolith registry and shared contracts
-  pages/               Astro pages and /api/v1 routes
-sql/                   ordered SQL migrations
-scripts/               migration/spec/preflight helpers
-openapi/               REST API contracts
-asyncapi/              domain event contracts
-docs/awcms-mini/       adapted PRD, SRS, ERD, blueprint, SOP, and standards
-tests/                 Bun tests
-```
+## Paket dokumen
 
-## Authoritative Docs
+Dokumen 01–19 di [`docs/awcms-mini/`](docs/awcms-mini/README.md) (struktur sama dengan paket AWPOS): canvas induk, PRD, SRS, ERD, OpenAPI/AsyncAPI, issues, sprint/testing, SOP, roadmap repo, coding standard, blueprint, generator prompt, traceability, UI/UX, frontend, backend/data access, seed RBAC/ABAC, env reference, glossary.
 
-Read in this order:
+## Membangun aplikasi baru di atas base
 
-1. `AGENTS.md`
-2. `docs/awcms-mini/README.md`
-3. `docs/awcms-mini/02_prd_detail_per_modul.md`
-4. `docs/awcms-mini/03_srs_detail_per_modul.md`
-5. `docs/awcms-mini/10_template_kode_coding_standard.md`
-6. `docs/awcms-mini/11_implementation_blueprint.md`
-7. `docs/awcms-mini/13_final_master_index_traceability.md`
+1. Gunakan base ini; **jangan ubah lapisan `_shared`/`lib`** kecuali lewat issue base.
+2. Tambah modul domain di `src/modules/` + daftarkan di registry; migration lanjut nomor berikutnya (`005_awcms_...`); kontrak di `openapi/modules/` + AsyncAPI.
+3. Susun paket dokumen 01–19 aplikasi Anda — paket AWPOS adalah contoh terisi penuh.
+4. Ikuti `AGENTS.md`, skill proyek [`.claude/skills/`](.claude/skills/README.md), dan subagents [`.claude/agents/`](.claude/agents/).
 
-## Implementation Rule
+## Versioning
 
-Every runtime change must keep these surfaces aligned:
+SemVer + [Changesets](.changeset/README.md); riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Baseline `0.0.0`; rilis bertag pertama `0.1.0` (Foundation).
 
-- SQL migration when schema changes
-- OpenAPI when REST API changes
-- AsyncAPI when domain events change
-- tests for changed behavior
-- docs for operator or contributor workflow changes
+## Lisensi & arsip
+
+Lihat [`LICENSE.md`](LICENSE.md). Implementasi sebelumnya (Astro+Hono+emdash, single-tenant) diarsip di branch `legacy/pre-awpos-standard`.

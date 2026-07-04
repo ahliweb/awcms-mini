@@ -1,0 +1,23 @@
+# Contoh unit systemd AWCMS-Mini (doc 18 — topologi LAN-first).
+# Salin ke /etc/systemd/system/awcms-mini.service lalu sesuaikan path/user.
+[Unit]
+Description=AWCMS-Mini (Bun + Astro modular monolith)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=awcms
+WorkingDirectory=/opt/awcms-mini
+EnvironmentFile=/opt/awcms-mini/.env
+ExecStart=/usr/local/bin/bun ./dist/server/entry.mjs
+Restart=on-failure
+RestartSec=3
+# Hardening dasar
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/awcms-mini/storage
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

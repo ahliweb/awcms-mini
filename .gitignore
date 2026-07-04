@@ -1,25 +1,13 @@
-# Dependencies
 node_modules/
-
-# Environment (never commit secrets)
+dist/
+.astro/
 .env
 .env.*
 !.env.example
-
-# Build output
-dist/
-.astro/
-build/
-
-# Local storage & backups
 storage/
-*.dump
-*.sql.gz
-
-# Logs & OS
+uploads/
 *.log
+npm-debug.log*
+temp/
 .DS_Store
-Thumbs.db
-
-# Claude Code user-local settings (jangan commit)
-.claude/settings.local.json
+.mcp.json

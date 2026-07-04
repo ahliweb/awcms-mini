@@ -1,0 +1,185 @@
+openapi: 3.1.0
+info:
+  title: AWCMS-Mini Public API
+  version: 0.1.0
+  description: >
+    Kontrak REST API base AWCMS-Mini (doc 05). Semua API baru/berubah WAJIB
+    diperbarui di file ini. Base path /api/v1; envelope response standard
+    { success, data, meta } / { success:false, error }. Aplikasi domain
+    (mis. AWPOS) menambahkan path modulnya di openapi/modules/.
+servers:
+  - url: /api/v1
+tags:
+  - name: foundation
+    description: Health & kesiapan platform
+  - name: database-connectivity
+    description: Kesehatan pool database
+paths:
+  /health:
+    get:
+      tags: [foundation]
+      operationId: getHealth
+      summary: Health check aplikasi
+      security: []
+      responses:
+        "200":
+          description: Aplikasi sehat
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/HealthStatus"
+  /database/pool/health:
+    get:
+      tags: [database-connectivity]
+      operationId: getDatabasePoolHealth
+      summary: Kesehatan pool database
+      responses:
+        "200":
+          description: Status pool
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PoolHealth"
+        "503":
+          $ref: "#/components/responses/DatabaseBusy"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    TenantIdHeader:
+      name: X-AWCMS-Tenant-ID
+      in: header
+      required: true
+      description: Tenant aktif (wajib untuk API tenant-scoped)
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKeyHeader:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Wajib untuk mutation high-risk
+      schema:
+        type: string
+        maxLength: 255
+    CorrelationIdHeader:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      schema:
+        type: string
+  schemas:
+    ApiSuccess:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        data: {}
+        meta:
+          $ref: "#/components/schemas/ApiMeta"
+    ApiMeta:
+      type: object
+      properties:
+        correlationId:
+          type: string
+        requestId:
+          type: string
+    ApiError:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          const: false
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - VALIDATION_ERROR
+                - AUTH_REQUIRED
+                - TOKEN_EXPIRED
+                - ACCESS_DENIED
+                - TENANT_REQUIRED
+                - RESOURCE_NOT_FOUND
+                - IDEMPOTENCY_REQUIRED
+                - IDEMPOTENCY_CONFLICT
+                - WORKFLOW_APPROVAL_REQUIRED
+                - SYNC_CONFLICT
+                - DATABASE_BUSY
+                - PROVIDER_ERROR
+                - INTERNAL_ERROR
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+                  code:
+                    type: string
+                required: [message]
+            correlationId:
+              type: string
+    HealthStatus:
+      type: object
+      required: [status, service, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        service:
+          type: string
+        version:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    PoolHealth:
+      type: object
+      required: [status, poolMax, pgbouncer, checkedAt]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, down]
+        latencyMs:
+          type: integer
+        poolMax:
+          type: integer
+        pgbouncer:
+          type: boolean
+        checkedAt:
+          type: string
+          format: date-time
+        error:
+          type: string
+  responses:
+    DatabaseBusy:
+      description: Pool/DB sibuk
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+security:
+  - bearerAuth: []

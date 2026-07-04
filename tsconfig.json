@@ -2,8 +2,12 @@
   "extends": "astro/tsconfigs/strict",
   "compilerOptions": {
     "baseUrl": ".",
-    "types": ["bun"]
+    "paths": {
+      "@lib/*": ["src/lib/*"],
+      "@modules/*": ["src/modules/*"]
+    },
+    "types": ["node", "bun"]
   },
-  "include": [".astro/types.d.ts", "**/*"],
+  "include": ["src/**/*", "scripts/**/*", "tests/**/*", ".astro/types.d.ts"],
   "exclude": ["dist", "node_modules"]
 }
