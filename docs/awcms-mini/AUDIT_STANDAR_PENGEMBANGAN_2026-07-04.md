@@ -126,6 +126,7 @@ Hasil:
    - `bun.lock` ditambahkan untuk reproducible dependency baseline.
    - Dokumen audit ini ditambahkan sebagai rujukan repo-local.
    - Snapshot GitHub issue open/closed, label, milestone, security, dan proses refresh ditambahkan di `docs/awcms-mini/github/`; snapshot live 2026-07-04T11:16:36Z mencatat 0 issue, 76 label, 19 milestone, 0 open Dependabot alert, 0 open code-scanning alert, dan 0 secret-scanning alert.
+   - Backlog doc 06 diaktifkan penuh di GitHub pada 2026-07-04T13:58:45Z: 38 issue (`#371`-`#408`), 29 label baru + 9 milestone baru (`M0`-`M8`) sesuai taksonomi doc 06, tanpa menghapus 73 label/19 milestone peninggalan proyek sebelumnya. Detail: `docs/awcms-mini/github/README.md`.
    - `SECURITY.md`, `.github/dependabot.yml`, dan `.github/workflows/codeql.yml` ditambahkan sebagai baseline GitHub Security.
 
 ## Rekomendasi berikutnya

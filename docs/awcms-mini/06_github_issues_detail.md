@@ -363,16 +363,20 @@ Selain doc 01–05, setiap epic wajib membaca dokumen desain teknis terkait:
 
 ---
 
-# Status: backlog rencana issue
+# Status: backlog aktif di GitHub
 
-Dokumen ini adalah template/backlog rencana issue atomic untuk AWCMS-Mini. Snapshot live GitHub terbaru (2026-07-04T10:31:41Z) mencatat **0 issue** di `ahliweb/awcms-mini`; karena itu, nomor issue historis tidak boleh dipakai sebagai rujukan state saat ini.
+Dokumen ini adalah template/backlog issue atomic untuk AWCMS-Mini. Snapshot live GitHub terbaru (2026-07-04T13:58:45Z) mencatat **38 issue OPEN** (`#371`-`#408`) di `ahliweb/awcms-mini` — seluruh Issue 0.1-12.2 di atas sudah dibuat sebagai issue GitHub nyata, lengkap dengan label dan milestone doc 06 (`M0 — Repository Foundation` s/d `M8 — Security, Performance, Production`).
 
-Jika backlog ini ingin diaktifkan kembali di GitHub:
+Nomor `Issue X.Y` pada dokumen ini adalah **kode traceability internal** (dipakai untuk memetakan dependency/milestone), bukan nomor issue GitHub. Untuk mengetahui nomor issue GitHub dari kode X.Y, lihat tabel di [`github/issues-open-001.md`](github/issues-open-001.md).
 
-1. Buat ulang issue dari daftar epic dan issue di atas.
-2. Pasang label, milestone, dependency, dokumen acuan, dan checklist DoD sesuai isi issue.
-3. Mulai dari Issue 0.1, lalu ubah status issue yang dependency-nya sudah selesai dari `status:blocked` menjadi `status:ready`.
-4. Refresh snapshot di [`github/README.md`](github/README.md), `github/issues-open-NNN.md`, `github/issues-closed-NNN.md`, dan `github/labels-milestones.md`.
+Status awal saat aktivasi:
+
+1. Hanya Sprint 1 (Issue 0.1, 0.2, 0.3, 12.1) berlabel `status:ready` — tidak ada dependency yang menghalangi.
+2. 34 issue lainnya berlabel `status:blocked` karena bergantung pada milestone yang belum selesai (lihat §Ketergantungan milestone di atas).
+3. Setelah suatu issue selesai dan di-merge, ubah label issue yang dependency-nya baru terpenuhi dari `status:blocked` menjadi `status:ready` di GitHub.
+4. Refresh snapshot di [`github/README.md`](github/README.md), `github/issues-open-NNN.md`, `github/issues-closed-NNN.md`, dan `github/labels-milestones.md` setiap kali status/label/milestone berubah.
+
+Jika backlog ini perlu dibuat ulang dari nol di masa depan (mis. repository baru), ikuti pola yang sama: buat label+milestone doc 06 terlebih dahulu (jangan menimpa/menghapus label-milestone proyek lain yang mungkin sudah ada), lalu buat issue dari daftar epic di atas dengan body Problem/Scope/Out of Scope/Acceptance Criteria/Security Notes/Testing/Dependencies/Reference Docs sesuai isi tiap issue.
 
 Snapshot isi GitHub aktual dicatat di [`github/README.md`](github/README.md). Snapshot dipisah menjadi file `issues-open-NNN.md` dan `issues-closed-NNN.md`, dengan batas maksimal 100 issue per file. Dokumen ini tetap menjadi template/rencana issue atomic; folder `github/` menjadi arsip state GitHub yang direfresh dari `gh`.
 
