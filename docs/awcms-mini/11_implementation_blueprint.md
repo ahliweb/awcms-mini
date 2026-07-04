@@ -88,11 +88,11 @@ Semua script di atas wajib dijalankan dengan Bun. Bin Astro/Vite dipanggil lewat
 APP_ENV=development
 APP_URL=http://localhost:4321
 APP_TIMEZONE=Asia/Jakarta
-DATABASE_URL=postgres://awcms-mini:awcms-mini_password@localhost:5432/awcms-mini
+DATABASE_URL=postgres://awcms-mini:awcms_mini_password@localhost:5432/awcms-mini
 DATABASE_POOL_MAX=20
 AUTH_JWT_SECRET=change-me-in-production
-AWCMS-Mini_SYNC_HMAC_SECRET=change-me
-AWCMS-Mini_NODE_ID=local-dev-node
+AWCMS_MINI_SYNC_HMAC_SECRET=change-me
+AWCMS_MINI_NODE_ID=local-dev-node
 STORAGE_DRIVER=local
 LOCAL_STORAGE_PATH=./storage
 R2_ENABLED=false
@@ -109,7 +109,7 @@ AI_ANALYST_ENABLED=false
 src/lib/{errors,logging,database,auth,files,i18n}
 src/modules/_shared
 src/pages/api/v1/health.ts
-sql/001_awcms-mini_foundation_schema.sql
+sql/001_awcms_mini_foundation_schema.sql
 scripts/db-migrate.ts
 scripts/api-spec-check.ts
 openapi/awcms-mini-public-api.openapi.yaml
@@ -166,7 +166,7 @@ CREATE TABLE IF NOT EXISTS awcms_mini_schema_migrations (
   executed_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS awcms_modules (
+CREATE TABLE IF NOT EXISTS awcms_mini_modules (
   module_key text PRIMARY KEY,
   module_name text NOT NULL,
   status text NOT NULL DEFAULT 'active',
@@ -214,9 +214,9 @@ src/modules/identity-access
 
 ### Migration
 
-- `002_awcms-mini_tenant_identity_schema.sql`
-- `014_awcms-mini_central_profile_management_schema.sql`
-- `025_awcms-mini_setup_wizard_extension.sql`
+- `002_awcms_mini_tenant_identity_schema.sql`
+- `014_awcms_mini_central_profile_management_schema.sql`
+- `025_awcms_mini_setup_wizard_extension.sql`
 
 ### Validation
 

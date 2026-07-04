@@ -28,49 +28,49 @@ flowchart LR
 
 `module_key.activity_code` mengidentifikasi kemampuan. Contoh utama:
 
-| Module key | Activity code | Action tersedia |
-|---|---|---|
-| `tenant_admin` | `office_management` | read, create, update |
-| `identity_access` | `user_management` | read, create, update, assign |
-| `identity_access` | `access_control` | read, assign, configure |
-| `profile_identity` | `profile_management` | read, create, update, delete, restore |
-| `profile_identity` | `profile_merge` | read, approve |
-| `catalog_inventory` | `product_management` | read, create, update, delete, restore |
-| `catalog_inventory` | `price_management` | read, update |
-| `catalog_inventory` | `stock_management` | read, update, adjust |
-| `sales_pos` | `checkout` | read, create, update |
-| `sales_pos` | `transaction_posting` | post |
-| `sales_pos` | `transaction_cancel` | cancel, approve |
-| `sales_pos` | `discount` | update |
-| `warehouse_management` | `transfer` | read, create, approve, send, receive |
-| `warehouse_management` | `cycle_count` | read, create, approve |
-| `accounting_tax` | `tax_profile` | read, configure |
-| `accounting_tax` | `vat_invoice` | read, create |
-| `accounting_tax` | `coretax_export` | export, approve |
-| `crm_communication` | `contact` | read, create, update, delete, restore |
-| `crm_communication` | `receipt_delivery` | read, send |
-| `sync_storage` | `sync` | read, configure |
-| `sync_storage` | `conflict_resolution` | read, approve |
-| `ai_analyst` | `analysis` | analyze |
-| `management_reporting` | `reports` | read |
-| `workflow_approval` | `approval` | read, approve |
-| `observability_logging` | `logs` | read |
-| `production_security_readiness` | `go_live` | read, approve |
+| Module key                      | Activity code         | Action tersedia                       |
+| ------------------------------- | --------------------- | ------------------------------------- |
+| `tenant_admin`                  | `office_management`   | read, create, update                  |
+| `identity_access`               | `user_management`     | read, create, update, assign          |
+| `identity_access`               | `access_control`      | read, assign, configure               |
+| `profile_identity`              | `profile_management`  | read, create, update, delete, restore |
+| `profile_identity`              | `profile_merge`       | read, approve                         |
+| `catalog_inventory`             | `product_management`  | read, create, update, delete, restore |
+| `catalog_inventory`             | `price_management`    | read, update                          |
+| `catalog_inventory`             | `stock_management`    | read, update, adjust                  |
+| `sales_pos`                     | `checkout`            | read, create, update                  |
+| `sales_pos`                     | `transaction_posting` | post                                  |
+| `sales_pos`                     | `transaction_cancel`  | cancel, approve                       |
+| `sales_pos`                     | `discount`            | update                                |
+| `warehouse_management`          | `transfer`            | read, create, approve, send, receive  |
+| `warehouse_management`          | `cycle_count`         | read, create, approve                 |
+| `accounting_tax`                | `tax_profile`         | read, configure                       |
+| `accounting_tax`                | `vat_invoice`         | read, create                          |
+| `accounting_tax`                | `coretax_export`      | export, approve                       |
+| `crm_communication`             | `contact`             | read, create, update, delete, restore |
+| `crm_communication`             | `receipt_delivery`    | read, send                            |
+| `sync_storage`                  | `sync`                | read, configure                       |
+| `sync_storage`                  | `conflict_resolution` | read, approve                         |
+| `ai_analyst`                    | `analysis`            | analyze                               |
+| `management_reporting`          | `reports`             | read                                  |
+| `workflow_approval`             | `approval`            | read, approve                         |
+| `observability_logging`         | `logs`                | read                                  |
+| `production_security_readiness` | `go_live`             | read, approve                         |
 
 ## Role default
 
-| Role | Ringkasan akses |
-|---|---|
-| Owner | Semua module, termasuk approval & go-live |
-| Admin | Setup, user, produk, stok, laporan, konfigurasi (bukan approval keuangan tertentu) |
-| Kasir | Checkout & posting POS; **tanpa** pajak/export/assign/approval |
-| Manager | Approval transaksi/stok/operasional |
-| Petugas Gudang | Transfer, receiving, cycle count |
-| Inventory Staff | Produk, stok, adjustment terbatas |
-| Tax Officer | Pajak & Coretax |
-| CRM Staff | Kontak & receipt delivery |
-| Business Analyst | Laporan & AI analyst (read-only) |
-| Auditor | Audit trail & logs read-only |
+| Role             | Ringkasan akses                                                                    |
+| ---------------- | ---------------------------------------------------------------------------------- |
+| Owner            | Semua module, termasuk approval & go-live                                          |
+| Admin            | Setup, user, produk, stok, laporan, konfigurasi (bukan approval keuangan tertentu) |
+| Kasir            | Checkout & posting POS; **tanpa** pajak/export/assign/approval                     |
+| Manager          | Approval transaksi/stok/operasional                                                |
+| Petugas Gudang   | Transfer, receiving, cycle count                                                   |
+| Inventory Staff  | Produk, stok, adjustment terbatas                                                  |
+| Tax Officer      | Pajak & Coretax                                                                    |
+| CRM Staff        | Kontak & receipt delivery                                                          |
+| Business Analyst | Laporan & AI analyst (read-only)                                                   |
+| Auditor          | Audit trail & logs read-only                                                       |
 
 ## Matriks role → permission (ringkas)
 
@@ -78,34 +78,34 @@ Legenda action: R=read, C=create, U=update, P=post, X=cancel, A=approve, E=expor
 
 Permission `delete`, `restore`, dan `purge` untuk soft delete tidak tersirat dari `U`; seed harus memberikannya eksplisit per resource dan ABAC tetap default deny untuk archive/restore/purge.
 
-| Module.activity | Owner | Admin | Kasir | Manager | Gudang | Inv. Staff | Tax | CRM | Analyst | Auditor |
-|---|---|---|---|---|---|---|---|---|---|---|
-| tenant_admin.office | RCU | RCU | – | R | – | – | – | – | – | R |
-| identity_access.user | RCUG | RCUG | – | – | – | – | – | – | – | R |
-| identity_access.access_control | RGF | RGF | – | – | – | – | – | – | – | R |
-| profile_identity.profile | RCU | RCU | R | R | – | R | R | RCU | R | R |
-| profile_identity.merge | RA | R | – | A | – | – | – | – | – | R |
-| catalog_inventory.product | RCU | RCU | R | R | R | RCU | – | – | R | R |
-| catalog_inventory.price | RU | RU | R | R | – | R | – | – | R | R |
-| catalog_inventory.stock | RUadj | RUadj | R | Radj | RU | RUadj | – | – | R | R |
-| sales_pos.checkout | RCU | RCU | RCU | R | – | – | – | – | – | R |
-| sales_pos.posting | P | P | P | P | – | – | – | – | – | R |
-| sales_pos.cancel | XA | X | – | XA | – | – | – | – | – | R |
-| sales_pos.discount | U | U | U* | U | – | – | – | – | – | R |
-| warehouse.transfer | RCASR | RC | – | A | RCSR | RC | – | – | – | R |
-| warehouse.cycle_count | RCA | RC | – | A | RC | RC | – | – | – | R |
-| accounting_tax.tax_profile | RF | RF | – | – | – | – | RF | – | – | R |
-| accounting_tax.vat_invoice | RC | R | – | – | – | – | RC | – | – | R |
-| accounting_tax.coretax_export | EA | – | – | A | – | – | E | – | – | R |
-| crm.contact | RCU | RCU | R | – | – | – | – | RCU | – | R |
-| crm.receipt_delivery | RS | RS | S | – | – | – | – | RS | – | R |
-| sync.sync | RF | RF | – | – | – | – | – | – | – | R |
-| sync.conflict | RA | R | – | A | – | – | – | – | – | R |
-| ai_analyst.analysis | N | – | – | – | – | – | – | – | N | – |
-| reporting.reports | R | R | – | R | R | R | R | R | R | R |
-| workflow.approval | RA | R | – | RA | – | – | – | – | – | R |
-| logs.logs | R | R | – | – | – | – | – | – | – | R |
-| security.go_live | RA | R | – | – | – | – | – | – | – | R |
+| Module.activity                | Owner | Admin | Kasir | Manager | Gudang | Inv. Staff | Tax | CRM | Analyst | Auditor |
+| ------------------------------ | ----- | ----- | ----- | ------- | ------ | ---------- | --- | --- | ------- | ------- |
+| tenant_admin.office            | RCU   | RCU   | –     | R       | –      | –          | –   | –   | –       | R       |
+| identity_access.user           | RCUG  | RCUG  | –     | –       | –      | –          | –   | –   | –       | R       |
+| identity_access.access_control | RGF   | RGF   | –     | –       | –      | –          | –   | –   | –       | R       |
+| profile_identity.profile       | RCU   | RCU   | R     | R       | –      | R          | R   | RCU | R       | R       |
+| profile_identity.merge         | RA    | R     | –     | A       | –      | –          | –   | –   | –       | R       |
+| catalog_inventory.product      | RCU   | RCU   | R     | R       | R      | RCU        | –   | –   | R       | R       |
+| catalog_inventory.price        | RU    | RU    | R     | R       | –      | R          | –   | –   | R       | R       |
+| catalog_inventory.stock        | RUadj | RUadj | R     | Radj    | RU     | RUadj      | –   | –   | R       | R       |
+| sales_pos.checkout             | RCU   | RCU   | RCU   | R       | –      | –          | –   | –   | –       | R       |
+| sales_pos.posting              | P     | P     | P     | P       | –      | –          | –   | –   | –       | R       |
+| sales_pos.cancel               | XA    | X     | –     | XA      | –      | –          | –   | –   | –       | R       |
+| sales_pos.discount             | U     | U     | U*    | U       | –      | –          | –   | –   | –       | R       |
+| warehouse.transfer             | RCASR | RC    | –     | A       | RCSR   | RC         | –   | –   | –       | R       |
+| warehouse.cycle_count          | RCA   | RC    | –     | A       | RC     | RC         | –   | –   | –       | R       |
+| accounting_tax.tax_profile     | RF    | RF    | –     | –       | –      | –          | RF  | –   | –       | R       |
+| accounting_tax.vat_invoice     | RC    | R     | –     | –       | –      | –          | RC  | –   | –       | R       |
+| accounting_tax.coretax_export  | EA    | –     | –     | A       | –      | –          | E   | –   | –       | R       |
+| crm.contact                    | RCU   | RCU   | R     | –       | –      | –          | –   | RCU | –       | R       |
+| crm.receipt_delivery           | RS    | RS    | S     | –       | –      | –          | –   | RS  | –       | R       |
+| sync.sync                      | RF    | RF    | –     | –       | –      | –          | –   | –   | –       | R       |
+| sync.conflict                  | RA    | R     | –     | A       | –      | –          | –   | –   | –       | R       |
+| ai_analyst.analysis            | N     | –     | –     | –       | –      | –          | –   | –   | N       | –       |
+| reporting.reports              | R     | R     | –     | R       | R      | R          | R   | R   | R       | R       |
+| workflow.approval              | RA    | R     | –     | RA      | –      | –          | –   | –   | –       | R       |
+| logs.logs                      | R     | R     | –     | –       | –      | –          | –   | –   | –       | R       |
+| security.go_live               | RA    | R     | –     | –       | –      | –          | –   | –   | –       | R       |
 
 `*` Diskon operator dibatasi ABAC (batas nominal/persentase sesuai kebijakan).
 
@@ -113,21 +113,21 @@ Permission `delete`, `restore`, dan `purge` untuk soft delete tidak tersirat dar
 
 Prinsip: **default deny**, **deny overrides allow**, RLS tetap wajib.
 
-| # | Policy | Efek |
-|---|---|---|
-| 1 | Default | **Deny** semua yang tidak diizinkan eksplisit |
-| 2 | Role allow | Allow sesuai matriks role → permission |
-| 3 | Tenant isolation | Deny bila `resource.tenant_id != context.tenant_id` |
-| 4 | Office scope | Deny bila resource office di luar office user (kecuali role lintas-office) |
-| 5 | Cashier restriction | Deny `accounting_tax.*`, `coretax_export`, `identity_access.*` untuk Kasir |
-| 6 | Discount limit | Deny diskon operator melebihi batas kebijakan |
-| 7 | Self-approval | Deny bila `approver == requester` pada workflow |
-| 8 | Tax masking | Deny tampilkan tax identity penuh untuk non-tax role |
-| 9 | AI safety | Deny AI mengakses raw SQL/mutation/PII mentah |
-| 10 | Export approval | Deny Coretax export tanpa approval bila policy aktif |
-| 11 | Soft delete archive | Deny `includeDeleted`, `restore`, atau `purge` tanpa permission eksplisit; deny delete untuk posted/append-only entity |
+| #   | Policy              | Efek                                                                                                                   |
+| --- | ------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 1   | Default             | **Deny** semua yang tidak diizinkan eksplisit                                                                          |
+| 2   | Role allow          | Allow sesuai matriks role → permission                                                                                 |
+| 3   | Tenant isolation    | Deny bila `resource.tenant_id != context.tenant_id`                                                                    |
+| 4   | Office scope        | Deny bila resource office di luar office user (kecuali role lintas-office)                                             |
+| 5   | Cashier restriction | Deny `accounting_tax.*`, `coretax_export`, `identity_access.*` untuk Kasir                                             |
+| 6   | Discount limit      | Deny diskon operator melebihi batas kebijakan                                                                          |
+| 7   | Self-approval       | Deny bila `approver == requester` pada workflow                                                                        |
+| 8   | Tax masking         | Deny tampilkan tax identity penuh untuk non-tax role                                                                   |
+| 9   | AI safety           | Deny AI mengakses raw SQL/mutation/PII mentah                                                                          |
+| 10  | Export approval     | Deny Coretax export tanpa approval bila policy aktif                                                                   |
+| 11  | Soft delete archive | Deny `includeDeleted`, `restore`, atau `purge` tanpa permission eksplisit; deny delete untuk posted/append-only entity |
 
-Setiap **deny high-risk** dicatat di `awcms-mini_abac_decision_logs` (doc 04).
+Setiap **deny high-risk** dicatat di `awcms_mini_abac_decision_logs` (doc 04).
 
 ```mermaid
 flowchart TD

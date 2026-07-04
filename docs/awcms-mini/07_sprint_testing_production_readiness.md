@@ -40,20 +40,20 @@ gantt
   S12 Production Readiness  :s12, after s11, 1
 ```
 
-| Sprint | Fokus | Output utama |
-|---:|---|---|
-| 1 | Repository Foundation | Skeleton, migration runner, OpenAPI/AsyncAPI, health |
-| 2 | Tenant, Identity, Profile | Tenant, office, setup, login, profile resolver |
-| 3 | RBAC, ABAC, RLS | Role, policy, evaluator, decision log |
-| 4 | Product Catalog & Stock | Produk, harga, stock balance, movement |
-| 5 | POS MVP | Checkout, cart, payment, atomic posting |
-| 6 | Logging & Pooling | Structured log, audit, DB pool, backpressure |
-| 7 | Receipt & CRM | PDF receipt, contact, consent, WA/email outbox |
-| 8 | Offline Sync & R2 | Sync push/pull, conflict, object queue |
-| 9 | Warehouse | Warehouse, bin, lot, transfer, cycle count |
-| 10 | Tax/Coretax | Tax profile, VAT invoice, Coretax batch |
-| 11 | UI/UX, Reporting, AI | Admin UI, POS UI, reports, AI analyst |
-| 12 | Production Readiness | Workflow, security readiness, deployment, handover |
+| Sprint | Fokus                     | Output utama                                         |
+| -----: | ------------------------- | ---------------------------------------------------- |
+|      1 | Repository Foundation     | Skeleton, migration runner, OpenAPI/AsyncAPI, health |
+|      2 | Tenant, Identity, Profile | Tenant, office, setup, login, profile resolver       |
+|      3 | RBAC, ABAC, RLS           | Role, policy, evaluator, decision log                |
+|      4 | Product Catalog & Stock   | Produk, harga, stock balance, movement               |
+|      5 | POS MVP                   | Checkout, cart, payment, atomic posting              |
+|      6 | Logging & Pooling         | Structured log, audit, DB pool, backpressure         |
+|      7 | Receipt & CRM             | PDF receipt, contact, consent, WA/email outbox       |
+|      8 | Offline Sync & R2         | Sync push/pull, conflict, object queue               |
+|      9 | Warehouse                 | Warehouse, bin, lot, transfer, cycle count           |
+|     10 | Tax/Coretax               | Tax profile, VAT invoice, Coretax batch              |
+|     11 | UI/UX, Reporting, AI      | Admin UI, POS UI, reports, AI analyst                |
+|     12 | Production Readiness      | Workflow, security readiness, deployment, handover   |
 
 ## Sprint acceptance criteria ringkas
 
@@ -219,15 +219,15 @@ Piramida: banyak unit test di dasar, sedikit end-to-end di puncak; security & pe
 
 ### Performance test awal
 
-| Area | Target awal |
-|---|---:|
-| Product search | < 300 ms |
-| Add item cart | < 300 ms |
-| Post transaction normal | < 1.5 s |
-| Receipt PDF | < 3 s |
-| Sales daily report | < 2 s data kecil-menengah |
-| Pool acquire critical | < 500 ms normal |
-| Sync push small batch | < 2 s |
+| Area                    |               Target awal |
+| ----------------------- | ------------------------: |
+| Product search          |                  < 300 ms |
+| Add item cart           |                  < 300 ms |
+| Post transaction normal |                   < 1.5 s |
+| Receipt PDF             |                     < 3 s |
+| Sales daily report      | < 2 s data kecil-menengah |
+| Pool acquire critical   |           < 500 ms normal |
+| Sync push small batch   |                     < 2 s |
 
 ## Migration checklist
 
@@ -318,7 +318,7 @@ Piramida: banyak unit test di dasar, sedikit end-to-end di puncak; security & pe
 Command contoh:
 
 ```bash
-pg_dump --format=custom --file=/backup/awcms-mini_$(date +%Y%m%d_%H%M%S).dump "$DATABASE_URL"
+pg_dump --format=custom --file=/backup/awcms_mini_$(date +%Y%m%d_%H%M%S).dump "$DATABASE_URL"
 ```
 
 Checklist:
@@ -334,8 +334,8 @@ Checklist:
 ## Restore SOP ringkas
 
 ```bash
-createdb awcms-mini_restore_test
-pg_restore --dbname=awcms-mini_restore_test --clean --if-exists /backup/awcms-mini_YYYYMMDD_HHMMSS.dump
+createdb awcms_mini_restore_test
+pg_restore --dbname=awcms_mini_restore_test --clean --if-exists /backup/awcms_mini_YYYYMMDD_HHMMSS.dump
 ```
 
 Validasi:

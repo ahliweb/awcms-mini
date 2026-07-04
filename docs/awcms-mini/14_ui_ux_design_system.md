@@ -23,34 +23,34 @@ Token diimplementasikan sebagai CSS custom properties, di-scope ke `:root` dan o
 
 ### Warna semantik
 
-| Token | Light | Dark | Fungsi |
-|---|---|---|---|
-| `--color-bg` | `#f7f8fa` | `#0e1116` | Latar aplikasi |
-| `--color-surface` | `#ffffff` | `#161b22` | Kartu/panel |
-| `--color-surface-2` | `#eef1f5` | `#1f262e` | Panel sekunder |
-| `--color-border` | `#d8dee6` | `#2b333c` | Garis/pembatas |
-| `--color-text` | `#1a1f26` | `#e6edf3` | Teks utama |
-| `--color-text-muted` | `#5b6672` | `#9aa7b2` | Teks sekunder |
-| `--color-primary` | `#2563eb` | `#3b82f6` | Aksi utama |
+| Token                      | Light     | Dark      | Fungsi               |
+| -------------------------- | --------- | --------- | -------------------- |
+| `--color-bg`               | `#f7f8fa` | `#0e1116` | Latar aplikasi       |
+| `--color-surface`          | `#ffffff` | `#161b22` | Kartu/panel          |
+| `--color-surface-2`        | `#eef1f5` | `#1f262e` | Panel sekunder       |
+| `--color-border`           | `#d8dee6` | `#2b333c` | Garis/pembatas       |
+| `--color-text`             | `#1a1f26` | `#e6edf3` | Teks utama           |
+| `--color-text-muted`       | `#5b6672` | `#9aa7b2` | Teks sekunder        |
+| `--color-primary`          | `#2563eb` | `#3b82f6` | Aksi utama           |
 | `--color-primary-contrast` | `#ffffff` | `#ffffff` | Teks di atas primary |
-| `--color-success` | `#16a34a` | `#22c55e` | Sukses/posted |
-| `--color-warning` | `#d97706` | `#f59e0b` | Peringatan/held |
-| `--color-danger` | `#dc2626` | `#ef4444` | Error/stok kurang |
-| `--color-info` | `#0891b2` | `#06b6d4` | Info/sync |
-| `--color-focus` | `#2563eb` | `#60a5fa` | Cincin fokus |
+| `--color-success`          | `#16a34a` | `#22c55e` | Sukses/posted        |
+| `--color-warning`          | `#d97706` | `#f59e0b` | Peringatan/held      |
+| `--color-danger`           | `#dc2626` | `#ef4444` | Error/stok kurang    |
+| `--color-info`             | `#0891b2` | `#06b6d4` | Info/sync            |
+| `--color-focus`            | `#2563eb` | `#60a5fa` | Cincin fokus         |
 
 ### Skala lain
 
-| Kategori | Token | Nilai |
-|---|---|---|
-| Font family | `--font-sans` | system-ui, Inter, sans-serif |
-| Font mono | `--font-mono` | ui-monospace, monospace (harga/SKU/angka) |
-| Font size | `--fs-xs..2xl` | 12 · 14 · 16 · 18 · 20 · 24 · 32 px |
-| Spacing | `--sp-1..8` | 4 · 8 · 12 · 16 · 24 · 32 · 48 · 64 px |
-| Radius | `--radius-sm/md/lg/full` | 4 · 8 · 12 · 9999 px |
-| Shadow | `--shadow-sm/md/lg` | elevasi kartu/dialog |
-| Z-index | `--z-nav/dropdown/dialog/toast` | 100 · 200 · 300 · 400 |
-| Breakpoint | `sm/md/lg/xl` | 640 · 768 · 1024 · 1280 px |
+| Kategori    | Token                           | Nilai                                     |
+| ----------- | ------------------------------- | ----------------------------------------- |
+| Font family | `--font-sans`                   | system-ui, Inter, sans-serif              |
+| Font mono   | `--font-mono`                   | ui-monospace, monospace (harga/SKU/angka) |
+| Font size   | `--fs-xs..2xl`                  | 12 · 14 · 16 · 18 · 20 · 24 · 32 px       |
+| Spacing     | `--sp-1..8`                     | 4 · 8 · 12 · 16 · 24 · 32 · 48 · 64 px    |
+| Radius      | `--radius-sm/md/lg/full`        | 4 · 8 · 12 · 9999 px                      |
+| Shadow      | `--shadow-sm/md/lg`             | elevasi kartu/dialog                      |
+| Z-index     | `--z-nav/dropdown/dialog/toast` | 100 · 200 · 300 · 400                     |
+| Breakpoint  | `sm/md/lg/xl`                   | 640 · 768 · 1024 · 1280 px                |
 
 ### Theming
 
@@ -63,32 +63,32 @@ flowchart LR
   Tokens --> UI[Semua komponen]
 ```
 
-Aturan: default `system`; pilihan user disimpan (localStorage + `awcms-mini_tenant_settings.default_theme`); `data-theme` di-set pada `<html>` sebelum paint untuk mencegah flash.
+Aturan: default `system`; pilihan user disimpan (localStorage + `awcms_mini_tenant_settings.default_theme`); `data-theme` di-set pada `<html>` sebelum paint untuk mencegah flash.
 
 ## Component library
 
 Komponen dasar di `src/components/ui`, dipakai lintas persona.
 
-| Komponen | Catatan penting |
-|---|---|
-| Button | varian primary/secondary/ghost/danger; state loading & disabled |
-| Input / NumberInput | label, hint, error; NumberInput untuk qty/harga (mono) |
-| Select / Combobox | Combobox mendukung search produk/customer |
-| Checkbox / Radio / Switch | switch untuk consent & feature toggle |
-| Dialog / Drawer | fokus terperangkap, `Esc` menutup |
-| Toast | sukses/error/info; non-blocking |
-| Table / DataGrid | sort, pagination keyset, kolom sticky, row density |
-| Badge / StatusPill | status lifecycle (draft/held/posted/quarantine) berkode warna |
-| ArchiveFilter | toggle/filter `aktif`, `arsip`, `semua` untuk role berizin |
-| Card / Panel | kontainer konten |
-| FormField | membungkus label+input+error konsisten |
-| Tabs | detail entity (produk, transfer, profile) |
-| Pagination | keyset (next/prev), bukan offset besar |
-| SearchBar | debounce, hasil <300ms (doc 07) |
-| EmptyState / ErrorState / LoadingSkeleton | wajib untuk tiap list/detail |
-| KeyboardHint | menampilkan shortcut aktif di POS |
-| SyncIndicator / OfflineBanner | status koneksi & antrean sync |
-| MoneyText / MaskedText | format IDR & masking data sensitif |
+| Komponen                                  | Catatan penting                                                 |
+| ----------------------------------------- | --------------------------------------------------------------- |
+| Button                                    | varian primary/secondary/ghost/danger; state loading & disabled |
+| Input / NumberInput                       | label, hint, error; NumberInput untuk qty/harga (mono)          |
+| Select / Combobox                         | Combobox mendukung search produk/customer                       |
+| Checkbox / Radio / Switch                 | switch untuk consent & feature toggle                           |
+| Dialog / Drawer                           | fokus terperangkap, `Esc` menutup                               |
+| Toast                                     | sukses/error/info; non-blocking                                 |
+| Table / DataGrid                          | sort, pagination keyset, kolom sticky, row density              |
+| Badge / StatusPill                        | status lifecycle (draft/held/posted/quarantine) berkode warna   |
+| ArchiveFilter                             | toggle/filter `aktif`, `arsip`, `semua` untuk role berizin      |
+| Card / Panel                              | kontainer konten                                                |
+| FormField                                 | membungkus label+input+error konsisten                          |
+| Tabs                                      | detail entity (produk, transfer, profile)                       |
+| Pagination                                | keyset (next/prev), bukan offset besar                          |
+| SearchBar                                 | debounce, hasil <300ms (doc 07)                                 |
+| EmptyState / ErrorState / LoadingSkeleton | wajib untuk tiap list/detail                                    |
+| KeyboardHint                              | menampilkan shortcut aktif di POS                               |
+| SyncIndicator / OfflineBanner             | status koneksi & antrean sync                                   |
+| MoneyText / MaskedText                    | format IDR & masking data sensitif                              |
 
 ## Information architecture (navigasi role-aware)
 
@@ -169,22 +169,22 @@ Item menu difilter oleh permission efektif user (lihat doc 17). Menu tanpa akses
 
 ## Screen inventory
 
-| Route | Persona | Tujuan | Komponen utama | API utama |
-|---|---|---|---|---|
-| `/login` | Semua | Autentikasi | FormField, Button | `POST /auth/login` |
-| `/setup` | Owner awal | Setup wizard | Stepper, FormField | `GET/POST /setup/*` |
-| `/admin` | Admin/Owner | Dashboard | Card, Chart, Table | `GET /reports/*` |
-| `/admin/products` | Admin/Inventory | List/CRUD produk | DataGrid, SearchBar, Dialog | `/inventory/products` |
-| `/admin/stock` | Admin/Inventory | Stok & opening balance | DataGrid, NumberInput | `/inventory/stock-balances` |
-| `/admin/warehouse` | Gudang | Transfer, bin, cycle count | Tabs, StatusPill | `/warehouses`, `/warehouse-transfers` |
-| `/admin/tax` | Tax Officer | VAT invoice, Coretax | DataGrid, MaskedText | `/tax/*` |
-| `/admin/crm` | CRM Staff | Kontak, receipt, outbox | Table, Switch | `/crm/*` |
-| `/admin/reports` | Analyst/Owner | Laporan | Chart, Table | `/reports/*` |
-| `/admin/ai` | Analyst/Owner | AI analyst chat | Chat, Card | `/ai/business-analyst/chat` |
-| `/admin/users` | Admin/Owner | User & akses | DataGrid, Dialog | `/access/*` |
-| `/admin/logs` | Auditor/Admin | Logs & security | DataGrid, Badge | `/logs/*`, `/security/*` |
-| `/pos` | Kasir | Transaksi POS | POS shell, Combobox | `/sales/*` |
-| `/customer/receipts/{token}` | Customer | Receipt & consent | Card, Switch | `/crm/receipts/*` |
+| Route                        | Persona         | Tujuan                     | Komponen utama              | API utama                             |
+| ---------------------------- | --------------- | -------------------------- | --------------------------- | ------------------------------------- |
+| `/login`                     | Semua           | Autentikasi                | FormField, Button           | `POST /auth/login`                    |
+| `/setup`                     | Owner awal      | Setup wizard               | Stepper, FormField          | `GET/POST /setup/*`                   |
+| `/admin`                     | Admin/Owner     | Dashboard                  | Card, Chart, Table          | `GET /reports/*`                      |
+| `/admin/products`            | Admin/Inventory | List/CRUD produk           | DataGrid, SearchBar, Dialog | `/inventory/products`                 |
+| `/admin/stock`               | Admin/Inventory | Stok & opening balance     | DataGrid, NumberInput       | `/inventory/stock-balances`           |
+| `/admin/warehouse`           | Gudang          | Transfer, bin, cycle count | Tabs, StatusPill            | `/warehouses`, `/warehouse-transfers` |
+| `/admin/tax`                 | Tax Officer     | VAT invoice, Coretax       | DataGrid, MaskedText        | `/tax/*`                              |
+| `/admin/crm`                 | CRM Staff       | Kontak, receipt, outbox    | Table, Switch               | `/crm/*`                              |
+| `/admin/reports`             | Analyst/Owner   | Laporan                    | Chart, Table                | `/reports/*`                          |
+| `/admin/ai`                  | Analyst/Owner   | AI analyst chat            | Chat, Card                  | `/ai/business-analyst/chat`           |
+| `/admin/users`               | Admin/Owner     | User & akses               | DataGrid, Dialog            | `/access/*`                           |
+| `/admin/logs`                | Auditor/Admin   | Logs & security            | DataGrid, Badge             | `/logs/*`, `/security/*`              |
+| `/pos`                       | Kasir           | Transaksi POS              | POS shell, Combobox         | `/sales/*`                            |
+| `/customer/receipts/{token}` | Customer        | Receipt & consent          | Card, Switch                | `/crm/receipts/*`                     |
 
 ## State pattern wajib
 
@@ -219,8 +219,8 @@ stateDiagram-v2
 
 ## Internationalization (i18n)
 
-- Locale awal: **id**, **en** (siap ms/ar). Default dari `awcms-mini_tenants.default_locale`.
-- Format PO/message catalog (migration `009_awcms-mini_i18n_po_schema.sql`).
+- Locale awal: **id**, **en** (siap ms/ar). Default dari `awcms_mini_tenants.default_locale`.
+- Format PO/message catalog (migration `009_awcms_mini_i18n_po_schema.sql`).
 - Kunci pesan: `namespace.key` (mis. `pos.button.post`, `error.stock_not_available`).
 - Angka/mata uang: IDR, pemisah ribuan lokal; tanggal `Asia/Jakarta`.
 - Semua string UI melalui i18n; hindari hardcode teks.
@@ -235,18 +235,18 @@ flowchart LR
 
 ## Peta keyboard POS
 
-| Shortcut | Fungsi |
-|---|---|
-| F1 | Bantuan/shortcut |
-| F2 | Fokus search/barcode |
-| F4 | Ubah quantity item terpilih |
-| F6 | Diskon (sesuai izin) |
-| F8 | Hold transaksi |
-| F9 | Pembayaran |
-| F10 | Posting transaksi |
-| Enter | Tambah item terpilih |
-| ↑/↓ | Navigasi hasil/keranjang |
-| Esc | Tutup dialog |
+| Shortcut | Fungsi                      |
+| -------- | --------------------------- |
+| F1       | Bantuan/shortcut            |
+| F2       | Fokus search/barcode        |
+| F4       | Ubah quantity item terpilih |
+| F6       | Diskon (sesuai izin)        |
+| F8       | Hold transaksi              |
+| F9       | Pembayaran                  |
+| F10      | Posting transaksi           |
+| Enter    | Tambah item terpilih        |
+| ↑/↓      | Navigasi hasil/keranjang    |
+| Esc      | Tutup dialog                |
 
 ## Acceptance criteria UI/UX
 
