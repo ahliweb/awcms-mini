@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    /* Base Options: */
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "ES2024",
+    "allowJs": true,
+    "checkJs": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "moduleResolution": "bundler",
+    "module": "preserve",
+    /* Strictness */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "forceConsistentCasingInFileNames": true,
+    /* If NOT transpiling with TypeScript: */
+    "noEmit": true,
+    /* If your code doesn't run in the DOM: */
+    "lib": ["ES2024"],
+    "types": ["bun-types"]
+  },
+  /* NOTE: `src/`, `tests/`, `sql/` scripts, dsb. belum ada — repo masih
+     docs-only (lihat AGENTS.md). `include` sudah mencakup path target
+     Issue 0.1 (doc 09 §Struktur repository final) agar tsconfig ini siap
+     pakai begitu file-nya dibuat, tanpa perlu diedit ulang. */
+  "include": ["scripts/**/*", "src/**/*", "tests/**/*"],
+  "exclude": ["node_modules", "dist", ".astro"]
+}
