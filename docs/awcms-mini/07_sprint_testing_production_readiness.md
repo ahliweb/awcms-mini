@@ -167,6 +167,8 @@ flowchart TB
 
 Piramida: banyak unit test di dasar, sedikit end-to-end di puncak; security & performance test mengawal.
 
+> **Base sudah punya test.** Runner = **`bun test`** (`bun:test`), berkas di `tests/`. Tooling repositori saat ini (`scripts/`) sudah mengikuti pola ini: logika murni `scripts/lib/docs-checks.mjs` diuji unit (`tests/docs-checks.test.mjs`), dan pemeriksa penuh diuji integration (`tests/check-docs-integration.test.mjs`). Daftar target di bawah bersifat **contoh domain** — aplikasi turunan menggantinya dengan target domainnya sendiri.
+
 ### Unit test target
 
 - ABAC evaluator.

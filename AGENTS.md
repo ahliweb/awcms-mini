@@ -154,13 +154,18 @@ Aturan: reviewer & auditor **read-only** (temuan dikembalikan ke coder); auditor
 
 ```bash
 bun install
-bun run check                # lint + check:docs + typecheck (gate CI)
+bun run check                # gate lengkap: lint + check:docs + typecheck + test
 bun run lint                 # prettier --check
 bun run check:docs           # validasi mermaid, tautan internal, penamaan
 bun run typecheck            # tsc --noEmit
+bun test                     # unit + integration test (bun:test) di tests/
+bun run test:coverage        # bun test --coverage
 bun run changeset            # tambah changeset (versioning)
 bun run changeset:version    # konsumsi changeset -> bump versi + CHANGELOG
 ```
+
+Tooling saat ini (`scripts/`) sudah punya unit test di `tests/`; tambahkan test
+untuk setiap kode baru sesuai doc 07 §Testing Strategy dan doc 10.
 
 ## Perintah standar (target)
 

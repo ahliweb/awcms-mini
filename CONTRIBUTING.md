@@ -49,10 +49,10 @@ Prasyarat: **Bun** (versi terkunci di `package.json` `packageManager`/`engines`)
 Jalankan yang relevan dengan perubahan Anda:
 
 ```bash
-bun run check                # lint + check:docs + typecheck (gate CI utama)
+bun run check                # gate CI utama: lint + check:docs + typecheck + test
 bun run lint                 # prettier check dokumen
 bun run typecheck            # tsc --noEmit
-bun test                     # unit + integration test (setelah kode ada)
+bun test                     # unit + integration test (bun:test) di tests/
 bun run api:spec:check       # bila mengubah OpenAPI/AsyncAPI
 bun run db:migrate           # bila menambah migration
 bun run build                # bila mengubah kode aplikasi
@@ -60,6 +60,12 @@ bun run production:preflight  # cek gabungan pra-deploy
 ```
 
 Untuk perubahan docs-only, pastikan minimal format Markdown lolos (`bunx prettier --check`) dan tautan internal tidak rusak.
+
+## Menulis test
+
+- Test runner = **`bun test`** (`bun:test`, kompatibel `node:test`). Berkas test di `tests/`, pola nama `*.test.mjs` / `*.test.ts`.
+- Pisahkan **logika murni** (mudah di-unit-test, tanpa I/O) dari **I/O/orkestrasi**. Contoh acuan: `scripts/lib/docs-checks.mjs` (murni, diuji unit) vs `scripts/check-docs.mjs` (I/O + CLI, diuji integration). Guard eksekusi CLI dengan `if (import.meta.main)` agar bisa diimpor test tanpa efek samping.
+- Setiap perubahan perilaku wajib disertai test yang gagal sebelum fix dan lulus sesudahnya. Lihat doc 07 §Testing Strategy untuk lapisan test (unit → integration → contract → security).
 
 ## Konvensi commit
 

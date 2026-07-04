@@ -1,5 +1,5 @@
-# CI AWCMS-Mini — kualitas dokumentasi & hygiene (Bun-only).
-# Repo saat ini docs-only; gate kode (test/build) diaktifkan setelah Issue 0.1.
+# CI AWCMS-Mini — kualitas dokumentasi, unit test, & hygiene (Bun-only).
+# Repo saat ini docs-only + tooling; gate build aplikasi diaktifkan setelah Issue 0.1.
 name: CI
 
 on:
@@ -16,8 +16,8 @@ permissions:
   contents: read
 
 jobs:
-  docs:
-    name: Docs quality
+  quality:
+    name: Quality (lint + docs + typecheck + test)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -38,6 +38,9 @@ jobs:
 
       - name: Typecheck (tsc --noEmit)
         run: bun run typecheck
+
+      - name: Unit tests (bun test)
+        run: bun test
 
   hygiene:
     name: Repo hygiene (Bun-only + no secrets)

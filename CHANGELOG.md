@@ -8,6 +8,22 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 Belum ada perubahan yang menunggu rilis berikutnya.
 
+## [0.0.2] - 2026-07-05
+
+### Added
+
+- **Unit testing** (`bun test` / `bun:test`) di `tests/`: `tests/docs-checks.test.mjs` (23 kasus untuk mermaid, slug/anchor, penamaan, ekstraksi/klasifikasi tautan) + `tests/check-docs-integration.test.mjs` (menjalankan pemeriksa docs penuh atas repo nyata).
+- Script `test` + `test:coverage`; `bun test` dimasukkan ke `bun run check` dan gate CI (`.github/workflows/ci.yml`).
+
+### Changed
+
+- Refaktor `scripts/check-docs.mjs` → lib logika-murni bebas I/O (`scripts/lib/docs-checks.mjs`, ter-export) + CLI tipis dengan guard `import.meta.main` (agar dapat diimpor test tanpa efek samping).
+- Doc 07 (§Testing Strategy), 10, 13, 20, `AGENTS.md`, `CONTRIBUTING.md`, `README.md` diselaraskan dengan keberadaan test + runner `bun test`.
+
+### Fixed
+
+- Bug fidelity `slugify`: GitHub **tidak** menggabungkan whitespace beruntun saat membuat slug heading (`"a & b"` → `"a--b"`); sebelumnya keliru meng-collapse (`\s+`), berpotensi false-negative pada validasi anchor lintas-berkas.
+
 ## [0.0.1] - 2026-07-05
 
 Baseline paket dokumentasi, standar profesional repo publik, & tooling. Belum ada kode aplikasi; rilis bertag berikutnya direncanakan **0.1.0** (Foundation) sesuai `docs/awcms-mini/09_roadmap_repository_commit.md`.
@@ -46,17 +62,18 @@ Baseline paket dokumentasi, standar profesional repo publik, & tooling. Belum ad
 
 ## Peta versi rencana (base, dari doc 09)
 
-| Versi   | Isi                                              |
-| ------- | ------------------------------------------------- |
-| `0.1.0` | Foundation, tenant, identity, profile             |
-| `0.2.0` | RBAC/ABAC evaluator + assignment                  |
-| `0.3.0` | Logging, pooling, security readiness              |
-| `0.4.0` | Sync storage (outbox/inbox, conflict, R2 queue)   |
-| `0.5.0` | UI shell, management reporting                    |
-| `0.6.0` | Workflow approval, deployment profile             |
-| `1.0.0` | Base production-ready                             |
+| Versi   | Isi                                             |
+| ------- | ----------------------------------------------- |
+| `0.1.0` | Foundation, tenant, identity, profile           |
+| `0.2.0` | RBAC/ABAC evaluator + assignment                |
+| `0.3.0` | Logging, pooling, security readiness            |
+| `0.4.0` | Sync storage (outbox/inbox, conflict, R2 queue) |
+| `0.5.0` | UI shell, management reporting                  |
+| `0.6.0` | Workflow approval, deployment profile           |
+| `1.0.0` | Base production-ready                           |
 
 Aplikasi turunan (mis. AWPOS) memakai peta versinya sendiri di atas base ini.
 
-[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.0.1...HEAD
+[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.0.2...HEAD
+[0.0.2]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.0.1...awcms-mini@0.0.2
 [0.0.1]: https://github.com/ahliweb/awcms-mini/commits/main

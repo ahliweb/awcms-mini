@@ -1,6 +1,6 @@
 {
   "name": "awcms-mini",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "description": "AWCMS-Mini — Modular Monolith Standard (documentation baseline; app code starts at Issue 0.1)",
   "license": "MIT",
@@ -35,7 +35,9 @@
     "format": "prettier --write \"**/*.md\" \"**/*.{json,yml,yaml}\"",
     "check:docs": "bun scripts/check-docs.mjs",
     "typecheck": "tsc --noEmit",
-    "check": "bun run lint && bun run check:docs && bun run typecheck",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage",
+    "check": "bun run lint && bun run check:docs && bun run typecheck && bun run test",
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:status": "changeset status",
