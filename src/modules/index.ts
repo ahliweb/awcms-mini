@@ -5,6 +5,7 @@ import { profileIdentityModule } from "./profile-identity/module";
 import { reportingModule } from "./reporting/module";
 import { syncStorageModule } from "./sync-storage/module";
 import { tenantAdminModule } from "./tenant-admin/module";
+import { workflowApprovalModule } from "./workflow-approval/module";
 
 export const modules: ModuleDescriptor[] = [
   tenantAdminModule,
@@ -12,7 +13,8 @@ export const modules: ModuleDescriptor[] = [
   identityAccessModule,
   syncStorageModule,
   reportingModule,
-  loggingModule
+  loggingModule,
+  workflowApprovalModule
 ];
 
 export function getModuleByKey(

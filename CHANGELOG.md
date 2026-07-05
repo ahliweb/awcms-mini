@@ -6,6 +6,16 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-07-05
+
+### Added
+
+- Workflow approval engine generik (Issue 11.1, `sql/012_awcms_mini_workflow_approval_schema.sql`): skema `awcms_mini_workflow_definitions`/`_instances`/`_tasks`/`_decisions` (4 tabel persis sesuai doc 04 — "steps" adalah daftar langkah berurutan milik definisi, bukan tabel ke-5).
+- `GET /workflows/tasks` dan `POST /workflows/tasks/{id}/decisions` (bearer session, permission `workflow.approval.read`/`.approve` sesuai seed doc 17 — tidak ada endpoint create-definition/start-instance publik karena doc 17 tidak memberi permission `create`/`configure` untuk workflow; `startWorkflowInstance` internal-only).
+- Self-approval guard memakai ulang mekanisme yang sudah ada di `evaluateAccess` (Issue 2.4) — bukan mekanisme baru.
+- Tabel idempotency generik `awcms_mini_idempotency_keys` (doc 10/16), konsumer nyata pertamanya adalah endpoint decision workflow (`Idempotency-Key` wajib, replay aman, `409 IDEMPOTENCY_CONFLICT` untuk key sama dengan body berbeda) — dapat dipakai ulang endpoint mutation high-risk lain di masa depan.
+- Keputusan workflow (approve/reject) tercatat ke audit trail generik (Issue 10.1).
+
 ## [0.14.0] - 2026-07-05
 
 ### Added
@@ -235,9 +245,10 @@ Baseline paket dokumentasi, standar profesional repo publik, & tooling. Belum ad
 
 Aplikasi turunan (mis. AWPOS) memakai peta versinya sendiri di atas base ini.
 
-Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0`-`0.4.0` berisi Issue 2.1 (tenant/office), 2.2 (central profile), dan 2.3 (identity/login) dari slot "Tenant, identity, profile" (tuntas); rilis `0.5.0` berisi Issue 2.4 (RBAC/ABAC) dari slot "RBAC/ABAC evaluator + assignment" (tuntas). Epic M2 (2.1–2.4) selesai penuh. Rilis `0.6.0` berisi Issue 12.1 (Setup Wizard) dan rilis `0.7.0` berisi Issue 6.1 (Sync Outbox/Inbox) — keduanya tidak punya slot eksplisit sendiri di tabel peta versi doc 09 (12.1 ditempatkan setelah M2, 6.1 dimulai dari slot "Sync storage" `v0.4.0` yang sebelumnya ditarget jauh lebih lambat dari realisasi progresif ini). Rilis `0.8.0` berisi Issue 6.2 (Sync Conflict Tracking/Resolution), lanjutan langsung dari slot "Sync storage" yang sama dengan 6.1. Rilis `0.9.0` berisi Issue 6.3 (R2 Object Sync Queue), menuntaskan epic M5 (Sync Storage) sepenuhnya. Rilis `0.10.0` berisi Issue 8.1 (Admin Layout Shell), issue pertama epic M7 (UI/UX & Reporting) dan issue frontend pertama di repo ini. Rilis `0.11.0` berisi Issue 9.1 (Management Reporting Views), menuntaskan epic M7 sepenuhnya. Rilis `0.11.1` adalah patch (bug fix jsonb double-encoding pada sync push, bukan issue baru). Rilis `0.12.0` berisi Issue 10.1 (Structured Logging and Audit Trail), issue pertama epic M8 (Security, Performance, Production). Rilis `0.13.0` berisi Issue 10.2 (Database Connection Pooling and Backpressure) — tidak ada migration baru, murni infrastruktur aplikasi. Rilis `0.14.0` berisi Issue 10.3 (Production Security Readiness Checklist) — juga tidak ada migration baru, murni tooling CLI yang memverifikasi kontrol yang sudah dibangun sebelumnya.
+Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0`-`0.4.0` berisi Issue 2.1 (tenant/office), 2.2 (central profile), dan 2.3 (identity/login) dari slot "Tenant, identity, profile" (tuntas); rilis `0.5.0` berisi Issue 2.4 (RBAC/ABAC) dari slot "RBAC/ABAC evaluator + assignment" (tuntas). Epic M2 (2.1–2.4) selesai penuh. Rilis `0.6.0` berisi Issue 12.1 (Setup Wizard) dan rilis `0.7.0` berisi Issue 6.1 (Sync Outbox/Inbox) — keduanya tidak punya slot eksplisit sendiri di tabel peta versi doc 09 (12.1 ditempatkan setelah M2, 6.1 dimulai dari slot "Sync storage" `v0.4.0` yang sebelumnya ditarget jauh lebih lambat dari realisasi progresif ini). Rilis `0.8.0` berisi Issue 6.2 (Sync Conflict Tracking/Resolution), lanjutan langsung dari slot "Sync storage" yang sama dengan 6.1. Rilis `0.9.0` berisi Issue 6.3 (R2 Object Sync Queue), menuntaskan epic M5 (Sync Storage) sepenuhnya. Rilis `0.10.0` berisi Issue 8.1 (Admin Layout Shell), issue pertama epic M7 (UI/UX & Reporting) dan issue frontend pertama di repo ini. Rilis `0.11.0` berisi Issue 9.1 (Management Reporting Views), menuntaskan epic M7 sepenuhnya. Rilis `0.11.1` adalah patch (bug fix jsonb double-encoding pada sync push, bukan issue baru). Rilis `0.12.0` berisi Issue 10.1 (Structured Logging and Audit Trail), issue pertama epic M8 (Security, Performance, Production). Rilis `0.13.0` berisi Issue 10.2 (Database Connection Pooling and Backpressure) — tidak ada migration baru, murni infrastruktur aplikasi. Rilis `0.14.0` berisi Issue 10.3 (Production Security Readiness Checklist) — juga tidak ada migration baru, murni tooling CLI yang memverifikasi kontrol yang sudah dibangun sebelumnya. Rilis `0.15.0` berisi Issue 11.1 (Workflow Approval Engine), mendarat lebih awal dari rencana semula (slot 015) karena mengikuti tepat setelah 10.3 yang tidak butuh migration.
 
-[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.14.0...HEAD
+[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.15.0...HEAD
+[0.15.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.14.0...awcms-mini@0.15.0
 [0.14.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.13.0...awcms-mini@0.14.0
 [0.13.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.12.0...awcms-mini@0.13.0
 [0.12.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.11.1...awcms-mini@0.12.0
