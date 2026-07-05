@@ -3,12 +3,12 @@
 | Metadata           | Nilai                |
 | ------------------ | -------------------- |
 | Repository         | `ahliweb/awcms-mini` |
-| Snapshot           | 2026-07-05T00:19:28Z |
+| Snapshot           | 2026-07-05T00:34:54Z |
 | State              | `OPEN`               |
 | File page          | 1/1                  |
 | Max issue per file | 100                  |
-| Issue dalam file   | 17                   |
-| Range              | #372-#408            |
+| Issue dalam file   | 16                   |
+| Range              | #373-#408            |
 
 > File ini adalah snapshot dari GitHub. Refresh dengan proses di `docs/awcms-mini/github/README.md` bila state issue berubah.
 
@@ -16,7 +16,6 @@ Backlog generik base AWCMS-Mini dari `docs/awcms-mini/06_github_issues_detail.md
 
 |                                                        # | Judul                                                   | Milestone                              | Labels                                                                         |
 | -------------------------------------------------------: | ------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------ |
-| [#372](https://github.com/ahliweb/awcms-mini/issues/372) | 0.2 — Add SQL Migration Runner                          | M0 — Repository Foundation             | `type:task`, `priority:p0`, `area:database`, `status:ready`                    |
 | [#373](https://github.com/ahliweb/awcms-mini/issues/373) | 0.3 — Add OpenAPI and AsyncAPI Baseline                 | M0 — Repository Foundation             | `type:task`, `priority:p0`, `area:api`, `status:ready`                         |
 | [#376](https://github.com/ahliweb/awcms-mini/issues/376) | 2.1 — Add Tenant and Office Schema                      | M2 — Identity, Tenant, Profile         | `type:task`, `priority:p0`, `area:tenant`, `status:blocked`                    |
 | [#377](https://github.com/ahliweb/awcms-mini/issues/377) | 2.2 — Add Central Profile Schema                        | M2 — Identity, Tenant, Profile         | `type:task`, `priority:p0`, `area:profile`, `status:blocked`                   |

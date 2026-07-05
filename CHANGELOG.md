@@ -21,6 +21,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 - `bun run check` now includes `bun run build`, and CI runs the Astro foundation build.
 - Snapshot GitHub issue docs refreshed after #371 completion: open issue count is now 17 and closed issue count is now 21.
 - `package.json` now exposes `db:migrate` for the Bun-native PostgreSQL migration runner.
+- Snapshot GitHub issue docs refreshed after #372 completion: open issue count is now 16 and closed issue count is now 22.
 
 ## [0.0.3] - 2026-07-04
 

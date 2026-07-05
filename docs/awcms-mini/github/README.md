@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T00:19:28Z            |
+| Snapshot     | 2026-07-05T00:34:54Z            |
 | Total issue  | 38                              |
-| Open issue   | 17                              |
-| Closed issue | 21                              |
+| Open issue   | 16                              |
+| Closed issue | 22                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   17 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   21 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   16 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   22 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -42,10 +42,14 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                      |
-| ------ | -----: | ------------------------------------------------------------------------------------------------------------ |
-| OPEN   |     17 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 0, 2, 6, 8, 9, 10, 11, 12).          |
-| CLOSED |     21 | 20 issue domain ditutup `not planned`; #371 ditutup `completed` setelah foundation skeleton Issue 0.1 merge. |
+| State  | Jumlah | Catatan                                                                                               |
+| ------ | -----: | ----------------------------------------------------------------------------------------------------- |
+| OPEN   |     16 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 0, 2, 6, 8, 9, 10, 11, 12).   |
+| CLOSED |     22 | 20 issue domain ditutup `not planned`; #371 dan #372 ditutup `completed` setelah Issue 0.1-0.2 merge. |
+
+### Migration runner 0.2 completed (2026-07-05)
+
+Issue [#372](https://github.com/ahliweb/awcms-mini/issues/372) ditutup `completed` setelah commit `9bbbae4` menambahkan runner migrasi PostgreSQL Bun-native (`scripts/db-migrate.ts`), script `bun run db:migrate`, checksum SHA-256, skip applied migration, deteksi checksum drift, advisory lock, transaction boundary runner, redaksi `DATABASE_URL`, test helper, dan panduan `docs/awcms-mini/database-migrations.md`.
 
 ### Foundation 0.1 completed (2026-07-05)
 
@@ -84,7 +88,7 @@ Repository awcms-mini adalah **contoh repo pengembangan umum** (base modular mon
 
 ## Hubungan dengan dokumen utama
 
-- `docs/awcms-mini/06_github_issues_detail.md` adalah rencana/template issue atomic generik sekaligus sumber isi 18 issue yang aktif di GitHub.
+- `docs/awcms-mini/06_github_issues_detail.md` adalah rencana/template issue atomic generik; sebagian issue sudah selesai dan sisanya tercatat di snapshot open.
 - `docs/awcms-mini/github/` adalah snapshot state GitHub aktual.
 - `docs/awcms-mini/github/security.md` mencatat setup GitHub Security dan alert count saat refresh.
 - `docs/awcms-mini/09_roadmap_repository_commit.md` mengatur urutan branch, commit, PR, release, dan changeset.
