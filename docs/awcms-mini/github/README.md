@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T04:09:31Z            |
+| Snapshot     | 2026-07-05T04:29:39Z            |
 | Total issue  | 38                              |
-| Open issue   | 11                              |
-| Closed issue | 27                              |
+| Open issue   | 10                              |
+| Closed issue | 28                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   11 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   27 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   10 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   28 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -44,8 +44,14 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 | State  | Jumlah | Catatan                                                                                                                                       |
 | ------ | -----: | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |     11 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 6, 8, 9, 10, 11, 12).                                                 |
-| CLOSED |     27 | 20 issue domain ditutup `not planned`; #371-#373, #376, #377, #378, dan #379 ditutup `completed` setelah Issue 0.1-0.3 dan epic M2 (2.1-2.4). |
+| OPEN   |     10 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 6, 8, 9, 10, 11, 12).                                                 |
+| CLOSED |     28 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), dan 12.1. |
+
+### Setup wizard 12.1 completed + koreksi sprint (2) (2026-07-05)
+
+Issue [#407](https://github.com/ahliweb/awcms-mini/issues/407) ditutup `completed` setelah migrasi `sql/006_awcms_mini_setup_wizard_schema.sql` menambahkan `awcms_mini_setup_state` (singleton global, RLS-free) yang mengunci setup secara permanen. Endpoint baru `GET /setup/status` dan `POST /setup/initialize` (keduanya public — belum ada identity untuk login sebelum tenant pertama dibuat); `initialize` satu transaksi atomik: klaim lock aman dari race condition, buat tenant + office + owner (profile/identity/tenant_user) + role `owner` berisi seluruh permission katalog + assignment, lalu kunci setup. Diverifikasi langsung terhadap PostgreSQL 16 + server Astro SSR berjalan: status awal `locked:false`, `initialize` valid berhasil, status sesudahnya `locked:true`, **`initialize` kedua ditolak 403** (seed idempotent, tidak bisa dijalankan ulang), owner baru berhasil login dan punya seluruh 17 permission.
+
+Saat menutup issue ini ditemukan **koreksi urutan sprint (2)**: rekomendasi Sprint 4/5 di doc 06 sebelumnya tertukar — Issue 10.1-10.3/11.1/12.2 (milestone M8) sebenarnya butuh M5 (Sync, 6.1-6.3) **dan** M7 (UI/Reporting, 8.1/9.1) selesai dulu, bukan sebaliknya. Label `#391`/`#392`/`#393`/`#398`/`#401` (M5+M7, hanya butuh M2 yang sudah tuntas) `status:blocked` → `status:ready`; `#403`/`#404`/`#405`/`#406`/`#408` (M8) **tetap** `status:blocked`. Detail: `docs/awcms-mini/06_github_issues_detail.md` §Koreksi urutan sprint (2).
 
 ### RBAC/ABAC access control 2.4 completed (2026-07-05)
 

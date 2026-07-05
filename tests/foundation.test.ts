@@ -56,7 +56,7 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, and identity_access are registered after Issue 2.1-2.4", () => {
+  test("tenant_admin, profile_identity, and identity_access are registered after Issue 2.1-2.4 and 12.1", () => {
     expect(listModules()).toHaveLength(3);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
@@ -128,7 +128,8 @@ describe("database migration runner helpers", () => {
       "002_awcms_mini_tenant_office_schema.sql",
       "003_awcms_mini_central_profile_management_schema.sql",
       "004_awcms_mini_identity_login_schema.sql",
-      "005_awcms_mini_abac_access_control_schema.sql"
+      "005_awcms_mini_abac_access_control_schema.sql",
+      "006_awcms_mini_setup_wizard_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
@@ -226,6 +227,20 @@ describe("database migration runner helpers", () => {
     expect(abacSchema?.sql).toContain("'tenant_admin', 'office_management'");
     expect(abacSchema?.sql).not.toContain("catalog_inventory");
     expect(abacSchema?.sql).not.toContain("sales_pos");
+  });
+
+  test("setup wizard schema declares a global RLS-free singleton lock table", async () => {
+    const migrations = await discoverMigrationFiles();
+    const setupSchema = migrations.find(
+      (migration) => migration.name === "006_awcms_mini_setup_wizard_schema.sql"
+    );
+
+    expect(setupSchema).toBeDefined();
+    expect(setupSchema?.sql).toContain(
+      "CREATE TABLE IF NOT EXISTS awcms_mini_setup_state"
+    );
+    expect(setupSchema?.sql).toContain("id boolean PRIMARY KEY DEFAULT true");
+    expect(setupSchema?.sql).not.toContain("ENABLE ROW LEVEL SECURITY");
   });
 });
 

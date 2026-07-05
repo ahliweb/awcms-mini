@@ -9,9 +9,77 @@ servers:
 tags:
   - name: Foundation
     description: Foundation and platform endpoints.
+  - name: Tenant Admin
+    description: Tenant, office, and the one-time setup wizard.
   - name: Identity & Access
     description: Login identity, session authentication, and tenant user membership.
 paths:
+  /api/v1/setup/status:
+    get:
+      tags:
+        - Tenant Admin
+      summary: Check whether the setup wizard has already run
+      operationId: setupGetStatus
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Setup lock status.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SetupStatusResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/setup/initialize:
+    post:
+      tags:
+        - Tenant Admin
+      summary: Bootstrap the first tenant, owner, office, and access assignment
+      operationId: setupInitialize
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetupInitializeRequest"
+      responses:
+        "200":
+          description: Setup completed; tenant, owner, and office created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SetupInitializeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          description: Setup has already been completed and is permanently locked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/auth/login:
     post:
       tags:
@@ -719,6 +787,83 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DecisionLogEntry"
+    SetupStatusResponse:
+      type: object
+      required:
+        - locked
+      additionalProperties: false
+      properties:
+        locked:
+          type: boolean
+        tenantId:
+          type: string
+          format: uuid
+        lockedAt:
+          type: string
+          format: date-time
+    SetupInitializeRequest:
+      type: object
+      required:
+        - tenantCode
+        - tenantName
+        - officeCode
+        - officeName
+        - ownerLoginIdentifier
+        - ownerPassword
+        - ownerDisplayName
+      additionalProperties: false
+      properties:
+        tenantCode:
+          type: string
+          minLength: 1
+        tenantName:
+          type: string
+          minLength: 1
+        officeCode:
+          type: string
+          minLength: 1
+        officeName:
+          type: string
+          minLength: 1
+        ownerLoginIdentifier:
+          type: string
+          minLength: 1
+        ownerPassword:
+          type: string
+          minLength: 8
+          writeOnly: true
+        ownerDisplayName:
+          type: string
+          minLength: 1
+    SetupInitializeResponse:
+      type: object
+      required:
+        - tenantId
+        - officeId
+        - ownerProfileId
+        - ownerIdentityId
+        - ownerTenantUserId
+        - ownerRoleId
+      additionalProperties: false
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        officeId:
+          type: string
+          format: uuid
+        ownerProfileId:
+          type: string
+          format: uuid
+        ownerIdentityId:
+          type: string
+          format: uuid
+        ownerTenantUserId:
+          type: string
+          format: uuid
+        ownerRoleId:
+          type: string
+          format: uuid
     SoftDeleteQuery:
       type: object
       additionalProperties: false
