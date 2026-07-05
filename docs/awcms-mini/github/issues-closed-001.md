@@ -3,23 +3,24 @@
 | Metadata           | Nilai                |
 | ------------------ | -------------------- |
 | Repository         | `ahliweb/awcms-mini` |
-| Snapshot           | 2026-07-05T00:34:54Z |
+| Snapshot           | 2026-07-05T00:47:14Z |
 | State              | `CLOSED`             |
 | File page          | 1/1                  |
 | Max issue per file | 100                  |
-| Issue dalam file   | 22                   |
+| Issue dalam file   | 23                   |
 | Range              | #371-#402            |
 
 > File ini adalah snapshot dari GitHub. Refresh dengan proses di `docs/awcms-mini/github/README.md` bila state issue berubah.
 
 Seluruh issue di bawah ditutup dengan reason `not planned` pada 2026-07-04: kontennya spesifik domain POS/retail (katalog, stok, checkout, warehouse, pajak/Coretax, CRM receipt, AI business analyst) yang tidak sesuai konteks AWCMS-Mini sebagai contoh repo pengembangan umum. Konten dipindahkan ke aplikasi turunan contoh (mis. AWPOS), bukan dihapus riwayatnya.
 
-Issue [#371](https://github.com/ahliweb/awcms-mini/issues/371) dan [#372](https://github.com/ahliweb/awcms-mini/issues/372) ditutup dengan reason `completed` pada 2026-07-05 setelah foundation skeleton Issue 0.1 dan migration runner Issue 0.2 merge.
+Issue [#371](https://github.com/ahliweb/awcms-mini/issues/371), [#372](https://github.com/ahliweb/awcms-mini/issues/372), dan [#373](https://github.com/ahliweb/awcms-mini/issues/373) ditutup dengan reason `completed` pada 2026-07-05 setelah foundation skeleton Issue 0.1, migration runner Issue 0.2, dan API contract baseline Issue 0.3 merge.
 
 |                                                        # | Judul                                                             | Milestone (saat dibuat)    |
 | -------------------------------------------------------: | ----------------------------------------------------------------- | -------------------------- |
 | [#371](https://github.com/ahliweb/awcms-mini/issues/371) | 0.1 — Initialize AWCMS-Mini Modular Monolith Repository Structure | M0 — Repository Foundation |
 | [#372](https://github.com/ahliweb/awcms-mini/issues/372) | 0.2 — Add SQL Migration Runner                                    | M0 — Repository Foundation |
+| [#373](https://github.com/ahliweb/awcms-mini/issues/373) | 0.3 — Add OpenAPI and AsyncAPI Baseline                           | M0 — Repository Foundation |
 | [#374](https://github.com/ahliweb/awcms-mini/issues/374) | 1.1 — Add Legacy Migration Toolkit Schema                         | -                          |
 | [#375](https://github.com/ahliweb/awcms-mini/issues/375) | 1.2 — Add Legacy Migration Dry-Run Service                        | -                          |
 | [#380](https://github.com/ahliweb/awcms-mini/issues/380) | 3.1 — Add Product Catalog MVP                                     | -                          |

@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T00:34:54Z            |
+| Snapshot     | 2026-07-05T00:47:14Z            |
 | Total issue  | 38                              |
-| Open issue   | 16                              |
-| Closed issue | 22                              |
+| Open issue   | 15                              |
+| Closed issue | 23                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   16 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   22 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   15 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   23 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -42,10 +42,14 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                               |
-| ------ | -----: | ----------------------------------------------------------------------------------------------------- |
-| OPEN   |     16 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 0, 2, 6, 8, 9, 10, 11, 12).   |
-| CLOSED |     22 | 20 issue domain ditutup `not planned`; #371 dan #372 ditutup `completed` setelah Issue 0.1-0.2 merge. |
+| State  | Jumlah | Catatan                                                                                                      |
+| ------ | -----: | ------------------------------------------------------------------------------------------------------------ |
+| OPEN   |     15 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 2, 6, 8, 9, 10, 11, 12).             |
+| CLOSED |     23 | 20 issue domain ditutup `not planned`; #371, #372, dan #373 ditutup `completed` setelah Issue 0.1-0.3 merge. |
+
+### API contract 0.3 completed (2026-07-05)
+
+Issue [#373](https://github.com/ahliweb/awcms-mini/issues/373) ditutup `completed` setelah commit `f7f66e7` menambahkan baseline OpenAPI (`openapi/awcms-mini-public-api.openapi.yaml`), baseline AsyncAPI (`asyncapi/awcms-mini-domain-events.asyncapi.yaml`), validator `scripts/api-spec-check.ts`, script `bun run api:spec:check`, shared response/error schema, pola soft delete/restore/purge, header HMAC sync, domain event envelope, dan test validator.
 
 ### Migration runner 0.2 completed (2026-07-05)
 

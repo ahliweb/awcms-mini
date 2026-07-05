@@ -24,6 +24,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 - `package.json` now exposes `db:migrate` for the Bun-native PostgreSQL migration runner.
 - Snapshot GitHub issue docs refreshed after #372 completion: open issue count is now 16 and closed issue count is now 22.
 - `bun run check` now includes `bun run api:spec:check`.
+- Snapshot GitHub issue docs refreshed after #373 completion: open issue count is now 15 and closed issue count is now 23.
 
 ## [0.0.3] - 2026-07-04
 
