@@ -332,6 +332,177 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/sync/nodes:
+    get:
+      tags:
+        - Sync Storage
+      summary: List sync nodes for the tenant (bearer session or SSR cookie, not HMAC)
+      description: >-
+        Admin-facing view of node registrations — distinct from the
+        machine-to-machine HMAC endpoints (`/sync/push`, `/sync/pull`,
+        `/sync/status`, `/sync/objects*`).
+      operationId: syncListNodes
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: All sync nodes registered for the tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SyncNodeListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sync/nodes/{id}:
+    patch:
+      tags:
+        - Sync Storage
+      summary: Activate/deactivate or rename a sync node
+      description: >-
+        Deactivating a node takes effect immediately: every HMAC sync
+        endpoint already rejects a non-active node with 403. Use this to
+        revoke a lost/retired device.
+      operationId: syncUpdateNode
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSyncNodeRequest"
+      responses:
+        "200":
+          description: Sync node updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sync/object-queue:
+    get:
+      tags:
+        - Sync Storage
+      summary: List object sync queue entries tenant-wide (bearer session, not HMAC)
+      description: >-
+        Admin-facing, all-nodes view — distinct from the node-scoped, HMAC
+        `GET /sync/objects/status` that a single node polls for its own work.
+      operationId: syncListObjectQueue
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - sent
+              - failed
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Object sync queue entries tenant-wide (limit 200), newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ObjectQueueListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sync/object-queue/{id}/retry:
+    post:
+      tags:
+        - Sync Storage
+      summary: Manually retry a failed object sync queue entry
+      description: >-
+        Human override of the automatic exponential-backoff schedule — resets
+        retry_count/next_retry_at/last_error and status back to `pending` so
+        the node's next status poll picks it up. Only `failed` entries are
+        eligible; `pending`/`sent` are rejected with 409.
+      operationId: syncRetryObjectQueueEntry
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Entry reset to pending.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Only failed entries can be retried.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/setup/status:
     get:
       tags:
@@ -2638,6 +2809,128 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ObjectSyncStatusEntry"
+    SyncNodeEntry:
+      type: object
+      required:
+        - nodeId
+        - nodeCode
+        - nodeName
+        - status
+        - lastPullSequence
+        - createdAt
+      additionalProperties: false
+      properties:
+        nodeId:
+          type: string
+          format: uuid
+        nodeCode:
+          type: string
+        nodeName:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+        lastPushedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastPulledAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastPullSequence:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+    SyncNodeListResponse:
+      type: object
+      required:
+        - nodes
+      additionalProperties: false
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/SyncNodeEntry"
+    UpdateSyncNodeRequest:
+      type: object
+      description: At least one of status or nodeName is required.
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+        nodeName:
+          type: string
+          minLength: 1
+    ObjectQueueEntry:
+      type: object
+      required:
+        - objectQueueId
+        - nodeId
+        - nodeCode
+        - objectKey
+        - status
+        - retryCount
+        - byteSize
+        - requiresUpload
+        - createdAt
+      additionalProperties: false
+      properties:
+        objectQueueId:
+          type: string
+          format: uuid
+        nodeId:
+          type: string
+          format: uuid
+        nodeCode:
+          type: string
+        objectKey:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - sent
+            - failed
+        retryCount:
+          type: integer
+          minimum: 0
+        nextRetryAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastError:
+          type: string
+          nullable: true
+        byteSize:
+          type: integer
+          minimum: 0
+        requiresUpload:
+          type: boolean
+        uploadedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    ObjectQueueListResponse:
+      type: object
+      required:
+        - objects
+      additionalProperties: false
+      properties:
+        objects:
+          type: array
+          items:
+            $ref: "#/components/schemas/ObjectQueueEntry"
     TenantActivityReport:
       type: object
       required:

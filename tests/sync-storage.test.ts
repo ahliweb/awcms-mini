@@ -16,6 +16,8 @@ import {
   validateObjectSyncEnqueueRequestBody,
   verifyObjectChecksum
 } from "../src/modules/sync-storage/domain/object-queue";
+import { validateUpdateSyncNodeInput } from "../src/modules/sync-storage/domain/node-management";
+import { isHighRiskAction } from "../src/modules/identity-access/domain/access-control";
 
 describe("computeSyncSignature", () => {
   test("is deterministic and depends on the secret, timestamp, and body", () => {
@@ -435,5 +437,58 @@ describe("validateObjectSyncEnqueueRequestBody", () => {
 
   test("rejects a null body", () => {
     expect(validateObjectSyncEnqueueRequestBody(null).valid).toBe(false);
+  });
+});
+
+describe("validateUpdateSyncNodeInput", () => {
+  test("accepts a status-only update", () => {
+    const result = validateUpdateSyncNodeInput({ status: "inactive" });
+
+    expect(result.valid).toBe(true);
+    if (result.valid) {
+      expect(result.value).toEqual({ status: "inactive" });
+    }
+  });
+
+  test("accepts a nodeName-only update and trims it", () => {
+    const result = validateUpdateSyncNodeInput({ nodeName: "  Kasir 2  " });
+
+    expect(result.valid).toBe(true);
+    if (result.valid) {
+      expect(result.value).toEqual({ nodeName: "Kasir 2" });
+    }
+  });
+
+  test("rejects an empty body (nothing to update)", () => {
+    const result = validateUpdateSyncNodeInput({});
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors).toContainEqual({
+        field: "body",
+        message: "Provide at least one of status or nodeName."
+      });
+    }
+  });
+
+  test("rejects an invalid status value", () => {
+    const result = validateUpdateSyncNodeInput({ status: "revoked" });
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors).toContainEqual({
+        field: "status",
+        message: "status must be 'active' or 'inactive'."
+      });
+    }
+  });
+});
+
+describe("retry AccessAction (admin object-queue retry)", () => {
+  test("retry is a valid action but is not classified as high risk", () => {
+    // It is a manual override of an automatic backoff schedule, not a
+    // destructive/irreversible action like delete/approve/export/assign —
+    // see src/pages/api/v1/sync/object-queue/[id]/retry.ts's header comment.
+    expect(isHighRiskAction("retry")).toBe(false);
   });
 });

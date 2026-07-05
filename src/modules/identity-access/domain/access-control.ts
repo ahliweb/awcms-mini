@@ -23,7 +23,8 @@ export type AccessAction =
   | "analyze"
   | "assign"
   | "restore"
-  | "purge";
+  | "purge"
+  | "retry";
 
 export type AccessRequest = {
   moduleKey: string;
