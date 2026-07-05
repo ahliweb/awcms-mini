@@ -721,7 +721,7 @@ export const OUT_OF_SCOPE_ITEMS: OutOfScopeItem[] = [
   {
     name: "PostgreSQL version pinned",
     reason:
-      "Deployment-profile concern — `docker-compose.yml` (Issue 12.2) pins `image: postgres:16`. Not independently re-verified here to avoid parsing YAML as a proxy for a real deployed version check; confirm the running server's version manually (`SELECT version();`)."
+      "Deployment-profile concern — `docker-compose.yml` (Issue 12.2) pins `image: postgres:18.4`. Not independently re-verified here to avoid parsing YAML as a proxy for a real deployed version check; confirm the running server's version manually (`SELECT version();`)."
   }
 ];
 

@@ -65,7 +65,7 @@ langsung di `http://<ip-server-lan>:4321`.
 
 `docker-compose.yml` di root repo menjalankan stack LAN-first default:
 `app` (image `oven/bun:1` — bukan `node`, sesuai doc 18 §Runtime & tooling)
-dan `db` (`postgres:16`). PgBouncer tersedia sebagai service opsional
+dan `db` (`postgres:18.4`). PgBouncer tersedia sebagai service opsional
 `pgbouncer`, digerbangi Compose `profiles` sehingga tidak pernah otomatis
 aktif:
 

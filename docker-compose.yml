@@ -28,7 +28,7 @@
 # workflow; not needed for the LAN-first base case this issue targets.
 services:
   db:
-    image: postgres:16
+    image: postgres:18.4
     restart: unless-stopped
     environment:
       # Matches the default DATABASE_URL documented in .env.example — a
