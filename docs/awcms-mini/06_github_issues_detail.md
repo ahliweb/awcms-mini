@@ -233,6 +233,10 @@ Status awal issue yang tersisa:
 
 Sprint awal semula menempatkan **Issue 12.1 (Setup Wizard API)** di Sprint 1, sejajar dengan 0.1–0.3. Ini keliru: setup wizard menginisialisasi tenant, owner, office, role, permission, dan ABAC default — data yang skema-nya baru dibuat oleh Issue 2.1 (tenant/office), 2.3 (identity/login), dan 2.4 (RBAC/ABAC), semuanya Sprint 2/3. Audit implementasi Issue 0.1–0.3 (`AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`) menemukan skema database masih kosong (hanya `awcms_mini_modules`/`awcms_mini_schema_migrations`) saat 12.1 hendak dikerjakan. **12.1 dipindah ke Sprint 3**, setelah 2.4, pada tabel dan diagram di bawah.
 
+### Koreksi urutan sprint (2) — Sprint 4/5 tertukar (2026-07-05)
+
+Sprint awal (setelah koreksi #1) menempatkan **10.1–10.3 (M8 — Security/Performance/Production) di Sprint 4**, sebelum **6.1–6.3 (M5 — Sync Storage) dan 8.1/9.1 (M7 — UI/UX & Reporting) di Sprint 5** — bertentangan dengan §Ketergantungan milestone di atas, yang menetapkan `M5 → M8` dan `M7 → M8` (M8 butuh M5 **dan** M7 selesai lebih dulu, bukan sebaliknya). Sprint 5 versi awal juga keliru mencampur `11.1`/`12.2` (keduanya milestone M8) bersama issue M5/M7. Ditemukan saat menutup Issue 12.1 dan hendak merekomendasikan langkah berikutnya — label GitHub `10.1`/`10.2`/`10.3`/`11.1`/`12.2` tetap `status:blocked` (tidak keliru diubah jadi `status:ready`). Diperbaiki: **Sprint 4 = 6.1, 6.2, 6.3, 8.1, 9.1** (M5+M7, keduanya cuma butuh M2 yang sudah tuntas, boleh paralel); **Sprint 5 = 10.1, 10.2, 10.3, 11.1, 12.2** (M8, semuanya).
+
 Jika repo ini dipakai sebagai template untuk membangun aplikasi domain baru: **jangan** menambah epic domain ke backlog ini. Buat paket dokumen 01–20 dan backlog issue terpisah milik aplikasi turunan tersebut (pola: paket dokumen AWPOS), dan tambahkan modul domainnya di `src/modules/` di atas base ini.
 
 Snapshot isi GitHub aktual dicatat di [`github/README.md`](github/README.md). Snapshot dipisah menjadi file `issues-open-NNN.md` dan `issues-closed-NNN.md`, dengan batas maksimal 100 issue per file. Dokumen ini tetap menjadi template/rencana issue atomic; folder `github/` menjadi arsip state GitHub yang direfresh dari `gh`.
@@ -243,15 +247,15 @@ Snapshot isi GitHub aktual dicatat di [`github/README.md`](github/README.md). Sn
 flowchart LR
   S1[Sprint 1<br/>0.1 . 0.2 . 0.3] --> S2[Sprint 2<br/>2.1 . 2.2 . 2.3]
   S2 --> S3[Sprint 3<br/>2.4 . 12.1]
-  S3 --> S4[Sprint 4<br/>10.1 . 10.2 . 10.3]
-  S4 --> S5[Sprint 5<br/>6.1 . 6.2 . 6.3 . 8.1 . 9.1 . 11.1 . 12.2]
+  S3 --> S4[Sprint 4<br/>6.1 . 6.2 . 6.3 . 8.1 . 9.1]
+  S4 --> S5[Sprint 5<br/>10.1 . 10.2 . 10.3 . 11.1 . 12.2]
 ```
 
 1. Sprint 1: 0.1, 0.2, 0.3.
 2. Sprint 2: 2.1, 2.2, 2.3.
 3. Sprint 3: 2.4, 12.1 (setup wizard menunggu tenant/identity/RBAC/ABAC dari 2.1–2.4 — lihat §Koreksi urutan sprint).
-4. Sprint 4: 10.1, 10.2, 10.3.
-5. Sprint 5: 6.1, 6.2, 6.3, 8.1, 9.1, 11.1, 12.2.
+4. Sprint 4: 6.1, 6.2, 6.3 (M5 — Sync Storage), 8.1, 9.1 (M7 — UI/UX & Reporting) — keduanya hanya bergantung pada M2 (tuntas), boleh paralel.
+5. Sprint 5: 10.1, 10.2, 10.3, 11.1, 12.2 (M8 — Security/Performance/Production — lihat §Koreksi urutan sprint (2) untuk kenapa ini digeser setelah Sprint 4, bukan sebelumnya).
 
 # Definition of Done
 

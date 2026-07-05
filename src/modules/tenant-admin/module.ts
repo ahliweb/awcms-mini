@@ -6,6 +6,10 @@ export const tenantAdminModule = defineModule({
   version: "0.1.0",
   status: "experimental",
   description:
-    "Tenant root entity, office hierarchy, physical locations, and tenant settings.",
-  dependencies: []
+    "Tenant root entity, office hierarchy, physical locations, tenant settings, and the one-time setup wizard that bootstraps the first tenant, owner, office, role, and access assignment.",
+  dependencies: ["profile_identity", "identity_access"],
+  api: {
+    openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
+    basePath: "/api/v1/setup"
+  }
 });

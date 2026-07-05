@@ -6,6 +6,13 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-05
+
+### Added
+
+- Setup wizard awal (Issue 12.1, `sql/006_awcms_mini_setup_wizard_schema.sql`): `awcms_mini_setup_state` (singleton global, RLS-free) mengunci setup secara permanen. `GET /setup/status` dan `POST /setup/initialize` (keduanya public — belum ada identity untuk login sebelum tenant pertama dibuat).
+- `initialize` adalah satu transaksi atomik: klaim lock (aman dari race condition), buat tenant, office, profile/identity/tenant_user owner, role `owner` berisi seluruh permission katalog, assignment owner→role, lalu kunci setup. Validasi input murni `validateSetupInitializeInput` (field wajib + password minimum 8 karakter).
+
 ## [0.5.0] - 2026-07-05
 
 ### Added
@@ -150,9 +157,10 @@ Baseline paket dokumentasi, standar profesional repo publik, & tooling. Belum ad
 
 Aplikasi turunan (mis. AWPOS) memakai peta versinya sendiri di atas base ini.
 
-Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0`-`0.4.0` berisi Issue 2.1 (tenant/office), 2.2 (central profile), dan 2.3 (identity/login) dari slot "Tenant, identity, profile" (tuntas); rilis `0.5.0` berisi Issue 2.4 (RBAC/ABAC) dari slot "RBAC/ABAC evaluator + assignment" — slot ini juga tuntas dengan satu rilis. Epic M2 (2.1–2.4) sekarang selesai penuh.
+Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0`-`0.4.0` berisi Issue 2.1 (tenant/office), 2.2 (central profile), dan 2.3 (identity/login) dari slot "Tenant, identity, profile" (tuntas); rilis `0.5.0` berisi Issue 2.4 (RBAC/ABAC) dari slot "RBAC/ABAC evaluator + assignment" (tuntas). Epic M2 (2.1–2.4) selesai penuh. Rilis `0.6.0` berisi Issue 12.1 (Setup Wizard) — fitur ini tidak punya slot eksplisit sendiri di tabel peta versi doc 09 (ditempatkan setelah M2 sesuai `06_github_issues_detail.md` §Koreksi urutan sprint).
 
-[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.5.0...HEAD
+[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.6.0...HEAD
+[0.6.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.5.0...awcms-mini@0.6.0
 [0.5.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.4.0...awcms-mini@0.5.0
 [0.4.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.3.0...awcms-mini@0.4.0
 [0.3.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.2.0...awcms-mini@0.3.0
