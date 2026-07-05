@@ -56,8 +56,8 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, and identity_access are registered after Issue 2.1-2.4 and 12.1", () => {
-    expect(listModules()).toHaveLength(3);
+  test("tenant_admin, profile_identity, identity_access, and sync_storage are registered after Issue 2.1-2.4, 12.1, and 6.1", () => {
+    expect(listModules()).toHaveLength(4);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "experimental"
@@ -71,6 +71,11 @@ describe("module registry", () => {
       key: "identity_access",
       status: "experimental",
       dependencies: ["tenant_admin", "profile_identity"]
+    });
+    expect(getModuleByKey("sync_storage")).toMatchObject({
+      key: "sync_storage",
+      status: "experimental",
+      dependencies: ["tenant_admin"]
     });
     expect(getModuleByKey("unknown_module")).toBeUndefined();
   });
@@ -129,7 +134,8 @@ describe("database migration runner helpers", () => {
       "003_awcms_mini_central_profile_management_schema.sql",
       "004_awcms_mini_identity_login_schema.sql",
       "005_awcms_mini_abac_access_control_schema.sql",
-      "006_awcms_mini_setup_wizard_schema.sql"
+      "006_awcms_mini_setup_wizard_schema.sql",
+      "007_awcms_mini_sync_storage_outbox_inbox_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
@@ -241,6 +247,29 @@ describe("database migration runner helpers", () => {
     );
     expect(setupSchema?.sql).toContain("id boolean PRIMARY KEY DEFAULT true");
     expect(setupSchema?.sql).not.toContain("ENABLE ROW LEVEL SECURITY");
+  });
+
+  test("sync storage schema declares RLS on all tenant-scoped tables and an idempotency ledger", async () => {
+    const migrations = await discoverMigrationFiles();
+    const syncSchema = migrations.find(
+      (migration) =>
+        migration.name === "007_awcms_mini_sync_storage_outbox_inbox_schema.sql"
+    );
+
+    expect(syncSchema).toBeDefined();
+    expect(syncSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_sync_nodes ENABLE ROW LEVEL SECURITY"
+    );
+    expect(syncSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_sync_outbox ENABLE ROW LEVEL SECURITY"
+    );
+    expect(syncSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_sync_inbox ENABLE ROW LEVEL SECURITY"
+    );
+    expect(syncSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_sync_push_batches ENABLE ROW LEVEL SECURITY"
+    );
+    expect(syncSchema?.sql).toContain("awcms_mini_sync_push_batches_key");
   });
 });
 
