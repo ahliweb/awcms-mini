@@ -11,6 +11,7 @@ Ikuti `docs/awcms-mini/07_sprint_testing_production_readiness.md` dan `docs/awcm
 
 ```bash
 bun install
+bun run config:validate
 bun run db:migrate
 bun run api:spec:check
 bun test
@@ -19,6 +20,11 @@ bun run db:pool:health
 bun run security:readiness
 bun run production:preflight
 ```
+
+`bun run production:preflight` (Issue 12.2) runs `config:validate` as its
+first stage, before `db:migrate` — configuration must be valid before
+anything else attempts to connect to a database or run migrations (doc 18
+§Prinsip konfigurasi #5).
 
 ## Checklist go-live
 
@@ -48,6 +54,10 @@ pg_restore --dbname=awcms_mini_restore_test --clean --if-exists /backup/awcms_mi
 ```
 
 Validasi restore: tenant/user/produk/stok/transaksi terbaca · login test · POS smoke test · report smoke test.
+
+Sejak Issue 12.2, kedua command di atas sudah diimplementasikan sebagai
+skrip siap pakai: `deploy/backup/backup-postgres.sh` dan
+`deploy/backup/restore-postgres.sh` (lihat `deploy/backup/README.md`).
 
 ## Output
 

@@ -6,6 +6,9 @@
  * list from the skill, in order, as child processes, and prints a final
  * aggregated go/no-go verdict:
  *
+ *   bun run config:validate  (Issue 12.2 — runs first; config must be
+ *                             valid before anything else attempts to
+ *                             connect to a database or run migrations)
  *   bun run db:migrate
  *   bun run api:spec:check
  *   bun test
@@ -45,6 +48,7 @@ type StageDefinition = {
 };
 
 const STAGES: StageDefinition[] = [
+  { name: "config:validate", command: ["bun", "run", "config:validate"] },
   { name: "db:migrate", command: ["bun", "run", "db:migrate"] },
   { name: "api:spec:check", command: ["bun", "run", "api:spec:check"] },
   { name: "test", command: ["bun", "test"] },

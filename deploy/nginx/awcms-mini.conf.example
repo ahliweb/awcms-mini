@@ -1,0 +1,63 @@
+# awcms-mini.conf.example — nginx reverse-proxy template (Issue 12.2, doc 18
+# §Topologi deployment LAN-first, doc 11 §Sprint 12 deploy files).
+#
+# OPTIONAL. Doc 18's LAN-first topology runs one server on the local
+# network with the app + PostgreSQL on it; the simplest single-server setup
+# can serve the AWCMS-Mini SSR app directly on port 4321 with no nginx at
+# all (clients on the LAN hit the app port straight). Put nginx in front of
+# it only when you need:
+#   - TLS termination (production/staging with a public-facing need), or
+#   - fronting multiple upstream app instances.
+#
+# Copy into place and adapt before use:
+#   sudo cp deploy/nginx/awcms-mini.conf.example /etc/nginx/sites-available/awcms-mini.conf
+#   sudo ln -s /etc/nginx/sites-available/awcms-mini.conf /etc/nginx/sites-enabled/awcms-mini.conf
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# Certificate: use a real certificate (e.g. Let's Encrypt/certbot) for any
+# deployment reachable from the public internet. For a pure-LAN,
+# no-internet-access offline deployment (doc 18 §Profil per-environment,
+# "offline/LAN"), a self-signed certificate is an acceptable substitute —
+# generate one with:
+#   openssl req -x509 -nodes -days 825 -newkey rsa:2048 \
+#     -keyout /etc/ssl/private/awcms-mini.key -out /etc/ssl/certs/awcms-mini.crt
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name awcms-mini.example.local;
+
+    # Redirect all plain HTTP to HTTPS. For a pure-LAN deployment with no
+    # certificate at all, comment this block out and proxy_pass directly
+    # from this `listen 80` server instead of redirecting.
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name awcms-mini.example.local;
+
+    # Placeholder certificate paths — replace with a real certificate
+    # (Let's Encrypt/certbot) or a self-signed one for offline-LAN use.
+    ssl_certificate     /etc/ssl/certs/awcms-mini.crt;
+    ssl_certificate_key /etc/ssl/private/awcms-mini.key;
+
+    # Do not leak the nginx version in the Server response header.
+    server_tokens off;
+
+    location / {
+        proxy_pass http://127.0.0.1:4321;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket/keep-alive upgrade support (harmless if unused today;
+        # cheap to keep for future interactive features).
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}

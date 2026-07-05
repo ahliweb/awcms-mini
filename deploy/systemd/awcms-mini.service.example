@@ -1,0 +1,62 @@
+# awcms-mini.service.example — systemd unit template (Issue 12.2, doc 18
+# §Topologi deployment LAN-first, doc 11 §Sprint 12 deploy files).
+#
+# This is a `.example` TEMPLATE, not a ready-to-run unit file. Copy it into
+# place and adapt the placeholders before enabling it:
+#
+#   sudo cp deploy/systemd/awcms-mini.service.example /etc/systemd/system/awcms-mini.service
+#   sudo mkdir -p /etc/awcms-mini
+#   sudo cp .env /etc/awcms-mini/awcms-mini.env   # never commit this file
+#   sudo chown awcms-mini:awcms-mini /etc/awcms-mini/awcms-mini.env
+#   sudo chmod 600 /etc/awcms-mini/awcms-mini.env
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now awcms-mini
+#
+# Prerequisite: `bun install && bun run build` has already produced
+# `dist/server/entry.mjs` (the @astrojs/node standalone SSR entry, ADR-0002)
+# at /opt/awcms-mini (adjust WorkingDirectory below if you deploy elsewhere).
+#
+# Bun-only (AGENTS.md rule 14, doc 18 §Runtime & tooling): ExecStart invokes
+# the `bun` binary directly — never `node` — even though the build output is
+# produced by the `@astrojs/node` adapter package; the runtime executing it
+# stays Bun.
+
+[Unit]
+Description=AWCMS-Mini (Bun/Astro SSR application)
+Documentation=https://github.com/ahliweb/awcms-mini
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# Adjust to wherever the built application lives on the target host.
+WorkingDirectory=/opt/awcms-mini
+
+# `bun` must resolve on the unit's PATH (systemd units do not source shell
+# rc files) — use the absolute path from `which bun` on the target host if
+# this default does not resolve, e.g. /home/awcms-mini/.bun/bin/bun.
+ExecStart=/usr/bin/bun ./dist/server/entry.mjs
+
+# Secrets never live in this file or in the repo — they come from an
+# EnvironmentFile outside the git working tree (doc 18 §Prinsip konfigurasi:
+# "Semua secret hanya dari environment, tidak pernah di kode/commit").
+EnvironmentFile=/etc/awcms-mini/awcms-mini.env
+
+# Non-root service user/group — create with:
+#   sudo useradd --system --no-create-home --shell /usr/sbin/nologin awcms-mini
+User=awcms-mini
+Group=awcms-mini
+
+Restart=on-failure
+RestartSec=5
+
+# Hardening (safe defaults for a standalone SSR app; relax only if a
+# genuine need arises, e.g. LOCAL_STORAGE_PATH outside WorkingDirectory).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/awcms-mini/storage
+
+[Install]
+WantedBy=multi-user.target
