@@ -10,6 +10,7 @@ import {
 import { getModuleByKey, listModules } from "../src/modules";
 import {
   computeMigrationChecksum,
+  discoverMigrationFiles,
   redactDatabaseUrl,
   stripOptionalTransactionWrapper,
   validateAppliedChecksums
@@ -55,9 +56,13 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("foundation starts with no active modules", () => {
-    expect(listModules()).toEqual([]);
-    expect(getModuleByKey("tenant_admin")).toBeUndefined();
+  test("tenant_admin is registered after Issue 2.1", () => {
+    expect(listModules()).toHaveLength(1);
+    expect(getModuleByKey("tenant_admin")).toMatchObject({
+      key: "tenant_admin",
+      status: "experimental"
+    });
+    expect(getModuleByKey("unknown_module")).toBeUndefined();
   });
 });
 
@@ -103,6 +108,38 @@ describe("database migration runner helpers", () => {
     expect(redactDatabaseUrl(`failed for ${databaseUrl}`, databaseUrl)).toBe(
       "failed for [redacted DATABASE_URL]"
     );
+  });
+
+  test("real sql/ migrations are discoverable, ordered, and transaction-control-free", async () => {
+    const migrations = await discoverMigrationFiles();
+
+    expect(migrations.map((migration) => migration.name)).toEqual([
+      "001_awcms_mini_foundation_schema.sql",
+      "002_awcms_mini_tenant_office_schema.sql"
+    ]);
+    for (const migration of migrations) {
+      expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
+    }
+  });
+
+  test("tenant/office schema declares RLS and soft-delete on office-scoped tables", async () => {
+    const migrations = await discoverMigrationFiles();
+    const tenantOfficeSchema = migrations.find(
+      (migration) =>
+        migration.name === "002_awcms_mini_tenant_office_schema.sql"
+    );
+
+    expect(tenantOfficeSchema).toBeDefined();
+    expect(tenantOfficeSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_offices ENABLE ROW LEVEL SECURITY"
+    );
+    expect(tenantOfficeSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_physical_locations ENABLE ROW LEVEL SECURITY"
+    );
+    expect(tenantOfficeSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_tenant_settings ENABLE ROW LEVEL SECURITY"
+    );
+    expect(tenantOfficeSchema?.sql).toContain("deleted_at timestamptz");
   });
 });
 

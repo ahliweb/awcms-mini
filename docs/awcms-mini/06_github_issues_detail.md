@@ -224,10 +224,14 @@ Backlog awal berisi 38 issue, termasuk epic domain POS/retail (Legacy Migration,
 
 Status awal issue yang tersisa:
 
-1. Sprint 1 (Issue 0.1, 0.2, 0.3, 12.1) berlabel `status:ready`.
-2. 14 issue lain berlabel `status:blocked` karena bergantung pada milestone yang belum selesai (lihat §Ketergantungan milestone di atas).
+1. Sprint 1 (Issue 0.1, 0.2, 0.3) berlabel `status:ready`.
+2. 15 issue lain berlabel `status:blocked` karena bergantung pada milestone yang belum selesai (lihat §Ketergantungan milestone di atas).
 3. Setelah suatu issue selesai dan di-merge, ubah label issue yang dependency-nya baru terpenuhi dari `status:blocked` menjadi `status:ready` di GitHub.
 4. Refresh snapshot di [`github/README.md`](github/README.md), `github/issues-open-NNN.md`, `github/issues-closed-NNN.md`, dan `github/labels-milestones.md` setiap kali status/label/milestone berubah.
+
+### Koreksi urutan sprint (2026-07-05)
+
+Sprint awal semula menempatkan **Issue 12.1 (Setup Wizard API)** di Sprint 1, sejajar dengan 0.1–0.3. Ini keliru: setup wizard menginisialisasi tenant, owner, office, role, permission, dan ABAC default — data yang skema-nya baru dibuat oleh Issue 2.1 (tenant/office), 2.3 (identity/login), dan 2.4 (RBAC/ABAC), semuanya Sprint 2/3. Audit implementasi Issue 0.1–0.3 (`AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`) menemukan skema database masih kosong (hanya `awcms_mini_modules`/`awcms_mini_schema_migrations`) saat 12.1 hendak dikerjakan. **12.1 dipindah ke Sprint 3**, setelah 2.4, pada tabel dan diagram di bawah.
 
 Jika repo ini dipakai sebagai template untuk membangun aplikasi domain baru: **jangan** menambah epic domain ke backlog ini. Buat paket dokumen 01–20 dan backlog issue terpisah milik aplikasi turunan tersebut (pola: paket dokumen AWPOS), dan tambahkan modul domainnya di `src/modules/` di atas base ini.
 
@@ -237,15 +241,15 @@ Snapshot isi GitHub aktual dicatat di [`github/README.md`](github/README.md). Sn
 
 ```mermaid
 flowchart LR
-  S1[Sprint 1<br/>0.1 . 0.2 . 0.3 . 12.1] --> S2[Sprint 2<br/>2.1 . 2.2 . 2.3]
-  S2 --> S3[Sprint 3<br/>2.4]
+  S1[Sprint 1<br/>0.1 . 0.2 . 0.3] --> S2[Sprint 2<br/>2.1 . 2.2 . 2.3]
+  S2 --> S3[Sprint 3<br/>2.4 . 12.1]
   S3 --> S4[Sprint 4<br/>10.1 . 10.2 . 10.3]
   S4 --> S5[Sprint 5<br/>6.1 . 6.2 . 6.3 . 8.1 . 9.1 . 11.1 . 12.2]
 ```
 
-1. Sprint 1: 0.1, 0.2, 0.3, 12.1.
+1. Sprint 1: 0.1, 0.2, 0.3.
 2. Sprint 2: 2.1, 2.2, 2.3.
-3. Sprint 3: 2.4.
+3. Sprint 3: 2.4, 12.1 (setup wizard menunggu tenant/identity/RBAC/ABAC dari 2.1–2.4 — lihat §Koreksi urutan sprint).
 4. Sprint 4: 10.1, 10.2, 10.3.
 5. Sprint 5: 6.1, 6.2, 6.3, 8.1, 9.1, 11.1, 12.2.
 

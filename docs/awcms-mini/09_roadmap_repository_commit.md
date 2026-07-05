@@ -204,7 +204,7 @@ Aplikasi turunan menambah sprint/commit domainnya sendiri setelah base ini siap 
 
 ```text
 001_awcms_mini_foundation_schema.sql
-002_awcms_mini_tenant_identity_schema.sql
+002_awcms_mini_tenant_office_schema.sql
 003_awcms_mini_central_profile_management_schema.sql
 004_awcms_mini_abac_access_control_schema.sql
 005_awcms_mini_logging_observability_schema.sql
@@ -222,6 +222,8 @@ Aplikasi turunan menambah sprint/commit domainnya sendiri setelah base ini siap 
 ```
 
 Catatan: setelah production, migration tidak boleh di-rename sembarangan. Koreksi harus migration baru. Aplikasi turunan melanjutkan nomor migration domainnya sendiri mulai `017_...` dst.
+
+`002` semula bernama `tenant_identity_schema` (menggabungkan Issue 2.1 dan 2.3); dipecah agar satu migration = satu issue: `002` hanya scope Issue 2.1 (tenant/office), identity/login (Issue 2.3) mendapat nomor migration tersendiri saat diimplementasikan. Penomoran `003` dst. di atas adalah rencana; nomor final ditentukan saat setiap issue benar-benar diimplementasikan berurutan.
 
 ## Urutan API implementation
 
@@ -284,6 +286,8 @@ flowchart LR
 | `v1.0.0` | Base production-ready (gates doc 07)                                                |
 
 Aplikasi turunan (mis. AWPOS) memakai baseline versinya sendiri di atas base ini (lihat versioning doc 09 milik aplikasi tersebut).
+
+Nomor versi naik progresif per rilis Changesets, bukan hanya saat satu slot di atas selesai penuh — satu issue yang merge bisa langsung memicu rilis minor/patch walau issue lain dalam slot yang sama belum selesai. `CHANGELOG.md` mencatat isi riil tiap rilis; tabel ini hanya peta target.
 
 ### SemVer
 
