@@ -1,48 +1,55 @@
 import type { APIRoute } from "astro";
+
 import { fail, ok } from "../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../lib/database/client";
 import { withTenant } from "../../../../lib/database/tenant-context";
 import { hashSessionToken } from "../../../../lib/auth/session-token";
-import { extractBearerToken } from "../../../../modules/identity-access/application/session-lookup";
 import {
-  fetchGrantedPermissionKeys,
-  resolveTenantContext
-} from "../../../../modules/identity-access/application/auth-context";
-import { recordDecisionLog } from "../../../../modules/identity-access/application/decision-log";
-import { evaluateAccess } from "../../../../modules/identity-access/domain/access-control";
+  authorizeInTransaction,
+  resolveAuthInputs
+} from "../../../../modules/identity-access/application/access-guard";
+import { recordAuditEvent } from "../../../../modules/logging/application/audit-log";
 
 type AssignmentBody = {
   tenantUserId?: unknown;
   roleId?: unknown;
 };
 
-const GUARD_REQUEST = {
+const ASSIGN_GUARD = {
   moduleKey: "identity_access",
   activityCode: "access_control",
   action: "assign" as const
 };
 
-export const POST: APIRoute = async ({ request }) => {
-  const tenantId = request.headers.get("x-awcms-mini-tenant-id");
+function readAssignmentBody(
+  body: AssignmentBody | null
+): { tenantUserId: string; roleId: string } | null {
+  if (
+    typeof body?.tenantUserId !== "string" ||
+    typeof body?.roleId !== "string"
+  ) {
+    return null;
+  }
+
+  return { tenantUserId: body.tenantUserId, roleId: body.roleId };
+}
+
+export const POST: APIRoute = async ({ request, cookies }) => {
+  const { tenantId, token } = resolveAuthInputs(request, cookies);
 
   if (!tenantId) {
     return fail(400, "TENANT_REQUIRED", "Tenant header is required.");
   }
 
-  const token = extractBearerToken(request.headers.get("authorization"));
-
   if (!token) {
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
   }
 
-  const body = (await request
-    .json()
-    .catch(() => null)) as AssignmentBody | null;
+  const parsed = readAssignmentBody(
+    (await request.json().catch(() => null)) as AssignmentBody | null
+  );
 
-  if (
-    typeof body?.tenantUserId !== "string" ||
-    typeof body?.roleId !== "string"
-  ) {
+  if (!parsed) {
     return fail(
       400,
       "VALIDATION_ERROR",
@@ -50,40 +57,22 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 
-  const tenantUserId = body.tenantUserId;
-  const roleId = body.roleId;
+  const { tenantUserId, roleId } = parsed;
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();
 
   return withTenant(sql, tenantId, async (tx) => {
-    const context = await resolveTenantContext(tx, tenantId, tokenHash, now);
-
-    if (!context) {
-      return fail(401, "AUTH_REQUIRED", "Session is invalid or expired.");
-    }
-
-    const grantedPermissionKeys = await fetchGrantedPermissionKeys(
+    const auth = await authorizeInTransaction(
       tx,
       tenantId,
-      context.tenantUserId
-    );
-    const decision = evaluateAccess(
-      context,
-      GUARD_REQUEST,
-      grantedPermissionKeys
+      tokenHash,
+      now,
+      ASSIGN_GUARD
     );
 
-    await recordDecisionLog(
-      tx,
-      tenantId,
-      context.tenantUserId,
-      GUARD_REQUEST,
-      decision
-    );
-
-    if (!decision.allowed) {
-      return fail(403, "ACCESS_DENIED", decision.reason);
+    if (!auth.allowed) {
+      return auth.denied;
     }
 
     const roleRows = await tx`
@@ -106,12 +95,92 @@ export const POST: APIRoute = async ({ request }) => {
 
     const inserted = await tx`
       INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id, assigned_by)
-      VALUES (${tenantId}, ${tenantUserId}, ${roleId}, ${context.tenantUserId})
+      VALUES (${tenantId}, ${tenantUserId}, ${roleId}, ${auth.context.tenantUserId})
       ON CONFLICT (tenant_id, tenant_user_id, role_id) DO UPDATE
         SET tenant_id = EXCLUDED.tenant_id
       RETURNING id
     `;
 
+    await recordAuditEvent(tx, {
+      tenantId,
+      actorTenantUserId: auth.context.tenantUserId,
+      moduleKey: "identity_access",
+      action: "assign",
+      resourceType: "access_assignment",
+      resourceId: inserted[0]!.id as string,
+      severity: "warning",
+      message: "Role assigned to tenant user.",
+      attributes: { tenantUserId, roleId }
+    });
+
     return ok({ assignmentId: inserted[0]!.id as string });
+  });
+};
+
+export const DELETE: APIRoute = async ({ request, cookies }) => {
+  const { tenantId, token } = resolveAuthInputs(request, cookies);
+
+  if (!tenantId) {
+    return fail(400, "TENANT_REQUIRED", "Tenant header is required.");
+  }
+
+  if (!token) {
+    return fail(401, "AUTH_REQUIRED", "Authentication required.");
+  }
+
+  const parsed = readAssignmentBody(
+    (await request.json().catch(() => null)) as AssignmentBody | null
+  );
+
+  if (!parsed) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      "tenantUserId and roleId are required."
+    );
+  }
+
+  const { tenantUserId, roleId } = parsed;
+  const sql = getDatabaseClient();
+  const tokenHash = hashSessionToken(token);
+  const now = new Date();
+
+  return withTenant(sql, tenantId, async (tx) => {
+    const auth = await authorizeInTransaction(
+      tx,
+      tenantId,
+      tokenHash,
+      now,
+      ASSIGN_GUARD
+    );
+
+    if (!auth.allowed) {
+      return auth.denied;
+    }
+
+    const removed = await tx`
+      DELETE FROM awcms_mini_access_assignments
+      WHERE tenant_id = ${tenantId} AND tenant_user_id = ${tenantUserId}
+        AND role_id = ${roleId}
+      RETURNING id
+    `;
+
+    if (!removed[0]) {
+      return fail(404, "RESOURCE_NOT_FOUND", "Assignment not found.");
+    }
+
+    await recordAuditEvent(tx, {
+      tenantId,
+      actorTenantUserId: auth.context.tenantUserId,
+      moduleKey: "identity_access",
+      action: "assign",
+      resourceType: "access_assignment",
+      resourceId: removed[0]!.id as string,
+      severity: "warning",
+      message: "Role unassigned from tenant user.",
+      attributes: { tenantUserId, roleId, unassigned: true }
+    });
+
+    return ok({ unassigned: true });
   });
 };

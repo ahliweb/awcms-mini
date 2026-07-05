@@ -1,0 +1,93 @@
+import type { AstroCookies } from "astro";
+
+import { fail } from "../../_shared/api-response";
+import {
+  SESSION_COOKIE_NAME,
+  TENANT_COOKIE_NAME
+} from "../../../lib/auth/ssr-session";
+import type { AccessRequest, TenantContext } from "../domain/access-control";
+import { evaluateAccess } from "../domain/access-control";
+import {
+  fetchGrantedPermissionKeys,
+  resolveTenantContext
+} from "./auth-context";
+import { recordDecisionLog } from "./decision-log";
+import { extractBearerToken } from "./session-lookup";
+
+/**
+ * Resolves the tenant id + session token an endpoint should authenticate with,
+ * accepting EITHER the bearer/tenant headers (API clients) OR the httpOnly SSR
+ * cookies (the admin UI, which cannot read its own httpOnly session token from
+ * JavaScript). Headers take priority; cookies are the fallback — exactly the
+ * precedence `POST /auth/logout` already uses (`src/pages/api/v1/auth/logout.ts`).
+ * Cookie-authenticated mutations are still CSRF-safe because Astro's built-in
+ * `security.checkOrigin` guard is on for SSR (see identity-access/README.md).
+ */
+export function resolveAuthInputs(
+  request: Request,
+  cookies: AstroCookies
+): { tenantId: string | null; token: string | null } {
+  const tenantId =
+    request.headers.get("x-awcms-mini-tenant-id") ??
+    cookies.get(TENANT_COOKIE_NAME)?.value ??
+    null;
+
+  const token =
+    extractBearerToken(request.headers.get("authorization")) ??
+    cookies.get(SESSION_COOKIE_NAME)?.value ??
+    null;
+
+  return { tenantId, token };
+}
+
+export type AuthorizeResult =
+  | {
+      allowed: true;
+      context: TenantContext;
+      grantedPermissionKeys: Set<string>;
+    }
+  | { allowed: false; denied: Response };
+
+/**
+ * Runs the full guard chain inside an existing tenant transaction: resolve the
+ * session context → fetch granted permission keys → evaluate ABAC (default
+ * deny, deny overrides allow) → record the decision log. Returns the
+ * authorized context on allow, or a ready-to-return `fail()` Response (401/403)
+ * on deny. This is the same chain the existing access endpoints inline; it is
+ * centralized here so the several Access & Users endpoints stay consistent and
+ * always record a decision log.
+ */
+export async function authorizeInTransaction(
+  tx: Bun.SQL,
+  tenantId: string,
+  tokenHash: string,
+  now: Date,
+  guard: AccessRequest
+): Promise<AuthorizeResult> {
+  const context = await resolveTenantContext(tx, tenantId, tokenHash, now);
+
+  if (!context) {
+    return {
+      allowed: false,
+      denied: fail(401, "AUTH_REQUIRED", "Session is invalid or expired.")
+    };
+  }
+
+  const grantedPermissionKeys = await fetchGrantedPermissionKeys(
+    tx,
+    tenantId,
+    context.tenantUserId
+  );
+  const decision = evaluateAccess(context, guard, grantedPermissionKeys);
+
+  await recordDecisionLog(tx, tenantId, context.tenantUserId, guard, decision);
+
+  if (!decision.allowed) {
+    return {
+      allowed: false,
+      denied: fail(403, "ACCESS_DENIED", decision.reason)
+    };
+  }
+
+  return { allowed: true, context, grantedPermissionKeys };
+}

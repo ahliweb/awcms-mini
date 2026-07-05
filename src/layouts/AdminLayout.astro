@@ -65,6 +65,7 @@ const hasSyncMenu = permissionList.some((key) =>
 
 const pathname = Astro.url.pathname;
 const isDashboardActive = pathname === "/admin";
+const isAccessUsersActive = pathname === "/admin/access-users";
 const isSettingsActive = pathname === "/admin/settings";
 ---
 
@@ -132,11 +133,13 @@ const isSettingsActive = pathname === "/admin/settings";
             </li>
             {
               hasAccessMenu && (
-                <li class="admin-nav-stub" aria-disabled="true">
-                  <span>
-                    Access &amp; Users{" "}
-                    <em class="admin-nav-badge">Segera hadir</em>
-                  </span>
+                <li>
+                  <a
+                    href="/admin/access-users"
+                    aria-current={isAccessUsersActive ? "page" : undefined}
+                  >
+                    Access &amp; Users
+                  </a>
                 </li>
               )
             }

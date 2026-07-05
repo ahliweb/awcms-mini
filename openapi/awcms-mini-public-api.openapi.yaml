@@ -608,6 +608,53 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Identity & Access
+      summary: Remove a role assignment from a tenant user
+      operationId: accessDeleteAssignment
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessAssignmentRequest"
+      responses:
+        "200":
+          description: Assignment removed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - unassigned
+                        additionalProperties: false
+                        properties:
+                          unassigned:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/access/decision-logs:
     get:
       tags:
@@ -638,6 +685,332 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/permissions:
+    get:
+      tags:
+        - Identity & Access
+      summary: List the global permission catalog
+      operationId: accessListPermissions
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Full permission catalog (module_key, activity_code, action).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PermissionListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/users:
+    get:
+      tags:
+        - Identity & Access
+      summary: List tenant users and their assigned roles
+      operationId: usersList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: All tenant users for the tenant, with their assigned roles.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UserListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Identity & Access
+      summary: Create a tenant user (identity + profile + optional role assignment)
+      operationId: usersCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "200":
+          description: User created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CreateUserResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: A user with that login identifier already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/users/{id}:
+    patch:
+      tags:
+        - Identity & Access
+      summary: Update a tenant user's display name and/or active status
+      operationId: usersUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: User updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/roles:
+    get:
+      tags:
+        - Identity & Access
+      summary: List tenant roles with their permission ids and assigned user count
+      operationId: rolesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: All non-deleted roles for the tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/RoleListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Identity & Access
+      summary: Create a role with an initial permission set
+      operationId: rolesCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleRequest"
+      responses:
+        "200":
+          description: Role created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CreateRoleResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: A role with that role_code already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/roles/{id}:
+    patch:
+      tags:
+        - Identity & Access
+      summary: Rename a role and/or replace its permission set
+      description: >-
+        System roles (is_system=true, e.g. the owner role seeded at setup)
+        reject permissionIds changes with 409 — renaming is still allowed.
+      operationId: rolesUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleRequest"
+      responses:
+        "200":
+          description: Role updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Cannot modify the permissions of a system role.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Identity & Access
+      summary: Soft-delete a role
+      description: >-
+        Rejects with 409 if the role is a system role, or if it is still
+        assigned to one or more tenant users (unassign first).
+      operationId: rolesDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleDeleteRequest"
+      responses:
+        "200":
+          description: Role soft-deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Role is a system role, or still assigned to a tenant user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/reports/tenant-activity:
@@ -1616,6 +1989,262 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DecisionLogEntry"
+    PermissionEntry:
+      type: object
+      required:
+        - permissionId
+        - moduleKey
+        - activityCode
+        - action
+        - key
+      additionalProperties: false
+      properties:
+        permissionId:
+          type: string
+          format: uuid
+        moduleKey:
+          type: string
+        activityCode:
+          type: string
+        action:
+          type: string
+        key:
+          type: string
+          description: "moduleKey.activityCode.action"
+        description:
+          type: string
+          nullable: true
+    PermissionListResponse:
+      type: object
+      required:
+        - permissions
+      additionalProperties: false
+      properties:
+        permissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PermissionEntry"
+    RoleSummary:
+      type: object
+      required:
+        - roleId
+        - roleCode
+        - roleName
+      additionalProperties: false
+      properties:
+        roleId:
+          type: string
+          format: uuid
+        roleCode:
+          type: string
+        roleName:
+          type: string
+    TenantUserEntry:
+      type: object
+      required:
+        - tenantUserId
+        - identityId
+        - profileId
+        - displayName
+        - loginIdentifier
+        - status
+        - identityStatus
+        - roles
+      additionalProperties: false
+      properties:
+        tenantUserId:
+          type: string
+          format: uuid
+        identityId:
+          type: string
+          format: uuid
+        profileId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        loginIdentifier:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+        identityStatus:
+          type: string
+          enum:
+            - active
+            - inactive
+            - locked
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleSummary"
+    UserListResponse:
+      type: object
+      required:
+        - users
+      additionalProperties: false
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/TenantUserEntry"
+    CreateUserRequest:
+      type: object
+      required:
+        - displayName
+        - loginIdentifier
+        - password
+      additionalProperties: false
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+        loginIdentifier:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 8
+        roleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Roles to assign immediately at creation (optional).
+    CreateUserResponse:
+      type: object
+      required:
+        - tenantUserId
+        - identityId
+        - profileId
+      additionalProperties: false
+      properties:
+        tenantUserId:
+          type: string
+          format: uuid
+        identityId:
+          type: string
+          format: uuid
+        profileId:
+          type: string
+          format: uuid
+    UpdateUserRequest:
+      type: object
+      description: At least one of displayName or status is required.
+      additionalProperties: false
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+    RoleListEntry:
+      type: object
+      required:
+        - roleId
+        - roleCode
+        - roleName
+        - isSystem
+        - permissionIds
+        - assignedUserCount
+        - createdAt
+      additionalProperties: false
+      properties:
+        roleId:
+          type: string
+          format: uuid
+        roleCode:
+          type: string
+        roleName:
+          type: string
+        isSystem:
+          type: boolean
+          description: >-
+            System roles (seeded at setup, e.g. owner) cannot have their
+            permissions edited or be deleted.
+        permissionIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        assignedUserCount:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+    RoleListResponse:
+      type: object
+      required:
+        - roles
+      additionalProperties: false
+      properties:
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleListEntry"
+    CreateRoleRequest:
+      type: object
+      required:
+        - roleCode
+        - roleName
+      additionalProperties: false
+      properties:
+        roleCode:
+          type: string
+          pattern: "^[a-z][a-z0-9_]*$"
+        roleName:
+          type: string
+          minLength: 1
+        permissionIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+    CreateRoleResponse:
+      type: object
+      required:
+        - roleId
+      additionalProperties: false
+      properties:
+        roleId:
+          type: string
+          format: uuid
+    UpdateRoleRequest:
+      type: object
+      description: At least one of roleName or permissionIds is required.
+      additionalProperties: false
+      properties:
+        roleName:
+          type: string
+          minLength: 1
+        permissionIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: >-
+            Replaces the role's entire permission set. Rejected with 409 for
+            system roles.
+    RoleDeleteRequest:
+      type: object
+      required:
+        - reason
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          description: Audit-safe reason for soft delete; becomes delete_reason.
     SetupStatusResponse:
       type: object
       required:

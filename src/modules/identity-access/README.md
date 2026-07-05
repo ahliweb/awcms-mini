@@ -61,10 +61,23 @@ Issue ini adalah endpoint live pertama yang menyentuh database, sehingga menamba
 
 `src/components/SyncIndicator.astro` hanya presentational (prop `active: boolean` statis dari pemanggil, tanpa fetch data). `GET /sync/status` (Issue 6.1) memakai autentikasi HMAC node-to-node, bukan bearer/cookie sesi manusia, jadi tidak bisa langsung dipanggil dari browser admin. Mewiring indikator ini ke data sync yang sebenarnya adalah scope Issue 9.1 (Management Reporting) — pola catatan backlog yang sama seperti dispatcher R2 di Issue 6.3.
 
+## Access & Users management (admin screen)
+
+Full CRUD di atas fondasi Issue 2.3/2.4 — dulu hanya assignment yang punya endpoint live; sekarang tenant user dan role generik (bukan hanya via Setup Wizard) bisa dikelola lewat API maupun UI admin `/admin/access-users`.
+
+- `GET/POST /api/v1/users`, `PATCH /api/v1/users/{id}` — daftar/buat tenant user (identity + profile + assignment role awal opsional) dan ubah nama/status aktif-nonaktif. Menonaktifkan (`status: "inactive"`) langsung memblokir login berikutnya (`evaluateLoginAttempt` mensyaratkan `tenantUserStatus === "active"`).
+- `GET/POST /api/v1/roles`, `PATCH/DELETE /api/v1/roles/{id}` — daftar/buat/ubah/soft-delete role beserta permission set-nya. **Safety rail**: role sistem (`is_system=true`, mis. role `owner` yang di-seed Setup Wizard) menolak perubahan `permissionIds` maupun delete dengan `409` — mencegah admin tidak sengaja mengunci semua orang keluar. Delete juga ditolak `409` bila role masih di-assign ke tenant user manapun (unassign dulu).
+- `GET /api/v1/permissions` — katalog permission global read-only (dipakai UI untuk render checkbox per role).
+- `POST/DELETE /api/v1/access/assignments` — `POST` (sudah ada sejak Issue 2.4) tidak berubah; `DELETE` (baru) melepas assignment role dari tenant user.
+- Guard tiap endpoint memetakan persis ke permission granular yang sudah diseed: `user_management.{read,create,update}` dan `access_control.{read,configure,assign}` — tidak ada permission baru yang perlu di-seed.
+- Query read-side (`fetchTenantUsersWithRoles`, `fetchRolesWithPermissions`, `fetchPermissionCatalog` di `application/user-directory.ts`) dipakai bersama oleh endpoint JSON **dan** SSR halaman admin — pola yang sama seperti `modules/reporting/application/*-report.ts` dipakai bersama endpoint reporting dan `admin/index.astro`, supaya SSR tidak round-trip ke API-nya sendiri.
+- Endpoint cookie-atau-header (`resolveAuthInputs` di `application/access-guard.ts`): menerima `Authorization: Bearer` + header tenant (klien API) **atau** cookie httpOnly SSR (UI admin, yang tidak bisa membaca token httpOnly-nya sendiri untuk menyusun header) — pola yang sama seperti `POST /auth/logout` sejak Issue 8.1, dipusatkan di sini supaya konsisten di lima endpoint baru sekaligus.
+- `src/pages/admin/access-users.astro` — layar admin penuh (tabel user + tabel role, form tambah, form edit permission per role, chip assign/unassign, toggle aktif/nonaktif). Tidak ada framework client-side di proyek ini (Astro + vanilla JS saja, sama seperti tombol logout `AdminLayout.astro`) — satu `<script>` di bawah halaman menangani semua fetch mutasi lalu `location.reload()` sederhana untuk refresh state (bukan patch DOM granular — cukup untuk skala base repo ini).
+
 ## Catatan operasional: CSRF `checkOrigin` Astro
 
 Astro secara default menolak (403, tanpa body) permintaan `POST`/`PUT`/`PATCH`/`DELETE` tanpa header `Content-Type` sebagai potential cross-site form submission (`security.checkOrigin`). Klien **wajib** mengirim `Content-Type: application/json` pada `POST /auth/logout` walau body-nya kosong — ditemukan saat verifikasi live (curl/fetch tanpa `Content-Type` mendapat 403 sebelum request mencapai handler).
 
 ## Belum tersedia
 
-CRUD role/permission/ABAC policy (hanya assignment yang ada; pembuatan role generik menyusul Setup Wizard Issue 12.1), pagination pada `/access/decision-logs` (saat ini `LIMIT 50` tetap), dan publikasi event `identity.login.succeeded`/`identity.login.failed` (doc 05, menyusul modul Observability/Logging) belum ada pada tahap ini.
+CRUD ABAC policy row (`awcms_mini_abac_policies` — schema tersedia, evaluator masih pakai aturan generik bawaan, belum ada endpoint kelola policy), pagination pada `/access/decision-logs` (saat ini `LIMIT 50` tetap), dan publikasi event `identity.login.succeeded`/`identity.login.failed` (doc 05, menyusul modul Observability/Logging) belum ada pada tahap ini.
