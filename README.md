@@ -158,7 +158,7 @@ Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/
 
 ## Versioning
 
-**Semantic Versioning** + **[Changesets](.changeset/README.md)**; riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Versi saat ini `0.0.3`; perubahan foundation skeleton, migration runner, dan API contract baseline menunggu rilis berikutnya `0.1.0`.
+**Semantic Versioning** + **[Changesets](.changeset/README.md)**; riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Versi saat ini `0.1.0` (Foundation skeleton SSR, migration runner, API contract baseline).
 
 ## Lisensi
 

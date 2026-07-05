@@ -55,7 +55,11 @@ export function checkMermaid(file, lines) {
     if (inBlock) {
       if (trimmed === "```") {
         if (!sawType) {
-          problems.push({ file, line: blockStart, message: "blok mermaid tanpa tipe diagram dikenal" });
+          problems.push({
+            file,
+            line: blockStart,
+            message: "blok mermaid tanpa tipe diagram dikenal"
+          });
         }
         inBlock = false;
         continue;
@@ -63,14 +67,22 @@ export function checkMermaid(file, lines) {
       if (!sawType && trimmed.length > 0) {
         const first = (trimmed.split(/\s|\{/)[0] ?? "").trim();
         if (!MERMAID_TYPES.includes(first)) {
-          problems.push({ file, line: i + 1, message: `tipe diagram mermaid tak dikenal: "${first}"` });
+          problems.push({
+            file,
+            line: i + 1,
+            message: `tipe diagram mermaid tak dikenal: "${first}"`
+          });
         }
         sawType = true; // hanya periksa baris konten pertama
       }
     }
   }
   if (inBlock) {
-    problems.push({ file, line: blockStart, message: "blok ```mermaid tidak ditutup" });
+    problems.push({
+      file,
+      line: blockStart,
+      message: "blok ```mermaid tidak ditutup"
+    });
   }
   return problems;
 }
@@ -117,7 +129,11 @@ export function checkNaming(file, lines) {
   const problems = [];
   lines.forEach((line, i) => {
     if (/awcms-mini_[a-z]/.test(line) || /AWCMS-Mini_[A-Z]/.test(line)) {
-      problems.push({ file, line: i + 1, message: "penamaan rusak (gunakan awcms_mini_ / AWCMS_MINI_)" });
+      problems.push({
+        file,
+        line: i + 1,
+        message: "penamaan rusak (gunakan awcms_mini_ / AWCMS_MINI_)"
+      });
     }
   });
   return problems;
@@ -166,7 +182,8 @@ export function extractLinks(content) {
   let m;
   while ((m = linkRe.exec(content))) {
     let target = (m[1] ?? "").trim();
-    if (target.startsWith("<") && target.endsWith(">")) target = target.slice(1, -1);
+    if (target.startsWith("<") && target.endsWith(">"))
+      target = target.slice(1, -1);
     links.push({ target, index: m.index, line: lineOf(m.index) });
   }
   return links;
@@ -178,7 +195,8 @@ export function extractLinks(content) {
  * @returns {"empty" | "anchor" | "external" | "relative"}
  */
 export function classifyLink(target) {
-  if (!target || target.startsWith("#")) return target.startsWith("#") ? "anchor" : "empty";
+  if (!target || target.startsWith("#"))
+    return target.startsWith("#") ? "anchor" : "empty";
   if (/^(https?:|mailto:|tel:|data:)/i.test(target)) return "external";
   return "relative";
 }

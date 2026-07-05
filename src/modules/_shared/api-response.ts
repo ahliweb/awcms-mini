@@ -4,13 +4,13 @@ export type ApiMeta = {
 };
 
 export type ApiSuccess<TData> = {
-  ok: true;
+  success: true;
   data: TData;
   meta: ApiMeta;
 };
 
 export type ApiError = {
-  ok: false;
+  success: false;
   error: {
     code: string;
     message: string;
@@ -25,24 +25,24 @@ type JsonResponseInit = {
 
 export function jsonResponse<TBody>(
   body: TBody,
-  init: JsonResponseInit = {},
+  init: JsonResponseInit = {}
 ): Response {
   return new Response(JSON.stringify(body), {
     status: init.status ?? 200,
     headers: {
-      "content-type": "application/json; charset=utf-8",
-    },
+      "content-type": "application/json; charset=utf-8"
+    }
   });
 }
 
 export function ok<TData>(data: TData, meta: ApiMeta = {}): Response {
   return jsonResponse<ApiSuccess<TData>>(
     {
-      ok: true,
+      success: true,
       data,
-      meta,
+      meta
     },
-    { status: 200 },
+    { status: 200 }
   );
 }
 
@@ -51,18 +51,18 @@ export function fail(
   code: string,
   message: string,
   meta: ApiMeta = {},
-  details?: unknown,
+  details?: unknown
 ): Response {
   return jsonResponse<ApiError>(
     {
-      ok: false,
+      success: false,
       error: {
         code,
         message,
-        ...(details === undefined ? {} : { details }),
+        ...(details === undefined ? {} : { details })
       },
-      meta,
+      meta
     },
-    { status },
+    { status }
   );
 }

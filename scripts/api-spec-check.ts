@@ -71,7 +71,7 @@ export function checkOpenApi(spec: unknown, file: string): Problem[] {
     "ErrorDetail",
     "HealthResponse",
     "SoftDeleteQuery",
-    "SoftDeleteRequest",
+    "SoftDeleteRequest"
   ]) {
     if (!schemas?.[schemaName]) {
       problems.push({ file, message: `Missing shared schema ${schemaName}.` });
@@ -82,7 +82,7 @@ export function checkOpenApi(spec: unknown, file: string): Problem[] {
     if (!securitySchemes?.[schemeName]) {
       problems.push({
         file,
-        message: `Missing security scheme ${schemeName}.`,
+        message: `Missing security scheme ${schemeName}.`
       });
     }
   }
@@ -94,12 +94,12 @@ export function checkOpenApi(spec: unknown, file: string): Problem[] {
     "AcceptLanguage",
     "SyncNodeId",
     "SyncTimestamp",
-    "SyncSignature",
+    "SyncSignature"
   ]) {
     if (!parameters?.[parameterName]) {
       problems.push({
         file,
-        message: `Missing header parameter ${parameterName}.`,
+        message: `Missing header parameter ${parameterName}.`
       });
     }
   }
@@ -109,7 +109,7 @@ export function checkOpenApi(spec: unknown, file: string): Problem[] {
   if (!softDeleteSchema?.properties) {
     problems.push({
       file,
-      message: "SoftDeleteRequest must document delete_reason.",
+      message: "SoftDeleteRequest must document delete_reason."
     });
   }
 
@@ -143,7 +143,7 @@ export function checkAsyncApi(spec: unknown, file: string): Problem[] {
   } else if (!channels["awcms-mini.sync.push.requested"]) {
     problems.push({
       file,
-      message: "Missing baseline sync event channel.",
+      message: "Missing baseline sync event channel."
     });
   }
 
@@ -178,7 +178,7 @@ export function checkModuleEventChannels(
       if (!channels[eventName]) {
         problems.push({
           file,
-          message: `Module ${module.key} publishes ${eventName}, but channel is missing.`,
+          message: `Module ${module.key} publishes ${eventName}, but channel is missing.`
         });
       }
     }

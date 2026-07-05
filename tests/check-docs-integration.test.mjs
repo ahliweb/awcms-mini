@@ -12,8 +12,12 @@ describe("runChecks (integration, repo nyata)", () => {
     const problems = runChecks();
     if (problems.length > 0) {
       // Pesan gagal yang informatif bila ada regresi.
-      const detail = problems.map((p) => `${p.file}:${p.line}: ${p.message}`).join("\n");
-      throw new Error(`Ditemukan ${problems.length} masalah dokumentasi:\n${detail}`);
+      const detail = problems
+        .map((p) => `${p.file}:${p.line}: ${p.message}`)
+        .join("\n");
+      throw new Error(
+        `Ditemukan ${problems.length} masalah dokumentasi:\n${detail}`
+      );
     }
     expect(problems).toEqual([]);
   });

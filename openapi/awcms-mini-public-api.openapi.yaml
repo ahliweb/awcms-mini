@@ -169,12 +169,12 @@ components:
     ApiSuccess:
       type: object
       required:
-        - ok
+        - success
         - data
         - meta
       additionalProperties: false
       properties:
-        ok:
+        success:
           type: boolean
           const: true
         data:
@@ -184,12 +184,12 @@ components:
     ApiError:
       type: object
       required:
-        - ok
+        - success
         - error
         - meta
       additionalProperties: false
       properties:
-        ok:
+        success:
           type: boolean
           const: false
         error:

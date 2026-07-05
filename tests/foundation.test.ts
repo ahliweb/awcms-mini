@@ -5,19 +5,19 @@ import {
   activeRecordPredicate,
   deletedRecordPredicate,
   shouldIncludeDeleted,
-  shouldOnlyListDeleted,
+  shouldOnlyListDeleted
 } from "../src/modules/_shared/soft-delete";
 import { getModuleByKey, listModules } from "../src/modules";
 import {
   computeMigrationChecksum,
   redactDatabaseUrl,
   stripOptionalTransactionWrapper,
-  validateAppliedChecksums,
+  validateAppliedChecksums
 } from "../scripts/db-migrate";
 import {
   checkAsyncApi,
   checkOpenApi,
-  runApiSpecChecks,
+  runApiSpecChecks
 } from "../scripts/api-spec-check";
 
 describe("api response helper", () => {
@@ -26,12 +26,12 @@ describe("api response helper", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe(
-      "application/json; charset=utf-8",
+      "application/json; charset=utf-8"
     );
     await expect(response.json()).resolves.toEqual({
-      ok: true,
+      success: true,
       data: { status: "ok" },
-      meta: { requestId: "req-1" },
+      meta: { requestId: "req-1" }
     });
   });
 });
@@ -42,7 +42,7 @@ describe("soft delete helper", () => {
     expect(shouldOnlyListDeleted()).toBe(false);
     expect(activeRecordPredicate()).toBe("deleted_at IS NULL");
     expect(deletedRecordPredicate("table.deleted_at")).toBe(
-      "table.deleted_at IS NOT NULL",
+      "table.deleted_at IS NOT NULL"
     );
   });
 
@@ -70,9 +70,9 @@ describe("database migration runner helpers", () => {
   });
 
   test("optional BEGIN/COMMIT wrapper is stripped before runner transaction", () => {
-    expect(stripOptionalTransactionWrapper("BEGIN;\nSELECT 1;\nCOMMIT;\n")).toBe(
-      "SELECT 1;"
-    );
+    expect(
+      stripOptionalTransactionWrapper("BEGIN;\nSELECT 1;\nCOMMIT;\n")
+    ).toBe("SELECT 1;");
   });
 
   test("applied checksum mismatch fails fast", () => {
@@ -83,14 +83,14 @@ describe("database migration runner helpers", () => {
             name: "001_awcms_mini_foundation_schema.sql",
             path: "sql/001_awcms_mini_foundation_schema.sql",
             sql: "SELECT 1;",
-            checksum: "sha256:new",
-          },
+            checksum: "sha256:new"
+          }
         ],
         [
           {
             migration_name: "001_awcms_mini_foundation_schema.sql",
-            checksum: "sha256:old",
-          },
+            checksum: "sha256:old"
+          }
         ]
       )
     ).toThrow("Checksum mismatch");
@@ -121,8 +121,8 @@ describe("api contract baseline", () => {
           components: {
             schemas: {},
             securitySchemes: {},
-            parameters: {},
-          },
+            parameters: {}
+          }
         },
         "openapi/test.yaml"
       ).some((problem) => problem.message.includes("ApiSuccess"))
@@ -136,7 +136,7 @@ describe("api contract baseline", () => {
           asyncapi: "3.0.0",
           info: {},
           channels: {},
-          components: { messages: {}, schemas: {}, securitySchemes: {} },
+          components: { messages: {}, schemas: {}, securitySchemes: {} }
         },
         "asyncapi/test.yaml"
       ).some((problem) => problem.message.includes("DomainEventEnvelope"))

@@ -6,25 +6,29 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 ## [Unreleased]
 
-### Fixed
+## [0.1.0] - 2026-07-05
 
-- Pin `oven-sh/setup-bun` di CI ke commit SHA immutable untuk menyelesaikan CodeQL `actions/unpinned-tag` (#7), dan hapus referensi proyek lama terakhir dari snapshot label/milestone.
-- Clean up `tsconfig.json` after foundation skeleton: remove the stale docs-only note and use the directly declared Bun type package.
+Rilis bertag pertama — Foundation (Sprint 1) sesuai `docs/awcms-mini/09_roadmap_repository_commit.md`.
 
 ### Added
 
-- Foundation skeleton Issue 0.1: Astro 7 build via Bun, health endpoint `/api/v1/health`, module contract/registry, shared API response helper, soft-delete convention, `.env.example`, foundation SQL schema, and standard folders (`src/`, `sql/`, `openapi/`, `asyncapi/`, `deploy/`, `fixtures/`).
-- SQL migration runner Issue 0.2: `bun run db:migrate` uses `Bun.SQL`, validates ordered `sql/*.sql` files, stores SHA-256 checksums, skips applied migrations, rejects applied checksum drift, wraps execution in transactions, and documents the operational workflow.
-- OpenAPI and AsyncAPI baseline Issue 0.3: public OpenAPI contract, domain-event AsyncAPI contract, shared response/error schemas, soft-delete pattern, sync HMAC headers, and `api:spec:check` validator.
+- Foundation skeleton Issue 0.1: Astro 7 SSR via Bun (`@astrojs/node` adapter, mode standalone — pengecualian Bun-only tersanksi per ADR-0002), health endpoint `/api/v1/health`, module contract/registry, shared API response helper (envelope `{ success, data, meta }` / `{ success: false, error, meta }`, sesuai doc 05/10), soft-delete convention, `.env.example`, foundation SQL schema, dan folder standar (`src/`, `sql/`, `openapi/`, `asyncapi/`, `deploy/`, `fixtures/`).
+- SQL migration runner Issue 0.2: `bun run db:migrate` menggunakan `Bun.SQL`, memvalidasi `sql/*.sql` terurut, menyimpan checksum SHA-256, melewati migration yang sudah diterapkan, menolak drift checksum, membungkus eksekusi dalam transaksi, dan mendokumentasikan alur operasionalnya.
+- OpenAPI dan AsyncAPI baseline Issue 0.3: kontrak OpenAPI publik, kontrak AsyncAPI domain-event, skema respons/error bersama, pola soft-delete, header sync HMAC, dan validator `api:spec:check`.
 
 ### Changed
 
-- `bun run check` now includes `bun run build`, and CI runs the Astro foundation build.
-- Snapshot GitHub issue docs refreshed after #371 completion: open issue count is now 17 and closed issue count is now 21.
-- `package.json` now exposes `db:migrate` for the Bun-native PostgreSQL migration runner.
-- Snapshot GitHub issue docs refreshed after #372 completion: open issue count is now 16 and closed issue count is now 22.
-- `bun run check` now includes `bun run api:spec:check`.
-- Snapshot GitHub issue docs refreshed after #373 completion: open issue count is now 15 and closed issue count is now 23.
+- `bun run check` kini mencakup `bun run build`, dan CI menjalankan build Astro foundation.
+- `bun run check` kini mencakup `bun run api:spec:check`.
+- `package.json` kini menyediakan `db:migrate` untuk migration runner PostgreSQL Bun-native.
+- Snapshot dokumentasi GitHub direfresh mengikuti penyelesaian #371, #372, #373 (Epic 0).
+
+### Fixed
+
+- **Arsitektur SSR**: `astro.config.mjs` semula `output: "static"` dan `/api/v1/health` memakai `export const prerender = true`, sehingga endpoint ter-generate sekali saat build (bukan berjalan per-request) — bertentangan dengan RLS multi-tenant (ADR-0003) yang mensyaratkan `SET LOCAL app.current_tenant_id` per transaksi live. Diperbaiki ke `output: "server"` + adapter `@astrojs/node` (mode standalone); diverifikasi dengan menjalankan `dist/server/entry.mjs` dan memanggil `/api/v1/health` dua kali (nilai `generatedAt` berbeda tiap panggilan, membuktikan eksekusi per-request).
+- **Envelope respons API**: helper `ok()`/`fail()` di `src/modules/_shared/api-response.ts`, skema `ApiSuccess`/`ApiError` di `openapi/awcms-mini-public-api.openapi.yaml`, test, dan README modul `_shared` memakai field `ok`, padahal doc 05 dan doc 10 menetapkan `success` sebagai field envelope standar. Field disamakan ke `success` di seluruh berkas tersebut.
+- Pin `oven-sh/setup-bun` di CI ke commit SHA immutable untuk menyelesaikan CodeQL `actions/unpinned-tag` (#7), dan hapus referensi proyek lama terakhir dari snapshot label/milestone.
+- Clean up `tsconfig.json` after foundation skeleton: remove the stale docs-only note and use the directly declared Bun type package.
 
 ## [0.0.3] - 2026-07-04
 
@@ -90,19 +94,21 @@ Baseline paket dokumentasi, standar profesional repo publik, & tooling. Belum ad
 
 ## Peta versi rencana (base, dari doc 09)
 
-| Versi   | Isi                                             |
-| ------- | ----------------------------------------------- |
-| `0.1.0` | Foundation, tenant, identity, profile           |
-| `0.2.0` | RBAC/ABAC evaluator + assignment                |
-| `0.3.0` | Logging, pooling, security readiness            |
-| `0.4.0` | Sync storage (outbox/inbox, conflict, R2 queue) |
-| `0.5.0` | UI shell, management reporting                  |
-| `0.6.0` | Workflow approval, deployment profile           |
-| `1.0.0` | Base production-ready                           |
+| Versi   | Isi                                                                                 |
+| ------- | ----------------------------------------------------------------------------------- |
+| `0.1.0` | Foundation skeleton (SSR, module contract, migration runner, API contract baseline) |
+| `0.2.0` | Tenant, identity, profile                                                           |
+| `0.3.0` | RBAC/ABAC evaluator + assignment                                                    |
+| `0.4.0` | Logging, pooling, security readiness                                                |
+| `0.5.0` | Sync storage (outbox/inbox, conflict, R2 queue)                                     |
+| `0.6.0` | UI shell, management reporting                                                      |
+| `0.7.0` | Workflow approval, deployment profile                                               |
+| `1.0.0` | Base production-ready                                                               |
 
 Aplikasi turunan (mis. AWPOS) memakai peta versinya sendiri di atas base ini.
 
-[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.0.3...HEAD
+[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.1.0...HEAD
+[0.1.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.0.3...awcms-mini@0.1.0
 [0.0.3]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.0.2...awcms-mini@0.0.3
 [0.0.2]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.0.1...awcms-mini@0.0.2
 [0.0.1]: https://github.com/ahliweb/awcms-mini/commits/main
