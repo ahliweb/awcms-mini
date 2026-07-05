@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T04:29:39Z            |
+| Snapshot     | 2026-07-05T04:57:58Z            |
 | Total issue  | 38                              |
-| Open issue   | 10                              |
-| Closed issue | 28                              |
+| Open issue   | 9                               |
+| Closed issue | 29                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   10 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   28 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    9 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   29 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -42,10 +42,14 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                       |
-| ------ | -----: | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |     10 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 6, 8, 9, 10, 11, 12).                                                 |
-| CLOSED |     28 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), dan 12.1. |
+| State  | Jumlah | Catatan                                                                                                                                                  |
+| ------ | -----: | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |      9 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 6, 8, 9, 10, 11, 12).                                                            |
+| CLOSED |     29 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, dan 6.1. |
+
+### Sync outbox/inbox 6.1 completed (2026-07-05)
+
+Issue [#391](https://github.com/ahliweb/awcms-mini/issues/391) ditutup `completed` setelah migrasi `sql/007_awcms_mini_sync_storage_outbox_inbox_schema.sql` menambahkan `awcms_mini_sync_nodes`, `awcms_mini_sync_outbox`, `awcms_mini_sync_inbox`, dan `awcms_mini_sync_push_batches` (ledger idempotency). Endpoint baru `POST /sync/push`, `POST /sync/pull`, `GET /sync/status` — autentikasi HMAC (bukan bearer token), node auto-registrasi saat kontak pertama, menolak jika `AWCMS_MINI_SYNC_ENABLED` bukan `true`. Diverifikasi langsung terhadap PostgreSQL 16 + server Astro SSR berjalan: signature salah ditolak, push idempotent per batchId, pull maju checkpoint dengan benar, timestamp kedaluwarsa ditolak. **Bug ditemukan+diperbaiki**: `GET /sync/status` tidak mengecek status node aktif (beda dari push/pull) — diperbaiki agar konsisten menolak node inactive.
 
 ### Setup wizard 12.1 completed + koreksi sprint (2) (2026-07-05)
 

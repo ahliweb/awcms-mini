@@ -6,6 +6,18 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-05
+
+### Added
+
+- Sync outbox/inbox (Issue 6.1, `sql/007_awcms_mini_sync_storage_outbox_inbox_schema.sql`): `awcms_mini_sync_nodes` (registrasi node per tenant, checkpoint cursor), `awcms_mini_sync_outbox` (event lokal siap di-pull), `awcms_mini_sync_inbox` (event diterima via push), `awcms_mini_sync_push_batches` (ledger idempotency).
+- Endpoint `POST /sync/push`, `POST /sync/pull`, `GET /sync/status` — autentikasi HMAC (bukan bearer token), node auto-registrasi saat kontak pertama, menolak jika `AWCMS_MINI_SYNC_ENABLED` bukan `true`.
+- Domain logic murni `computeSyncSignature`/`verifySyncSignature`/`isTimestampWithinSkew` (`src/modules/sync-storage/domain/sync-hmac.ts`) dan `validateSyncPushRequestBody`. Modul `sync-storage` didaftarkan.
+
+### Fixed
+
+- `GET /sync/status` tidak mengecek status node aktif (hanya cek node ada), tidak konsisten dengan `push`/`pull` — ditemukan saat verifikasi live, diperbaiki agar ketiganya konsisten menolak (403) node inactive.
+
 ## [0.6.0] - 2026-07-05
 
 ### Added
@@ -157,9 +169,10 @@ Baseline paket dokumentasi, standar profesional repo publik, & tooling. Belum ad
 
 Aplikasi turunan (mis. AWPOS) memakai peta versinya sendiri di atas base ini.
 
-Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0`-`0.4.0` berisi Issue 2.1 (tenant/office), 2.2 (central profile), dan 2.3 (identity/login) dari slot "Tenant, identity, profile" (tuntas); rilis `0.5.0` berisi Issue 2.4 (RBAC/ABAC) dari slot "RBAC/ABAC evaluator + assignment" (tuntas). Epic M2 (2.1–2.4) selesai penuh. Rilis `0.6.0` berisi Issue 12.1 (Setup Wizard) — fitur ini tidak punya slot eksplisit sendiri di tabel peta versi doc 09 (ditempatkan setelah M2 sesuai `06_github_issues_detail.md` §Koreksi urutan sprint).
+Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0`-`0.4.0` berisi Issue 2.1 (tenant/office), 2.2 (central profile), dan 2.3 (identity/login) dari slot "Tenant, identity, profile" (tuntas); rilis `0.5.0` berisi Issue 2.4 (RBAC/ABAC) dari slot "RBAC/ABAC evaluator + assignment" (tuntas). Epic M2 (2.1–2.4) selesai penuh. Rilis `0.6.0` berisi Issue 12.1 (Setup Wizard) dan rilis `0.7.0` berisi Issue 6.1 (Sync Outbox/Inbox) — keduanya tidak punya slot eksplisit sendiri di tabel peta versi doc 09 (12.1 ditempatkan setelah M2, 6.1 dimulai dari slot "Sync storage" `v0.4.0` yang sebelumnya ditarget jauh lebih lambat dari realisasi progresif ini).
 
-[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.6.0...HEAD
+[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.7.0...HEAD
+[0.7.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.6.0...awcms-mini@0.7.0
 [0.6.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.5.0...awcms-mini@0.6.0
 [0.5.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.4.0...awcms-mini@0.5.0
 [0.4.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.3.0...awcms-mini@0.4.0

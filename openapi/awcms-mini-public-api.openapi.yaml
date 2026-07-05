@@ -13,7 +13,128 @@ tags:
     description: Tenant, office, and the one-time setup wizard.
   - name: Identity & Access
     description: Login identity, session authentication, and tenant user membership.
+  - name: Sync Storage
+    description: Offline-first sync node registration and HMAC-signed push/pull.
 paths:
+  /api/v1/sync/push:
+    post:
+      tags:
+        - Sync Storage
+      summary: Push a batch of local events to the server (idempotent per batchId)
+      operationId: syncPush
+      security:
+        - syncHmac: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/SyncNodeId"
+        - $ref: "#/components/parameters/SyncTimestamp"
+        - $ref: "#/components/parameters/SyncSignature"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncPushRequest"
+      responses:
+        "200":
+          description: Batch accepted (or already applied, if the batchId was seen before).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SyncPushResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sync/pull:
+    post:
+      tags:
+        - Sync Storage
+      summary: Pull events newer than the node's stored checkpoint
+      operationId: syncPull
+      security:
+        - syncHmac: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/SyncNodeId"
+        - $ref: "#/components/parameters/SyncTimestamp"
+        - $ref: "#/components/parameters/SyncSignature"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncPullRequest"
+      responses:
+        "200":
+          description: Events since the node's last checkpoint, and the new checkpoint.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SyncPullResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sync/status:
+    get:
+      tags:
+        - Sync Storage
+      summary: Get the calling node's sync status
+      operationId: syncGetStatus
+      security:
+        - syncHmac: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/SyncNodeId"
+        - $ref: "#/components/parameters/SyncTimestamp"
+        - $ref: "#/components/parameters/SyncSignature"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Sync node status.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SyncStatusResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/setup/status:
     get:
       tags:
@@ -864,6 +985,127 @@ components:
         ownerRoleId:
           type: string
           format: uuid
+    SyncPushEvent:
+      type: object
+      required:
+        - eventType
+        - aggregateType
+        - payload
+      additionalProperties: false
+      properties:
+        eventType:
+          type: string
+        aggregateType:
+          type: string
+        aggregateId:
+          type: string
+          format: uuid
+        payload:
+          description: Event payload; shape is producer-defined.
+    SyncPushRequest:
+      type: object
+      required:
+        - batchId
+        - events
+      additionalProperties: false
+      properties:
+        batchId:
+          type: string
+          minLength: 1
+          description: Client-supplied idempotency key for this batch.
+        events:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/SyncPushEvent"
+    SyncPushResponse:
+      type: object
+      required:
+        - batchId
+        - accepted
+        - duplicate
+      additionalProperties: false
+      properties:
+        batchId:
+          type: string
+        accepted:
+          type: integer
+          minimum: 0
+        duplicate:
+          type: boolean
+          description: True if this batchId was already processed; no events were reprocessed.
+    SyncPullRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 100
+    SyncPulledEvent:
+      type: object
+      required:
+        - sequence
+        - eventType
+        - aggregateType
+        - payload
+        - createdAt
+      additionalProperties: false
+      properties:
+        sequence:
+          type: integer
+        eventType:
+          type: string
+        aggregateType:
+          type: string
+        aggregateId:
+          type: string
+          format: uuid
+        payload:
+          description: Event payload; shape is producer-defined.
+        createdAt:
+          type: string
+          format: date-time
+    SyncPullResponse:
+      type: object
+      required:
+        - events
+        - checkpoint
+        - hasMore
+      additionalProperties: false
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/SyncPulledEvent"
+        checkpoint:
+          type: integer
+        hasMore:
+          type: boolean
+    SyncStatusResponse:
+      type: object
+      required:
+        - nodeCode
+        - status
+        - checkpoint
+      additionalProperties: false
+      properties:
+        nodeCode:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+        lastPushedAt:
+          type: string
+          format: date-time
+        lastPulledAt:
+          type: string
+          format: date-time
+        checkpoint:
+          type: integer
     SoftDeleteQuery:
       type: object
       additionalProperties: false
