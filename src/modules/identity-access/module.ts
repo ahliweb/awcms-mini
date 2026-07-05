@@ -6,10 +6,10 @@ export const identityAccessModule = defineModule({
   version: "0.1.0",
   status: "experimental",
   description:
-    "Login identity, password hashing, tenant user membership, and session-based authentication.",
+    "Login identity, password hashing, tenant user membership, session-based authentication, and RBAC/ABAC access control (roles, permissions, assignments, decision log).",
   dependencies: ["tenant_admin", "profile_identity"],
   api: {
     openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
-    basePath: "/api/v1/auth"
+    basePath: "/api/v1"
   }
 });

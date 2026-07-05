@@ -6,6 +6,14 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-05
+
+### Added
+
+- RBAC dan ABAC access control (Issue 2.4, `sql/005_awcms_mini_abac_access_control_schema.sql`): `awcms_mini_permissions` (katalog global, diseed 17 entri generik untuk modul base), `awcms_mini_roles`, `awcms_mini_role_permissions`, `awcms_mini_access_assignments`, `awcms_mini_abac_policies`, dan `awcms_mini_abac_decision_logs` (append-only).
+- Evaluator murni `evaluateAccess` (default deny, deny overrides allow — ADR-0004) memakai tipe `TenantContext`/`AccessRequest`/`AccessDecision` persis sesuai doc 10 §ABAC guard, dengan aturan ABAC generik (tenant isolation, self-approval deny).
+- Endpoint `GET /access/modules`, `POST /access/evaluate`, `POST /access/assignments` (idempotent), `GET /access/decision-logs` — OpenAPI diperbarui.
+
 ## [0.4.0] - 2026-07-05
 
 ### Added
@@ -142,9 +150,10 @@ Baseline paket dokumentasi, standar profesional repo publik, & tooling. Belum ad
 
 Aplikasi turunan (mis. AWPOS) memakai peta versinya sendiri di atas base ini.
 
-Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0`-`0.4.0` berisi Issue 2.1 (tenant/office), 2.2 (central profile), dan 2.3 (identity/login) dari slot "Tenant, identity, profile" — slot ini sekarang tuntas (2.1–2.3 semua selesai); Issue 2.4 (RBAC/ABAC) berikutnya masuk slot "RBAC/ABAC evaluator + assignment".
+Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0`-`0.4.0` berisi Issue 2.1 (tenant/office), 2.2 (central profile), dan 2.3 (identity/login) dari slot "Tenant, identity, profile" (tuntas); rilis `0.5.0` berisi Issue 2.4 (RBAC/ABAC) dari slot "RBAC/ABAC evaluator + assignment" — slot ini juga tuntas dengan satu rilis. Epic M2 (2.1–2.4) sekarang selesai penuh.
 
-[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.4.0...HEAD
+[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.5.0...HEAD
+[0.5.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.4.0...awcms-mini@0.5.0
 [0.4.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.3.0...awcms-mini@0.4.0
 [0.3.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.2.0...awcms-mini@0.3.0
 [0.2.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.1.1...awcms-mini@0.2.0

@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T03:38:53Z            |
+| Snapshot     | 2026-07-05T04:09:31Z            |
 | Total issue  | 38                              |
-| Open issue   | 12                              |
-| Closed issue | 26                              |
+| Open issue   | 11                              |
+| Closed issue | 27                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   12 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   26 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   11 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   27 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -42,10 +42,14 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                |
-| ------ | -----: | -------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |     12 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 2, 6, 8, 9, 10, 11, 12).                                       |
-| CLOSED |     26 | 20 issue domain ditutup `not planned`; #371-#373, #376, #377, dan #378 ditutup `completed` setelah Issue 0.1-0.3, 2.1, 2.2, 2.3 merge. |
+| State  | Jumlah | Catatan                                                                                                                                       |
+| ------ | -----: | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |     11 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 6, 8, 9, 10, 11, 12).                                                 |
+| CLOSED |     27 | 20 issue domain ditutup `not planned`; #371-#373, #376, #377, #378, dan #379 ditutup `completed` setelah Issue 0.1-0.3 dan epic M2 (2.1-2.4). |
+
+### RBAC/ABAC access control 2.4 completed (2026-07-05)
+
+Issue [#379](https://github.com/ahliweb/awcms-mini/issues/379) ditutup `completed` setelah migrasi `sql/005_awcms_mini_abac_access_control_schema.sql` menambahkan `awcms_mini_permissions` (katalog global, diseed 17 entri generik untuk modul base, RLS-free), `awcms_mini_roles`, `awcms_mini_role_permissions`, `awcms_mini_access_assignments`, `awcms_mini_abac_policies`, dan `awcms_mini_abac_decision_logs` (append-only). Evaluator murni `evaluateAccess` (default deny, deny overrides allow — ADR-0004) memakai tipe persis doc 10 §ABAC guard; dua aturan ABAC generik (tenant isolation, self-approval deny) dicek sebelum RBAC. Endpoint baru: `GET /access/modules`, `POST /access/evaluate`, `POST /access/assignments` (idempotent), `GET /access/decision-logs`. Diverifikasi langsung terhadap PostgreSQL 16 + server Astro SSR berjalan: operator dengan role granted diizinkan, operator tanpa permission cocok ditolak (default deny), **operator tanpa role sama sekali ditolak (403) pada endpoint guarded** — membuktikan acceptance criteria "operator ditolak akses modul yang tidak diizinkan". Epic M2 (2.1-2.4) tuntas. Label `#407` (12.1 Setup Wizard) `status:blocked` → `status:ready`.
 
 ### Identity login schema 2.3 completed (2026-07-05)
 
