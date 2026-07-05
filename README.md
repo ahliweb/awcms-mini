@@ -158,7 +158,7 @@ Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/
 
 ## Versioning
 
-**Semantic Versioning** + **[Changesets](.changeset/README.md)**; riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Versi saat ini `0.11.0` (Foundation skeleton SSR + Issue 2.1-2.4: tenant/office, central profile, identity/login, RBAC/ABAC + Issue 12.1 setup wizard + epic M5 Sync Storage tuntas: Issue 6.1 sync outbox/inbox, 6.2 sync conflict tracking/resolution, 6.3 R2 object sync queue + epic M7 UI/UX & Reporting tuntas: Issue 8.1 admin layout shell, 9.1 management reporting views).
+**Semantic Versioning** + **[Changesets](.changeset/README.md)**; riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Versi saat ini `0.11.1` (Foundation skeleton SSR + Issue 2.1-2.4: tenant/office, central profile, identity/login, RBAC/ABAC + Issue 12.1 setup wizard + epic M5 Sync Storage tuntas: Issue 6.1 sync outbox/inbox, 6.2 sync conflict tracking/resolution, 6.3 R2 object sync queue + epic M7 UI/UX & Reporting tuntas: Issue 8.1 admin layout shell, 9.1 management reporting views + patch: fix double-encoding jsonb pada sync push).
 
 ## Lisensi
 
