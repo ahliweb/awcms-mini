@@ -8,6 +8,12 @@ import {
   shouldOnlyListDeleted,
 } from "../src/modules/_shared/soft-delete";
 import { getModuleByKey, listModules } from "../src/modules";
+import {
+  computeMigrationChecksum,
+  redactDatabaseUrl,
+  stripOptionalTransactionWrapper,
+  validateAppliedChecksums,
+} from "../scripts/db-migrate";
 
 describe("api response helper", () => {
   test("ok() returns standardized JSON response", async () => {
@@ -47,5 +53,50 @@ describe("module registry", () => {
   test("foundation starts with no active modules", () => {
     expect(listModules()).toEqual([]);
     expect(getModuleByKey("tenant_admin")).toBeUndefined();
+  });
+});
+
+describe("database migration runner helpers", () => {
+  test("checksum is stable and prefixed", () => {
+    const sql = "CREATE TABLE awcms_mini_example (id uuid PRIMARY KEY);";
+
+    expect(computeMigrationChecksum(sql)).toMatch(/^sha256:[a-f0-9]{64}$/);
+    expect(computeMigrationChecksum(sql)).toBe(computeMigrationChecksum(sql));
+  });
+
+  test("optional BEGIN/COMMIT wrapper is stripped before runner transaction", () => {
+    expect(stripOptionalTransactionWrapper("BEGIN;\nSELECT 1;\nCOMMIT;\n")).toBe(
+      "SELECT 1;"
+    );
+  });
+
+  test("applied checksum mismatch fails fast", () => {
+    expect(() =>
+      validateAppliedChecksums(
+        [
+          {
+            name: "001_awcms_mini_foundation_schema.sql",
+            path: "sql/001_awcms_mini_foundation_schema.sql",
+            sql: "SELECT 1;",
+            checksum: "sha256:new",
+          },
+        ],
+        [
+          {
+            migration_name: "001_awcms_mini_foundation_schema.sql",
+            checksum: "sha256:old",
+          },
+        ]
+      )
+    ).toThrow("Checksum mismatch");
+  });
+
+  test("database url redaction removes password-bearing url", () => {
+    const databaseUrl =
+      "postgres://awcms-mini:secret-password@localhost:5432/awcms-mini";
+
+    expect(redactDatabaseUrl(`failed for ${databaseUrl}`, databaseUrl)).toBe(
+      "failed for [redacted DATABASE_URL]"
+    );
   });
 });

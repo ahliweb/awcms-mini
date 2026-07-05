@@ -2,7 +2,7 @@
 
 Dokumen ini adalah **kontrak kerja** untuk coding agent (Claude Code, Codex, dsb.) maupun developer manusia yang mengimplementasikan AWCMS-Mini. Setiap sesi implementasi **wajib membaca file ini terlebih dahulu**, lalu dokumen terkait di `docs/awcms-mini/`.
 
-> AWCMS-Mini sudah memiliki **foundation skeleton Issue 0.1**: Astro build, health endpoint, module contract, response helper, soft-delete convention, dan folder standar. Modul tenant/auth/RBAC/sync/deployment belum diimplementasikan dan harus mengikuti issue berikutnya.
+> AWCMS-Mini sudah memiliki **foundation skeleton Issue 0.1** dan **SQL migration runner Issue 0.2**: Astro build, health endpoint, module contract, response helper, soft-delete convention, folder standar, dan runner migrasi PostgreSQL berbasis checksum. Modul API contract/tenant/auth/RBAC/sync/deployment belum diimplementasikan dan harus mengikuti issue berikutnya.
 
 ## Ringkasan proyek
 
@@ -158,6 +158,7 @@ bun run check                # gate lengkap: lint + check:docs + typecheck + tes
 bun run dev                  # bun --bun astro dev
 bun run build                # bun --bun astro build
 bun run preview              # bun --bun astro preview
+bun run db:migrate           # Bun.SQL PostgreSQL migration runner
 bun run lint                 # prettier --check
 bun run check:docs           # validasi mermaid, tautan internal, penamaan
 bun run typecheck            # tsc --noEmit
@@ -172,7 +173,7 @@ untuk setiap kode baru sesuai doc 07 §Testing Strategy dan doc 10.
 
 ## Perintah standar (target)
 
-Skrip berikut menjadi target repository (lihat doc 11). Setelah Issue 0.1, script dev/build/preview/check sudah tersedia; script database/API/deployment readiness masuk issue berikutnya.
+Skrip berikut menjadi target repository (lihat doc 11). Setelah Issue 0.1-0.2, script dev/build/preview/check dan `db:migrate` sudah tersedia; script API/deployment readiness masuk issue berikutnya.
 
 ```bash
 bun install

@@ -9,15 +9,18 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 ### Fixed
 
 - Pin `oven-sh/setup-bun` di CI ke commit SHA immutable untuk menyelesaikan CodeQL `actions/unpinned-tag` (#7), dan hapus referensi proyek lama terakhir dari snapshot label/milestone.
+- Clean up `tsconfig.json` after foundation skeleton: remove the stale docs-only note and use the directly declared Bun type package.
 
 ### Added
 
 - Foundation skeleton Issue 0.1: Astro 7 build via Bun, health endpoint `/api/v1/health`, module contract/registry, shared API response helper, soft-delete convention, `.env.example`, foundation SQL schema, and standard folders (`src/`, `sql/`, `openapi/`, `asyncapi/`, `deploy/`, `fixtures/`).
+- SQL migration runner Issue 0.2: `bun run db:migrate` uses `Bun.SQL`, validates ordered `sql/*.sql` files, stores SHA-256 checksums, skips applied migrations, rejects applied checksum drift, wraps execution in transactions, and documents the operational workflow.
 
 ### Changed
 
 - `bun run check` now includes `bun run build`, and CI runs the Astro foundation build.
 - Snapshot GitHub issue docs refreshed after #371 completion: open issue count is now 17 and closed issue count is now 21.
+- `package.json` now exposes `db:migrate` for the Bun-native PostgreSQL migration runner.
 
 ## [0.0.3] - 2026-07-04
 

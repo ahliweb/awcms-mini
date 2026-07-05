@@ -121,6 +121,7 @@ Dokumen dikelompokkan mengikuti alur pengembangan agar mudah diimplementasi.
 |   8 | `08_sop_operasional_user_guide.md`         | SOP operasional dan user guide                                                                       |
 |  19 | `19_glossary_terminology.md`               | Glossary & terminologi lintas dokumen                                                                |
 |  20 | `20_threat_model_security_architecture.md` | Threat model (STRIDE), trust boundary, kontrol keamanan berlapis (dokumen base, bukan contoh domain) |
+|   – | `database-migrations.md`                   | Panduan runner migrasi PostgreSQL Bun-native                                                         |
 
 ### Architecture Decision Records
 
@@ -130,9 +131,9 @@ Dokumen dikelompokkan mengikuti alur pengembangan agar mudah diimplementasi.
 
 ### Audit repo
 
-| File                                       | Isi                                                                                                         |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` | Audit kepatuhan baseline dan foundation skeleton terhadap standar pengembangan Bun, Astro 7, dan PostgreSQL |
+| File                                       | Isi                                                                                                               |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` | Audit kepatuhan baseline, foundation skeleton, dan migration runner terhadap standar Bun, Astro 7, dan PostgreSQL |
 
 ### Snapshot GitHub
 
