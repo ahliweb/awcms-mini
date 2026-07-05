@@ -158,7 +158,7 @@ Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/
 
 ## Versioning
 
-**Semantic Versioning** + **[Changesets](.changeset/README.md)**; riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Versi saat ini `0.17.0` — **seluruh 18 issue backlog base generik (doc06) tuntas** (foundation + epic M2 tenant/office, central profile, identity/login, RBAC/ABAC + 12.1 setup wizard + epic M5 Sync Storage 6.1-6.3 + epic M7 UI/UX & Reporting 8.1, 9.1 + epic M8 Security/Performance/Production 10.1-10.3, 11.1, 12.2), plus perawatan pasca-backlog: upgrade pin PostgreSQL 16 → 18.4.
+**Semantic Versioning** + **[Changesets](.changeset/README.md)**; riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Versi saat ini `0.18.0` — **seluruh 18 issue backlog base generik (doc06) tuntas** (foundation + epic M2 tenant/office, central profile, identity/login, RBAC/ABAC + 12.1 setup wizard + epic M5 Sync Storage 6.1-6.3 + epic M7 UI/UX & Reporting 8.1, 9.1 + epic M8 Security/Performance/Production 10.1-10.3, 11.1, 12.2), plus perawatan pasca-backlog: upgrade pin PostgreSQL 16 → 18.4, dan suite test integrasi HTTP terhadap PostgreSQL nyata di CI (lihat [`tests/README.md`](tests/README.md)).
 
 ## Lisensi
 
