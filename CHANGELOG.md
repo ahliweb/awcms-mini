@@ -6,6 +6,12 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-05
+
+### Added
+
+- Central profile schema (Issue 2.2, `sql/003_awcms_mini_central_profile_management_schema.sql`): `awcms_mini_profiles` (kanonik person/organization, soft delete), `awcms_mini_profile_identifiers` (email/phone/whatsapp/national_id/tax_id/external_code — digenerikkan dari NPWP/NIK/"customer code" doc 03 — dedup via `value_hash` unique parsial per tenant+type, `masked_value` aman), `awcms_mini_profile_channels`, `awcms_mini_profile_addresses`, `awcms_mini_profile_entity_links`, `awcms_mini_profile_merge_requests` (`CHECK source_profile_id <> target_profile_id`), dan `awcms_mini_profile_audit_logs` (append-only). Domain logic murni di `src/modules/profile-identity/domain/` (`normalizeIdentifier`, `hashIdentifier`, `maskIdentifier`, `assertMergeRequestIsValid`). Modul `profile-identity` didaftarkan (dependency: `tenant-admin`).
+
 ## [0.2.0] - 2026-07-05
 
 ### Added
@@ -128,9 +134,10 @@ Baseline paket dokumentasi, standar profesional repo publik, & tooling. Belum ad
 
 Aplikasi turunan (mis. AWPOS) memakai peta versinya sendiri di atas base ini.
 
-Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0` saat ini baru berisi Issue 2.1 (tenant/office schema) dari slot "Tenant, identity, profile" — Issue 2.2 dan 2.3 menyusul di rilis `0.2.x`/`0.3.x` berikutnya sebelum slot ini dianggap tuntas.
+Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0`-`0.3.0` saat ini baru berisi Issue 2.1 (tenant/office) dan 2.2 (central profile) dari slot "Tenant, identity, profile" — Issue 2.3 menyusul di rilis berikutnya sebelum slot ini dianggap tuntas.
 
-[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.2.0...HEAD
+[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.3.0...HEAD
+[0.3.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.2.0...awcms-mini@0.3.0
 [0.2.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.1.1...awcms-mini@0.2.0
 [0.1.1]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.1.0...awcms-mini@0.1.1
 [0.1.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.0.3...awcms-mini@0.1.0

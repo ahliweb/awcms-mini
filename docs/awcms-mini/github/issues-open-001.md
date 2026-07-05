@@ -3,12 +3,12 @@
 | Metadata           | Nilai                |
 | ------------------ | -------------------- |
 | Repository         | `ahliweb/awcms-mini` |
-| Snapshot           | 2026-07-05T02:59:14Z |
+| Snapshot           | 2026-07-05T03:09:48Z |
 | State              | `OPEN`               |
 | File page          | 1/1                  |
 | Max issue per file | 100                  |
-| Issue dalam file   | 14                   |
-| Range              | #377-#408            |
+| Issue dalam file   | 13                   |
+| Range              | #378-#408            |
 
 > File ini adalah snapshot dari GitHub. Refresh dengan proses di `docs/awcms-mini/github/README.md` bila state issue berubah.
 
@@ -16,7 +16,6 @@ Backlog generik base AWCMS-Mini dari `docs/awcms-mini/06_github_issues_detail.md
 
 |                                                        # | Judul                                                   | Milestone                              | Labels                                                                           |
 | -------------------------------------------------------: | ------------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------- |
-| [#377](https://github.com/ahliweb/awcms-mini/issues/377) | 2.2 — Add Central Profile Schema                        | M2 — Identity, Tenant, Profile         | `type:task`, `priority:p0`, `area:profile`, `status:ready`                       |
 | [#378](https://github.com/ahliweb/awcms-mini/issues/378) | 2.3 — Add Identity Login and Tenant User Membership     | M2 — Identity, Tenant, Profile         | `type:task`, `area:auth`, `priority:p0`, `status:ready`                          |
 | [#379](https://github.com/ahliweb/awcms-mini/issues/379) | 2.4 — Add RBAC and ABAC Access Control                  | M2 — Identity, Tenant, Profile         | `type:task`, `area:auth`, `area:security`, `priority:p0`, `status:blocked`       |
 | [#391](https://github.com/ahliweb/awcms-mini/issues/391) | 6.1 — Add Sync Outbox and Inbox                         | M5 — Sync Storage                      | `type:task`, `priority:p1`, `area:sync`, `status:blocked`                        |

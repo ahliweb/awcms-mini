@@ -1,7 +1,11 @@
 import type { ModuleDescriptor } from "./_shared/module-contract";
+import { profileIdentityModule } from "./profile-identity/module";
 import { tenantAdminModule } from "./tenant-admin/module";
 
-export const modules: ModuleDescriptor[] = [tenantAdminModule];
+export const modules: ModuleDescriptor[] = [
+  tenantAdminModule,
+  profileIdentityModule
+];
 
 export function getModuleByKey(
   moduleKey: string

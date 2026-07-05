@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T02:59:14Z            |
+| Snapshot     | 2026-07-05T03:09:48Z            |
 | Total issue  | 38                              |
-| Open issue   | 14                              |
-| Closed issue | 24                              |
+| Open issue   | 13                              |
+| Closed issue | 25                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   14 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   24 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   13 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   25 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -42,10 +42,14 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                            |
-| ------ | -----: | ------------------------------------------------------------------------------------------------------------------ |
-| OPEN   |     14 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 2, 6, 8, 9, 10, 11, 12).                   |
-| CLOSED |     24 | 20 issue domain ditutup `not planned`; #371-#373 dan #376 ditutup `completed` setelah Issue 0.1-0.3 dan 2.1 merge. |
+| State  | Jumlah | Catatan                                                                                                                     |
+| ------ | -----: | --------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |     13 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 2, 6, 8, 9, 10, 11, 12).                            |
+| CLOSED |     25 | 20 issue domain ditutup `not planned`; #371-#373, #376, dan #377 ditutup `completed` setelah Issue 0.1-0.3, 2.1, 2.2 merge. |
+
+### Central profile schema 2.2 completed (2026-07-05)
+
+Issue [#377](https://github.com/ahliweb/awcms-mini/issues/377) ditutup `completed` setelah migrasi `sql/003_awcms_mini_central_profile_management_schema.sql` menambahkan `awcms_mini_profiles`, `awcms_mini_profile_identifiers` (dedup + masking, identifier type digenerikkan dari NPWP/NIK/"customer code" di doc 03), `awcms_mini_profile_channels`, `awcms_mini_profile_addresses`, `awcms_mini_profile_entity_links`, `awcms_mini_profile_merge_requests` (constraint source ≠ target), dan `awcms_mini_profile_audit_logs` (append-only), plus domain logic murni (`normalizeIdentifier`/`hashIdentifier`/`maskIdentifier`/`assertMergeRequestIsValid`) dan modul `profile-identity` terdaftar. Diverifikasi langsung terhadap container PostgreSQL 16: migration apply bersih, dedup identifier menolak duplikat aktif namun mengizinkan reuse setelah soft delete, dan constraint merge source=target ditolak database.
 
 ### Tenant/office schema 2.1 completed + koreksi sprint (2026-07-05)
 

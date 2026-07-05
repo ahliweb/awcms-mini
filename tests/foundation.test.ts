@@ -56,11 +56,16 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin is registered after Issue 2.1", () => {
-    expect(listModules()).toHaveLength(1);
+  test("tenant_admin and profile_identity are registered after Issue 2.1/2.2", () => {
+    expect(listModules()).toHaveLength(2);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "experimental"
+    });
+    expect(getModuleByKey("profile_identity")).toMatchObject({
+      key: "profile_identity",
+      status: "experimental",
+      dependencies: ["tenant_admin"]
     });
     expect(getModuleByKey("unknown_module")).toBeUndefined();
   });
@@ -115,7 +120,8 @@ describe("database migration runner helpers", () => {
 
     expect(migrations.map((migration) => migration.name)).toEqual([
       "001_awcms_mini_foundation_schema.sql",
-      "002_awcms_mini_tenant_office_schema.sql"
+      "002_awcms_mini_tenant_office_schema.sql",
+      "003_awcms_mini_central_profile_management_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
@@ -140,6 +146,26 @@ describe("database migration runner helpers", () => {
       "ALTER TABLE awcms_mini_tenant_settings ENABLE ROW LEVEL SECURITY"
     );
     expect(tenantOfficeSchema?.sql).toContain("deleted_at timestamptz");
+  });
+
+  test("central profile schema declares RLS, dedup, and merge source-ne-target constraint", async () => {
+    const migrations = await discoverMigrationFiles();
+    const profileSchema = migrations.find(
+      (migration) =>
+        migration.name ===
+        "003_awcms_mini_central_profile_management_schema.sql"
+    );
+
+    expect(profileSchema).toBeDefined();
+    expect(profileSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_profiles ENABLE ROW LEVEL SECURITY"
+    );
+    expect(profileSchema?.sql).toContain(
+      "awcms_mini_profile_identifiers_dedup_key"
+    );
+    expect(profileSchema?.sql).toContain(
+      "CHECK (source_profile_id <> target_profile_id)"
+    );
   });
 });
 
