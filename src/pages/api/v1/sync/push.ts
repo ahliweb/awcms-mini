@@ -86,7 +86,7 @@ export const POST: APIRoute = async ({ request }) => {
             (tenant_id, node_id, batch_id, event_type, aggregate_type, aggregate_id, payload_json)
           VALUES (
             ${tenantId}, ${node.id}, ${batchId}, ${event.eventType}, ${event.aggregateType},
-            null, ${JSON.stringify(event.payload)}
+            null, ${event.payload}
           )
         `;
         acceptedCount += 1;
@@ -112,7 +112,7 @@ export const POST: APIRoute = async ({ request }) => {
             (tenant_id, node_id, batch_id, aggregate_type, aggregate_id, conflict_type, payload_json)
           VALUES (
             ${tenantId}, ${node.id}, ${batchId}, ${event.aggregateType}, ${event.aggregateId},
-            ${evaluation.conflictType}, ${JSON.stringify(event.payload)}
+            ${evaluation.conflictType}, ${event.payload}
           )
         `;
         conflictedCount += 1;
@@ -124,7 +124,7 @@ export const POST: APIRoute = async ({ request }) => {
           (tenant_id, node_id, batch_id, event_type, aggregate_type, aggregate_id, payload_json)
         VALUES (
           ${tenantId}, ${node.id}, ${batchId}, ${event.eventType}, ${event.aggregateType},
-          ${event.aggregateId}, ${JSON.stringify(event.payload)}
+          ${event.aggregateId}, ${event.payload}
         )
       `;
 
