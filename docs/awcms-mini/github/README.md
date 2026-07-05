@@ -42,9 +42,9 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                                  |
-| ------ | -----: | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |      8 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 6, 8, 9, 10, 11, 12).                                                                  |
+| State  | Jumlah | Catatan                                                                                                                                                         |
+| ------ | -----: | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |      8 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 6, 8, 9, 10, 11, 12).                                                                   |
 | CLOSED |     30 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391, #392, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, 6.1, 6.2. |
 
 ### Sync conflict tracking/resolution 6.2 completed (2026-07-05)
