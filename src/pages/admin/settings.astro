@@ -1,7 +1,322 @@
 ---
+/**
+ * Settings admin screen — tenant profile (name, legal name) and preferences
+ * (default locale, default theme, timezone, feature flags), backed by
+ * `GET/PATCH /api/v1/settings`.
+ *
+ * `defaultTheme` here is the tenant-wide *fallback* used when a browser has
+ * no personal override yet — distinct from `ThemeToggle.astro`'s per-browser
+ * `localStorage["awcms_mini_theme"]`, which always wins once set (doc 14
+ * §Theming: "localStorage + awcms_mini_tenants.default_theme"). See
+ * AdminLayout.astro's inline no-flash theme script for how the two combine.
+ *
+ * SSR fetches via the same application-layer function the JSON endpoint uses
+ * (`tenant-admin/application/tenant-settings-directory.ts`), matching the
+ * `user-directory.ts`/`sync-directory.ts` pattern from the other two admin
+ * screens. Permission-gated on `tenant_admin.tenant_settings.{read,update}`
+ * (migration 015) — defense-in-depth, the endpoint is the real enforcement.
+ */
 import AdminLayout from "../../layouts/AdminLayout.astro";
+import { getDatabaseClient } from "../../lib/database/client";
+import { withTenant } from "../../lib/database/tenant-context";
+import { permissionKey } from "../../modules/identity-access/domain/access-control";
+import { fetchTenantSettings } from "../../modules/tenant-admin/application/tenant-settings-directory";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/settings.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const CAN_READ = context.permissions.has(
+  permissionKey("tenant_admin", "tenant_settings", "read")
+);
+const CAN_UPDATE = context.permissions.has(
+  permissionKey("tenant_admin", "tenant_settings", "update")
+);
+
+const settings = CAN_READ
+  ? await withTenant(getDatabaseClient(), context.tenantId, (tx) =>
+      fetchTenantSettings(tx, context.tenantId)
+    )
+  : null;
 ---
 
 <AdminLayout title="Pengaturan">
-  <p>Pengaturan belum tersedia.</p>
+  {
+    !settings && (
+      <div class="permission-denied" role="alert">
+        <p>
+          <strong>Akses ditolak.</strong>
+        </p>
+        <p>
+          Akun Anda tidak memiliki izin untuk melihat pengaturan tenant. Hubungi
+          admin/owner tenant Anda untuk meminta akses.
+        </p>
+      </div>
+    )
+  }
+  {
+    settings && (
+      <div class="settings-admin">
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+
+        <form id="settings-form" class="settings-form">
+          <fieldset disabled={!CAN_UPDATE}>
+            <legend>Profil Tenant</legend>
+            <label>
+              Nama tenant
+              <input
+                type="text"
+                name="tenantName"
+                value={settings.tenantName}
+                required
+              />
+            </label>
+            <label>
+              Nama legal (opsional)
+              <input
+                type="text"
+                name="legalName"
+                value={settings.legalName ?? ""}
+              />
+            </label>
+          </fieldset>
+
+          <fieldset disabled={!CAN_UPDATE}>
+            <legend>Preferensi Tampilan</legend>
+            <label>
+              Bahasa default
+              <select name="defaultLocale">
+                {["id", "en", "ms", "ar"].map((locale) => (
+                  <option
+                    value={locale}
+                    selected={locale === settings.defaultLocale}
+                  >
+                    {locale}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Tema default
+              <select name="defaultTheme">
+                {["system", "light", "dark"].map((theme) => (
+                  <option
+                    value={theme}
+                    selected={theme === settings.defaultTheme}
+                  >
+                    {theme}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p class="field-hint">
+              Tema default berlaku untuk sesi/browser baru yang belum pernah
+              memilih tema secara manual. Pilihan tema pribadi Anda (tombol di
+              topbar) tetap menang di browser ini.
+            </p>
+          </fieldset>
+
+          <fieldset disabled={!CAN_UPDATE}>
+            <legend>Zona Waktu</legend>
+            <label>
+              Timezone (IANA)
+              <input
+                type="text"
+                name="timezone"
+                value={settings.timezone}
+                placeholder="Asia/Jakarta"
+                required
+              />
+            </label>
+          </fieldset>
+
+          <fieldset disabled={!CAN_UPDATE}>
+            <legend>Feature Flags</legend>
+            <label>
+              JSON object
+              <textarea name="featureFlags" rows="6" spellcheck="false">
+                {JSON.stringify(settings.featureFlags, null, 2)}
+              </textarea>
+            </label>
+            <p class="field-hint">
+              Harus berupa JSON object valid (mis. {"{"}"betaReports": true{"}"}
+              ).
+            </p>
+          </fieldset>
+
+          {CAN_UPDATE && <button type="submit">Simpan</button>}
+        </form>
+      </div>
+    )
+  }
 </AdminLayout>
+
+<style>
+  .settings-admin {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    max-width: 640px;
+  }
+
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+  }
+
+  .action-banner[data-variant="success"] {
+    background: color-mix(
+      in srgb,
+      var(--color-success) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-success);
+  }
+
+  .action-banner[data-variant="error"] {
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-danger);
+  }
+
+  .settings-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+
+  .settings-form fieldset {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+
+  .settings-form legend {
+    font-weight: 600;
+    padding: 0 var(--sp-1);
+  }
+
+  .settings-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+
+  .settings-form input,
+  .settings-form select,
+  .settings-form textarea {
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: inherit;
+  }
+
+  .settings-form textarea {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+  }
+
+  .field-hint {
+    margin: 0;
+    font-size: var(--fs-xs);
+    color: var(--color-text-muted);
+  }
+
+  .settings-form button {
+    align-self: flex-start;
+    background: var(--color-primary);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-2) var(--sp-4);
+    cursor: pointer;
+  }
+
+  .permission-denied {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius-md);
+    padding: var(--sp-4);
+  }
+</style>
+
+<script>
+  const JSON_HEADERS = { "Content-Type": "application/json" };
+
+  function showBanner(message: string, variant: "success" | "error") {
+    const banner = document.getElementById("action-banner");
+    if (!banner) return;
+    banner.textContent = message;
+    banner.setAttribute("data-variant", variant);
+    banner.hidden = false;
+  }
+
+  document
+    .getElementById("settings-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const formData = new FormData(form);
+
+      const featureFlagsRaw = String(formData.get("featureFlags") ?? "{}");
+      let featureFlags: unknown;
+      try {
+        featureFlags = JSON.parse(featureFlagsRaw);
+      } catch {
+        showBanner(
+          "Feature flags harus berupa JSON object yang valid.",
+          "error"
+        );
+        return;
+      }
+
+      const legalNameRaw = formData.get("legalName");
+      const body = {
+        tenantName: formData.get("tenantName"),
+        legalName:
+          typeof legalNameRaw === "string" && legalNameRaw.trim().length > 0
+            ? legalNameRaw
+            : null,
+        defaultLocale: formData.get("defaultLocale"),
+        defaultTheme: formData.get("defaultTheme"),
+        timezone: formData.get("timezone"),
+        featureFlags
+      };
+
+      try {
+        const res = await fetch("/api/v1/settings", {
+          method: "PATCH",
+          headers: JSON_HEADERS,
+          credentials: "same-origin",
+          body: JSON.stringify(body)
+        });
+        const json = await res.json().catch(() => null);
+
+        if (!res.ok) {
+          showBanner(
+            json?.error?.message ?? `Request failed (${res.status}).`,
+            "error"
+          );
+          return;
+        }
+
+        showBanner("Pengaturan berhasil disimpan.", "success");
+      } catch {
+        showBanner("Terjadi kesalahan jaringan.", "error");
+      }
+    });
+</script>

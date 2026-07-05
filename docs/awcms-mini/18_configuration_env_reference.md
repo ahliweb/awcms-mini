@@ -35,7 +35,7 @@ flowchart LR
 ```
 
 - Runtime/secret (DB, JWT, HMAC, provider key): dari **environment**.
-- Preferensi tenant (locale, theme, flag fitur tampilan): dari **`awcms_mini_tenant_settings`**.
+- Preferensi tenant (locale, theme): dari **`awcms_mini_tenants`**; flag fitur tampilan: dari **`awcms_mini_tenant_settings`**. Keduanya dikelola lewat `GET/PATCH /api/v1/settings` dan layar `/admin/settings` (Settings PR).
 - Retention soft delete/purge dapat menjadi tenant policy, tetapi tidak boleh menonaktifkan audit, RLS, atau default filter `deleted_at IS NULL`.
 
 ## Referensi environment variable
@@ -206,5 +206,5 @@ flowchart TB
 - Boot memvalidasi env; var wajib hilang menghentikan start dengan pesan aman.
 - Provider off tidak menghentikan POS; pesan/objek masuk queue.
 - Secret hanya dari env; tidak ada di kode/commit/log/response.
-- Preferensi tenant (locale/theme) dari `awcms_mini_tenant_settings`, bukan hardcode.
+- Preferensi tenant (locale/theme) dari `awcms_mini_tenants`, bukan hardcode.
 - Profil offline/LAN berjalan penuh tanpa internet.

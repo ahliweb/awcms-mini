@@ -503,6 +503,85 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/settings:
+    get:
+      tags:
+        - Tenant Admin
+      summary: Read the tenant's profile and settings
+      description: >-
+        Joins awcms_mini_tenants (tenant_name, legal_name, default_locale,
+        default_theme) and awcms_mini_tenant_settings (timezone,
+        feature_flags).
+      operationId: settingsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Tenant profile and settings.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantSettingsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Tenant Admin
+      summary: Update a subset of the tenant's profile and settings
+      operationId: settingsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTenantSettingsRequest"
+      responses:
+        "200":
+          description: Settings updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantSettingsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/setup/status:
     get:
       tags:
@@ -2416,6 +2495,74 @@ components:
           type: string
           minLength: 1
           description: Audit-safe reason for soft delete; becomes delete_reason.
+    TenantSettingsResponse:
+      type: object
+      required:
+        - tenantId
+        - tenantName
+        - defaultLocale
+        - defaultTheme
+        - timezone
+        - featureFlags
+      additionalProperties: false
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        tenantName:
+          type: string
+        legalName:
+          type: string
+          nullable: true
+        defaultLocale:
+          type: string
+          enum:
+            - id
+            - en
+            - ms
+            - ar
+        defaultTheme:
+          type: string
+          enum:
+            - light
+            - dark
+            - system
+        timezone:
+          type: string
+        featureFlags:
+          type: object
+          additionalProperties: true
+    UpdateTenantSettingsRequest:
+      type: object
+      description: >-
+        At least one field is required. legalName accepts null to clear it.
+      additionalProperties: false
+      properties:
+        tenantName:
+          type: string
+          minLength: 1
+        legalName:
+          type: string
+          nullable: true
+        defaultLocale:
+          type: string
+          enum:
+            - id
+            - en
+            - ms
+            - ar
+        defaultTheme:
+          type: string
+          enum:
+            - light
+            - dark
+            - system
+        timezone:
+          type: string
+          minLength: 1
+        featureFlags:
+          type: object
+          additionalProperties: true
     SetupStatusResponse:
       type: object
       required:

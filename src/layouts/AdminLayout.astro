@@ -43,13 +43,21 @@ if (!context) {
 }
 
 const sql = getDatabaseClient();
-const tenantName = await withTenant(sql, context.tenantId, async (tx) => {
-  const rows = await tx`
-    SELECT tenant_name FROM awcms_mini_tenants WHERE id = ${context.tenantId}
-  `;
+const { tenantName, tenantDefaultTheme } = await withTenant(
+  sql,
+  context.tenantId,
+  async (tx) => {
+    const rows = await tx`
+      SELECT tenant_name, default_theme FROM awcms_mini_tenants WHERE id = ${context.tenantId}
+    `;
 
-  return (rows[0]?.tenant_name as string | undefined) ?? "Tenant";
-});
+    return {
+      tenantName: (rows[0]?.tenant_name as string | undefined) ?? "Tenant",
+      tenantDefaultTheme:
+        (rows[0]?.default_theme as string | undefined) ?? "system"
+    };
+  }
+);
 
 const syncActive = await withTenant(sql, context.tenantId, (tx) =>
   fetchSyncIndicatorActive(tx, context.tenantId)
@@ -79,17 +87,23 @@ const isSettingsActive = pathname === "/admin/settings";
     {
       /*
         Theme resolution — runs before paint to prevent a flash of the
-        wrong theme (doc 14 §Theming). Reads localStorage (default
-        "system"), resolves against prefers-color-scheme when needed, and
-        sets data-theme on <html>. `is:inline` keeps this script exactly
-        as authored (no bundling/defer) so it executes synchronously here
-        in <head>, ahead of body paint.
+        wrong theme (doc 14 §Theming). Reads localStorage first (the user's
+        personal per-browser override, set by ThemeToggle.astro — always
+        wins once present); falls back to the tenant's
+        `awcms_mini_tenants.default_theme` (editable at /admin/settings,
+        Settings PR) for a browser that has never picked a theme. Resolves
+        against prefers-color-scheme when the effective value is "system",
+        and sets data-theme on <html>. `is:inline` + `define:vars` keeps this
+        script exactly as authored (no bundling/defer) so it executes
+        synchronously here in <head>, ahead of body paint, while still
+        safely injecting the server-computed default (`define:vars`
+        JSON-serializes it — no manual string interpolation into JS source).
       */
     }
-    <script is:inline>
+    <script is:inline define:vars={{ tenantDefaultTheme }}>
       (function () {
         var STORAGE_KEY = "awcms_mini_theme";
-        var stored = localStorage.getItem(STORAGE_KEY) || "system";
+        var stored = localStorage.getItem(STORAGE_KEY) || tenantDefaultTheme;
         var resolved =
           stored === "light" || stored === "dark"
             ? stored

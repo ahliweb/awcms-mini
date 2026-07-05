@@ -187,7 +187,8 @@ describe("database migration runner helpers", () => {
       "011_awcms_mini_audit_logging_schema.sql",
       "012_awcms_mini_workflow_approval_schema.sql",
       "013_awcms_mini_enforce_rls_least_privilege.sql",
-      "014_awcms_mini_sync_node_management_permission_schema.sql"
+      "014_awcms_mini_sync_node_management_permission_schema.sql",
+      "015_awcms_mini_tenant_settings_management_permission_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
@@ -241,6 +242,25 @@ describe("database migration runner helpers", () => {
     );
     expect(nodeMgmtSchema?.sql).not.toContain("CREATE TABLE");
     expect(nodeMgmtSchema?.sql).not.toContain("ALTER TABLE");
+  });
+
+  test("tenant settings management migration seeds read/update permissions with no schema change", async () => {
+    const migrations = await discoverMigrationFiles();
+    const settingsMgmtSchema = migrations.find(
+      (migration) =>
+        migration.name ===
+        "015_awcms_mini_tenant_settings_management_permission_schema.sql"
+    );
+
+    expect(settingsMgmtSchema).toBeDefined();
+    expect(settingsMgmtSchema?.sql).toContain(
+      "('tenant_admin', 'tenant_settings', 'read'"
+    );
+    expect(settingsMgmtSchema?.sql).toContain(
+      "('tenant_admin', 'tenant_settings', 'update'"
+    );
+    expect(settingsMgmtSchema?.sql).not.toContain("CREATE TABLE");
+    expect(settingsMgmtSchema?.sql).not.toContain("ALTER TABLE");
   });
 
   test("tenant/office schema declares RLS and soft-delete on office-scoped tables", async () => {
