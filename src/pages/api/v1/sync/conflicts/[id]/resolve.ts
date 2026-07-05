@@ -3,13 +3,11 @@ import { fail, ok } from "../../../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../../../lib/database/client";
 import { withTenant } from "../../../../../../lib/database/tenant-context";
 import { hashSessionToken } from "../../../../../../lib/auth/session-token";
-import { extractBearerToken } from "../../../../../../modules/identity-access/application/session-lookup";
 import {
-  fetchGrantedPermissionKeys,
-  resolveTenantContext
-} from "../../../../../../modules/identity-access/application/auth-context";
-import { recordDecisionLog } from "../../../../../../modules/identity-access/application/decision-log";
-import { evaluateAccess } from "../../../../../../modules/identity-access/domain/access-control";
+  authorizeInTransaction,
+  resolveAuthInputs
+} from "../../../../../../modules/identity-access/application/access-guard";
+import { recordAuditEvent } from "../../../../../../modules/logging/application/audit-log";
 import { validateConflictResolutionRequestBody } from "../../../../../../modules/sync-storage/domain/sync-validation";
 
 const GUARD_REQUEST = {
@@ -18,8 +16,8 @@ const GUARD_REQUEST = {
   action: "approve" as const
 };
 
-export const POST: APIRoute = async ({ request, params }) => {
-  const tenantId = request.headers.get("x-awcms-mini-tenant-id");
+export const POST: APIRoute = async ({ request, cookies, params }) => {
+  const { tenantId, token } = resolveAuthInputs(request, cookies);
   const conflictId = params.id;
 
   if (!tenantId) {
@@ -29,8 +27,6 @@ export const POST: APIRoute = async ({ request, params }) => {
   if (!conflictId) {
     return fail(400, "VALIDATION_ERROR", "Conflict id is required.");
   }
-
-  const token = extractBearerToken(request.headers.get("authorization"));
 
   if (!token) {
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
@@ -58,33 +54,16 @@ export const POST: APIRoute = async ({ request, params }) => {
     sql,
     tenantId,
     async (tx) => {
-      const context = await resolveTenantContext(tx, tenantId, tokenHash, now);
-
-      if (!context) {
-        return fail(401, "AUTH_REQUIRED", "Session is invalid or expired.");
-      }
-
-      const grantedPermissionKeys = await fetchGrantedPermissionKeys(
+      const auth = await authorizeInTransaction(
         tx,
         tenantId,
-        context.tenantUserId
-      );
-      const decision = evaluateAccess(
-        context,
-        GUARD_REQUEST,
-        grantedPermissionKeys
+        tokenHash,
+        now,
+        GUARD_REQUEST
       );
 
-      await recordDecisionLog(
-        tx,
-        tenantId,
-        context.tenantUserId,
-        GUARD_REQUEST,
-        decision
-      );
-
-      if (!decision.allowed) {
-        return fail(403, "ACCESS_DENIED", decision.reason);
+      if (!auth.allowed) {
+        return auth.denied;
       }
 
       const conflictRows = await tx`
@@ -109,9 +88,21 @@ export const POST: APIRoute = async ({ request, params }) => {
       await tx`
       UPDATE awcms_mini_sync_conflicts
       SET status = 'resolved', resolution = ${resolution}, resolution_note = ${note ?? null},
-          resolved_by = ${context.tenantUserId}, resolved_at = ${now}
+          resolved_by = ${auth.context.tenantUserId}, resolved_at = ${now}
       WHERE id = ${conflictId}
     `;
+
+      await recordAuditEvent(tx, {
+        tenantId,
+        actorTenantUserId: auth.context.tenantUserId,
+        moduleKey: "sync_storage",
+        action: "approve",
+        resourceType: "sync_conflict",
+        resourceId: conflictId,
+        severity: "warning",
+        message: "Sync conflict resolved.",
+        attributes: { resolution, note }
+      });
 
       return ok({ id: conflictId, status: "resolved", resolution });
     },

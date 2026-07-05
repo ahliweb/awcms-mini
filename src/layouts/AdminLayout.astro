@@ -66,6 +66,7 @@ const hasSyncMenu = permissionList.some((key) =>
 const pathname = Astro.url.pathname;
 const isDashboardActive = pathname === "/admin";
 const isAccessUsersActive = pathname === "/admin/access-users";
+const isSyncActive = pathname === "/admin/sync";
 const isSettingsActive = pathname === "/admin/settings";
 ---
 
@@ -145,10 +146,13 @@ const isSettingsActive = pathname === "/admin/settings";
             }
             {
               hasSyncMenu && (
-                <li class="admin-nav-stub" aria-disabled="true">
-                  <span>
-                    Sync <em class="admin-nav-badge">Segera hadir</em>
-                  </span>
+                <li>
+                  <a
+                    href="/admin/sync"
+                    aria-current={isSyncActive ? "page" : undefined}
+                  >
+                    Sync
+                  </a>
                 </li>
               )
             }
@@ -288,20 +292,6 @@ const isSettingsActive = pathname === "/admin/settings";
   .admin-sidebar a[aria-current="page"] {
     background: var(--color-primary);
     color: var(--color-primary-contrast);
-  }
-
-  .admin-nav-stub {
-    padding: var(--sp-2) var(--sp-3);
-    color: var(--color-text-muted);
-  }
-
-  .admin-nav-badge {
-    font-style: normal;
-    font-size: var(--fs-xs);
-    background: var(--color-surface-2);
-    border-radius: var(--radius-sm);
-    padding: 0 var(--sp-1);
-    margin-left: var(--sp-1);
   }
 
   .admin-main {
