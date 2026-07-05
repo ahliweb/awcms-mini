@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T00:47:14Z            |
+| Snapshot     | 2026-07-05T02:59:14Z            |
 | Total issue  | 38                              |
-| Open issue   | 15                              |
-| Closed issue | 23                              |
+| Open issue   | 14                              |
+| Closed issue | 24                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   15 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   23 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   14 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   24 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -42,10 +42,16 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                      |
-| ------ | -----: | ------------------------------------------------------------------------------------------------------------ |
-| OPEN   |     15 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 2, 6, 8, 9, 10, 11, 12).             |
-| CLOSED |     23 | 20 issue domain ditutup `not planned`; #371, #372, dan #373 ditutup `completed` setelah Issue 0.1-0.3 merge. |
+| State  | Jumlah | Catatan                                                                                                            |
+| ------ | -----: | ------------------------------------------------------------------------------------------------------------------ |
+| OPEN   |     14 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 2, 6, 8, 9, 10, 11, 12).                   |
+| CLOSED |     24 | 20 issue domain ditutup `not planned`; #371-#373 dan #376 ditutup `completed` setelah Issue 0.1-0.3 dan 2.1 merge. |
+
+### Tenant/office schema 2.1 completed + koreksi sprint (2026-07-05)
+
+Issue [#376](https://github.com/ahliweb/awcms-mini/issues/376) ditutup `completed` setelah migrasi `sql/002_awcms_mini_tenant_office_schema.sql` menambahkan `awcms_mini_tenants`, `awcms_mini_offices`, `awcms_mini_physical_locations`, `awcms_mini_tenant_settings` dengan RLS tenant isolation dan soft delete pada tabel office-scoped, plus modul `tenant-admin` terdaftar. Diverifikasi langsung terhadap container PostgreSQL 16 (bukan hanya build/test): migration apply bersih, RLS mengisolasi role non-superuser per tenant, duplicate `office_code` aktif ditolak, dan kode bisa dipakai ulang setelah soft delete.
+
+Saat scoping issue ini, ditemukan Issue [#407](https://github.com/ahliweb/awcms-mini/issues/407) (12.1 — Setup Wizard) salah sequencing: butuh skema tenant/identity/RBAC dari #376/#378/#379 (Sprint 2/3), tapi sebelumnya di Sprint 1 sejajar 0.1-0.3. Label disesuaikan: `#376`/`#377`/`#378` `status:blocked` → `status:ready`; `#407` `status:ready` → `status:blocked` (komentar penjelasan ditambahkan di issue). Detail: `docs/awcms-mini/06_github_issues_detail.md` §Koreksi urutan sprint, `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`.
 
 ### API contract 0.3 completed (2026-07-05)
 

@@ -6,6 +6,16 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-05
+
+### Added
+
+- Tenant and office schema (Issue 2.1, `sql/002_awcms_mini_tenant_office_schema.sql`): `awcms_mini_tenants` (root tenant, unique `tenant_code`, lifecycle `status`), `awcms_mini_offices` (hierarki kantor per tenant, unique parsial `(tenant_id, office_code) WHERE deleted_at IS NULL`, RLS, soft delete), `awcms_mini_physical_locations` (alamat per office, RLS, soft delete), dan `awcms_mini_tenant_settings` (konfigurasi 1:1 per tenant, RLS). Modul `tenant-admin` didaftarkan di registry modul.
+
+### Fixed
+
+- Sprint sequencing di doc 06: Issue 12.1 (Setup Wizard) membutuhkan skema tenant/identity/RBAC yang dimiliki Issue 2.1/2.3/2.4 (Sprint 2/3), tetapi sebelumnya ditempatkan di Sprint 1 sejajar 0.1–0.3. Dipindah ke Sprint 3 (setelah 2.4). Label GitHub disesuaikan: `#376`/`#377`/`#378` (2.1/2.2/2.3) `status:blocked` → `status:ready`; `#407` (12.1) `status:ready` → `status:blocked`.
+
 ## [0.1.1] - 2026-07-05
 
 ### Fixed
@@ -118,7 +128,10 @@ Baseline paket dokumentasi, standar profesional repo publik, & tooling. Belum ad
 
 Aplikasi turunan (mis. AWPOS) memakai peta versinya sendiri di atas base ini.
 
-[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.1.1...HEAD
+Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0` saat ini baru berisi Issue 2.1 (tenant/office schema) dari slot "Tenant, identity, profile" — Issue 2.2 dan 2.3 menyusul di rilis `0.2.x`/`0.3.x` berikutnya sebelum slot ini dianggap tuntas.
+
+[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.2.0...HEAD
+[0.2.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.1.1...awcms-mini@0.2.0
 [0.1.1]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.1.0...awcms-mini@0.1.1
 [0.1.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.0.3...awcms-mini@0.1.0
 [0.0.3]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.0.2...awcms-mini@0.0.3
