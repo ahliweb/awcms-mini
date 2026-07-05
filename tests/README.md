@@ -25,6 +25,16 @@ build needed.
 **Gating:** the integration suite is **skipped** unless `DATABASE_URL` is set,
 so `bun test` locally without a database stays green.
 
+**Two roles (mirrors production RLS enforcement):** the `DATABASE_URL` you
+provide is the **privileged** (owner/superuser) role — the harness uses it for
+migrations, per-test truncation, and cross-tenant fixture seeding. The harness
+then activates the least-privilege `awcms_mini_app` role (`provisionAppRole()`,
+created by migration `013`) and repoints the handlers at it, so the routes run
+exactly as the deployed app does — as a non-superuser for which `FORCE`d RLS is
+actually enforced. You pass **one** URL (the privileged one); the split is
+automatic. This is what makes the "RLS enforces tenant row isolation" test
+meaningful — it would silently pass if handlers ran as the superuser.
+
 **Run it locally** against a throwaway Postgres:
 
 ```bash

@@ -14,9 +14,11 @@ import { beforeAll, beforeEach, describe, expect, test } from "bun:test";
 
 import {
   applyMigrations,
+  getAdminSql,
   getTestSql,
   integrationEnabled,
   invoke,
+  provisionAppRole,
   resetDatabase,
   createCookieJar
 } from "./harness";
@@ -94,6 +96,9 @@ const suite = integrationEnabled ? describe : describe.skip;
 suite("API integration (real Postgres)", () => {
   beforeAll(async () => {
     await applyMigrations();
+    // Repoint handlers at the least-privilege awcms_mini_app role so FORCE'd
+    // RLS is actually enforced (as in production), not bypassed by a superuser.
+    await provisionAppRole();
   });
 
   beforeEach(async () => {
@@ -183,24 +188,18 @@ suite("API integration (real Postgres)", () => {
 
   test("rejects a cross-tenant session (application-level tenant isolation)", async () => {
     const a = await bootstrapTenant("acme", "a-owner@example.com");
-    const sql = getTestSql();
 
     // A second tenant exists (setup is a singleton, so tenant B is seeded via
-    // SQL). It has no bearing on tenant A's session.
+    // the privileged client). It has no bearing on tenant A's session.
     const tenantBId = crypto.randomUUID();
-    await sql`
+    await getAdminSql()`
       INSERT INTO awcms_mini_tenants (id, tenant_code, tenant_name, status)
       VALUES (${tenantBId}, 'beta', 'Beta', 'active')
     `;
 
     // A session issued for tenant A cannot be used with tenant B's tenant
     // header: resolveTenantContext looks up the session filtered by tenant_id,
-    // so A's token never matches under tenant B -> 401. (This isolation is
-    // enforced at the application query layer via explicit `WHERE tenant_id`;
-    // PostgreSQL RLS as a defense-in-depth backstop is tracked separately —
-    // see the RLS-enforcement work that adds FORCE ROW LEVEL SECURITY + a
-    // least-privilege app role, without which RLS is bypassed for the owning
-    // superuser DB role.)
+    // so A's token never matches under tenant B -> 401.
     const crossTenant = await invoke<{ error: { code: string } }>(
       tenantActivity,
       {
@@ -213,6 +212,44 @@ suite("API integration (real Postgres)", () => {
       }
     );
     expect(crossTenant.status).toBe(401);
+  });
+
+  test("PostgreSQL RLS enforces tenant row isolation for the app DB role", async () => {
+    // Handlers connect as the least-privilege awcms_mini_app role (see
+    // provisionAppRole), for which FORCE'd RLS is enforced — so this is the
+    // defense-in-depth backstop that was inert while the app ran as a superuser.
+    const a = await bootstrapTenant("acme", "a-owner@example.com");
+
+    // Seed a second tenant + an office for it using the privileged client
+    // (which bypasses RLS, so it can write tenant B's row directly).
+    const tenantBId = crypto.randomUUID();
+    const admin = getAdminSql();
+    await admin`
+      INSERT INTO awcms_mini_tenants (id, tenant_code, tenant_name, status)
+      VALUES (${tenantBId}, 'beta', 'Beta', 'active')
+    `;
+    await admin.begin(async (tx) => {
+      await tx.unsafe(`SET LOCAL app.current_tenant_id = '${tenantBId}'`);
+      await tx`
+        INSERT INTO awcms_mini_offices (tenant_id, office_code, office_name, office_type, status)
+        VALUES (${tenantBId}, 'b-hq', 'Beta HQ', 'head_office', 'active')
+      `;
+    });
+
+    // Under tenant A's context, the app role sees ONLY tenant A's office (the
+    // one setup created), never tenant B's — even though both rows exist. This
+    // is the assertion that failed while RLS was bypassed for the app user.
+    const aOfficeCount = await withTenant(
+      getTestSql(),
+      a.tenantId,
+      async (tx) => {
+        const rows = (await tx`
+        SELECT count(*)::int AS n FROM awcms_mini_offices
+      `) as { n: number }[];
+        return rows[0]!.n;
+      }
+    );
+    expect(aOfficeCount).toBe(1);
   });
 
   test("soft delete writes an audit event readable back with a safe jsonb payload", async () => {

@@ -12,20 +12,47 @@
  * (see `integrationEnabled`), so `bun test` locally without a database stays
  * green and the pure-unit suite is unaffected. CI sets `DATABASE_URL` to a
  * Postgres service and runs `bun run db:migrate` before `bun test`, so the
- * integration suite runs there. Locally you can run it with:
- *   DATABASE_URL=postgres://... bun run db:migrate && DATABASE_URL=postgres://... bun test
+ * integration suite runs there.
+ *
+ * Two connection roles (mirrors production after the RLS-enforcement change):
+ * the `DATABASE_URL` passed in is the PRIVILEGED (owner/superuser) role, used
+ * for migrations, per-test truncation, and cross-tenant fixture seeding. The
+ * ROUTE HANDLERS, however, must run as the least-privilege `awcms_mini_app`
+ * role so that FORCE'd RLS is actually enforced (a superuser bypasses RLS). So
+ * `provisionAppRole()` activates that role's login and repoints `DATABASE_URL`
+ * at it before any handler runs — `getDatabaseClient()` (and thus every
+ * handler) then connects least-privilege, exactly like the deployed app.
  */
 import type { APIContext, APIRoute } from "astro";
 
 import { getDatabaseClient } from "../../src/lib/database/client";
 
-export const integrationEnabled =
-  typeof process.env.DATABASE_URL === "string" &&
-  process.env.DATABASE_URL.length > 0;
+// Captured at module load, before provisionAppRole() repoints DATABASE_URL.
+const ADMIN_DATABASE_URL = process.env.DATABASE_URL ?? "";
+
+// Non-secret fixture password for the least-privilege app role in tests.
+const APP_ROLE_TEST_PASSWORD = "integration_app_role_password";
+
+export const integrationEnabled = ADMIN_DATABASE_URL.length > 0;
+
+let adminSql: Bun.SQL | undefined;
 
 /**
- * Shares the app's own lazy `Bun.SQL` singleton, so tests and the route
- * handlers they call use the exact same connection pool/config.
+ * Privileged (owner/superuser) client — migrations, truncation, and fixture
+ * seeding that needs to bypass RLS. Independent of the DATABASE_URL repoint
+ * that `provisionAppRole()` does for handlers.
+ */
+export function getAdminSql(): Bun.SQL {
+  if (!adminSql) {
+    adminSql = new Bun.SQL(ADMIN_DATABASE_URL);
+  }
+  return adminSql;
+}
+
+/**
+ * The client the route handlers use — the least-privilege `awcms_mini_app`
+ * role after `provisionAppRole()` has repointed `DATABASE_URL`. Shares the
+ * app's own lazy singleton, so tests and handlers use the same connection.
  */
 export function getTestSql(): Bun.SQL {
   return getDatabaseClient();
@@ -33,15 +60,16 @@ export function getTestSql(): Bun.SQL {
 
 /**
  * Ensures the schema is present by running the real migration runner
- * (`scripts/db-migrate.ts`) as a subprocess against the current
- * `DATABASE_URL` — the same runner CI and operators use, not a reimplemented
- * apply loop. Idempotent (already-applied migrations are skipped).
+ * (`scripts/db-migrate.ts`) as a subprocess — the same runner CI and operators
+ * use, not a reimplemented apply loop. Always runs as the PRIVILEGED role
+ * (migrations create the app role, FORCE RLS, and GRANT — owner-only ops),
+ * regardless of any later DATABASE_URL repoint. Idempotent.
  */
 export async function applyMigrations(): Promise<void> {
   const proc = Bun.spawn(["bun", "scripts/db-migrate.ts"], {
     stdout: "pipe",
     stderr: "pipe",
-    env: { ...process.env }
+    env: { ...process.env, DATABASE_URL: ADMIN_DATABASE_URL }
   });
   const exitCode = await proc.exited;
 
@@ -49,6 +77,25 @@ export async function applyMigrations(): Promise<void> {
     const stderr = await new Response(proc.stderr).text();
     throw new Error(`db:migrate failed (exit ${exitCode}): ${stderr}`);
   }
+}
+
+/**
+ * Activates the least-privilege `awcms_mini_app` role's login (migration 013
+ * created it NOLOGIN/passwordless) with a test password, then repoints
+ * `DATABASE_URL` at it so `getDatabaseClient()` — and therefore every route
+ * handler — connects as the least-privilege role, exactly like the deployed
+ * app. `getAdminSql()` keeps its own privileged connection. Must run after
+ * `applyMigrations()` and before the first handler call.
+ */
+export async function provisionAppRole(): Promise<void> {
+  await getAdminSql().unsafe(
+    `ALTER ROLE awcms_mini_app WITH LOGIN PASSWORD '${APP_ROLE_TEST_PASSWORD}'`
+  );
+
+  const appUrl = new URL(ADMIN_DATABASE_URL);
+  appUrl.username = "awcms_mini_app";
+  appUrl.password = APP_ROLE_TEST_PASSWORD;
+  process.env.DATABASE_URL = appUrl.toString();
 }
 
 /**
@@ -62,7 +109,7 @@ export async function applyMigrations(): Promise<void> {
  * test can bootstrap a fresh tenant.
  */
 export async function resetDatabase(): Promise<void> {
-  const sql = getTestSql();
+  const sql = getAdminSql();
   const rows = (await sql`
     SELECT tablename FROM pg_tables
     WHERE schemaname = 'public'

@@ -348,7 +348,7 @@ const RLS_FREE_TABLES = new Set([
 ]);
 
 export async function checkRlsEnabled(): Promise<SecurityCheckResult> {
-  const name = "RLS enabled on tenant-scoped tables";
+  const name = "RLS enabled AND forced on tenant-scoped tables";
   const severity: CheckSeverity = "critical";
 
   try {
@@ -357,8 +357,14 @@ export async function checkRlsEnabled(): Promise<SecurityCheckResult> {
     }
 
     const sql = getDatabaseClient();
-    const rows = await sql<{ relname: string; relrowsecurity: boolean }[]>`
-      SELECT relname, relrowsecurity
+    const rows = await sql<
+      {
+        relname: string;
+        relrowsecurity: boolean;
+        relforcerowsecurity: boolean;
+      }[]
+    >`
+      SELECT relname, relrowsecurity, relforcerowsecurity
       FROM pg_class
       WHERE relname LIKE 'awcms_mini_%' AND relkind = 'r'
       ORDER BY relname
@@ -377,17 +383,27 @@ export async function checkRlsEnabled(): Promise<SecurityCheckResult> {
     const tenantScoped = rows.filter(
       (row) => !RLS_FREE_TABLES.has(row.relname)
     );
-    const withoutRls = tenantScoped.filter((row) => !row.relrowsecurity);
+    // Both flags are required for real enforcement: relrowsecurity turns RLS on,
+    // but without relforcerowsecurity the *table owner* still bypasses it
+    // (migration 013 adds FORCE for exactly this reason).
+    const notEnforced = tenantScoped.filter(
+      (row) => !row.relrowsecurity || !row.relforcerowsecurity
+    );
     const excludedFound = [...RLS_FREE_TABLES].filter((table) =>
       rows.some((row) => row.relname === table)
     );
 
-    if (withoutRls.length > 0) {
+    if (notEnforced.length > 0) {
       return {
         name,
         severity,
         status: "fail",
-        evidence: `Tenant-scoped table(s) without RLS enabled: ${withoutRls.map((row) => row.relname).join(", ")}.`
+        evidence: `Tenant-scoped table(s) not fully enforced (need relrowsecurity AND relforcerowsecurity): ${notEnforced
+          .map(
+            (row) =>
+              `${row.relname}(rls=${row.relrowsecurity},force=${row.relforcerowsecurity})`
+          )
+          .join(", ")}.`
       };
     }
 
@@ -395,7 +411,7 @@ export async function checkRlsEnabled(): Promise<SecurityCheckResult> {
       name,
       severity,
       status: "pass",
-      evidence: `${tenantScoped.length} tenant-scoped table(s) all have relrowsecurity=true. Excluded as documented RLS-free (non-tenant-scoped): ${excludedFound.join(", ")}.`
+      evidence: `${tenantScoped.length} tenant-scoped table(s) all have relrowsecurity=true AND relforcerowsecurity=true. Excluded as documented RLS-free (non-tenant-scoped): ${excludedFound.join(", ")}.`
     };
   } catch (error) {
     return {
@@ -403,6 +419,66 @@ export async function checkRlsEnabled(): Promise<SecurityCheckResult> {
       severity,
       status: "fail",
       evidence: `Could not connect to the database to verify RLS: ${errorMessage(error)}.`
+    };
+  }
+}
+
+/**
+ * FORCE ROW LEVEL SECURITY still does not apply to a SUPERUSER or a role with
+ * BYPASSRLS. So the *connection role the app actually uses* must be neither —
+ * otherwise RLS is bypassed no matter how the tables are configured. This
+ * check inspects the role of the current connection (DATABASE_URL), which is
+ * the app's real posture; run security:readiness with the app's DATABASE_URL,
+ * not a privileged migration URL, for a meaningful result.
+ */
+export async function checkAppDbUserNotSuperuser(): Promise<SecurityCheckResult> {
+  const name = "App DB connection role does not bypass RLS";
+  const severity: CheckSeverity = "critical";
+
+  try {
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL is not set.");
+    }
+
+    const sql = getDatabaseClient();
+    const rows = await sql<
+      { rolname: string; rolsuper: boolean; rolbypassrls: boolean }[]
+    >`
+      SELECT rolname, rolsuper, rolbypassrls
+      FROM pg_roles WHERE rolname = current_user
+    `;
+    const role = rows[0];
+
+    if (!role) {
+      return {
+        name,
+        severity,
+        status: "fail",
+        evidence: "Could not resolve the current connection role."
+      };
+    }
+
+    if (role.rolsuper || role.rolbypassrls) {
+      return {
+        name,
+        severity,
+        status: "fail",
+        evidence: `The app connects as "${role.rolname}" which is ${role.rolsuper ? "a SUPERUSER" : "BYPASSRLS"} — it bypasses RLS entirely, so tenant isolation is not enforced at the database. Connect as a least-privilege role (e.g. awcms_mini_app).`
+      };
+    }
+
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence: `The app connects as "${role.rolname}" (rolsuper=false, rolbypassrls=false) — RLS policies are enforced for this role.`
+    };
+  } catch (error) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `Could not verify the connection role: ${errorMessage(error)}.`
     };
   }
 }
@@ -738,6 +814,7 @@ export async function runSecurityReadinessChecks(): Promise<
     await checkPasswordHashingModern(),
     checkLoginLockoutImplemented(),
     await checkRlsEnabled(),
+    await checkAppDbUserNotSuperuser(),
     checkAbacDefaultDeny(),
     await checkAuditLogTableReachable(),
     await checkSoftDeletePermissionsSeededAndAudited(),

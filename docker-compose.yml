@@ -38,8 +38,27 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-awcms-mini}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-awcms_mini_password}
       POSTGRES_DB: ${POSTGRES_DB:-awcms-mini}
+      # Consumed once, at first-cluster-init, by the mounted
+      # deploy/postgres/10-create-app-role.sh hook to create the
+      # least-privilege `awcms_mini_app` login the `app` service connects as
+      # (so FORCE'd RLS is enforced — the `db` superuser would bypass it). The
+      # dev default keeps a fresh `docker compose up` working out of the box;
+      # override it (and app's DATABASE_URL below) for any real deployment.
+      AWCMS_MINI_APP_DB_PASSWORD: ${AWCMS_MINI_APP_DB_PASSWORD:-awcms_mini_app_password}
     volumes:
-      - awcms-mini-db-data:/var/lib/postgresql/data
+      # Mount at /var/lib/postgresql (NOT /var/lib/postgresql/data): the
+      # postgres:18+ images store data in a major-version subdirectory
+      # (…/18/docker) and refuse to start if a volume is mounted at the old
+      # /data path (they detect it as a stale pre-18 layout). See
+      # docker-library/postgres#1259. An operator upgrading a pre-18 cluster
+      # must pg_dump/pg_restore into a fresh volume, not swap the image tag.
+      - awcms-mini-db-data:/var/lib/postgresql
+      # First-init hooks (run once, as the superuser, on an empty data volume):
+      # creates the least-privilege app role. The table GRANTs + FORCE RLS come
+      # from migration 013 via the `migrate` service. Re-running against an
+      # existing volume does NOT re-run these — migration 013 is idempotent
+      # about the role already existing, so both orders converge.
+      - ./deploy/postgres:/docker-entrypoint-initdb.d:ro
     ports:
       # Host-facing port for local development convenience (psql from the
       # host, GUI clients, etc.). Not required by `app`, which talks to
@@ -57,6 +76,29 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # One-shot migration runner. Runs `bun run db:migrate` as the PRIVILEGED
+  # (owner/superuser) role and exits — the app must NOT run migrations, since
+  # it connects as the least-privilege role that lacks DDL/GRANT rights. `app`
+  # gates on this completing successfully (`service_completed_successfully`),
+  # so a plain `docker compose up` orders it correctly: db init creates the
+  # role -> migrate applies schema + FORCE RLS + grants -> app starts.
+  migrate:
+    image: oven/bun:1
+    working_dir: /app
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    volumes:
+      - .:/app
+    command: sh -c "bun install --frozen-lockfile && bun run db:migrate"
+    environment:
+      # Privileged URL — migrations create the app role, FORCE RLS, and GRANT
+      # (owner-only operations). Never the least-privilege app credentials.
+      DATABASE_URL: postgres://${POSTGRES_USER:-awcms-mini}:${POSTGRES_PASSWORD:-awcms_mini_password}@db:5432/${POSTGRES_DB:-awcms-mini}
+      HOME: /tmp
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
 
   app:
     image: oven/bun:1
@@ -93,12 +135,14 @@ services:
       # boot.
       - .env
     environment:
-      # These two intentionally override whatever `.env` contains: inside
-      # the compose network, PostgreSQL is reachable at the `db` service
-      # name, not `localhost` (each container has its own network
-      # namespace) — `.env.example`'s default DATABASE_URL uses `localhost`
-      # for the non-container/systemd deployment case.
-      DATABASE_URL: postgres://${POSTGRES_USER:-awcms-mini}:${POSTGRES_PASSWORD:-awcms_mini_password}@db:5432/${POSTGRES_DB:-awcms-mini}
+      # This intentionally overrides whatever `.env` contains, for two reasons:
+      # (1) inside the compose network PostgreSQL is reachable at the `db`
+      # service name, not `localhost` (each container has its own network
+      # namespace); (2) the app connects as the LEAST-PRIVILEGE `awcms_mini_app`
+      # role — NOT the `db` superuser — so FORCE'd RLS is actually enforced (a
+      # superuser/owner bypasses RLS). `.env.example`'s default DATABASE_URL
+      # uses `localhost` + the app role for the non-container/systemd case.
+      DATABASE_URL: postgres://awcms_mini_app:${AWCMS_MINI_APP_DB_PASSWORD:-awcms_mini_app_password}@db:5432/${POSTGRES_DB:-awcms-mini}
       HOST: "0.0.0.0"
       PORT: "4321"
       HOME: /tmp
@@ -107,6 +151,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      # Schema + FORCE RLS + grants must be in place (as the superuser) before
+      # the least-privilege app starts — it cannot create them itself.
+      migrate:
+        condition: service_completed_successfully
 
   # Optional PgBouncer front-end for the `db` service — gated behind the
   # "pgbouncer" Compose profile so it never starts by default (doc 18's
