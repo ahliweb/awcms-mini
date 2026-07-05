@@ -13,6 +13,11 @@ import {
   hashSessionToken
 } from "../src/lib/auth/session-token";
 import { assertUuid } from "../src/lib/database/tenant-context";
+import {
+  resolveSsrContext,
+  SESSION_COOKIE_NAME,
+  TENANT_COOKIE_NAME
+} from "../src/lib/auth/ssr-session";
 
 const NOW = new Date("2026-07-05T00:00:00.000Z");
 
@@ -197,5 +202,34 @@ describe("assertUuid", () => {
     expect(() => assertUuid("'; DROP TABLE awcms_mini_tenants; --")).toThrow(
       "Expected a UUID"
     );
+  });
+});
+
+describe("resolveSsrContext (Issue 8.1 — SSR admin shell auth)", () => {
+  function fakeCookies(values: Record<string, string>) {
+    return {
+      get: (name: string) =>
+        name in values ? { value: values[name] } : undefined
+    } as unknown as Parameters<typeof resolveSsrContext>[0];
+  }
+
+  test("returns null without touching the database when both cookies are missing", async () => {
+    await expect(
+      resolveSsrContext(fakeCookies({}), new Date())
+    ).resolves.toBeNull();
+  });
+
+  test("returns null when only the tenant cookie is present", async () => {
+    const cookies = fakeCookies({
+      [TENANT_COOKIE_NAME]: "11111111-1111-1111-1111-111111111111"
+    });
+
+    await expect(resolveSsrContext(cookies, new Date())).resolves.toBeNull();
+  });
+
+  test("returns null when only the session cookie is present", async () => {
+    const cookies = fakeCookies({ [SESSION_COOKIE_NAME]: "some-token" });
+
+    await expect(resolveSsrContext(cookies, new Date())).resolves.toBeNull();
   });
 });

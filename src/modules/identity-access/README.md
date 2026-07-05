@@ -40,6 +40,23 @@ Issue ini adalah endpoint live pertama yang menyentuh database, sehingga menamba
 - `src/lib/auth/password.ts` — `hashPassword`/`verifyPassword` via `Bun.password` (argon2id native Bun, tanpa dependency).
 - `src/lib/auth/session-token.ts` — `generateSessionToken` (random 32 byte) + `hashSessionToken` (SHA-256, hanya hash yang disimpan).
 
+## SSR session cookies (Issue 8.1 — Admin Layout Shell)
+
+`POST /auth/login` dan `POST /auth/logout` mendapat perilaku **additive** untuk mendukung SSR admin shell (`src/layouts/AdminLayout.astro`):
+
+- `login.ts` sekarang juga men-set dua cookie httpOnly + `SameSite=Lax` + `Path=/`: `awcms_mini_session` (raw session token) dan `awcms_mini_tenant_id`, dengan `maxAge` sama dengan `AUTH_SESSION_TTL_MIN` (menit → detik). Body JSON response (`{ token, expiresAt }`) **tidak berubah** — klien bearer-token lama tetap kompatibel.
+- `logout.ts` menerima tenant/token dari header (`X-AWCMS-Mini-Tenant-ID` + `Authorization: Bearer`, perilaku lama tidak berubah) **atau**, bila header tidak ada, dari kedua cookie tersebut — fallback ini dibutuhkan karena skrip klien tidak bisa membaca cookie httpOnly untuk menyusun header `Authorization` secara manual. Setelah revoke sukses, kedua cookie dihapus (`cookies.delete`).
+- Helper baru `src/lib/auth/ssr-session.ts` (`resolveSsrContext`) membaca kedua cookie dan mendelegasikan ke `resolveTenantContext` + `fetchGrantedPermissionKeys` di atas — pola I/O yang persis sama dengan `POST /access/evaluate`, hanya sumber tenant/token-nya cookie, bukan header. Mengembalikan `null` (tanpa melempar error) bila cookie tidak ada atau sesi tidak valid; layout SSR meng-redirect ke `/login`.
+- `secure` cookie diambil dari `AUTH_COOKIE_SECURE` (env yang sudah ada di `.env.example` sejak Issue 0.1, baru dipakai kode mulai issue ini).
+
+### Tenant switcher stub
+
+`src/components/TenantSwitcher.astro` menampilkan nama tenant aktif dalam kontrol berbentuk dropdown yang **disabled** (satu entri saja). Ini bukan bug — skema `awcms_mini_identities.tenant_id` adalah 1:1 per tenant (tidak ada cross-tenant identity linking), sehingga "switch tenant" sungguhan tidak punya target untuk saat ini. Backlog: bila cross-tenant identity linking pernah ditambahkan, komponen ini yang perlu diperbarui menjadi interaktif.
+
+### Sync indicator stub
+
+`src/components/SyncIndicator.astro` hanya presentational (prop `active: boolean` statis dari pemanggil, tanpa fetch data). `GET /sync/status` (Issue 6.1) memakai autentikasi HMAC node-to-node, bukan bearer/cookie sesi manusia, jadi tidak bisa langsung dipanggil dari browser admin. Mewiring indikator ini ke data sync yang sebenarnya adalah scope Issue 9.1 (Management Reporting) — pola catatan backlog yang sama seperti dispatcher R2 di Issue 6.3.
+
 ## Catatan operasional: CSRF `checkOrigin` Astro
 
 Astro secara default menolak (403, tanpa body) permintaan `POST`/`PUT`/`PATCH`/`DELETE` tanpa header `Content-Type` sebagai potential cross-site form submission (`security.checkOrigin`). Klien **wajib** mengirim `Content-Type: application/json` pada `POST /auth/logout` walau body-nya kosong — ditemukan saat verifikasi live (curl/fetch tanpa `Content-Type` mendapat 403 sebelum request mencapai handler).

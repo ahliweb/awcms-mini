@@ -1,0 +1,170 @@
+---
+/**
+ * Login page (Issue 8.1). Posts to `POST /api/v1/auth/login`, which now
+ * additionally sets the two httpOnly SSR session cookies
+ * (`src/pages/api/v1/auth/login.ts`) consumed by
+ * `src/lib/auth/ssr-session.ts` / `src/layouts/AdminLayout.astro`.
+ */
+import "../styles/tokens.css";
+---
+
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Masuk · AWCMS-Mini</title>
+  </head>
+  <body>
+    <main class="login-page">
+      <form id="login-form" class="login-form" novalidate>
+        <h1>AWCMS-Mini</h1>
+        <p id="login-error" class="login-error" role="alert" hidden></p>
+
+        <label for="tenant-id">Tenant ID</label>
+        <!--
+          Requiring a manual Tenant ID field is a demo simplification for
+          this base repo — a real derived app would resolve the tenant via
+          subdomain/domain mapping instead of asking the user to paste a
+          UUID (out of scope here; see doc 15 §Autentikasi dan sesi).
+        -->
+        <input
+          id="tenant-id"
+          name="tenantId"
+          type="text"
+          required
+          autocomplete="off"
+        />
+
+        <label for="login-identifier">Login identifier</label>
+        <input
+          id="login-identifier"
+          name="loginIdentifier"
+          type="text"
+          required
+          autocomplete="username"
+        />
+
+        <label for="password">Password</label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          required
+          autocomplete="current-password"
+        />
+
+        <button type="submit">Masuk</button>
+      </form>
+    </main>
+
+    <script type="module">
+      const form = document.getElementById("login-form");
+      const errorBox = document.getElementById("login-error");
+
+      function showError(message) {
+        if (!errorBox) return;
+        errorBox.textContent = message;
+        errorBox.hidden = false;
+      }
+
+      form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        if (errorBox) {
+          errorBox.hidden = true;
+        }
+
+        const formData = new FormData(form);
+        const tenantId = String(formData.get("tenantId") ?? "").trim();
+        const loginIdentifier = String(
+          formData.get("loginIdentifier") ?? ""
+        ).trim();
+        const password = String(formData.get("password") ?? "");
+
+        try {
+          const response = await fetch("/api/v1/auth/login", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-AWCMS-Mini-Tenant-ID": tenantId
+            },
+            credentials: "same-origin",
+            body: JSON.stringify({ loginIdentifier, password })
+          });
+
+          const payload = await response.json().catch(() => null);
+
+          if (!response.ok || !payload || payload.success !== true) {
+            showError(payload?.error?.message ?? "Login gagal. Coba lagi.");
+            return;
+          }
+
+          window.location.href = "/admin";
+        } catch {
+          showError("Tidak dapat menghubungi server. Coba lagi.");
+        }
+      });
+    </script>
+  </body>
+</html>
+
+<style>
+  .login-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg);
+  }
+
+  .login-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    width: 100%;
+    max-width: 360px;
+    padding: var(--sp-5);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+  }
+
+  .login-form h1 {
+    margin: 0 0 var(--sp-2);
+    font-size: var(--fs-lg);
+  }
+
+  .login-form label {
+    font-size: var(--fs-sm);
+    color: var(--color-text-muted);
+  }
+
+  .login-form input {
+    padding: var(--sp-2) var(--sp-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .login-form button {
+    margin-top: var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--color-primary);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .login-error {
+    color: var(--color-primary-contrast);
+    background: var(--color-danger);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-2) var(--sp-3);
+    font-size: var(--fs-sm);
+  }
+</style>

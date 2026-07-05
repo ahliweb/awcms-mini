@@ -1,0 +1,109 @@
+---
+/**
+ * ThemeToggle — Astro island with a minimal inline script (Issue 8.1).
+ *
+ * Cycles system -> light -> dark -> system, persists the choice in
+ * `localStorage["awcms_mini_theme"]`, and updates `data-theme` on `<html>`
+ * live (no reload). The initial no-flash resolution on page load happens
+ * separately, in the `is:inline` script in `src/layouts/AdminLayout.astro`
+ * `<head>` (doc 14 §Theming — "cegah flash"). Not wired to
+ * `awcms_mini_tenant_settings.default_theme`: no such read/write endpoint
+ * exists yet (backlog, see `src/modules/identity-access/README.md` and
+ * `src/README.md`).
+ */
+---
+
+<button
+  type="button"
+  id="theme-toggle"
+  class="theme-toggle"
+  data-mode="system"
+  aria-label="Ganti tema tampilan"
+>
+  <span class="theme-toggle-icon" aria-hidden="true">🖥️</span>
+  <span class="theme-toggle-label">Sistem</span>
+</button>
+
+<style>
+  .theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-2);
+    font-size: var(--fs-sm);
+    color: var(--color-text);
+    cursor: pointer;
+  }
+
+  .theme-toggle:hover {
+    background: var(--color-surface-2);
+  }
+</style>
+
+<script>
+  const STORAGE_KEY = "awcms_mini_theme";
+  const ORDER = ["system", "light", "dark"] as const;
+  type ThemeMode = (typeof ORDER)[number];
+  const LABELS: Record<ThemeMode, string> = {
+    system: "Sistem",
+    light: "Terang",
+    dark: "Gelap"
+  };
+  const ICONS: Record<ThemeMode, string> = {
+    system: "🖥️",
+    light: "☀️",
+    dark: "🌙"
+  };
+
+  function resolveTheme(mode: ThemeMode): "light" | "dark" {
+    if (mode === "light" || mode === "dark") {
+      return mode;
+    }
+
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  }
+
+  function applyButtonState(button: HTMLElement, mode: ThemeMode): void {
+    button.dataset.mode = mode;
+    const icon = button.querySelector(".theme-toggle-icon");
+    const label = button.querySelector(".theme-toggle-label");
+
+    if (icon) {
+      icon.textContent = ICONS[mode];
+    }
+
+    if (label) {
+      label.textContent = LABELS[mode];
+    }
+  }
+
+  function init(): void {
+    const button = document.getElementById("theme-toggle");
+
+    if (!button) {
+      return;
+    }
+
+    const stored =
+      (localStorage.getItem(STORAGE_KEY) as ThemeMode | null) ?? "system";
+    applyButtonState(button, stored);
+
+    button.addEventListener("click", () => {
+      const current =
+        (button.dataset.mode as ThemeMode | undefined) ?? "system";
+      const currentIndex = ORDER.indexOf(current);
+      const next = ORDER[(currentIndex + 1) % ORDER.length] ?? "system";
+
+      localStorage.setItem(STORAGE_KEY, next);
+      document.documentElement.setAttribute("data-theme", resolveTheme(next));
+      applyButtonState(button, next);
+    });
+  }
+
+  init();
+</script>

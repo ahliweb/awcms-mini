@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T13:35:00Z            |
+| Snapshot     | 2026-07-05T14:15:00Z            |
 | Total issue  | 38                              |
-| Open issue   | 7                               |
-| Closed issue | 31                              |
+| Open issue   | 6                               |
+| Closed issue | 32                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    7 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   31 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    6 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   32 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -42,10 +42,14 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                                                 |
-| ------ | -----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |      7 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 8, 9, 10, 11, 12).                                                                              |
-| CLOSED |     31 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391-#393, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, epic M5 (6.1-6.3). |
+| State  | Jumlah | Catatan                                                                                                                                                                                |
+| ------ | -----: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |      6 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 9, 10, 11, 12).                                                                                                |
+| CLOSED |     32 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391-#393, #398, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, epic M5 (6.1-6.3), dan 8.1. |
+
+### Admin layout shell 8.1 completed (2026-07-05)
+
+Issue [#398](https://github.com/ahliweb/awcms-mini/issues/398) ditutup `completed` — issue frontend pertama di repo ini (0.1-6.3 seluruhnya backend-only). Menambahkan design token/theming (`src/styles/tokens.css`, light/dark/system tanpa flash), `src/layouts/AdminLayout.astro` SSR (topbar dengan nama tenant nyata, sidebar navigasi difilter permission efektif, breadcrumb), komponen stub `TenantSwitcher`/`SyncIndicator` (menunggu data live Issue 9.1)/`ThemeToggle`, halaman `/login`, `/admin`, `/admin/settings`, helper `resolveSsrContext` (menggunakan ulang `resolveTenantContext`/`fetchGrantedPermissionKeys` dari modul `identity-access`), dan cookie sesi httpOnly + SameSite=Lax **additive** pada `POST /auth/login`/`POST /auth/logout` (body JSON tidak berubah). Diverifikasi langsung terhadap PostgreSQL 16 + server Astro SSR berjalan (diverifikasi ulang independen): redirect ke `/login` tanpa sesi, cookie ter-set saat login, akses `/admin` dengan cookie menampilkan nama tenant + nav sesuai permission owner, logout menghapus cookie dan sesi kembali ditolak. Verifikasi HTML/HTTP saja (tidak ada browser sungguhan di sandbox). **Bug ditemukan+diperbaiki**: `Astro.redirect()` di komponen layout bersarang melempar `ResponseSentError` (SSR streaming sudah mulai) — dipindahkan ke `src/middleware.ts`. Issue pertama epic M7 (UI/UX & Reporting) tuntas.
 
 ### R2 object sync queue 6.3 completed (2026-07-05)
 

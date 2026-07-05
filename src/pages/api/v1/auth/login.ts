@@ -8,6 +8,10 @@ import {
   generateSessionToken,
   hashSessionToken
 } from "../../../../lib/auth/session-token";
+import {
+  SESSION_COOKIE_NAME,
+  TENANT_COOKIE_NAME
+} from "../../../../lib/auth/ssr-session";
 
 const MAX_FAILED_ATTEMPTS = Number(process.env.AUTH_LOGIN_MAX_ATTEMPTS ?? 5);
 const LOCKOUT_MINUTES = 15;
@@ -18,7 +22,7 @@ type LoginBody = {
   password?: unknown;
 };
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, cookies }) => {
   const tenantId = request.headers.get("x-awcms-mini-tenant-id");
 
   if (!tenantId) {
@@ -139,6 +143,22 @@ export const POST: APIRoute = async ({ request }) => {
       INSERT INTO awcms_mini_sessions (tenant_id, identity_id, token_hash, expires_at)
       VALUES (${tenantId}, ${identityRow!.id}, ${tokenHash}, ${expiresAt})
     `;
+
+    // Additive (Issue 8.1): also set httpOnly + SameSite=Lax cookies so the
+    // SSR admin shell (src/layouts/AdminLayout.astro) can authenticate
+    // without exposing the raw session token to client-side JavaScript
+    // (doc 15 §Autentikasi dan sesi). The JSON response body below is
+    // unchanged for backward compatibility with existing bearer-token
+    // clients/tests.
+    const cookieOptions = {
+      httpOnly: true,
+      sameSite: "lax" as const,
+      path: "/",
+      maxAge: SESSION_TTL_MIN * 60,
+      secure: process.env.AUTH_COOKIE_SECURE === "true"
+    };
+    cookies.set(SESSION_COOKIE_NAME, token, cookieOptions);
+    cookies.set(TENANT_COOKIE_NAME, tenantId, cookieOptions);
 
     return ok({ token, expiresAt: expiresAt.toISOString() });
   });
