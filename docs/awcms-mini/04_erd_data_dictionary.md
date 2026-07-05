@@ -102,10 +102,12 @@ erDiagram
 | `tenant_name`    | text | Nama operasional          |
 | `legal_name`     | text | Nama legal                |
 | `status`         | text | active/inactive/suspended |
-| `default_locale` | text | id/en/ms/ar               |
+| `default_locale` | text | en/id/ms/ar               |
 | `default_theme`  | text | light/dark/system         |
 
 Index: unique `tenant_code`.
+
+`default_locale` — locale default tenant (min **en**, **id**). **Target default `'en'`**; migration `002` saat ini masih `DEFAULT 'id'` — diubah ke `'en'` via migration baru saat i18n dibangun (issue #433, milestone M9). Locale efektif = preferensi per-user (bila ada) → `default_locale` tenant.
 
 ### `awcms_mini_offices`
 
@@ -201,6 +203,21 @@ Kolom penting: `contact_id`, `channel_type`, `provider_code`, `message_type`, `p
 Event lokal yang perlu disinkronkan.
 
 Kolom penting: `node_id`, `event_type`, `aggregate_type`, `aggregate_id`, `payload_json`, `status`.
+
+## Konten multi-bahasa (translatable content)
+
+Berbeda dari **string UI statis** (label/tombol/pesan error) yang memakai katalog `.po` gettext di sisi aplikasi (doc 14 §i18n), **data input pengguna** yang perlu tampil multi-bahasa disimpan **di database, satu nilai per bahasa aktif**. Base generik belum punya kolom konten yang di-i18n-kan (itu scope aplikasi turunan); ini **konvensi/standar** yang wajib diikuti aplikasi turunan saat menambah field konten translatable.
+
+Pola yang diizinkan (pilih per kebutuhan, konsisten dalam satu modul):
+
+- **JSONB per-locale** — kolom `<field>_i18n jsonb` berisi `{ "en": "...", "id": "..." }` untuk semua **bahasa aktif** tenant. Cocok untuk field bebas yang jarang di-query per-bahasa. Fallback ke `default_locale` bila key locale aktif kosong.
+- **Tabel translasi terpisah** — `<entity>_translations (entity_id, locale, field, value)` dengan unique `(entity_id, locale, field)`. Cocok bila konten di-query/urut/cari per-bahasa (perlu index). Tetap tenant-scoped + RLS.
+
+Aturan:
+
+- Wajib menyimpan nilai untuk **setiap locale aktif** tenant (minimal `en`+`id`); tampilan memilih nilai locale aktif dengan fallback ke `default_locale`.
+- Tetap ikut RLS tenant isolation, soft delete (bila entity-nya soft-deletable), dan masking bila field sensitif.
+- Nilai locale bukan secret; tetap divalidasi & di-escape saat render (anti-XSS, auto-escape Astro).
 
 ## Soft delete standard
 
