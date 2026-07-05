@@ -48,18 +48,28 @@ describe("checkMermaid", () => {
   test("blok tidak ditutup dilaporkan", () => {
     const md = "```mermaid\nflowchart LR\n  A --> B";
     const problems = checkMermaid("f.md", lines(md));
-    expect(problems.some((p) => p.message.includes("tidak ditutup"))).toBe(true);
+    expect(problems.some((p) => p.message.includes("tidak ditutup"))).toBe(
+      true
+    );
   });
 
   test("hanya baris konten pertama yang divalidasi (isi diagram bebas)", () => {
-    const md = "```mermaid\nflowchart LR\n  pos --> checkout\n  tax --> vat\n```";
+    const md =
+      "```mermaid\nflowchart LR\n  pos --> checkout\n  tax --> vat\n```";
     expect(checkMermaid("f.md", lines(md))).toEqual([]);
   });
 
   test("dua blok, satu rusak satu valid", () => {
-    const md = ["```mermaid", "flowchart LR", "A-->B", "```", "", "```mermaid", "nope", "```"].join(
-      "\n"
-    );
+    const md = [
+      "```mermaid",
+      "flowchart LR",
+      "A-->B",
+      "```",
+      "",
+      "```mermaid",
+      "nope",
+      "```"
+    ].join("\n");
     const problems = checkMermaid("f.md", lines(md));
     expect(problems).toHaveLength(1);
     expect(problems[0]?.message).toContain("nope");
@@ -77,7 +87,9 @@ describe("checkMermaid", () => {
 
 describe("slugify / headingSlugs", () => {
   test("slugify gaya GitHub", () => {
-    expect(slugify("Arsitektur Tingkat Tinggi")).toBe("arsitektur-tingkat-tinggi");
+    expect(slugify("Arsitektur Tingkat Tinggi")).toBe(
+      "arsitektur-tingkat-tinggi"
+    );
     expect(slugify("Tata kelola & komunitas")).toBe("tata-kelola--komunitas");
     expect(slugify("RLS (ADR-0003)")).toBe("rls-adr-0003");
   });
@@ -105,12 +117,14 @@ describe("checkNaming", () => {
   });
 
   test("tidak menandai penamaan benar", () => {
-    const md = "`awcms_mini_tenants`, `AWCMS_MINI_NODE_ID`, skill `awcms-mini-release`";
+    const md =
+      "`awcms_mini_tenants`, `AWCMS_MINI_NODE_ID`, skill `awcms-mini-release`";
     expect(checkNaming("f.md", lines(md))).toEqual([]);
   });
 
   test("nama skill/paket kebab-case (awcms-mini-...) tidak salah tangkap", () => {
-    const md = "lihat `awcms-mini-new-migration` dan `docs/awcms-mini/README.md`";
+    const md =
+      "lihat `awcms-mini-new-migration` dan `docs/awcms-mini/README.md`";
     expect(checkNaming("f.md", lines(md))).toEqual([]);
   });
 
@@ -153,7 +167,13 @@ describe("classifyLink", () => {
 
 describe("splitTarget", () => {
   test("memisahkan path dan anchor", () => {
-    expect(splitTarget("./a/b.md#bagian")).toEqual({ path: "./a/b.md", hash: "bagian" });
-    expect(splitTarget("./a/b.md")).toEqual({ path: "./a/b.md", hash: undefined });
+    expect(splitTarget("./a/b.md#bagian")).toEqual({
+      path: "./a/b.md",
+      hash: "bagian"
+    });
+    expect(splitTarget("./a/b.md")).toEqual({
+      path: "./a/b.md",
+      hash: undefined
+    });
   });
 });

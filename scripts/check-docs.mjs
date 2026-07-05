@@ -28,7 +28,10 @@ const ROOT = resolve(import.meta.dirname, "..");
 
 /** @returns {string[]} */
 function listMarkdown() {
-  const out = execFileSync("git", ["ls-files", "*.md"], { cwd: ROOT, encoding: "utf8" });
+  const out = execFileSync("git", ["ls-files", "*.md"], {
+    cwd: ROOT,
+    encoding: "utf8"
+  });
   // `git ls-files` mencerminkan index, bukan working tree — berkas yang
   // dihapus tapi belum di-stage (mis. changeset yang baru dikonsumsi) masih
   // muncul di sini. Saring agar hanya berkas yang benar-benar ada di disk.
@@ -52,7 +55,9 @@ function checkLinks(file, content) {
     if (classifyLink(target) !== "relative") continue;
     const { path, hash } = splitTarget(target);
     if (!path) continue;
-    const resolved = path.startsWith("/") ? join(ROOT, path) : resolve(dir, path);
+    const resolved = path.startsWith("/")
+      ? join(ROOT, path)
+      : resolve(dir, path);
     if (!existsSync(resolved)) {
       problems.push({ file, line, message: `tautan rusak: ${target}` });
       continue;
@@ -60,7 +65,11 @@ function checkLinks(file, content) {
     if (hash && resolved.endsWith(".md") && statSync(resolved).isFile()) {
       const slugs = headingSlugs(readFileSync(resolved, "utf8"));
       if (!slugs.has(hash.toLowerCase())) {
-        problems.push({ file, line, message: `anchor tidak ditemukan: #${hash}` });
+        problems.push({
+          file,
+          line,
+          message: `anchor tidak ditemukan: #${hash}`
+        });
       }
     }
   }
@@ -85,7 +94,8 @@ if (import.meta.main) {
   const problems = runChecks();
   if (problems.length > 0) {
     console.error(`check:docs GAGAL — ${problems.length} temuan:`);
-    for (const p of problems) console.error(`  - ${p.file}:${p.line}: ${p.message}`);
+    for (const p of problems)
+      console.error(`  - ${p.file}:${p.line}: ${p.message}`);
     process.exit(1);
   }
   console.log("check:docs OK — mermaid, tautan internal, dan penamaan valid.");

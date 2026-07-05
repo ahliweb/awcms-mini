@@ -14,7 +14,7 @@ export type ListOptions = {
 export const SOFT_DELETE_COLUMNS = [
   "deleted_at",
   "deleted_by",
-  "delete_reason",
+  "delete_reason"
 ] as const;
 
 export function shouldIncludeDeleted(options: ListOptions = {}): boolean {

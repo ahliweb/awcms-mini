@@ -10,8 +10,8 @@ Setiap modul wajib mendeklarasikan `ModuleDescriptor` dari `module-contract.ts`,
 
 Endpoint REST memakai helper dari `api-response.ts` agar response konsisten:
 
-- sukses: `{ ok: true, data, meta }`
-- gagal: `{ ok: false, error: { code, message, details? }, meta }`
+- sukses: `{ success: true, data, meta }`
+- gagal: `{ success: false, error: { code, message, details? }, meta }`
 
 ## Soft Delete Convention
 

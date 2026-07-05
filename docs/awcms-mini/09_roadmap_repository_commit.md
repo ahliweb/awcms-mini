@@ -263,23 +263,25 @@ Aplikasi turunan menambah layar domainnya sendiri (mis. layar operasional, porta
 
 ```mermaid
 flowchart LR
-  V1[v0.1.0<br/>foundation/tenant/identity] --> V2[v0.2.0<br/>RBAC/ABAC]
-  V2 --> V3[v0.3.0<br/>logging/pooling/security readiness]
-  V3 --> V4[v0.4.0<br/>sync storage]
-  V4 --> V5[v0.5.0<br/>UI shell/reporting]
-  V5 --> V6[v0.6.0<br/>workflow/deployment]
-  V6 --> V7[v1.0.0<br/>base production-ready]
+  V1[v0.1.0<br/>foundation skeleton] --> V2[v0.2.0<br/>tenant/identity/profile]
+  V2 --> V3[v0.3.0<br/>RBAC/ABAC]
+  V3 --> V4[v0.4.0<br/>logging/pooling/security readiness]
+  V4 --> V5[v0.5.0<br/>sync storage]
+  V5 --> V6[v0.6.0<br/>UI shell/reporting]
+  V6 --> V7[v0.7.0<br/>workflow/deployment]
+  V7 --> V8[v1.0.0<br/>base production-ready]
 ```
 
-| Versi    | Isi                                             |
-| -------- | ----------------------------------------------- |
-| `v0.1.0` | Foundation, tenant, identity, profile           |
-| `v0.2.0` | RBAC/ABAC evaluator + assignment                |
-| `v0.3.0` | Logging, pooling, security readiness            |
-| `v0.4.0` | Sync storage (outbox/inbox, conflict, R2 queue) |
-| `v0.5.0` | UI shell, management reporting                  |
-| `v0.6.0` | Workflow approval, deployment profile           |
-| `v1.0.0` | Base production-ready (gates doc 07)            |
+| Versi    | Isi                                                                                 |
+| -------- | ----------------------------------------------------------------------------------- |
+| `v0.1.0` | Foundation skeleton (SSR, module contract, migration runner, API contract baseline) |
+| `v0.2.0` | Tenant, identity, profile                                                           |
+| `v0.3.0` | RBAC/ABAC evaluator + assignment                                                    |
+| `v0.4.0` | Logging, pooling, security readiness                                                |
+| `v0.5.0` | Sync storage (outbox/inbox, conflict, R2 queue)                                     |
+| `v0.6.0` | UI shell, management reporting                                                      |
+| `v0.7.0` | Workflow approval, deployment profile                                               |
+| `v1.0.0` | Base production-ready (gates doc 07)                                                |
 
 Aplikasi turunan (mis. AWPOS) memakai baseline versinya sendiri di atas base ini (lihat versioning doc 09 milik aplikasi tersebut).
 

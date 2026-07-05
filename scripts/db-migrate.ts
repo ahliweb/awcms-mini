@@ -230,7 +230,9 @@ async function main() {
       `db:migrate complete — ${result.applied.length} applied, ${result.skipped.length} skipped`
     );
   } catch (error) {
-    console.error(`db:migrate failed — ${safeErrorMessage(error, databaseUrl)}`);
+    console.error(
+      `db:migrate failed — ${safeErrorMessage(error, databaseUrl)}`
+    );
     process.exitCode = 1;
   } finally {
     await sql?.close({ timeout: 1 });
