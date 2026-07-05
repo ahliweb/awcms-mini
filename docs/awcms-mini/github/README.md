@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T18:00:00Z            |
+| Snapshot     | 2026-07-05T19:20:00Z            |
 | Total issue  | 38                              |
-| Open issue   | 1                               |
-| Closed issue | 37                              |
+| Open issue   | 0                               |
+| Closed issue | 38                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    1 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   37 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    0 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   38 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -42,10 +42,14 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                                                                                                                       |
-| ------ | -----: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |      1 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 12.2) — issue terakhir epic M8, `status:ready`.                                                                                                                       |
-| CLOSED |     37 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391-#393, #398, #401, #403-#406, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, epic M5 (6.1-6.3), epic M7 (8.1-9.1), 10.1, 10.2, 10.3, dan 11.1. |
+| State  | Jumlah | Catatan                                                                                                                                                                                                                                                   |
+| ------ | -----: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |      0 | **Tidak ada issue open** — seluruh 18 issue backlog base generik `docs/awcms-mini/06_github_issues_detail.md` sudah `completed`.                                                                                                                          |
+| CLOSED |     38 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391-#393, #398, #401, #403-#406, #407, dan #408 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, epic M5 (6.1-6.3), epic M7 (8.1-9.1), 10.1, 10.2, 10.3, 11.1, dan 12.2. |
+
+### Offline/LAN deployment profile 12.2 completed — seluruh backlog base generik tuntas (2026-07-05)
+
+Issue [#408](https://github.com/ahliweb/awcms-mini/issues/408) ditutup `completed` — **issue terakhir dari 18 issue backlog base generik doc06**; epic M8 dan seluruh backlog kini tuntas. Tidak ada migration baru, deliverable-nya murni aset deployment: `deploy/systemd/awcms-mini.service.example`, `deploy/nginx/awcms-mini.conf.example`, `deploy/pgbouncer/pgbouncer.ini.example` (kini canonical — `docs/awcms-mini/database-pooling.md` merujuk ke sini alih-alih duplikasi), `deploy/backup/backup-postgres.sh`/`restore-postgres.sh` (checksum + retention, restore aman secara default ke database uji sekali pakai, menolak menimpa database sumber). `docker-compose.yml` di root: stack LAN-first `app` (`oven/bun:1`) + `db` (`postgres:16`), plus service `pgbouncer` opsional lewat Compose profile. `bun run config:validate` (validasi env wajib/bersyarat sesuai doc 18, tanpa membocorkan nilai secret) ditambahkan sebagai tahap pertama `production:preflight`. `docs/awcms-mini/deployment-profiles.md` baru memetakan 4 profil environment ke aset deployment yang relevan. Diverifikasi langsung terhadap PostgreSQL 16 + server Astro SSR berjalan, **termasuk `docker-compose.yml` benar-benar dinyalakan terhadap Docker nyata** (diverifikasi ulang independen): container `app`+`db` boot bersih, `GET /api/v1/health` → 200; tenant nyata dibuat; backup asli (`pg_dump` + checksum SHA-256) dan restore asli (ke database uji terpisah) dijalankan penuh, jumlah baris cocok persis antara sumber dan hasil restore; percobaan restore ke database sumber ditolak bersih. **Bug ditemukan+diperbaiki**: service `app` sempat jalan sebagai root, menulis file root-owned ke repo yang di-mount — diperbaiki dengan `user: "${APP_UID}:${APP_GID}"` eksplisit.
 
 ### Workflow approval engine 11.1 completed (2026-07-05)
 

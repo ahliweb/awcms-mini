@@ -706,22 +706,22 @@ export const OUT_OF_SCOPE_ITEMS: OutOfScopeItem[] = [
   {
     name: "PostgreSQL not publicly exposed",
     reason:
-      "Deployment-profile concern; `docker-compose.yml`/deployment profile is reserved for Issue 12.2 (still open). Not verifiable from application code alone — manual / deferred to Issue 12.2."
+      "Deployment-profile concern; `docker-compose.yml` (Issue 12.2) binds `db` to a firewalled/LAN host by operator configuration, not something this script can verify from source alone. Manual — check the actual deployed network exposure."
   },
   {
     name: "Least-privilege DB user",
     reason:
-      "Deployment-profile concern (DB role/grants are provisioned at deploy time, not by this repo's code). Manual / deferred to Issue 12.2."
+      "Deployment-profile concern (DB role/grants are provisioned at deploy time, not by this repo's code). Manual verification against the provisioned database."
   },
   {
     name: "Backup/restore tested",
     reason:
-      "Requires a real backup/restore run against a provisioned environment (see skill `awcms-mini-production-preflight` §Backup & restore for the SOP commands). Manual / deferred to Issue 12.2."
+      "Requires a real backup/restore run against a provisioned environment using `deploy/backup/backup-postgres.sh` / `deploy/backup/restore-postgres.sh` (Issue 12.2; see skill `awcms-mini-production-preflight` §Backup & restore). Manual — run the scripts and verify a restored row count."
   },
   {
     name: "PostgreSQL version pinned",
     reason:
-      "Deployment-profile concern (base image/version pin lives in docker-compose.yml). Manual / deferred to Issue 12.2."
+      "Deployment-profile concern — `docker-compose.yml` (Issue 12.2) pins `image: postgres:16`. Not independently re-verified here to avoid parsing YAML as a proxy for a real deployed version check; confirm the running server's version manually (`SELECT version();`)."
   }
 ];
 

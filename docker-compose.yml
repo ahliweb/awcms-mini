@@ -1,0 +1,135 @@
+# docker-compose.yml — LAN-first single-server stack (Issue 12.2, doc 18
+# §Topologi deployment LAN-first, doc 07 §Profil per-environment).
+#
+# Default stack: `app` + `db` on one server, matching doc 18's offline/LAN
+# topology (one machine runs the application and PostgreSQL together;
+# clients on the LAN hit the app directly, no internet dependency). See
+# `docs/awcms-mini/deployment-profiles.md` for how this maps to each
+# environment profile, and `deploy/` for the systemd/nginx/pgbouncer/backup
+# assets this compose file complements rather than replaces (systemd is the
+# bare-metal alternative to `app`; this file is the containerized one).
+#
+# Usage:
+#   cp .env.example .env      # then edit secrets/config as needed
+#   export APP_UID=$(id -u) APP_GID=$(id -g)   # see `app.user` note below
+#   docker compose up --build
+#   curl http://localhost:4321/api/v1/health
+#
+# `app` image choice: no separate Dockerfile. This mounts the repository
+# into `oven/bun:1` (never `node` — AGENTS.md rule 14, doc 18 §Runtime &
+# tooling) and runs `bun install && bun run build && bun ./dist/server/entry.mjs`
+# as the container command. This is the simplest option for a LAN-first,
+# single-server, offline-capable deployment where operators are expected to
+# `git pull`/rebuild in place; it trades a slightly slower container start
+# (install + build happen every `up`) for zero extra Dockerfile/image-layer
+# maintenance. A multi-stage Dockerfile producing a slim pre-built image
+# would start faster and be preferable for a registry-based/CI-pushed
+# deployment — revisit if this project grows a container registry
+# workflow; not needed for the LAN-first base case this issue targets.
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      # Matches the default DATABASE_URL documented in .env.example — a
+      # fresh `docker compose up` works out of the box against that file.
+      # Override via `.env`/shell env for a real deployment; never hardcode
+      # real credentials here (doc 10/18 "secrets only from environment").
+      POSTGRES_USER: ${POSTGRES_USER:-awcms-mini}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-awcms_mini_password}
+      POSTGRES_DB: ${POSTGRES_DB:-awcms-mini}
+    volumes:
+      - awcms-mini-db-data:/var/lib/postgresql/data
+    ports:
+      # Host-facing port for local development convenience (psql from the
+      # host, GUI clients, etc.). Not required by `app`, which talks to
+      # `db` over the internal compose network. Remove/firewall this
+      # mapping for a hardened production/offline-LAN deployment where the
+      # database should not be reachable outside the compose network at all
+      # (doc 07 §Production readiness checklist "PostgreSQL tidak public").
+      - "5432:5432"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-awcms-mini} -d ${POSTGRES_DB:-awcms-mini}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: oven/bun:1
+    restart: unless-stopped
+    working_dir: /app
+    # Runs as the host user instead of the image's default root — otherwise
+    # `bun install`/`bun run build` write root-owned files
+    # (node_modules/.vite, dist/) into the bind-mounted repo, which then
+    # blocks the *host* user from running `bun run build`/`bun install` on
+    # the same checkout afterwards (a real gotcha hit and fixed during this
+    # issue's live verification: on a host directory with a restrictive
+    # mode, e.g. `700`, a *wrong* uid/gid guess — such as a hardcoded
+    # default of 1000:1000 that doesn't match the real host user — fails
+    # even harder, with `EACCES` on every file, since only the exact owning
+    # uid can traverse into such a directory). Always export APP_UID/APP_GID
+    # to your real host user before `docker compose up` (see the usage
+    # comment above); the `1000:1000` fallback below only exists so
+    # `docker compose config` has something to substitute when the
+    # variables are unset (e.g. a syntax check in CI), not as a safe
+    # standalone default.
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    volumes:
+      - .:/app
+    # `bun install` runs on every `up` so the container always matches the
+    # mounted source tree/lockfile; acceptable for the LAN-first target.
+    # HOME is set explicitly because the container's non-root uid has no
+    # passwd entry (bind-mounted repo, not a real image user) — without it
+    # Bun/Vite cache lookups can fail trying to resolve a home directory.
+    command: sh -c "bun install && bun run build && bun ./dist/server/entry.mjs"
+    env_file:
+      # Copy .env.example to .env before running `docker compose up` — this
+      # file is git-ignored and never committed (doc 18 §Prinsip
+      # konfigurasi). Run `bun run config:validate` to check it before
+      # boot.
+      - .env
+    environment:
+      # These two intentionally override whatever `.env` contains: inside
+      # the compose network, PostgreSQL is reachable at the `db` service
+      # name, not `localhost` (each container has its own network
+      # namespace) — `.env.example`'s default DATABASE_URL uses `localhost`
+      # for the non-container/systemd deployment case.
+      DATABASE_URL: postgres://${POSTGRES_USER:-awcms-mini}:${POSTGRES_PASSWORD:-awcms_mini_password}@db:5432/${POSTGRES_DB:-awcms-mini}
+      HOST: "0.0.0.0"
+      PORT: "4321"
+      HOME: /tmp
+    ports:
+      - "4321:4321"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Optional PgBouncer front-end for the `db` service — gated behind the
+  # "pgbouncer" Compose profile so it never starts by default (doc 18's
+  # LAN-first topology does not need it; see
+  # deploy/pgbouncer/pgbouncer.ini.example and
+  # docs/awcms-mini/database-pooling.md §7). Enable explicitly with:
+  #   docker compose --profile pgbouncer up
+  # This illustrates the shape of the service only: `auth_type = md5` in
+  # the mounted example .ini requires a real `userlist.txt` with hashed
+  # credentials, which this compose file does not generate (a secret file,
+  # never committed) — provide your own via an additional volume mount
+  # before relying on this profile.
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    profiles: ["pgbouncer"]
+    restart: unless-stopped
+    volumes:
+      - ./deploy/pgbouncer/pgbouncer.ini.example:/etc/pgbouncer/pgbouncer.ini:ro
+    ports:
+      - "6432:6432"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  awcms-mini-db-data:

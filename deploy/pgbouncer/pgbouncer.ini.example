@@ -1,0 +1,37 @@
+; pgbouncer.ini.example — PgBouncer (transaction mode) template (Issue 12.2,
+; doc 18 §Topologi deployment LAN-first, doc 11 §Sprint 12 deploy files).
+;
+; This is the canonical copy of the example first documented inline in
+; docs/awcms-mini/database-pooling.md (Issue 10.2, §7 "PgBouncer (transaction
+; mode)") — that doc now links here instead of duplicating it, to avoid two
+; copies drifting apart.
+;
+; OPTIONAL. Doc 18's LAN-first topology is one server running the app +
+; PostgreSQL directly (see docker-compose.yml at the repo root) — PgBouncer
+; is only needed when there are many short-lived connections in front of
+; Postgres (e.g. serverless/edge clients, high connection churn), not for
+; the default single-server LAN setup.
+;
+; Copy into place and adapt before use:
+;   sudo cp deploy/pgbouncer/pgbouncer.ini.example /etc/pgbouncer/pgbouncer.ini
+;   sudo systemctl enable --now pgbouncer
+;
+; When PgBouncer is fronting this app in transaction pool mode, set
+; DATABASE_PGBOUNCER=true in the app's environment — this automatically
+; disables prepared statements on the Bun.SQL client (see
+; docs/awcms-mini/database-pooling.md §1), which are unsafe under PgBouncer
+; transaction mode because a prepared statement can be reused on a
+; different backend connection between transactions.
+
+[databases]
+awcms-mini = host=127.0.0.1 port=5432 dbname=awcms-mini
+
+[pgbouncer]
+listen_addr = 0.0.0.0
+listen_port = 6432
+auth_type = md5
+pool_mode = transaction
+; max_client_conn menampung banyak koneksi pendek dari edge/serverless;
+; default_pool_size selaras dengan DATABASE_POOL_MAX aplikasi ini.
+max_client_conn = 200
+default_pool_size = 20

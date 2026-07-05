@@ -198,26 +198,28 @@ Issue 0.3.
 
 ## 7. PgBouncer (transaction mode) — contoh konfigurasi
 
-Repo ini belum memiliki `docker-compose.yml`/deployment profile (target
-Issue 12.2). Bagian ini hanya contoh dokumentasi untuk aplikasi turunan yang
-ingin menaruh PgBouncer di depan base ini, misalnya karena banyak koneksi
-berumur pendek (serverless/edge deployment).
+Sejak Issue 12.2, `docker-compose.yml` dan seluruh berkas deployment ada di
+`deploy/`. Contoh konfigurasi PgBouncer sekarang tersimpan satu tempat
+(canonical) di
+[`../../deploy/pgbouncer/pgbouncer.ini.example`](../../deploy/pgbouncer/pgbouncer.ini.example)
+— bagian ini hanya kutipan singkat, jangan duplikasi isi lengkapnya di sini
+agar tidak ada dua salinan yang bisa berbeda seiring waktu:
 
 ```ini
-; pgbouncer.ini (contoh)
+; pgbouncer.ini.example (kutipan — lihat berkas lengkap di link di atas)
 [databases]
 awcms-mini = host=127.0.0.1 port=5432 dbname=awcms-mini
 
 [pgbouncer]
-listen_addr = 0.0.0.0
-listen_port = 6432
-auth_type = md5
 pool_mode = transaction
-; max_client_conn menampung banyak koneksi pendek dari edge/serverless;
-; default_pool_size selaras dengan DATABASE_POOL_MAX aplikasi ini.
-max_client_conn = 200
-default_pool_size = 20
+default_pool_size = 20 ; selaras dengan DATABASE_POOL_MAX aplikasi ini
 ```
+
+PgBouncer bersifat **opsional** — topologi LAN-first default (satu server
+app + PostgreSQL, lihat `docker-compose.yml` root dan
+[`deployment-profiles.md`](deployment-profiles.md)) tidak membutuhkannya;
+service `pgbouncer` di compose digerbangi lewat Docker Compose `profiles`
+sehingga hanya aktif bila diminta eksplisit.
 
 Implikasi saat `DATABASE_PGBOUNCER=true`:
 
