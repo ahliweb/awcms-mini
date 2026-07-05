@@ -135,6 +135,100 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/sync/conflicts:
+    get:
+      tags:
+        - Sync Storage
+      summary: List sync conflicts for the tenant (bearer session, not HMAC)
+      operationId: syncListConflicts
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - open
+              - resolved
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Recent sync conflicts, newest first (limit 50).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SyncConflictListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sync/conflicts/{id}/resolve:
+    post:
+      tags:
+        - Sync Storage
+      summary: Resolve a sync conflict (bearer session, not HMAC)
+      operationId: syncResolveConflict
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncConflictResolveRequest"
+      responses:
+        "200":
+          description: Conflict resolved.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SyncConflictResolveResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Conflict is already resolved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/setup/status:
     get:
       tags:
@@ -1000,6 +1094,13 @@ components:
         aggregateId:
           type: string
           format: uuid
+        baseVersion:
+          type: integer
+          minimum: 0
+          description: >-
+            The aggregate version this event was based on. Required once the
+            aggregate has any history; a mismatch against the server's
+            current version is recorded as a conflict instead of applied.
         payload:
           description: Event payload; shape is producer-defined.
     SyncPushRequest:
@@ -1023,6 +1124,7 @@ components:
       required:
         - batchId
         - accepted
+        - conflicted
         - duplicate
       additionalProperties: false
       properties:
@@ -1031,6 +1133,10 @@ components:
         accepted:
           type: integer
           minimum: 0
+        conflicted:
+          type: integer
+          minimum: 0
+          description: Number of events recorded as conflicts instead of applied.
         duplicate:
           type: boolean
           description: True if this batchId was already processed; no events were reprocessed.
@@ -1106,6 +1212,106 @@ components:
           format: date-time
         checkpoint:
           type: integer
+    SyncConflictEntry:
+      type: object
+      required:
+        - id
+        - nodeId
+        - batchId
+        - aggregateType
+        - aggregateId
+        - conflictType
+        - payload
+        - status
+        - createdAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        nodeId:
+          type: string
+          format: uuid
+        batchId:
+          type: string
+        aggregateType:
+          type: string
+        aggregateId:
+          type: string
+          format: uuid
+        conflictType:
+          type: string
+          enum:
+            - version_mismatch
+            - missing_base_version
+        payload:
+          description: The event payload that triggered the conflict.
+        status:
+          type: string
+          enum:
+            - open
+            - resolved
+        resolution:
+          type: string
+          enum:
+            - accept_incoming
+            - keep_existing
+            - manual
+        resolutionNote:
+          type: string
+        resolvedBy:
+          type: string
+          format: uuid
+        resolvedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    SyncConflictListResponse:
+      type: object
+      required:
+        - conflicts
+      additionalProperties: false
+      properties:
+        conflicts:
+          type: array
+          items:
+            $ref: "#/components/schemas/SyncConflictEntry"
+    SyncConflictResolveRequest:
+      type: object
+      required:
+        - resolution
+      additionalProperties: false
+      properties:
+        resolution:
+          type: string
+          enum:
+            - accept_incoming
+            - keep_existing
+            - manual
+        note:
+          type: string
+    SyncConflictResolveResponse:
+      type: object
+      required:
+        - id
+        - status
+        - resolution
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          const: resolved
+        resolution:
+          type: string
+          enum:
+            - accept_incoming
+            - keep_existing
+            - manual
     SoftDeleteQuery:
       type: object
       additionalProperties: false

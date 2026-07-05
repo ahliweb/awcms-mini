@@ -7,7 +7,7 @@
 
 AWCMS-Mini adalah **base modular monolith standar** AhliWeb berbasis **Bun + Astro 7 + PostgreSQL**. Ia berisi lapisan **reusable** (multi-tenant, RBAC/ABAC/RLS, audit, offline-first, kontrak OpenAPI/AsyncAPI, coding standard, skill proyek) yang menjadi fondasi aplikasi turunan. Aplikasi domain (mis. AWPOS untuk retail/POS) dibangun **di atas** base ini dengan menambah modulnya sendiri.
 
-> **Status:** Sprint foundation Issue 0.1-0.3, seluruh epic Tenant/Identity/Profile (Issue 2.1-2.4, M2), Issue 12.1 (Setup Wizard), dan Issue 6.1 (Sync Outbox/Inbox) tersedia: Astro build, health endpoint, module contract, response helper, soft-delete convention, folder standar, runner PostgreSQL checksum-based, baseline OpenAPI/AsyncAPI dengan validator, skema tenant/office/physical location/tenant settings, skema profile/identifier/channel/address/entity link/merge request, skema identity/tenant user/session dengan endpoint live `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, skema RBAC/ABAC dengan evaluator default-deny live `POST /access/evaluate`, setup wizard live `GET /setup/status`, `POST /setup/initialize`, dan sync node/outbox/inbox HMAC-signed live `POST /sync/push`, `POST /sync/pull`, `GET /sync/status` — seluruhnya dengan RLS. Modul sync conflict/R2, UI/reporting, deployment masih backlog. Kontributor & coding agent **wajib membaca [`AGENTS.md`](AGENTS.md) lebih dulu**.
+> **Status:** Sprint foundation Issue 0.1-0.3, seluruh epic Tenant/Identity/Profile (Issue 2.1-2.4, M2), Issue 12.1 (Setup Wizard), Issue 6.1 (Sync Outbox/Inbox), dan Issue 6.2 (Sync Conflict Tracking/Resolution) tersedia: Astro build, health endpoint, module contract, response helper, soft-delete convention, folder standar, runner PostgreSQL checksum-based, baseline OpenAPI/AsyncAPI dengan validator, skema tenant/office/physical location/tenant settings, skema profile/identifier/channel/address/entity link/merge request, skema identity/tenant user/session dengan endpoint live `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, skema RBAC/ABAC dengan evaluator default-deny live `POST /access/evaluate`, setup wizard live `GET /setup/status`, `POST /setup/initialize`, sync node/outbox/inbox HMAC-signed live `POST /sync/push`, `POST /sync/pull`, `GET /sync/status`, dan sync conflict tracking/resolution (bearer session) live `GET /sync/conflicts`, `POST /sync/conflicts/{id}/resolve` — seluruhnya dengan RLS. Modul R2, UI/reporting, deployment masih backlog. Kontributor & coding agent **wajib membaca [`AGENTS.md`](AGENTS.md) lebih dulu**.
 
 ## Daftar isi
 
@@ -137,7 +137,7 @@ flowchart LR
 
 ### Mulai dari
 
-Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/awcms-mini/06_github_issues_detail.md). Foundation **Issue 0.1-0.3**, seluruh epic M2 (**2.1** tenant/office, **2.2** central profile, **2.3** identity/login, **2.4** RBAC/ABAC), **12.1** (setup wizard), dan **6.1** (sync outbox/inbox) sudah tersedia; urutan berikutnya: **6.2** (sync conflict tracking), **6.3** (R2 object queue), lalu **8.1**/**9.1** (UI/reporting) — semuanya M5/M7, hanya bergantung pada M2 yang sudah tuntas. Epic 10/11/12.2 (M8) baru setelah M5+M7 selesai (lihat doc 06 §Koreksi urutan sprint (2)).
+Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/awcms-mini/06_github_issues_detail.md). Foundation **Issue 0.1-0.3**, seluruh epic M2 (**2.1** tenant/office, **2.2** central profile, **2.3** identity/login, **2.4** RBAC/ABAC), **12.1** (setup wizard), **6.1** (sync outbox/inbox), dan **6.2** (sync conflict tracking/resolution) sudah tersedia; urutan berikutnya: **6.3** (R2 object queue), lalu **8.1**/**9.1** (UI/reporting) — semuanya M5/M7, hanya bergantung pada M2 yang sudah tuntas. Epic 10/11/12.2 (M8) baru setelah M5+M7 selesai (lihat doc 06 §Koreksi urutan sprint (2)).
 
 ## Keamanan
 
@@ -158,7 +158,7 @@ Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/
 
 ## Versioning
 
-**Semantic Versioning** + **[Changesets](.changeset/README.md)**; riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Versi saat ini `0.7.0` (Foundation skeleton SSR + Issue 2.1-2.4: tenant/office, central profile, identity/login, RBAC/ABAC + Issue 12.1 setup wizard + Issue 6.1 sync outbox/inbox).
+**Semantic Versioning** + **[Changesets](.changeset/README.md)**; riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Versi saat ini `0.8.0` (Foundation skeleton SSR + Issue 2.1-2.4: tenant/office, central profile, identity/login, RBAC/ABAC + Issue 12.1 setup wizard + Issue 6.1 sync outbox/inbox + Issue 6.2 sync conflict tracking/resolution).
 
 ## Lisensi
 

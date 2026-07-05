@@ -6,6 +6,7 @@ import {
   resolveOrRegisterSyncNode,
   verifySyncHeaders
 } from "../../../../modules/sync-storage/application/sync-auth";
+import { evaluatePushEventConflict } from "../../../../modules/sync-storage/domain/sync-conflict";
 import { validateSyncPushRequestBody } from "../../../../modules/sync-storage/domain/sync-validation";
 
 export const POST: APIRoute = async ({ request }) => {
@@ -59,38 +60,97 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const existingBatch = await tx`
-      SELECT event_count FROM awcms_mini_sync_push_batches
+      SELECT event_count, conflicted_count FROM awcms_mini_sync_push_batches
       WHERE tenant_id = ${tenantId} AND node_id = ${node.id} AND batch_id = ${batchId}
     `;
 
     if (existingBatch[0]) {
+      const total = existingBatch[0].event_count as number;
+      const conflicted = existingBatch[0].conflicted_count as number;
+
       return ok({
         batchId,
-        accepted: existingBatch[0].event_count as number,
+        accepted: total - conflicted,
+        conflicted,
         duplicate: true
       });
     }
 
+    let acceptedCount = 0;
+    let conflictedCount = 0;
+
     for (const event of events) {
+      if (event.aggregateId === undefined) {
+        await tx`
+          INSERT INTO awcms_mini_sync_inbox
+            (tenant_id, node_id, batch_id, event_type, aggregate_type, aggregate_id, payload_json)
+          VALUES (
+            ${tenantId}, ${node.id}, ${batchId}, ${event.eventType}, ${event.aggregateType},
+            null, ${JSON.stringify(event.payload)}
+          )
+        `;
+        acceptedCount += 1;
+        continue;
+      }
+
+      const versionRows = await tx`
+        SELECT current_version FROM awcms_mini_sync_aggregate_versions
+        WHERE tenant_id = ${tenantId} AND aggregate_type = ${event.aggregateType}
+          AND aggregate_id = ${event.aggregateId}
+      `;
+      const currentVersion = versionRows[0]
+        ? Number(versionRows[0].current_version)
+        : 0;
+      const evaluation = evaluatePushEventConflict(
+        currentVersion,
+        event.baseVersion
+      );
+
+      if (evaluation.conflict) {
+        await tx`
+          INSERT INTO awcms_mini_sync_conflicts
+            (tenant_id, node_id, batch_id, aggregate_type, aggregate_id, conflict_type, payload_json)
+          VALUES (
+            ${tenantId}, ${node.id}, ${batchId}, ${event.aggregateType}, ${event.aggregateId},
+            ${evaluation.conflictType}, ${JSON.stringify(event.payload)}
+          )
+        `;
+        conflictedCount += 1;
+        continue;
+      }
+
       await tx`
         INSERT INTO awcms_mini_sync_inbox
           (tenant_id, node_id, batch_id, event_type, aggregate_type, aggregate_id, payload_json)
         VALUES (
           ${tenantId}, ${node.id}, ${batchId}, ${event.eventType}, ${event.aggregateType},
-          ${event.aggregateId ?? null}, ${JSON.stringify(event.payload)}
+          ${event.aggregateId}, ${JSON.stringify(event.payload)}
         )
       `;
+
+      await tx`
+        INSERT INTO awcms_mini_sync_aggregate_versions (tenant_id, aggregate_type, aggregate_id, current_version)
+        VALUES (${tenantId}, ${event.aggregateType}, ${event.aggregateId}, ${currentVersion + 1})
+        ON CONFLICT (tenant_id, aggregate_type, aggregate_id)
+        DO UPDATE SET current_version = ${currentVersion + 1}, updated_at = now()
+      `;
+      acceptedCount += 1;
     }
 
     await tx`
-      INSERT INTO awcms_mini_sync_push_batches (tenant_id, node_id, batch_id, event_count)
-      VALUES (${tenantId}, ${node.id}, ${batchId}, ${events.length})
+      INSERT INTO awcms_mini_sync_push_batches (tenant_id, node_id, batch_id, event_count, conflicted_count)
+      VALUES (${tenantId}, ${node.id}, ${batchId}, ${events.length}, ${conflictedCount})
     `;
 
     await tx`
       UPDATE awcms_mini_sync_nodes SET last_pushed_at = now() WHERE id = ${node.id}
     `;
 
-    return ok({ batchId, accepted: events.length, duplicate: false });
+    return ok({
+      batchId,
+      accepted: acceptedCount,
+      conflicted: conflictedCount,
+      duplicate: false
+    });
   });
 };

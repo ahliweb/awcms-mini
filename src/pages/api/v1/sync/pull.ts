@@ -56,7 +56,7 @@ export const POST: APIRoute = async ({ request }) => {
     const checkpointRows = await tx`
       SELECT last_pull_sequence FROM awcms_mini_sync_nodes WHERE id = ${node.id}
     `;
-    const sinceSequence = checkpointRows[0]!.last_pull_sequence as number;
+    const sinceSequence = Number(checkpointRows[0]!.last_pull_sequence);
 
     const rows = await tx`
       SELECT sequence, event_type, aggregate_type, aggregate_id, payload_json, created_at
@@ -67,7 +67,7 @@ export const POST: APIRoute = async ({ request }) => {
     `;
 
     type OutboxRow = {
-      sequence: number;
+      sequence: string | number;
       event_type: string;
       aggregate_type: string;
       aggregate_id: string | null;
@@ -76,7 +76,7 @@ export const POST: APIRoute = async ({ request }) => {
     };
 
     const events = (rows as OutboxRow[]).map((row) => ({
-      sequence: row.sequence,
+      sequence: Number(row.sequence),
       eventType: row.event_type,
       aggregateType: row.aggregate_type,
       aggregateId: row.aggregate_id ?? undefined,

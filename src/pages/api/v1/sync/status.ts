@@ -53,7 +53,7 @@ export const GET: APIRoute = async ({ request }) => {
       status: string;
       last_pushed_at: Date | null;
       last_pulled_at: Date | null;
-      last_pull_sequence: number;
+      last_pull_sequence: string | number;
     };
 
     return ok({
@@ -61,7 +61,7 @@ export const GET: APIRoute = async ({ request }) => {
       status: row.status,
       lastPushedAt: row.last_pushed_at?.toISOString(),
       lastPulledAt: row.last_pulled_at?.toISOString(),
-      checkpoint: row.last_pull_sequence
+      checkpoint: Number(row.last_pull_sequence)
     });
   });
 };

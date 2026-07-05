@@ -2,6 +2,7 @@ export type SyncPushEvent = {
   eventType: string;
   aggregateType: string;
   aggregateId?: string;
+  baseVersion?: number;
   payload: unknown;
 };
 
@@ -67,6 +68,19 @@ export function validateSyncPushRequestBody(
           message: "payload is required."
         });
       }
+
+      if (
+        "baseVersion" in candidate &&
+        candidate.baseVersion !== undefined &&
+        (typeof candidate.baseVersion !== "number" ||
+          !Number.isInteger(candidate.baseVersion) ||
+          candidate.baseVersion < 0)
+      ) {
+        errors.push({
+          field: `events[${index}].baseVersion`,
+          message: "baseVersion must be a non-negative integer when provided."
+        });
+      }
     });
   }
 
@@ -82,8 +96,63 @@ export function validateSyncPushRequestBody(
         eventType: event.eventType,
         aggregateType: event.aggregateType,
         aggregateId: event.aggregateId,
+        baseVersion: event.baseVersion,
         payload: event.payload
       }))
+    }
+  };
+}
+
+export type ConflictResolution = "accept_incoming" | "keep_existing" | "manual";
+
+export type ConflictResolutionRequestBody = {
+  resolution: ConflictResolution;
+  note?: string;
+};
+
+export type ConflictResolutionValidationResult =
+  | { valid: true; value: ConflictResolutionRequestBody }
+  | { valid: false; errors: ValidationError[] };
+
+const VALID_RESOLUTIONS: ReadonlySet<string> = new Set([
+  "accept_incoming",
+  "keep_existing",
+  "manual"
+]);
+
+export function validateConflictResolutionRequestBody(
+  body: unknown
+): ConflictResolutionValidationResult {
+  const errors: ValidationError[] = [];
+  const record = (body ?? {}) as Record<string, unknown>;
+
+  if (
+    typeof record.resolution !== "string" ||
+    !VALID_RESOLUTIONS.has(record.resolution)
+  ) {
+    errors.push({
+      field: "resolution",
+      message:
+        "resolution must be one of accept_incoming, keep_existing, manual."
+    });
+  }
+
+  if (record.note !== undefined && typeof record.note !== "string") {
+    errors.push({
+      field: "note",
+      message: "note must be a string when provided."
+    });
+  }
+
+  if (errors.length > 0) {
+    return { valid: false, errors };
+  }
+
+  return {
+    valid: true,
+    value: {
+      resolution: record.resolution as ConflictResolution,
+      note: record.note as string | undefined
     }
   };
 }

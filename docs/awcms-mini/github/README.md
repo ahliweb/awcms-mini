@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T04:57:58Z            |
+| Snapshot     | 2026-07-05T12:35:00Z            |
 | Total issue  | 38                              |
-| Open issue   | 9                               |
-| Closed issue | 29                              |
+| Open issue   | 8                               |
+| Closed issue | 30                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    9 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   29 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    8 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   30 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -44,8 +44,12 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 | State  | Jumlah | Catatan                                                                                                                                                  |
 | ------ | -----: | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |      9 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 6, 8, 9, 10, 11, 12).                                                            |
-| CLOSED |     29 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, dan 6.1. |
+| OPEN   |      8 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 6, 8, 9, 10, 11, 12).                                                                  |
+| CLOSED |     30 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391, #392, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, 6.1, 6.2. |
+
+### Sync conflict tracking/resolution 6.2 completed (2026-07-05)
+
+Issue [#392](https://github.com/ahliweb/awcms-mini/issues/392) ditutup `completed` setelah migrasi `sql/008_awcms_mini_sync_storage_conflict_schema.sql` menambahkan `awcms_mini_sync_aggregate_versions` (versi per aggregate untuk optimistic concurrency generik) dan `awcms_mini_sync_conflicts` (immutable, dua tipe konflik generik: `missing_base_version`, `version_mismatch`), plus kolom `conflicted_count` di `awcms_mini_sync_push_batches` dan 2 permission baru `sync_storage.conflict_resolution.read`/`.approve`. `POST /sync/push` menerima `baseVersion?` opsional per event dan mencatat event konflik alih-alih menerapkannya. Endpoint baru `GET /sync/conflicts` dan `POST /sync/conflicts/{id}/resolve` — sengaja diautentikasi via **bearer session** (bukan HMAC seperti push/pull/status), karena resolusi konflik adalah keputusan manual manusia sesuai ADR-0006. Diverifikasi langsung terhadap PostgreSQL 16 + server Astro SSR berjalan: push tanpa versi awal diterima, push tanpa `baseVersion` konflik (`missing_base_version`), push dengan `baseVersion` basi konflik (`version_mismatch`), push dengan `baseVersion` benar diterima, resolve conflict sukses, resolve ulang conflict yang sama ditolak 409. **Bug ditemukan+diperbaiki**: kolom `bigint` Postgres (`current_version`, `sequence`, `last_pull_sequence`) dikembalikan Bun.SQL sebagai string di runtime meski di-type-assert `as number`, menyebabkan push valid salah terdeteksi sebagai `version_mismatch` — diperbaiki dengan `Number(...)` eksplisit di `push.ts`/`pull.ts`/`status.ts` (bug laten sejak Issue 6.1, sekaligus memperbaiki pelanggaran kontrak OpenAPI `checkpoint: integer`).
 
 ### Sync outbox/inbox 6.1 completed (2026-07-05)
 

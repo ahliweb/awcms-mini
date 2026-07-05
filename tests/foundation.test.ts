@@ -135,7 +135,8 @@ describe("database migration runner helpers", () => {
       "004_awcms_mini_identity_login_schema.sql",
       "005_awcms_mini_abac_access_control_schema.sql",
       "006_awcms_mini_setup_wizard_schema.sql",
-      "007_awcms_mini_sync_storage_outbox_inbox_schema.sql"
+      "007_awcms_mini_sync_storage_outbox_inbox_schema.sql",
+      "008_awcms_mini_sync_storage_conflict_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
@@ -270,6 +271,31 @@ describe("database migration runner helpers", () => {
       "ALTER TABLE awcms_mini_sync_push_batches ENABLE ROW LEVEL SECURITY"
     );
     expect(syncSchema?.sql).toContain("awcms_mini_sync_push_batches_key");
+  });
+
+  test("sync conflict schema declares RLS, an immutable conflict table, and generic conflict_resolution permissions", async () => {
+    const migrations = await discoverMigrationFiles();
+    const conflictSchema = migrations.find(
+      (migration) =>
+        migration.name === "008_awcms_mini_sync_storage_conflict_schema.sql"
+    );
+
+    expect(conflictSchema).toBeDefined();
+    expect(conflictSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_sync_aggregate_versions ENABLE ROW LEVEL SECURITY"
+    );
+    expect(conflictSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_sync_conflicts ENABLE ROW LEVEL SECURITY"
+    );
+    expect(conflictSchema?.sql).toContain(
+      "CHECK (conflict_type IN ('version_mismatch', 'missing_base_version'))"
+    );
+    expect(conflictSchema?.sql).toContain(
+      "('sync_storage', 'conflict_resolution', 'read'"
+    );
+    expect(conflictSchema?.sql).toContain(
+      "('sync_storage', 'conflict_resolution', 'approve'"
+    );
   });
 });
 
