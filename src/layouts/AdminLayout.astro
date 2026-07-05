@@ -1,0 +1,323 @@
+---
+/**
+ * AdminLayout — SSR admin shell (Issue 8.1 — Build Admin Layout Shell).
+ *
+ * Topbar (site name, tenant switcher stub, sync indicator stub, theme
+ * toggle, user menu + logout) + sidebar (permission-filtered nav) +
+ * breadcrumb + `<slot />` for page content, per
+ * `docs/awcms-mini/14_ui_ux_design_system.md` §Layout shell / Admin shell.
+ *
+ * Auth: the actual "redirect to /login when there is no valid session"
+ * check (doc 15 §Autentikasi dan sesi) lives in `src/middleware.ts`, not
+ * here — see that file's comment for why. `Astro.locals.ssrContext` is
+ * guaranteed set by the time this layout renders for a `/admin/*` route;
+ * the throw below is a defensive invariant check, not a normal code path.
+ */
+import "../styles/tokens.css";
+import TenantSwitcher from "../components/TenantSwitcher.astro";
+import SyncIndicator from "../components/SyncIndicator.astro";
+import ThemeToggle from "../components/ThemeToggle.astro";
+import { getDatabaseClient } from "../lib/database/client";
+import { withTenant } from "../lib/database/tenant-context";
+
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "AdminLayout rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this layout ever runs."
+  );
+}
+
+const sql = getDatabaseClient();
+const tenantName = await withTenant(sql, context.tenantId, async (tx) => {
+  const rows = await tx`
+    SELECT tenant_name FROM awcms_mini_tenants WHERE id = ${context.tenantId}
+  `;
+
+  return (rows[0]?.tenant_name as string | undefined) ?? "Tenant";
+});
+
+const permissionList = Array.from(context.permissions);
+const hasAccessMenu = permissionList.some((key) =>
+  key.startsWith("identity_access.")
+);
+const hasSyncMenu = permissionList.some((key) =>
+  key.startsWith("sync_storage.")
+);
+
+const pathname = Astro.url.pathname;
+const isDashboardActive = pathname === "/admin";
+const isSettingsActive = pathname === "/admin/settings";
+---
+
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} · AWCMS-Mini</title>
+    {
+      /*
+        Theme resolution — runs before paint to prevent a flash of the
+        wrong theme (doc 14 §Theming). Reads localStorage (default
+        "system"), resolves against prefers-color-scheme when needed, and
+        sets data-theme on <html>. `is:inline` keeps this script exactly
+        as authored (no bundling/defer) so it executes synchronously here
+        in <head>, ahead of body paint.
+      */
+    }
+    <script is:inline>
+      (function () {
+        var STORAGE_KEY = "awcms_mini_theme";
+        var stored = localStorage.getItem(STORAGE_KEY) || "system";
+        var resolved =
+          stored === "light" || stored === "dark"
+            ? stored
+            : window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+        document.documentElement.setAttribute("data-theme", resolved);
+      })();
+    </script>
+  </head>
+  <body>
+    <div class="admin-shell">
+      <header class="admin-topbar">
+        <span class="admin-topbar-brand">AWCMS-Mini</span>
+        <TenantSwitcher tenantName={tenantName} />
+        <div class="admin-topbar-spacer"></div>
+        <SyncIndicator active={false} />
+        <ThemeToggle />
+        <div class="admin-user-menu">
+          <span class="admin-user-menu-roles">
+            {context.roles.length > 0 ? context.roles.join(", ") : "Tanpa role"}
+          </span>
+          <button
+            type="button"
+            id="admin-logout-button"
+            class="admin-logout-button"
+          >
+            Keluar
+          </button>
+        </div>
+      </header>
+      <div class="admin-body">
+        <nav class="admin-sidebar" aria-label="Navigasi utama">
+          <ul>
+            <li>
+              <a
+                href="/admin"
+                aria-current={isDashboardActive ? "page" : undefined}
+              >
+                Dashboard
+              </a>
+            </li>
+            {
+              hasAccessMenu && (
+                <li class="admin-nav-stub" aria-disabled="true">
+                  <span>
+                    Access &amp; Users{" "}
+                    <em class="admin-nav-badge">Segera hadir</em>
+                  </span>
+                </li>
+              )
+            }
+            {
+              hasSyncMenu && (
+                <li class="admin-nav-stub" aria-disabled="true">
+                  <span>
+                    Sync <em class="admin-nav-badge">Segera hadir</em>
+                  </span>
+                </li>
+              )
+            }
+            <li>
+              <a
+                href="/admin/settings"
+                aria-current={isSettingsActive ? "page" : undefined}
+              >
+                Settings
+              </a>
+            </li>
+          </ul>
+        </nav>
+        <main class="admin-main">
+          <nav class="admin-breadcrumb" aria-label="Breadcrumb">
+            <ol>
+              <li><a href="/admin">AWCMS-Mini</a></li>
+              <li aria-current="page">{title}</li>
+            </ol>
+          </nav>
+          <div class="admin-content">
+            <slot />
+          </div>
+        </main>
+      </div>
+    </div>
+    <script>
+      document
+        .getElementById("admin-logout-button")
+        ?.addEventListener("click", async () => {
+          try {
+            // Content-Type is required even for an empty body: Astro's
+            // built-in checkOrigin CSRF guard rejects POST requests without
+            // it (see src/modules/identity-access/README.md §Catatan
+            // operasional). Cookies are same-origin and sent automatically.
+            await fetch("/api/v1/auth/logout", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "same-origin"
+            });
+          } finally {
+            window.location.href = "/login";
+          }
+        });
+    </script>
+  </body>
+</html>
+
+<style>
+  .admin-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  .admin-topbar {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-nav);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+    padding: var(--sp-2) var(--sp-4);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .admin-topbar-brand {
+    font-weight: 700;
+    font-size: var(--fs-md);
+  }
+
+  .admin-topbar-spacer {
+    flex: 1;
+  }
+
+  .admin-user-menu {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+  }
+
+  .admin-user-menu-roles {
+    font-size: var(--fs-xs);
+    color: var(--color-text-muted);
+  }
+
+  .admin-logout-button {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-3);
+    cursor: pointer;
+  }
+
+  .admin-logout-button:hover {
+    background: var(--color-danger);
+    color: var(--color-primary-contrast);
+    border-color: var(--color-danger);
+  }
+
+  .admin-body {
+    display: flex;
+    flex: 1;
+  }
+
+  .admin-sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    padding: var(--sp-4) var(--sp-2);
+  }
+
+  .admin-sidebar ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+  }
+
+  .admin-sidebar a {
+    display: block;
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    text-decoration: none;
+  }
+
+  .admin-sidebar a:hover {
+    background: var(--color-surface-2);
+  }
+
+  .admin-sidebar a[aria-current="page"] {
+    background: var(--color-primary);
+    color: var(--color-primary-contrast);
+  }
+
+  .admin-nav-stub {
+    padding: var(--sp-2) var(--sp-3);
+    color: var(--color-text-muted);
+  }
+
+  .admin-nav-badge {
+    font-style: normal;
+    font-size: var(--fs-xs);
+    background: var(--color-surface-2);
+    border-radius: var(--radius-sm);
+    padding: 0 var(--sp-1);
+    margin-left: var(--sp-1);
+  }
+
+  .admin-main {
+    flex: 1;
+    padding: var(--sp-4);
+    min-width: 0;
+  }
+
+  .admin-breadcrumb ol {
+    list-style: none;
+    display: flex;
+    gap: var(--sp-1);
+    margin: 0 0 var(--sp-4);
+    padding: 0;
+    font-size: var(--fs-sm);
+    color: var(--color-text-muted);
+  }
+
+  .admin-breadcrumb li + li::before {
+    content: "/";
+    margin-right: var(--sp-1);
+  }
+
+  .admin-breadcrumb a {
+    color: var(--color-text-muted);
+  }
+
+  .admin-content {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-4);
+  }
+</style>

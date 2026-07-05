@@ -3,18 +3,18 @@
 | Metadata           | Nilai                |
 | ------------------ | -------------------- |
 | Repository         | `ahliweb/awcms-mini` |
-| Snapshot           | 2026-07-05T13:35:00Z |
+| Snapshot           | 2026-07-05T14:15:00Z |
 | State              | `CLOSED`             |
 | File page          | 1/1                  |
 | Max issue per file | 100                  |
-| Issue dalam file   | 31                   |
+| Issue dalam file   | 32                   |
 | Range              | #371-#407            |
 
 > File ini adalah snapshot dari GitHub. Refresh dengan proses di `docs/awcms-mini/github/README.md` bila state issue berubah.
 
 Seluruh issue di bawah ditutup dengan reason `not planned` pada 2026-07-04: kontennya spesifik domain POS/retail (katalog, stok, checkout, warehouse, pajak/Coretax, CRM receipt, AI business analyst) yang tidak sesuai konteks AWCMS-Mini sebagai contoh repo pengembangan umum. Konten dipindahkan ke aplikasi turunan contoh (mis. AWPOS), bukan dihapus riwayatnya.
 
-Issue [#371](https://github.com/ahliweb/awcms-mini/issues/371), [#372](https://github.com/ahliweb/awcms-mini/issues/372), dan [#373](https://github.com/ahliweb/awcms-mini/issues/373) ditutup dengan reason `completed` pada 2026-07-05 setelah foundation skeleton Issue 0.1, migration runner Issue 0.2, dan API contract baseline Issue 0.3 merge. Issue [#376](https://github.com/ahliweb/awcms-mini/issues/376), [#377](https://github.com/ahliweb/awcms-mini/issues/377), [#378](https://github.com/ahliweb/awcms-mini/issues/378), dan [#379](https://github.com/ahliweb/awcms-mini/issues/379) ditutup dengan reason `completed` setelah tenant/office (2.1), central profile (2.2), identity login (2.3), dan RBAC/ABAC (2.4) schema merge — epic M2 tuntas. Issue [#407](https://github.com/ahliweb/awcms-mini/issues/407) ditutup dengan reason `completed` setelah setup wizard (12.1) merge. Issue [#391](https://github.com/ahliweb/awcms-mini/issues/391), [#392](https://github.com/ahliweb/awcms-mini/issues/392), dan [#393](https://github.com/ahliweb/awcms-mini/issues/393) ditutup dengan reason `completed` setelah sync outbox/inbox (6.1), sync conflict tracking/resolution (6.2), dan R2 object sync queue (6.3) merge — epic M5 tuntas.
+Issue [#371](https://github.com/ahliweb/awcms-mini/issues/371), [#372](https://github.com/ahliweb/awcms-mini/issues/372), dan [#373](https://github.com/ahliweb/awcms-mini/issues/373) ditutup dengan reason `completed` pada 2026-07-05 setelah foundation skeleton Issue 0.1, migration runner Issue 0.2, dan API contract baseline Issue 0.3 merge. Issue [#376](https://github.com/ahliweb/awcms-mini/issues/376), [#377](https://github.com/ahliweb/awcms-mini/issues/377), [#378](https://github.com/ahliweb/awcms-mini/issues/378), dan [#379](https://github.com/ahliweb/awcms-mini/issues/379) ditutup dengan reason `completed` setelah tenant/office (2.1), central profile (2.2), identity login (2.3), dan RBAC/ABAC (2.4) schema merge — epic M2 tuntas. Issue [#407](https://github.com/ahliweb/awcms-mini/issues/407) ditutup dengan reason `completed` setelah setup wizard (12.1) merge. Issue [#391](https://github.com/ahliweb/awcms-mini/issues/391), [#392](https://github.com/ahliweb/awcms-mini/issues/392), dan [#393](https://github.com/ahliweb/awcms-mini/issues/393) ditutup dengan reason `completed` setelah sync outbox/inbox (6.1), sync conflict tracking/resolution (6.2), dan R2 object sync queue (6.3) merge — epic M5 tuntas. Issue [#398](https://github.com/ahliweb/awcms-mini/issues/398) ditutup dengan reason `completed` setelah admin layout shell (8.1) merge — issue frontend pertama di repo ini.
 
 |                                                        # | Judul                                                             | Milestone (saat dibuat)        |
 | -------------------------------------------------------: | ----------------------------------------------------------------- | ------------------------------ |
@@ -45,6 +45,7 @@ Issue [#371](https://github.com/ahliweb/awcms-mini/issues/371), [#372](https://g
 | [#395](https://github.com/ahliweb/awcms-mini/issues/395) | 7.2 — Add Party and Product Tax Profiles                          | -                              |
 | [#396](https://github.com/ahliweb/awcms-mini/issues/396) | 7.3 — Add VAT Invoice Staging from Sales Document                 | -                              |
 | [#397](https://github.com/ahliweb/awcms-mini/issues/397) | 7.4 — Add Coretax XML Batch Export                                | -                              |
+| [#398](https://github.com/ahliweb/awcms-mini/issues/398) | 8.1 — Build Admin Layout Shell                                    | M7 — UI/UX & Reporting         |
 | [#399](https://github.com/ahliweb/awcms-mini/issues/399) | 8.2 — Build Cashier POS Fullscreen UI                             | M7 — UI/UX & Reporting         |
 | [#400](https://github.com/ahliweb/awcms-mini/issues/400) | 8.3 — Build Customer Receipt Portal                               | M7 — UI/UX & Reporting         |
 | [#402](https://github.com/ahliweb/awcms-mini/issues/402) | 9.2 — Add AI Business Analyst Safe Views and Tools                | M7 — UI/UX & Reporting         |
