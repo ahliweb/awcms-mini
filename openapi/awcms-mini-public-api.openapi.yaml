@@ -20,6 +20,15 @@ tags:
       Generic read-aggregation reporting views (tenant activity,
       access/audit summary, sync health, module usage). Live aggregation
       over existing tables; no dedicated reporting tables, worker, or cache.
+  - name: Logging & Audit
+    description: >-
+      Cross-module audit trail (awcms_mini_audit_events) and its read API.
+      Complements, not replaces, domain events and structured logs.
+  - name: Profile Identity
+    description: >-
+      Profile lifecycle (soft delete/restore/purge) demonstrating the audit
+      trail end-to-end. Full profile CRUD (create/update/list) remains
+      out of scope/backlog.
 paths:
   /api/v1/sync/push:
     post:
@@ -746,6 +755,201 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/logs/audit:
+    get:
+      tags:
+        - Logging & Audit
+      summary: List audit trail events for the tenant (limit 100, newest first)
+      operationId: logsGetAuditTrail
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: resourceType
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: severity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - info
+              - warning
+              - critical
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Audit events for the caller's tenant (limit 100, newest first).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AuditEventListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profiles/{id}:
+    delete:
+      tags:
+        - Profile Identity
+      summary: Soft delete a profile (lifecycle only; no profile CRUD yet)
+      operationId: profilesSoftDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileDeleteRequest"
+      responses:
+        "200":
+          description: Profile soft-deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ProfileLifecycleResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profiles/{id}/restore:
+    post:
+      tags:
+        - Profile Identity
+      summary: Restore a soft-deleted profile
+      operationId: profilesRestore
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Profile restored.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ProfileLifecycleResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profiles/{id}/purge:
+    post:
+      tags:
+        - Profile Identity
+      summary: Permanently purge a soft-deleted profile (hard delete)
+      operationId: profilesPurge
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Profile purged.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ProfileLifecycleResponse"
+        "400":
+          description: Profile is not currently soft-deleted; purge is only allowed after soft delete.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: >-
+            Purge blocked by foreign-key-referencing dependents (identities,
+            identifiers, channels, addresses, entity links, merge requests).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/health:
@@ -1755,6 +1959,84 @@ components:
           minLength: 3
           maxLength: 500
           description: Audit-safe reason for soft delete.
+    AuditEventEntry:
+      type: object
+      required:
+        - id
+        - moduleKey
+        - action
+        - resourceType
+        - severity
+        - message
+        - createdAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        actorTenantUserId:
+          type: string
+          format: uuid
+        moduleKey:
+          type: string
+        action:
+          type: string
+        resourceType:
+          type: string
+        resourceId:
+          type: string
+        severity:
+          type: string
+          enum:
+            - info
+            - warning
+            - critical
+        message:
+          type: string
+        attributes:
+          type: object
+          description: Already redacted at write time — never raw PII/secrets.
+        correlationId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    AuditEventListResponse:
+      type: object
+      required:
+        - events
+      additionalProperties: false
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEventEntry"
+    ProfileDeleteRequest:
+      type: object
+      required:
+        - reason
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          description: Audit-safe reason for soft delete; becomes delete_reason.
+    ProfileLifecycleResponse:
+      type: object
+      required:
+        - id
+        - status
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - deleted
+            - restored
+            - purged
 security:
   - bearerAuth: []
     tenantHeader: []

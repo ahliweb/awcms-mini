@@ -18,10 +18,21 @@ Skema ada di `sql/003_awcms_mini_central_profile_management_schema.sql`. Seluruh
 
 - `domain/identifier.ts` — `normalizeIdentifier`, `hashIdentifier` (`sha256:<hex>`, dedup key), `maskIdentifier` (nilai aman untuk response/log).
 - `domain/merge.ts` — `assertMergeRequestIsValid` (source tidak boleh sama dengan target).
+- `domain/lifecycle-validation.ts` (Issue 10.1) — `validateDeleteReasonRequestBody`: validasi body `{ reason: string }` untuk `DELETE /profiles/{id}`.
+
+## Lifecycle endpoints (Issue 10.1 — demonstrasi audit trail)
+
+Tiga endpoint **lifecycle-only**, sengaja setipis mungkin, ditambahkan semata untuk membuktikan audit trail (`awcms_mini_audit_events`, lihat `src/modules/logging/README.md`) bekerja end-to-end pada resource nyata:
+
+- `DELETE /api/v1/profiles/{id}` (`src/pages/api/v1/profiles/[id].ts`) — guard `profile_identity.profile_management.delete`. Body `{ reason: string }` wajib non-empty → `delete_reason`. 404 (bukan 200 no-op) bila profile tidak ada atau sudah soft-deleted. Audit `action:"delete"`, `severity:"warning"`.
+- `POST /api/v1/profiles/{id}/restore` (`src/pages/api/v1/profiles/[id]/restore.ts`) — guard `.restore` (action baru, lihat `src/modules/identity-access/domain/access-control.ts`). 404 bila profile tidak sedang soft-deleted. Audit `action:"restore"`, `severity:"warning"`.
+- `POST /api/v1/profiles/{id}/purge` (`src/pages/api/v1/profiles/[id]/purge.ts`) — guard `.purge` (action baru). Hard `DELETE` sungguhan; **wajib** sudah soft-deleted (400 `PURGE_REQUIRES_SOFT_DELETE` bila belum). `awcms_mini_identities`, `awcms_mini_profile_identifiers`, `awcms_mini_profile_channels`, `awcms_mini_profile_addresses`, `awcms_mini_profile_entity_links`, dan `awcms_mini_profile_merge_requests` mereferensikan `profile_id` tanpa `ON DELETE CASCADE` — pelanggaran FK (Postgres `23503`) ditangkap lewat `tx.savepoint(...)` (bukan langsung pada transaction terluar, supaya ABAC decision log dan audit event yang sudah ditulis tidak ikut ter-rollback) dan diterjemahkan ke `409 PURGE_BLOCKED_BY_DEPENDENTS` yang bersih, bukan error DB mentah. Audit ditulis **setelah** hasil diketahui (sukses atau blocked), `severity:"critical"` pada kedua kasus.
+
+**Belum ada** (dan sengaja di luar scope issue ini): `POST /profiles` (create), `PATCH /profiles/{id}` (update), `GET /profiles`/`GET /profiles/{id}` (list/detail) — Issue 2.2 hanya membangun skema + domain logic, tanpa endpoint live sama sekali; issue ini menambah **hanya** tiga endpoint lifecycle di atas untuk membuktikan audit trail bekerja pada data nyata, bukan mulai membangun profile CRUD penuh. CRUD lengkap tetap backlog.
 
 ## Belum tersedia
 
-Endpoint REST (resolve/create/merge), event AsyncAPI, dan integrasi workflow approval untuk merge high-risk belum ada pada tahap ini — Issue 2.2 murni scope skema + domain logic murni. Approval merge sesungguhnya menyusul saat Issue 11.1 (Workflow Approval Engine) tersedia.
+Endpoint REST resolve/create/merge/list/update, event AsyncAPI, dan integrasi workflow approval untuk merge high-risk belum ada pada tahap ini. Approval merge sesungguhnya menyusul saat Issue 11.1 (Workflow Approval Engine) tersedia.
 
 ## Soft delete
 

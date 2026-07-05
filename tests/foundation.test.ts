@@ -56,8 +56,8 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, identity_access, sync_storage, and reporting are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, and 9.1", () => {
-    expect(listModules()).toHaveLength(5);
+  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, and logging are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, and 10.1", () => {
+    expect(listModules()).toHaveLength(6);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "experimental"
@@ -81,6 +81,11 @@ describe("module registry", () => {
       key: "reporting",
       status: "experimental",
       dependencies: ["tenant_admin", "identity_access", "sync_storage"]
+    });
+    expect(getModuleByKey("logging")).toMatchObject({
+      key: "logging",
+      status: "experimental",
+      dependencies: ["tenant_admin"]
     });
     expect(getModuleByKey("unknown_module")).toBeUndefined();
   });
@@ -143,7 +148,8 @@ describe("database migration runner helpers", () => {
       "007_awcms_mini_sync_storage_outbox_inbox_schema.sql",
       "008_awcms_mini_sync_storage_conflict_schema.sql",
       "009_awcms_mini_object_sync_queue_schema.sql",
-      "010_awcms_mini_management_reporting_permission_schema.sql"
+      "010_awcms_mini_management_reporting_permission_schema.sql",
+      "011_awcms_mini_audit_logging_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
@@ -352,6 +358,38 @@ describe("database migration runner helpers", () => {
     expect(
       reportingSchema?.sql.match(/'reporting', 'dashboard'/g) ?? []
     ).toHaveLength(1);
+  });
+
+  test("audit logging schema declares the generic audit_events table with RLS and seeds the audit_trail/purge permissions", async () => {
+    const migrations = await discoverMigrationFiles();
+    const auditSchema = migrations.find(
+      (migration) =>
+        migration.name === "011_awcms_mini_audit_logging_schema.sql"
+    );
+
+    expect(auditSchema).toBeDefined();
+    expect(auditSchema?.sql).toContain(
+      "CREATE TABLE IF NOT EXISTS awcms_mini_audit_events"
+    );
+    expect(auditSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_audit_events ENABLE ROW LEVEL SECURITY"
+    );
+    expect(auditSchema?.sql).toContain(
+      "CHECK (severity IN ('info', 'warning', 'critical'))"
+    );
+    expect(auditSchema?.sql).toContain(
+      "awcms_mini_audit_events_tenant_created_idx"
+    );
+    expect(auditSchema?.sql).toContain(
+      "awcms_mini_audit_events_tenant_resource_idx"
+    );
+    expect(auditSchema?.sql).toContain("('logging', 'audit_trail', 'read'");
+    expect(auditSchema?.sql).toContain(
+      "('profile_identity', 'profile_management', 'purge'"
+    );
+    expect(auditSchema?.sql).toContain(
+      "ON CONFLICT (module_key, activity_code, action) DO NOTHING"
+    );
   });
 });
 

@@ -31,6 +31,11 @@ describe("isHighRiskAction", () => {
     expect(isHighRiskAction("configure")).toBe(true);
   });
 
+  test("classifies restore/purge as high risk (Issue 10.1 — soft delete lifecycle)", () => {
+    expect(isHighRiskAction("restore")).toBe(true);
+    expect(isHighRiskAction("purge")).toBe(true);
+  });
+
   test("does not classify read/create/update as high risk", () => {
     expect(isHighRiskAction("read")).toBe(false);
     expect(isHighRiskAction("create")).toBe(false);

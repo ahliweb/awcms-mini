@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T15:00:00Z            |
+| Snapshot     | 2026-07-05T15:45:00Z            |
 | Total issue  | 38                              |
-| Open issue   | 5                               |
-| Closed issue | 33                              |
+| Open issue   | 4                               |
+| Closed issue | 34                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    5 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   33 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    4 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   34 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -42,10 +42,14 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                                                                                    |
-| ------ | -----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |      5 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 10, 11, 12) — seluruhnya M8, kini `status:ready` karena M5+M7 tuntas.                                                              |
-| CLOSED |     33 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391-#393, #398, #401, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, epic M5 (6.1-6.3), dan epic M7 (8.1-9.1). |
+| State  | Jumlah | Catatan                                                                                                                                                                                                                |
+| ------ | -----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |      4 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 10, 11, 12) — sisa epic M8, `status:ready`.                                                                                                    |
+| CLOSED |     34 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391-#393, #398, #401, #403, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, epic M5 (6.1-6.3), epic M7 (8.1-9.1), dan 10.1. |
+
+### Structured logging and audit trail 10.1 completed (2026-07-05)
+
+Issue [#403](https://github.com/ahliweb/awcms-mini/issues/403) ditutup `completed` — issue pertama epic M8 (Security, Performance, Production). Migrasi `sql/011_awcms_mini_audit_logging_schema.sql` menambahkan tabel generik `awcms_mini_audit_events` (tenant-scoped, append-only, RLS — bentuk persis sesuai doc 10 §Audit helper dan skill `awcms-mini-audit-log`) plus 2 permission baru: `logging.audit_trail.read` dan `profile_identity.profile_management.purge` (`.delete`/`.restore` sudah diseed sejak migration `005`). Infrastruktur baru: redaksi lintas-modul (`src/modules/_shared/redaction.ts`), logger JSON terstruktur (`src/lib/logging/logger.ts`, menghormati `LOG_LEVEL`), correlation ID di `src/middleware.ts` (additive terhadap guard `/admin/*` dari Issue 8.1), dan `AccessAction` diperluas dengan `restore`/`purge` sebagai high-risk action. Endpoint baru: `GET /logs/audit` (bearer session, permission tunggal) dan lifecycle profil tipis `DELETE /profiles/{id}`, `POST /profiles/{id}/restore`, `POST /profiles/{id}/purge` — mendemonstrasikan audit trail secara nyata (CRUD profil penuh tetap backlog). Diverifikasi langsung terhadap PostgreSQL 16 + server Astro SSR berjalan (diverifikasi ulang independen): soft delete/restore profil owner menghasilkan audit event terpisah dengan attributes aman; purge tanpa soft delete dulu ditolak `400`; purge profil yang masih direferensikan identity ditolak `409 PURGE_BLOCKED_BY_DEPENDENTS` (FK violation ditangkap bersih via `tx.savepoint()`, audit event "blocked" tetap tersimpan meski DELETE-nya di-rollback); profil tanpa dependent berhasil di-purge, baris benar-benar hilang; user tanpa role ditolak `403` di keempat endpoint baru. Verifikasi HTML/HTTP saja (tidak ada browser sungguhan di sandbox). **Bug ditemukan+diperbaiki** (2, sebelum ship): audit attributes sempat di-double-encode via `JSON.stringify` sebelum bind ke kolom jsonb; pengecekan FK violation sempat memeriksa field error yang salah. **Bug tambahan ditemukan di kode Issue 6.1 yang sudah shipped** (kelas bug jsonb double-encoding yang identik di `POST /sync/push`) — diperbaiki terpisah sebagai patch `0.11.1` sebelum PR issue ini merge.
 
 ### Management reporting views 9.1 completed + epic M7 tuntas (2026-07-05)
 
