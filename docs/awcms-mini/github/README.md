@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T12:35:00Z            |
+| Snapshot     | 2026-07-05T13:35:00Z            |
 | Total issue  | 38                              |
-| Open issue   | 8                               |
-| Closed issue | 30                              |
+| Open issue   | 7                               |
+| Closed issue | 31                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    8 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   30 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    7 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   31 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -42,10 +42,14 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                                         |
-| ------ | -----: | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |      8 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 6, 8, 9, 10, 11, 12).                                                                   |
-| CLOSED |     30 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391, #392, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, 6.1, 6.2. |
+| State  | Jumlah | Catatan                                                                                                                                                                 |
+| ------ | -----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |      7 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 8, 9, 10, 11, 12).                                                                              |
+| CLOSED |     31 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391-#393, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, epic M5 (6.1-6.3). |
+
+### R2 object sync queue 6.3 completed (2026-07-05)
+
+Issue [#393](https://github.com/ahliweb/awcms-mini/issues/393) ditutup `completed` setelah migrasi `sql/009_awcms_mini_object_sync_queue_schema.sql` menambahkan `awcms_mini_object_sync_queue` (antrean objek lokal menunggu sinkron/upload, unique `(tenant_id, node_id, object_key)` — re-enqueue `objectKey` yang sama adalah **upsert**, bukan duplikat) dan 2 permission baru `sync_storage.object_queue.read`/`.retry`. Domain logic murni baru: `verifyObjectChecksum`, `evaluateObjectRetry` (backoff eksponensial, maks 5 retry). Endpoint baru (HMAC node auth, sama seperti push/pull/status): `POST /sync/objects` (enqueue, `requires_upload` diisi dari env `R2_ENABLED` — **tidak ada pemanggilan R2/Cloudflare SDK nyata**, sama seperti `awcms_mini_message_outbox` yang juga belum punya dispatcher live) dan `GET /sync/objects/status`. Diverifikasi langsung terhadap PostgreSQL 16 + server Astro SSR berjalan (diverifikasi ulang secara independen, bukan hanya dipercaya dari implementasi): enqueue baru sebagai `pending`, re-enqueue `objectKey` sama mengonfirmasi upsert (tetap 1 baris), status endpoint mengembalikan `retryCount`/`byteSize` sebagai JSON number asli (pelajaran bigint dari Issue 6.2 diterapkan preventif). **Tidak ada bug baru ditemukan**. Epic M5 (Sync Storage, Issue 6.1-6.3) tuntas sepenuhnya.
 
 ### Sync conflict tracking/resolution 6.2 completed (2026-07-05)
 

@@ -10,6 +10,12 @@ import {
   validateConflictResolutionRequestBody,
   validateSyncPushRequestBody
 } from "../src/modules/sync-storage/domain/sync-validation";
+import {
+  evaluateObjectRetry,
+  OBJECT_SYNC_MAX_RETRIES,
+  validateObjectSyncEnqueueRequestBody,
+  verifyObjectChecksum
+} from "../src/modules/sync-storage/domain/object-queue";
 
 describe("computeSyncSignature", () => {
   test("is deterministic and depends on the secret, timestamp, and body", () => {
@@ -282,5 +288,152 @@ describe("validateConflictResolutionRequestBody", () => {
 
   test("rejects a null body", () => {
     expect(validateConflictResolutionRequestBody(null).valid).toBe(false);
+  });
+});
+
+describe("verifyObjectChecksum", () => {
+  test("returns true when checksums match", () => {
+    expect(verifyObjectChecksum("a".repeat(64), "a".repeat(64))).toBe(true);
+  });
+
+  test("returns false when checksums mismatch", () => {
+    expect(verifyObjectChecksum("a".repeat(64), "b".repeat(64))).toBe(false);
+  });
+});
+
+describe("evaluateObjectRetry", () => {
+  const now = new Date("2026-07-05T00:00:00.000Z");
+
+  test("is eligible under the max retry count, with delay growing with retryCount", () => {
+    const first = evaluateObjectRetry(0, now);
+    const second = evaluateObjectRetry(1, now);
+    const third = evaluateObjectRetry(2, now);
+
+    expect(first.eligible).toBe(true);
+    expect(second.eligible).toBe(true);
+    expect(third.eligible).toBe(true);
+    expect(first.nextRetryAt?.getTime()).toBeLessThan(
+      second.nextRetryAt!.getTime()
+    );
+    expect(second.nextRetryAt?.getTime()).toBeLessThan(
+      third.nextRetryAt!.getTime()
+    );
+  });
+
+  test("caps the backoff delay at the configured maximum", () => {
+    const evaluation = evaluateObjectRetry(OBJECT_SYNC_MAX_RETRIES - 1, now);
+
+    expect(evaluation.eligible).toBe(true);
+    expect(evaluation.nextRetryAt).toBeDefined();
+  });
+
+  test("is ineligible once retryCount reaches the max", () => {
+    const evaluation = evaluateObjectRetry(OBJECT_SYNC_MAX_RETRIES, now);
+
+    expect(evaluation.eligible).toBe(false);
+    expect(evaluation.nextRetryAt).toBeUndefined();
+  });
+
+  test("is ineligible once retryCount exceeds the max", () => {
+    const evaluation = evaluateObjectRetry(OBJECT_SYNC_MAX_RETRIES + 3, now);
+
+    expect(evaluation.eligible).toBe(false);
+  });
+});
+
+describe("validateObjectSyncEnqueueRequestBody", () => {
+  const VALID_BODY = {
+    objects: [
+      {
+        objectKey: "receipts/2026/07/05/abc.pdf",
+        localPath: "/var/awcms/storage/receipts/abc.pdf",
+        checksumSha256: "a".repeat(64),
+        byteSize: 1024
+      }
+    ]
+  };
+
+  test("accepts a valid body", () => {
+    const result = validateObjectSyncEnqueueRequestBody(VALID_BODY);
+
+    expect(result.valid).toBe(true);
+    if (result.valid) {
+      expect(result.value.objects).toHaveLength(1);
+      expect(result.value.objects[0]?.objectKey).toBe(
+        "receipts/2026/07/05/abc.pdf"
+      );
+    }
+  });
+
+  test("rejects an empty objects array", () => {
+    const result = validateObjectSyncEnqueueRequestBody({ objects: [] });
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors).toContainEqual({
+        field: "objects",
+        message: "objects must be a non-empty array."
+      });
+    }
+  });
+
+  test("rejects a missing objectKey", () => {
+    const result = validateObjectSyncEnqueueRequestBody({
+      objects: [{ ...VALID_BODY.objects[0], objectKey: "" }]
+    });
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors).toContainEqual({
+        field: "objects[0].objectKey",
+        message: "objectKey is required."
+      });
+    }
+  });
+
+  test("rejects a missing localPath", () => {
+    const result = validateObjectSyncEnqueueRequestBody({
+      objects: [{ ...VALID_BODY.objects[0], localPath: "" }]
+    });
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors).toContainEqual({
+        field: "objects[0].localPath",
+        message: "localPath is required."
+      });
+    }
+  });
+
+  test("rejects a checksumSha256 that is not 64 hex characters", () => {
+    const result = validateObjectSyncEnqueueRequestBody({
+      objects: [{ ...VALID_BODY.objects[0], checksumSha256: "not-a-hash" }]
+    });
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors).toContainEqual({
+        field: "objects[0].checksumSha256",
+        message: "checksumSha256 must be 64 lowercase hex characters."
+      });
+    }
+  });
+
+  test("rejects a negative byteSize", () => {
+    const result = validateObjectSyncEnqueueRequestBody({
+      objects: [{ ...VALID_BODY.objects[0], byteSize: -1 }]
+    });
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors).toContainEqual({
+        field: "objects[0].byteSize",
+        message: "byteSize must be a non-negative integer."
+      });
+    }
+  });
+
+  test("rejects a null body", () => {
+    expect(validateObjectSyncEnqueueRequestBody(null).valid).toBe(false);
   });
 });

@@ -211,10 +211,10 @@ Aplikasi turunan menambah sprint/commit domainnya sendiri setelah base ini siap 
 006_awcms_mini_setup_wizard_schema.sql
 007_awcms_mini_sync_storage_outbox_inbox_schema.sql
 008_awcms_mini_sync_storage_conflict_schema.sql
-009_awcms_mini_logging_observability_schema.sql
-010_awcms_mini_database_connection_pooling_schema.sql
-011_awcms_mini_production_security_readiness_schema.sql
-012_awcms_mini_sync_storage_r2_schema.sql
+009_awcms_mini_object_sync_queue_schema.sql
+010_awcms_mini_logging_observability_schema.sql
+011_awcms_mini_database_connection_pooling_schema.sql
+012_awcms_mini_production_security_readiness_schema.sql
 013_awcms_mini_i18n_po_schema.sql
 014_awcms_mini_theme_mode_schema.sql
 015_awcms_mini_ui_ux_persona_experience_schema.sql
@@ -226,7 +226,7 @@ Aplikasi turunan menambah sprint/commit domainnya sendiri setelah base ini siap 
 
 Catatan: setelah production, migration tidak boleh di-rename sembarangan. Koreksi harus migration baru. Aplikasi turunan melanjutkan nomor migration domainnya sendiri mulai nomor setelah migration terakhir base di atas.
 
-`002` semula bernama `tenant_identity_schema` (menggabungkan Issue 2.1 dan 2.3); dipecah agar satu migration = satu issue: `002` scope Issue 2.1 (tenant/office), `004` scope Issue 2.3 (identity/login). `006` (setup wizard, Issue 12.1) diimplementasikan lebih awal dari rencana semula (slot `015`) begitu Issue 2.1–2.4 selesai — sesuai `docs/awcms-mini/06_github_issues_detail.md` §Koreksi urutan sprint yang menempatkan 12.1 tepat setelah 2.4. `007` (Issue 6.1 — sync nodes/outbox/inbox) dan `008` (Issue 6.2 — sync conflict tracking) dipecah dari rencana gabungan `sync_storage_r2`; `008` juga menambah `ALTER TABLE` pada tabel `sync_push_batches` milik `007` (koreksi via migration baru, bukan mengedit `007`) dan menyisipkan permission baru ke katalog `awcms_mini_permissions` (`005`). R2 object queue (Issue 6.3) tetap satu placeholder tersendiri (`012`) sampai benar-benar diimplementasikan. Penomoran `009` dst. di atas adalah rencana; nomor final ditentukan saat setiap issue benar-benar diimplementasikan berurutan.
+`002` semula bernama `tenant_identity_schema` (menggabungkan Issue 2.1 dan 2.3); dipecah agar satu migration = satu issue: `002` scope Issue 2.1 (tenant/office), `004` scope Issue 2.3 (identity/login). `006` (setup wizard, Issue 12.1) diimplementasikan lebih awal dari rencana semula (slot `015`) begitu Issue 2.1–2.4 selesai — sesuai `docs/awcms-mini/06_github_issues_detail.md` §Koreksi urutan sprint yang menempatkan 12.1 tepat setelah 2.4. `007` (Issue 6.1 — sync nodes/outbox/inbox), `008` (Issue 6.2 — sync conflict tracking), dan `009` (Issue 6.3 — R2 object sync queue) dipecah dari rencana gabungan `sync_storage_r2`, menuntaskan epic M5 (Sync Storage) sepenuhnya; `008` juga menambah `ALTER TABLE` pada tabel `sync_push_batches` milik `007` (koreksi via migration baru, bukan mengedit `007`), dan `008`/`009` masing-masing menyisipkan permission baru ke katalog `awcms_mini_permissions` (`005`). `009` tidak memanggil R2/Cloudflare SDK nyata — hanya antrean lokal + kolom `requires_upload` yang digerakkan env `R2_ENABLED`; dispatcher upload nyata tetap backlog, sama seperti `awcms_mini_message_outbox` yang juga belum punya dispatcher live. Penomoran `010` dst. di atas adalah rencana; nomor final ditentukan saat setiap issue benar-benar diimplementasikan berurutan.
 
 ## Urutan API implementation
 

@@ -136,7 +136,8 @@ describe("database migration runner helpers", () => {
       "005_awcms_mini_abac_access_control_schema.sql",
       "006_awcms_mini_setup_wizard_schema.sql",
       "007_awcms_mini_sync_storage_outbox_inbox_schema.sql",
-      "008_awcms_mini_sync_storage_conflict_schema.sql"
+      "008_awcms_mini_sync_storage_conflict_schema.sql",
+      "009_awcms_mini_object_sync_queue_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
@@ -295,6 +296,34 @@ describe("database migration runner helpers", () => {
     );
     expect(conflictSchema?.sql).toContain(
       "('sync_storage', 'conflict_resolution', 'approve'"
+    );
+  });
+
+  test("object sync queue schema declares RLS, a retry-scan index, an upsert key, and generic object_queue permissions", async () => {
+    const migrations = await discoverMigrationFiles();
+    const objectQueueSchema = migrations.find(
+      (migration) =>
+        migration.name === "009_awcms_mini_object_sync_queue_schema.sql"
+    );
+
+    expect(objectQueueSchema).toBeDefined();
+    expect(objectQueueSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_object_sync_queue ENABLE ROW LEVEL SECURITY"
+    );
+    expect(objectQueueSchema?.sql).toContain(
+      "CHECK (status IN ('pending', 'sent', 'failed'))"
+    );
+    expect(objectQueueSchema?.sql).toContain(
+      "awcms_mini_object_sync_queue_key"
+    );
+    expect(objectQueueSchema?.sql).toContain(
+      "awcms_mini_object_sync_queue_retry_idx"
+    );
+    expect(objectQueueSchema?.sql).toContain(
+      "('sync_storage', 'object_queue', 'read'"
+    );
+    expect(objectQueueSchema?.sql).toContain(
+      "('sync_storage', 'object_queue', 'retry'"
     );
   });
 });

@@ -229,6 +229,84 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/sync/objects:
+    post:
+      tags:
+        - Sync Storage
+      summary: Enqueue local objects for R2 sync (upsert by objectKey)
+      operationId: syncEnqueueObjects
+      security:
+        - syncHmac: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/SyncNodeId"
+        - $ref: "#/components/parameters/SyncTimestamp"
+        - $ref: "#/components/parameters/SyncSignature"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ObjectSyncEnqueueRequest"
+      responses:
+        "200":
+          description: Objects queued (re-enqueuing an existing objectKey upserts it back to pending).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ObjectSyncEnqueueResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sync/objects/status:
+    get:
+      tags:
+        - Sync Storage
+      summary: List this node's pending/failed object sync queue entries
+      operationId: syncGetObjectsStatus
+      security:
+        - syncHmac: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/SyncNodeId"
+        - $ref: "#/components/parameters/SyncTimestamp"
+        - $ref: "#/components/parameters/SyncSignature"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Non-sent object sync queue entries for this node (limit 100), oldest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ObjectSyncStatusResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/setup/status:
     get:
       tags:
@@ -1312,6 +1390,89 @@ components:
             - accept_incoming
             - keep_existing
             - manual
+    ObjectSyncQueueItem:
+      type: object
+      required:
+        - objectKey
+        - localPath
+        - checksumSha256
+        - byteSize
+      additionalProperties: false
+      properties:
+        objectKey:
+          type: string
+          minLength: 1
+        localPath:
+          type: string
+          minLength: 1
+        checksumSha256:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+          description: SHA-256 checksum of the local file, lowercase hex.
+        byteSize:
+          type: integer
+          minimum: 0
+    ObjectSyncEnqueueRequest:
+      type: object
+      required:
+        - objects
+      additionalProperties: false
+      properties:
+        objects:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ObjectSyncQueueItem"
+    ObjectSyncEnqueueResponse:
+      type: object
+      required:
+        - queued
+      additionalProperties: false
+      properties:
+        queued:
+          type: integer
+          minimum: 0
+    ObjectSyncStatusEntry:
+      type: object
+      required:
+        - objectKey
+        - status
+        - retryCount
+        - byteSize
+        - requiresUpload
+      additionalProperties: false
+      properties:
+        objectKey:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - sent
+            - failed
+        retryCount:
+          type: integer
+          minimum: 0
+        nextRetryAt:
+          type: string
+          format: date-time
+        lastError:
+          type: string
+        byteSize:
+          type: integer
+          minimum: 0
+        requiresUpload:
+          type: boolean
+    ObjectSyncStatusResponse:
+      type: object
+      required:
+        - objects
+      additionalProperties: false
+      properties:
+        objects:
+          type: array
+          items:
+            $ref: "#/components/schemas/ObjectSyncStatusEntry"
     SoftDeleteQuery:
       type: object
       additionalProperties: false
