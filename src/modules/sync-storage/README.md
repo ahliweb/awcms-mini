@@ -1,6 +1,6 @@
 # Sync Storage
 
-Implementasi Issue 6.1 (`docs/awcms-mini/06_github_issues_detail.md` §Issue 6.1 — Add Sync Outbox and Inbox) dan Issue 6.2 (§Issue 6.2 — Add Sync Conflict Tracking and Resolution).
+Implementasi Issue 6.1 (`docs/awcms-mini/06_github_issues_detail.md` §Issue 6.1 — Add Sync Outbox and Inbox), Issue 6.2 (§Issue 6.2 — Add Sync Conflict Tracking and Resolution), dan Issue 6.3 (§Issue 6.3 — Add R2 Object Sync Queue).
 
 ## Scope — Issue 6.1 (Outbox/Inbox)
 
@@ -23,6 +23,16 @@ Skema ada di `sql/007_awcms_mini_sync_storage_outbox_inbox_schema.sql`.
 
 Skema ada di `sql/008_awcms_mini_sync_storage_conflict_schema.sql`.
 
+## Scope — Issue 6.3 (R2 Object Sync Queue)
+
+- `awcms_mini_object_sync_queue` — antrean objek lokal (mis. file receipt/lampiran) yang menunggu disinkronkan/di-upload ke object storage (R2 atau kompatibel). Unique `(tenant_id, node_id, object_key)` — re-enqueue `objectKey` yang sama **upsert** (bukan duplikat): `local_path`, `checksum_sha256`, `byte_size`, `requires_upload` diperbarui dan baris dikembalikan ke `status='pending'` dengan `retry_count`/`last_error`/`next_retry_at`/`uploaded_at` direset — karena secara efektif ini enqueue ulang yang segar. Index `(tenant_id, status, next_retry_at)` untuk pemindaian retry oleh calon dispatcher worker.
+- `requires_upload` diisi dari env var `R2_ENABLED` saat enqueue: `R2_ENABLED=true` → objek **memang butuh** di-upload ke object storage; `R2_ENABLED=false` (default) → objek tetap diantre (dicatat sebagai fakta lokal/checksum) tapi tidak menandai kebutuhan upload nyata. **Tidak ada pemanggilan R2/Cloudflare SDK atau HTTP request eksternal di base ini** — sama seperti `awcms_mini_message_outbox` (WA/email) yang juga belum punya dispatcher live, `R2_ENABLED` di sini hanya flag data, bukan trigger jaringan (ADR-0006: provider eksternal opsional, tidak boleh jadi dependency alur kritikal).
+- Endpoint `POST /api/v1/sync/objects` — body `{ objects: [{ objectKey, localPath, checksumSha256, byteSize }] }` (array, seperti `events` pada push), upsert per objek, response `{ queued: <count> }`.
+- Endpoint `GET /api/v1/sync/objects/status` — entri antrean milik node pemanggil yang **belum** `sent` (`pending`+`failed`), limit 100, urut `created_at`, field `objectKey, status, retryCount, nextRetryAt, lastError, byteSize, requiresUpload`.
+- Domain logic murni baru di `domain/object-queue.ts`: `verifyObjectChecksum` (pure string equality — checksum bukan secret, tidak perlu timing-safe compare), `evaluateObjectRetry` (backoff eksponensial `2^retryCount` menit, dibatasi `OBJECT_SYNC_MAX_RETRY_DELAY_MINUTES=60`, tidak lagi eligible begitu `retryCount >= OBJECT_SYNC_MAX_RETRIES=5`), dan `validateObjectSyncEnqueueRequestBody` (pola `ValidationError`/discriminated union sama seperti `sync-validation.ts`).
+
+Skema ada di `sql/009_awcms_mini_object_sync_queue_schema.sql`.
+
 ## Domain logic
 
 `domain/sync-hmac.ts` (pure, murni) — `computeSyncSignature` (`HMAC-SHA256("<timestamp>.<body>")`, sesuai skill `awcms-mini-sync-hmac`/doc 10 §Sync HMAC standard), `verifySyncSignature` (timing-safe compare via `node:crypto.timingSafeEqual`), `isTimestampWithinSkew` (anti-replay, default maksimum skew 300 detik — `AWCMS_MINI_SYNC_MAX_SKEW_SEC`).
@@ -41,4 +51,6 @@ Pengecualian: `GET /sync/conflicts` dan `POST /sync/conflicts/{id}/resolve` mema
 
 ## Belum tersedia
 
-R2 object sync queue (Issue 6.3), audit event terpisah untuk resolusi konflik (belum ada tabel `audit_events` umum — jejak resolusi saat ini melekat pada baris `sync_conflicts` itu sendiri), dan penerapan otomatis event `awcms_mini_sync_inbox` ke tabel domain (base tidak punya modul domain untuk diterapkan — event tetap `received`, aplikasi turunan yang memprosesnya) belum ada pada tahap ini.
+- **Dispatcher upload R2 nyata** (backlog): tidak ada endpoint publik untuk menandai entri `awcms_mini_object_sync_queue` sebagai `sent`/`failed` pada tahap ini — sengaja tidak dibuat karena belum ada worker dispatcher yang benar-benar memanggil R2/Cloudflare. Saat worker tersebut dibangun (aplikasi turunan atau issue lanjutan), ia semestinya memanggil **fungsi aplikasi internal langsung** (bukan endpoint HTTP publik) untuk mengunci baris, mencoba upload di luar transaction DB (ADR-0006), lalu meng-update `status`/`uploaded_at`/`retry_count`/`next_retry_at`/`last_error` — karena hanya worker internal terpercaya yang boleh melakukan aksi ini, bukan node sync mana pun.
+- Audit event terpisah untuk resolusi konflik (belum ada tabel `audit_events` umum — jejak resolusi saat ini melekat pada baris `sync_conflicts` itu sendiri).
+- Penerapan otomatis event `awcms_mini_sync_inbox` ke tabel domain (base tidak punya modul domain untuk diterapkan — event tetap `received`, aplikasi turunan yang memprosesnya).
