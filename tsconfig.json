@@ -1,29 +1,16 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "astro/tsconfigs/strict",
   "compilerOptions": {
-    /* Base Options: */
-    "esModuleInterop": true,
-    "skipLibCheck": true,
     "target": "ES2024",
-    "allowJs": true,
-    "checkJs": true,
-    "resolveJsonModule": true,
-    "moduleDetection": "force",
-    "isolatedModules": true,
-    "verbatimModuleSyntax": true,
-    "moduleResolution": "bundler",
     "module": "preserve",
-    /* Strictness */
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "forceConsistentCasingInFileNames": true,
-    /* If NOT transpiling with TypeScript: */
-    "noEmit": true,
-    /* If your code doesn't run in the DOM: */
+    "moduleResolution": "bundler",
     "lib": ["ES2024"],
-    "types": ["bun"]
+    "types": ["bun"],
+    "checkJs": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true
   },
-  /* NOTE: include follows the foundation skeleton and executable Bun tooling. */
-  "include": ["scripts/**/*", "src/**/*", "tests/**/*"],
-  "exclude": ["node_modules", "dist", ".astro"]
+  "include": [".astro/types.d.ts", "scripts/**/*", "src/**/*", "tests/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

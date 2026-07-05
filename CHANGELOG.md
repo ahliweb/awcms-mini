@@ -15,6 +15,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 - Foundation skeleton Issue 0.1: Astro 7 build via Bun, health endpoint `/api/v1/health`, module contract/registry, shared API response helper, soft-delete convention, `.env.example`, foundation SQL schema, and standard folders (`src/`, `sql/`, `openapi/`, `asyncapi/`, `deploy/`, `fixtures/`).
 - SQL migration runner Issue 0.2: `bun run db:migrate` uses `Bun.SQL`, validates ordered `sql/*.sql` files, stores SHA-256 checksums, skips applied migrations, rejects applied checksum drift, wraps execution in transactions, and documents the operational workflow.
+- OpenAPI and AsyncAPI baseline Issue 0.3: public OpenAPI contract, domain-event AsyncAPI contract, shared response/error schemas, soft-delete pattern, sync HMAC headers, and `api:spec:check` validator.
 
 ### Changed
 
@@ -22,6 +23,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 - Snapshot GitHub issue docs refreshed after #371 completion: open issue count is now 17 and closed issue count is now 21.
 - `package.json` now exposes `db:migrate` for the Bun-native PostgreSQL migration runner.
 - Snapshot GitHub issue docs refreshed after #372 completion: open issue count is now 16 and closed issue count is now 22.
+- `bun run check` now includes `bun run api:spec:check`.
 
 ## [0.0.3] - 2026-07-04
 

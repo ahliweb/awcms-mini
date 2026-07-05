@@ -7,7 +7,7 @@
 
 AWCMS-Mini adalah **base modular monolith standar** AhliWeb berbasis **Bun + Astro 7 + PostgreSQL**. Ia berisi lapisan **reusable** (multi-tenant, RBAC/ABAC/RLS, audit, offline-first, kontrak OpenAPI/AsyncAPI, coding standard, skill proyek) yang menjadi fondasi aplikasi turunan. Aplikasi domain (mis. AWPOS untuk retail/POS) dibangun **di atas** base ini dengan menambah modulnya sendiri.
 
-> **Status:** foundation skeleton tersedia (**Issue 0.1**) dan SQL migration runner tersedia (**Issue 0.2**): Astro build, health endpoint, module contract, response helper, soft-delete convention, folder standar, dan runner PostgreSQL checksum-based. Modul API contract/tenant/auth/RBAC/sync/deployment masih backlog. Kontributor & coding agent **wajib membaca [`AGENTS.md`](AGENTS.md) lebih dulu**.
+> **Status:** Sprint foundation Issue 0.1-0.3 tersedia: Astro build, health endpoint, module contract, response helper, soft-delete convention, folder standar, runner PostgreSQL checksum-based, serta baseline OpenAPI/AsyncAPI dengan validator. Modul tenant/auth/RBAC/sync/deployment masih backlog. Kontributor & coding agent **wajib membaca [`AGENTS.md`](AGENTS.md) lebih dulu**.
 
 ## Daftar isi
 
@@ -137,7 +137,7 @@ flowchart LR
 
 ### Mulai dari
 
-Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/awcms-mini/06_github_issues_detail.md). Foundation **Issue 0.1** dan migration runner **Issue 0.2** sudah tersedia; urutan berikutnya: **0.3 → 12.1**, lalu Tenant/Identity/Profile (2.1–2.4).
+Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/awcms-mini/06_github_issues_detail.md). Foundation **Issue 0.1-0.3** sudah tersedia; urutan berikutnya: **12.1**, lalu Tenant/Identity/Profile (2.1–2.4).
 
 ## Keamanan
 
@@ -158,7 +158,7 @@ Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/
 
 ## Versioning
 
-**Semantic Versioning** + **[Changesets](.changeset/README.md)**; riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Versi saat ini `0.0.3`; perubahan foundation skeleton dan migration runner menunggu rilis berikutnya `0.1.0`.
+**Semantic Versioning** + **[Changesets](.changeset/README.md)**; riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Versi saat ini `0.0.3`; perubahan foundation skeleton, migration runner, dan API contract baseline menunggu rilis berikutnya `0.1.0`.
 
 ## Lisensi
 

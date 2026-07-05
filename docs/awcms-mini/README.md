@@ -122,6 +122,7 @@ Dokumen dikelompokkan mengikuti alur pengembangan agar mudah diimplementasi.
 |  19 | `19_glossary_terminology.md`               | Glossary & terminologi lintas dokumen                                                                |
 |  20 | `20_threat_model_security_architecture.md` | Threat model (STRIDE), trust boundary, kontrol keamanan berlapis (dokumen base, bukan contoh domain) |
 |   – | `database-migrations.md`                   | Panduan runner migrasi PostgreSQL Bun-native                                                         |
+|   – | `../../openapi/` dan `../../asyncapi/`     | Baseline kontrak OpenAPI/AsyncAPI dan validator `api:spec:check`                                     |
 
 ### Architecture Decision Records
 

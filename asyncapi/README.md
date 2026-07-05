@@ -1,5 +1,9 @@
 # AsyncAPI Contracts
 
-Issue 0.3 menambahkan baseline AsyncAPI lengkap. Folder ini sudah disiapkan pada Issue 0.1 agar kontrak event domain punya lokasi tetap.
+Baseline AsyncAPI tersedia di [`awcms-mini-domain-events.asyncapi.yaml`](awcms-mini-domain-events.asyncapi.yaml).
 
-Setiap event yang dideklarasikan modul pada `ModuleDescriptor.events.publishes` wajib didaftarkan pada AsyncAPI.
+Setiap event yang dideklarasikan modul pada `ModuleDescriptor.events.publishes` wajib didaftarkan pada AsyncAPI dan lulus:
+
+```bash
+bun run api:spec:check
+```

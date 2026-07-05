@@ -1,0 +1,96 @@
+asyncapi: 3.0.0
+info:
+  title: AWCMS-Mini Domain Events
+  version: 0.1.0
+  description: Baseline AsyncAPI contract for AWCMS-Mini domain events and sync envelopes.
+defaultContentType: application/json
+servers:
+  local:
+    host: localhost:4321
+    protocol: http
+    description: Local AWCMS-Mini runtime.
+channels:
+  awcms-mini.sync.push.requested:
+    address: awcms-mini.sync.push.requested
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: Baseline sync push event envelope for future sync-storage implementation.
+operations:
+  publishSyncPushRequested:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.sync.push.requested"
+    messages:
+      - $ref: "#/channels/awcms-mini.sync.push.requested/messages/DomainEvent"
+components:
+  securitySchemes:
+    syncHmac:
+      type: httpApiKey
+      in: header
+      name: X-AWCMS-Mini-Signature
+      description: HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.
+  messages:
+    DomainEvent:
+      name: DomainEvent
+      title: AWCMS-Mini domain event envelope
+      payload:
+        $ref: "#/components/schemas/DomainEventEnvelope"
+      headers:
+        type: object
+        required:
+          - X-AWCMS-Mini-Node-ID
+          - X-AWCMS-Mini-Timestamp
+          - X-AWCMS-Mini-Signature
+        properties:
+          X-AWCMS-Mini-Node-ID:
+            type: string
+          X-AWCMS-Mini-Timestamp:
+            type: string
+            format: date-time
+          X-AWCMS-Mini-Signature:
+            type: string
+  schemas:
+    DomainEventEnvelope:
+      type: object
+      required:
+        - event_id
+        - event_type
+        - occurred_at
+        - producer
+        - payload
+      additionalProperties: false
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+          pattern: "^[a-z0-9]+(\\.[a-z0-9_]+)+$"
+        occurred_at:
+          type: string
+          format: date-time
+        producer:
+          type: object
+          required:
+            - service
+            - module
+          additionalProperties: false
+          properties:
+            service:
+              type: string
+              const: awcms-mini
+            module:
+              type: string
+        tenant_id:
+          type:
+            - string
+            - "null"
+          format: uuid
+        correlation_id:
+          type:
+            - string
+            - "null"
+        payload:
+          type: object
+          additionalProperties: true

@@ -1,0 +1,293 @@
+openapi: 3.1.0
+info:
+  title: AWCMS-Mini Public API
+  version: 0.1.0
+  description: Baseline REST contract for the AWCMS-Mini modular monolith foundation.
+servers:
+  - url: http://localhost:4321
+    description: Local development
+tags:
+  - name: Foundation
+    description: Foundation and platform endpoints.
+paths:
+  /api/v1/health:
+    get:
+      tags:
+        - Foundation
+      summary: Check foundation health
+      operationId: getHealth
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/AcceptLanguage"
+      responses:
+        "200":
+          description: Service health status.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/HealthResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+x-awcms-mini-soft-delete-pattern:
+  delete:
+    method: DELETE
+    pathPattern: /api/v1/{resources}/{id}
+    behavior: Soft delete using deleted_at, deleted_by, and delete_reason.
+  restore:
+    method: POST
+    pathPattern: /api/v1/{resources}/{id}/restore
+    behavior: Restore with ABAC, unique-key conflict validation, and audit.
+  purgeRequest:
+    method: POST
+    pathPattern: /api/v1/{resources}/{id}/purge-request
+    behavior: Retention or legal workflow request, never direct physical delete.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Standard authenticated API access.
+    tenantHeader:
+      type: apiKey
+      in: header
+      name: X-AWCMS-Mini-Tenant-ID
+      description: Active tenant context for tenant-scoped API.
+    syncHmac:
+      type: apiKey
+      in: header
+      name: X-AWCMS-Mini-Signature
+      description: HMAC signature for sync endpoints with node and timestamp headers.
+  parameters:
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 128
+      description: Optional server-side trace correlation ID.
+    RequestId:
+      name: X-Request-ID
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 128
+      description: Optional client-generated request trace ID.
+    AcceptLanguage:
+      name: Accept-Language
+      in: header
+      required: false
+      schema:
+        type: string
+        example: id
+      description: Preferred response locale.
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+      description: Required for high-risk mutations.
+    SyncNodeId:
+      name: X-AWCMS-Mini-Node-ID
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 3
+        maxLength: 128
+      description: Sync node identifier.
+    SyncTimestamp:
+      name: X-AWCMS-Mini-Timestamp
+      in: header
+      required: true
+      schema:
+        type: string
+        format: date-time
+      description: Request timestamp used for anti-replay checks.
+    SyncSignature:
+      name: X-AWCMS-Mini-Signature
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 32
+      description: HMAC signature over the sync request.
+  responses:
+    BadRequest:
+      description: Validation or request error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    Unauthorized:
+      description: Authentication required or expired.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    Forbidden:
+      description: Access denied by RBAC, ABAC, or tenant policy.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    NotFound:
+      description: Resource not found or hidden by soft-delete policy.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    InternalError:
+      description: Internal server error without stack trace.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+  schemas:
+    ApiMeta:
+      type: object
+      additionalProperties: false
+      properties:
+        correlationId:
+          type: string
+        requestId:
+          type: string
+    ApiSuccess:
+      type: object
+      required:
+        - ok
+        - data
+        - meta
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          description: Response payload.
+        meta:
+          $ref: "#/components/schemas/ApiMeta"
+    ApiError:
+      type: object
+      required:
+        - ok
+        - error
+        - meta
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: false
+        error:
+          type: object
+          required:
+            - code
+            - message
+          additionalProperties: false
+          properties:
+            code:
+              $ref: "#/components/schemas/ErrorCode"
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                $ref: "#/components/schemas/ErrorDetail"
+        meta:
+          $ref: "#/components/schemas/ApiMeta"
+    ErrorDetail:
+      type: object
+      additionalProperties: false
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+    ErrorCode:
+      type: string
+      enum:
+        - VALIDATION_ERROR
+        - AUTH_REQUIRED
+        - TOKEN_EXPIRED
+        - ACCESS_DENIED
+        - TENANT_REQUIRED
+        - RESOURCE_NOT_FOUND
+        - RESOURCE_DELETED
+        - IDEMPOTENCY_REQUIRED
+        - IDEMPOTENCY_CONFLICT
+        - WORKFLOW_APPROVAL_REQUIRED
+        - SYNC_CONFLICT
+        - DATABASE_BUSY
+        - PROVIDER_ERROR
+        - INTERNAL_ERROR
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - service
+        - runtime
+        - buildMode
+        - moduleCount
+        - generatedAt
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+        service:
+          type: string
+          const: awcms-mini
+        runtime:
+          type: string
+          const: bun
+        buildMode:
+          type: string
+        moduleCount:
+          type: integer
+          minimum: 0
+        generatedAt:
+          type: string
+          format: date-time
+    SoftDeleteQuery:
+      type: object
+      additionalProperties: false
+      properties:
+        includeDeleted:
+          type: boolean
+          default: false
+          description: Include archived records when caller has explicit permission.
+        onlyDeleted:
+          type: boolean
+          default: false
+          description: List only archived records when caller has explicit permission.
+    SoftDeleteRequest:
+      type: object
+      required:
+        - delete_reason
+      additionalProperties: false
+      properties:
+        delete_reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+          description: Audit-safe reason for soft delete.
+security:
+  - bearerAuth: []
+    tenantHeader: []

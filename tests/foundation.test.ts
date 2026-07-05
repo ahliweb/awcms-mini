@@ -14,6 +14,11 @@ import {
   stripOptionalTransactionWrapper,
   validateAppliedChecksums,
 } from "../scripts/db-migrate";
+import {
+  checkAsyncApi,
+  checkOpenApi,
+  runApiSpecChecks,
+} from "../scripts/api-spec-check";
 
 describe("api response helper", () => {
   test("ok() returns standardized JSON response", async () => {
@@ -98,5 +103,43 @@ describe("database migration runner helpers", () => {
     expect(redactDatabaseUrl(`failed for ${databaseUrl}`, databaseUrl)).toBe(
       "failed for [redacted DATABASE_URL]"
     );
+  });
+});
+
+describe("api contract baseline", () => {
+  test("OpenAPI and AsyncAPI baseline files pass spec checks", async () => {
+    await expect(runApiSpecChecks()).resolves.toEqual([]);
+  });
+
+  test("OpenAPI checker requires shared response schema", () => {
+    expect(
+      checkOpenApi(
+        {
+          openapi: "3.1.0",
+          info: {},
+          paths: { "/api/v1/health": { get: {} } },
+          components: {
+            schemas: {},
+            securitySchemes: {},
+            parameters: {},
+          },
+        },
+        "openapi/test.yaml"
+      ).some((problem) => problem.message.includes("ApiSuccess"))
+    ).toBe(true);
+  });
+
+  test("AsyncAPI checker requires domain event envelope", () => {
+    expect(
+      checkAsyncApi(
+        {
+          asyncapi: "3.0.0",
+          info: {},
+          channels: {},
+          components: { messages: {}, schemas: {}, securitySchemes: {} },
+        },
+        "asyncapi/test.yaml"
+      ).some((problem) => problem.message.includes("DomainEventEnvelope"))
+    ).toBe(true);
   });
 });

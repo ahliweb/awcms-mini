@@ -135,11 +135,11 @@ Hasil:
    - **Audit menyeluruh GitHub vs doc 06 pada 2026-07-04T22:11:08Z**: membandingkan setiap field (Problem/Scope/Out of Scope/Acceptance Criteria/Security Notes/Testing/Reference Docs) tiap issue open terhadap doc 06, plus label & milestone terhadap tabel rekomendasi. Ditemukan 14/18 issue drift: 2 **konflik konten nyata** (leftover bahasa domain "POS, inventory" di `#371` dan "user/customer/tax/CRM" di `#377`, tersisa dari genericization sebelumnya) + 12 issue dengan Reference Docs basi (dibuat sebelum `docs/adr/`/doc 20 ada). Semua diperbaiki di GitHub tanpa mengubah jumlah/label/milestone (tetap 18 open/20 closed/98 label/24 milestone — 100% cocok tabel doc 06 setelah perbaikan). Detail: `docs/awcms-mini/github/README.md` §Reconciliation #2.
    - **Issue 0.1 foundation skeleton**: Astro 7 ditambahkan, `bun run build` lulus, health endpoint `/api/v1/health` tersedia, `src/modules/_shared/` menyediakan module contract, response helper, soft-delete convention, `src/modules/index.ts` menjadi registry awal, `.env.example` placeholder tersedia, dan folder standar `src/`, `sql/`, `openapi/`, `asyncapi/`, `deploy/`, `fixtures/` dibuat. CI dan `bun run check` menjalankan build. Issue GitHub `#371` ditutup `completed` pada 2026-07-05; snapshot GitHub terbaru menjadi 17 open / 21 closed.
    - **Issue 0.2 SQL migration runner**: `scripts/db-migrate.ts` ditambahkan dengan `Bun.SQL`, advisory lock, checksum SHA-256, skip applied migration, deteksi checksum drift, transaction boundary runner, redaksi `DATABASE_URL`, test helper, script `bun run db:migrate`, dan panduan `docs/awcms-mini/database-migrations.md`. Issue GitHub `#372` ditutup `completed` pada 2026-07-05; snapshot GitHub terbaru menjadi 16 open / 22 closed.
+   - **Issue 0.3 OpenAPI/AsyncAPI baseline**: `openapi/awcms-mini-public-api.openapi.yaml`, `asyncapi/awcms-mini-domain-events.asyncapi.yaml`, dan `scripts/api-spec-check.ts` ditambahkan. Kontrak mencakup response/error schema bersama, health endpoint, pola soft delete/restore/purge, header HMAC sync, domain event envelope, dan validasi konsistensi event module registry.
 
 ## Rekomendasi berikutnya
 
 Urutan paling aman:
 
-1. Kerjakan Issue 0.3 agar OpenAPI/AsyncAPI validator executable.
-2. Kerjakan Issue 12.1 untuk setup wizard API.
-3. Baru lanjut ke tenant, profile, auth, ABAC, sync, UI, reporting, workflow, dan deployment sesuai urutan docs.
+1. Kerjakan Issue 12.1 untuk setup wizard API.
+2. Baru lanjut ke tenant, profile, auth, ABAC, sync, UI, reporting, workflow, dan deployment sesuai urutan docs.
