@@ -9,9 +9,11 @@ import {
 } from "../src/modules/_shared/soft-delete";
 import { getModuleByKey, listModules } from "../src/modules";
 import {
+  assertNoTransactionControl,
   computeMigrationChecksum,
   discoverMigrationFiles,
   redactDatabaseUrl,
+  stripDollarQuotedBlocks,
   stripOptionalTransactionWrapper,
   validateAppliedChecksums
 } from "../scripts/db-migrate";
@@ -110,6 +112,34 @@ describe("database migration runner helpers", () => {
     ).toBe("SELECT 1;");
   });
 
+  test("dollar-quoted block bodies are removed before scanning for transaction control", () => {
+    // A PL/pgSQL DO block legitimately contains BEGIN/END as block delimiters;
+    // stripping the $$...$$ body leaves only the outer statement to scan.
+    const doBlock =
+      "DO $$\nBEGIN\n  CREATE ROLE awcms_mini_app NOLOGIN;\nEND\n$$;";
+    expect(stripDollarQuotedBlocks(doBlock)).not.toContain("BEGIN");
+    // Tagged dollar-quotes ($tag$ ... $tag$) are matched by their tag too — the
+    // whole quoted span (delimiters included) is removed, taking COMMIT with it.
+    const stripped = stripDollarQuotedBlocks("$fn$ COMMIT; $fn$");
+    expect(stripped).not.toContain("COMMIT");
+    expect(stripped.trim()).toBe("");
+  });
+
+  test("a DO block with BEGIN/END passes the transaction-control check", () => {
+    // Regression guard for migration 013: its `DO $$ BEGIN ... END $$` must not
+    // be misread as a top-level BEGIN;/COMMIT; transaction-control statement.
+    expect(() =>
+      assertNoTransactionControl(
+        "DO $$\nBEGIN\n  CREATE ROLE awcms_mini_app NOLOGIN;\nEND\n$$;",
+        "013_awcms_mini_enforce_rls_least_privilege.sql"
+      )
+    ).not.toThrow();
+    // But a real top-level BEGIN; is still rejected.
+    expect(() =>
+      assertNoTransactionControl("BEGIN;\nSELECT 1;", "999_bad.sql")
+    ).toThrow("transaction control");
+  });
+
   test("applied checksum mismatch fails fast", () => {
     expect(() =>
       validateAppliedChecksums(
@@ -155,11 +185,42 @@ describe("database migration runner helpers", () => {
       "009_awcms_mini_object_sync_queue_schema.sql",
       "010_awcms_mini_management_reporting_permission_schema.sql",
       "011_awcms_mini_audit_logging_schema.sql",
-      "012_awcms_mini_workflow_approval_schema.sql"
+      "012_awcms_mini_workflow_approval_schema.sql",
+      "013_awcms_mini_enforce_rls_least_privilege.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
     }
+  });
+
+  test("rls-enforcement migration FORCEs RLS on tenant tables and creates a least-privilege app role", async () => {
+    const migrations = await discoverMigrationFiles();
+    const rlsSchema = migrations.find(
+      (migration) =>
+        migration.name === "013_awcms_mini_enforce_rls_least_privilege.sql"
+    );
+
+    expect(rlsSchema).toBeDefined();
+    // FORCE (not just ENABLE) is what makes RLS apply to the table owner.
+    expect(rlsSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_offices FORCE ROW LEVEL SECURITY"
+    );
+    expect(rlsSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_profiles FORCE ROW LEVEL SECURITY"
+    );
+    // Least-privilege role, created NOLOGIN/passwordless (no secret in git).
+    expect(rlsSchema?.sql).toContain("CREATE ROLE awcms_mini_app NOLOGIN");
+    expect(rlsSchema?.sql).not.toMatch(
+      /CREATE ROLE awcms_mini_app[^;]*PASSWORD/i
+    );
+    // Fail-closed default tenant GUC (all-zero UUID matches no real tenant).
+    expect(rlsSchema?.sql).toContain(
+      "app.current_tenant_id = '00000000-0000-0000-0000-000000000000'"
+    );
+    // DML grants only — no ownership/DDL handed to the app role.
+    expect(rlsSchema?.sql).toContain(
+      "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO awcms_mini_app"
+    );
   });
 
   test("tenant/office schema declares RLS and soft-delete on office-scoped tables", async () => {

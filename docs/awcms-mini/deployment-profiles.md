@@ -91,6 +91,49 @@ dari environment"). `DATABASE_URL` di-override otomatis oleh
 `localhost` seperti default `.env.example`, yang ditujukan untuk deployment
 non-container) — lihat komentar di berkas itu.
 
+Compose juga mewujudkan model dua-peran di bawah tanpa langkah manual:
+service `migrate` (satu kali, sebagai superuser) menjalankan `db:migrate`,
+service `app` menunggu `migrate` selesai
+(`depends_on: … condition: service_completed_successfully`) lalu konek
+sebagai peran least-privilege — jadi `docker compose up` mengurut sendiri:
+`db` init membuat peran → `migrate` menerapkan skema + FORCE RLS + grant →
+`app` mulai.
+
+## Model dua-peran basis data (RLS enforcement)
+
+Isolasi antar-tenant memakai PostgreSQL Row-Level Security (ADR-0003).
+`ENABLE ROW LEVEL SECURITY` saja **tidak cukup**: PostgreSQL melewati RLS
+untuk _pemilik_ tabel (kecuali `FORCE`) dan tanpa syarat untuk peran
+SUPERUSER/BYPASSRLS. Karena itu deployment memakai dua peran (lihat
+`sql/013`):
+
+- **Peran migrasi (privileged owner/superuser)** — menjalankan
+  `bun run db:migrate`. Butuh hak DDL/GRANT. Ini `POSTGRES_USER` di
+  `docker-compose.yml` / URL privileged yang Anda pakai sekali untuk migrasi.
+- **Peran aplikasi `awcms_mini_app` (least-privilege)** — peran yang
+  di-koneksi aplikasi saat runtime (`DATABASE_URL` di `.env`). Bukan owner,
+  bukan superuser, hanya grant DML; migrasi 013 menerapkan
+  `FORCE ROW LEVEL SECURITY` pada 31 tabel tenant + default GUC fail-closed
+  (`app.current_tenant_id` = UUID nol → tak cocok tenant mana pun → 0 baris)
+  sehingga RLS benar-benar ditegakkan untuk peran ini.
+
+Menjalankan aplikasi sebagai superuser membatalkan seluruh isolasi RLS —
+`bun run security:readiness` sekarang **memblokir go-live** bila peran koneksi
+`DATABASE_URL` ternyata superuser/BYPASSRLS, atau bila ada tabel tenant tanpa
+`relforcerowsecurity` (cek "App DB connection role does not bypass RLS" dan
+"RLS enabled AND forced on tenant-scoped tables"). Jalankan readiness dengan
+`DATABASE_URL` peran aplikasi, bukan URL migrasi.
+
+Membuat peran aplikasi:
+
+- **Container:** otomatis — `deploy/postgres/10-create-app-role.sh` (hook
+  `/docker-entrypoint-initdb.d`) membuatnya dari `AWCMS_MINI_APP_DB_PASSWORD`
+  saat init cluster pertama, lalu migrasi 013 memberi grant + FORCE RLS.
+- **Bare-metal/systemd:** sekali di awal, sebagai superuser —
+  `CREATE ROLE awcms_mini_app LOGIN PASSWORD '…';` — lalu `bun run db:migrate`
+  (URL superuser). Setelah itu app konek sebagai `awcms_mini_app`
+  (`DATABASE_URL` di `.env`). Lihat `.env.example` §Database.
+
 ## Validasi konfigurasi sebelum boot (`bun run config:validate`)
 
 Doc 18 §Prinsip konfigurasi #5: "Konfigurasi tervalidasi saat boot; nilai

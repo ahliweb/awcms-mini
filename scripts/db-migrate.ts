@@ -55,8 +55,23 @@ export function stripOptionalTransactionWrapper(sql: string): string {
     .trim();
 }
 
+/**
+ * Removes dollar-quoted string bodies (`$$ ... $$`, `$tag$ ... $tag$`) so their
+ * contents are not scanned for transaction-control keywords. A PL/pgSQL block
+ * (`DO $$ BEGIN ... END $$`) legitimately contains `BEGIN`/`END`, which are
+ * block delimiters, not the top-level `BEGIN;`/`COMMIT;` transaction control
+ * this check is meant to reject.
+ */
+export function stripDollarQuotedBlocks(sql: string): string {
+  return sql.replace(/\$(\w*)\$[\s\S]*?\$\1\$/g, "");
+}
+
 export function assertNoTransactionControl(sql: string, migrationName: string) {
-  if (/\b(BEGIN|COMMIT|ROLLBACK|START\s+TRANSACTION)\b/i.test(sql)) {
+  if (
+    /\b(BEGIN|COMMIT|ROLLBACK|START\s+TRANSACTION)\b/i.test(
+      stripDollarQuotedBlocks(sql)
+    )
+  ) {
     throw new Error(
       `Migration ${migrationName} contains transaction control statements. ` +
         "Let scripts/db-migrate.ts manage the transaction boundary."

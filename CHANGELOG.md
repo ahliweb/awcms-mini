@@ -6,6 +6,23 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-07-06
+
+### Added
+
+- Migrasi **`013`** menegakkan RLS multi-tenant: `FORCE ROW LEVEL SECURITY` pada **31** tabel tenant-scoped (policy berlaku bahkan untuk pemilik tabel) + role aplikasi least-privilege **`awcms_mini_app`** (hanya grant DML, non-superuser, non-owner) + default GUC fail-closed (`app.current_tenant_id` = UUID nol → tak cocok tenant mana pun → 0 baris bila tabel RLS dicapai tanpa `withTenant`).
+- Wiring deployment dua-peran: service satu-kali **`migrate`** (superuser, `service_completed_successfully`) + hook init **`deploy/postgres/10-create-app-role.sh`** di `docker-compose.yml` yang membuat role dari `AWCMS_MINI_APP_DB_PASSWORD`; model dua-peran didokumentasikan di `.env.example` dan `docs/awcms-mini/deployment-profiles.md`. Runner `db:migrate` diberi `stripDollarQuotedBlocks()` agar blok `DO $$ … $$` tidak salah dibaca sebagai transaction-control (+ test regresi).
+
+### Changed
+
+- Aplikasi kini terhubung sebagai role least-privilege **`awcms_mini_app`** (bukan pemilik/superuser) sehingga RLS benar-benar ditegakkan; migrasi tetap berjalan sebagai role privileged.
+- **`security:readiness`** ditingkatkan dari cek flag ke cek **penegakan**: check "RLS enabled AND forced" kini mewajibkan `relforcerowsecurity`, dan check baru "App DB connection role does not bypass RLS" **memblokir go-live** bila peran koneksi `DATABASE_URL` superuser/BYPASSRLS. Harness integrasi di-split dua peran; test isolasi baris RLS (sebelumnya di-drop) kini aktif dan lulus.
+- Perbaikan `docker-compose.yml`: volume `db` di-mount di `/var/lib/postgresql` (bukan `/var/lib/postgresql/data`) agar image `postgres:18+` mau start — celah yang lolos dari bump 18.4 (0.17.0) karena diverifikasi via `docker run`, bukan `docker compose up`.
+
+### Security
+
+- **Ditutup** — temuan keamanan 0.18.0: RLS multi-tenant (ADR-0003) sebelumnya inert karena aplikasi terhubung sebagai pemilik tabel + superuser dan migrasi hanya `ENABLE` (bukan `FORCE`). Kini ditegakkan penuh. Diverifikasi live terhadap `postgres:18.4`: `security:readiness` sebagai superuser → **GO-LIVE DIBLOKIR** (menangkap tepat celah ini), sebagai role least-privilege → 11/11 PASS; stack `docker-compose` penuh — app konek sebagai `awcms_mini_app`, konteks tenant bogus → **0** baris, tenant nyata → **1**, sementara superuser melewati RLS (membuktikan `FORCE` + role least-privilege yang menutup celah); 6/6 test integrasi lulus dengan handler berjalan sebagai `awcms_mini_app`.
+
 ## [0.18.0] - 2026-07-05
 
 ### Added
@@ -274,7 +291,8 @@ Aplikasi turunan (mis. AWPOS) memakai peta versinya sendiri di atas base ini.
 
 Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0`-`0.4.0` berisi Issue 2.1 (tenant/office), 2.2 (central profile), dan 2.3 (identity/login) dari slot "Tenant, identity, profile" (tuntas); rilis `0.5.0` berisi Issue 2.4 (RBAC/ABAC) dari slot "RBAC/ABAC evaluator + assignment" (tuntas). Epic M2 (2.1–2.4) selesai penuh. Rilis `0.6.0` berisi Issue 12.1 (Setup Wizard) dan rilis `0.7.0` berisi Issue 6.1 (Sync Outbox/Inbox) — keduanya tidak punya slot eksplisit sendiri di tabel peta versi doc 09 (12.1 ditempatkan setelah M2, 6.1 dimulai dari slot "Sync storage" `v0.4.0` yang sebelumnya ditarget jauh lebih lambat dari realisasi progresif ini). Rilis `0.8.0` berisi Issue 6.2 (Sync Conflict Tracking/Resolution), lanjutan langsung dari slot "Sync storage" yang sama dengan 6.1. Rilis `0.9.0` berisi Issue 6.3 (R2 Object Sync Queue), menuntaskan epic M5 (Sync Storage) sepenuhnya. Rilis `0.10.0` berisi Issue 8.1 (Admin Layout Shell), issue pertama epic M7 (UI/UX & Reporting) dan issue frontend pertama di repo ini. Rilis `0.11.0` berisi Issue 9.1 (Management Reporting Views), menuntaskan epic M7 sepenuhnya. Rilis `0.11.1` adalah patch (bug fix jsonb double-encoding pada sync push, bukan issue baru). Rilis `0.12.0` berisi Issue 10.1 (Structured Logging and Audit Trail), issue pertama epic M8 (Security, Performance, Production). Rilis `0.13.0` berisi Issue 10.2 (Database Connection Pooling and Backpressure) — tidak ada migration baru, murni infrastruktur aplikasi. Rilis `0.14.0` berisi Issue 10.3 (Production Security Readiness Checklist) — juga tidak ada migration baru, murni tooling CLI yang memverifikasi kontrol yang sudah dibangun sebelumnya. Rilis `0.15.0` berisi Issue 11.1 (Workflow Approval Engine), mendarat lebih awal dari rencana semula (slot 015) karena mengikuti tepat setelah 10.3 yang tidak butuh migration. Rilis `0.16.0` berisi Issue 12.2 (Offline/LAN Deployment Profile) — tidak ada migration baru, murni aset deployment — menuntaskan epic M8 sekaligus seluruh backlog base generik (18 issue doc06).
 
-[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.18.0...HEAD
+[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.19.0...HEAD
+[0.19.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.18.0...awcms-mini@0.19.0
 [0.18.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.17.0...awcms-mini@0.18.0
 [0.17.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.16.0...awcms-mini@0.17.0
 [0.16.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.15.0...awcms-mini@0.16.0
