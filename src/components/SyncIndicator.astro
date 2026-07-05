@@ -1,13 +1,16 @@
 ---
 /**
- * SyncIndicator — presentational stub (Issue 8.1).
+ * SyncIndicator — presentational component (Issue 8.1 shell, wired to real
+ * data in Issue 9.1 — Management Reporting).
  *
- * Renders a dot + label only. There is no admin-facing "sync health"
- * endpoint yet: `GET /sync/status` (Issue 6.1) is HMAC node-auth
- * (machine-to-machine), not reachable from a human's browser bearer/cookie
- * session. Wiring this to live data is explicitly Issue 9.1 (Management
- * Reporting) scope. Callers pass a static `active` boolean; there is no
- * data-fetching logic in this component.
+ * Renders a dot + label only; it has no data-fetching logic of its own.
+ * `GET /sync/status` (Issue 6.1) is HMAC node-auth (machine-to-machine), not
+ * reachable from a human's browser bearer/cookie session, so it cannot back
+ * this component directly — `AdminLayout.astro` instead computes `active`
+ * via `fetchSyncIndicatorActive`
+ * (`src/modules/reporting/application/sync-indicator.ts`), a lightweight
+ * tenant-scoped aggregation over sync nodes/conflicts/object-queue status,
+ * and passes the real boolean in as a prop.
  */
 interface Props {
   active?: boolean;

@@ -1,7 +1,203 @@
 ---
+/**
+ * Admin dashboard (Issue 9.1 — Add Management Reporting Views).
+ *
+ * Issue 8.1 deliberately left this page as a placeholder ("Dashboard belum
+ * tersedia — lihat Issue 9.1") and deferred wiring it to this issue. SSR
+ * fetches the four generic reporting views directly via `withTenant`/raw
+ * query (same pattern `AdminLayout.astro` already uses for the tenant name
+ * lookup) — not an HTTP round-trip to this app's own `GET /reports/*`
+ * endpoints, which would be redundant. Those endpoints still exist and are
+ * documented in the OpenAPI contract for external/API callers.
+ */
 import AdminLayout from "../../layouts/AdminLayout.astro";
+import { getDatabaseClient } from "../../lib/database/client";
+import { withTenant } from "../../lib/database/tenant-context";
+import { permissionKey } from "../../modules/identity-access/domain/access-control";
+import { fetchTenantActivityReport } from "../../modules/reporting/application/tenant-activity-report";
+import { fetchAccessAuditReport } from "../../modules/reporting/application/access-audit-report";
+import { fetchSyncHealthReport } from "../../modules/reporting/application/sync-health-report";
+import { fetchModuleUsageReport } from "../../modules/reporting/application/module-usage-report";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/index.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const REPORTING_DASHBOARD_PERMISSION = permissionKey(
+  "reporting",
+  "dashboard",
+  "read"
+);
+const hasDashboardAccess = context.permissions.has(
+  REPORTING_DASHBOARD_PERMISSION
+);
+
+const dashboard = hasDashboardAccess
+  ? await withTenant(getDatabaseClient(), context.tenantId, async (tx) => ({
+      tenantActivity: await fetchTenantActivityReport(tx, context.tenantId),
+      accessAudit: await fetchAccessAuditReport(tx, context.tenantId),
+      syncHealth: await fetchSyncHealthReport(tx, context.tenantId),
+      moduleUsage: await fetchModuleUsageReport(tx, context.tenantId)
+    }))
+  : null;
 ---
 
 <AdminLayout title="Dashboard">
-  <p>Dashboard belum tersedia — lihat Issue 9.1.</p>
+  {
+    !dashboard && (
+      <div class="permission-denied" role="alert">
+        <p>
+          <strong>Akses ditolak.</strong>
+        </p>
+        <p>
+          Akun Anda tidak memiliki izin{" "}
+          <code>{REPORTING_DASHBOARD_PERMISSION}</code> untuk melihat dashboard
+          ini. Hubungi admin/owner tenant Anda untuk meminta akses.
+        </p>
+      </div>
+    )
+  }
+  {
+    dashboard && (
+      <div class="dashboard-grid">
+        <section class="dashboard-card">
+          <h2>Aktivitas Tenant</h2>
+          <dl>
+            <dt>Tenant</dt>
+            <dd>
+              {dashboard.tenantActivity.tenantName} (
+              {dashboard.tenantActivity.tenantStatus})
+            </dd>
+            <dt>User aktif</dt>
+            <dd>{dashboard.tenantActivity.activeUserCount}</dd>
+            <dt>Kantor aktif</dt>
+            <dd>{dashboard.tenantActivity.activeOfficeCount}</dd>
+            <dt>Login terakhir</dt>
+            <dd>{dashboard.tenantActivity.mostRecentLoginAt ?? "-"}</dd>
+          </dl>
+        </section>
+        <section class="dashboard-card">
+          <h2>Access &amp; Audit</h2>
+          <dl>
+            <dt>Allow ({dashboard.accessAudit.decisionWindowDays} hari)</dt>
+            <dd>{dashboard.accessAudit.allowCount}</dd>
+            <dt>Deny ({dashboard.accessAudit.decisionWindowDays} hari)</dt>
+            <dd>{dashboard.accessAudit.denyCount}</dd>
+            <dt>Total decision log</dt>
+            <dd>{dashboard.accessAudit.totalDecisionCount}</dd>
+            <dt>Profile audit log</dt>
+            <dd>{dashboard.accessAudit.profileAuditLogCount}</dd>
+          </dl>
+        </section>
+        <section class="dashboard-card">
+          <h2>Sync Health</h2>
+          <dl>
+            <dt>Node aktif</dt>
+            <dd>
+              {dashboard.syncHealth.activeNodeCount} /{" "}
+              {dashboard.syncHealth.totalNodeCount}
+            </dd>
+            <dt>Konflik terbuka</dt>
+            <dd>{dashboard.syncHealth.openConflictCount}</dd>
+            <dt>Objek pending</dt>
+            <dd>{dashboard.syncHealth.pendingObjectCount}</dd>
+            <dt>Objek gagal</dt>
+            <dd>{dashboard.syncHealth.failedObjectCount}</dd>
+            <dt>Status</dt>
+            <dd>
+              {dashboard.syncHealth.isHealthy ? "Sehat" : "Perlu perhatian"}
+            </dd>
+          </dl>
+        </section>
+        <section class="dashboard-card">
+          <h2>Penggunaan Modul</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Modul</th>
+                <th>Metrik</th>
+                <th>Jumlah</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dashboard.moduleUsage.map((entry) => (
+                <tr>
+                  <td>{entry.moduleName}</td>
+                  <td>{entry.metricLabel}</td>
+                  <td>{entry.recordCount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </div>
+    )
+  }
 </AdminLayout>
+
+<style>
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: var(--sp-4);
+  }
+
+  .dashboard-card {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-4);
+  }
+
+  .dashboard-card h2 {
+    margin-top: 0;
+    font-size: var(--fs-md);
+  }
+
+  .dashboard-card dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--sp-1) var(--sp-3);
+    margin: 0;
+  }
+
+  .dashboard-card dt {
+    color: var(--color-text-muted);
+    font-size: var(--fs-sm);
+  }
+
+  .dashboard-card dd {
+    margin: 0;
+    font-weight: 600;
+    text-align: right;
+  }
+
+  .dashboard-card table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .dashboard-card th,
+  .dashboard-card td {
+    text-align: left;
+    padding: var(--sp-1) var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--fs-sm);
+  }
+
+  .permission-denied {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius-md);
+    padding: var(--sp-4);
+  }
+
+  .permission-denied code {
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+  }
+</style>

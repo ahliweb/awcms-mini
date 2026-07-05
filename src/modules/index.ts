@@ -1,6 +1,7 @@
 import type { ModuleDescriptor } from "./_shared/module-contract";
 import { identityAccessModule } from "./identity-access/module";
 import { profileIdentityModule } from "./profile-identity/module";
+import { reportingModule } from "./reporting/module";
 import { syncStorageModule } from "./sync-storage/module";
 import { tenantAdminModule } from "./tenant-admin/module";
 
@@ -8,7 +9,8 @@ export const modules: ModuleDescriptor[] = [
   tenantAdminModule,
   profileIdentityModule,
   identityAccessModule,
-  syncStorageModule
+  syncStorageModule,
+  reportingModule
 ];
 
 export function getModuleByKey(
