@@ -37,39 +37,42 @@ export const GET: APIRoute = async ({ request, url }) => {
   const tokenHash = hashSessionToken(token);
   const now = new Date();
 
-  return withTenant(sql, tenantId, async (tx) => {
-    const context = await resolveTenantContext(tx, tenantId, tokenHash, now);
+  return withTenant(
+    sql,
+    tenantId,
+    async (tx) => {
+      const context = await resolveTenantContext(tx, tenantId, tokenHash, now);
 
-    if (!context) {
-      return fail(401, "AUTH_REQUIRED", "Session is invalid or expired.");
-    }
+      if (!context) {
+        return fail(401, "AUTH_REQUIRED", "Session is invalid or expired.");
+      }
 
-    const grantedPermissionKeys = await fetchGrantedPermissionKeys(
-      tx,
-      tenantId,
-      context.tenantUserId
-    );
-    const decision = evaluateAccess(
-      context,
-      GUARD_REQUEST,
-      grantedPermissionKeys
-    );
+      const grantedPermissionKeys = await fetchGrantedPermissionKeys(
+        tx,
+        tenantId,
+        context.tenantUserId
+      );
+      const decision = evaluateAccess(
+        context,
+        GUARD_REQUEST,
+        grantedPermissionKeys
+      );
 
-    await recordDecisionLog(
-      tx,
-      tenantId,
-      context.tenantUserId,
-      GUARD_REQUEST,
-      decision
-    );
+      await recordDecisionLog(
+        tx,
+        tenantId,
+        context.tenantUserId,
+        GUARD_REQUEST,
+        decision
+      );
 
-    if (!decision.allowed) {
-      return fail(403, "ACCESS_DENIED", decision.reason);
-    }
+      if (!decision.allowed) {
+        return fail(403, "ACCESS_DENIED", decision.reason);
+      }
 
-    const rows =
-      statusFilter === "open" || statusFilter === "resolved"
-        ? await tx`
+      const rows =
+        statusFilter === "open" || statusFilter === "resolved"
+          ? await tx`
             SELECT id, node_id, batch_id, aggregate_type, aggregate_id, conflict_type,
                    payload_json, status, resolution, resolution_note, resolved_by, resolved_at, created_at
             FROM awcms_mini_sync_conflicts
@@ -77,7 +80,7 @@ export const GET: APIRoute = async ({ request, url }) => {
             ORDER BY created_at DESC
             LIMIT ${MAX_RESULTS}
           `
-        : await tx`
+          : await tx`
             SELECT id, node_id, batch_id, aggregate_type, aggregate_id, conflict_type,
                    payload_json, status, resolution, resolution_note, resolved_by, resolved_at, created_at
             FROM awcms_mini_sync_conflicts
@@ -86,38 +89,40 @@ export const GET: APIRoute = async ({ request, url }) => {
             LIMIT ${MAX_RESULTS}
           `;
 
-    type ConflictRow = {
-      id: string;
-      node_id: string;
-      batch_id: string;
-      aggregate_type: string;
-      aggregate_id: string;
-      conflict_type: string;
-      payload_json: unknown;
-      status: string;
-      resolution: string | null;
-      resolution_note: string | null;
-      resolved_by: string | null;
-      resolved_at: Date | null;
-      created_at: Date;
-    };
+      type ConflictRow = {
+        id: string;
+        node_id: string;
+        batch_id: string;
+        aggregate_type: string;
+        aggregate_id: string;
+        conflict_type: string;
+        payload_json: unknown;
+        status: string;
+        resolution: string | null;
+        resolution_note: string | null;
+        resolved_by: string | null;
+        resolved_at: Date | null;
+        created_at: Date;
+      };
 
-    return ok({
-      conflicts: (rows as ConflictRow[]).map((row) => ({
-        id: row.id,
-        nodeId: row.node_id,
-        batchId: row.batch_id,
-        aggregateType: row.aggregate_type,
-        aggregateId: row.aggregate_id,
-        conflictType: row.conflict_type,
-        payload: row.payload_json,
-        status: row.status,
-        resolution: row.resolution ?? undefined,
-        resolutionNote: row.resolution_note ?? undefined,
-        resolvedBy: row.resolved_by ?? undefined,
-        resolvedAt: row.resolved_at?.toISOString(),
-        createdAt: row.created_at.toISOString()
-      }))
-    });
-  });
+      return ok({
+        conflicts: (rows as ConflictRow[]).map((row) => ({
+          id: row.id,
+          nodeId: row.node_id,
+          batchId: row.batch_id,
+          aggregateType: row.aggregate_type,
+          aggregateId: row.aggregate_id,
+          conflictType: row.conflict_type,
+          payload: row.payload_json,
+          status: row.status,
+          resolution: row.resolution ?? undefined,
+          resolutionNote: row.resolution_note ?? undefined,
+          resolvedBy: row.resolved_by ?? undefined,
+          resolvedAt: row.resolved_at?.toISOString(),
+          createdAt: row.created_at.toISOString()
+        }))
+      });
+    },
+    { workClass: "background_sync" }
+  );
 };

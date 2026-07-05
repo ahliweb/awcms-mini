@@ -35,38 +35,43 @@ export const GET: APIRoute = async ({ request }) => {
   const tokenHash = hashSessionToken(token);
   const now = new Date();
 
-  return withTenant(sql, tenantId, async (tx) => {
-    const context = await resolveTenantContext(tx, tenantId, tokenHash, now);
+  return withTenant(
+    sql,
+    tenantId,
+    async (tx) => {
+      const context = await resolveTenantContext(tx, tenantId, tokenHash, now);
 
-    if (!context) {
-      return fail(401, "AUTH_REQUIRED", "Session is invalid or expired.");
-    }
+      if (!context) {
+        return fail(401, "AUTH_REQUIRED", "Session is invalid or expired.");
+      }
 
-    const grantedPermissionKeys = await fetchGrantedPermissionKeys(
-      tx,
-      tenantId,
-      context.tenantUserId
-    );
-    const decision = evaluateAccess(
-      context,
-      GUARD_REQUEST,
-      grantedPermissionKeys
-    );
+      const grantedPermissionKeys = await fetchGrantedPermissionKeys(
+        tx,
+        tenantId,
+        context.tenantUserId
+      );
+      const decision = evaluateAccess(
+        context,
+        GUARD_REQUEST,
+        grantedPermissionKeys
+      );
 
-    await recordDecisionLog(
-      tx,
-      tenantId,
-      context.tenantUserId,
-      GUARD_REQUEST,
-      decision
-    );
+      await recordDecisionLog(
+        tx,
+        tenantId,
+        context.tenantUserId,
+        GUARD_REQUEST,
+        decision
+      );
 
-    if (!decision.allowed) {
-      return fail(403, "ACCESS_DENIED", decision.reason);
-    }
+      if (!decision.allowed) {
+        return fail(403, "ACCESS_DENIED", decision.reason);
+      }
 
-    const modules = await fetchModuleUsageReport(tx, tenantId);
+      const modules = await fetchModuleUsageReport(tx, tenantId);
 
-    return ok({ modules });
-  });
+      return ok({ modules });
+    },
+    { workClass: "reporting" }
+  );
 };

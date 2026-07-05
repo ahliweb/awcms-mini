@@ -52,36 +52,39 @@ export const POST: APIRoute = async ({ request }) => {
   const { batchId, events } = validation.value;
   const sql = getDatabaseClient();
 
-  return withTenant(sql, tenantId, async (tx) => {
-    const node = await resolveOrRegisterSyncNode(tx, tenantId, nodeCode);
+  return withTenant(
+    sql,
+    tenantId,
+    async (tx) => {
+      const node = await resolveOrRegisterSyncNode(tx, tenantId, nodeCode);
 
-    if (!node || node.status !== "active") {
-      return fail(403, "ACCESS_DENIED", "Sync node is not active.");
-    }
+      if (!node || node.status !== "active") {
+        return fail(403, "ACCESS_DENIED", "Sync node is not active.");
+      }
 
-    const existingBatch = await tx`
+      const existingBatch = await tx`
       SELECT event_count, conflicted_count FROM awcms_mini_sync_push_batches
       WHERE tenant_id = ${tenantId} AND node_id = ${node.id} AND batch_id = ${batchId}
     `;
 
-    if (existingBatch[0]) {
-      const total = existingBatch[0].event_count as number;
-      const conflicted = existingBatch[0].conflicted_count as number;
+      if (existingBatch[0]) {
+        const total = existingBatch[0].event_count as number;
+        const conflicted = existingBatch[0].conflicted_count as number;
 
-      return ok({
-        batchId,
-        accepted: total - conflicted,
-        conflicted,
-        duplicate: true
-      });
-    }
+        return ok({
+          batchId,
+          accepted: total - conflicted,
+          conflicted,
+          duplicate: true
+        });
+      }
 
-    let acceptedCount = 0;
-    let conflictedCount = 0;
+      let acceptedCount = 0;
+      let conflictedCount = 0;
 
-    for (const event of events) {
-      if (event.aggregateId === undefined) {
-        await tx`
+      for (const event of events) {
+        if (event.aggregateId === undefined) {
+          await tx`
           INSERT INTO awcms_mini_sync_inbox
             (tenant_id, node_id, batch_id, event_type, aggregate_type, aggregate_id, payload_json)
           VALUES (
@@ -89,25 +92,25 @@ export const POST: APIRoute = async ({ request }) => {
             null, ${event.payload}
           )
         `;
-        acceptedCount += 1;
-        continue;
-      }
+          acceptedCount += 1;
+          continue;
+        }
 
-      const versionRows = await tx`
+        const versionRows = await tx`
         SELECT current_version FROM awcms_mini_sync_aggregate_versions
         WHERE tenant_id = ${tenantId} AND aggregate_type = ${event.aggregateType}
           AND aggregate_id = ${event.aggregateId}
       `;
-      const currentVersion = versionRows[0]
-        ? Number(versionRows[0].current_version)
-        : 0;
-      const evaluation = evaluatePushEventConflict(
-        currentVersion,
-        event.baseVersion
-      );
+        const currentVersion = versionRows[0]
+          ? Number(versionRows[0].current_version)
+          : 0;
+        const evaluation = evaluatePushEventConflict(
+          currentVersion,
+          event.baseVersion
+        );
 
-      if (evaluation.conflict) {
-        await tx`
+        if (evaluation.conflict) {
+          await tx`
           INSERT INTO awcms_mini_sync_conflicts
             (tenant_id, node_id, batch_id, aggregate_type, aggregate_id, conflict_type, payload_json)
           VALUES (
@@ -115,11 +118,11 @@ export const POST: APIRoute = async ({ request }) => {
             ${evaluation.conflictType}, ${event.payload}
           )
         `;
-        conflictedCount += 1;
-        continue;
-      }
+          conflictedCount += 1;
+          continue;
+        }
 
-      await tx`
+        await tx`
         INSERT INTO awcms_mini_sync_inbox
           (tenant_id, node_id, batch_id, event_type, aggregate_type, aggregate_id, payload_json)
         VALUES (
@@ -128,29 +131,31 @@ export const POST: APIRoute = async ({ request }) => {
         )
       `;
 
-      await tx`
+        await tx`
         INSERT INTO awcms_mini_sync_aggregate_versions (tenant_id, aggregate_type, aggregate_id, current_version)
         VALUES (${tenantId}, ${event.aggregateType}, ${event.aggregateId}, ${currentVersion + 1})
         ON CONFLICT (tenant_id, aggregate_type, aggregate_id)
         DO UPDATE SET current_version = ${currentVersion + 1}, updated_at = now()
       `;
-      acceptedCount += 1;
-    }
+        acceptedCount += 1;
+      }
 
-    await tx`
+      await tx`
       INSERT INTO awcms_mini_sync_push_batches (tenant_id, node_id, batch_id, event_count, conflicted_count)
       VALUES (${tenantId}, ${node.id}, ${batchId}, ${events.length}, ${conflictedCount})
     `;
 
-    await tx`
+      await tx`
       UPDATE awcms_mini_sync_nodes SET last_pushed_at = now() WHERE id = ${node.id}
     `;
 
-    return ok({
-      batchId,
-      accepted: acceptedCount,
-      conflicted: conflictedCount,
-      duplicate: false
-    });
-  });
+      return ok({
+        batchId,
+        accepted: acceptedCount,
+        conflicted: conflictedCount,
+        duplicate: false
+      });
+    },
+    { workClass: "background_sync" }
+  );
 };

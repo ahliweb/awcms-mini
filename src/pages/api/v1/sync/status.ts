@@ -36,32 +36,37 @@ export const GET: APIRoute = async ({ request }) => {
 
   const sql = getDatabaseClient();
 
-  return withTenant(sql, tenantId, async (tx) => {
-    const node = await resolveOrRegisterSyncNode(tx, tenantId, nodeCode);
+  return withTenant(
+    sql,
+    tenantId,
+    async (tx) => {
+      const node = await resolveOrRegisterSyncNode(tx, tenantId, nodeCode);
 
-    if (!node || node.status !== "active") {
-      return fail(403, "ACCESS_DENIED", "Sync node is not active.");
-    }
+      if (!node || node.status !== "active") {
+        return fail(403, "ACCESS_DENIED", "Sync node is not active.");
+      }
 
-    const rows = await tx`
+      const rows = await tx`
       SELECT node_code, status, last_pushed_at, last_pulled_at, last_pull_sequence
       FROM awcms_mini_sync_nodes
       WHERE id = ${node.id}
     `;
-    const row = rows[0] as {
-      node_code: string;
-      status: string;
-      last_pushed_at: Date | null;
-      last_pulled_at: Date | null;
-      last_pull_sequence: string | number;
-    };
+      const row = rows[0] as {
+        node_code: string;
+        status: string;
+        last_pushed_at: Date | null;
+        last_pulled_at: Date | null;
+        last_pull_sequence: string | number;
+      };
 
-    return ok({
-      nodeCode: row.node_code,
-      status: row.status,
-      lastPushedAt: row.last_pushed_at?.toISOString(),
-      lastPulledAt: row.last_pulled_at?.toISOString(),
-      checkpoint: Number(row.last_pull_sequence)
-    });
-  });
+      return ok({
+        nodeCode: row.node_code,
+        status: row.status,
+        lastPushedAt: row.last_pushed_at?.toISOString(),
+        lastPulledAt: row.last_pulled_at?.toISOString(),
+        checkpoint: Number(row.last_pull_sequence)
+      });
+    },
+    { workClass: "background_sync" }
+  );
 };

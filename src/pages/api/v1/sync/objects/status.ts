@@ -38,14 +38,17 @@ export const GET: APIRoute = async ({ request }) => {
 
   const sql = getDatabaseClient();
 
-  return withTenant(sql, tenantId, async (tx) => {
-    const node = await resolveOrRegisterSyncNode(tx, tenantId, nodeCode);
+  return withTenant(
+    sql,
+    tenantId,
+    async (tx) => {
+      const node = await resolveOrRegisterSyncNode(tx, tenantId, nodeCode);
 
-    if (!node || node.status !== "active") {
-      return fail(403, "ACCESS_DENIED", "Sync node is not active.");
-    }
+      if (!node || node.status !== "active") {
+        return fail(403, "ACCESS_DENIED", "Sync node is not active.");
+      }
 
-    const rows = await tx`
+      const rows = await tx`
       SELECT object_key, status, retry_count, next_retry_at, last_error, byte_size, requires_upload
       FROM awcms_mini_object_sync_queue
       WHERE tenant_id = ${tenantId} AND node_id = ${node.id} AND status <> 'sent'
@@ -53,26 +56,28 @@ export const GET: APIRoute = async ({ request }) => {
       LIMIT ${LIMIT}
     `;
 
-    type QueueRow = {
-      object_key: string;
-      status: string;
-      retry_count: string | number;
-      next_retry_at: Date | null;
-      last_error: string | null;
-      byte_size: string | number;
-      requires_upload: boolean;
-    };
+      type QueueRow = {
+        object_key: string;
+        status: string;
+        retry_count: string | number;
+        next_retry_at: Date | null;
+        last_error: string | null;
+        byte_size: string | number;
+        requires_upload: boolean;
+      };
 
-    const objects = (rows as QueueRow[]).map((row) => ({
-      objectKey: row.object_key,
-      status: row.status,
-      retryCount: Number(row.retry_count),
-      nextRetryAt: row.next_retry_at?.toISOString(),
-      lastError: row.last_error ?? undefined,
-      byteSize: Number(row.byte_size),
-      requiresUpload: row.requires_upload
-    }));
+      const objects = (rows as QueueRow[]).map((row) => ({
+        objectKey: row.object_key,
+        status: row.status,
+        retryCount: Number(row.retry_count),
+        nextRetryAt: row.next_retry_at?.toISOString(),
+        lastError: row.last_error ?? undefined,
+        byteSize: Number(row.byte_size),
+        requiresUpload: row.requires_upload
+      }));
 
-    return ok({ objects });
-  });
+      return ok({ objects });
+    },
+    { workClass: "background_sync" }
+  );
 };

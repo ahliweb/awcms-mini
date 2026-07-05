@@ -29,6 +29,11 @@ tags:
       Profile lifecycle (soft delete/restore/purge) demonstrating the audit
       trail end-to-end. Full profile CRUD (create/update/list) remains
       out of scope/backlog.
+  - name: Database Connectivity
+    description: >-
+      Connection pool config, work-class backpressure gate, and circuit
+      breaker health (Issue 10.2, doc 16 §Connection pooling dan
+      backpressure).
 paths:
   /api/v1/sync/push:
     post:
@@ -979,6 +984,36 @@ paths:
                         $ref: "#/components/schemas/HealthResponse"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/database/pool/health:
+    get:
+      tags:
+        - Database Connectivity
+      summary: >-
+        Database pool/backpressure health (circuit breaker state, work-class
+        saturation, DB reachability)
+      operationId: getDatabasePoolHealth
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: >-
+            Aggregate pool/backpressure health. Never includes tenant data
+            or query content.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/DatabasePoolHealthResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
 x-awcms-mini-soft-delete-pattern:
   delete:
     method: DELETE
@@ -1205,6 +1240,63 @@ components:
         moduleCount:
           type: integer
           minimum: 0
+        generatedAt:
+          type: string
+          format: date-time
+    WorkClassSaturation:
+      type: object
+      required:
+        - workClass
+        - active
+        - max
+        - queued
+      additionalProperties: false
+      properties:
+        workClass:
+          type: string
+          enum:
+            - critical_transaction
+            - interactive
+            - reporting
+            - background_sync
+            - maintenance
+        active:
+          type: integer
+          minimum: 0
+        max:
+          type: integer
+          minimum: 0
+        queued:
+          type: integer
+          minimum: 0
+    DatabasePoolHealthResponse:
+      type: object
+      required:
+        - status
+        - databaseReachable
+        - circuitBreakerState
+        - workClasses
+        - generatedAt
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - degraded
+            - unhealthy
+        databaseReachable:
+          type: boolean
+        circuitBreakerState:
+          type: string
+          enum:
+            - closed
+            - open
+            - half_open
+        workClasses:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkClassSaturation"
         generatedAt:
           type: string
           format: date-time

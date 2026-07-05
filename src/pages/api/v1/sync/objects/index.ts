@@ -52,15 +52,18 @@ export const POST: APIRoute = async ({ request }) => {
   const requiresUpload = process.env.R2_ENABLED === "true";
   const sql = getDatabaseClient();
 
-  return withTenant(sql, tenantId, async (tx) => {
-    const node = await resolveOrRegisterSyncNode(tx, tenantId, nodeCode);
+  return withTenant(
+    sql,
+    tenantId,
+    async (tx) => {
+      const node = await resolveOrRegisterSyncNode(tx, tenantId, nodeCode);
 
-    if (!node || node.status !== "active") {
-      return fail(403, "ACCESS_DENIED", "Sync node is not active.");
-    }
+      if (!node || node.status !== "active") {
+        return fail(403, "ACCESS_DENIED", "Sync node is not active.");
+      }
 
-    for (const object of objects) {
-      await tx`
+      for (const object of objects) {
+        await tx`
         INSERT INTO awcms_mini_object_sync_queue
           (tenant_id, node_id, object_key, local_path, checksum_sha256, byte_size, requires_upload, status)
         VALUES (
@@ -78,8 +81,10 @@ export const POST: APIRoute = async ({ request }) => {
           last_error = null,
           uploaded_at = null
       `;
-    }
+      }
 
-    return ok({ queued: objects.length });
-  });
+      return ok({ queued: objects.length });
+    },
+    { workClass: "background_sync" }
+  );
 };
