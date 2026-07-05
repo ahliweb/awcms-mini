@@ -6,6 +6,14 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-07-05
+
+### Added
+
+- Database connection pooling dan backpressure (Issue 10.2, tidak ada migration baru — infrastruktur murni di `src/lib/database/`): pool config `Bun.SQL` (`max`, `prepare` dinonaktifkan saat `DATABASE_PGBOUNCER=true`, `connection.statement_timeout`), work-class concurrency gate aplikasi (`critical_transaction`/`interactive`/`reporting`/`background_sync`/`maintenance`), dan circuit breaker 3-state, keduanya dikaitkan ke `withTenant` sehingga seluruh endpoint tenant-scoped yang sudah ada otomatis terlindungi (`503 DATABASE_BUSY`) tanpa perlu mengubah setiap file endpoint.
+- Endpoint sync dan reporting/audit diklasifikasi ulang ke work class `background_sync`/`reporting` sesuai tabel prioritas doc 16.
+- `GET /api/v1/database/pool/health` (publik, hanya agregat) dan event `database.pool.saturated` (kontrak AsyncAPI, belum ada dispatcher live untuk event apa pun di base ini).
+
 ## [0.12.0] - 2026-07-05
 
 ### Added
@@ -220,9 +228,10 @@ Baseline paket dokumentasi, standar profesional repo publik, & tooling. Belum ad
 
 Aplikasi turunan (mis. AWPOS) memakai peta versinya sendiri di atas base ini.
 
-Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0`-`0.4.0` berisi Issue 2.1 (tenant/office), 2.2 (central profile), dan 2.3 (identity/login) dari slot "Tenant, identity, profile" (tuntas); rilis `0.5.0` berisi Issue 2.4 (RBAC/ABAC) dari slot "RBAC/ABAC evaluator + assignment" (tuntas). Epic M2 (2.1–2.4) selesai penuh. Rilis `0.6.0` berisi Issue 12.1 (Setup Wizard) dan rilis `0.7.0` berisi Issue 6.1 (Sync Outbox/Inbox) — keduanya tidak punya slot eksplisit sendiri di tabel peta versi doc 09 (12.1 ditempatkan setelah M2, 6.1 dimulai dari slot "Sync storage" `v0.4.0` yang sebelumnya ditarget jauh lebih lambat dari realisasi progresif ini). Rilis `0.8.0` berisi Issue 6.2 (Sync Conflict Tracking/Resolution), lanjutan langsung dari slot "Sync storage" yang sama dengan 6.1. Rilis `0.9.0` berisi Issue 6.3 (R2 Object Sync Queue), menuntaskan epic M5 (Sync Storage) sepenuhnya. Rilis `0.10.0` berisi Issue 8.1 (Admin Layout Shell), issue pertama epic M7 (UI/UX & Reporting) dan issue frontend pertama di repo ini. Rilis `0.11.0` berisi Issue 9.1 (Management Reporting Views), menuntaskan epic M7 sepenuhnya. Rilis `0.11.1` adalah patch (bug fix jsonb double-encoding pada sync push, bukan issue baru). Rilis `0.12.0` berisi Issue 10.1 (Structured Logging and Audit Trail), issue pertama epic M8 (Security, Performance, Production).
+Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0`-`0.4.0` berisi Issue 2.1 (tenant/office), 2.2 (central profile), dan 2.3 (identity/login) dari slot "Tenant, identity, profile" (tuntas); rilis `0.5.0` berisi Issue 2.4 (RBAC/ABAC) dari slot "RBAC/ABAC evaluator + assignment" (tuntas). Epic M2 (2.1–2.4) selesai penuh. Rilis `0.6.0` berisi Issue 12.1 (Setup Wizard) dan rilis `0.7.0` berisi Issue 6.1 (Sync Outbox/Inbox) — keduanya tidak punya slot eksplisit sendiri di tabel peta versi doc 09 (12.1 ditempatkan setelah M2, 6.1 dimulai dari slot "Sync storage" `v0.4.0` yang sebelumnya ditarget jauh lebih lambat dari realisasi progresif ini). Rilis `0.8.0` berisi Issue 6.2 (Sync Conflict Tracking/Resolution), lanjutan langsung dari slot "Sync storage" yang sama dengan 6.1. Rilis `0.9.0` berisi Issue 6.3 (R2 Object Sync Queue), menuntaskan epic M5 (Sync Storage) sepenuhnya. Rilis `0.10.0` berisi Issue 8.1 (Admin Layout Shell), issue pertama epic M7 (UI/UX & Reporting) dan issue frontend pertama di repo ini. Rilis `0.11.0` berisi Issue 9.1 (Management Reporting Views), menuntaskan epic M7 sepenuhnya. Rilis `0.11.1` adalah patch (bug fix jsonb double-encoding pada sync push, bukan issue baru). Rilis `0.12.0` berisi Issue 10.1 (Structured Logging and Audit Trail), issue pertama epic M8 (Security, Performance, Production). Rilis `0.13.0` berisi Issue 10.2 (Database Connection Pooling and Backpressure) — tidak ada migration baru, murni infrastruktur aplikasi.
 
-[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.12.0...HEAD
+[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.13.0...HEAD
+[0.13.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.12.0...awcms-mini@0.13.0
 [0.12.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.11.1...awcms-mini@0.12.0
 [0.11.1]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.11.0...awcms-mini@0.11.1
 [0.11.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.10.0...awcms-mini@0.11.0

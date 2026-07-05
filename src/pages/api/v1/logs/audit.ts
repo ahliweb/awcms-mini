@@ -77,42 +77,45 @@ export const GET: APIRoute = async ({ request, url, locals }) => {
   const tokenHash = hashSessionToken(token);
   const now = new Date();
 
-  return withTenant(sql, tenantId, async (tx) => {
-    const context = await resolveTenantContext(tx, tenantId, tokenHash, now);
+  return withTenant(
+    sql,
+    tenantId,
+    async (tx) => {
+      const context = await resolveTenantContext(tx, tenantId, tokenHash, now);
 
-    if (!context) {
-      return fail(
-        401,
-        "AUTH_REQUIRED",
-        "Session is invalid or expired.",
-        correlationMeta
+      if (!context) {
+        return fail(
+          401,
+          "AUTH_REQUIRED",
+          "Session is invalid or expired.",
+          correlationMeta
+        );
+      }
+
+      const grantedPermissionKeys = await fetchGrantedPermissionKeys(
+        tx,
+        tenantId,
+        context.tenantUserId
       );
-    }
+      const decision = evaluateAccess(
+        context,
+        GUARD_REQUEST,
+        grantedPermissionKeys
+      );
 
-    const grantedPermissionKeys = await fetchGrantedPermissionKeys(
-      tx,
-      tenantId,
-      context.tenantUserId
-    );
-    const decision = evaluateAccess(
-      context,
-      GUARD_REQUEST,
-      grantedPermissionKeys
-    );
+      await recordDecisionLog(
+        tx,
+        tenantId,
+        context.tenantUserId,
+        GUARD_REQUEST,
+        decision
+      );
 
-    await recordDecisionLog(
-      tx,
-      tenantId,
-      context.tenantUserId,
-      GUARD_REQUEST,
-      decision
-    );
+      if (!decision.allowed) {
+        return fail(403, "ACCESS_DENIED", decision.reason, correlationMeta);
+      }
 
-    if (!decision.allowed) {
-      return fail(403, "ACCESS_DENIED", decision.reason, correlationMeta);
-    }
-
-    const rows = (await tx`
+      const rows = (await tx`
       SELECT id, actor_tenant_user_id, module_key, action, resource_type, resource_id,
              severity, message, attributes, correlation_id, created_at
       FROM awcms_mini_audit_events
@@ -124,23 +127,25 @@ export const GET: APIRoute = async ({ request, url, locals }) => {
       LIMIT ${AUDIT_EVENT_LIMIT}
     `) as AuditEventRow[];
 
-    return ok(
-      {
-        events: rows.map((row) => ({
-          id: row.id,
-          actorTenantUserId: row.actor_tenant_user_id ?? undefined,
-          moduleKey: row.module_key,
-          action: row.action,
-          resourceType: row.resource_type,
-          resourceId: row.resource_id ?? undefined,
-          severity: row.severity,
-          message: row.message,
-          attributes: row.attributes ?? undefined,
-          correlationId: row.correlation_id ?? undefined,
-          createdAt: row.created_at.toISOString()
-        }))
-      },
-      correlationMeta
-    );
-  });
+      return ok(
+        {
+          events: rows.map((row) => ({
+            id: row.id,
+            actorTenantUserId: row.actor_tenant_user_id ?? undefined,
+            moduleKey: row.module_key,
+            action: row.action,
+            resourceType: row.resource_type,
+            resourceId: row.resource_id ?? undefined,
+            severity: row.severity,
+            message: row.message,
+            attributes: row.attributes ?? undefined,
+            correlationId: row.correlation_id ?? undefined,
+            createdAt: row.created_at.toISOString()
+          }))
+        },
+        correlationMeta
+      );
+    },
+    { workClass: "reporting" }
+  );
 };

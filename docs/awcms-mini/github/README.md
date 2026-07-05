@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T15:45:00Z            |
+| Snapshot     | 2026-07-05T16:35:00Z            |
 | Total issue  | 38                              |
-| Open issue   | 4                               |
-| Closed issue | 34                              |
+| Open issue   | 3                               |
+| Closed issue | 35                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    4 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   34 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    3 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   35 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -42,10 +42,14 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                                                                                                |
-| ------ | -----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |      4 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 10, 11, 12) — sisa epic M8, `status:ready`.                                                                                                    |
-| CLOSED |     34 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391-#393, #398, #401, #403, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, epic M5 (6.1-6.3), epic M7 (8.1-9.1), dan 10.1. |
+| State  | Jumlah | Catatan                                                                                                                                                                                                                            |
+| ------ | -----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |      3 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 10.3, 11, 12) — sisa epic M8, `status:ready`.                                                                                                              |
+| CLOSED |     35 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391-#393, #398, #401, #403, #404, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, epic M5 (6.1-6.3), epic M7 (8.1-9.1), 10.1, dan 10.2. |
+
+### Database connection pooling and backpressure 10.2 completed (2026-07-05)
+
+Issue [#404](https://github.com/ahliweb/awcms-mini/issues/404) ditutup `completed` — tidak ada migration baru, murni infrastruktur aplikasi di `src/lib/database/`. Pool config `Bun.SQL` (`max`, `prepare` dinonaktifkan saat `DATABASE_PGBOUNCER=true`, `connection.statement_timeout`); work-class concurrency gate aplikasi (`critical_transaction`/`interactive`/`reporting`/`background_sync`/`maintenance`, sesuai tabel prioritas doc 16); circuit breaker 3-state murni. Keduanya dikaitkan ke satu titik integrasi berleverage tinggi: `withTenant` (dipanggil semua endpoint yang sudah ada), sehingga seluruh endpoint tenant-scoped otomatis terlindungi `503 DATABASE_BUSY` tanpa mengubah setiap file endpoint satu-satu; 7 endpoint sync direklasifikasi ke `background_sync`, 4 endpoint `/reports/*` + `/logs/audit` ke `reporting`. Endpoint baru `GET /database/pool/health` (publik, hanya agregat) dan event kontrak AsyncAPI `database.pool.saturated` (belum ada dispatcher live). Diverifikasi langsung terhadap PostgreSQL 16 + server Astro SSR berjalan (diverifikasi ulang independen): health baseline `healthy` semua work class `active:0`; 3000 request `POST /sync/push` konkuren membuat antrean `background_sync` (max 4) benar-benar bertambah sampai kedalaman 251 (dikonfirmasi via polling health bersamaan), lalu mengering ke 0 — membuktikan gate nyata membatasi konkurensi. Jalur 503/circuit breaker dibuktikan deterministik lewat 12 unit test baru; reproduksi live jalur 503 sensitif kecepatan lingkungan sandbox, tidak selalu bisa dipicu HTTP dalam waktu singkat. Verifikasi HTML/HTTP saja (tidak ada browser sungguhan). **Tidak ada bug baru ditemukan**.
 
 ### Structured logging and audit trail 10.1 completed (2026-07-05)
 

@@ -54,58 +54,67 @@ export const POST: APIRoute = async ({ request, params }) => {
   const tokenHash = hashSessionToken(token);
   const now = new Date();
 
-  return withTenant(sql, tenantId, async (tx) => {
-    const context = await resolveTenantContext(tx, tenantId, tokenHash, now);
+  return withTenant(
+    sql,
+    tenantId,
+    async (tx) => {
+      const context = await resolveTenantContext(tx, tenantId, tokenHash, now);
 
-    if (!context) {
-      return fail(401, "AUTH_REQUIRED", "Session is invalid or expired.");
-    }
+      if (!context) {
+        return fail(401, "AUTH_REQUIRED", "Session is invalid or expired.");
+      }
 
-    const grantedPermissionKeys = await fetchGrantedPermissionKeys(
-      tx,
-      tenantId,
-      context.tenantUserId
-    );
-    const decision = evaluateAccess(
-      context,
-      GUARD_REQUEST,
-      grantedPermissionKeys
-    );
+      const grantedPermissionKeys = await fetchGrantedPermissionKeys(
+        tx,
+        tenantId,
+        context.tenantUserId
+      );
+      const decision = evaluateAccess(
+        context,
+        GUARD_REQUEST,
+        grantedPermissionKeys
+      );
 
-    await recordDecisionLog(
-      tx,
-      tenantId,
-      context.tenantUserId,
-      GUARD_REQUEST,
-      decision
-    );
+      await recordDecisionLog(
+        tx,
+        tenantId,
+        context.tenantUserId,
+        GUARD_REQUEST,
+        decision
+      );
 
-    if (!decision.allowed) {
-      return fail(403, "ACCESS_DENIED", decision.reason);
-    }
+      if (!decision.allowed) {
+        return fail(403, "ACCESS_DENIED", decision.reason);
+      }
 
-    const conflictRows = await tx`
+      const conflictRows = await tx`
       SELECT id, status FROM awcms_mini_sync_conflicts
       WHERE tenant_id = ${tenantId} AND id = ${conflictId}
     `;
-    const conflict = conflictRows[0] as
-      { id: string; status: string } | undefined;
+      const conflict = conflictRows[0] as
+        { id: string; status: string } | undefined;
 
-    if (!conflict) {
-      return fail(404, "RESOURCE_NOT_FOUND", "Conflict not found.");
-    }
+      if (!conflict) {
+        return fail(404, "RESOURCE_NOT_FOUND", "Conflict not found.");
+      }
 
-    if (conflict.status === "resolved") {
-      return fail(409, "IDEMPOTENCY_CONFLICT", "Conflict is already resolved.");
-    }
+      if (conflict.status === "resolved") {
+        return fail(
+          409,
+          "IDEMPOTENCY_CONFLICT",
+          "Conflict is already resolved."
+        );
+      }
 
-    await tx`
+      await tx`
       UPDATE awcms_mini_sync_conflicts
       SET status = 'resolved', resolution = ${resolution}, resolution_note = ${note ?? null},
           resolved_by = ${context.tenantUserId}, resolved_at = ${now}
       WHERE id = ${conflictId}
     `;
 
-    return ok({ id: conflictId, status: "resolved", resolution });
-  });
+      return ok({ id: conflictId, status: "resolved", resolution });
+    },
+    { workClass: "background_sync" }
+  );
 };

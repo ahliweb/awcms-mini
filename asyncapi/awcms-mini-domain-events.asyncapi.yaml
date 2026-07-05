@@ -16,6 +16,20 @@ channels:
       DomainEvent:
         $ref: "#/components/messages/DomainEvent"
     description: Baseline sync push event envelope for future sync-storage implementation.
+  awcms-mini.database.pool.saturated:
+    address: awcms-mini.database.pool.saturated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      Emitted when a work-class concurrency gate times out a queued caller
+      (Issue 10.2, doc 16 §Connection pooling dan backpressure, doc 05 "DB
+      Connectivity" category). Documented contract only — this repo has no
+      live pub/sub dispatcher for any domain event yet; the concrete producer
+      is the structured JSON logger (`src/lib/logging/logger.ts`) invoked
+      from `withTenant` (`src/lib/database/tenant-context.ts`), consistent
+      with how AsyncAPI events have been documented since Issue 0.3 without
+      requiring a live producer.
 operations:
   publishSyncPushRequested:
     action: send
@@ -23,6 +37,12 @@ operations:
       $ref: "#/channels/awcms-mini.sync.push.requested"
     messages:
       - $ref: "#/channels/awcms-mini.sync.push.requested/messages/DomainEvent"
+  publishDatabasePoolSaturated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.database.pool.saturated"
+    messages:
+      - $ref: "#/channels/awcms-mini.database.pool.saturated/messages/DomainEvent"
 components:
   securitySchemes:
     syncHmac:
