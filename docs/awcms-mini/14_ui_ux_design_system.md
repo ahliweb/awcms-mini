@@ -222,18 +222,33 @@ stateDiagram-v2
 
 ## Internationalization (i18n)
 
-- Locale awal: **id**, **en** (siap ms/ar). Default dari `awcms_mini_tenants.default_locale`.
-- Format PO/message catalog (migration `009_awcms_mini_i18n_po_schema.sql`).
-- Kunci pesan: `namespace.key` (mis. `pos.button.post`, `error.stock_not_available`).
-- Angka/mata uang: IDR, pemisah ribuan lokal; tanggal `Asia/Jakarta`.
-- Semua string UI melalui i18n; hindari hardcode teks.
+> **Status:** desain target. Runtime i18n **belum diimplementasikan** (string UI masih hardcode) — dikerjakan di issue #433 (milestone M9). Bagian ini adalah spesifikasi yang harus diikuti saat membangunnya.
+
+i18n memakai **dua lapisan terpisah** sesuai sumber teksnya:
+
+**1. String UI statis** (chrome aplikasi: label, tombol, judul, pesan error, navigasi) → **file katalog `.po`/`.pot` standar gettext**, di-**bundle bersama aplikasi**, bukan di database. Satu template `messages.pot` + satu berkas per locale (`en.po`, `id.po`). Kunci pesan `namespace.key` (mis. `auth.login.submit`, `error.access_denied`). Semua string UI dirender lewat helper `t(key, params)`; **tidak ada teks hardcode**.
+
+**2. Data input pengguna** (konten yang diketik user dan perlu tampil multi-bahasa, mis. nama/deskripsi/catatan yang di-i18n-kan aplikasi turunan) → disimpan **di database untuk setiap locale aktif** (satu nilai per bahasa aktif), **bukan** di `.po`. Pola penyimpanan per-bahasa didokumentasikan di `docs/awcms-mini/04_erd_data_dictionary.md` §Konten multi-bahasa. `.po` hanya untuk teks statis pengembang, DB untuk konten dinamis pengguna.
+
+- **Locale minimal**: **en** dan **id** (arsitektur siap ms/ar). **Default = `en`** (`awcms_mini_tenants.default_locale`, target default `'en'`).
+- **Resolusi locale**: default tenant (`default_locale`) → override preferensi per-user bila ada; tersedia untuk SSR (tanpa flash, pola sama seperti resolusi tema no-flash di `AdminLayout.astro`) maupun island.
+- **Language switcher** menampilkan **ikon bendera** per bahasa + label (mis. 🇬🇧 English, 🇮🇩 Indonesia); bendera ilustratif/boleh dikonfigurasi aplikasi turunan.
+- **Format lokal**: angka/mata uang (IDR + pemisah ribuan sesuai locale) dan tanggal (`Asia/Jakarta`) sadar-locale.
 
 ```mermaid
 flowchart LR
-  Key[Kunci pesan] --> Cat[Catalog per locale]
-  Cat --> Fmt[Formatter angka/tanggal/mata uang]
-  Fmt --> Render[Render komponen]
-  Loc[Locale aktif user/tenant] --> Cat
+  subgraph Statis
+    POT[messages.pot] --> PO[en.po / id.po]
+    PO --> T["t(key, params)"]
+  end
+  subgraph Konten
+    DB[(DB per locale aktif)] --> Pick[Pilih nilai locale aktif]
+  end
+  Loc[Locale aktif: user pref → tenant default en] --> T
+  Loc --> Pick
+  T --> Render[Render komponen]
+  Pick --> Render
+  Render --> Fmt[Formatter angka/tanggal/mata uang]
 ```
 
 ## Peta keyboard POS

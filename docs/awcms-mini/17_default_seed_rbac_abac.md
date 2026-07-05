@@ -150,7 +150,7 @@ Setup wizard membuat data awal berikut (idempotent, sekali sebelum locked):
 2. **Office** pertama (`head_office`).
 3. **Role default** (10 role di atas) + **permission** + **role_permission**.
 4. **ABAC default policy** (11 policy di atas).
-5. **Tenant settings**: `default_locale=id`, `default_theme=system`, timezone `Asia/Jakarta`, feature flag provider = off (doc 18).
+5. **Tenant settings**: `default_locale=en` (default bahasa English; min en+id, siap ms/ar — doc 14 §i18n), `default_theme=system`, timezone `Asia/Jakarta`, feature flag provider = off (doc 18).
 6. **Unit dasar**: `pcs`, `box`, `kg`, `liter` (opsional, dapat ditambah).
 7. **Assignment**: owner → role Owner.
 8. **Audit**: `tenant.created`, `access.assignment` awal.

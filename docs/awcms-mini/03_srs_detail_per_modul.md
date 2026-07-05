@@ -335,7 +335,7 @@ Audit wajib untuk:
 - Customer receipt portal.
 - Navigation role-aware.
 - Dark/light/system theme.
-- i18n minimal ID/EN.
+- i18n minimal EN/ID (default **EN**), string UI via katalog `.po` gettext (doc 14 §i18n).
 
 ### Security
 

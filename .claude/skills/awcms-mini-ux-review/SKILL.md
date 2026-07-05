@@ -21,7 +21,7 @@ Ukur dulu, baru ubah: identifikasi masalah nyata (heuristik usability, hasil axe
 - [ ] **Dark/light parity** — kedua tema diuji; kontras & keterbacaan setara; `data-theme` konsisten.
 - [ ] **Responsif** — admin desktop-first tapi tetap usable di tablet; portal customer mobile-first; tak ada horizontal scroll tak sengaja; tabel lebar → scroll container.
 - [ ] **Form UX** — validasi inline + pesan spesifik per field (bukan hanya banner), disable saat submit, cegah double-submit, preserve input saat error, autocomplete/inputmode tepat.
-- [ ] **Micro-copy & i18n-ready** — teks jelas, ringkas, konsisten istilah (doc 19 glossary); semua string siap diekstrak ke katalog `namespace.key` (doc 14 §i18n), bukan hardcode; format IDR/tanggal `Asia/Jakarta`.
+- [ ] **Micro-copy & i18n-ready** — teks jelas, ringkas, konsisten istilah (doc 19 glossary); semua string UI statis siap diekstrak ke katalog **`.po`** gettext `namespace.key` (default locale **en**, min en+id), bukan hardcode; konten data multi-bahasa dari DB per locale aktif; language switcher berikon bendera; format IDR/tanggal sadar-locale `Asia/Jakarta` (doc 14 §i18n, doc 04 §Konten multi-bahasa).
 - [ ] **Masking di UI** — data sensitif lewat `MaskedText`; tak ada PII mentah tercache di IndexedDB/localStorage.
 - [ ] **Offline-first terlihat** — status koneksi & antrean sync jelas (`SyncIndicator`/`OfflineBanner`); aksi tetap tersimpan lokal saat offline (doc 15).
 

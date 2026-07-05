@@ -139,18 +139,18 @@ flowchart LR
 
 ## Frontend dan UI
 
-| Istilah                  | Definisi                                                                              |
-| ------------------------ | ------------------------------------------------------------------------------------- |
-| **SSR**                  | Server-Side Rendering — halaman dirender di server (Astro output server).             |
-| **Island**               | Bagian interaktif yang di-hydrate di klien (Astro islands).                           |
-| **PWA / Service worker** | Progressive Web App; service worker meng-cache app shell & mengelola background sync. |
-| **IndexedDB**            | Penyimpanan klien untuk outbox transaksi offline & cache master.                      |
-| **Design token**         | Variabel desain (warna, tipografi, spacing) sebagai CSS custom properties.            |
-| **State pattern**        | Loading / empty / error / success yang wajib di tiap layar.                           |
-| **Optimistic UI**        | Menampilkan hasil sebelum konfirmasi server, rollback bila ditolak.                   |
-| **i18n / locale**        | Internasionalisasi; locale awal id/en.                                                |
-| **WCAG 2.1 AA**          | Standar aksesibilitas target AWCMS-Mini.                                              |
-| **Sync indicator**       | Komponen UI penunjuk status koneksi & antrean sync.                                   |
+| Istilah                  | Definisi                                                                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **SSR**                  | Server-Side Rendering — halaman dirender di server (Astro output server).                                                                        |
+| **Island**               | Bagian interaktif yang di-hydrate di klien (Astro islands).                                                                                      |
+| **PWA / Service worker** | Progressive Web App; service worker meng-cache app shell & mengelola background sync.                                                            |
+| **IndexedDB**            | Penyimpanan klien untuk outbox transaksi offline & cache master.                                                                                 |
+| **Design token**         | Variabel desain (warna, tipografi, spacing) sebagai CSS custom properties.                                                                       |
+| **State pattern**        | Loading / empty / error / success yang wajib di tiap layar.                                                                                      |
+| **Optimistic UI**        | Menampilkan hasil sebelum konfirmasi server, rollback bila ditolak.                                                                              |
+| **i18n / locale**        | Internasionalisasi; min en+id (default **en**). String UI statis via `.po` gettext; konten data multi-bahasa di DB per locale aktif (doc 14/04). |
+| **WCAG 2.1 AA**          | Standar aksesibilitas target AWCMS-Mini.                                                                                                         |
+| **Sync indicator**       | Komponen UI penunjuk status koneksi & antrean sync.                                                                                              |
 
 ## Peran (persona)
 

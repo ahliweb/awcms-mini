@@ -15,7 +15,7 @@ Ikuti **`docs/awcms-mini/14_ui_ux_design_system.md`** (token, komponen, layout, 
 4. **Island seperlunya** — halaman SSR; interaktivitas hanya di island (POS, form, chat). Data awal via SSR, mutation via API client.
 5. **API client** — semua call lewat `apiFetch` (header tenant/correlation/idempotency otomatis); jangan `fetch` mentah.
 6. **Navigasi role-aware** — filter menu dari permission `GET /auth/me`; backend tetap validasi (UI hiding bukan kontrol).
-7. **i18n** — semua string via katalog `namespace.key`; format IDR/tanggal `Asia/Jakarta`.
+7. **i18n** — string UI statis via katalog **`.po`** gettext `namespace.key` (default **en**, min en+id), bukan hardcode; konten data multi-bahasa dari DB per locale aktif; format IDR/tanggal sadar-locale `Asia/Jakarta` (doc 14 §i18n).
 8. **A11y (WCAG 2.1 AA)** — kontras ≥4.5:1, fokus terlihat, label eksplisit, dialog trap fokus + Esc, target sentuh ≥44px (mobile), status tidak hanya warna.
 9. **Masking** — data sensitif tampil lewat `MaskedText`; jangan cache PII mentah di IndexedDB.
 10. **POS khusus** — keyboard map F1–F10 (doc 14), cart optimistic dengan rollback, offline outbox + `SyncIndicator` (doc 15).
