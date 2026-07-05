@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T17:15:00Z            |
+| Snapshot     | 2026-07-05T18:00:00Z            |
 | Total issue  | 38                              |
-| Open issue   | 2                               |
-| Closed issue | 36                              |
+| Open issue   | 1                               |
+| Closed issue | 37                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    2 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   36 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    1 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   37 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -42,10 +42,14 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                                                                                                                 |
-| ------ | -----: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |      2 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 11, 12) — sisa epic M8, `status:ready`.                                                                                                                         |
-| CLOSED |     36 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391-#393, #398, #401, #403-#405, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, epic M5 (6.1-6.3), epic M7 (8.1-9.1), 10.1, 10.2, dan 10.3. |
+| State  | Jumlah | Catatan                                                                                                                                                                                                                                       |
+| ------ | -----: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |      1 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 12.2) — issue terakhir epic M8, `status:ready`.                                                                                                                       |
+| CLOSED |     37 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391-#393, #398, #401, #403-#406, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, epic M5 (6.1-6.3), epic M7 (8.1-9.1), 10.1, 10.2, 10.3, dan 11.1. |
+
+### Workflow approval engine 11.1 completed (2026-07-05)
+
+Issue [#406](https://github.com/ahliweb/awcms-mini/issues/406) ditutup `completed`. Migrasi `sql/012_awcms_mini_workflow_approval_schema.sql` menambahkan 4 tabel generik persis sesuai doc 04 §Workflow (`awcms_mini_workflow_definitions`/`_instances`/`_tasks`/`_decisions` — "steps" adalah daftar langkah jsonb milik definisi, bukan tabel ke-5) plus tabel idempotency generik `awcms_mini_idempotency_keys` (doc 10/16, konsumer nyata pertamanya). Seed 2 permission persis sesuai doc 17 (`workflow.approval.read`/`.approve` — tidak ada `create`/`configure` karena doc 17 memang tidak menyediakannya). Karena base generik ini belum punya aksi bisnis konkret yang butuh approval, tidak ada endpoint publik "create definition"/"start instance" — `startWorkflowInstance` internal-only; permukaan publik adalah persis "decision API": `GET /workflows/tasks` dan `POST /workflows/tasks/{id}/decisions` (wajib `Idempotency-Key`). Self-approval guard **tidak dibangun baru** — memakai ulang mekanisme yang sudah ada di `evaluateAccess` sejak Issue 2.4. Diverifikasi langsung terhadap PostgreSQL 16 + server Astro SSR berjalan (diverifikasi ulang independen, termasuk menemukan+memperbaiki bug di skrip verifikasi sendiri — bukan kode produk — yang salah men-stringify jsonb sebelum bind): pemohon mencoba memutuskan task miliknya sendiri → `403 "Self-approval is not allowed"` (bukti konkret); approver lain menyetujui langkah 1 dari 2 → instance tetap pending, task langkah 2 dibuat; approve langkah 2 (terakhir) → instance `approved`; instance terpisah ditolak di langkah 1 → langsung `rejected`, tidak ada task tambahan; keputusan tercatat di audit trail; user tanpa role → `403`. Verifikasi HTTP/CLI saja (backend/API, tidak relevan untuk browser). **Tidak ada bug baru ditemukan pada kode yang dikirim** (satu bug ditemukan+diperbaiki sebelum ship: idempotency response sempat double-encoded sebelum bind jsonb). Migration mendarat lebih awal dari rencana semula (slot 015) karena mengikuti tepat setelah 10.3 yang tidak butuh migration.
 
 ### Production security readiness checklist 10.3 completed (2026-07-05)
 

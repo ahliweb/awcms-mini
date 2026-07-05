@@ -56,8 +56,8 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, and logging are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, and 10.1", () => {
-    expect(listModules()).toHaveLength(6);
+  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, and workflow are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, and 11.1", () => {
+    expect(listModules()).toHaveLength(7);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "experimental"
@@ -86,6 +86,11 @@ describe("module registry", () => {
       key: "logging",
       status: "experimental",
       dependencies: ["tenant_admin"]
+    });
+    expect(getModuleByKey("workflow")).toMatchObject({
+      key: "workflow",
+      status: "experimental",
+      dependencies: ["tenant_admin", "identity_access"]
     });
     expect(getModuleByKey("unknown_module")).toBeUndefined();
   });
@@ -149,7 +154,8 @@ describe("database migration runner helpers", () => {
       "008_awcms_mini_sync_storage_conflict_schema.sql",
       "009_awcms_mini_object_sync_queue_schema.sql",
       "010_awcms_mini_management_reporting_permission_schema.sql",
-      "011_awcms_mini_audit_logging_schema.sql"
+      "011_awcms_mini_audit_logging_schema.sql",
+      "012_awcms_mini_workflow_approval_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
@@ -388,6 +394,46 @@ describe("database migration runner helpers", () => {
       "('profile_identity', 'profile_management', 'purge'"
     );
     expect(auditSchema?.sql).toContain(
+      "ON CONFLICT (module_key, activity_code, action) DO NOTHING"
+    );
+  });
+
+  test("workflow approval schema declares the 4 workflow tables plus the generic idempotency store, all RLS, and seeds the read/approve permissions", async () => {
+    const migrations = await discoverMigrationFiles();
+    const workflowSchema = migrations.find(
+      (migration) =>
+        migration.name === "012_awcms_mini_workflow_approval_schema.sql"
+    );
+
+    expect(workflowSchema).toBeDefined();
+
+    for (const table of [
+      "awcms_mini_workflow_definitions",
+      "awcms_mini_workflow_instances",
+      "awcms_mini_workflow_tasks",
+      "awcms_mini_workflow_decisions",
+      "awcms_mini_idempotency_keys"
+    ]) {
+      expect(workflowSchema?.sql).toContain(
+        `CREATE TABLE IF NOT EXISTS ${table}`
+      );
+      expect(workflowSchema?.sql).toContain(
+        `ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`
+      );
+    }
+
+    expect(workflowSchema?.sql).toContain(
+      "awcms_mini_workflow_definitions_key_dedup"
+    );
+    expect(workflowSchema?.sql).toContain(
+      "CHECK (decision IN ('approve', 'reject'))"
+    );
+    expect(workflowSchema?.sql).toContain(
+      "awcms_mini_idempotency_keys_scope_key"
+    );
+    expect(workflowSchema?.sql).toContain("('workflow', 'approval', 'read'");
+    expect(workflowSchema?.sql).toContain("('workflow', 'approval', 'approve'");
+    expect(workflowSchema?.sql).toContain(
       "ON CONFLICT (module_key, activity_code, action) DO NOTHING"
     );
   });
