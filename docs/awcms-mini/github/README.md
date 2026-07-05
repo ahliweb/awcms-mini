@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T16:35:00Z            |
+| Snapshot     | 2026-07-05T17:15:00Z            |
 | Total issue  | 38                              |
-| Open issue   | 3                               |
-| Closed issue | 35                              |
+| Open issue   | 2                               |
+| Closed issue | 36                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    3 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   35 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    2 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   36 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -42,10 +42,14 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                                                                                                            |
-| ------ | -----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |      3 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 10.3, 11, 12) — sisa epic M8, `status:ready`.                                                                                                              |
-| CLOSED |     35 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391-#393, #398, #401, #403, #404, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, epic M5 (6.1-6.3), epic M7 (8.1-9.1), 10.1, dan 10.2. |
+| State  | Jumlah | Catatan                                                                                                                                                                                                                                 |
+| ------ | -----: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |      2 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 11, 12) — sisa epic M8, `status:ready`.                                                                                                                         |
+| CLOSED |     36 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391-#393, #398, #401, #403-#405, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, epic M5 (6.1-6.3), epic M7 (8.1-9.1), 10.1, 10.2, dan 10.3. |
+
+### Production security readiness checklist 10.3 completed (2026-07-05)
+
+Issue [#405](https://github.com/ahliweb/awcms-mini/issues/405) ditutup `completed` — tidak ada migration baru, deliverable-nya tiga script CLI yang memverifikasi kontrol yang sudah ada, bukan skema baru. `bun run db:pool:health` (wrapper CLI atas `GET /database/pool/health` Issue 10.2); `bun run security:readiness` (10 pemeriksaan bernama, masing-masing didukung sinyal nyata — query DB langsung `pg_class.relrowsecurity` untuk RLS, pemanggilan fungsi domain sungguhan `evaluateAccess`/`evaluateLoginAttempt`/`hashPassword`, grep file tracked-git — bukan hardcode; bagian eksplisit "di luar scope base generik ini" untuk item domain [tax/CRM/AI] dan deployment [Postgres publik, least-privilege, backup/restore] yang ditunda ke Issue 12.2); `bun run production:preflight` (mengorkestrasi migrate/spec-check/test/build/pool-health/security-readiness menjadi satu vonis go/no-go). Diverifikasi langsung terhadap PostgreSQL 16 + server Astro SSR berjalan (diverifikasi ulang independen): kesepuluh pemeriksaan lulus terhadap DB nyata. **Bukti gate kritis**: RLS sengaja dimatikan pada satu tabel via `ALTER TABLE ... DISABLE ROW LEVEL SECURITY` → `security:readiness` langsung melaporkan gagal dan `GO-LIVE DIBLOKIR` (exit 1); diaktifkan kembali → lulus penuh (exit 0) — membuktikan gate benar-benar memblokir, bukan sekadar mencetak "pass". `production:preflight` diverifikasi baik dengan maupun tanpa server berjalan (tahap `db:pool:health` di-skip dengan jelas bila server tidak ada, bukan gagal). **Tidak ada bug baru ditemukan**.
 
 ### Database connection pooling and backpressure 10.2 completed (2026-07-05)
 

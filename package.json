@@ -1,6 +1,6 @@
 {
   "name": "awcms-mini",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "private": true,
   "description": "AWCMS-Mini — Modular Monolith Standard (Bun + Astro foundation skeleton)",
   "license": "MIT",
@@ -37,6 +37,9 @@
     "start": "bun ./dist/server/entry.mjs",
     "db:migrate": "bun scripts/db-migrate.ts",
     "api:spec:check": "bun scripts/api-spec-check.ts",
+    "db:pool:health": "bun scripts/db-pool-health.ts",
+    "security:readiness": "bun scripts/security-readiness.ts",
+    "production:preflight": "bun scripts/production-preflight.ts",
     "lint": "prettier --check \"**/*.md\" \"**/*.{json,yml,yaml}\" \"**/*.{ts,mjs,astro}\"",
     "format": "prettier --write \"**/*.md\" \"**/*.{json,yml,yaml}\" \"**/*.{ts,mjs,astro}\"",
     "check:docs": "bun scripts/check-docs.mjs",
