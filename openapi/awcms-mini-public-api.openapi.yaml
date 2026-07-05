@@ -9,7 +9,109 @@ servers:
 tags:
   - name: Foundation
     description: Foundation and platform endpoints.
+  - name: Identity & Access
+    description: Login identity, session authentication, and tenant user membership.
 paths:
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Identity & Access
+      summary: Authenticate an identity and issue a session token
+      operationId: authLogin
+      security:
+        - tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/AcceptLanguage"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Session issued.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LoginResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - Identity & Access
+      summary: Revoke the caller's active session
+      operationId: authLogout
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Session revoked.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LogoutResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/me:
+    get:
+      tags:
+        - Identity & Access
+      summary: Get the caller's active identity
+      operationId: authMe
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Active identity for the current session.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/MeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/health:
     get:
       tags:
@@ -224,6 +326,7 @@ components:
       enum:
         - VALIDATION_ERROR
         - AUTH_REQUIRED
+        - AUTH_INVALID_CREDENTIALS
         - TOKEN_EXPIRED
         - ACCESS_DENIED
         - TENANT_REQUIRED
@@ -264,6 +367,71 @@ components:
           minimum: 0
         generatedAt:
           type: string
+          format: date-time
+    LoginRequest:
+      type: object
+      required:
+        - loginIdentifier
+        - password
+      additionalProperties: false
+      properties:
+        loginIdentifier:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+          writeOnly: true
+    LoginResponse:
+      type: object
+      required:
+        - token
+        - expiresAt
+      additionalProperties: false
+      properties:
+        token:
+          type: string
+          description: Opaque bearer session token. Shown only once, at login.
+        expiresAt:
+          type: string
+          format: date-time
+    LogoutResponse:
+      type: object
+      required:
+        - loggedOut
+      additionalProperties: false
+      properties:
+        loggedOut:
+          type: boolean
+          const: true
+    MeResponse:
+      type: object
+      required:
+        - identityId
+        - loginIdentifier
+        - profileId
+        - status
+        - lastLoginAt
+      additionalProperties: false
+      properties:
+        identityId:
+          type: string
+          format: uuid
+        loginIdentifier:
+          type: string
+        profileId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+            - locked
+        lastLoginAt:
+          type:
+            - string
+            - "null"
           format: date-time
     SoftDeleteQuery:
       type: object

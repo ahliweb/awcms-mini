@@ -56,8 +56,8 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin and profile_identity are registered after Issue 2.1/2.2", () => {
-    expect(listModules()).toHaveLength(2);
+  test("tenant_admin, profile_identity, and identity_access are registered after Issue 2.1/2.2/2.3", () => {
+    expect(listModules()).toHaveLength(3);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "experimental"
@@ -66,6 +66,11 @@ describe("module registry", () => {
       key: "profile_identity",
       status: "experimental",
       dependencies: ["tenant_admin"]
+    });
+    expect(getModuleByKey("identity_access")).toMatchObject({
+      key: "identity_access",
+      status: "experimental",
+      dependencies: ["tenant_admin", "profile_identity"]
     });
     expect(getModuleByKey("unknown_module")).toBeUndefined();
   });
@@ -121,7 +126,8 @@ describe("database migration runner helpers", () => {
     expect(migrations.map((migration) => migration.name)).toEqual([
       "001_awcms_mini_foundation_schema.sql",
       "002_awcms_mini_tenant_office_schema.sql",
-      "003_awcms_mini_central_profile_management_schema.sql"
+      "003_awcms_mini_central_profile_management_schema.sql",
+      "004_awcms_mini_identity_login_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
@@ -165,6 +171,28 @@ describe("database migration runner helpers", () => {
     );
     expect(profileSchema?.sql).toContain(
       "CHECK (source_profile_id <> target_profile_id)"
+    );
+  });
+
+  test("identity/login schema declares RLS on identities, tenant_users, and sessions", async () => {
+    const migrations = await discoverMigrationFiles();
+    const identitySchema = migrations.find(
+      (migration) =>
+        migration.name === "004_awcms_mini_identity_login_schema.sql"
+    );
+
+    expect(identitySchema).toBeDefined();
+    expect(identitySchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_identities ENABLE ROW LEVEL SECURITY"
+    );
+    expect(identitySchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_tenant_users ENABLE ROW LEVEL SECURITY"
+    );
+    expect(identitySchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_sessions ENABLE ROW LEVEL SECURITY"
+    );
+    expect(identitySchema?.sql).toContain(
+      "awcms_mini_identities_tenant_login_key"
     );
   });
 });
