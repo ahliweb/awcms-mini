@@ -6,10 +6,12 @@
  * `localStorage["awcms_mini_theme"]`, and updates `data-theme` on `<html>`
  * live (no reload). The initial no-flash resolution on page load happens
  * separately, in the `is:inline` script in `src/layouts/AdminLayout.astro`
- * `<head>` (doc 14 §Theming — "cegah flash"). Not wired to
- * `awcms_mini_tenant_settings.default_theme`: no such read/write endpoint
- * exists yet (backlog, see `src/modules/identity-access/README.md` and
- * `src/README.md`).
+ * `<head>` (doc 14 §Theming — "cegah flash"): it falls back to the tenant's
+ * `awcms_mini_tenants.default_theme` (editable at `/admin/settings`, Settings
+ * PR — see `tenant-admin/README.md`) when this browser has no localStorage
+ * override yet. This toggle's own choice always wins once set — it is a
+ * purely personal, per-browser override and is never written back to the
+ * tenant default.
  */
 ---
 

@@ -65,7 +65,7 @@ flowchart LR
   Tokens --> UI[Semua komponen]
 ```
 
-Aturan: default `system`; pilihan user disimpan (localStorage + `awcms_mini_tenant_settings.default_theme`); `data-theme` di-set pada `<html>` sebelum paint untuk mencegah flash.
+Aturan: default `system`; pilihan personal per-browser disimpan di localStorage (selalu menang bila ada) dengan fallback ke preferensi tenant `awcms_mini_tenants.default_theme` (dapat diubah admin di `/admin/settings`) untuk browser yang belum pernah memilih; `data-theme` di-set pada `<html>` sebelum paint untuk mencegah flash.
 
 ## Component library
 
