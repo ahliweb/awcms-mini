@@ -41,7 +41,7 @@ Label diurutkan menjadi dua kelompok: **taksonomi doc 06** (dipakai backlog issu
 
 ## Label peninggalan proyek sebelumnya (73)
 
-Dibuat sebelum refaktor standar base (SIKESRA/governance-overlay/EmDash era). Tidak dipakai backlog doc 06; dibiarkan tanpa perubahan.
+Dibuat sebelum refaktor standar base sebagai label/milestone peninggalan proyek lama. Tidak dipakai backlog doc 06; dibiarkan tanpa perubahan.
 
 | Label                       | Deskripsi                                            | Warna     |
 | --------------------------- | ---------------------------------------------------- | --------- |
