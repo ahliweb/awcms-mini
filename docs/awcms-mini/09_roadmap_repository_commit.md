@@ -206,24 +206,25 @@ Aplikasi turunan menambah sprint/commit domainnya sendiri setelah base ini siap 
 001_awcms_mini_foundation_schema.sql
 002_awcms_mini_tenant_office_schema.sql
 003_awcms_mini_central_profile_management_schema.sql
-004_awcms_mini_abac_access_control_schema.sql
-005_awcms_mini_logging_observability_schema.sql
-006_awcms_mini_database_connection_pooling_schema.sql
-007_awcms_mini_production_security_readiness_schema.sql
-008_awcms_mini_sync_storage_r2_schema.sql
-009_awcms_mini_i18n_po_schema.sql
-010_awcms_mini_theme_mode_schema.sql
-011_awcms_mini_ui_ux_persona_experience_schema.sql
-012_awcms_mini_management_dashboard_reporting_schema.sql
-013_awcms_mini_workflow_approval_audit_schema.sql
-014_awcms_mini_setup_wizard_extension.sql
-015_awcms_mini_modular_monolith_contracts_schema.sql
-016_awcms_mini_dashboard_materialized_views.sql
+004_awcms_mini_identity_login_schema.sql
+005_awcms_mini_abac_access_control_schema.sql
+006_awcms_mini_logging_observability_schema.sql
+007_awcms_mini_database_connection_pooling_schema.sql
+008_awcms_mini_production_security_readiness_schema.sql
+009_awcms_mini_sync_storage_r2_schema.sql
+010_awcms_mini_i18n_po_schema.sql
+011_awcms_mini_theme_mode_schema.sql
+012_awcms_mini_ui_ux_persona_experience_schema.sql
+013_awcms_mini_management_dashboard_reporting_schema.sql
+014_awcms_mini_workflow_approval_audit_schema.sql
+015_awcms_mini_setup_wizard_extension.sql
+016_awcms_mini_modular_monolith_contracts_schema.sql
+017_awcms_mini_dashboard_materialized_views.sql
 ```
 
-Catatan: setelah production, migration tidak boleh di-rename sembarangan. Koreksi harus migration baru. Aplikasi turunan melanjutkan nomor migration domainnya sendiri mulai `017_...` dst.
+Catatan: setelah production, migration tidak boleh di-rename sembarangan. Koreksi harus migration baru. Aplikasi turunan melanjutkan nomor migration domainnya sendiri mulai nomor setelah migration terakhir base di atas.
 
-`002` semula bernama `tenant_identity_schema` (menggabungkan Issue 2.1 dan 2.3); dipecah agar satu migration = satu issue: `002` hanya scope Issue 2.1 (tenant/office), identity/login (Issue 2.3) mendapat nomor migration tersendiri saat diimplementasikan. Penomoran `003` dst. di atas adalah rencana; nomor final ditentukan saat setiap issue benar-benar diimplementasikan berurutan.
+`002` semula bernama `tenant_identity_schema` (menggabungkan Issue 2.1 dan 2.3); dipecah agar satu migration = satu issue: `002` scope Issue 2.1 (tenant/office), `004` scope Issue 2.3 (identity/login, diimplementasikan sebagai migration nyata — geser seluruh nomor setelahnya turun satu dari rencana sebelumnya). Penomoran `005` dst. di atas adalah rencana; nomor final ditentukan saat setiap issue benar-benar diimplementasikan berurutan.
 
 ## Urutan API implementation
 

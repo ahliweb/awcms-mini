@@ -6,6 +6,14 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-05
+
+### Added
+
+- Identity login and tenant user membership (Issue 2.3, `sql/004_awcms_mini_identity_login_schema.sql`): `awcms_mini_identities` (login per tenant, `password_hash` argon2id via `Bun.password`, lockout `failed_login_count`/`locked_until`), `awcms_mini_tenant_users` (status keanggotaan tenant), `awcms_mini_sessions` (token sesi opaque — hanya `token_hash` disimpan, mendukung logout nyata).
+- Endpoint live pertama yang menyentuh database: `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me` (OpenAPI diperbarui, kode error baru `AUTH_INVALID_CREDENTIALS`).
+- Infrastruktur akses data bersama: `src/lib/database/client.ts` (`Bun.SQL`), `src/lib/database/tenant-context.ts` (`assertUuid` + `withTenant`, transaction wrapper `SET LOCAL app.current_tenant_id` sesuai doc 16), `src/lib/auth/password.ts`, `src/lib/auth/session-token.ts`. Domain logic murni `evaluateLoginAttempt` di `src/modules/identity-access/domain/login-policy.ts` (anti user-enumeration, lockout otomatis). Modul `identity-access` didaftarkan.
+
 ## [0.3.0] - 2026-07-05
 
 ### Added
@@ -134,9 +142,10 @@ Baseline paket dokumentasi, standar profesional repo publik, & tooling. Belum ad
 
 Aplikasi turunan (mis. AWPOS) memakai peta versinya sendiri di atas base ini.
 
-Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0`-`0.3.0` saat ini baru berisi Issue 2.1 (tenant/office) dan 2.2 (central profile) dari slot "Tenant, identity, profile" — Issue 2.3 menyusul di rilis berikutnya sebelum slot ini dianggap tuntas.
+Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0`-`0.4.0` berisi Issue 2.1 (tenant/office), 2.2 (central profile), dan 2.3 (identity/login) dari slot "Tenant, identity, profile" — slot ini sekarang tuntas (2.1–2.3 semua selesai); Issue 2.4 (RBAC/ABAC) berikutnya masuk slot "RBAC/ABAC evaluator + assignment".
 
-[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.3.0...HEAD
+[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.4.0...HEAD
+[0.4.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.3.0...awcms-mini@0.4.0
 [0.3.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.2.0...awcms-mini@0.3.0
 [0.2.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.1.1...awcms-mini@0.2.0
 [0.1.1]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.1.0...awcms-mini@0.1.1

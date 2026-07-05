@@ -7,7 +7,7 @@
 
 AWCMS-Mini adalah **base modular monolith standar** AhliWeb berbasis **Bun + Astro 7 + PostgreSQL**. Ia berisi lapisan **reusable** (multi-tenant, RBAC/ABAC/RLS, audit, offline-first, kontrak OpenAPI/AsyncAPI, coding standard, skill proyek) yang menjadi fondasi aplikasi turunan. Aplikasi domain (mis. AWPOS untuk retail/POS) dibangun **di atas** base ini dengan menambah modulnya sendiri.
 
-> **Status:** Sprint foundation Issue 0.1-0.3, Issue 2.1 (tenant/office schema), dan Issue 2.2 (central profile schema) tersedia: Astro build, health endpoint, module contract, response helper, soft-delete convention, folder standar, runner PostgreSQL checksum-based, baseline OpenAPI/AsyncAPI dengan validator, skema tenant/office/physical location/tenant settings, dan skema profile/identifier/channel/address/entity link/merge request — seluruhnya dengan RLS. Modul auth/RBAC/sync/deployment masih backlog. Kontributor & coding agent **wajib membaca [`AGENTS.md`](AGENTS.md) lebih dulu**.
+> **Status:** Sprint foundation Issue 0.1-0.3 dan seluruh Sprint 2 (Issue 2.1 tenant/office, 2.2 central profile, 2.3 identity/login) tersedia: Astro build, health endpoint, module contract, response helper, soft-delete convention, folder standar, runner PostgreSQL checksum-based, baseline OpenAPI/AsyncAPI dengan validator, skema tenant/office/physical location/tenant settings, skema profile/identifier/channel/address/entity link/merge request, dan skema identity/tenant user/session dengan endpoint live `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` — seluruhnya dengan RLS. Modul RBAC/sync/deployment masih backlog. Kontributor & coding agent **wajib membaca [`AGENTS.md`](AGENTS.md) lebih dulu**.
 
 ## Daftar isi
 
@@ -137,7 +137,7 @@ flowchart LR
 
 ### Mulai dari
 
-Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/awcms-mini/06_github_issues_detail.md). Foundation **Issue 0.1-0.3**, **2.1** (tenant/office schema), dan **2.2** (central profile schema) sudah tersedia; urutan berikutnya: **2.3** (identity/login), **2.4** (RBAC/ABAC), lalu **12.1** (setup wizard).
+Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/awcms-mini/06_github_issues_detail.md). Foundation **Issue 0.1-0.3** dan seluruh Sprint 2 (**2.1** tenant/office, **2.2** central profile, **2.3** identity/login) sudah tersedia; urutan berikutnya: **2.4** (RBAC/ABAC), lalu **12.1** (setup wizard).
 
 ## Keamanan
 
@@ -158,7 +158,7 @@ Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/
 
 ## Versioning
 
-**Semantic Versioning** + **[Changesets](.changeset/README.md)**; riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Versi saat ini `0.3.0` (Foundation skeleton SSR + Issue 2.1 tenant/office schema + Issue 2.2 central profile schema).
+**Semantic Versioning** + **[Changesets](.changeset/README.md)**; riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Versi saat ini `0.4.0` (Foundation skeleton SSR + Issue 2.1 tenant/office + 2.2 central profile + 2.3 identity/login schema).
 
 ## Lisensi
 

@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T03:09:48Z            |
+| Snapshot     | 2026-07-05T03:38:53Z            |
 | Total issue  | 38                              |
-| Open issue   | 13                              |
-| Closed issue | 25                              |
+| Open issue   | 12                              |
+| Closed issue | 26                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   13 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   25 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   12 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   26 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -42,10 +42,14 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                     |
-| ------ | -----: | --------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |     13 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 2, 6, 8, 9, 10, 11, 12).                            |
-| CLOSED |     25 | 20 issue domain ditutup `not planned`; #371-#373, #376, dan #377 ditutup `completed` setelah Issue 0.1-0.3, 2.1, 2.2 merge. |
+| State  | Jumlah | Catatan                                                                                                                                |
+| ------ | -----: | -------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |     12 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 2, 6, 8, 9, 10, 11, 12).                                       |
+| CLOSED |     26 | 20 issue domain ditutup `not planned`; #371-#373, #376, #377, dan #378 ditutup `completed` setelah Issue 0.1-0.3, 2.1, 2.2, 2.3 merge. |
+
+### Identity login schema 2.3 completed (2026-07-05)
+
+Issue [#378](https://github.com/ahliweb/awcms-mini/issues/378) ditutup `completed` setelah migrasi `sql/004_awcms_mini_identity_login_schema.sql` menambahkan `awcms_mini_identities` (login per tenant, password hash argon2id via `Bun.password`, lockout), `awcms_mini_tenant_users` (status keanggotaan), dan `awcms_mini_sessions` (token opaque, hanya hash disimpan). Endpoint live pertama yang menyentuh database: `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`. Infrastruktur baru: `src/lib/database/client.ts`, `src/lib/database/tenant-context.ts` (`withTenant`/`assertUuid`, `SET LOCAL app.current_tenant_id`), `src/lib/auth/password.ts`, `src/lib/auth/session-token.ts`. Domain logic murni `evaluateLoginAttempt` (anti user-enumeration, lockout otomatis). Diverifikasi langsung terhadap PostgreSQL 16 + server Astro SSR berjalan: login sukses/gagal, tenant inactive ditolak, lockout setelah 5 percobaan gagal, logout benar-benar mencabut sesi. Label `#379` (2.4) `status:blocked` → `status:ready` (Sprint 2 tuntas).
 
 ### Central profile schema 2.2 completed (2026-07-05)
 
