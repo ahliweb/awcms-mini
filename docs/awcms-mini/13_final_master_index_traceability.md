@@ -330,6 +330,17 @@ Alasan:
 - `.gitignore`
 - `docker-compose.yml`
 
+### Folder standar
+
+Tiap folder standar menyertakan `README.md` sebagai kontrak isi/aturan folder:
+
+- `src/lib/README.md` — helper lintas-modul (`auth/`, `database/`, `errors/`, `files/`, `logging/`).
+- `src/modules/_shared/README.md` — module contract, API response envelope, konvensi soft delete.
+- `openapi/README.md` — kontrak OpenAPI publik dan kewajiban `api:spec:check`.
+- `asyncapi/README.md` — kontrak AsyncAPI domain-event dan kewajiban pendaftaran channel.
+- `deploy/README.md` — deployment profile (systemd, container, PgBouncer, backup) — Bun-only.
+- `fixtures/README.md` — data uji sintetis; larangan data customer/dump/secret asli.
+
 ### Source modules
 
 - `_shared`

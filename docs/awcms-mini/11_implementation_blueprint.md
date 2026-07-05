@@ -98,10 +98,9 @@ AWCMS_MINI_NODE_ID=local-dev-node
 STORAGE_DRIVER=local
 LOCAL_STORAGE_PATH=./storage
 R2_ENABLED=false
-STARSENDER_ENABLED=false
-MAILKETING_ENABLED=false
-AI_ANALYST_ENABLED=false
 ```
+
+Base tidak menetapkan provider eksternal tertentu (mis. WA/email/AI). Aplikasi turunan menambah flag provider-nya sendiri (default off) — lihat contoh domain retail/POS di doc 18 §Provider CRM/AI analyst.
 
 ## Sprint 1 — Foundation
 

@@ -1,8 +1,8 @@
 export type SoftDeleteColumns = {
-  deletedAt: Date | null;
-  deletedBy: string | null;
-  deleteReason: string | null;
-  restoredAt?: Date | null;
+  deletedAt?: string | null;
+  deletedBy?: string | null;
+  deleteReason?: string | null;
+  restoredAt?: string | null;
   restoredBy?: string | null;
 };
 
