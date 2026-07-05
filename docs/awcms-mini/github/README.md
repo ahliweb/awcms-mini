@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T14:15:00Z            |
+| Snapshot     | 2026-07-05T15:00:00Z            |
 | Total issue  | 38                              |
-| Open issue   | 6                               |
-| Closed issue | 32                              |
+| Open issue   | 5                               |
+| Closed issue | 33                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    6 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   32 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    5 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   33 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -42,10 +42,14 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                                                                |
-| ------ | -----: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |      6 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 9, 10, 11, 12).                                                                                                |
-| CLOSED |     32 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391-#393, #398, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, epic M5 (6.1-6.3), dan 8.1. |
+| State  | Jumlah | Catatan                                                                                                                                                                                                    |
+| ------ | -----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |      5 | Backlog generik base `docs/awcms-mini/06_github_issues_detail.md` (Epic 10, 11, 12) — seluruhnya M8, kini `status:ready` karena M5+M7 tuntas.                                                              |
+| CLOSED |     33 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391-#393, #398, #401, dan #407 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, epic M5 (6.1-6.3), dan epic M7 (8.1-9.1). |
+
+### Management reporting views 9.1 completed + epic M7 tuntas (2026-07-05)
+
+Issue [#401](https://github.com/ahliweb/awcms-mini/issues/401) ditutup `completed` setelah migrasi `sql/010_awcms_mini_management_reporting_permission_schema.sql` menyisipkan satu permission baru `reporting.dashboard.read` (tidak ada tabel baru — keempat view adalah agregasi baca murni atas tabel yang sudah ada). Modul `reporting` baru: `GET /reports/tenant-activity`, `GET /reports/access-audit`, `GET /reports/sync-health`, `GET /reports/module-usage` (bearer session, guard permission tunggal, pola sama seperti `POST /access/evaluate`). Mengisi dua hal yang sengaja ditunda Issue 8.1: `/admin` (sebelumnya placeholder) kini SSR-render kartu data nyata dengan panel "Akses ditolak" bila tidak berizin, dan `<SyncIndicator>` topbar (sebelumnya stub tetap) kini mencerminkan status sync nyata. Diverifikasi langsung terhadap PostgreSQL 16 + server Astro SSR berjalan (diverifikasi ulang independen): keempat endpoint mengembalikan JSON number asli; menambah office kedua mengubah `activeOfficeCount` 1→2 baik di endpoint maupun dashboard; **kasus negatif**: user tanpa role sama sekali ditolak `403` dan `/admin` menampilkan panel akses ditolak, bukan crash. Verifikasi HTML/HTTP saja (tidak ada browser sungguhan di sandbox). **Tidak ada bug baru ditemukan**. Epic M7 (UI/UX & Reporting, Issue 8.1-9.1) tuntas sepenuhnya — karena M5 dan M7 kini sama-sama tuntas, label `#403`/`#404`/`#405`/`#406`/`#408` (M8) `status:blocked` → `status:ready` (doc 06 §Ketergantungan milestone: M8 butuh M5 **dan** M7).
 
 ### Admin layout shell 8.1 completed (2026-07-05)
 

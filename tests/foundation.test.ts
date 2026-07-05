@@ -56,8 +56,8 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, identity_access, and sync_storage are registered after Issue 2.1-2.4, 12.1, and 6.1", () => {
-    expect(listModules()).toHaveLength(4);
+  test("tenant_admin, profile_identity, identity_access, sync_storage, and reporting are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, and 9.1", () => {
+    expect(listModules()).toHaveLength(5);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "experimental"
@@ -76,6 +76,11 @@ describe("module registry", () => {
       key: "sync_storage",
       status: "experimental",
       dependencies: ["tenant_admin"]
+    });
+    expect(getModuleByKey("reporting")).toMatchObject({
+      key: "reporting",
+      status: "experimental",
+      dependencies: ["tenant_admin", "identity_access", "sync_storage"]
     });
     expect(getModuleByKey("unknown_module")).toBeUndefined();
   });
@@ -137,7 +142,8 @@ describe("database migration runner helpers", () => {
       "006_awcms_mini_setup_wizard_schema.sql",
       "007_awcms_mini_sync_storage_outbox_inbox_schema.sql",
       "008_awcms_mini_sync_storage_conflict_schema.sql",
-      "009_awcms_mini_object_sync_queue_schema.sql"
+      "009_awcms_mini_object_sync_queue_schema.sql",
+      "010_awcms_mini_management_reporting_permission_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
@@ -325,6 +331,27 @@ describe("database migration runner helpers", () => {
     expect(objectQueueSchema?.sql).toContain(
       "('sync_storage', 'object_queue', 'retry'"
     );
+  });
+
+  test("management reporting schema seeds exactly one shared dashboard permission and declares no new table", async () => {
+    const migrations = await discoverMigrationFiles();
+    const reportingSchema = migrations.find(
+      (migration) =>
+        migration.name ===
+        "010_awcms_mini_management_reporting_permission_schema.sql"
+    );
+
+    expect(reportingSchema).toBeDefined();
+    expect(reportingSchema?.sql).toContain("('reporting', 'dashboard', 'read'");
+    expect(reportingSchema?.sql).toContain(
+      "ON CONFLICT (module_key, activity_code, action) DO NOTHING"
+    );
+    expect(reportingSchema?.sql).not.toContain("CREATE TABLE");
+    expect(reportingSchema?.sql).not.toContain("ENABLE ROW LEVEL SECURITY");
+    // One dashboard feature, not four fragmented permissions.
+    expect(
+      reportingSchema?.sql.match(/'reporting', 'dashboard'/g) ?? []
+    ).toHaveLength(1);
   });
 });
 
