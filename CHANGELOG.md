@@ -6,7 +6,9 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 ## [Unreleased]
 
-Belum ada perubahan yang menunggu rilis berikutnya.
+### Fixed
+
+- Pin `oven-sh/setup-bun` di CI ke commit SHA immutable untuk menyelesaikan CodeQL `actions/unpinned-tag` (#7), dan hapus referensi proyek lama terakhir dari snapshot label/milestone.
 
 ## [0.0.3] - 2026-07-04
 

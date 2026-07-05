@@ -1,6 +1,6 @@
 # GitHub Security Setup AWCMS-Mini
 
-Snapshot: 2026-07-04T11:16:36Z
+Snapshot: 2026-07-05T00:05:58Z
 
 Dokumen ini mencatat konfigurasi GitHub Security untuk `ahliweb/awcms-mini` sesuai baseline repo: Bun + Astro 7 + PostgreSQL, docs-only sampai scaffold Issue 0.1 tersedia.
 
@@ -20,15 +20,15 @@ Dokumen ini mencatat konfigurasi GitHub Security untuk `ahliweb/awcms-mini` sesu
 | Secret scanning validity checks       | Disabled pada GitHub saat setup                                                                                                               |
 | Code scanning                         | Enabled lewat `.github/workflows/codeql.yml` untuk GitHub Actions; default setup `not-configured` agar tidak konflik dengan advanced workflow |
 | Private vulnerability reporting       | Enabled; gunakan link GitHub advisory di `SECURITY.md`                                                                                        |
-| Latest CodeQL run                     | Success pada `main` commit `5f080b0`                                                                                                          |
+| Latest CodeQL run                     | Success pada `main` commit `17a851f`                                                                                                          |
 
 ## Alert Count Saat Setup
 
-| Alert type      | Open | Fixed / historical | Catatan                                               |
-| --------------- | ---: | -----------------: | ----------------------------------------------------- |
-| Dependabot      |    0 |                 40 | Semua alert yang terambil dari API berstatus `fixed`. |
-| Code scanning   |    0 |                  6 | Semua alert yang terambil dari API berstatus `fixed`. |
-| Secret scanning |    0 |                  0 | Tidak ada alert saat setup.                           |
+| Alert type      | Open | Fixed / historical | Catatan                                                                                                          |
+| --------------- | ---: | -----------------: | ---------------------------------------------------------------------------------------------------------------- |
+| Dependabot      |    0 |                 40 | Semua alert yang terambil dari API berstatus `fixed`.                                                            |
+| Code scanning   |    0 |                  7 | Semua alert yang terambil dari API berstatus `fixed`; #7 `actions/unpinned-tag` fixed pada 2026-07-05T00:05:32Z. |
+| Secret scanning |    0 |                  0 | Tidak ada alert saat setup.                                                                                      |
 
 ## File Yang Menjadi Standar
 
