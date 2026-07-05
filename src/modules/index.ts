@@ -1,5 +1,6 @@
 import type { ModuleDescriptor } from "./_shared/module-contract";
 import { identityAccessModule } from "./identity-access/module";
+import { loggingModule } from "./logging/module";
 import { profileIdentityModule } from "./profile-identity/module";
 import { reportingModule } from "./reporting/module";
 import { syncStorageModule } from "./sync-storage/module";
@@ -10,7 +11,8 @@ export const modules: ModuleDescriptor[] = [
   profileIdentityModule,
   identityAccessModule,
   syncStorageModule,
-  reportingModule
+  reportingModule,
+  loggingModule
 ];
 
 export function getModuleByKey(

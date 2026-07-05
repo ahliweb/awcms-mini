@@ -31,6 +31,10 @@ Alasan penolakan login **digeneralisasi menjadi pesan generik** ("invalid creden
 
 `domain/access-control.ts` — `evaluateAccess` (pure, murni), tipe `TenantContext`/`AccessRequest`/`AccessDecision` mengikuti kontrak doc 10 §ABAC guard persis. **Default deny, deny overrides allow** (ADR-0004): cek ABAC dulu (tenant isolation — resource beda tenant selalu ditolak; self-approval — actor tidak boleh approve resource yang ia ajukan sendiri) sebelum cek RBAC (permission dari role yang di-assign). Dua aturan ABAC bawaan ini **generik** (berlaku untuk aplikasi turunan apa pun), bukan aturan spesifik domain retail seperti "cashier tax restriction"/"discount limit" di doc 17 — itu tetap scope aplikasi turunan lewat `awcms_mini_abac_policies`.
 
+### Vocabulary `AccessAction` diperluas (Issue 10.1)
+
+Doc 10 §ABAC guard: "Tambahkan action `restore` dan `purge` pada kontrak modul yang membutuhkan pemulihan atau purge retention". Union `AccessAction` kini mencakup `restore` dan `purge` di samping `read`/`create`/`update`/`delete`/`post`/`cancel`/`approve`/`export`/`send`/`configure`/`analyze`/`assign`, dan keduanya ditambahkan ke `HIGH_RISK_ACTIONS` (`isHighRiskAction("restore")`/`isHighRiskAction("purge")` → `true`) — soft-delete-adjacent actions bersifat high-risk per definisi, sejalan dengan acceptance criteria Issue 10.1 ("Soft delete, restore, dan purge high-risk tercatat di audit"). `evaluateAccess` sendiri tidak berubah logikanya — perluasan ini murni tipe/set, default deny tetap berlaku sampai permission eksplisit (`*.delete`/`*.restore`/`*.purge`) di-assign ke role. Konsumen pertama: `profile_identity.profile_management.restore`/`.purge` (lihat `src/modules/profile-identity/README.md` §Lifecycle endpoints).
+
 ## Infrastruktur baru
 
 Issue ini adalah endpoint live pertama yang menyentuh database, sehingga menambahkan infrastruktur dasar akses data yang akan dipakai modul lain:

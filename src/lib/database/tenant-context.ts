@@ -12,7 +12,7 @@ export function assertUuid(value: string): string {
 export async function withTenant<T>(
   sql: Bun.SQL,
   tenantId: string,
-  fn: (tx: Bun.SQL) => Promise<T>
+  fn: (tx: Bun.TransactionSQL) => Promise<T>
 ): Promise<T> {
   const safeTenantId = assertUuid(tenantId);
 

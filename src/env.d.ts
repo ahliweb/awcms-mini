@@ -14,6 +14,16 @@ declare global {
        * middleware, not in a nested layout component (Issue 8.1).
        */
       ssrContext?: SsrContext;
+
+      /**
+       * Correlation ID for this request (Issue 10.1 — Add Structured
+       * Logging and Audit Trail). Populated by `src/middleware.ts` for
+       * *every* request: echoes the incoming `X-Correlation-ID` header if
+       * present, otherwise a freshly generated `crypto.randomUUID()`.
+       * Handlers thread this into audit events, `log()` calls, and
+       * `ApiMeta.correlationId` instead of re-deriving it.
+       */
+      correlationId: string;
     }
   }
 }

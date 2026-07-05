@@ -21,7 +21,9 @@ export type AccessAction =
   | "send"
   | "configure"
   | "analyze"
-  | "assign";
+  | "assign"
+  | "restore"
+  | "purge";
 
 export type AccessRequest = {
   moduleKey: string;
@@ -45,7 +47,9 @@ const HIGH_RISK_ACTIONS: ReadonlySet<AccessAction> = new Set([
   "approve",
   "export",
   "assign",
-  "configure"
+  "configure",
+  "restore",
+  "purge"
 ]);
 
 export function isHighRiskAction(action: AccessAction): boolean {
