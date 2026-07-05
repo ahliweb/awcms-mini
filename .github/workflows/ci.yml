@@ -1,5 +1,5 @@
 # CI AWCMS-Mini — kualitas dokumentasi, unit test, & hygiene (Bun-only).
-# Repo saat ini docs-only + tooling; gate build aplikasi diaktifkan setelah Issue 0.1.
+# Repo saat ini foundation skeleton + tooling; gate build aktif sejak Issue 0.1.
 name: CI
 
 on:
@@ -41,6 +41,9 @@ jobs:
 
       - name: Unit tests (bun test)
         run: bun test
+
+      - name: Build Astro foundation
+        run: bun run build
 
   hygiene:
     name: Repo hygiene (Bun-only + no secrets)

@@ -10,6 +10,14 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 - Pin `oven-sh/setup-bun` di CI ke commit SHA immutable untuk menyelesaikan CodeQL `actions/unpinned-tag` (#7), dan hapus referensi proyek lama terakhir dari snapshot label/milestone.
 
+### Added
+
+- Foundation skeleton Issue 0.1: Astro 7 build via Bun, health endpoint `/api/v1/health`, module contract/registry, shared API response helper, soft-delete convention, `.env.example`, foundation SQL schema, and standard folders (`src/`, `sql/`, `openapi/`, `asyncapi/`, `deploy/`, `fixtures/`).
+
+### Changed
+
+- `bun run check` now includes `bun run build`, and CI runs the Astro foundation build.
+
 ## [0.0.3] - 2026-07-04
 
 ### Fixed

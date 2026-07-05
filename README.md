@@ -7,7 +7,7 @@
 
 AWCMS-Mini adalah **base modular monolith standar** AhliWeb berbasis **Bun + Astro 7 + PostgreSQL**. Ia berisi lapisan **reusable** (multi-tenant, RBAC/ABAC/RLS, audit, offline-first, kontrak OpenAPI/AsyncAPI, coding standard, skill proyek) yang menjadi fondasi aplikasi turunan. Aplikasi domain (mis. AWPOS untuk retail/POS) dibangun **di atas** base ini dengan menambah modulnya sendiri.
 
-> **Status:** paket perencanaan & standar (**docs-only**). Kode aplikasi dimulai dari **Issue 0.1**. Kontributor & coding agent **wajib membaca [`AGENTS.md`](AGENTS.md) lebih dulu**.
+> **Status:** foundation skeleton tersedia (**Issue 0.1**): Astro build, health endpoint, module contract, response helper, soft-delete convention, dan folder standar. Modul tenant/auth/RBAC/sync/deployment masih backlog. Kontributor & coding agent **wajib membaca [`AGENTS.md`](AGENTS.md) lebih dulu**.
 
 ## Daftar isi
 
@@ -133,11 +133,11 @@ flowchart LR
 2. Baca [`CONTRIBUTING.md`](CONTRIBUTING.md) — alur kontribusi, setup, konvensi commit, Definition of Done.
 3. Gunakan **skill proyek** di [`.claude/skills/`](.claude/skills/README.md) agar standar diterapkan konsisten.
 4. Kerjakan **atomic** per issue; migration bila schema berubah, OpenAPI bila API berubah, AsyncAPI bila event berubah.
-5. Validasi (`bun run check` = lint + docs-check + typecheck + `bun test`; plus `bun run build` bila menyentuh kode aplikasi) sebelum PR.
+5. Validasi (`bun run check` = lint + docs-check + typecheck + `bun test` + Astro build) sebelum PR.
 
 ### Mulai dari
 
-Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/awcms-mini/06_github_issues_detail.md). Urutan awal: **Issue 0.1 → 0.2 → 0.3 → 12.1**, lalu Tenant/Identity/Profile (2.1–2.4).
+Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/awcms-mini/06_github_issues_detail.md). Foundation **Issue 0.1** sudah tersedia; urutan berikutnya: **0.2 → 0.3 → 12.1**, lalu Tenant/Identity/Profile (2.1–2.4).
 
 ## Keamanan
 
@@ -158,7 +158,7 @@ Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/
 
 ## Versioning
 
-**Semantic Versioning** + **[Changesets](.changeset/README.md)**; riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Versi saat ini `0.0.3` (docs & tooling baseline); rilis bertag berikutnya `0.1.0` (Foundation).
+**Semantic Versioning** + **[Changesets](.changeset/README.md)**; riwayat di [`CHANGELOG.md`](CHANGELOG.md). Setiap PR yang mengubah perilaku wajib menyertakan changeset. Versi saat ini `0.0.3`; perubahan foundation skeleton menunggu rilis berikutnya `0.1.0`.
 
 ## Lisensi
 

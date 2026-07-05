@@ -130,9 +130,9 @@ Dokumen dikelompokkan mengikuti alur pengembangan agar mudah diimplementasi.
 
 ### Audit repo
 
-| File                                       | Isi                                                                                           |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` | Audit kepatuhan baseline docs-only terhadap standar pengembangan Bun, Astro 7, dan PostgreSQL |
+| File                                       | Isi                                                                                                         |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` | Audit kepatuhan baseline dan foundation skeleton terhadap standar pengembangan Bun, Astro 7, dan PostgreSQL |
 
 ### Snapshot GitHub
 

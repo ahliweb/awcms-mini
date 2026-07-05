@@ -36,7 +36,7 @@ flowchart LR
 
 ```bash
 bun install
-# repository saat ini docs-only; setelah Issue 0.1 selesai:
+# foundation skeleton sudah tersedia; jalankan gate penuh:
 # docker compose up -d postgres
 # cp .env.example .env
 # bun run db:migrate && bun run dev
@@ -55,7 +55,7 @@ bun run typecheck            # tsc --noEmit
 bun test                     # unit + integration test (bun:test) di tests/
 bun run api:spec:check       # bila mengubah OpenAPI/AsyncAPI
 bun run db:migrate           # bila menambah migration
-bun run build                # bila mengubah kode aplikasi
+bun run build                # Astro foundation build
 bun run production:preflight  # cek gabungan pra-deploy
 ```
 
