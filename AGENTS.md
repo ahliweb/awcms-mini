@@ -111,6 +111,15 @@ AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode sta
 | Rilis versi (Changesets, tag, CHANGELOG)   | `awcms-mini-release`              |
 | Migrasi data legacy (dry-run, backfill)    | `awcms-mini-legacy-migration`     |
 
+**Peningkatan (audit & hardening artefak yang sudah ada):**
+
+| Butuh…                                | Skill                           |
+| ------------------------------------- | ------------------------------- |
+| Audit & naikkan mutu UI/UX yang ada   | `awcms-mini-ux-review`          |
+| Tuning performa aplikasi & database   | `awcms-mini-performance`        |
+| Kerasan backend & integrasi eksternal | `awcms-mini-integration`        |
+| Audit keamanan OWASP/ASVS/ISO         | `awcms-mini-security-hardening` |
+
 ```mermaid
 flowchart LR
   II[awcms-mini-implement-issue] --> NM[new-module]
@@ -124,6 +133,10 @@ flowchart LR
   EP --> SD[sensitive-data]
   EV --> SYNC[sync-hmac]
   II --> PR[pr-review] --> SEC[security-review] --> PF[production-preflight]
+  UI2[ui-screen] --> UXR[ux-review]
+  EP --> PERF[performance]
+  EP --> INT[integration]
+  SEC --> HARD[security-hardening]
 ```
 
 Skill merujuk `docs/awcms-mini/*` sebagai sumber kebenaran; bila standar berubah, perbarui doc **dan** skill terkait.

@@ -1,0 +1,42 @@
+---
+name: awcms-mini-performance
+description: Audit dan tingkatkan performa aplikasi & database AWCMS-Mini. Gunakan saat diminta "optimasi performa/query", ada endpoint lambat, N+1, masalah indexing/pagination, tuning connection pool, atau perencanaan materialized view/caching. Menegakkan pola akses data doc 16, pooling/backpressure, dan pagination keyset.
+---
+
+# AWCMS-Mini — Performance & Database Tuning
+
+Sumber kebenaran: **`docs/awcms-mini/16_backend_data_access_integration.md`** (lapisan akses data, pooling/backpressure, transaction), **`docs/awcms-mini/database-pooling.md`**, dan **`docs/awcms-mini/07_sprint_testing_production_readiness.md`** (target performa). Skill ini **peningkatan**: ukur → temukan bottleneck → perbaiki → ukur ulang.
+
+## Aturan emas
+
+**Ukur sebelum optimasi.** Jangan menebak — jalankan `EXPLAIN (ANALYZE, BUFFERS)` pada query yang dicurigai, dan benchmark endpoint (p50/p95/p99) sebelum & sesudah. Optimasi tanpa data = spekulasi.
+
+## Database
+
+- [ ] **Index RLS-aware** — query tenant-scoped selalu difilter `tenant_id`; index komposit **harus** berprefiks `(tenant_id, …)` agar cocok dengan predikat RLS + filter. Cek index hilang via `EXPLAIN` (Seq Scan pada tabel besar = merah).
+- [ ] **Hindari N+1** — jangan query dalam loop; batch pakai `= ANY(tx.array(ids, "uuid"))` (lihat memory Bun SQL array binding) atau `JOIN`. Cari pola `for (…) await tx\`SELECT …\``.
+- [ ] **Pagination keyset, bukan OFFSET** — `WHERE (created_at, id) < (:cursor)` + `LIMIT`, bukan `OFFSET n` besar (doc 14 §Pagination). OFFSET besar memindai lalu membuang baris.
+- [ ] **Kolom eksplisit** — hindari `SELECT *`; ambil hanya kolom yang dipakai (kurangi I/O + payload).
+- [ ] **`count(*)::int`** untuk agregat kecil; ingat bigint Postgres kembali sebagai string dari Bun.SQL → `Number(...)` eksplisit, jangan `as number`.
+- [ ] **jsonb** — index GIN hanya bila di-query berdasarkan isi; jangan simpan payload besar yang tak pernah difilter.
+- [ ] **Materialized view / read model** — untuk laporan agregasi berat yang tak butuh real-time; refresh terjadwal. Report base saat ini agregasi baca langsung (doc: reporting) — pertimbangkan MV bila data tumbuh.
+- [ ] **Statement timeout** — `DATABASE_STATEMENT_TIMEOUT_MS` mencegah query liar mengunci koneksi.
+
+## Aplikasi & koneksi
+
+- [ ] **Work-class pool + backpressure** — endpoint diklasifikasi (`critical_transaction`/`interactive`/`reporting`/`background_sync`/`maintenance`, doc 16). Laporan berat & sync **tidak** boleh di kelas `interactive`; saturasi → `503 DATABASE_BUSY`, bukan menjenuhkan seluruh pool.
+- [ ] **Transaksi seringkas mungkin** — kerja CPU-bound (argon2 hashing) & panggilan provider eksternal **di luar** transaksi DB (ADR-0006); jangan menahan koneksi/lock saat menunggu I/O eksternal.
+- [ ] **PgBouncer** — bila `DATABASE_PGBOUNCER=true`, prepared statement dinonaktifkan (mode transaction). Pastikan `DATABASE_POOL_MAX` selaras dengan limit pool server.
+- [ ] **SSR reuse** — halaman admin fetch via fungsi application-layer di dalam satu `withTenant`, bukan round-trip HTTP ke API sendiri (pola `*-directory.ts`/`*-report.ts`).
+- [ ] **Locking** — `FOR UPDATE` hanya pada baris yang benar-benar dimutasi bersama (mis. stok); hindari lock rentang lebar.
+
+## Verifikasi
+
+- `EXPLAIN ANALYZE` sebelum/sesudah menunjukkan perbaikan nyata (Seq→Index Scan, plan cost turun).
+- Benchmark p95 endpoint membaik; tak ada regresi fungsional (`bun run check` hijau).
+- Uji beban ringan: query saturasi kelas pool → `503`, mengering ke 0 (bukti backpressure, seperti verifikasi Issue 10.2).
+- Tak ada N+1 baru; tak ada `OFFSET` besar; index cocok dengan predikat.
+
+## Skill terkait
+
+`awcms-mini-new-migration` (tambah index via migration berurutan), `awcms-mini-integration` (I/O eksternal & outbox), `awcms-mini-testing` (benchmark/load test), `awcms-mini-production-preflight` (`db:pool:health`).

@@ -27,6 +27,17 @@ Skill Claude Code tingkat-proyek untuk AWCMS-Mini. Setiap skill meng-encode stan
 | `awcms-mini-release`                                   | Rilis versi via Changesets (bump, CHANGELOG, tag)         | 09             |
 | `awcms-mini-legacy-migration`                          | Migrasi data legacy aman (dry-run, backfill)              | 07, 06         |
 
+## Katalog peningkatan (improvement/hardening)
+
+Skill di bawah bersifat **peningkatan** — menilai & menaikkan mutu artefak yang sudah ada, bukan membangunnya dari nol. Pakai setelah fitur jalan, saat audit, atau menjelang go-live.
+
+| Skill                           | Kapan dipakai                                                           | Sumber docs |
+| ------------------------------- | ----------------------------------------------------------------------- | ----------- |
+| `awcms-mini-ux-review`          | Audit & naikkan mutu UI/UX yang sudah ada (usability, a11y AA, i18n)    | 14, 15, 19  |
+| `awcms-mini-performance`        | Tuning performa aplikasi & database (query, index, pagination, pool)    | 16, 07      |
+| `awcms-mini-integration`        | Kerasan backend & integrasi eksternal (outbox, retry, webhook, kontrak) | 16, 05, 10  |
+| `awcms-mini-security-hardening` | Audit keamanan berbasis standar (OWASP Top 10, ASVS, ISO 27001)         | 20, 10, 13  |
+
 ## Peta pemakaian
 
 ```mermaid
@@ -47,6 +58,13 @@ flowchart TD
   PR --> SEC[awcms-mini-security-review]
   SEC --> PF[awcms-mini-production-preflight]
   PF --> REL[awcms-mini-release]
+
+  UI --> UXR[awcms-mini-ux-review]
+  EP --> PERF[awcms-mini-performance]
+  EP --> INT[awcms-mini-integration]
+  SEC --> HARD[awcms-mini-security-hardening]
+  PERF --> PF
+  HARD --> PF
 ```
 
 ## Subagents (`.claude/agents/`)
