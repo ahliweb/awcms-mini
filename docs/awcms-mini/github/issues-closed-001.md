@@ -3,18 +3,18 @@
 | Metadata           | Nilai                |
 | ------------------ | -------------------- |
 | Repository         | `ahliweb/awcms-mini` |
-| Snapshot           | 2026-07-05T03:38:53Z |
+| Snapshot           | 2026-07-05T04:09:31Z |
 | State              | `CLOSED`             |
 | File page          | 1/1                  |
 | Max issue per file | 100                  |
-| Issue dalam file   | 26                   |
+| Issue dalam file   | 27                   |
 | Range              | #371-#402            |
 
 > File ini adalah snapshot dari GitHub. Refresh dengan proses di `docs/awcms-mini/github/README.md` bila state issue berubah.
 
 Seluruh issue di bawah ditutup dengan reason `not planned` pada 2026-07-04: kontennya spesifik domain POS/retail (katalog, stok, checkout, warehouse, pajak/Coretax, CRM receipt, AI business analyst) yang tidak sesuai konteks AWCMS-Mini sebagai contoh repo pengembangan umum. Konten dipindahkan ke aplikasi turunan contoh (mis. AWPOS), bukan dihapus riwayatnya.
 
-Issue [#371](https://github.com/ahliweb/awcms-mini/issues/371), [#372](https://github.com/ahliweb/awcms-mini/issues/372), dan [#373](https://github.com/ahliweb/awcms-mini/issues/373) ditutup dengan reason `completed` pada 2026-07-05 setelah foundation skeleton Issue 0.1, migration runner Issue 0.2, dan API contract baseline Issue 0.3 merge. Issue [#376](https://github.com/ahliweb/awcms-mini/issues/376) ditutup dengan reason `completed` setelah tenant/office schema Issue 2.1 merge. Issue [#377](https://github.com/ahliweb/awcms-mini/issues/377) ditutup dengan reason `completed` setelah central profile schema Issue 2.2 merge. Issue [#378](https://github.com/ahliweb/awcms-mini/issues/378) ditutup dengan reason `completed` setelah identity login schema Issue 2.3 merge.
+Issue [#371](https://github.com/ahliweb/awcms-mini/issues/371), [#372](https://github.com/ahliweb/awcms-mini/issues/372), dan [#373](https://github.com/ahliweb/awcms-mini/issues/373) ditutup dengan reason `completed` pada 2026-07-05 setelah foundation skeleton Issue 0.1, migration runner Issue 0.2, dan API contract baseline Issue 0.3 merge. Issue [#376](https://github.com/ahliweb/awcms-mini/issues/376), [#377](https://github.com/ahliweb/awcms-mini/issues/377), [#378](https://github.com/ahliweb/awcms-mini/issues/378), dan [#379](https://github.com/ahliweb/awcms-mini/issues/379) ditutup dengan reason `completed` setelah tenant/office (2.1), central profile (2.2), identity login (2.3), dan RBAC/ABAC (2.4) schema merge — epic M2 tuntas.
 
 |                                                        # | Judul                                                             | Milestone (saat dibuat)        |
 | -------------------------------------------------------: | ----------------------------------------------------------------- | ------------------------------ |
@@ -26,6 +26,7 @@ Issue [#371](https://github.com/ahliweb/awcms-mini/issues/371), [#372](https://g
 | [#376](https://github.com/ahliweb/awcms-mini/issues/376) | 2.1 — Add Tenant and Office Schema                                | M2 — Identity, Tenant, Profile |
 | [#377](https://github.com/ahliweb/awcms-mini/issues/377) | 2.2 — Add Central Profile Schema                                  | M2 — Identity, Tenant, Profile |
 | [#378](https://github.com/ahliweb/awcms-mini/issues/378) | 2.3 — Add Identity Login and Tenant User Membership               | M2 — Identity, Tenant, Profile |
+| [#379](https://github.com/ahliweb/awcms-mini/issues/379) | 2.4 — Add RBAC and ABAC Access Control                            | M2 — Identity, Tenant, Profile |
 | [#380](https://github.com/ahliweb/awcms-mini/issues/380) | 3.1 — Add Product Catalog MVP                                     | -                              |
 | [#381](https://github.com/ahliweb/awcms-mini/issues/381) | 3.2 — Add Stock Balance and Stock Movement MVP                    | -                              |
 | [#382](https://github.com/ahliweb/awcms-mini/issues/382) | 3.3 — Add Checkout Session and Cart                               | -                              |

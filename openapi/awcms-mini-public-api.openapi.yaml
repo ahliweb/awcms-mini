@@ -112,6 +112,148 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/access/modules:
+    get:
+      tags:
+        - Identity & Access
+      summary: List the module/activity/action permission registry
+      operationId: accessListModules
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Permission registry.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleRegistryResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/access/evaluate:
+    post:
+      tags:
+        - Identity & Access
+      summary: Evaluate an ABAC access request for the caller
+      operationId: accessEvaluate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessEvaluateRequest"
+      responses:
+        "200":
+          description: Access decision. Always recorded in the decision log.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AccessEvaluateResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/access/assignments:
+    post:
+      tags:
+        - Identity & Access
+      summary: Assign a role to a tenant user
+      operationId: accessCreateAssignment
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessAssignmentRequest"
+      responses:
+        "200":
+          description: Role assignment created or already present (idempotent).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AccessAssignmentResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/access/decision-logs:
+    get:
+      tags:
+        - Identity & Access
+      summary: List recent ABAC decision log entries for the tenant
+      operationId: accessListDecisionLogs
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Recent decision log entries, newest first (limit 50).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/DecisionLogListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/health:
     get:
       tags:
@@ -433,6 +575,150 @@ components:
             - string
             - "null"
           format: date-time
+    ModuleRegistryEntry:
+      type: object
+      required:
+        - moduleKey
+        - activityCode
+        - action
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        activityCode:
+          type: string
+        action:
+          type: string
+        description:
+          type: string
+    ModuleRegistryResponse:
+      type: object
+      required:
+        - modules
+      additionalProperties: false
+      properties:
+        modules:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModuleRegistryEntry"
+    AccessEvaluateRequest:
+      type: object
+      required:
+        - moduleKey
+        - activityCode
+        - action
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        activityCode:
+          type: string
+        action:
+          type: string
+          enum:
+            - read
+            - create
+            - update
+            - delete
+            - post
+            - cancel
+            - approve
+            - export
+            - send
+            - configure
+            - analyze
+            - assign
+        resourceType:
+          type: string
+        resourceId:
+          type: string
+        resourceAttributes:
+          type: object
+          additionalProperties: true
+        environmentAttributes:
+          type: object
+          additionalProperties: true
+    AccessEvaluateResponse:
+      type: object
+      required:
+        - allowed
+        - reason
+      additionalProperties: false
+      properties:
+        allowed:
+          type: boolean
+        reason:
+          type: string
+        matchedPolicy:
+          type: string
+    AccessAssignmentRequest:
+      type: object
+      required:
+        - tenantUserId
+        - roleId
+      additionalProperties: false
+      properties:
+        tenantUserId:
+          type: string
+          format: uuid
+        roleId:
+          type: string
+          format: uuid
+    AccessAssignmentResponse:
+      type: object
+      required:
+        - assignmentId
+      additionalProperties: false
+      properties:
+        assignmentId:
+          type: string
+          format: uuid
+    DecisionLogEntry:
+      type: object
+      required:
+        - id
+        - moduleKey
+        - activityCode
+        - action
+        - decision
+        - reason
+        - createdAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantUserId:
+          type: string
+          format: uuid
+        moduleKey:
+          type: string
+        activityCode:
+          type: string
+        action:
+          type: string
+        decision:
+          type: string
+          enum:
+            - allow
+            - deny
+        reason:
+          type: string
+        matchedPolicy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    DecisionLogListResponse:
+      type: object
+      required:
+        - decisionLogs
+      additionalProperties: false
+      properties:
+        decisionLogs:
+          type: array
+          items:
+            $ref: "#/components/schemas/DecisionLogEntry"
     SoftDeleteQuery:
       type: object
       additionalProperties: false

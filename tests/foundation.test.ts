@@ -56,7 +56,7 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, and identity_access are registered after Issue 2.1/2.2/2.3", () => {
+  test("tenant_admin, profile_identity, and identity_access are registered after Issue 2.1-2.4", () => {
     expect(listModules()).toHaveLength(3);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
@@ -127,7 +127,8 @@ describe("database migration runner helpers", () => {
       "001_awcms_mini_foundation_schema.sql",
       "002_awcms_mini_tenant_office_schema.sql",
       "003_awcms_mini_central_profile_management_schema.sql",
-      "004_awcms_mini_identity_login_schema.sql"
+      "004_awcms_mini_identity_login_schema.sql",
+      "005_awcms_mini_abac_access_control_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
@@ -194,6 +195,37 @@ describe("database migration runner helpers", () => {
     expect(identitySchema?.sql).toContain(
       "awcms_mini_identities_tenant_login_key"
     );
+  });
+
+  test("abac schema declares RLS on tenant-scoped tables, seeds a generic permission catalog, and keeps the global permissions table RLS-free", async () => {
+    const migrations = await discoverMigrationFiles();
+    const abacSchema = migrations.find(
+      (migration) =>
+        migration.name === "005_awcms_mini_abac_access_control_schema.sql"
+    );
+
+    expect(abacSchema).toBeDefined();
+    expect(abacSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_roles ENABLE ROW LEVEL SECURITY"
+    );
+    expect(abacSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_role_permissions ENABLE ROW LEVEL SECURITY"
+    );
+    expect(abacSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_access_assignments ENABLE ROW LEVEL SECURITY"
+    );
+    expect(abacSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_abac_policies ENABLE ROW LEVEL SECURITY"
+    );
+    expect(abacSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_abac_decision_logs ENABLE ROW LEVEL SECURITY"
+    );
+    expect(abacSchema?.sql).not.toContain(
+      "ALTER TABLE awcms_mini_permissions ENABLE ROW LEVEL SECURITY"
+    );
+    expect(abacSchema?.sql).toContain("'tenant_admin', 'office_management'");
+    expect(abacSchema?.sql).not.toContain("catalog_inventory");
+    expect(abacSchema?.sql).not.toContain("sales_pos");
   });
 });
 
