@@ -31,14 +31,37 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 ## Proses refresh snapshot
 
+Cara yang direkomendasikan (Issue #464, skill `awcms-mini-github-snapshot`):
+
 ```bash
 gh auth status
+bun run github:snapshot:refresh
+bun run format
+bun run check:docs
+```
+
+`scripts/github-snapshot-refresh.ts` meregenerasi tabel metadata (snapshot
+timestamp, jumlah issue/label/milestone, latest CodeQL run, alert count)
+di kelima file folder ini, plus dua tabel daftar issue yang tumbuh (open
+issues; closed issues pasca-doc06) lewat marker
+`<!-- github-snapshot:NAME:start/end -->`. Yang **tidak** disentuh script
+(tetap manual): narasi hand-written ("### ... completed" di `README.md`),
+tabel historis 38-issue doc06 asli di `issues-closed-001.md`, tabel
+klasifikasi detail label/milestone di `labels-milestones.md`, dan tabel
+"Ringkasan state saat snapshot" di bawah — tinjau dan perbarui bagian ini
+manual setelah menjalankan script bila ada issue/label baru yang butuh
+konteks naratif.
+
+Data mentah yang dipakai script (untuk debugging/verifikasi manual bila
+perlu):
+
+```bash
 gh issue list --repo ahliweb/awcms-mini --state all --limit 1000 --json number,title,state,createdAt,updatedAt,closedAt,author,labels,assignees,milestone,url,body,comments
 gh label list --repo ahliweb/awcms-mini --limit 500 --json name,description,color
 gh api 'repos/ahliweb/awcms-mini/milestones?state=all&per_page=100'
 ```
 
-Setelah data diambil, regenerate file di folder ini dengan pembagian state dan batas 100 issue per file, lalu update metadata di `README.md`, `docs/awcms-mini/README.md`, `06_github_issues_detail.md`, `09_roadmap_repository_commit.md`, `13_final_master_index_traceability.md`, dan `CHANGELOG.md` bila struktur dokumentasi berubah.
+Update juga metadata di `docs/awcms-mini/README.md`, `06_github_issues_detail.md`, `09_roadmap_repository_commit.md`, `13_final_master_index_traceability.md`, dan `CHANGELOG.md` bila struktur dokumentasi berubah (di luar cakupan script).
 
 ## Ringkasan state saat snapshot
 

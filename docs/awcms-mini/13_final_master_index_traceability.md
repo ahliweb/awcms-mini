@@ -188,24 +188,26 @@ flowchart LR
 
 ## Matrix Security Control vs Skill
 
-| Control                            | Skill penegak                                                                                          |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Tenant isolation + RBAC/ABAC + RLS | `awcms-mini-abac-guard`                                                                                |
-| Idempotency high-risk              | `awcms-mini-idempotency`                                                                               |
-| Audit log high-risk                | `awcms-mini-audit-log`                                                                                 |
-| Sensitive masking                  | `awcms-mini-sensitive-data`                                                                            |
-| Sync HMAC + file checksum          | `awcms-mini-sync-hmac`                                                                                 |
-| Migration aman (RLS/index)         | `awcms-mini-new-migration`                                                                             |
-| Soft delete policy                 | `awcms-mini-new-migration`, `awcms-mini-new-endpoint`, `awcms-mini-abac-guard`, `awcms-mini-audit-log` |
-| API/event contract                 | `awcms-mini-new-endpoint`, `awcms-mini-new-event`                                                      |
-| Testing berlapis                   | `awcms-mini-testing`                                                                                   |
-| Review keamanan                    | `awcms-mini-security-review` + agent `awcms-mini-security-auditor`                                     |
-| Review PR / DoD                    | `awcms-mini-pr-review` + agent `awcms-mini-reviewer`                                                   |
-| Go-live gate                       | `awcms-mini-production-preflight`                                                                      |
-| UI/design system/a11y              | `awcms-mini-ui-screen`                                                                                 |
-| Rilis/CHANGELOG                    | `awcms-mini-release`                                                                                   |
-| Legacy migration                   | `awcms-mini-legacy-migration`                                                                          |
-| Implementasi issue                 | skill `awcms-mini-implement-issue` + agent `awcms-mini-coder`                                          |
+| Control                               | Skill penegak                                                                                          |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Tenant isolation + RBAC/ABAC + RLS    | `awcms-mini-abac-guard`                                                                                |
+| Idempotency high-risk                 | `awcms-mini-idempotency`                                                                               |
+| Audit log high-risk                   | `awcms-mini-audit-log`                                                                                 |
+| Sensitive masking                     | `awcms-mini-sensitive-data`                                                                            |
+| Sync HMAC + file checksum             | `awcms-mini-sync-hmac`                                                                                 |
+| Migration aman (RLS/index)            | `awcms-mini-new-migration`                                                                             |
+| Soft delete policy                    | `awcms-mini-new-migration`, `awcms-mini-new-endpoint`, `awcms-mini-abac-guard`, `awcms-mini-audit-log` |
+| API/event contract                    | `awcms-mini-new-endpoint`, `awcms-mini-new-event`                                                      |
+| Testing berlapis                      | `awcms-mini-testing`                                                                                   |
+| Review keamanan                       | `awcms-mini-security-review` + agent `awcms-mini-security-auditor`                                     |
+| Review PR / DoD                       | `awcms-mini-pr-review` + agent `awcms-mini-reviewer`                                                   |
+| Go-live gate                          | `awcms-mini-production-preflight`                                                                      |
+| Profil deployment (LAN-first/Coolify) | `awcms-mini-deploy`                                                                                    |
+| UI/design system/a11y                 | `awcms-mini-ui-screen`                                                                                 |
+| Rilis/CHANGELOG                       | `awcms-mini-release`                                                                                   |
+| Legacy migration                      | `awcms-mini-legacy-migration`                                                                          |
+| Implementasi issue                    | skill `awcms-mini-implement-issue` + agent `awcms-mini-coder`                                          |
+| Snapshot docs GitHub                  | `awcms-mini-github-snapshot`                                                                           |
 
 ## Matrix Modul vs SOP
 
@@ -321,7 +323,7 @@ Alasan:
 - `AGENTS.md`
 - `README.md`
 - `CHANGELOG.md` + `.changeset/` (versioning via Changesets)
-- `.claude/skills/` (22 skill proyek + katalog README)
+- `.claude/skills/` (24 skill proyek + katalog README)
 - `.claude/agents/` (3 subagent: coder, reviewer, security-auditor)
 - `package.json`
 - `astro.config.mjs`

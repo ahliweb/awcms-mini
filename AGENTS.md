@@ -91,27 +91,28 @@ flowchart LR
 
 AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode standar dokumen agar diterapkan konsisten. Model memanggilnya otomatis saat relevan, atau kamu panggil manual via `/<nama-skill>`. Katalog lengkap: [`.claude/skills/README.md`](.claude/skills/README.md).
 
-| Butuh…                                        | Skill                             |
-| --------------------------------------------- | --------------------------------- |
-| Kerjakan issue/sprint atomic (orkestrator)    | `awcms-mini-implement-issue`      |
-| Scaffold modul baru                           | `awcms-mini-new-module`           |
-| Migration SQL (tabel/index/RLS)               | `awcms-mini-new-migration`        |
-| Endpoint REST + OpenAPI                       | `awcms-mini-new-endpoint`         |
-| Domain event + AsyncAPI                       | `awcms-mini-new-event`            |
-| Idempotency mutation high-risk                | `awcms-mini-idempotency`          |
-| ABAC default-deny + RLS                       | `awcms-mini-abac-guard`           |
-| Audit high-risk + redaction                   | `awcms-mini-audit-log`            |
-| Correlation ID otomatis, retensi/purge log    | `awcms-mini-observability`        |
-| Masking data sensitif                         | `awcms-mini-sensitive-data`       |
-| Sync HMAC + anti-replay                       | `awcms-mini-sync-hmac`            |
-| Review keamanan modul                         | `awcms-mini-security-review`      |
-| Review pull request                           | `awcms-mini-pr-review`            |
-| Tulis test berlapis                           | `awcms-mini-testing`              |
-| Preflight & go-live                           | `awcms-mini-production-preflight` |
-| Layar/komponen UI sesuai design system        | `awcms-mini-ui-screen`            |
-| String UI `.po` gettext & konten multi-bahasa | `awcms-mini-i18n`                 |
-| Rilis versi (Changesets, tag, CHANGELOG)      | `awcms-mini-release`              |
-| Migrasi data legacy (dry-run, backfill)       | `awcms-mini-legacy-migration`     |
+| Butuh…                                                             | Skill                             |
+| ------------------------------------------------------------------ | --------------------------------- |
+| Kerjakan issue/sprint atomic (orkestrator)                         | `awcms-mini-implement-issue`      |
+| Scaffold modul baru                                                | `awcms-mini-new-module`           |
+| Migration SQL (tabel/index/RLS)                                    | `awcms-mini-new-migration`        |
+| Endpoint REST + OpenAPI                                            | `awcms-mini-new-endpoint`         |
+| Domain event + AsyncAPI                                            | `awcms-mini-new-event`            |
+| Idempotency mutation high-risk                                     | `awcms-mini-idempotency`          |
+| ABAC default-deny + RLS                                            | `awcms-mini-abac-guard`           |
+| Audit high-risk + redaction                                        | `awcms-mini-audit-log`            |
+| Correlation ID otomatis, retensi/purge log                         | `awcms-mini-observability`        |
+| Masking data sensitif                                              | `awcms-mini-sensitive-data`       |
+| Sync HMAC + anti-replay                                            | `awcms-mini-sync-hmac`            |
+| Review keamanan modul                                              | `awcms-mini-security-review`      |
+| Review pull request                                                | `awcms-mini-pr-review`            |
+| Tulis test berlapis                                                | `awcms-mini-testing`              |
+| Preflight & go-live                                                | `awcms-mini-production-preflight` |
+| Pilih & jalankan profil deployment (LAN-first vs registry/Coolify) | `awcms-mini-deploy`               |
+| Layar/komponen UI sesuai design system                             | `awcms-mini-ui-screen`            |
+| String UI `.po` gettext & konten multi-bahasa                      | `awcms-mini-i18n`                 |
+| Rilis versi (Changesets, tag, CHANGELOG)                           | `awcms-mini-release`              |
+| Migrasi data legacy (dry-run, backfill)                            | `awcms-mini-legacy-migration`     |
 
 **Peningkatan (audit & hardening artefak yang sudah ada):**
 
@@ -121,6 +122,12 @@ AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode sta
 | Tuning performa aplikasi & database   | `awcms-mini-performance`        |
 | Kerasan backend & integrasi eksternal | `awcms-mini-integration`        |
 | Audit keamanan OWASP/ASVS/ISO         | `awcms-mini-security-hardening` |
+
+**Maintenance/tooling (jaga artefak mekanis tetap sinkron):**
+
+| Butuh…                                               | Skill                        |
+| ---------------------------------------------------- | ---------------------------- |
+| Refresh snapshot docs GitHub (issue/label/milestone) | `awcms-mini-github-snapshot` |
 
 ```mermaid
 flowchart LR
@@ -136,6 +143,7 @@ flowchart LR
   EP --> SD[sensitive-data]
   EV --> SYNC[sync-hmac]
   II --> PR[pr-review] --> SEC[security-review] --> PF[production-preflight]
+  PF --> DEP[deploy]
   UI2[ui-screen] --> UXR[ux-review]
   UI2 --> I18N[i18n]
   EP --> PERF[performance]
@@ -216,7 +224,7 @@ awcms-mini/
 ├── AGENTS.md                # file ini
 ├── CHANGELOG.md             # versioning (Changesets)
 ├── .changeset/              # config + changeset entries
-├── .claude/skills/          # 22 skill proyek (implement-issue, new-migration, dst.)
+├── .claude/skills/          # 24 skill proyek (implement-issue, new-migration, dst.)
 ├── .claude/agents/          # subagents (coder, reviewer, security-auditor)
 ├── README.md
 ├── package.json
