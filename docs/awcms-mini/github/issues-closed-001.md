@@ -3,11 +3,11 @@
 | Metadata           | Nilai                                                                                                                                    |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Repository         | `ahliweb/awcms-mini`                                                                                                                     |
-| Snapshot           | 2026-07-06T14:02:04.204Z                                                                                                                 |
+| Snapshot           | 2026-07-06T17:17:45.853Z                                                                                                                 |
 | State              | `CLOSED`                                                                                                                                 |
 | File page          | 1/1                                                                                                                                      |
 | Max issue per file | 100                                                                                                                                      |
-| Issue dalam file   | 51                                                                                                                                       |
+| Issue dalam file   | 57                                                                                                                                       |
 | Range              | #371-#454 (#409-#432, #439-#446, #448-#449, #455-#460 adalah nomor PR, bukan issue — issue/PR berbagi satu urutan nomor per repo GitHub) |
 
 > File ini adalah snapshot dari GitHub. Refresh dengan proses di `docs/awcms-mini/github/README.md` bila state issue berubah.
@@ -61,7 +61,7 @@ Issue [#371](https://github.com/ahliweb/awcms-mini/issues/371), [#372](https://g
 
 ## Epic M9 + issue pasca-analisis lanjutan (di luar backlog doc06)
 
-Ditutup `completed` pada 2026-07-06, setelah seluruh 18 issue backlog doc06 di atas tuntas. Ringkasan per issue ada di `docs/awcms-mini/github/README.md` §Epic M9/§Issue pasca-analisis #450-#454; detail teknis lengkap di `CHANGELOG.md` (versi 0.23.0-0.23.5) dan `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` §Perawatan pasca-backlog.
+Ditutup `completed` pada 2026-07-06 s.d. 2026-07-07, setelah seluruh 18 issue backlog doc06 di atas tuntas. Ringkasan per issue ada di `docs/awcms-mini/github/README.md` §Epic M9/§Issue pasca-analisis #450-#454/§Issue pasca-analisis #461-#465, #473, #475; detail teknis lengkap di `CHANGELOG.md` (versi 0.23.0-0.23.5) dan `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` §Perawatan pasca-backlog.
 
 <!-- github-snapshot:closed-issues-post-doc06:start -->
 
@@ -80,6 +80,12 @@ Ditutup `completed` pada 2026-07-06, setelah seluruh 18 issue backlog doc06 di a
 | [#453](https://github.com/ahliweb/awcms-mini/issues/453) | docs: add derived application implementation guide                                                                                  | -                                            |
 | [#454](https://github.com/ahliweb/awcms-mini/issues/454) | build(deploy): add optional production Dockerfile for registry-based deployment                                                     | -                                            |
 | [#461](https://github.com/ahliweb/awcms-mini/issues/461) | docs(github): refresh GitHub issue and security snapshots after post-analysis issues                                                | -                                            |
+| [#462](https://github.com/ahliweb/awcms-mini/issues/462) | docs(deploy): add Coolify deployment guide for Dockerfile.production                                                                | -                                            |
+| [#463](https://github.com/ahliweb/awcms-mini/issues/463) | docs(examples): add minimal domain module implementation example                                                                    | -                                            |
+| [#464](https://github.com/ahliweb/awcms-mini/issues/464) | tooling(github): add reproducible GitHub snapshot refresh script                                                                    | -                                            |
+| [#465](https://github.com/ahliweb/awcms-mini/issues/465) | planning(derived-app): define first real derived application pilot plan                                                             | -                                            |
+| [#473](https://github.com/ahliweb/awcms-mini/issues/473) | fix(github-snapshot): use dynamic repo URL in issue table rows                                                                      | -                                            |
+| [#475](https://github.com/ahliweb/awcms-mini/issues/475) | fix(github-snapshot): don't report in-progress CodeQL run as Failure                                                                | -                                            |
 
 <!-- github-snapshot:closed-issues-post-doc06:end -->
 <!-- Regenerated by `bun run github:snapshot:refresh` (Issue #464) between the
