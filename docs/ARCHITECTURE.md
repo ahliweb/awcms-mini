@@ -9,4 +9,4 @@ Rujukan kanonik:
 - `docs/adr/` untuk keputusan arsitektural.
 - `docs/awcms-mini/01_canvas_induk.md` sampai `docs/awcms-mini/20_threat_model_security_architecture.md` untuk dokumen master.
 
-Issue 0.1 menyediakan foundation skeleton: Astro build, module contract, module registry, response helper, soft-delete convention, health endpoint, dan folder standar. Modul tenant/auth/RBAC/sync/reporting/deployment ditambahkan pada issue berikutnya.
+Foundation skeleton (Issue 0.1) menyediakan Astro build, module contract, module registry, response helper, soft-delete convention, health endpoint, dan folder standar. Modul tenant/auth/RBAC/sync/reporting/deployment **sudah** ditambahkan dan berjalan — base generik selesai (v0.23.5, seluruh 18 issue backlog doc 06 + peningkatan pasca-backlog M9 tuntas; lihat `README.md` §Versioning dan `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`). Pekerjaan baru = aplikasi turunan / modul domain di atas base ini (lihat `docs/awcms-mini/README.md` §Langkah berikutnya).

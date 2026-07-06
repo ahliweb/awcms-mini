@@ -1,15 +1,18 @@
 # Shared Runtime Library
 
-Folder `src/lib/` disediakan untuk helper lintas-modul:
+Folder `src/lib/` berisi helper lintas-modul (base generik selesai, v0.23.5 — folder ini sudah terimplementasi, bukan lagi placeholder):
 
-- `auth/`
-- `database/`
-- `errors/`
-- `files/`
-- `i18n/`
-- `logging/`
+- `auth/` — sesi/token, `ssr-session.ts`, password hashing.
+- `database/` — `client.ts`, `tenant-context.ts` (`withTenant`), `work-class.ts`, `circuit-breaker.ts` (registry per-provider, Issue #436).
+- `errors/` — tipe/utilitas error.
+- `files/` — helper file/storage lokal.
+- `i18n/` — parser `.po`, catalog loader, `createTranslator`/`t()`, formatter locale-aware (Issue #433; skill `awcms-mini-i18n`).
+- `integration/` — `timeout.ts` (`withTimeout` untuk panggilan keluar, Issue #436; skill `awcms-mini-integration`).
+- `logging/` — `logger.ts` (JSON terstruktur + `setLogSink`), `correlation-response.ts` (propagasi `meta.correlationId`, Issue #447; skill `awcms-mini-observability`).
+- `security/` — `security-headers.ts`, `rate-limit.ts`, `theme-init-script.ts` (Issue #437; skill `awcms-mini-security-hardening`).
+- `ui/` — `admin-form-client.ts` (`submitJson`/`showBanner`/`lockElement`, Issue #434).
 
-Implementasi detail masuk issue berikutnya. Semua kode di folder ini wajib Bun-only, tidak menyimpan secret, dan mengikuti lapisan service/repository di doc 10 dan doc 16.
+Semua kode di folder ini wajib Bun-only, tidak menyimpan secret, dan mengikuti lapisan service/repository di doc 10 dan doc 16.
 
 ## `database/` (Issue 0.2, 10.2)
 

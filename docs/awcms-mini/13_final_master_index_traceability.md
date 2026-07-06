@@ -367,6 +367,8 @@ Semua file `docs/awcms-mini/01` sampai `19` harus menjadi acuan sebelum coding. 
 
 ## Final coding instruction
 
+> **Catatan status (base selesai, v0.23.5).** Urutan bootstrap di bawah adalah rencana asli membangun base generik dari nol dan seluruhnya sudah tuntas (18 issue backlog doc 06 + peningkatan M9) — arsip, bukan pekerjaan baru. Untuk kontribusi baru lihat [`../../AGENTS.md`](../../AGENTS.md) §Mulai dari sini dan [`README.md`](README.md) §Langkah berikutnya.
+
 ```text
 Mulai dari Issue 0.1.
 Jangan lompat ke POS sebelum foundation, tenant, profile, auth, dan ABAC selesai.
