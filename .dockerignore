@@ -1,0 +1,28 @@
+# .dockerignore (Issue #454) — keeps secrets and local artifacts out of
+# the build context entirely, so they can never end up cached in a layer
+# even by accident.
+
+# Secrets — never send to the Docker daemon (doc 10/18 "secrets only from
+# environment", same rule CI's Repo hygiene job enforces for git commits).
+.env
+.env.*
+!.env.example
+
+# Local build artifacts — regenerated inside the image by `bun run build`;
+# copying a stale host-built dist/ would shadow the in-image build output.
+dist/
+node_modules/
+
+# Runtime data, never part of the image.
+storage/
+
+# VCS/editor/CI metadata irrelevant to the build.
+.git/
+.github/
+.claude/
+.changeset/
+*.md
+!README.md
+
+# Test artifacts and coverage.
+coverage/
