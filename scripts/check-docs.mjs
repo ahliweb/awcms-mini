@@ -10,7 +10,7 @@
  * Logika murni ada di `scripts/lib/docs-checks.mjs`; berkas ini menangani
  * I/O (git, filesystem) dan exit code. Jalankan: `bun run check:docs`.
  */
-import { readFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import {
@@ -59,29 +59,26 @@ function checkLinks(file, content) {
       ? join(ROOT, path)
       : resolve(dir, path);
 
-    // Single stat instead of a separate `existsSync` check followed by a
-    // later re-touch of the same path (CodeQL js/file-system-race) — the
-    // file could disappear between an initial existence check and this
-    // read, so the "does it exist" answer and the actual read now come
-    // from one `try`, not two syscalls with a window between them.
-    let stat;
+    // One read attempt per path instead of a check (existsSync/statSync)
+    // followed by a *separate* later read of the same path (CodeQL
+    // js/file-system-race — wrapping the second call in try/catch still
+    // trips this rule, since the race is the two syscalls against one
+    // path, not whether the second one's error is handled). `readFileSync`
+    // alone tells us everything: ENOENT -> doesn't exist, EISDIR -> it's a
+    // directory (a valid link target, just nothing to anchor-check), any
+    // other outcome -> content in hand for the anchor check below.
+    let targetContent;
     try {
-      stat = statSync(resolved);
-    } catch {
+      targetContent = readFileSync(resolved, "utf8");
+    } catch (error) {
+      if (/** @type {NodeJS.ErrnoException} */ (error).code === "EISDIR") {
+        continue;
+      }
       problems.push({ file, line, message: `tautan rusak: ${target}` });
       continue;
     }
 
-    if (hash && resolved.endsWith(".md") && stat.isFile()) {
-      let targetContent;
-      try {
-        targetContent = readFileSync(resolved, "utf8");
-      } catch {
-        // Vanished between the stat above and this read — same "broken
-        // link" outcome a user would see if it were simply missing.
-        problems.push({ file, line, message: `tautan rusak: ${target}` });
-        continue;
-      }
+    if (hash && resolved.endsWith(".md")) {
       const slugs = headingSlugs(targetContent);
       if (!slugs.has(hash.toLowerCase())) {
         problems.push({
