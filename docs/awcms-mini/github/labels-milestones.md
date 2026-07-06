@@ -3,9 +3,9 @@
 | Metadata         | Nilai                |
 | ---------------- | -------------------- |
 | Repository       | `ahliweb/awcms-mini` |
-| Snapshot         | 2026-07-05T00:05:58Z |
+| Snapshot         | 2026-07-06T13:39:59Z |
 | Total labels     | 98                   |
-| Total milestones | 24                   |
+| Total milestones | 25                   |
 
 Label diurutkan menjadi dua kelompok: **taksonomi doc 06** (dipakai backlog issue atomic base generik) dan **peninggalan proyek sebelumnya** (SIKESRA/governance-overlay, dibiarkan apa adanya, tidak dihapus/diubah).
 
@@ -119,15 +119,16 @@ Dibuat sebelum refaktor standar base sebagai label/milestone peninggalan proyek 
 | `wontfix`                   | This will not be worked on                           | `#ffffff` |
 | `workflow:issue-driven`     | Work must be implemented through an issue-based flow | `#5319e7` |
 
-## Milestone taksonomi doc 06 (5)
+## Milestone taksonomi doc 06 (6)
 
-|   # | Milestone                              | Deskripsi                                                                                 | State  |
-| --: | -------------------------------------- | ----------------------------------------------------------------------------------------- | ------ |
-|  20 | M0 — Repository Foundation             | Skeleton, migration runner, OpenAPI/AsyncAPI baseline (doc 06 Epic 0)                     | `open` |
-|  22 | M2 — Identity, Tenant, Profile         | Tenant, profile, auth, access control dasar (doc 06 Epic 2)                               | `open` |
-|  25 | M5 — Sync Storage                      | Offline sync outbox/inbox, conflict resolution, R2 object queue (doc 06 Epic 6)           | `open` |
-|  27 | M7 — UI/UX & Reporting                 | Admin layout shell, management reporting views (doc 06 Epic 8-9, generic)                 | `open` |
-|  28 | M8 — Security, Performance, Production | Logging, pooling, workflow approval, security readiness, deployment (doc 06 Epic 10-12.2) | `open` |
+|   # | Milestone                                    | Deskripsi                                                                                                                                                 | State  |
+| --: | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+|  20 | M0 — Repository Foundation                   | Skeleton, migration runner, OpenAPI/AsyncAPI baseline (doc 06 Epic 0)                                                                                     | `open` |
+|  22 | M2 — Identity, Tenant, Profile               | Tenant, profile, auth, access control dasar (doc 06 Epic 2)                                                                                               | `open` |
+|  25 | M5 — Sync Storage                            | Offline sync outbox/inbox, conflict resolution, R2 object queue (doc 06 Epic 6)                                                                           | `open` |
+|  27 | M7 — UI/UX & Reporting                       | Admin layout shell, management reporting views (doc 06 Epic 8-9, generic)                                                                                 | `open` |
+|  28 | M8 — Security, Performance, Production       | Logging, pooling, workflow approval, security readiness, deployment (doc 06 Epic 10-12.2)                                                                 | `open` |
+|  29 | M9 — Peningkatan & Hardening (pasca-backlog) | Peningkatan pasca-backlog v0.22.0: i18n, UX/a11y, performa, integrasi, security hardening, observability (bukan bagian backlog doc06 — dibuat 2026-07-06) | `open` |
 
 ## Milestone peninggalan proyek sebelumnya (19)
 

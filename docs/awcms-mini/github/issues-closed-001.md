@@ -1,16 +1,18 @@
 # GitHub Issues Closed 001
 
-| Metadata           | Nilai                |
-| ------------------ | -------------------- |
-| Repository         | `ahliweb/awcms-mini` |
-| Snapshot           | 2026-07-05T19:20:00Z |
-| State              | `CLOSED`             |
-| File page          | 1/1                  |
-| Max issue per file | 100                  |
-| Issue dalam file   | 38                   |
-| Range              | #371-#408            |
+| Metadata           | Nilai                                                                                                                                    |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Repository         | `ahliweb/awcms-mini`                                                                                                                     |
+| Snapshot           | 2026-07-06T13:39:59Z                                                                                                                     |
+| State              | `CLOSED`                                                                                                                                 |
+| File page          | 1/1                                                                                                                                      |
+| Max issue per file | 100                                                                                                                                      |
+| Issue dalam file   | 50                                                                                                                                       |
+| Range              | #371-#454 (#409-#432, #439-#446, #448-#449, #455-#460 adalah nomor PR, bukan issue — issue/PR berbagi satu urutan nomor per repo GitHub) |
 
 > File ini adalah snapshot dari GitHub. Refresh dengan proses di `docs/awcms-mini/github/README.md` bila state issue berubah.
+
+Baris #371-#408 (38 issue) adalah backlog doc06 original — lihat narasi lengkap di bawah tabel dan di `docs/awcms-mini/github/README.md`. Baris #433-#454 (12 issue) adalah epic M9 + issue pasca-analisis lanjutan, **di luar** backlog doc06 — ringkasan singkat di bawah, detail lengkap di `CHANGELOG.md` dan `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` §Perawatan pasca-backlog.
 
 Seluruh issue di bawah ditutup dengan reason `not planned` pada 2026-07-04: kontennya spesifik domain POS/retail (katalog, stok, checkout, warehouse, pajak/Coretax, CRM receipt, AI business analyst) yang tidak sesuai konteks AWCMS-Mini sebagai contoh repo pengembangan umum. Konten dipindahkan ke aplikasi turunan contoh (mis. AWPOS), bukan dihapus riwayatnya.
 
@@ -56,3 +58,22 @@ Issue [#371](https://github.com/ahliweb/awcms-mini/issues/371), [#372](https://g
 | [#406](https://github.com/ahliweb/awcms-mini/issues/406) | 11.1 — Add Workflow Approval Engine                               | M8 — Security, Performance, Production |
 | [#407](https://github.com/ahliweb/awcms-mini/issues/407) | 12.1 — Add Initial Setup Wizard API                               | M0 — Repository Foundation             |
 | [#408](https://github.com/ahliweb/awcms-mini/issues/408) | 12.2 — Add Offline/LAN Deployment Profile                         | M8 — Security, Performance, Production |
+
+## Epic M9 + issue pasca-analisis lanjutan (di luar backlog doc06)
+
+Ditutup `completed` pada 2026-07-06, setelah seluruh 18 issue backlog doc06 di atas tuntas. Ringkasan per issue ada di `docs/awcms-mini/github/README.md` §Epic M9/§Issue pasca-analisis #450-#454; detail teknis lengkap di `CHANGELOG.md` (versi 0.23.0-0.23.5) dan `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` §Perawatan pasca-backlog.
+
+|                                                        # | Judul                                                                                                                               | Milestone (saat dibuat)                      |
+| -------------------------------------------------------: | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| [#433](https://github.com/ahliweb/awcms-mini/issues/433) | Peningkatan: implementasi i18n / multi-bahasa (.po gettext, default EN, min EN+ID)                                                  | M9 — Peningkatan & Hardening (pasca-backlog) |
+| [#434](https://github.com/ahliweb/awcms-mini/issues/434) | Peningkatan: audit & tingkatkan UX/UI (usability, aksesibilitas AA, konsistensi)                                                    | M9 — Peningkatan & Hardening (pasca-backlog) |
+| [#435](https://github.com/ahliweb/awcms-mini/issues/435) | Peningkatan: performa aplikasi & database (query, index, pagination, pooling)                                                       | M9 — Peningkatan & Hardening (pasca-backlog) |
+| [#436](https://github.com/ahliweb/awcms-mini/issues/436) | Peningkatan: kerasan backend & integrasi eksternal (outbox, resiliensi, observability)                                              | M9 — Peningkatan & Hardening (pasca-backlog) |
+| [#437](https://github.com/ahliweb/awcms-mini/issues/437) | Peningkatan: security hardening berbasis standar (OWASP Top 10, ASVS, ISO 27001)                                                    | M9 — Peningkatan & Hardening (pasca-backlog) |
+| [#438](https://github.com/ahliweb/awcms-mini/issues/438) | [EPIC] M9 — Peningkatan & Hardening pasca-backlog (UX, performa, integrasi, security, i18n)                                         | M9 — Peningkatan & Hardening (pasca-backlog) |
+| [#447](https://github.com/ahliweb/awcms-mini/issues/447) | Peningkatan: aktivasi sistem log & manajemennya (correlation ID end-to-end, retensi/purge audit log, extension point observability) | M9 — Peningkatan & Hardening (pasca-backlog) |
+| [#450](https://github.com/ahliweb/awcms-mini/issues/450) | docs: sync AGENTS and docs README with completed base state                                                                         | -                                            |
+| [#451](https://github.com/ahliweb/awcms-mini/issues/451) | chore(versioning): define and align package, API, AsyncAPI, and module versions                                                     | -                                            |
+| [#452](https://github.com/ahliweb/awcms-mini/issues/452) | security(ci): add CodeQL javascript-typescript analysis                                                                             | -                                            |
+| [#453](https://github.com/ahliweb/awcms-mini/issues/453) | docs: add derived application implementation guide                                                                                  | -                                            |
+| [#454](https://github.com/ahliweb/awcms-mini/issues/454) | build(deploy): add optional production Dockerfile for registry-based deployment                                                     | -                                            |

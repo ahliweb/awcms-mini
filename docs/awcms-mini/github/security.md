@@ -1,8 +1,8 @@
 # GitHub Security Setup AWCMS-Mini
 
-Snapshot: 2026-07-05T00:05:58Z
+Snapshot: 2026-07-06T13:39:59Z
 
-Dokumen ini mencatat konfigurasi GitHub Security untuk `ahliweb/awcms-mini`: Bun + Astro 7 + PostgreSQL, base generik selesai (v0.23.5). Baris konfigurasi diperbarui saat setup berubah (baris CodeQL code scanning disegarkan untuk Issue #452 — coverage `javascript-typescript`); metrik point-in-time (alert count, commit run) mengikuti timestamp snapshot di atas dan disegarkan lewat §Proses Refresh.
+Dokumen ini mencatat konfigurasi GitHub Security untuk `ahliweb/awcms-mini`: Bun + Astro 7 + PostgreSQL, base generik selesai (v0.23.5). Baris konfigurasi diperbarui saat setup berubah (baris CodeQL code scanning disegarkan untuk Issue #452 — coverage `javascript-typescript`); metrik point-in-time (alert count, commit run) mengikuti timestamp snapshot di atas dan disegarkan lewat §Proses Refresh. Refresh 2026-07-06 (Issue #461): dua temuan nyata dari scan `javascript-typescript` pertama (alert #8 `js/file-system-race`, #9 `js/unused-local-variable`) diperbaiki dan dikonfirmasi `state: fixed` via API — lihat §Alert Count Saat Setup.
 
 ## Ringkasan Live State
 
@@ -20,15 +20,15 @@ Dokumen ini mencatat konfigurasi GitHub Security untuk `ahliweb/awcms-mini`: Bun
 | Secret scanning validity checks       | Disabled pada GitHub saat setup                                                                                                                                                                                     |
 | Code scanning                         | Enabled lewat `.github/workflows/codeql.yml` untuk GitHub Actions **dan** `javascript-typescript` (source TypeScript/Astro, Issue #452); default setup `not-configured` agar tidak konflik dengan advanced workflow |
 | Private vulnerability reporting       | Enabled; gunakan link GitHub advisory di `SECURITY.md`                                                                                                                                                              |
-| Latest CodeQL run                     | Success pada `main` commit `17a851f`                                                                                                                                                                                |
+| Latest CodeQL run                     | Success pada `main` commit `d7fba32` (2026-07-06T13:01:20Z)                                                                                                                                                         |
 
 ## Alert Count Saat Setup
 
-| Alert type      | Open | Fixed / historical | Catatan                                                                                                          |
-| --------------- | ---: | -----------------: | ---------------------------------------------------------------------------------------------------------------- |
-| Dependabot      |    0 |                 40 | Semua alert yang terambil dari API berstatus `fixed`.                                                            |
-| Code scanning   |    0 |                  7 | Semua alert yang terambil dari API berstatus `fixed`; #7 `actions/unpinned-tag` fixed pada 2026-07-05T00:05:32Z. |
-| Secret scanning |    0 |                  0 | Tidak ada alert saat setup.                                                                                      |
+| Alert type      | Open | Fixed / historical | Catatan                                                                                                                                                                                                                                                                             |
+| --------------- | ---: | -----------------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dependabot      |    0 |                 40 | Semua alert yang terambil dari API berstatus `fixed`.                                                                                                                                                                                                                               |
+| Code scanning   |    0 |                  9 | Semua alert yang terambil dari API berstatus `fixed`; #7 `actions/unpinned-tag` fixed pada 2026-07-05T00:05:32Z; #8 `js/file-system-race` dan #9 `js/unused-local-variable` (temuan pertama scan `javascript-typescript`, Issue #452) fixed pada 2026-07-06T13:02:21Z (Issue #461). |
+| Secret scanning |    0 |                  0 | Tidak ada alert saat setup.                                                                                                                                                                                                                                                         |
 
 ## File Yang Menjadi Standar
 
