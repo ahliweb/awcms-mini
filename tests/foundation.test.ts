@@ -62,36 +62,36 @@ describe("module registry", () => {
     expect(listModules()).toHaveLength(7);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
-      status: "experimental"
+      status: "active"
     });
     expect(getModuleByKey("profile_identity")).toMatchObject({
       key: "profile_identity",
-      status: "experimental",
+      status: "active",
       dependencies: ["tenant_admin"]
     });
     expect(getModuleByKey("identity_access")).toMatchObject({
       key: "identity_access",
-      status: "experimental",
+      status: "active",
       dependencies: ["tenant_admin", "profile_identity"]
     });
     expect(getModuleByKey("sync_storage")).toMatchObject({
       key: "sync_storage",
-      status: "experimental",
+      status: "active",
       dependencies: ["tenant_admin"]
     });
     expect(getModuleByKey("reporting")).toMatchObject({
       key: "reporting",
-      status: "experimental",
+      status: "active",
       dependencies: ["tenant_admin", "identity_access", "sync_storage"]
     });
     expect(getModuleByKey("logging")).toMatchObject({
       key: "logging",
-      status: "experimental",
+      status: "active",
       dependencies: ["tenant_admin"]
     });
     expect(getModuleByKey("workflow")).toMatchObject({
       key: "workflow",
-      status: "experimental",
+      status: "active",
       dependencies: ["tenant_admin", "identity_access"]
     });
     expect(getModuleByKey("unknown_module")).toBeUndefined();
@@ -627,6 +627,40 @@ describe("api contract baseline", () => {
         },
         "asyncapi/test.yaml"
       ).some((problem) => problem.message.includes("DomainEventEnvelope"))
+    ).toBe(true);
+  });
+
+  // Contract version is independent SemVer (ADR-0008) — the check only
+  // enforces the X.Y.Z shape, not a specific value.
+  test("OpenAPI checker requires info.version to be SemVer", () => {
+    const problems = checkOpenApi(
+      {
+        openapi: "3.1.0",
+        info: { version: "not-semver" },
+        paths: { "/api/v1/health": { get: {} } },
+        components: { schemas: {}, securitySchemes: {}, parameters: {} }
+      },
+      "openapi/test.yaml"
+    );
+
+    expect(
+      problems.some((problem) => problem.message.includes("info.version"))
+    ).toBe(true);
+  });
+
+  test("AsyncAPI checker requires info.version to be SemVer", () => {
+    const problems = checkAsyncApi(
+      {
+        asyncapi: "3.0.0",
+        info: { version: "v1" },
+        channels: {},
+        components: { messages: {}, schemas: {}, securitySchemes: {} }
+      },
+      "asyncapi/test.yaml"
+    );
+
+    expect(
+      problems.some((problem) => problem.message.includes("info.version"))
     ).toBe(true);
   });
 });

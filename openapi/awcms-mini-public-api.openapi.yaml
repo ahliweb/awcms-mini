@@ -1,8 +1,11 @@
 openapi: 3.1.0
 info:
   title: AWCMS-Mini Public API
-  version: 0.1.0
-  description: Baseline REST contract for the AWCMS-Mini modular monolith foundation.
+  version: 1.0.0
+  description: >-
+    Stable REST contract for the AWCMS-Mini modular monolith base (ADR-0008
+    — contract version is independent of the package release version;
+    bumped only when the contract shape itself changes).
 servers:
   - url: http://localhost:4321
     description: Local development

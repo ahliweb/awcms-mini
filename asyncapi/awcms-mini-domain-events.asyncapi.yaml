@@ -1,8 +1,11 @@
 asyncapi: 3.0.0
 info:
   title: AWCMS-Mini Domain Events
-  version: 0.1.0
-  description: Baseline AsyncAPI contract for AWCMS-Mini domain events and sync envelopes.
+  version: 1.0.0
+  description: >-
+    Stable AsyncAPI contract for AWCMS-Mini domain events and sync
+    envelopes (ADR-0008 — contract version is independent of the package
+    release version; bumped only when the contract shape itself changes).
 defaultContentType: application/json
 servers:
   local:
