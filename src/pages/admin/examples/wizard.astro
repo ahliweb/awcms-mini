@@ -1,0 +1,424 @@
+---
+/**
+ * Wizard fixture page (Issue #483) — non-domain, dummy-data example
+ * exercising the reusable wizard pattern (Issue #479/#480,
+ * `docs/awcms-mini/examples/wizard-form-pattern.md`) end-to-end inside the
+ * real admin shell. Not linked from `AdminLayout.astro`'s nav (it's a
+ * fixture for developers building a derived module, not a shipped admin
+ * feature) — reachable directly at `/admin/examples/wizard`.
+ *
+ * Submit is a local mock (`setTimeout`, no `fetch`) — no new endpoint,
+ * schema, or migration, per the issue's explicit scope. A real derived
+ * module wires the same wizard-client.ts helper to an actual endpoint;
+ * see `wizard-derived-module-example.md` (Issue #482) for that version.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import WizardStepper from "../../../components/ui/WizardStepper.astro";
+import WizardPanel from "../../../components/ui/WizardPanel.astro";
+import WizardActions from "../../../components/ui/WizardActions.astro";
+import { createTranslator } from "../../../lib/i18n/translate";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/examples/wizard.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const steps = [
+  { key: "basic", title: t("admin.examples.wizard.step_basic_title") },
+  { key: "details", title: t("admin.examples.wizard.step_details_title") },
+  { key: "review", title: t("admin.examples.wizard.step_review_title") }
+];
+
+const clientStrings = {
+  stepperLabel: t("admin.examples.wizard.stepper_label"),
+  stepCurrent: t("admin.examples.wizard.step_current"),
+  stepCompleted: t("admin.examples.wizard.step_completed"),
+  stepPending: t("admin.examples.wizard.step_pending"),
+  errorSummaryHeading: t("admin.examples.wizard.error_summary_heading"),
+  titleRequired: t("admin.examples.wizard.validation_title_required"),
+  categoryRequired: t("admin.examples.wizard.validation_category_required"),
+  pleaseWait: t("common.please_wait"),
+  submitSuccess: t("admin.examples.wizard.submit_success_message")
+};
+---
+
+<AdminLayout title={t("admin.examples.wizard.nav_title")}>
+  <div class="wizard-fixture">
+    <p class="wizard-fixture-intro">{t("admin.examples.wizard.intro")}</p>
+
+    <div id="action-banner" class="action-banner" role="alert" hidden></div>
+
+    <script
+      type="application/json"
+      id="i18n-strings"
+      set:html={JSON.stringify(clientStrings)}
+    />
+
+    <WizardStepper
+      steps={steps}
+      activeStepKey="basic"
+      label={clientStrings.stepperLabel}
+      currentLabel={clientStrings.stepCurrent}
+      completedLabel={clientStrings.stepCompleted}
+      pendingLabel={clientStrings.stepPending}
+    />
+
+    <form id="wizard-fixture-form">
+      <WizardPanel
+        id="step-basic"
+        title={t("admin.examples.wizard.step_basic_title")}
+        description={t("admin.examples.wizard.step_basic_description")}
+        active={true}
+        errorSummaryHeading={clientStrings.errorSummaryHeading}
+      >
+        <label>
+          {t("admin.examples.wizard.field_title_label")}
+          <input type="text" name="title" data-field="title" required />
+        </label>
+        <label>
+          {t("admin.examples.wizard.field_category_label")}
+          <select name="category" data-field="category" required>
+            <option value="">—</option>
+            <option value="general">
+              {t("admin.examples.wizard.field_category_option_general")}
+            </option>
+            <option value="reference">
+              {t("admin.examples.wizard.field_category_option_reference")}
+            </option>
+            <option value="misc">
+              {t("admin.examples.wizard.field_category_option_misc")}
+            </option>
+          </select>
+        </label>
+        <WizardActions
+          showBack={false}
+          showNext={true}
+          backLabel={t("common.back")}
+          nextLabel={t("common.next")}
+        />
+      </WizardPanel>
+
+      <WizardPanel
+        id="step-details"
+        title={t("admin.examples.wizard.step_details_title")}
+        description={t("admin.examples.wizard.step_details_description")}
+        active={false}
+      >
+        <label>
+          {t("admin.examples.wizard.field_notes_label")}
+          <textarea name="notes" data-field="notes" rows={4}></textarea>
+        </label>
+        <WizardActions
+          showBack={true}
+          showNext={true}
+          backLabel={t("common.back")}
+          nextLabel={t("common.next")}
+        />
+      </WizardPanel>
+
+      <WizardPanel
+        id="step-review"
+        title={t("admin.examples.wizard.step_review_title")}
+        description={t("admin.examples.wizard.step_review_description")}
+        active={false}
+      >
+        <dl class="wizard-fixture-summary">
+          <dt>{t("admin.examples.wizard.field_title_label")}</dt>
+          <dd data-summary="title"></dd>
+          <dt>{t("admin.examples.wizard.field_category_label")}</dt>
+          <dd data-summary="category"></dd>
+          <dt>{t("admin.examples.wizard.field_notes_label")}</dt>
+          <dd data-summary="notes"></dd>
+        </dl>
+        <WizardActions
+          showBack={true}
+          showNext={false}
+          showSubmit={true}
+          backLabel={t("common.back")}
+          submitLabel={t("common.submit")}
+        />
+      </WizardPanel>
+    </form>
+  </div>
+</AdminLayout>
+
+<style>
+  .wizard-fixture {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    max-width: 640px;
+  }
+
+  .wizard-fixture-intro {
+    color: var(--color-text-muted);
+  }
+
+  #wizard-fixture-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-weight: 600;
+    margin-bottom: var(--sp-3);
+  }
+
+  #wizard-fixture-form input,
+  #wizard-fixture-form select,
+  #wizard-fixture-form textarea {
+    font: inherit;
+    padding: var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .field-error {
+    color: var(--color-danger-strong);
+    font-size: var(--fs-xs);
+    font-weight: 400;
+  }
+
+  .wizard-fixture-summary {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--sp-1) var(--sp-3);
+    margin: 0 0 var(--sp-3);
+  }
+
+  .wizard-fixture-summary dt {
+    font-weight: 700;
+  }
+
+  .wizard-fixture-summary dd {
+    margin: 0;
+  }
+
+  .action-banner {
+    border-radius: var(--radius-sm);
+    padding: var(--sp-3);
+    border: 1px solid var(--color-border);
+  }
+
+  .action-banner[data-variant="success"] {
+    border-color: var(--color-success-strong);
+    background: color-mix(
+      in srgb,
+      var(--color-success) 12%,
+      var(--color-surface)
+    );
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    readClientStrings,
+    showBanner
+  } from "../../../lib/ui/admin-form-client";
+  import {
+    advanceWizard,
+    createWizardState,
+    rewindWizard,
+    toFieldErrorMap,
+    type WizardFieldError,
+    type WizardState,
+    type WizardStepDefinition,
+    type WizardValidator
+  } from "../../../lib/ui/wizard-client";
+
+  interface FixtureStrings {
+    stepperLabel: string;
+    stepCurrent: string;
+    stepCompleted: string;
+    stepPending: string;
+    errorSummaryHeading: string;
+    titleRequired: string;
+    categoryRequired: string;
+    pleaseWait: string;
+    submitSuccess: string;
+  }
+
+  const strings = readClientStrings<FixtureStrings>();
+
+  const steps: WizardStepDefinition[] = [
+    { key: "basic", title: "basic", fields: ["title", "category"] },
+    { key: "details", title: "details", fields: ["notes"] },
+    { key: "review", title: "review", fields: [] }
+  ];
+
+  let state: WizardState = createWizardState(steps);
+
+  const form = document.getElementById(
+    "wizard-fixture-form"
+  ) as HTMLFormElement | null;
+  const stepper = document.querySelector(".wizard-stepper");
+
+  function currentPayload(): Record<string, unknown> {
+    if (!form) return {};
+    const data = new FormData(form);
+    return {
+      title: data.get("title"),
+      category: data.get("category"),
+      notes: data.get("notes")
+    };
+  }
+
+  const validateFixtureStep: WizardValidator<Record<string, unknown>> = (
+    step,
+    payload
+  ) => {
+    const errors: WizardFieldError[] = [];
+
+    if (step.key === "basic") {
+      if (!String(payload.title ?? "").trim()) {
+        errors.push({ field: "title", message: strings.titleRequired });
+      }
+      if (!String(payload.category ?? "").trim()) {
+        errors.push({ field: "category", message: strings.categoryRequired });
+      }
+    }
+
+    return errors;
+  };
+
+  function renderStepper(): void {
+    if (!stepper) return;
+    const activeKey = steps[state.activeStepIndex]!.key;
+
+    stepper
+      .querySelectorAll<HTMLLIElement>("[data-step-key]")
+      .forEach((li, index) => {
+        const key = li.dataset.stepKey!;
+        const isActive = key === activeKey;
+        const isCompleted = state.completedStepKeys.includes(key);
+
+        li.dataset.active = isActive ? "true" : "false";
+        li.dataset.completed = isCompleted ? "true" : "false";
+
+        const marker = li.querySelector(".wizard-stepper-marker");
+        if (marker) marker.textContent = isCompleted ? "✓" : String(index + 1);
+
+        const status = li.querySelector(".wizard-stepper-status");
+        if (status) {
+          status.textContent = isActive
+            ? strings.stepCurrent
+            : isCompleted
+              ? strings.stepCompleted
+              : strings.stepPending;
+        }
+
+        const titleEl = li.querySelector(".wizard-stepper-title");
+        if (titleEl) {
+          if (isActive) titleEl.setAttribute("aria-current", "step");
+          else titleEl.removeAttribute("aria-current");
+        }
+      });
+  }
+
+  function renderFieldErrors(
+    stepKey: string,
+    errors: WizardFieldError[]
+  ): void {
+    const panel = document.getElementById(`step-${stepKey}`);
+    if (!panel) return;
+
+    panel
+      .querySelectorAll<HTMLElement>(".field-error")
+      .forEach((el) => el.remove());
+
+    const fieldErrorMap = toFieldErrorMap(errors);
+    for (const [field, messages] of Object.entries(fieldErrorMap)) {
+      const input = panel.querySelector<HTMLElement>(`[data-field="${field}"]`);
+      if (!input) continue;
+      const errorEl = document.createElement("span");
+      errorEl.className = "field-error";
+      errorEl.textContent = messages.join(" ");
+      input.insertAdjacentElement("afterend", errorEl);
+    }
+  }
+
+  function focusPanelHeading(stepKey: string): void {
+    const panel = document.getElementById(`step-${stepKey}`);
+    if (!panel) return;
+    if (!panel.hasAttribute("tabindex")) panel.setAttribute("tabindex", "-1");
+    panel.focus();
+  }
+
+  function renderReviewSummary(): void {
+    const payload = currentPayload();
+    const reviewPanel = document.getElementById("step-review");
+    if (!reviewPanel) return;
+    reviewPanel.querySelector('[data-summary="title"]')!.textContent = String(
+      payload.title ?? ""
+    );
+    reviewPanel.querySelector('[data-summary="category"]')!.textContent =
+      String(payload.category ?? "");
+    reviewPanel.querySelector('[data-summary="notes"]')!.textContent = String(
+      payload.notes ?? ""
+    );
+  }
+
+  function showActiveStep(): void {
+    const activeKey = steps[state.activeStepIndex]!.key;
+    for (const step of steps) {
+      const panel = document.getElementById(`step-${step.key}`);
+      if (panel) panel.hidden = step.key !== activeKey;
+    }
+    renderStepper();
+    if (activeKey === "review") renderReviewSummary();
+    focusPanelHeading(activeKey);
+  }
+
+  form?.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+
+    if (target.closest("[data-wizard-next]")) {
+      event.preventDefault();
+      const result = advanceWizard(
+        state,
+        currentPayload(),
+        validateFixtureStep
+      );
+      const activeKeyBeforeAdvance = steps[state.activeStepIndex]!.key;
+
+      if (!result.advanced) {
+        state = result.state;
+        renderFieldErrors(activeKeyBeforeAdvance, result.errors);
+        return;
+      }
+
+      state = result.state;
+      renderFieldErrors(activeKeyBeforeAdvance, []);
+      showActiveStep();
+    }
+
+    if (target.closest("[data-wizard-back]")) {
+      event.preventDefault();
+      state = rewindWizard(state);
+      showActiveStep();
+    }
+
+    if (target.closest("[data-wizard-submit]")) {
+      event.preventDefault();
+      const button = target.closest(
+        "[data-wizard-submit]"
+      ) as HTMLButtonElement;
+      if (button.disabled) return;
+
+      const unlock = lockElement(button, strings.pleaseWait);
+      // Local mock — no fetch, no new endpoint/schema (Issue #483 scope).
+      // A real derived module submits with an Idempotency-Key against its
+      // own endpoint instead — see wizard-derived-module-example.md.
+      setTimeout(() => {
+        unlock();
+        showBanner("action-banner", strings.submitSuccess, "success");
+      }, 400);
+    }
+  });
+</script>

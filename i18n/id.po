@@ -40,6 +40,15 @@ msgstr "Coba lagi"
 msgid "common.please_wait"
 msgstr "Mohon tunggu…"
 
+msgid "common.back"
+msgstr "Kembali"
+
+msgid "common.next"
+msgstr "Lanjut"
+
+msgid "common.submit"
+msgstr "Kirim"
+
 #. error codes (doc 05 §Error code standard)
 msgid "error.validation_error"
 msgstr "Data yang dikirim tidak valid."
@@ -502,3 +511,70 @@ msgstr "Feature flags harus berupa JSON object yang valid."
 
 msgid "admin.settings.save_success"
 msgstr "Pengaturan berhasil disimpan."
+
+#. admin.examples.wizard — Issue #483, fixture non-domain
+msgid "admin.examples.wizard.nav_title"
+msgstr "Contoh Wizard"
+
+msgid "admin.examples.wizard.intro"
+msgstr "Fixture non-domain yang mendemonstrasikan pola wizard reusable dengan data dummy. Lihat docs/awcms-mini/examples/wizard-form-pattern.md."
+
+msgid "admin.examples.wizard.stepper_label"
+msgstr "Langkah wizard"
+
+msgid "admin.examples.wizard.step_current"
+msgstr "Saat ini"
+
+msgid "admin.examples.wizard.step_completed"
+msgstr "Selesai"
+
+msgid "admin.examples.wizard.step_pending"
+msgstr "Belum"
+
+msgid "admin.examples.wizard.error_summary_heading"
+msgstr "Periksa kembali isian berikut:"
+
+msgid "admin.examples.wizard.step_basic_title"
+msgstr "Info dasar"
+
+msgid "admin.examples.wizard.step_basic_description"
+msgstr "Judul dan kategori untuk item contoh ini."
+
+msgid "admin.examples.wizard.step_details_title"
+msgstr "Detail"
+
+msgid "admin.examples.wizard.step_details_description"
+msgstr "Catatan opsional."
+
+msgid "admin.examples.wizard.step_review_title"
+msgstr "Review"
+
+msgid "admin.examples.wizard.step_review_description"
+msgstr "Periksa kembali jawaban Anda sebelum submit."
+
+msgid "admin.examples.wizard.field_title_label"
+msgstr "Judul"
+
+msgid "admin.examples.wizard.field_category_label"
+msgstr "Kategori"
+
+msgid "admin.examples.wizard.field_category_option_general"
+msgstr "Umum"
+
+msgid "admin.examples.wizard.field_category_option_reference"
+msgstr "Referensi"
+
+msgid "admin.examples.wizard.field_category_option_misc"
+msgstr "Lainnya"
+
+msgid "admin.examples.wizard.field_notes_label"
+msgstr "Catatan"
+
+msgid "admin.examples.wizard.validation_title_required"
+msgstr "Judul wajib diisi."
+
+msgid "admin.examples.wizard.validation_category_required"
+msgstr "Kategori wajib diisi."
+
+msgid "admin.examples.wizard.submit_success_message"
+msgstr "Terkirim (dummy — tidak ada yang benar-benar disimpan)."
