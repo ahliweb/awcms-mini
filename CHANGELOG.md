@@ -6,6 +6,21 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 ## [Unreleased]
 
+## [0.23.2] - 2026-07-06
+
+### Fixed
+
+- **Audit performa aplikasi & database** (Issue #435, milestone M9): `EXPLAIN (ANALYZE, BUFFERS)` terhadap tenant yang di-seed ~200 ribu baris menemukan empat bentuk query tenant-scoped yang Seq/Bitmap-Heap-Scan seluruh tabel — listing admin object-queue (dengan/tanpa filter `status`), endpoint polling node HMAC `GET /sync/objects/status`, dan listing admin conflict tanpa filter `status` — turun dari 20-43ms ke sub-milidetik setelah migrasi `017` menambah empat index komposit `(tenant_id[, status], created_at [DESC])`.
+- **Query planner memilih plan salah meski index tersedia**: listing object-queue dengan filter `status` tetap Seq Scan walau index barunya ada, karena planner salah mengestimasi baris hasil join ke `awcms_mini_sync_nodes`. Diperbaiki dengan menata ulang `fetchObjectQueueEntries` agar `LIMIT` diterapkan di dalam subquery **sebelum** join, bukan sesudah — execution time turun dari ~40ms ke <1ms.
+- **N+1 write**: empat loop `INSERT` satu-per-item (assign permission ke role, assign role ke user, enqueue object sync) diganti satu `INSERT ... SELECT ... FROM unnest(...)` per request (satu round trip, bukan N).
+- **N+1 read** pada `POST /sync/push`: satu `SELECT current_version` per event dalam batch diganti satu prefetch batch ke map in-memory (kunci `aggregateType:aggregateId`), diperbarui setelah tiap event diterima agar event kedua untuk aggregate yang sama dalam satu batch tetap melihat versi yang baru saja di-bump.
+
+### Added
+
+- **Keyset pagination**: `GET /api/v1/access/decision-logs`, `GET /api/v1/logs/audit`, dan `GET /api/v1/sync/object-queue` menerima `?cursor=` opsional (base64 `createdAt|id`, divalidasi) dan mengembalikan `nextCursor` — helper baru `src/modules/_shared/keyset-pagination.ts`.
+
+Tidak ada `OFFSET`, `SELECT *`, atau bigint tak ter-`Number(...)` ditemukan di seluruh `src/` selama audit ini — dilaporkan apa adanya, bukan "diperbaiki" secara kosmetik.
+
 ## [0.23.1] - 2026-07-06
 
 ### Fixed

@@ -1,6 +1,6 @@
 ---
 name: awcms-mini-coder
-description: Agent implementasi AWCMS-Mini. Gunakan untuk mengerjakan satu issue/sprint AWCMS-Mini secara atomic end-to-end (kode, migration, OpenAPI/AsyncAPI, test, docs, changeset). Delegasikan ke agent ini saat user minta "kerjakan issue #N" atau implementasi fitur AWCMS-Mini.
+description: Agent implementasi AWCMS-Mini. Dipakai oleh orchestrator untuk mengerjakan satu issue/sprint AWCMS-Mini secara atomic end-to-end (kode, migration, OpenAPI/AsyncAPI, test, docs, changeset) ketika user minta "kerjakan issue #N" atau implementasi fitur AWCMS-Mini. Catatan untuk instance agent ini sendiri: JANGAN memanggil Agent tool untuk mendelegasikan pekerjaan ke agent lain (termasuk ke "awcms-mini-coder" lagi) — kerjakan semuanya langsung dengan tool sendiri (Read/Edit/Write/Bash/dll) sampai tuntas dalam satu sesi.
 tools: "*"
 model: inherit
 ---

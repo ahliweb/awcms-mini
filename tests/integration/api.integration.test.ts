@@ -27,6 +27,7 @@ import { POST as setupInitialize } from "../../src/pages/api/v1/setup/initialize
 import { POST as authLogin } from "../../src/pages/api/v1/auth/login";
 import { GET as tenantActivity } from "../../src/pages/api/v1/reports/tenant-activity";
 import { GET as auditLog } from "../../src/pages/api/v1/logs/audit";
+import { GET as decisionLogs } from "../../src/pages/api/v1/access/decision-logs";
 import { DELETE as profileDelete } from "../../src/pages/api/v1/profiles/[id]";
 import { hashPassword } from "../../src/lib/auth/password";
 import { withTenant } from "../../src/lib/database/tenant-context";
@@ -296,6 +297,113 @@ suite("API integration (real Postgres)", () => {
     expect(event!.attributes).toMatchObject({
       reason: "integration test soft delete"
     });
+  });
+
+  // Issue #435 (performance audit): `GET /api/v1/logs/audit` and
+  // `GET /api/v1/access/decision-logs` gained keyset (`created_at, id`)
+  // cursor pagination on top of their existing bounded page size, so an
+  // admin can page past the first page instead of the tail being
+  // permanently unreachable. Seeds well past one page directly via SQL
+  // (bypassing the endpoint, matching `createRolelessUser` below) since
+  // there is no write endpoint that produces audit events/decision logs in
+  // bulk.
+  test("audit log pages past the first 100 via nextCursor, oldest never repeated", async () => {
+    const { tenantId, token } = await bootstrapTenant();
+    const sql = getTestSql();
+
+    await withTenant(sql, tenantId, async (tx) => {
+      await tx`
+        INSERT INTO awcms_mini_audit_events
+          (tenant_id, module_key, action, resource_type, severity, message, created_at)
+        SELECT ${tenantId}, 'logging', 'read', 'seed_resource', 'info', 'seed event',
+               now() - (gs || ' seconds')::interval
+        FROM generate_series(1, 105) AS gs
+      `;
+    });
+
+    const headers = {
+      "x-awcms-mini-tenant-id": tenantId,
+      authorization: `Bearer ${token}`
+    };
+
+    const page1 = await invoke<{
+      data: { events: { id: string }[]; nextCursor: string | null };
+    }>(auditLog, { method: "GET", path: "/api/v1/logs/audit", headers });
+    expect(page1.status).toBe(200);
+    expect(page1.body.data.events).toHaveLength(100);
+    expect(page1.body.data.nextCursor).not.toBeNull();
+
+    const page2 = await invoke<{
+      data: { events: { id: string }[]; nextCursor: string | null };
+    }>(auditLog, {
+      method: "GET",
+      path: `/api/v1/logs/audit?cursor=${encodeURIComponent(page1.body.data.nextCursor!)}`,
+      headers
+    });
+    expect(page2.status).toBe(200);
+    // 105 seeded rows (plus whatever else this tenant already logged) means
+    // more than 100 exist in total; page 2 holds whatever is left over.
+    expect(page2.body.data.events.length).toBeGreaterThan(0);
+    expect(page2.body.data.nextCursor).toBeNull();
+
+    const page1Ids = new Set(page1.body.data.events.map((e) => e.id));
+    for (const event of page2.body.data.events) {
+      expect(page1Ids.has(event.id)).toBe(false);
+    }
+
+    const malformed = await invoke<{ error: { code: string } }>(auditLog, {
+      method: "GET",
+      path: "/api/v1/logs/audit?cursor=not-a-real-cursor",
+      headers
+    });
+    expect(malformed.status).toBe(400);
+    expect(malformed.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  test("decision logs page past the first 50 via nextCursor, oldest never repeated", async () => {
+    const { tenantId, token } = await bootstrapTenant();
+    const sql = getTestSql();
+
+    await withTenant(sql, tenantId, async (tx) => {
+      await tx`
+        INSERT INTO awcms_mini_abac_decision_logs
+          (tenant_id, module_key, activity_code, action, decision, reason, created_at)
+        SELECT ${tenantId}, 'identity_access', 'access_control', 'read', 'allow', 'seed',
+               now() - (gs || ' seconds')::interval
+        FROM generate_series(1, 55) AS gs
+      `;
+    });
+
+    const headers = {
+      "x-awcms-mini-tenant-id": tenantId,
+      authorization: `Bearer ${token}`
+    };
+
+    const page1 = await invoke<{
+      data: { decisionLogs: { id: string }[]; nextCursor: string | null };
+    }>(decisionLogs, {
+      method: "GET",
+      path: "/api/v1/access/decision-logs",
+      headers
+    });
+    expect(page1.status).toBe(200);
+    expect(page1.body.data.decisionLogs).toHaveLength(50);
+    expect(page1.body.data.nextCursor).not.toBeNull();
+
+    const page2 = await invoke<{
+      data: { decisionLogs: { id: string }[]; nextCursor: string | null };
+    }>(decisionLogs, {
+      method: "GET",
+      path: `/api/v1/access/decision-logs?cursor=${encodeURIComponent(page1.body.data.nextCursor!)}`,
+      headers
+    });
+    expect(page2.status).toBe(200);
+    expect(page2.body.data.decisionLogs.length).toBeGreaterThan(0);
+
+    const page1Ids = new Set(page1.body.data.decisionLogs.map((e) => e.id));
+    for (const entry of page2.body.data.decisionLogs) {
+      expect(page1Ids.has(entry.id)).toBe(false);
+    }
   });
 });
 

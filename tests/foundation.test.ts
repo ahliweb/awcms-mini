@@ -189,7 +189,8 @@ describe("database migration runner helpers", () => {
       "013_awcms_mini_enforce_rls_least_privilege.sql",
       "014_awcms_mini_sync_node_management_permission_schema.sql",
       "015_awcms_mini_tenant_settings_management_permission_schema.sql",
-      "016_awcms_mini_tenant_default_locale_english_schema.sql"
+      "016_awcms_mini_tenant_default_locale_english_schema.sql",
+      "017_awcms_mini_sync_queue_conflict_performance_indexes.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
@@ -286,6 +287,32 @@ describe("database migration runner helpers", () => {
     expect(tenantOfficeSchema?.sql).toContain(
       "default_locale text NOT NULL DEFAULT 'id'"
     );
+  });
+
+  test("performance index migration adds only indexes, no schema/data changes (Issue #435)", async () => {
+    const migrations = await discoverMigrationFiles();
+    const perfSchema = migrations.find(
+      (migration) =>
+        migration.name ===
+        "017_awcms_mini_sync_queue_conflict_performance_indexes.sql"
+    );
+
+    expect(perfSchema).toBeDefined();
+    expect(perfSchema?.sql).toContain(
+      "CREATE INDEX IF NOT EXISTS awcms_mini_object_sync_queue_tenant_created_idx"
+    );
+    expect(perfSchema?.sql).toContain(
+      "CREATE INDEX IF NOT EXISTS awcms_mini_object_sync_queue_tenant_status_created_idx"
+    );
+    expect(perfSchema?.sql).toContain(
+      "CREATE INDEX IF NOT EXISTS awcms_mini_object_sync_queue_tenant_node_created_idx"
+    );
+    expect(perfSchema?.sql).toContain(
+      "CREATE INDEX IF NOT EXISTS awcms_mini_sync_conflicts_tenant_created_idx"
+    );
+    expect(perfSchema?.sql).not.toContain("CREATE TABLE");
+    expect(perfSchema?.sql).not.toContain("ALTER TABLE");
+    expect(perfSchema?.sql).not.toContain("DROP INDEX");
   });
 
   test("tenant/office schema declares RLS and soft-delete on office-scoped tables", async () => {

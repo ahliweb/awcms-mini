@@ -435,6 +435,7 @@ paths:
               - pending
               - sent
               - failed
+        - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/RequestId"
       responses:
@@ -915,6 +916,7 @@ paths:
         - bearerAuth: []
           tenantHeader: []
       parameters:
+        - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/RequestId"
       responses:
@@ -931,6 +933,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/DecisionLogListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1420,6 +1424,7 @@ paths:
               - info
               - warning
               - critical
+        - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/RequestId"
       responses:
@@ -1833,6 +1838,15 @@ components:
         type: string
         minLength: 32
       description: HMAC signature over the sync request.
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+      description: >-
+        Opaque keyset pagination cursor from a previous page's `nextCursor`.
+        Omit for the first page.
   responses:
     BadRequest:
       description: Validation or request error.
@@ -2233,12 +2247,20 @@ components:
       type: object
       required:
         - decisionLogs
+        - nextCursor
       additionalProperties: false
       properties:
         decisionLogs:
           type: array
           items:
             $ref: "#/components/schemas/DecisionLogEntry"
+        nextCursor:
+          type: string
+          nullable: true
+          description: >-
+            Opaque keyset pagination cursor; pass back as the `cursor` query
+            parameter to fetch the next page. `null` when this is the last
+            page.
     PermissionEntry:
       type: object
       required:
@@ -3072,12 +3094,20 @@ components:
       type: object
       required:
         - objects
+        - nextCursor
       additionalProperties: false
       properties:
         objects:
           type: array
           items:
             $ref: "#/components/schemas/ObjectQueueEntry"
+        nextCursor:
+          type: string
+          nullable: true
+          description: >-
+            Opaque keyset pagination cursor; pass back as the `cursor` query
+            parameter to fetch the next page. `null` when this is the last
+            page.
     TenantActivityReport:
       type: object
       required:
@@ -3273,12 +3303,20 @@ components:
       type: object
       required:
         - events
+        - nextCursor
       additionalProperties: false
       properties:
         events:
           type: array
           items:
             $ref: "#/components/schemas/AuditEventEntry"
+        nextCursor:
+          type: string
+          nullable: true
+          description: >-
+            Opaque keyset pagination cursor; pass back as the `cursor` query
+            parameter to fetch the next page. `null` when this is the last
+            page.
     ProfileDeleteRequest:
       type: object
       required:

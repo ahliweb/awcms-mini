@@ -10,6 +10,10 @@ import {
 } from "../../../../modules/identity-access/application/auth-context";
 import { recordDecisionLog } from "../../../../modules/identity-access/application/decision-log";
 import { evaluateAccess } from "../../../../modules/identity-access/domain/access-control";
+import {
+  decodeKeysetCursor,
+  encodeKeysetCursor
+} from "../../../../modules/_shared/keyset-pagination";
 
 const GUARD_REQUEST = {
   moduleKey: "identity_access",
@@ -19,7 +23,19 @@ const GUARD_REQUEST = {
 
 const MAX_RESULTS = 50;
 
-export const GET: APIRoute = async ({ request }) => {
+type DecisionLogRow = {
+  id: string;
+  tenant_user_id: string | null;
+  module_key: string;
+  activity_code: string;
+  action: string;
+  decision: "allow" | "deny";
+  reason: string;
+  matched_policy: string | null;
+  created_at: Date;
+};
+
+export const GET: APIRoute = async ({ request, url }) => {
   const tenantId = request.headers.get("x-awcms-mini-tenant-id");
 
   if (!tenantId) {
@@ -30,6 +46,13 @@ export const GET: APIRoute = async ({ request }) => {
 
   if (!token) {
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
+  }
+
+  const cursorParam = url.searchParams.get("cursor");
+  const cursor = cursorParam ? decodeKeysetCursor(cursorParam) : null;
+
+  if (cursorParam && !cursor) {
+    return fail(400, "VALIDATION_ERROR", "cursor is malformed.");
   }
 
   const sql = getDatabaseClient();
@@ -66,28 +89,35 @@ export const GET: APIRoute = async ({ request }) => {
       return fail(403, "ACCESS_DENIED", decision.reason);
     }
 
-    const rows = await tx`
-      SELECT id, tenant_user_id, module_key, activity_code, action, decision, reason, matched_policy, created_at
-      FROM awcms_mini_abac_decision_logs
-      WHERE tenant_id = ${tenantId}
-      ORDER BY created_at DESC
-      LIMIT ${MAX_RESULTS}
-    `;
+    const rows = (
+      cursor
+        ? await tx`
+          SELECT id, tenant_user_id, module_key, activity_code, action, decision, reason, matched_policy, created_at
+          FROM awcms_mini_abac_decision_logs
+          WHERE tenant_id = ${tenantId}
+            AND (created_at, id) < (${cursor.createdAt}, ${cursor.id})
+          ORDER BY created_at DESC, id DESC
+          LIMIT ${MAX_RESULTS}
+        `
+        : await tx`
+          SELECT id, tenant_user_id, module_key, activity_code, action, decision, reason, matched_policy, created_at
+          FROM awcms_mini_abac_decision_logs
+          WHERE tenant_id = ${tenantId}
+          ORDER BY created_at DESC, id DESC
+          LIMIT ${MAX_RESULTS}
+        `
+    ) as DecisionLogRow[];
 
-    type DecisionLogRow = {
-      id: string;
-      tenant_user_id: string | null;
-      module_key: string;
-      activity_code: string;
-      action: string;
-      decision: "allow" | "deny";
-      reason: string;
-      matched_policy: string | null;
-      created_at: Date;
-    };
+    const nextCursor =
+      rows.length === MAX_RESULTS
+        ? encodeKeysetCursor(
+            rows[rows.length - 1]!.created_at,
+            rows[rows.length - 1]!.id
+          )
+        : null;
 
     return ok({
-      decisionLogs: rows.map((row: DecisionLogRow) => ({
+      decisionLogs: rows.map((row) => ({
         id: row.id,
         tenantUserId: row.tenant_user_id ?? undefined,
         moduleKey: row.module_key,
@@ -97,7 +127,8 @@ export const GET: APIRoute = async ({ request }) => {
         reason: row.reason,
         matchedPolicy: row.matched_policy ?? undefined,
         createdAt: row.created_at.toISOString()
-      }))
+      })),
+      nextCursor
     });
   });
 };

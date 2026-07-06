@@ -1,6 +1,6 @@
 {
   "name": "awcms-mini",
-  "version": "0.23.1",
+  "version": "0.23.2",
   "private": true,
   "description": "AWCMS-Mini — Modular Monolith Standard (Bun + Astro foundation skeleton)",
   "license": "MIT",

@@ -294,6 +294,66 @@ suite("Sync admin API (real Postgres)", () => {
     expect(secondRetry.status).toBe(409);
   });
 
+  // Issue #435 (performance audit): `GET /api/v1/sync/object-queue` gained
+  // keyset (`created_at, id`) cursor pagination on top of its existing
+  // 200-row page size (`OBJECT_QUEUE_LIMIT`), and the query was restructured
+  // to `LIMIT` before joining to `awcms_mini_sync_nodes` (see
+  // `fetchObjectQueueEntries` in `sync-directory.ts` for why — a planner
+  // cost-estimation quirk otherwise made it prefer a full Seq Scan/sort even
+  // with the right index in place). Seeds past 200 rows directly via SQL.
+  test("object queue pages past the first 200 via nextCursor, oldest never repeated", async () => {
+    const b = await bootstrap();
+    const nodeId = await seedNode(b.tenantId, "till-2");
+
+    const admin = getAdminSql();
+    await admin.begin(async (tx) => {
+      await tx.unsafe(`SET LOCAL app.current_tenant_id = '${b.tenantId}'`);
+      await tx`
+        INSERT INTO awcms_mini_object_sync_queue
+          (tenant_id, node_id, object_key, local_path, checksum_sha256, byte_size,
+           requires_upload, status, created_at)
+        SELECT ${b.tenantId}, ${nodeId}, 'obj-' || gs, '/tmp/' || gs, repeat('a', 64),
+               1024, false, 'pending', now() - (gs || ' seconds')::interval
+        FROM generate_series(1, 205) AS gs
+      `;
+    });
+
+    const page1 = await invoke<{
+      data: {
+        objects: { objectQueueId: string }[];
+        nextCursor: string | null;
+      };
+    }>(listObjectQueue, {
+      method: "GET",
+      path: "/api/v1/sync/object-queue",
+      headers: authHeaders(b)
+    });
+    expect(page1.status).toBe(200);
+    expect(page1.body.data.objects).toHaveLength(200);
+    expect(page1.body.data.nextCursor).not.toBeNull();
+
+    const page2 = await invoke<{
+      data: {
+        objects: { objectQueueId: string }[];
+        nextCursor: string | null;
+      };
+    }>(listObjectQueue, {
+      method: "GET",
+      path: `/api/v1/sync/object-queue?cursor=${encodeURIComponent(page1.body.data.nextCursor!)}`,
+      headers: authHeaders(b)
+    });
+    expect(page2.status).toBe(200);
+    expect(page2.body.data.objects).toHaveLength(5);
+    expect(page2.body.data.nextCursor).toBeNull();
+
+    const page1Ids = new Set(
+      page1.body.data.objects.map((o) => o.objectQueueId)
+    );
+    for (const entry of page2.body.data.objects) {
+      expect(page1Ids.has(entry.objectQueueId)).toBe(false);
+    }
+  });
+
   test("default-deny: a role-less user cannot list sync nodes, conflicts, or object queue", async () => {
     const b = await bootstrap();
 

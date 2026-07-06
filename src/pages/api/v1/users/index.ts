@@ -156,10 +156,13 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     `;
     const tenantUserId = tenantUserRows[0]!.id as string;
 
-    for (const roleId of input.roleIds) {
+    if (input.roleIds.length > 0) {
+      // Batched (single round trip) instead of one INSERT per role —
+      // Issue #435 N+1 audit (skill `awcms-mini-performance` §Hindari N+1).
       await tx`
         INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id, assigned_by)
-        VALUES (${tenantId}, ${tenantUserId}, ${roleId}, ${auth.context.tenantUserId})
+        SELECT ${tenantId}, ${tenantUserId}, role_id, ${auth.context.tenantUserId}
+        FROM unnest(${tx.array(input.roleIds, "uuid")}) AS role_id
         ON CONFLICT (tenant_id, tenant_user_id, role_id) DO NOTHING
       `;
     }
