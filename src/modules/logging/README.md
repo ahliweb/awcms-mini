@@ -14,7 +14,7 @@ Implementasi Issue 10.1 (`docs/awcms-mini/06_github_issues_detail.md` §Issue 10
 
 - `application/audit-log.ts` — `recordAuditEvent(tx, input: AuditEventInput)`. Meredaksi `attributes` (via `src/modules/_shared/redaction.ts`) sebelum INSERT — tidak pernah menyimpan password/token/API key/NPWP/NIK/phone/WhatsApp/email mentah. `AuditEventInput` mengikuti kontrak doc 10 §Audit helper persis.
 
-- Endpoint `GET /api/v1/logs/audit` — bearer-session, guard `logging.audit_trail.read`. Filter opsional `?resourceType=`, `?action=`, `?severity=`; selalu `LIMIT 100 ORDER BY created_at DESC`. Attributes pada response sudah aman karena diredaksi saat penulisan, bukan saat pembacaan.
+- Endpoint `GET /api/v1/logs/audit` — bearer-session, guard `logging.audit_trail.read`. Filter opsional `?resourceType=`, `?action=`, `?severity=`; `LIMIT 100 ORDER BY created_at DESC, id DESC` per halaman, dengan keyset pagination opsional `?cursor=` (Issue #435, `src/modules/_shared/keyset-pagination.ts`) — `nextCursor` pada response, `null` bila halaman terakhir; cursor rusak → `400 VALIDATION_ERROR`. Attributes pada response sudah aman karena diredaksi saat penulisan, bukan saat pembacaan.
 
 ## Bukan bagian modul ini
 
@@ -33,4 +33,4 @@ Untuk membuktikan pipeline audit bekerja nyata (bukan hanya diklaim), Issue ini 
 
 - Correlation ID hanya diwiring end-to-end ke `ApiMeta.correlationId` pada `GET /logs/audit` sebagai demonstrasi representatif — endpoint lain (login, access, reports, sync) tidak diubah pada issue ini untuk menghindari scope creep besar yang tidak terkait; header respons `X-Correlation-ID` sendiri tetap diset untuk _semua_ request oleh middleware. Backlog: wiring `ApiMeta.correlationId` ke seluruh endpoint adalah kandidat issue terpisah bila diperlukan.
 - Dispatcher/worker yang mengonsumsi `awcms_mini_audit_events` untuk alerting/export retensi belum ada — endpoint ini murni read API.
-- Pagination pada `GET /logs/audit` masih `LIMIT 100` tetap (sama seperti `GET /access/decision-logs` dan `GET /sync/conflicts`), belum keyset pagination (doc 16).
+- `GET /logs/audit` gained keyset pagination in Issue #435 (see above). `GET /sync/conflicts` still returns a single flat `LIMIT 50` page with no cursor — not in that issue's named scope (decision-logs/object-queue/audit log), left as-is per its "don't over-engineer" guidance.

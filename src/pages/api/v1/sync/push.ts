@@ -82,6 +82,54 @@ export const POST: APIRoute = async ({ request }) => {
       let acceptedCount = 0;
       let conflictedCount = 0;
 
+      // Prefetch every aggregate's current_version in one round trip instead
+      // of one `SELECT ... WHERE aggregate_id = X` per event — Issue #435
+      // N+1 audit (skill `awcms-mini-performance` §Hindari N+1). Keyed by
+      // `aggregateType:aggregateId` (not aggregate_id alone) since the
+      // uniqueness guarantee on `awcms_mini_sync_aggregate_versions` is the
+      // composite `(tenant_id, aggregate_type, aggregate_id)` — two
+      // different aggregate types could coincidentally share an id. The map
+      // is updated in-memory after each accepted event so a batch that
+      // references the same aggregate more than once still sees the correct
+      // incrementally-bumped version for its later events, matching the
+      // previous read-per-event behavior exactly; only the per-event write
+      // to `awcms_mini_sync_inbox`/`awcms_mini_sync_conflicts`/
+      // `awcms_mini_sync_aggregate_versions` still happens per event (those
+      // are conditional on this event's own conflict outcome, not a
+      // batchable read).
+      const aggregateIds = [
+        ...new Set(
+          events
+            .filter(
+              (event): event is typeof event & { aggregateId: string } =>
+                event.aggregateId !== undefined
+            )
+            .map((event) => event.aggregateId)
+        )
+      ];
+
+      const versionMap = new Map<string, number>();
+
+      if (aggregateIds.length > 0) {
+        const versionRows = (await tx`
+          SELECT aggregate_type, aggregate_id, current_version
+          FROM awcms_mini_sync_aggregate_versions
+          WHERE tenant_id = ${tenantId}
+            AND aggregate_id = ANY(${tx.array(aggregateIds, "uuid")})
+        `) as {
+          aggregate_type: string;
+          aggregate_id: string;
+          current_version: string | number;
+        }[];
+
+        for (const row of versionRows) {
+          versionMap.set(
+            `${row.aggregate_type}:${row.aggregate_id}`,
+            Number(row.current_version)
+          );
+        }
+      }
+
       for (const event of events) {
         if (event.aggregateId === undefined) {
           await tx`
@@ -96,14 +144,8 @@ export const POST: APIRoute = async ({ request }) => {
           continue;
         }
 
-        const versionRows = await tx`
-        SELECT current_version FROM awcms_mini_sync_aggregate_versions
-        WHERE tenant_id = ${tenantId} AND aggregate_type = ${event.aggregateType}
-          AND aggregate_id = ${event.aggregateId}
-      `;
-        const currentVersion = versionRows[0]
-          ? Number(versionRows[0].current_version)
-          : 0;
+        const versionKey = `${event.aggregateType}:${event.aggregateId}`;
+        const currentVersion = versionMap.get(versionKey) ?? 0;
         const evaluation = evaluatePushEventConflict(
           currentVersion,
           event.baseVersion
@@ -137,6 +179,10 @@ export const POST: APIRoute = async ({ request }) => {
         ON CONFLICT (tenant_id, aggregate_type, aggregate_id)
         DO UPDATE SET current_version = ${currentVersion + 1}, updated_at = now()
       `;
+        // Keep the in-memory prefetch map in sync so a later event in this
+        // same batch for the same aggregate sees the version this event
+        // just bumped to (matching the old read-per-event behavior).
+        versionMap.set(versionKey, currentVersion + 1);
         acceptedCount += 1;
       }
 

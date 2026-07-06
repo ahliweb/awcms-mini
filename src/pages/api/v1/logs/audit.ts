@@ -10,6 +10,10 @@ import {
 } from "../../../../modules/identity-access/application/auth-context";
 import { recordDecisionLog } from "../../../../modules/identity-access/application/decision-log";
 import { evaluateAccess } from "../../../../modules/identity-access/domain/access-control";
+import {
+  decodeKeysetCursor,
+  encodeKeysetCursor
+} from "../../../../modules/_shared/keyset-pagination";
 
 const GUARD_REQUEST = {
   moduleKey: "logging",
@@ -72,6 +76,17 @@ export const GET: APIRoute = async ({ request, url, locals }) => {
   const resourceType = url.searchParams.get("resourceType");
   const actionFilter = url.searchParams.get("action");
   const severityFilter = url.searchParams.get("severity");
+  const cursorParam = url.searchParams.get("cursor");
+  const cursor = cursorParam ? decodeKeysetCursor(cursorParam) : null;
+
+  if (cursorParam && !cursor) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      "cursor is malformed.",
+      correlationMeta
+    );
+  }
 
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
@@ -115,6 +130,9 @@ export const GET: APIRoute = async ({ request, url, locals }) => {
         return fail(403, "ACCESS_DENIED", decision.reason, correlationMeta);
       }
 
+      const cursorCreatedAt = cursor?.createdAt ?? null;
+      const cursorId = cursor?.id ?? null;
+
       const rows = (await tx`
       SELECT id, actor_tenant_user_id, module_key, action, resource_type, resource_id,
              severity, message, attributes, correlation_id, created_at
@@ -123,9 +141,21 @@ export const GET: APIRoute = async ({ request, url, locals }) => {
         AND (${resourceType}::text IS NULL OR resource_type = ${resourceType})
         AND (${actionFilter}::text IS NULL OR action = ${actionFilter})
         AND (${severityFilter}::text IS NULL OR severity = ${severityFilter})
-      ORDER BY created_at DESC
+        AND (
+          ${cursorCreatedAt}::timestamptz IS NULL
+          OR (created_at, id) < (${cursorCreatedAt}, ${cursorId})
+        )
+      ORDER BY created_at DESC, id DESC
       LIMIT ${AUDIT_EVENT_LIMIT}
     `) as AuditEventRow[];
+
+      const nextCursor =
+        rows.length === AUDIT_EVENT_LIMIT
+          ? encodeKeysetCursor(
+              rows[rows.length - 1]!.created_at,
+              rows[rows.length - 1]!.id
+            )
+          : null;
 
       return ok(
         {
@@ -141,7 +171,8 @@ export const GET: APIRoute = async ({ request, url, locals }) => {
             attributes: row.attributes ?? undefined,
             correlationId: row.correlation_id ?? undefined,
             createdAt: row.created_at.toISOString()
-          }))
+          })),
+          nextCursor
         },
         correlationMeta
       );

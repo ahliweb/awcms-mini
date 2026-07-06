@@ -137,10 +137,13 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     `;
     const roleId = roleRows[0]!.id as string;
 
-    for (const permissionId of input.permissionIds) {
+    if (input.permissionIds.length > 0) {
+      // Batched (single round trip) instead of one INSERT per permission —
+      // Issue #435 N+1 audit (skill `awcms-mini-performance` §Hindari N+1).
       await tx`
         INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
-        VALUES (${tenantId}, ${roleId}, ${permissionId})
+        SELECT ${tenantId}, ${roleId}, permission_id
+        FROM unnest(${tx.array(input.permissionIds, "uuid")}) AS permission_id
         ON CONFLICT (tenant_id, role_id, permission_id) DO NOTHING
       `;
     }

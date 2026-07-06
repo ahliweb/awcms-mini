@@ -370,4 +370,130 @@ suite("Access & Users API (real Postgres)", () => {
     expect(denied.status).toBe(403);
     expect(denied.body.error.code).toBe("ACCESS_DENIED");
   });
+
+  // Issue #435 (performance audit): role_permissions/access_assignments
+  // inserts were rewritten from one INSERT-per-item loop to a single batched
+  // `unnest(...)`-based INSERT (skill `awcms-mini-performance` §Hindari
+  // N+1). These exercise multi-item arrays end-to-end against real
+  // PostgreSQL to prove the batched statement still creates every row (not
+  // just the first) and still respects ON CONFLICT DO NOTHING for repeats.
+  test("role create/update with multiple permissionIds batches correctly", async () => {
+    const b = await bootstrap();
+
+    const perms = await invoke<{
+      data: { permissions: { permissionId: string; key: string }[] };
+    }>(listPermissions, {
+      method: "GET",
+      path: "/api/v1/permissions",
+      headers: authHeaders(b)
+    });
+    const permissionIds = perms.body.data.permissions
+      .slice(0, 3)
+      .map((p) => p.permissionId);
+    expect(permissionIds.length).toBe(3);
+
+    const role = await invoke<{ data: { roleId: string } }>(createRole, {
+      method: "POST",
+      path: "/api/v1/roles",
+      headers: authHeaders(b),
+      body: {
+        roleCode: "multi_perm",
+        roleName: "Multi Perm",
+        // Duplicate the first id to also prove ON CONFLICT DO NOTHING
+        // tolerates a repeat within the same batch.
+        permissionIds: [...permissionIds, permissionIds[0]]
+      }
+    });
+    expect(role.status).toBe(200);
+    const roleId = role.body.data.roleId;
+
+    const rolesAfterCreate = await invoke<{
+      data: { roles: { roleId: string; permissionIds: string[] }[] };
+    }>(listRoles, {
+      method: "GET",
+      path: "/api/v1/roles",
+      headers: authHeaders(b)
+    });
+    const created = rolesAfterCreate.body.data.roles.find(
+      (r) => r.roleId === roleId
+    )!;
+    expect(new Set(created.permissionIds)).toEqual(new Set(permissionIds));
+    expect(created.permissionIds.length).toBe(3);
+
+    const allPermissionIds = perms.body.data.permissions.map(
+      (p) => p.permissionId
+    );
+    const updated = await invoke(updateRole, {
+      method: "PATCH",
+      path: `/api/v1/roles/${roleId}`,
+      params: { id: roleId },
+      headers: authHeaders(b),
+      body: { permissionIds: allPermissionIds }
+    });
+    expect(updated.status).toBe(200);
+
+    const rolesAfterUpdate = await invoke<{
+      data: { roles: { roleId: string; permissionIds: string[] }[] };
+    }>(listRoles, {
+      method: "GET",
+      path: "/api/v1/roles",
+      headers: authHeaders(b)
+    });
+    const afterUpdate = rolesAfterUpdate.body.data.roles.find(
+      (r) => r.roleId === roleId
+    )!;
+    expect(new Set(afterUpdate.permissionIds)).toEqual(
+      new Set(allPermissionIds)
+    );
+  });
+
+  test("user create with multiple roleIds batches correctly", async () => {
+    const b = await bootstrap();
+
+    const roleA = await invoke<{ data: { roleId: string } }>(createRole, {
+      method: "POST",
+      path: "/api/v1/roles",
+      headers: authHeaders(b),
+      body: { roleCode: "role_a", roleName: "Role A", permissionIds: [] }
+    });
+    const roleB = await invoke<{ data: { roleId: string } }>(createRole, {
+      method: "POST",
+      path: "/api/v1/roles",
+      headers: authHeaders(b),
+      body: { roleCode: "role_b", roleName: "Role B", permissionIds: [] }
+    });
+    const roleIds = [roleA.body.data.roleId, roleB.body.data.roleId];
+
+    const user = await invoke<{ data: { tenantUserId: string } }>(createUser, {
+      method: "POST",
+      path: "/api/v1/users",
+      headers: authHeaders(b),
+      body: {
+        displayName: "Multi Role",
+        loginIdentifier: "multirole@example.com",
+        password: "multirole-password-1",
+        roleIds
+      }
+    });
+    expect(user.status).toBe(200);
+
+    const users = await invoke<{
+      data: {
+        users: {
+          tenantUserId: string;
+          roles: { roleId: string }[];
+        }[];
+      };
+    }>(listUsers, {
+      method: "GET",
+      path: "/api/v1/users",
+      headers: authHeaders(b)
+    });
+    const created = users.body.data.users.find(
+      (u) => u.tenantUserId === user.body.data.tenantUserId
+    )!;
+    expect(new Set(created.roles.map((r) => r.roleId))).toEqual(
+      new Set(roleIds)
+    );
+  });
 });

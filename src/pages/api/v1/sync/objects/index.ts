@@ -48,7 +48,17 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 
-  const { objects } = validation.value;
+  // Dedupe by objectKey (last one wins) before the batched INSERT below —
+  // `ON CONFLICT DO UPDATE` errors ("cannot affect row a second time") if the
+  // same conflict target appears twice in one statement. The previous
+  // per-object loop tolerated a client resending the same objectKey twice in
+  // one request (each INSERT was its own statement); this preserves that
+  // same last-write-wins behavior while still batching into one round trip.
+  const objects = [
+    ...new Map(
+      validation.value.objects.map((object) => [object.objectKey, object])
+    ).values()
+  ];
   const requiresUpload = process.env.R2_ENABLED === "true";
   const sql = getDatabaseClient();
 
@@ -62,26 +72,44 @@ export const POST: APIRoute = async ({ request }) => {
         return fail(403, "ACCESS_DENIED", "Sync node is not active.");
       }
 
-      for (const object of objects) {
-        await tx`
+      // Batched (single round trip via unnest) instead of one INSERT per
+      // object — Issue #435 N+1 audit (skill `awcms-mini-performance`
+      // §Hindari N+1). ON CONFLICT still resolves per-row independently, so
+      // behavior for a mixed new/re-enqueued batch is unchanged.
+      await tx`
         INSERT INTO awcms_mini_object_sync_queue
           (tenant_id, node_id, object_key, local_path, checksum_sha256, byte_size, requires_upload, status)
-        VALUES (
-          ${tenantId}, ${node.id}, ${object.objectKey}, ${object.localPath},
-          ${object.checksumSha256}, ${object.byteSize}, ${requiresUpload}, 'pending'
-        )
+        SELECT ${tenantId}, ${node.id}, t.object_key, t.local_path, t.checksum_sha256, t.byte_size,
+               ${requiresUpload}, 'pending'
+        FROM unnest(
+          ${tx.array(
+            objects.map((object) => object.objectKey),
+            "text"
+          )},
+          ${tx.array(
+            objects.map((object) => object.localPath),
+            "text"
+          )},
+          ${tx.array(
+            objects.map((object) => object.checksumSha256),
+            "text"
+          )},
+          ${tx.array(
+            objects.map((object) => object.byteSize),
+            "bigint"
+          )}
+        ) AS t(object_key, local_path, checksum_sha256, byte_size)
         ON CONFLICT (tenant_id, node_id, object_key) DO UPDATE SET
-          local_path = ${object.localPath},
-          checksum_sha256 = ${object.checksumSha256},
-          byte_size = ${object.byteSize},
-          requires_upload = ${requiresUpload},
+          local_path = EXCLUDED.local_path,
+          checksum_sha256 = EXCLUDED.checksum_sha256,
+          byte_size = EXCLUDED.byte_size,
+          requires_upload = EXCLUDED.requires_upload,
           status = 'pending',
           retry_count = 0,
           next_retry_at = null,
           last_error = null,
           uploaded_at = null
       `;
-      }
 
       return ok({ queued: objects.length });
     },

@@ -8,7 +8,14 @@ import {
   authorizeInTransaction,
   resolveAuthInputs
 } from "../../../../../modules/identity-access/application/access-guard";
-import { fetchObjectQueueEntries } from "../../../../../modules/sync-storage/application/sync-directory";
+import {
+  fetchObjectQueueEntries,
+  OBJECT_QUEUE_LIMIT
+} from "../../../../../modules/sync-storage/application/sync-directory";
+import {
+  decodeKeysetCursor,
+  encodeKeysetCursor
+} from "../../../../../modules/_shared/keyset-pagination";
 
 const READ_GUARD = {
   moduleKey: "sync_storage",
@@ -44,6 +51,13 @@ export const GET: APIRoute = async ({ request, cookies, url }) => {
     );
   }
 
+  const cursorParam = url.searchParams.get("cursor");
+  const cursor = cursorParam ? decodeKeysetCursor(cursorParam) : null;
+
+  if (cursorParam && !cursor) {
+    return fail(400, "VALIDATION_ERROR", "cursor is malformed.");
+  }
+
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();
@@ -64,9 +78,18 @@ export const GET: APIRoute = async ({ request, cookies, url }) => {
     const objects = await fetchObjectQueueEntries(
       tx,
       tenantId,
-      (statusParam as "pending" | "sent" | "failed" | null) ?? undefined
+      (statusParam as "pending" | "sent" | "failed" | null) ?? undefined,
+      cursor ?? undefined
     );
 
-    return ok({ objects });
+    const nextCursor =
+      objects.length === OBJECT_QUEUE_LIMIT
+        ? encodeKeysetCursor(
+            new Date(objects[objects.length - 1]!.createdAt),
+            objects[objects.length - 1]!.objectQueueId
+          )
+        : null;
+
+    return ok({ objects, nextCursor });
   });
 };
