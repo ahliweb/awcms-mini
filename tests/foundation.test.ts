@@ -188,7 +188,8 @@ describe("database migration runner helpers", () => {
       "012_awcms_mini_workflow_approval_schema.sql",
       "013_awcms_mini_enforce_rls_least_privilege.sql",
       "014_awcms_mini_sync_node_management_permission_schema.sql",
-      "015_awcms_mini_tenant_settings_management_permission_schema.sql"
+      "015_awcms_mini_tenant_settings_management_permission_schema.sql",
+      "016_awcms_mini_tenant_default_locale_english_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
@@ -261,6 +262,30 @@ describe("database migration runner helpers", () => {
     );
     expect(settingsMgmtSchema?.sql).not.toContain("CREATE TABLE");
     expect(settingsMgmtSchema?.sql).not.toContain("ALTER TABLE");
+  });
+
+  test("default locale migration flips the tenant default to English without touching migration 002", async () => {
+    const migrations = await discoverMigrationFiles();
+    const localeSchema = migrations.find(
+      (migration) =>
+        migration.name ===
+        "016_awcms_mini_tenant_default_locale_english_schema.sql"
+    );
+    const tenantOfficeSchema = migrations.find(
+      (migration) =>
+        migration.name === "002_awcms_mini_tenant_office_schema.sql"
+    );
+
+    expect(localeSchema).toBeDefined();
+    expect(localeSchema?.sql).toContain(
+      "ALTER TABLE awcms_mini_tenants ALTER COLUMN default_locale SET DEFAULT 'en'"
+    );
+    expect(localeSchema?.sql).not.toContain("CREATE TABLE");
+    // Migration 002 itself is untouched — it keeps its original 'id' default;
+    // 016 only changes what NEW rows get from here on, via a later ALTER.
+    expect(tenantOfficeSchema?.sql).toContain(
+      "default_locale text NOT NULL DEFAULT 'id'"
+    );
   });
 
   test("tenant/office schema declares RLS and soft-delete on office-scoped tables", async () => {

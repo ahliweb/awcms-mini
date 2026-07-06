@@ -222,7 +222,7 @@ stateDiagram-v2
 
 ## Internationalization (i18n)
 
-> **Status:** desain target. Runtime i18n **belum diimplementasikan** (string UI masih hardcode) — dikerjakan di issue #433 (milestone M9). Bagian ini adalah spesifikasi yang harus diikuti saat membangunnya.
+> **Status:** diimplementasikan (Issue #433, milestone M9). `src/lib/i18n/` (parser `.po` murni tanpa dependency, catalog loader, `t()`, resolusi locale, formatter), katalog `i18n/{messages.pot,en.po,id.po}`, `LanguageSwitcher.astro`, dan migrasi `016_awcms_mini_tenant_default_locale_english_schema.sql` (default `'en'` untuk tenant baru). Diverifikasi live: switch locale mengubah seluruh teks SSR (shell **dan** konten halaman), termasuk fallback ke `default_locale` tenant lama yang masih `'id'`.
 
 i18n memakai **dua lapisan terpisah** sesuai sumber teksnya:
 
@@ -230,10 +230,12 @@ i18n memakai **dua lapisan terpisah** sesuai sumber teksnya:
 
 **2. Data input pengguna** (konten yang diketik user dan perlu tampil multi-bahasa, mis. nama/deskripsi/catatan yang di-i18n-kan aplikasi turunan) → disimpan **di database untuk setiap locale aktif** (satu nilai per bahasa aktif), **bukan** di `.po`. Pola penyimpanan per-bahasa didokumentasikan di `docs/awcms-mini/04_erd_data_dictionary.md` §Konten multi-bahasa. `.po` hanya untuk teks statis pengembang, DB untuk konten dinamis pengguna.
 
-- **Locale minimal**: **en** dan **id** (arsitektur siap ms/ar). **Default = `en`** (`awcms_mini_tenants.default_locale`, target default `'en'`).
-- **Resolusi locale**: default tenant (`default_locale`) → override preferensi per-user bila ada; tersedia untuk SSR (tanpa flash, pola sama seperti resolusi tema no-flash di `AdminLayout.astro`) maupun island.
-- **Language switcher** menampilkan **ikon bendera** per bahasa + label (mis. 🇬🇧 English, 🇮🇩 Indonesia); bendera ilustratif/boleh dikonfigurasi aplikasi turunan.
-- **Format lokal**: angka/mata uang (IDR + pemisah ribuan sesuai locale) dan tanggal (`Asia/Jakarta`) sadar-locale.
+- **Locale minimal**: **en** dan **id** (arsitektur siap ms/ar — kolom `default_locale` tetap `text` bebas, bukan `enum`/`CHECK`, agar ms/ar bisa ditambah tanpa migration schema; UI hanya menampilkan locale yang benar-benar punya katalog). **Default = `en`** (`awcms_mini_tenants.default_locale`, migration `016` mengubah default kolom dari `'id'` ke `'en'` untuk tenant baru — tenant lama yang sudah `'id'` tidak diubah).
+- **Resolusi locale**: cookie `awcms_mini_locale` (diset language switcher) → `default_locale` tenant → fallback `en`. Diresolusi di `src/middleware.ts` **sebelum** halaman `/admin/*` mana pun (termasuk `AdminLayout`) dirender — bukan di dalam layout, karena frontmatter halaman berjalan lebih dulu daripada frontmatter layout yang membungkusnya; me-resolve di layout saja terbukti terlambat untuk konten halaman itu sendiri saat verifikasi live (shell ter-render Indonesia, konten dashboard tetap Inggris).
+- **Cookie, bukan localStorage**: berbeda dari toggle tema (CSS murni, bisa "diperbaiki" di klien sebelum paint), locale mengubah teks yang sudah di-render SSR — server harus tahu locale **sebelum** merender, dan hanya cookie yang ikut terkirim bersama request.
+- **Language switcher** (`LanguageSwitcher.astro`) menampilkan **ikon bendera** per bahasa + nama asli bahasa itu sendiri, bukan diterjemahkan ke locale aktif (mis. 🇬🇧 English, 🇮🇩 Bahasa Indonesia — konvensi standar agar user tetap menemukan bahasanya walau UI saat ini tak terbaca olehnya); memilih men-set cookie lalu reload penuh (bukan swap instan seperti tema).
+- **Pesan error ter-i18n**: kode error (doc 05) dipetakan ke key `error.*` (`src/lib/i18n/error-messages.ts`); untuk banner aksi client-side, peta `{code: pesan}` di-inject sebagai `<script type="application/json">` di halaman (katalog `.po` hanya bisa dibaca server-side via `Bun.file`).
+- **Format lokal**: angka/mata uang (IDR + pemisah ribuan sesuai locale) dan tanggal (`Asia/Jakarta`, `Intl.DateTimeFormat`/`NumberFormat`) sadar-locale — `src/lib/i18n/format.ts`.
 
 ```mermaid
 flowchart LR
@@ -244,7 +246,10 @@ flowchart LR
   subgraph Konten
     DB[(DB per locale aktif)] --> Pick[Pilih nilai locale aktif]
   end
-  Loc[Locale aktif: user pref → tenant default en] --> T
+  Cookie[Cookie awcms_mini_locale] --> Mid[middleware.ts]
+  Tenant[default_locale tenant] --> Mid
+  Mid --> Loc[Locale efektif]
+  Loc --> T
   Loc --> Pick
   T --> Render[Render komponen]
   Pick --> Render

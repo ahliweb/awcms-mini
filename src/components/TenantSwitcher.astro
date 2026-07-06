@@ -15,18 +15,19 @@
  */
 interface Props {
   tenantName: string;
+  ariaLabel: string;
 }
 
-const { tenantName } = Astro.props;
+const { tenantName, ariaLabel } = Astro.props;
 ---
 
 <div class="tenant-switcher">
-  <label class="sr-only" for="tenant-switcher-select">Tenant aktif</label>
+  <label class="sr-only" for="tenant-switcher-select">{ariaLabel}</label>
   <select
     id="tenant-switcher-select"
     class="tenant-switcher-select"
     disabled
-    aria-label="Tenant aktif"
+    aria-label={ariaLabel}
   >
     <option selected>{tenantName}</option>
   </select>

@@ -24,6 +24,16 @@ export type SsrContext = {
   identityId: string;
   roles: string[];
   permissions: Set<string>;
+  /**
+   * Tenant's `default_locale` (Issue #433 — i18n), fetched here so
+   * `src/middleware.ts` can resolve the final locale (cookie -> tenant
+   * default -> `en`) *before* any `/admin/*` page or `AdminLayout.astro`
+   * renders — resolving it later, inside the layout, is too late: a page's
+   * own frontmatter (and its own `t()` calls) runs before the layout
+   * component it's nested in, so only middleware can make this available in
+   * time. `null` if the tenant row is somehow missing.
+   */
+  tenantDefaultLocale: string | null;
 };
 
 /**
@@ -67,12 +77,19 @@ export async function resolveSsrContext(
         context.tenantUserId
       );
 
+      const localeRows = await tx`
+        SELECT default_locale FROM awcms_mini_tenants WHERE id = ${tenantId}
+      `;
+      const tenantDefaultLocale =
+        (localeRows[0]?.default_locale as string | undefined) ?? null;
+
       return {
         tenantId: context.tenantId,
         tenantUserId: context.tenantUserId,
         identityId: context.identityId,
         roles: context.roles,
-        permissions
+        permissions,
+        tenantDefaultLocale
       };
     });
   } catch {

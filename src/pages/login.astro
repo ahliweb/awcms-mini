@@ -4,16 +4,34 @@
  * additionally sets the two httpOnly SSR session cookies
  * (`src/pages/api/v1/auth/login.ts`) consumed by
  * `src/lib/auth/ssr-session.ts` / `src/layouts/AdminLayout.astro`.
+ *
+ * i18n (Issue #433): `Astro.locals.locale` is cookie-only resolved (no
+ * tenant known yet pre-login — see `src/middleware.ts`). The client-side
+ * `<script>` cannot read the `.po` catalog itself (that's server-side only,
+ * via `Bun.file`), so the strings/error-code map it needs are injected as a
+ * `<script type="application/json">` blob — the same pattern the admin
+ * pages' action banners use.
  */
 import "../styles/tokens.css";
+import { createTranslator } from "../lib/i18n/translate";
+import { buildClientErrorMessages } from "../lib/i18n/error-messages";
+
+const locale = Astro.locals.locale;
+const t = await createTranslator(locale);
+
+const clientStrings = {
+  genericError: t("auth.login.generic_error"),
+  networkError: t("common.network_error"),
+  errorMessages: buildClientErrorMessages(t)
+};
 ---
 
 <!doctype html>
-<html lang="id">
+<html lang={locale}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Masuk · AWCMS-Mini</title>
+    <title>{t("auth.login.page_title")}</title>
   </head>
   <body>
     <main class="login-page">
@@ -21,7 +39,7 @@ import "../styles/tokens.css";
         <h1>AWCMS-Mini</h1>
         <p id="login-error" class="login-error" role="alert" hidden></p>
 
-        <label for="tenant-id">Tenant ID</label>
+        <label for="tenant-id">{t("auth.login.tenant_id_label")}</label>
         <!--
           Requiring a manual Tenant ID field is a demo simplification for
           this base repo — a real derived app would resolve the tenant via
@@ -36,7 +54,7 @@ import "../styles/tokens.css";
           autocomplete="off"
         />
 
-        <label for="login-identifier">Login identifier</label>
+        <label for="login-identifier">{t("auth.login.identifier_label")}</label>
         <input
           id="login-identifier"
           name="loginIdentifier"
@@ -45,7 +63,7 @@ import "../styles/tokens.css";
           autocomplete="username"
         />
 
-        <label for="password">Password</label>
+        <label for="password">{t("auth.login.password_label")}</label>
         <input
           id="password"
           name="password"
@@ -54,13 +72,22 @@ import "../styles/tokens.css";
           autocomplete="current-password"
         />
 
-        <button type="submit">Masuk</button>
+        <button type="submit">{t("auth.login.submit")}</button>
       </form>
     </main>
+
+    <script
+      type="application/json"
+      id="i18n-strings"
+      set:html={JSON.stringify(clientStrings)}
+    />
 
     <script type="module">
       const form = document.getElementById("login-form");
       const errorBox = document.getElementById("login-error");
+      const strings = JSON.parse(
+        document.getElementById("i18n-strings")?.textContent ?? "{}"
+      );
 
       function showError(message) {
         if (!errorBox) return;
@@ -96,13 +123,15 @@ import "../styles/tokens.css";
           const payload = await response.json().catch(() => null);
 
           if (!response.ok || !payload || payload.success !== true) {
-            showError(payload?.error?.message ?? "Login gagal. Coba lagi.");
+            const code = payload?.error?.code;
+            const localized = code ? strings.errorMessages?.[code] : null;
+            showError(localized ?? strings.genericError);
             return;
           }
 
           window.location.href = "/admin";
         } catch {
-          showError("Tidak dapat menghubungi server. Coba lagi.");
+          showError(strings.networkError);
         }
       });
     </script>

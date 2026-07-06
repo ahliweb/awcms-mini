@@ -32,6 +32,9 @@ import {
   fetchObjectQueueEntries,
   fetchSyncNodes
 } from "../../modules/sync-storage/application/sync-directory";
+import { createTranslator } from "../../lib/i18n/translate";
+import { buildClientErrorMessages } from "../../lib/i18n/error-messages";
+import { formatDateTime } from "../../lib/i18n/format";
 
 const context = Astro.locals.ssrContext;
 
@@ -40,6 +43,17 @@ if (!context) {
     "admin/sync.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
   );
 }
+
+const locale = Astro.locals.locale;
+const t = await createTranslator(locale);
+
+const clientStrings = {
+  updateNodeSuccess: t("admin.sync.update_node_success"),
+  resolveConflictSuccess: t("admin.sync.resolve_conflict_success"),
+  retryObjectSuccess: t("admin.sync.retry_object_success"),
+  networkError: t("common.network_error"),
+  errorMessages: buildClientErrorMessages(t)
+};
 
 const CAN_READ_NODES = context.permissions.has(
   permissionKey("sync_storage", "node_management", "read")
@@ -92,17 +106,14 @@ const data = hasAnyAccess
   : null;
 ---
 
-<AdminLayout title="Sync">
+<AdminLayout title={t("admin.layout.nav_sync")}>
   {
     !data && (
       <div class="permission-denied" role="alert">
         <p>
-          <strong>Akses ditolak.</strong>
+          <strong>{t("admin.sync.access_denied_title")}</strong>
         </p>
-        <p>
-          Akun Anda tidak memiliki izin untuk melihat node, konflik, maupun
-          antrean sync. Hubungi admin/owner tenant Anda untuk meminta akses.
-        </p>
+        <p>{t("admin.sync.access_denied_body")}</p>
       </div>
     )
   }
@@ -110,54 +121,65 @@ const data = hasAnyAccess
     data && (
       <div class="sync-admin">
         <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
 
         <section class="sync-section">
-          <h2>Ringkasan</h2>
+          <h2>{t("admin.sync.summary_title")}</h2>
           <div class="health-grid">
             <div class="health-tile">
-              <dt>Node aktif</dt>
+              <dt>{t("admin.dashboard.active_nodes_label")}</dt>
               <dd>
                 {data.health.activeNodeCount} / {data.health.totalNodeCount}
               </dd>
             </div>
             <div class="health-tile">
-              <dt>Konflik terbuka</dt>
+              <dt>{t("admin.dashboard.open_conflicts_label")}</dt>
               <dd>{data.health.openConflictCount}</dd>
             </div>
             <div class="health-tile">
-              <dt>Objek pending</dt>
+              <dt>{t("admin.dashboard.pending_objects_label")}</dt>
               <dd>{data.health.pendingObjectCount}</dd>
             </div>
             <div class="health-tile">
-              <dt>Objek gagal</dt>
+              <dt>{t("admin.dashboard.failed_objects_label")}</dt>
               <dd>{data.health.failedObjectCount}</dd>
             </div>
             <div class="health-tile">
-              <dt>Status</dt>
-              <dd>{data.health.isHealthy ? "Sehat" : "Perlu perhatian"}</dd>
+              <dt>{t("admin.dashboard.status_label")}</dt>
+              <dd>
+                {data.health.isHealthy
+                  ? t("admin.dashboard.status_healthy")
+                  : t("admin.dashboard.status_needs_attention")}
+              </dd>
             </div>
           </div>
         </section>
 
         {CAN_READ_NODES && (
           <section class="sync-section">
-            <h2>Node Sync</h2>
+            <h2>{t("admin.sync.nodes_title")}</h2>
             <table class="sync-table">
               <thead>
                 <tr>
-                  <th>Node</th>
-                  <th>Kode</th>
-                  <th>Status</th>
-                  <th>Push terakhir</th>
-                  <th>Pull terakhir</th>
-                  {CAN_UPDATE_NODES && <th>Aksi</th>}
+                  <th>{t("admin.sync.node_column")}</th>
+                  <th>{t("admin.access_users.code_column")}</th>
+                  <th>{t("admin.access_users.status_column")}</th>
+                  <th>{t("admin.sync.last_pushed_column")}</th>
+                  <th>{t("admin.sync.last_pulled_column")}</th>
+                  {CAN_UPDATE_NODES && (
+                    <th>{t("admin.access_users.actions_column")}</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {data.nodes.length === 0 && (
                   <tr>
                     <td colspan={CAN_UPDATE_NODES ? 6 : 5}>
-                      Belum ada node terdaftar.
+                      {t("admin.sync.no_nodes")}
                     </td>
                   </tr>
                 )}
@@ -169,11 +191,21 @@ const data = hasAnyAccess
                     </td>
                     <td>
                       <span class="status-pill" data-status={node.status}>
-                        {node.status === "active" ? "Aktif" : "Nonaktif"}
+                        {node.status === "active"
+                          ? t("common.status_active")
+                          : t("common.status_inactive")}
                       </span>
                     </td>
-                    <td>{node.lastPushedAt ?? "-"}</td>
-                    <td>{node.lastPulledAt ?? "-"}</td>
+                    <td>
+                      {node.lastPushedAt
+                        ? formatDateTime(new Date(node.lastPushedAt), locale)
+                        : "-"}
+                    </td>
+                    <td>
+                      {node.lastPulledAt
+                        ? formatDateTime(new Date(node.lastPulledAt), locale)
+                        : "-"}
+                    </td>
                     {CAN_UPDATE_NODES && (
                       <td>
                         <button
@@ -185,8 +217,8 @@ const data = hasAnyAccess
                           }
                         >
                           {node.status === "active"
-                            ? "Nonaktifkan"
-                            : "Aktifkan"}
+                            ? t("admin.access_users.deactivate_button")
+                            : t("admin.access_users.activate_button")}
                         </button>
                       </td>
                     )}
@@ -199,22 +231,24 @@ const data = hasAnyAccess
 
         {CAN_READ_CONFLICTS && (
           <section class="sync-section">
-            <h2>Konflik Terbuka</h2>
+            <h2>{t("admin.sync.open_conflicts_title")}</h2>
             <table class="sync-table">
               <thead>
                 <tr>
-                  <th>Aggregate</th>
-                  <th>Tipe konflik</th>
-                  <th>Batch</th>
-                  <th>Dibuat</th>
-                  {CAN_APPROVE_CONFLICTS && <th>Resolusi</th>}
+                  <th>{t("admin.sync.aggregate_column")}</th>
+                  <th>{t("admin.sync.conflict_type_column")}</th>
+                  <th>{t("admin.sync.batch_column")}</th>
+                  <th>{t("admin.sync.created_column")}</th>
+                  {CAN_APPROVE_CONFLICTS && (
+                    <th>{t("admin.sync.resolution_column")}</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {data.openConflicts.length === 0 && (
                   <tr>
                     <td colspan={CAN_APPROVE_CONFLICTS ? 5 : 4}>
-                      Tidak ada konflik terbuka.
+                      {t("admin.sync.no_open_conflicts")}
                     </td>
                   </tr>
                 )}
@@ -226,7 +260,7 @@ const data = hasAnyAccess
                     </td>
                     <td>{conflict.conflict_type}</td>
                     <td>{conflict.batch_id}</td>
-                    <td>{conflict.created_at.toISOString()}</td>
+                    <td>{formatDateTime(conflict.created_at, locale)}</td>
                     {CAN_APPROVE_CONFLICTS && (
                       <td>
                         <form
@@ -235,19 +269,25 @@ const data = hasAnyAccess
                         >
                           <select name="resolution" required>
                             <option value="accept_incoming">
-                              Terima data masuk
+                              {t("admin.sync.resolution_accept_incoming")}
                             </option>
                             <option value="keep_existing">
-                              Pertahankan data lama
+                              {t("admin.sync.resolution_keep_existing")}
                             </option>
-                            <option value="manual">Manual</option>
+                            <option value="manual">
+                              {t("admin.sync.resolution_manual")}
+                            </option>
                           </select>
                           <input
                             type="text"
                             name="note"
-                            placeholder="Catatan (opsional)"
+                            placeholder={t(
+                              "admin.sync.resolution_note_placeholder"
+                            )}
                           />
-                          <button type="submit">Resolve</button>
+                          <button type="submit">
+                            {t("admin.sync.resolve_button")}
+                          </button>
                         </form>
                       </td>
                     )}
@@ -260,22 +300,24 @@ const data = hasAnyAccess
 
         {CAN_READ_QUEUE && (
           <section class="sync-section">
-            <h2>Antrean Objek Gagal</h2>
+            <h2>{t("admin.sync.failed_queue_title")}</h2>
             <table class="sync-table">
               <thead>
                 <tr>
-                  <th>Node</th>
-                  <th>Object key</th>
-                  <th>Retry</th>
-                  <th>Error terakhir</th>
-                  {CAN_RETRY_QUEUE && <th>Aksi</th>}
+                  <th>{t("admin.sync.node_column")}</th>
+                  <th>{t("admin.sync.object_key_column")}</th>
+                  <th>{t("admin.sync.retry_column")}</th>
+                  <th>{t("admin.sync.last_error_column")}</th>
+                  {CAN_RETRY_QUEUE && (
+                    <th>{t("admin.access_users.actions_column")}</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {data.failedObjects.length === 0 && (
                   <tr>
                     <td colspan={CAN_RETRY_QUEUE ? 5 : 4}>
-                      Tidak ada objek gagal.
+                      {t("admin.sync.no_failed_objects")}
                     </td>
                   </tr>
                 )}
@@ -294,7 +336,7 @@ const data = hasAnyAccess
                           class="retry-object-button"
                           data-retry-object={entry.objectQueueId}
                         >
-                          Retry
+                          {t("admin.sync.retry_button")}
                         </button>
                       </td>
                     )}
@@ -432,6 +474,9 @@ const data = hasAnyAccess
 
 <script>
   const JSON_HEADERS = { "Content-Type": "application/json" };
+  const strings = JSON.parse(
+    document.getElementById("i18n-strings")?.textContent ?? "{}"
+  );
 
   function showBanner(message: string, variant: "success" | "error") {
     const banner = document.getElementById("action-banner");
@@ -456,15 +501,17 @@ const data = hasAnyAccess
       const json = await res.json().catch(() => null);
 
       if (!res.ok) {
-        return {
-          ok: false,
-          message: json?.error?.message ?? `Request failed (${res.status}).`
-        };
+        const code = json?.error?.code as string | undefined;
+        const message: string =
+          (code && strings.errorMessages?.[code]) ??
+          json?.error?.message ??
+          `Request failed (${res.status}).`;
+        return { ok: false, message };
       }
 
-      return { ok: true, message: "Berhasil." };
+      return { ok: true, message: "" };
     } catch {
-      return { ok: false, message: "Terjadi kesalahan jaringan." };
+      return { ok: false, message: strings.networkError };
     }
   }
 
@@ -482,7 +529,7 @@ const data = hasAnyAccess
         status: nextStatus
       });
       showBanner(
-        result.ok ? "Status node diperbarui." : result.message,
+        result.ok ? strings.updateNodeSuccess : result.message,
         result.ok ? "success" : "error"
       );
       if (result.ok) reloadAfterDelay();
@@ -506,7 +553,7 @@ const data = hasAnyAccess
         }
       );
       showBanner(
-        result.ok ? "Konflik berhasil diresolusi." : result.message,
+        result.ok ? strings.resolveConflictSuccess : result.message,
         result.ok ? "success" : "error"
       );
       if (result.ok) reloadAfterDelay();
@@ -524,7 +571,7 @@ const data = hasAnyAccess
         {}
       );
       showBanner(
-        result.ok ? "Objek berhasil di-retry." : result.message,
+        result.ok ? strings.retryObjectSuccess : result.message,
         result.ok ? "success" : "error"
       );
       if (result.ok) reloadAfterDelay();

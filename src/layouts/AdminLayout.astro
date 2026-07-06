@@ -24,9 +24,11 @@ import "../styles/tokens.css";
 import TenantSwitcher from "../components/TenantSwitcher.astro";
 import SyncIndicator from "../components/SyncIndicator.astro";
 import ThemeToggle from "../components/ThemeToggle.astro";
+import LanguageSwitcher from "../components/LanguageSwitcher.astro";
 import { getDatabaseClient } from "../lib/database/client";
 import { withTenant } from "../lib/database/tenant-context";
 import { fetchSyncIndicatorActive } from "../modules/reporting/application/sync-indicator";
+import { createTranslator } from "../lib/i18n/translate";
 
 interface Props {
   title: string;
@@ -63,6 +65,15 @@ const syncActive = await withTenant(sql, context.tenantId, (tx) =>
   fetchSyncIndicatorActive(tx, context.tenantId)
 );
 
+// i18n (Issue #433): already fully resolved (cookie -> tenant default -> en)
+// by src/middleware.ts before this layout — and before the page nested
+// inside it — ever rendered. Do NOT re-resolve here: the page's own
+// frontmatter runs first and would use a stale/less-complete value if this
+// layout were the only place doing the tenant-fallback lookup (found during
+// live verification).
+const locale = Astro.locals.locale;
+const t = await createTranslator(locale);
+
 const permissionList = Array.from(context.permissions);
 const hasAccessMenu = permissionList.some((key) =>
   key.startsWith("identity_access.")
@@ -79,7 +90,7 @@ const isSettingsActive = pathname === "/admin/settings";
 ---
 
 <!doctype html>
-<html lang="id">
+<html lang={locale}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -118,32 +129,50 @@ const isSettingsActive = pathname === "/admin/settings";
     <div class="admin-shell">
       <header class="admin-topbar">
         <span class="admin-topbar-brand">AWCMS-Mini</span>
-        <TenantSwitcher tenantName={tenantName} />
+        <TenantSwitcher
+          tenantName={tenantName}
+          ariaLabel={t("admin.layout.active_tenant_aria_label")}
+        />
         <div class="admin-topbar-spacer"></div>
-        <SyncIndicator active={syncActive} />
+        <SyncIndicator
+          active={syncActive}
+          activeLabel={t("admin.layout.sync_active")}
+          inactiveLabel={t("admin.layout.sync_inactive")}
+        />
         <ThemeToggle />
+        <LanguageSwitcher
+          currentLocale={locale}
+          ariaLabel={t("admin.layout.language_switcher_aria_label")}
+        />
         <div class="admin-user-menu">
           <span class="admin-user-menu-roles">
-            {context.roles.length > 0 ? context.roles.join(", ") : "Tanpa role"}
+            {
+              context.roles.length > 0
+                ? context.roles.join(", ")
+                : t("admin.layout.no_role")
+            }
           </span>
           <button
             type="button"
             id="admin-logout-button"
             class="admin-logout-button"
           >
-            Keluar
+            {t("admin.layout.logout")}
           </button>
         </div>
       </header>
       <div class="admin-body">
-        <nav class="admin-sidebar" aria-label="Navigasi utama">
+        <nav
+          class="admin-sidebar"
+          aria-label={t("admin.layout.nav_aria_label")}
+        >
           <ul>
             <li>
               <a
                 href="/admin"
                 aria-current={isDashboardActive ? "page" : undefined}
               >
-                Dashboard
+                {t("admin.layout.nav_dashboard")}
               </a>
             </li>
             {
@@ -153,7 +182,7 @@ const isSettingsActive = pathname === "/admin/settings";
                     href="/admin/access-users"
                     aria-current={isAccessUsersActive ? "page" : undefined}
                   >
-                    Access &amp; Users
+                    {t("admin.layout.nav_access_users")}
                   </a>
                 </li>
               )
@@ -165,7 +194,7 @@ const isSettingsActive = pathname === "/admin/settings";
                     href="/admin/sync"
                     aria-current={isSyncActive ? "page" : undefined}
                   >
-                    Sync
+                    {t("admin.layout.nav_sync")}
                   </a>
                 </li>
               )
@@ -175,13 +204,16 @@ const isSettingsActive = pathname === "/admin/settings";
                 href="/admin/settings"
                 aria-current={isSettingsActive ? "page" : undefined}
               >
-                Settings
+                {t("admin.layout.nav_settings")}
               </a>
             </li>
           </ul>
         </nav>
         <main class="admin-main">
-          <nav class="admin-breadcrumb" aria-label="Breadcrumb">
+          <nav
+            class="admin-breadcrumb"
+            aria-label={t("admin.layout.breadcrumb_aria_label")}
+          >
             <ol>
               <li><a href="/admin">AWCMS-Mini</a></li>
               <li aria-current="page">{title}</li>

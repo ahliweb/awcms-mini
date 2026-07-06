@@ -18,6 +18,7 @@ import { fetchTenantActivityReport } from "../../modules/reporting/application/t
 import { fetchAccessAuditReport } from "../../modules/reporting/application/access-audit-report";
 import { fetchSyncHealthReport } from "../../modules/reporting/application/sync-health-report";
 import { fetchModuleUsageReport } from "../../modules/reporting/application/module-usage-report";
+import { createTranslator } from "../../lib/i18n/translate";
 
 const context = Astro.locals.ssrContext;
 
@@ -26,6 +27,8 @@ if (!context) {
     "admin/index.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
   );
 }
+
+const t = await createTranslator(Astro.locals.locale);
 
 const REPORTING_DASHBOARD_PERMISSION = permissionKey(
   "reporting",
@@ -46,17 +49,17 @@ const dashboard = hasDashboardAccess
   : null;
 ---
 
-<AdminLayout title="Dashboard">
+<AdminLayout title={t("admin.layout.nav_dashboard")}>
   {
     !dashboard && (
       <div class="permission-denied" role="alert">
         <p>
-          <strong>Akses ditolak.</strong>
+          <strong>{t("admin.dashboard.access_denied_title")}</strong>
         </p>
         <p>
-          Akun Anda tidak memiliki izin{" "}
-          <code>{REPORTING_DASHBOARD_PERMISSION}</code> untuk melihat dashboard
-          ini. Hubungi admin/owner tenant Anda untuk meminta akses.
+          {t("admin.dashboard.access_denied_body", {
+            permission: REPORTING_DASHBOARD_PERMISSION
+          })}
         </p>
       </div>
     )
@@ -65,62 +68,72 @@ const dashboard = hasDashboardAccess
     dashboard && (
       <div class="dashboard-grid">
         <section class="dashboard-card">
-          <h2>Aktivitas Tenant</h2>
+          <h2>{t("admin.dashboard.tenant_activity_title")}</h2>
           <dl>
-            <dt>Tenant</dt>
+            <dt>{t("admin.dashboard.tenant_label")}</dt>
             <dd>
               {dashboard.tenantActivity.tenantName} (
               {dashboard.tenantActivity.tenantStatus})
             </dd>
-            <dt>User aktif</dt>
+            <dt>{t("admin.dashboard.active_users_label")}</dt>
             <dd>{dashboard.tenantActivity.activeUserCount}</dd>
-            <dt>Kantor aktif</dt>
+            <dt>{t("admin.dashboard.active_offices_label")}</dt>
             <dd>{dashboard.tenantActivity.activeOfficeCount}</dd>
-            <dt>Login terakhir</dt>
+            <dt>{t("admin.dashboard.last_login_label")}</dt>
             <dd>{dashboard.tenantActivity.mostRecentLoginAt ?? "-"}</dd>
           </dl>
         </section>
         <section class="dashboard-card">
-          <h2>Access &amp; Audit</h2>
+          <h2>{t("admin.dashboard.access_audit_title")}</h2>
           <dl>
-            <dt>Allow ({dashboard.accessAudit.decisionWindowDays} hari)</dt>
+            <dt>
+              {t("admin.dashboard.allow_count_label", {
+                days: dashboard.accessAudit.decisionWindowDays
+              })}
+            </dt>
             <dd>{dashboard.accessAudit.allowCount}</dd>
-            <dt>Deny ({dashboard.accessAudit.decisionWindowDays} hari)</dt>
+            <dt>
+              {t("admin.dashboard.deny_count_label", {
+                days: dashboard.accessAudit.decisionWindowDays
+              })}
+            </dt>
             <dd>{dashboard.accessAudit.denyCount}</dd>
-            <dt>Total decision log</dt>
+            <dt>{t("admin.dashboard.total_decision_log_label")}</dt>
             <dd>{dashboard.accessAudit.totalDecisionCount}</dd>
-            <dt>Profile audit log</dt>
+            <dt>{t("admin.dashboard.profile_audit_log_label")}</dt>
             <dd>{dashboard.accessAudit.profileAuditLogCount}</dd>
           </dl>
         </section>
         <section class="dashboard-card">
-          <h2>Sync Health</h2>
+          <h2>{t("admin.dashboard.sync_health_title")}</h2>
           <dl>
-            <dt>Node aktif</dt>
+            <dt>{t("admin.dashboard.active_nodes_label")}</dt>
             <dd>
               {dashboard.syncHealth.activeNodeCount} /{" "}
               {dashboard.syncHealth.totalNodeCount}
             </dd>
-            <dt>Konflik terbuka</dt>
+            <dt>{t("admin.dashboard.open_conflicts_label")}</dt>
             <dd>{dashboard.syncHealth.openConflictCount}</dd>
-            <dt>Objek pending</dt>
+            <dt>{t("admin.dashboard.pending_objects_label")}</dt>
             <dd>{dashboard.syncHealth.pendingObjectCount}</dd>
-            <dt>Objek gagal</dt>
+            <dt>{t("admin.dashboard.failed_objects_label")}</dt>
             <dd>{dashboard.syncHealth.failedObjectCount}</dd>
-            <dt>Status</dt>
+            <dt>{t("admin.dashboard.status_label")}</dt>
             <dd>
-              {dashboard.syncHealth.isHealthy ? "Sehat" : "Perlu perhatian"}
+              {dashboard.syncHealth.isHealthy
+                ? t("admin.dashboard.status_healthy")
+                : t("admin.dashboard.status_needs_attention")}
             </dd>
           </dl>
         </section>
         <section class="dashboard-card">
-          <h2>Penggunaan Modul</h2>
+          <h2>{t("admin.dashboard.module_usage_title")}</h2>
           <table>
             <thead>
               <tr>
-                <th>Modul</th>
-                <th>Metrik</th>
-                <th>Jumlah</th>
+                <th>{t("admin.dashboard.module_column")}</th>
+                <th>{t("admin.dashboard.metric_column")}</th>
+                <th>{t("admin.dashboard.count_column")}</th>
               </tr>
             </thead>
             <tbody>
