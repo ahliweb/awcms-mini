@@ -78,6 +78,9 @@ Wajib dipenuhi modul domain baru sebelum dianggap siap produksi (turunan dari do
   — contoh konkret satu modul domain minimal (struktur folder, descriptor,
   migration+RLS, seed permission, endpoint, OpenAPI/AsyncAPI snippet, dan
   checklist test/keamanan) — Issue #463.
+- [`derived-app-pilot-plan.md`](derived-app-pilot-plan.md) — rencana
+  pilot aplikasi turunan pertama (matriks kandidat, rekomendasi AWPOS,
+  boundary modul, initial issue breakdown) — Issue #465.
 - [`AGENTS.md`](../../AGENTS.md) §Mulai dari sini — entry point kontributor.
 - [`README.md`](README.md) §Langkah berikutnya — ringkasan alur yang sama, versi singkat.
 - [`docs/adr/`](../adr/README.md) — keputusan arsitektural base (ADR-0001 s.d. 0008).
