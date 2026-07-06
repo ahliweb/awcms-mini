@@ -26,10 +26,11 @@ flowchart LR
 7. Data sensitif keluar lewat mapper (`awcms-mini-sensitive-data`); jangan return row mentah.
 8. DELETE resource deletable berarti soft delete; restore/purge butuh ABAC, audit, OpenAPI, dan idempotency bila high-risk.
 9. **Update OpenAPI** (`openapi/`) untuk setiap perubahan; jalankan `api:spec:check`.
+10. Endpoint publik/mahal (tanpa auth, atau operasi berat) → pertimbangkan rate limiting sumber (`checkRateLimit`, `src/lib/security/rate-limit.ts`, reuse — jangan bikin limiter baru), lihat `awcms-mini-integration`.
 
 ## Response helper
 
-Sukses `{ success:true, data, meta }`; error `{ success:false, error:{ code, message, details, correlationId } }`. Gunakan `ok()`, `created()`, `fail()`.
+Sukses `{ success:true, data, meta }`; error `{ success:false, error:{ code, message, details }, meta }`. Gunakan `ok()`, `created()`, `fail()`. `meta.correlationId` **otomatis** terisi oleh middleware sejak Issue #447 untuk setiap response JSON `/api/*` — jangan set `correlationId` di dalam `error`, dan jangan wiring manual `meta.correlationId` kecuali butuh nilai eksplisit lebih awal (baca `context.locals.correlationId`, jangan generate UUID baru), lihat `awcms-mini-observability`.
 
 ## Error code standar
 
