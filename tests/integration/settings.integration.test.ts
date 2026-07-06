@@ -104,7 +104,9 @@ suite("Settings API (real Postgres)", () => {
     expect(res.status).toBe(200);
     expect(res.body.data.tenantName).toBe("Acme");
     expect(res.body.data.legalName).toBeNull();
-    expect(res.body.data.defaultLocale).toBe("id");
+    // Migration 016 (Issue #433 — i18n) flipped the column default from 'id'
+    // to 'en' for new tenants.
+    expect(res.body.data.defaultLocale).toBe("en");
     expect(res.body.data.defaultTheme).toBe("system");
     expect(res.body.data.timezone).toBe("Asia/Jakarta");
     expect(res.body.data.featureFlags).toEqual({});
