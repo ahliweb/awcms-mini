@@ -3,8 +3,8 @@ import { defineModule } from "../_shared/module-contract";
 export const reportingModule = defineModule({
   key: "reporting",
   name: "Management Reporting",
-  version: "0.1.0",
-  status: "experimental",
+  version: "1.0.0",
+  status: "active",
   description:
     "Generic management reporting views (tenant activity, access/audit summary, sync health, module usage) built as live read-aggregations over tenant_admin, identity_access, and sync_storage tables. Derived applications add their own domain-specific reporting views on top of this base.",
   dependencies: ["tenant_admin", "identity_access", "sync_storage"],

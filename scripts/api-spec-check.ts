@@ -14,6 +14,11 @@ type AnyRecord = Record<string, unknown>;
 export const OPENAPI_PATH = "openapi/awcms-mini-public-api.openapi.yaml";
 export const ASYNCAPI_PATH = "asyncapi/awcms-mini-domain-events.asyncapi.yaml";
 
+// Contract version (`info.version`) is independent SemVer, not the package
+// version (ADR-0008) — this only enforces the *shape*, not a specific
+// value, so a genuine contract bump never fails this check.
+const SEMVER_PATTERN = /^\d+\.\d+\.\d+$/;
+
 export async function runApiSpecChecks(
   rootDir = process.cwd()
 ): Promise<Problem[]> {
@@ -48,8 +53,18 @@ export function checkOpenApi(spec: unknown, file: string): Problem[] {
     problems.push({ file, message: "Missing OpenAPI version." });
   }
 
-  if (!asRecord(document.info)) {
+  const info = asRecord(document.info);
+
+  if (!info) {
     problems.push({ file, message: "Missing OpenAPI info object." });
+  } else if (
+    typeof info.version !== "string" ||
+    !SEMVER_PATTERN.test(info.version)
+  ) {
+    problems.push({
+      file,
+      message: "OpenAPI info.version must be a SemVer string (X.Y.Z)."
+    });
   }
 
   const paths = asRecord(document.paths);
@@ -128,8 +143,18 @@ export function checkAsyncApi(spec: unknown, file: string): Problem[] {
     problems.push({ file, message: "Missing AsyncAPI version." });
   }
 
-  if (!asRecord(document.info)) {
+  const info = asRecord(document.info);
+
+  if (!info) {
     problems.push({ file, message: "Missing AsyncAPI info object." });
+  } else if (
+    typeof info.version !== "string" ||
+    !SEMVER_PATTERN.test(info.version)
+  ) {
+    problems.push({
+      file,
+      message: "AsyncAPI info.version must be a SemVer string (X.Y.Z)."
+    });
   }
 
   const channels = asRecord(document.channels);
