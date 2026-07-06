@@ -1,10 +1,9 @@
 # Email
 
-Implementasi Issue #493 (epic #492) — arsitektur modul email reusable dan
-batas konfigurasi Mailketing, sebelum implementasi nyata (schema, adapter,
-endpoint) di Issue #494-#500. Issue ini murni kontrak/tipe/konfigurasi;
-**tidak ada** migration, adapter pengiriman nyata, endpoint password reset,
-atau admin UI di sini (lihat §Roadmap).
+Implementasi Issue #493-#495 (epic #492) — arsitektur modul email reusable,
+skema/RLS/delivery queue (`sql/020`), dan adapter Mailketing nyata +
+dispatcher. **Belum ada** endpoint publik (password reset, announcement)
+atau admin UI — itu Issue #496/#497/#499 (lihat §Roadmap).
 
 ## Kenapa modul ini ada — hubungan dengan historical issue #390
 
@@ -45,12 +44,68 @@ dengan `sync-storage/infrastructure/object-storage-uploader.ts`'s
 #495) di-resolve di satu titik, tidak pernah di-import langsung by name di
 tempat lain.
 
-**Aturan yang sudah berlaku sejak sekarang** (ADR-0006, doc 16 §Transactional
-outbox): pemanggilan provider (Mailketing) **tidak boleh** terjadi di
-dalam DB transaction. Alur nyatanya (Issue #494/#495): endpoint menulis ke
-outbox _di dalam_ `withTenant`/`sql.begin`, dispatcher terpisah membaca
-outbox dan memanggil `EmailProvider.send` _di luar_ transaction — pola yang
-sama seperti `object-sync-dispatch.ts`.
+**Ditegakkan sejak Issue #495** (ADR-0006, doc 16 §Transactional outbox):
+pemanggilan provider (Mailketing) **tidak boleh** terjadi di dalam DB
+transaction. Alur nyata: caller (Issue #496/#497, belum ada) menulis baris
+`awcms_mini_email_messages` (`sql/020`) di dalam transaksi bisnisnya
+sendiri; dispatcher terpisah (`application/email-dispatch.ts`, `bun run
+email:dispatch`) meng-claim baris dalam transaksi pendek
+(`FOR UPDATE SKIP LOCKED`, reuse `next_attempt_at` sebagai lease — pola
+identik `object-dispatch.ts`), memanggil `EmailProvider.send` **di luar**
+transaksi apa pun, lalu finalize (transaksi pendek kedua) ke
+`sent`/`retry_wait`/`failed` + mencatat `awcms_mini_email_delivery_attempts`.
+
+### Adapter Mailketing — `infrastructure/mailketing-provider.ts`
+
+`POST {baseUrl}/api/v1/send`, form-urlencoded
+`api_token`/`recipient`/`from_email`/`from_name`/`subject`/`content`,
+respons JSON `{status, response, message_id?}`. Auth **hanya** via
+`api_token` — Mailketing sendiri tidak punya konsep "account identifier"
+terpisah; `EMAIL_MAILKETING_ACCOUNT_ID` karenanya **tidak pernah** dikirim
+ke provider, murni label operator (multi-akun Mailketing di deployment
+berbeda). Satu `send` = satu recipient (API-nya sendiri memang begitu) —
+inilah alasan `email_messages` (`sql/020`) satu baris per recipient, bukan
+fan-out. Kegagalan HTTP/network/timeout/5xx → `retryable: true`; respons
+`status:"failed"` (validasi/bisnis, mis. token salah atau recipient
+invalid) → `retryable: false` (retry tidak akan mengubah hasil). Timeout +
+circuit breaker (`getProviderCircuitBreaker("email-mailketing")`) sama
+persis pola `object-storage-uploader.ts`.
+
+Provider `"log"` (`infrastructure/log-email-provider.ts`,
+`EMAIL_PROVIDER=log`) — menulis log terstruktur (alamat di-mask, reuse
+`profile-identity/domain/identifier.ts`, bukan implementasi masking baru)
+alih-alih memanggil provider nyata; dipakai dev lokal tanpa kredensial
+Mailketing dan test. **Beda** dari `EMAIL_ENABLED=false` (dispatcher sama
+sekali tidak claim baris, tidak pernah sampai ke provider manapun).
+
+### Rendering minimal — `domain/email-template-render.ts`
+
+Dispatcher me-render body dari `template_key`+`variables` (bukan
+menyimpan rendered body — `sql/020`) via substitusi `{{key}}` sederhana,
+HTML-escaped untuk `html_body_template`. Ini **bukan** scope penuh "safe
+rendering" Issue #498 (allowlist variabel per kategori, preview/dry-run,
+default templates) — sengaja seam sempit yang akan digantikan/diperluas
+#498, bukan implementasi bersaing. Template tidak ditemukan/`is_active =
+false` → kegagalan non-retryable (retry tidak akan menemukan template
+yang sama), langsung `failed`.
+
+### Retry/backoff — `domain/email-retry.ts`
+
+Sama seperti `object-queue.ts`'s `evaluateObjectRetry` (exponential
+`2^retryCount` menit, dibatasi `EMAIL_MAX_RETRY_DELAY_MINUTES=60`), tapi
+batas jumlah retry (`maxRetries`) adalah parameter — dibaca dari
+`EMAIL_SEND_MAX_RETRIES` (env, Issue #493), bukan konstanta hardcoded
+seperti `OBJECT_SYNC_MAX_RETRIES`.
+
+### Operasional — `bun run email:dispatch` / `bun run email:provider:health`
+
+`scripts/email-dispatch.ts` — iterasi tiap tenant `active`, drain backlog
+per tenant (pola identik `object-sync-dispatch.ts`); no-op bila
+`EMAIL_ENABLED` bukan `"true"`. `scripts/email-provider-health.ts` —
+resolve provider terkonfigurasi dan panggil `healthCheck()`; live network
+check ke Mailketing nyata, sengaja **tidak** dijalankan sebagai bagian
+`bun run check`/CI (tidak ada network egress di sana) — operator
+menjalankannya manual atau sebagai smoke-test deployment.
 
 ## Batas konfigurasi — `domain/email-config.ts`
 
@@ -79,39 +134,36 @@ konfigurasi saat boot).
 ## Perilaku disabled / offline-LAN
 
 Sama seperti diagram feature-flag doc 18: `EMAIL_ENABLED=false` (default)
-tidak boleh menghentikan aplikasi ataupun jalur bisnis apa pun. Sejak
-Issue #494, ini berarti pesan tetap masuk outbox dan menunggu; dispatcher
-(Issue #495) tidak mencoba memanggil provider sama sekali selama
-`EMAIL_ENABLED=false` — bukan "coba lalu gagal", tapi memang tidak
-mencoba. Deployment offline/LAN-first berjalan penuh tanpa email
-terkirim; begitu online dan diaktifkan, pesan yang sudah antre dapat
-diproses dispatcher (subjek retensi/expiry Issue #494's schema design).
+tidak boleh menghentikan aplikasi ataupun jalur bisnis apa pun. Pesan
+tetap masuk outbox dan menunggu; dispatcher tidak mencoba memanggil
+provider sama sekali selama `EMAIL_ENABLED=false` (`dispatchEmailQueue`
+return awal, tidak claim baris apa pun) — bukan "coba lalu gagal", tapi
+memang tidak mencoba. Deployment offline/LAN-first berjalan penuh tanpa
+email terkirim; begitu online dan diaktifkan, pesan yang sudah antre
+diproses dispatcher pada run berikutnya.
 
 ## Keamanan
 
-Jangan pernah mencatat (log) secret provider, isi lengkap `to`/subject/body,
+Tidak pernah mencatat (log) secret provider, isi lengkap `to`/subject/body,
 atau raw token apa pun terkait email (mis. token reset password, Issue
-#496) — hanya alamat yang **di-mask** bila perlu ditampilkan di
-log/diagnostik admin. Selaras ISO/IEC 27001 Annex A (manajemen
-secret/config) dan ISO/IEC 27002 (kontrol operasional). Ini adalah prinsip
-desain untuk seluruh modul, ditegakkan penuh mulai Issue #494 (skema
-menyimpan hash, bukan token mentah) dan #495 (dispatcher me-redact log).
+#496, belum ada) — hanya alamat yang **di-mask** (log provider) dan respons
+provider yang sudah **diredaksi** (`domain/email-log-redaction.ts`,
+menutup pola email di teks bebas sebelum disimpan ke
+`email_delivery_attempts`/dicatat log) yang pernah tersimpan/tercatat.
+Selaras ISO/IEC 27001 Annex A (manajemen secret/config) dan ISO/IEC 27002
+(kontrol operasional).
 
 ## Roadmap (epic #492)
 
-- **#494** — migration tenant-aware (`email_templates`, `email_messages`/
-  outbox, `email_recipients`, `email_delivery_attempts`, opsional
-  suppression list), RLS FORCE, status transition
-  `queued → sending → sent | failed → retry_wait → cancelled | suppressed`.
-- **#495** — adapter Mailketing nyata (implementasi `EmailProvider` di
-  atas) + dispatcher Bun (bounded-batch claim, backoff, circuit breaker,
-  provider fake/logging untuk dev/test).
-- **#498** — template management + safe rendering (kategori
-  `auth.password_reset`, `system.announcement`, dst).
-- **#496** — flow forgot/reset password.
+- ~~**#494**~~ — migration tenant-aware, RLS FORCE, status transition. **Selesai.**
+- ~~**#495**~~ — adapter Mailketing nyata + dispatcher Bun. **Selesai.**
+- **#498** — template management + safe rendering penuh (kategori
+  `auth.password_reset`, `system.announcement`, dst — menggantikan
+  rendering minimal `domain/email-template-render.ts` di atas).
+- **#496** — flow forgot/reset password (caller pertama yang benar-benar
+  meng-enqueue baris `email_messages`).
 - **#497** — announcement/notification workflow.
-- **#499** — observability, security test, production readiness gate.
+- **#499** — observability, security test, production readiness gate
+  (termasuk automated purge job untuk `email_messages`/`_delivery_attempts`
+  terminal-state, didokumentasikan di doc 04 tapi belum diimplementasikan).
 - **#500** — sinkronisasi OpenAPI/AsyncAPI/ERD/SOP/threat model/changeset.
-
-`status` di `module.ts` tetap `"experimental"` sampai #494 memberi modul
-ini skema nyata.

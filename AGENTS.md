@@ -205,7 +205,7 @@ untuk setiap kode baru sesuai doc 07 §Testing Strategy dan doc 10.
 
 ## Perintah standar (target)
 
-Skrip berikut menjadi target repository (lihat doc 11). Seluruhnya kini **sudah tersedia** (base generik selesai, v0.23.5): dev/build/preview/check, `db:migrate`, `api:spec:check`, `changeset`/`changeset:version`, tooling readiness (`db:pool:health`, `security:readiness`, `production:preflight`, `config:validate`), serta job terjadwal (`sync:objects:dispatch`, `logs:audit:purge`).
+Skrip berikut menjadi target repository (lihat doc 11). Seluruhnya kini **sudah tersedia** (base generik selesai, v0.23.5): dev/build/preview/check, `db:migrate`, `api:spec:check`, `changeset`/`changeset:version`, tooling readiness (`db:pool:health`, `security:readiness`, `production:preflight`, `config:validate`, `email:provider:health`), serta job terjadwal (`sync:objects:dispatch`, `logs:audit:purge`, `email:dispatch`).
 
 ```bash
 bun install
