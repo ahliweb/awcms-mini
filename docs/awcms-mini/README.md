@@ -116,18 +116,20 @@ Dokumen dikelompokkan mengikuti alur pengembangan agar mudah diimplementasi.
 
 ### Lapisan E — Operasi & referensi
 
-|  No | File                                       | Isi                                                                                                    |
-| --: | ------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-|   8 | `08_sop_operasional_user_guide.md`         | SOP operasional dan user guide                                                                         |
-|  19 | `19_glossary_terminology.md`               | Glossary & terminologi lintas dokumen                                                                  |
-|  20 | `20_threat_model_security_architecture.md` | Threat model (STRIDE), trust boundary, kontrol keamanan berlapis (dokumen base, bukan contoh domain)   |
-|   – | `database-migrations.md`                   | Panduan runner migrasi PostgreSQL Bun-native                                                           |
-|   – | `deployment-profiles.md`                   | Profil deployment (development/staging/production/offline-LAN) dan model dua-peran basis data          |
-|   – | `deploy-coolify.md`                        | Panduan deploy Coolify: single-VPS, multi-aplikasi, opsi PostgreSQL, checklist keamanan (Issue #462)   |
-|   – | `derived-application-guide.md`             | Panduan membangun aplikasi turunan di atas base (9 langkah + 5 contoh ilustratif + checklist keamanan) |
-|   – | `examples/minimal-domain-module.md`        | Contoh konkret satu modul domain minimal (Issue #463)                                                  |
-|   – | `derived-app-pilot-plan.md`                | Rencana pilot aplikasi turunan pertama — rekomendasi AWPOS (Issue #465)                                |
-|   – | `../../openapi/` dan `../../asyncapi/`     | Baseline kontrak OpenAPI/AsyncAPI dan validator `api:spec:check`                                       |
+|  No | File                                        | Isi                                                                                                    |
+| --: | ------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+|   8 | `08_sop_operasional_user_guide.md`          | SOP operasional dan user guide                                                                         |
+|  19 | `19_glossary_terminology.md`                | Glossary & terminologi lintas dokumen                                                                  |
+|  20 | `20_threat_model_security_architecture.md`  | Threat model (STRIDE), trust boundary, kontrol keamanan berlapis (dokumen base, bukan contoh domain)   |
+|   – | `database-migrations.md`                    | Panduan runner migrasi PostgreSQL Bun-native                                                           |
+|   – | `deployment-profiles.md`                    | Profil deployment (development/staging/production/offline-LAN) dan model dua-peran basis data          |
+|   – | `deploy-coolify.md`                         | Panduan deploy Coolify: single-VPS, multi-aplikasi, opsi PostgreSQL, checklist keamanan (Issue #462)   |
+|   – | `derived-application-guide.md`              | Panduan membangun aplikasi turunan di atas base (9 langkah + 5 contoh ilustratif + checklist keamanan) |
+|   – | `examples/minimal-domain-module.md`         | Contoh konkret satu modul domain minimal (Issue #463)                                                  |
+|   – | `examples/wizard-form-pattern.md`           | Reusable multi-step wizard form pattern: komponen, helper, pola i18n (Issue #479)                      |
+|   – | `examples/wizard-derived-module-example.md` | Contoh pemakaian wizard end-to-end pada modul domain turunan (Issue #482)                              |
+|   – | `derived-app-pilot-plan.md`                 | Rencana pilot aplikasi turunan pertama — rekomendasi AWPOS (Issue #465)                                |
+|   – | `../../openapi/` dan `../../asyncapi/`      | Baseline kontrak OpenAPI/AsyncAPI dan validator `api:spec:check`                                       |
 
 ### Architecture Decision Records
 

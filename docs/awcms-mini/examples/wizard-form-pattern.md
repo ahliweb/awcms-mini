@@ -8,6 +8,11 @@ ditampilkan sebagai satu form besar.
 Issue pelacak:
 [#479 — UX: Add reusable multi-step wizard form pattern](https://github.com/ahliweb/awcms-mini/issues/479).
 
+Contoh pemakaian end-to-end pada modul domain turunan (import, deklarasi
+step, i18n, validasi, submit `Idempotency-Key`, anti-double-submit):
+[`wizard-derived-module-example.md`](wizard-derived-module-example.md)
+(Issue #482).
+
 ## Tujuan
 
 1. Membagi form panjang menjadi beberapa langkah yang mudah dipahami operator.
