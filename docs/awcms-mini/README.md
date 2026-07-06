@@ -116,13 +116,14 @@ Dokumen dikelompokkan mengikuti alur pengembangan agar mudah diimplementasi.
 
 ### Lapisan E — Operasi & referensi
 
-|  No | File                                       | Isi                                                                                                  |
-| --: | ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-|   8 | `08_sop_operasional_user_guide.md`         | SOP operasional dan user guide                                                                       |
-|  19 | `19_glossary_terminology.md`               | Glossary & terminologi lintas dokumen                                                                |
-|  20 | `20_threat_model_security_architecture.md` | Threat model (STRIDE), trust boundary, kontrol keamanan berlapis (dokumen base, bukan contoh domain) |
-|   – | `database-migrations.md`                   | Panduan runner migrasi PostgreSQL Bun-native                                                         |
-|   – | `../../openapi/` dan `../../asyncapi/`     | Baseline kontrak OpenAPI/AsyncAPI dan validator `api:spec:check`                                     |
+|  No | File                                       | Isi                                                                                                    |
+| --: | ------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+|   8 | `08_sop_operasional_user_guide.md`         | SOP operasional dan user guide                                                                         |
+|  19 | `19_glossary_terminology.md`               | Glossary & terminologi lintas dokumen                                                                  |
+|  20 | `20_threat_model_security_architecture.md` | Threat model (STRIDE), trust boundary, kontrol keamanan berlapis (dokumen base, bukan contoh domain)   |
+|   – | `database-migrations.md`                   | Panduan runner migrasi PostgreSQL Bun-native                                                           |
+|   – | `derived-application-guide.md`             | Panduan membangun aplikasi turunan di atas base (9 langkah + 5 contoh ilustratif + checklist keamanan) |
+|   – | `../../openapi/` dan `../../asyncapi/`     | Baseline kontrak OpenAPI/AsyncAPI dan validator `api:spec:check`                                       |
 
 ### Architecture Decision Records
 
@@ -175,7 +176,7 @@ AWCMS-Mini sengaja disusun agar bisa dipakai sebagai **template/contoh** untuk m
 | Skill proyek `.claude/skills/`                                     | —                                             |
 | Standar commit/roadmap/preflight (09, 07)                          | —                                             |
 
-Untuk membangun aplikasi baru di atas AWCMS-Mini: pertahankan lapisan reusable, ganti lapisan spesifik domain dengan kebutuhan aplikasi Anda, dan ikuti alur dokumen 01 → 20 (plus ADR di [`../adr/`](../adr/README.md)).
+Untuk membangun aplikasi baru di atas AWCMS-Mini: pertahankan lapisan reusable, ganti lapisan spesifik domain dengan kebutuhan aplikasi Anda, dan ikuti alur dokumen 01 → 20 (plus ADR di [`../adr/`](../adr/README.md)). Panduan langkah-demi-langkah (9 langkah berbasis skill nyata + 5 contoh aplikasi turunan + checklist keamanan): [`derived-application-guide.md`](derived-application-guide.md).
 
 ## Versioning
 
