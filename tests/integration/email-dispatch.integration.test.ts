@@ -78,8 +78,9 @@ async function seedTemplate(templateKey: string): Promise<void> {
     INSERT INTO awcms_mini_email_templates
       (tenant_id, template_key, name, subject_template, text_body_template, created_by, updated_by)
     VALUES (
-      ${TENANT_ID}, ${templateKey}, 'Test template', 'Reset for {{userName}}',
-      'Click {{resetUrl}} to reset.', gen_random_uuid(), gen_random_uuid()
+      ${TENANT_ID}, ${templateKey}, 'Test template',
+      ${{ en: "Reset for {{userName}}" }}, ${{ en: "Click {{resetUrl}} to reset." }},
+      gen_random_uuid(), gen_random_uuid()
     )
   `;
 }

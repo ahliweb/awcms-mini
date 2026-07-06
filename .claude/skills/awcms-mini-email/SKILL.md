@@ -1,0 +1,82 @@
+---
+name: awcms-mini-email
+description: Kirim email transaksional (password reset, announcement, workflow notification) via modul email reusable AWCMS-Mini — provider-neutral (Mailketing adapter), template management, dan dispatcher outbox. Gunakan saat modul domain turunan perlu mengirim email, atau saat menambah kategori/template baru.
+---
+
+# AWCMS-Mini — Email Module
+
+Ikuti `src/modules/email/README.md` (arsitektur lengkap: kontrak provider, adapter Mailketing, dispatcher, template management, i18n). Modul ini generik — analog `sync_storage`'s object storage: Mailketing adalah _satu_ adapter, bukan alasan modul jadi domain-spesifik (lihat README §Relationship to historical issue #390).
+
+## Cara pakai (untuk modul domain turunan yang ingin kirim email)
+
+1. **Pastikan template ada** untuk kategori Anda — kategori base
+   (`auth.password_reset`, `system.announcement`, `system.security_notice`,
+   `workflow.task_assigned`, `workflow.decision_required`) sudah punya
+   allowlist variabel bawaan (`domain/email-template-categories.ts`).
+   Kategori sendiri harus `derived.*` dan didaftarkan dulu:
+   ```ts
+   registerDerivedEmailTemplateCategory("derived.order_confirmation", [
+     "orderNumber",
+     "total",
+     "trackingUrl"
+   ]);
+   ```
+   Kategori yang tidak dikenal ditolak saat create template (fail-closed) —
+   **jangan** coba pakai kategori base yang sudah ada untuk kebutuhan lain,
+   daftar kategori `derived.*` baru sendiri.
+2. **Buat/pastikan template** via `POST /api/v1/email/templates`
+   (`{templateKey, name, subjectTemplate: {en, id?}, textBodyTemplate?, htmlBodyTemplate?}`)
+   atau `seedDefaultEmailTemplates` untuk kategori base bawaan
+   (`bun run email:templates:seed-defaults -- --tenant=<id> --actor=<tenantUserId>`).
+3. **Enqueue** — INSERT langsung ke `awcms_mini_email_messages` (`sql/020`)
+   di dalam transaksi bisnis Anda sendiri (ADR-0006: pemanggilan provider
+   **tidak boleh** di dalam transaction — outbox pattern yang memisahkan
+   ini). Isi `to_address`/`to_address_hash`/`to_address_masked` pakai
+   `normalizeIdentifier("email", ...)`/`hashIdentifier`/`maskIdentifier`
+   (`profile-identity/domain/identifier.ts` — reuse, jangan bikin ulang),
+   `template_key` = kategori Anda, `variables` (jsonb) = hanya nilai yang
+   akan lolos allowlist kategori itu (nilai lain diam-diam tidak pernah
+   disubstitusi saat render), `subject` = subjek final (dirender/ditentukan
+   saat enqueue, bukan saat dispatch).
+4. **Dispatcher** (`bun run email:dispatch`, dijadwalkan cron/systemd
+   timer/k8s CronJob) yang mengirim sungguhan — Anda tidak pernah memanggil
+   provider langsung.
+
+## Aturan wajib
+
+- **Jangan** simpan raw secret/token jangka panjang di `variables` — token
+  reset password sendiri di-hash saat disimpan di tabel auth-nya (Issue
+  #496), bukan disimpan mentah di outbox.
+- **Jangan** buat adapter provider baru di luar `EmailProvider` port
+  (`domain/email-provider-contract.ts`) — provider baru (bila benar-benar
+  dibutuhkan) mengimplementasikan port yang sama, di-resolve lewat
+  `infrastructure/email-provider-resolver.ts`, tidak pernah di-import by
+  name di kode pemanggil.
+- **Jangan** panggil provider (Mailketing) di dalam DB transaction —
+  selalu lewat outbox + dispatcher terpisah.
+- Body template **tidak** disimpan rendered — dispatcher me-render dari
+  `template_key`+`variables` saat kirim; jangan menambah kolom
+  `rendered_html_body`/`rendered_text_body` ke `email_messages`.
+- Preview (`POST /api/v1/email/templates/{id}/preview`) hanya untuk admin
+  melihat hasil render dengan data sampel sintetis — jangan pernah kirim
+  alamat penerima nyata ke endpoint ini, dan endpoint ini sendiri **tidak**
+  menyentuh `email_messages`/antrean.
+
+## Verifikasi
+
+- Kirim dengan `EMAIL_PROVIDER=log` dulu (tanpa kredensial Mailketing) —
+  lihat log `email.log_provider.send` (alamat ter-mask) untuk konfirmasi
+  alur end-to-end sebelum menyalakan Mailketing nyata.
+- `bun run email:provider:health` — cek konektivitas Mailketing nyata
+  (live network call, jalankan manual/smoke-test, bukan bagian CI).
+- `bun test tests/integration/email-*.integration.test.ts` terhadap
+  Postgres nyata untuk regresi schema/dispatcher/template.
+
+## Skill terkait
+
+`awcms-mini-integration` (pola outbox/retry/circuit-breaker generik),
+`awcms-mini-sensitive-data` (normalize/hash/mask alamat email),
+`awcms-mini-idempotency` (Issue #496/#497's endpoint enqueue akan
+membutuhkan ini untuk mutation high-risk), `awcms-mini-abac-guard`
+(permission `email.template.*` sudah diseed, ikuti pola guard yang sama
+untuk endpoint baru).

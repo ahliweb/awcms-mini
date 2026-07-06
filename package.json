@@ -43,6 +43,7 @@
     "form-drafts:purge": "bun scripts/form-draft-purge.ts",
     "email:dispatch": "bun scripts/email-dispatch.ts",
     "email:provider:health": "bun scripts/email-provider-health.ts",
+    "email:templates:seed-defaults": "bun scripts/email-templates-seed-defaults.ts",
     "security:readiness": "bun scripts/security-readiness.ts",
     "config:validate": "bun scripts/validate-env.ts",
     "production:preflight": "bun scripts/production-preflight.ts",
