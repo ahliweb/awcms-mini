@@ -5,6 +5,7 @@ interface Props {
   description?: string;
   active?: boolean;
   errorSummary?: readonly string[];
+  errorSummaryHeading?: string;
 }
 
 const {
@@ -13,6 +14,7 @@ const {
   description,
   active = true,
   errorSummary = [],
+  errorSummaryHeading = "Please review the following fields:"
 } = Astro.props;
 ---
 
@@ -31,7 +33,7 @@ const {
   {
     errorSummary.length > 0 && (
       <div class="wizard-panel-errors" role="alert">
-        <strong>Periksa kembali isian berikut:</strong>
+        <strong>{errorSummaryHeading}</strong>
         <ul>
           {errorSummary.map((message) => (
             <li>{message}</li>

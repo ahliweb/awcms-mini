@@ -6,6 +6,9 @@ interface Props {
   activeStepKey: string;
   completedStepKeys?: readonly string[];
   label?: string;
+  currentLabel?: string;
+  completedLabel?: string;
+  pendingLabel?: string;
 }
 
 const {
@@ -13,6 +16,9 @@ const {
   activeStepKey,
   completedStepKeys = [],
   label = "Wizard steps",
+  currentLabel = "Current",
+  completedLabel = "Completed",
+  pendingLabel = "Pending"
 } = Astro.props;
 ---
 
@@ -23,10 +29,10 @@ const {
         const isActive = step.key === activeStepKey;
         const isCompleted = completedStepKeys.includes(step.key);
         const stateLabel = isActive
-          ? "Current"
+          ? currentLabel
           : isCompleted
-            ? "Completed"
-            : "Pending";
+            ? completedLabel
+            : pendingLabel;
 
         return (
           <li

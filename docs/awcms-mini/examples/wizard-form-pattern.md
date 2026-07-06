@@ -89,6 +89,38 @@ Tanggung jawab:
 - mencegah loncat step yang belum selesai;
 - membuat `Idempotency-Key` untuk submit final high-risk.
 
+## Pola i18n
+
+Konsisten dengan `StateNotice.astro`/`WizardActions.astro`: komponen wizard
+**tidak pernah** memanggil translator sendiri atau membaca locale dari
+request — semua string yang tampak ke user diterima sebagai prop, dan
+halaman pemanggil yang bertanggung jawab memanggil
+`createTranslator(locale)` (`src/lib/i18n/translate.ts`) di frontmatter lalu
+meneruskan hasil `t(key)` sebagai prop. Default prop (bila ada) berbahasa
+Inggris hanya sebagai fallback aman, bukan nilai yang dianggap final untuk
+production — halaman pemanggil wajib selalu mengisi prop ini dari katalog:
+
+| Komponen        | Prop yang wajib diisi dari `t(key)`                       |
+| --------------- | --------------------------------------------------------- |
+| `WizardStepper` | `label`, `currentLabel`, `completedLabel`, `pendingLabel` |
+| `WizardPanel`   | `title`, `description`, `errorSummaryHeading`             |
+| `WizardActions` | `backLabel`, `nextLabel`, `submitLabel`, `saveDraftLabel` |
+
+```astro
+---
+const t = await createTranslator(locale);
+---
+
+<WizardStepper
+  steps={steps}
+  activeStepKey={activeStepKey}
+  label={t("wizard.stepper.label")}
+  currentLabel={t("wizard.stepper.current")}
+  completedLabel={t("wizard.stepper.completed")}
+  pendingLabel={t("wizard.stepper.pending")}
+/>
+```
+
 ## Flow standar
 
 ```mermaid
@@ -197,26 +229,26 @@ export const dutyTravelWizardSteps: WizardStep[] = [
     key: "basic",
     title: "Data dasar",
     description: "Judul, jenis, tanggal, dan tujuan tugas.",
-    fields: ["title", "assignmentType", "startDate", "endDate"],
+    fields: ["title", "assignmentType", "startDate", "endDate"]
   },
   {
     key: "participants",
     title: "Peserta",
     description: "Pegawai yang ditugaskan dan perannya.",
-    fields: ["participants"],
+    fields: ["participants"]
   },
   {
     key: "destination",
     title: "Tujuan",
     description: "Lokasi, instansi tujuan, dan uraian tugas.",
-    fields: ["destinationName", "destinationAddress", "taskDescription"],
+    fields: ["destinationName", "destinationAddress", "taskDescription"]
   },
   {
     key: "review",
     title: "Review",
     description: "Periksa kembali sebelum submit.",
-    fields: [],
-  },
+    fields: []
+  }
 ];
 ```
 
@@ -228,8 +260,17 @@ export const dutyTravelWizardSteps: WizardStep[] = [
 - Urutan tab mengikuti urutan visual.
 - Target sentuh minimal 44px pada layar kecil.
 - Status step tidak hanya ditandai warna; tambahkan teks atau ikon.
-- Fokus berpindah ke judul panel step setelah user menekan `Next`.
 - Submit state memakai `aria-busy="true"`.
+
+Belum diimplementasikan di komponen MVP ini — jadi tanggung jawab
+halaman pemanggil, bukan jaminan `WizardPanel`/`WizardStepper` itu sendiri
+(komponen ini tidak menyertakan `<script>` client apa pun):
+
+- Pindahkan fokus ke judul panel (`#${id}-title`) setiap kali step aktif
+  berubah (mis. setelah `Next`/`Back`/jump), supaya pembaca layar
+  mengumumkan step baru. Panggil `document.getElementById(...).focus()`
+  (dengan `tabindex="-1"` pada elemen judul) dari script halaman yang
+  mengorkestrasi transisi step.
 
 ## Testing checklist
 
