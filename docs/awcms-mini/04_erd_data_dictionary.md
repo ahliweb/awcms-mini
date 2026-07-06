@@ -77,7 +77,7 @@ erDiagram
 | Foundation           | `awcms_mini_modules`, `awcms_mini_schema_migrations`, `awcms_mini_system_events`                                                                                                                                                                             |
 | Tenant Admin         | `awcms_mini_tenants`, `awcms_mini_offices`, `awcms_mini_physical_locations`, `awcms_mini_tenant_settings`                                                                                                                                                    |
 | Profile Identity     | `awcms_mini_profiles`, `awcms_mini_profile_identifiers`, `awcms_mini_profile_channels`, `awcms_mini_profile_addresses`, `awcms_mini_profile_entity_links`, `awcms_mini_profile_merge_requests`                                                               |
-| Identity Access      | `awcms_mini_identities`, `awcms_mini_tenant_users`, `awcms_mini_roles`, `awcms_mini_permissions`, `awcms_mini_abac_policies`, `awcms_mini_abac_decision_logs`                                                                                                |
+| Identity Access      | `awcms_mini_identities`, `awcms_mini_tenant_users`, `awcms_mini_sessions`, `awcms_mini_password_reset_tokens`, `awcms_mini_roles`, `awcms_mini_permissions`, `awcms_mini_abac_policies`, `awcms_mini_abac_decision_logs`                                     |
 | Catalog Inventory    | `awcms_mini_products`, `awcms_mini_product_categories`, `awcms_mini_units`, `awcms_mini_product_prices`, `awcms_mini_stock_balances`, `awcms_mini_stock_movements`                                                                                           |
 | Sales POS            | `awcms_mini_checkout_sessions`, `awcms_mini_checkout_lines`, `awcms_mini_sales_documents`, `awcms_mini_sales_document_lines`, `awcms_mini_sales_payments`, `awcms_mini_idempotency_keys`                                                                     |
 | Shared Stock Routing | `awcms_mini_stock_pools`, `awcms_mini_stock_pool_members`, `awcms_mini_transaction_routing_rules`, `awcms_mini_transaction_routing_decisions`                                                                                                                |
@@ -144,6 +144,10 @@ Login identity.
 Kolom penting: `profile_id`, `login_identifier`, `password_hash`, `status`, `failed_login_count`, `locked_until`, `last_login_at`.
 
 Catatan: `password_hash` tidak pernah keluar response/API/log.
+
+### `awcms_mini_password_reset_tokens` (Issue #496, epic #492, `sql/022`)
+
+Token reset password sekali-pakai. Kolom penting: `identity_id`, `token_hash` (unik — hanya hash yang disimpan, token mentah tidak pernah persisted), `expires_at`, `used_at` (single-use — beda dari `awcms_mini_sessions` yang tidak butuh kolom ini). RLS FORCE. Request baru menandai token outstanding sebelumnya sebagai `used_at = now()` (superseded) sebelum membuat yang baru — hanya link terbaru yang pernah valid.
 
 ### `awcms_mini_products`
 

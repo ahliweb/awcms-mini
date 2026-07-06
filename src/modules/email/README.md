@@ -1,10 +1,11 @@
 # Email
 
-Implementasi Issue #493-#495, #498 (epic #492) — arsitektur modul email
+Implementasi Issue #493-#496, #498 (epic #492) — arsitektur modul email
 reusable, skema/RLS/delivery queue (`sql/020`/`021`), adapter Mailketing
-nyata + dispatcher, dan template management (CRUD, i18n, allowlist,
-preview). **Belum ada** endpoint yang benar-benar meng-enqueue pesan
-(password reset, announcement) — itu Issue #496/#497 (lihat §Roadmap).
+nyata + dispatcher, template management (CRUD, i18n, allowlist, preview),
+dan caller nyata pertama (`POST /api/v1/auth/password/forgot`/`reset`,
+`src/modules/identity-access/README.md` §Password reset). **Belum ada**
+announcement/notification workflow — itu Issue #497 (lihat §Roadmap).
 
 ## Kenapa modul ini ada — hubungan dengan historical issue #390
 
@@ -202,8 +203,9 @@ Selaras ISO/IEC 27001 Annex A (manajemen secret/config) dan ISO/IEC 27002
 - ~~**#494**~~ — migration tenant-aware, RLS FORCE, status transition. **Selesai.**
 - ~~**#495**~~ — adapter Mailketing nyata + dispatcher Bun. **Selesai.**
 - ~~**#498**~~ — template management + safe rendering penuh. **Selesai.**
-- **#496** — flow forgot/reset password (caller pertama yang benar-benar
-  meng-enqueue baris `email_messages`).
+- ~~**#496**~~ — flow forgot/reset password (caller pertama yang benar-benar
+  meng-enqueue baris `email_messages`). **Selesai** — lihat
+  `identity-access/README.md` §Password reset.
 - **#497** — announcement/notification workflow.
 - **#499** — observability, security test, production readiness gate
   (termasuk automated purge job untuk `email_messages`/`_delivery_attempts`

@@ -204,7 +204,8 @@ describe("database migration runner helpers", () => {
       "018_awcms_mini_object_sync_queue_dispatcher_schema.sql",
       "019_awcms_mini_form_drafts_schema.sql",
       "020_awcms_mini_email_schema.sql",
-      "021_awcms_mini_email_template_i18n_schema.sql"
+      "021_awcms_mini_email_template_i18n_schema.sql",
+      "022_awcms_mini_password_reset_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

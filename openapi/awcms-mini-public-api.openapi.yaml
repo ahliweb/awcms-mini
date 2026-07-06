@@ -758,6 +758,99 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/auth/password/forgot:
+    post:
+      tags:
+        - Identity & Access
+      summary: >-
+        Request a password reset email; always returns a generic response
+        regardless of whether the identifier matches an account
+      operationId: authPasswordForgot
+      security:
+        - tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: >-
+            Generic acknowledgement — does not reveal whether the account
+            exists.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ForgotPasswordResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          description: Too many password reset requests from this source.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/password/reset:
+    post:
+      tags:
+        - Identity & Access
+      summary: Complete a password reset with a valid one-time token
+      operationId: authPasswordReset
+      security:
+        - tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Password reset; all active sessions for the identity are revoked.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ResetPasswordResponse"
+        "400":
+          description: >-
+            Validation error, or the token is invalid/expired/already used
+            (deliberately not distinguished in the response — anti-
+            enumeration, doc 20 §A07 Identification & Auth Failures).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "429":
+          description: Too many password reset attempts from this source.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/access/modules:
     get:
       tags:
@@ -2724,6 +2817,52 @@ components:
       additionalProperties: false
       properties:
         loggedOut:
+          type: boolean
+    ForgotPasswordRequest:
+      type: object
+      required:
+        - loginIdentifier
+      additionalProperties: false
+      properties:
+        loginIdentifier:
+          type: string
+          minLength: 1
+    ForgotPasswordResponse:
+      type: object
+      required:
+        - requested
+        - message
+      additionalProperties: false
+      properties:
+        requested:
+          type: boolean
+        message:
+          type: string
+          description: >-
+            Generic text — never indicates whether loginIdentifier matched
+            an account.
+    ResetPasswordRequest:
+      type: object
+      required:
+        - token
+        - newPassword
+      additionalProperties: false
+      properties:
+        token:
+          type: string
+          minLength: 1
+          writeOnly: true
+        newPassword:
+          type: string
+          minLength: 8
+          writeOnly: true
+    ResetPasswordResponse:
+      type: object
+      required:
+        - reset
+      additionalProperties: false
+      properties:
+        reset:
           type: boolean
           const: true
     MeResponse:

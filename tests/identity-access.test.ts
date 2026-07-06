@@ -18,6 +18,15 @@ import {
   SESSION_COOKIE_NAME,
   TENANT_COOKIE_NAME
 } from "../src/lib/auth/ssr-session";
+import {
+  generatePasswordResetToken,
+  hashPasswordResetToken
+} from "../src/lib/auth/password-reset-token";
+import { evaluatePasswordResetToken } from "../src/modules/identity-access/domain/password-reset-policy";
+import {
+  validateForgotPasswordInput,
+  validateResetPasswordInput
+} from "../src/modules/identity-access/domain/password-reset-validation";
 
 const NOW = new Date("2026-07-05T00:00:00.000Z");
 
@@ -231,5 +240,111 @@ describe("resolveSsrContext (Issue 8.1 — SSR admin shell auth)", () => {
     const cookies = fakeCookies({ [SESSION_COOKIE_NAME]: "some-token" });
 
     await expect(resolveSsrContext(cookies, new Date())).resolves.toBeNull();
+  });
+});
+
+describe("password reset token generation/hashing (Issue #496)", () => {
+  test("generatePasswordResetToken produces a high-entropy, unique token", () => {
+    const a = generatePasswordResetToken();
+    const b = generatePasswordResetToken();
+
+    expect(a).not.toBe(b);
+    expect(a.length).toBeGreaterThan(30);
+  });
+
+  test("hashPasswordResetToken is deterministic and sha256-prefixed", () => {
+    const token = "fixed-test-token";
+    expect(hashPasswordResetToken(token)).toBe(hashPasswordResetToken(token));
+    expect(hashPasswordResetToken(token)).toMatch(/^sha256:[0-9a-f]{64}$/);
+  });
+});
+
+describe("evaluatePasswordResetToken (Issue #496)", () => {
+  const now = new Date("2026-07-05T00:00:00.000Z");
+
+  test("not_found when no row exists", () => {
+    expect(evaluatePasswordResetToken(null, now)).toEqual({
+      outcome: "invalid",
+      reason: "not_found"
+    });
+  });
+
+  test("already_used takes priority when usedAt is set, even if also expired", () => {
+    const result = evaluatePasswordResetToken(
+      {
+        expiresAt: new Date(now.getTime() - 1000),
+        usedAt: new Date(now.getTime() - 500)
+      },
+      now
+    );
+    expect(result).toEqual({ outcome: "invalid", reason: "already_used" });
+  });
+
+  test("expired when expiresAt is in the past and never used", () => {
+    const result = evaluatePasswordResetToken(
+      { expiresAt: new Date(now.getTime() - 1000), usedAt: null },
+      now
+    );
+    expect(result).toEqual({ outcome: "invalid", reason: "expired" });
+  });
+
+  test("valid when unused and not yet expired", () => {
+    const result = evaluatePasswordResetToken(
+      { expiresAt: new Date(now.getTime() + 1000), usedAt: null },
+      now
+    );
+    expect(result).toEqual({ outcome: "valid" });
+  });
+});
+
+describe("validateForgotPasswordInput (Issue #496)", () => {
+  test("accepts a non-empty loginIdentifier", () => {
+    const result = validateForgotPasswordInput({
+      loginIdentifier: "user@example.com"
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  test("rejects a missing loginIdentifier", () => {
+    expect(validateForgotPasswordInput({}).valid).toBe(false);
+  });
+
+  test("rejects an empty-string loginIdentifier", () => {
+    expect(validateForgotPasswordInput({ loginIdentifier: "   " }).valid).toBe(
+      false
+    );
+  });
+});
+
+describe("validateResetPasswordInput (Issue #496)", () => {
+  test("accepts a valid token and password meeting the minimum length", () => {
+    const result = validateResetPasswordInput({
+      token: "some-raw-token",
+      newPassword: "a-strong-password"
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  test("rejects a missing token", () => {
+    const result = validateResetPasswordInput({
+      newPassword: "a-strong-password"
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors.some((error) => error.field === "token")).toBe(true);
+    }
+  });
+
+  test("rejects a newPassword shorter than the minimum length", () => {
+    const result = validateResetPasswordInput({
+      token: "some-raw-token",
+      newPassword: "short"
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors.some((error) => error.field === "newPassword")).toBe(
+        true
+      );
+    }
   });
 });

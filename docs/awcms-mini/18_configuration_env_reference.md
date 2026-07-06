@@ -64,14 +64,17 @@ Legenda: Wajib = perlu untuk boot; Sensitif = jangan bocor ke log/response.
 
 ### Auth & keamanan
 
-| Var                                | Wajib | Default | Sensitif | Fungsi                                          |
-| ---------------------------------- | ----- | ------- | -------- | ----------------------------------------------- |
-| `AUTH_JWT_SECRET`                  | Ya    | –       | Ya       | Signing token sesi                              |
-| `AUTH_SESSION_TTL_MIN`             | –     | `120`   | –        | Umur sesi                                       |
-| `AUTH_COOKIE_SECURE`               | –     | `true`  | –        | Cookie hanya HTTPS di prod                      |
-| `AUTH_LOGIN_MAX_ATTEMPTS`          | –     | `5`     | –        | Lockout login (per identitas)                   |
-| `AUTH_LOGIN_RATE_LIMIT_MAX`        | –     | `20`    | –        | Rate limit login per sumber+tenant (Issue #437) |
-| `AUTH_LOGIN_RATE_LIMIT_WINDOW_SEC` | –     | `60`    | –        | Jendela waktu rate limit login (detik)          |
+| Var                                         | Wajib | Default | Sensitif | Fungsi                                          |
+| ------------------------------------------- | ----- | ------- | -------- | ----------------------------------------------- |
+| `AUTH_JWT_SECRET`                           | Ya    | –       | Ya       | Signing token sesi                              |
+| `AUTH_SESSION_TTL_MIN`                      | –     | `120`   | –        | Umur sesi                                       |
+| `AUTH_COOKIE_SECURE`                        | –     | `true`  | –        | Cookie hanya HTTPS di prod                      |
+| `AUTH_LOGIN_MAX_ATTEMPTS`                   | –     | `5`     | –        | Lockout login (per identitas)                   |
+| `AUTH_LOGIN_RATE_LIMIT_MAX`                 | –     | `20`    | –        | Rate limit login per sumber+tenant (Issue #437) |
+| `AUTH_LOGIN_RATE_LIMIT_WINDOW_SEC`          | –     | `60`    | –        | Jendela waktu rate limit login (detik)          |
+| `AUTH_PASSWORD_RESET_TOKEN_TTL_MIN`         | –     | `30`    | –        | Umur token reset password (Issue #496)          |
+| `AUTH_PASSWORD_RESET_RATE_LIMIT_MAX`        | –     | `5`     | –        | Rate limit forgot/reset per sumber+tenant       |
+| `AUTH_PASSWORD_RESET_RATE_LIMIT_WINDOW_SEC` | –     | `900`   | –        | Jendela waktu rate limit reset password (detik) |
 
 ### Sync & node
 
@@ -176,6 +179,9 @@ AUTH_COOKIE_SECURE=true
 AUTH_LOGIN_MAX_ATTEMPTS=5
 AUTH_LOGIN_RATE_LIMIT_MAX=20
 AUTH_LOGIN_RATE_LIMIT_WINDOW_SEC=60
+AUTH_PASSWORD_RESET_TOKEN_TTL_MIN=30
+AUTH_PASSWORD_RESET_RATE_LIMIT_MAX=5
+AUTH_PASSWORD_RESET_RATE_LIMIT_WINDOW_SEC=900
 
 # Sync
 AWCMS_MINI_NODE_ID=local-dev-node
