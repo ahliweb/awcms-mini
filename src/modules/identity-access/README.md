@@ -76,6 +76,58 @@ Full CRUD di atas fondasi Issue 2.3/2.4 — dulu hanya assignment yang punya end
 - Endpoint cookie-atau-header (`resolveAuthInputs` di `application/access-guard.ts`): menerima `Authorization: Bearer` + header tenant (klien API) **atau** cookie httpOnly SSR (UI admin, yang tidak bisa membaca token httpOnly-nya sendiri untuk menyusun header) — pola yang sama seperti `POST /auth/logout` sejak Issue 8.1, dipusatkan di sini supaya konsisten di lima endpoint baru sekaligus.
 - `src/pages/admin/access-users.astro` — layar admin penuh (tabel user + tabel role, form tambah, form edit permission per role, chip assign/unassign, toggle aktif/nonaktif). Tidak ada framework client-side di proyek ini (Astro + vanilla JS saja, sama seperti tombol logout `AdminLayout.astro`) — satu `<script>` di bawah halaman menangani semua fetch mutasi lalu `location.reload()` sederhana untuk refresh state (bukan patch DOM granular — cukup untuk skala base repo ini).
 
+## Password reset (Issue #496, epic #492)
+
+Flow forgot/reset password lewat email — konsumen nyata pertama modul
+`email` (Issue #493-#495/#498): `POST /api/v1/auth/password/forgot`
+meng-enqueue baris `awcms_mini_email_messages` (kategori
+`auth.password_reset`, sudah punya allowlist variabel dan default
+template EN/ID sejak Issue #498), bukan memanggil Mailketing langsung
+(ADR-0006 — provider dipanggil dispatcher terpisah, `bun run
+email:dispatch`).
+
+- **Skema** — `awcms_mini_password_reset_tokens` (`sql/022`), mirip
+  `awcms_mini_sessions` tapi dengan `used_at` untuk single-use (sesi tidak
+  butuh ini — sesi valid sampai kedaluwarsa/revoke eksplisit, token reset
+  harus tidak bisa dipakai dua kali walau belum kedaluwarsa). Token
+  mentah **tidak pernah** disimpan — hanya `token_hash`
+  (`lib/auth/password-reset-token.ts`, pola identik
+  `session-token.ts`: 32 byte acak, sha256).
+- **Enumeration-safe** — `POST .../forgot` selalu mengembalikan respons
+  200 generik yang identik terlepas apakah `loginIdentifier` cocok
+  identity aktif (`evaluateLoginAttempt`'s "generalisasi pesan generik"
+  precedent di atas, diterapkan ke respons sukses alih-alih 401).
+  `POST .../reset` juga tidak pernah membedakan pesan untuk token yang
+  tidak ditemukan/kedaluwarsa/sudah dipakai — `domain/
+password-reset-policy.ts`'s `evaluatePasswordResetToken` (pure,
+  murni, pola sama `login-policy.ts`) mengevaluasi ketiganya, tapi
+  endpoint memetakan semuanya ke satu pesan generik yang sama. Audit
+  log (bukan respons) **tetap** mencatat alasan spesifik — audit log
+  adalah permukaan akses terbatas, bukan user-facing, jadi mencatat
+  detail di sana tidak melemahkan proteksi enumerasi publik.
+- **Supersede token lama** — setiap request baru menandai semua token
+  outstanding identity itu sebagai `used_at = now()` sebelum membuat
+  yang baru; hanya link reset terbaru yang pernah valid.
+- **Invalidasi sesi setelah reset** — `application/session-revocation.ts`'s
+  `revokeAllSessionsForIdentity` (fungsi baru; sebelumnya hanya ada logout
+  satu-sesi) dipanggil setelah `password_hash` diperbarui, sehingga sesi
+  yang sudah dicuri tidak bisa bertahan melewati pergantian kredensial.
+- **Rate limit** — `AUTH_PASSWORD_RESET_RATE_LIMIT_MAX`/`_WINDOW_SEC`
+  (default 5/900 detik, lebih ketat dari login's 20/60 karena endpoint ini
+  memicu DB write + email enqueue dan endpoint reset membuka permukaan
+  tebak-token), reuse `checkRateLimit` (`lib/security/rate-limit.ts`,
+  Issue #437) dengan key `${clientIp}:${tenantId}:password-forgot`/
+  `:password-reset` — namespace terpisah dari login supaya tidak berbagi
+  budget dengan endpoint lain.
+- **Audit** — `password_reset_requested` (selalu, `attributes.identityFound`
+  menyimpan hasil sungguhan tanpa memengaruhi respons publik),
+  `password_reset_failed` (alasan spesifik di `attributes.reason`),
+  `password_reset_completed`.
+- **UI halaman reset-password** sengaja **tidak** dibuat pada issue ini
+  (ditandai eksplisit "optional... if consistent" di issue) — hanya API
+  layer; `resetUrl` yang dikirim mengarah ke `${APP_URL}/reset-password`,
+  path yang belum punya halaman Astro sungguhan.
+
 ## Catatan operasional: CSRF `checkOrigin` Astro
 
 Astro secara default menolak (403, tanpa body) permintaan `POST`/`PUT`/`PATCH`/`DELETE` tanpa header `Content-Type` sebagai potential cross-site form submission (`security.checkOrigin`). Klien **wajib** mengirim `Content-Type: application/json` pada `POST /auth/logout` walau body-nya kosong — ditemukan saat verifikasi live (curl/fetch tanpa `Content-Type` mendapat 403 sebelum request mencapai handler).

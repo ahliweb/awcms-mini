@@ -36,7 +36,8 @@ export type UpdateRoleInput = {
 type Result<T> =
   { valid: true; value: T } | { valid: false; errors: ValidationError[] };
 
-const MIN_PASSWORD_LENGTH = 8;
+/** Reused by `password-reset-validation.ts` (Issue #496) — single source of truth for the password policy. */
+export const MIN_PASSWORD_LENGTH = 8;
 const ROLE_CODE_PATTERN = /^[a-z][a-z0-9_]*$/;
 const USER_STATUSES = new Set(["active", "inactive"]);
 const UUID_PATTERN =
