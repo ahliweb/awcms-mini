@@ -34,4 +34,4 @@ Layout shell (admin/POS/portal) dan tabel route→persona→API ada di doc 14 §
 
 ## Skill terkait
 
-`awcms-mini-new-endpoint` (kontrak API), `awcms-mini-i18n` (katalog `.po`, locale, formatter), `awcms-mini-sensitive-data` (masking), `awcms-mini-testing` (render/state test), `awcms-mini-ux-review` (audit layar yang sudah ada).
+`awcms-mini-new-endpoint` (kontrak API), `awcms-mini-i18n` (katalog `.po`, locale, formatter), `awcms-mini-sensitive-data` (masking), `awcms-mini-testing` (render/state test), `awcms-mini-ux-review` (audit layar yang sudah ada), `awcms-mini-wizard-form` (form multi-step — identitas/detail/lampiran/review sebelum submit).

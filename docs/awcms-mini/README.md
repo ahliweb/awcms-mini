@@ -215,7 +215,7 @@ Kontribusi baru masuk salah satu dari dua jalur:
 3. Migration PostgreSQL + RLS tenant-scoped — skill `awcms-mini-new-migration`.
 4. Seed RBAC/ABAC domain (doc 17) — permission/role/policy khusus domain.
 5. Endpoint REST + OpenAPI — skill `awcms-mini-new-endpoint`; domain event + AsyncAPI — skill `awcms-mini-new-event`.
-6. UI/admin screen sesuai design system (doc 14/15) — skill `awcms-mini-ui-screen`; string via i18n — skill `awcms-mini-i18n`.
+6. UI/admin screen sesuai design system (doc 14/15) — skill `awcms-mini-ui-screen`; string via i18n — skill `awcms-mini-i18n`; form multi-step — skill `awcms-mini-wizard-form`.
 7. Audit/logging aksi high-risk — skill `awcms-mini-audit-log`; idempotency mutation high-risk — skill `awcms-mini-idempotency`.
 8. Test berlapis — skill `awcms-mini-testing`; review keamanan — skill `awcms-mini-security-review`.
 9. Deployment & go-live — skill `awcms-mini-production-preflight`; pilih & jalankan profil deployment — skill `awcms-mini-deploy` (`deployment-profiles.md`, atau `deploy-coolify.md` bila Coolify).

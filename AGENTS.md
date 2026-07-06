@@ -110,6 +110,7 @@ AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode sta
 | Preflight & go-live                                                | `awcms-mini-production-preflight` |
 | Pilih & jalankan profil deployment (LAN-first vs registry/Coolify) | `awcms-mini-deploy`               |
 | Layar/komponen UI sesuai design system                             | `awcms-mini-ui-screen`            |
+| Form multi-step (reusable wizard pattern)                          | `awcms-mini-wizard-form`          |
 | String UI `.po` gettext & konten multi-bahasa                      | `awcms-mini-i18n`                 |
 | Rilis versi (Changesets, tag, CHANGELOG)                           | `awcms-mini-release`              |
 | Migrasi data legacy (dry-run, backfill)                            | `awcms-mini-legacy-migration`     |
@@ -146,6 +147,8 @@ flowchart LR
   PF --> DEP[deploy]
   UI2[ui-screen] --> UXR[ux-review]
   UI2 --> I18N[i18n]
+  UI2 --> WIZ[wizard-form]
+  WIZ --> IDEM
   EP --> PERF[performance]
   EP --> INT[integration]
   SEC --> HARD[security-hardening]
@@ -224,7 +227,7 @@ awcms-mini/
 ├── AGENTS.md                # file ini
 ├── CHANGELOG.md             # versioning (Changesets)
 ├── .changeset/              # config + changeset entries
-├── .claude/skills/          # 24 skill proyek (implement-issue, new-migration, dst.)
+├── .claude/skills/          # 25 skill proyek (implement-issue, new-migration, dst.)
 ├── .claude/agents/          # subagents (coder, reviewer, security-auditor)
 ├── README.md
 ├── package.json
