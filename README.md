@@ -137,7 +137,7 @@ flowchart LR
 
 ### Mulai dari
 
-Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/awcms-mini/06_github_issues_detail.md) — **seluruh 18 issue-nya kini tuntas**: foundation (**0.1-0.3**), epic M2 Tenant/Identity/Profile (**2.1-2.4**), **12.1** (setup wizard), epic M5 Sync Storage (**6.1-6.3**), epic M7 UI/UX & Reporting (**8.1**, **9.1**), dan epic M8 Security/Performance/Production (**10.1-10.3**, **11.1**, **12.2**). Base ini siap dipakai sebagai fondasi aplikasi turunan — lihat paket dokumen AWPOS sebagai contoh pola menambah modul domain di atas base ini (§Reusable vs domain turunan di [`docs/awcms-mini/README.md`](docs/awcms-mini/README.md)).
+Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/awcms-mini/06_github_issues_detail.md) — **seluruh 18 issue-nya kini tuntas**: foundation (**0.1-0.3**), epic M2 Tenant/Identity/Profile (**2.1-2.4**), **12.1** (setup wizard), epic M5 Sync Storage (**6.1-6.3**), epic M7 UI/UX & Reporting (**8.1**, **9.1**), dan epic M8 Security/Performance/Production (**10.1-10.3**, **11.1**, **12.2**). Base ini siap dipakai sebagai fondasi aplikasi turunan — panduan langkah-demi-langkah (9 langkah berbasis skill nyata, 5 contoh aplikasi ilustratif, checklist keamanan): [`docs/awcms-mini/derived-application-guide.md`](docs/awcms-mini/derived-application-guide.md).
 
 ## Keamanan
 
