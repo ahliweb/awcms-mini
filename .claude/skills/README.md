@@ -6,26 +6,28 @@ Skill Claude Code tingkat-proyek untuk AWCMS-Mini. Setiap skill meng-encode stan
 
 ## Katalog
 
-| Skill                                                  | Kapan dipakai                                             | Sumber docs    |
-| ------------------------------------------------------ | --------------------------------------------------------- | -------------- |
-| `awcms-mini-implement-issue`                           | Orkestrator: kerjakan satu issue/sprint atomic end-to-end | 06, 11, 12     |
-| `awcms-mini-new-module`                                | Scaffold modul baru di `src/modules/`                     | 10, 11         |
-| `awcms-mini-new-migration`                             | Buat/ubah migration SQL (tabel, index, RLS)               | 04, 10         |
-| `awcms-mini-new-endpoint`                              | Tambah/ubah endpoint REST + OpenAPI                       | 05, 10         |
-| `awcms-mini-new-event`                                 | Tambah/ubah domain event + AsyncAPI                       | 05             |
-| `awcms-mini-idempotency`                               | Mutation high-risk anti double-submit                     | 10             |
-| `awcms-mini-abac-guard`                                | Kontrol akses default-deny + RLS                          | 03, 10         |
-| `awcms-mini-audit-log`                                 | Audit aksi high-risk + redaction                          | 03, 10         |
-| `awcms-mini-new-migration` + `awcms-mini-new-endpoint` | Soft delete/restore/purge resource deletable              | 04, 05, 10, 16 |
-| `awcms-mini-sensitive-data`                            | Normalize/hash/mask identifier sensitif                   | 04             |
-| `awcms-mini-sync-hmac`                                 | Sync push/pull bertanda HMAC + anti-replay                | 08, 10         |
-| `awcms-mini-security-review`                           | Review keamanan modul                                     | 12, 13         |
-| `awcms-mini-pr-review`                                 | Review pull request terhadap DoD                          | 09, 10, 12     |
-| `awcms-mini-testing`                                   | Tulis test berlapis (unit→security)                       | 07             |
-| `awcms-mini-production-preflight`                      | Preflight & go-live readiness                             | 07, 12         |
-| `awcms-mini-ui-screen`                                 | Implementasi layar/komponen UI sesuai design system       | 14, 15         |
-| `awcms-mini-release`                                   | Rilis versi via Changesets (bump, CHANGELOG, tag)         | 09             |
-| `awcms-mini-legacy-migration`                          | Migrasi data legacy aman (dry-run, backfill)              | 07, 06         |
+| Skill                                                  | Kapan dipakai                                                               | Sumber docs    |
+| ------------------------------------------------------ | --------------------------------------------------------------------------- | -------------- |
+| `awcms-mini-implement-issue`                           | Orkestrator: kerjakan satu issue/sprint atomic end-to-end                   | 06, 11, 12     |
+| `awcms-mini-new-module`                                | Scaffold modul baru di `src/modules/`                                       | 10, 11         |
+| `awcms-mini-new-migration`                             | Buat/ubah migration SQL (tabel, index, RLS)                                 | 04, 10         |
+| `awcms-mini-new-endpoint`                              | Tambah/ubah endpoint REST + OpenAPI                                         | 05, 10         |
+| `awcms-mini-new-event`                                 | Tambah/ubah domain event + AsyncAPI                                         | 05             |
+| `awcms-mini-idempotency`                               | Mutation high-risk anti double-submit                                       | 10             |
+| `awcms-mini-abac-guard`                                | Kontrol akses default-deny + RLS                                            | 03, 10         |
+| `awcms-mini-audit-log`                                 | Audit aksi high-risk + redaction                                            | 03, 10         |
+| `awcms-mini-observability`                             | Correlation ID otomatis, retensi/purge audit log, extension point log/audit | 10, 16, 20     |
+| `awcms-mini-new-migration` + `awcms-mini-new-endpoint` | Soft delete/restore/purge resource deletable                                | 04, 05, 10, 16 |
+| `awcms-mini-sensitive-data`                            | Normalize/hash/mask identifier sensitif                                     | 04             |
+| `awcms-mini-sync-hmac`                                 | Sync push/pull bertanda HMAC + anti-replay                                  | 08, 10         |
+| `awcms-mini-security-review`                           | Review keamanan modul                                                       | 12, 13         |
+| `awcms-mini-pr-review`                                 | Review pull request terhadap DoD                                            | 09, 10, 12     |
+| `awcms-mini-testing`                                   | Tulis test berlapis (unit→security)                                         | 07             |
+| `awcms-mini-production-preflight`                      | Preflight & go-live readiness                                               | 07, 12         |
+| `awcms-mini-ui-screen`                                 | Implementasi layar/komponen UI sesuai design system                         | 14, 15         |
+| `awcms-mini-i18n`                                      | String UI `.po` gettext & konten multi-bahasa                               | 14, 04, 19     |
+| `awcms-mini-release`                                   | Rilis versi via Changesets (bump, CHANGELOG, tag)                           | 09             |
+| `awcms-mini-legacy-migration`                          | Migrasi data legacy aman (dry-run, backfill)                                | 07, 06         |
 
 ## Katalog peningkatan (improvement/hardening)
 
@@ -50,9 +52,12 @@ flowchart TD
   EP --> ABAC[awcms-mini-abac-guard]
   EP --> IDEM[awcms-mini-idempotency]
   ABAC --> AUD[awcms-mini-audit-log]
+  AUD --> OBS[awcms-mini-observability]
+  EP --> OBS
   EP --> SD[awcms-mini-sensitive-data]
   EV --> SYNC[awcms-mini-sync-hmac]
   II --> UI[awcms-mini-ui-screen]
+  UI --> I18N[awcms-mini-i18n]
   II --> LEG[awcms-mini-legacy-migration]
   II --> PR[awcms-mini-pr-review]
   PR --> SEC[awcms-mini-security-review]
@@ -62,7 +67,9 @@ flowchart TD
   UI --> UXR[awcms-mini-ux-review]
   EP --> PERF[awcms-mini-performance]
   EP --> INT[awcms-mini-integration]
+  INT --> OBS
   SEC --> HARD[awcms-mini-security-hardening]
+  HARD --> OBS
   PERF --> PF
   HARD --> PF
 ```

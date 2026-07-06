@@ -46,4 +46,8 @@ Login failed/success · access assignment · profile merge · product price chan
 - Aksi high-risk menghasilkan satu audit event.
 - Soft delete, restore, dan purge menghasilkan audit event terpisah.
 - Tidak ada secret/PII mentah di kolom attributes.
-- Retention audit: 1–5 tahun sesuai kebutuhan.
+- Retention audit: 1–5 tahun sesuai kebutuhan — mekanisme purge nyata (`purgeExpiredAuditEvents`, default 730 hari, `bun run logs:audit:purge`) sudah tersedia sejak Issue #447, JANGAN buat mekanisme purge baru untuk `awcms_mini_audit_events`, lihat `awcms-mini-observability`.
+
+## Correlation ID & extension point
+
+Sejak Issue #447: `correlationId` pada `AuditEventInput` cukup diisi dari `context.locals.correlationId` (jangan generate UUID baru sendiri); dan setiap `recordAuditEvent` sukses otomatis memanggil extension point `AuditExportHook` bila terpasang (default no-op) — lihat `awcms-mini-observability` untuk aturan lengkap sebelum memasang/mengimplementasikan consumer di titik itu.
