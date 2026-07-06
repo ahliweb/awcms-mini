@@ -15,25 +15,25 @@ import {
   rewindWizard,
   toFieldErrorMap,
   type WizardFieldError,
-  type WizardStepDefinition
+  type WizardStepDefinition,
 } from "../src/lib/ui/wizard-client";
 
 const steps: WizardStepDefinition[] = [
   {
     key: "basic",
     title: "Basic",
-    fields: ["title"]
+    fields: ["title"],
   },
   {
     key: "participants",
     title: "Participants",
-    fields: ["participants"]
+    fields: ["participants"],
   },
   {
     key: "review",
     title: "Review",
-    fields: []
-  }
+    fields: [],
+  },
 ];
 
 describe("wizard client helper", () => {
@@ -47,20 +47,20 @@ describe("wizard client helper", () => {
       current: 1,
       total: 3,
       percent: 33,
-      activeStep: steps[0]
+      activeStep: steps[0],
     });
   });
 
   test("rejects empty and duplicate step definitions", () => {
     expect(() => createWizardState([])).toThrow(
-      "Wizard must define at least one step."
+      "Wizard must define at least one step.",
     );
 
     expect(() =>
       createWizardState([
         { key: "basic", title: "Basic", fields: [] },
-        { key: "basic", title: "Duplicate", fields: [] }
-      ])
+        { key: "basic", title: "Duplicate", fields: [] },
+      ]),
     ).toThrow("Duplicate wizard step key: basic");
   });
 
@@ -75,7 +75,7 @@ describe("wizard client helper", () => {
     expect(getActiveWizardStep(result.state).key).toBe("basic");
     expect(hasFieldError(result.state, "title")).toBe(true);
     expect(getFieldErrors(result.state, "title")).toEqual([
-      "Title is required."
+      "Title is required.",
     ]);
   });
 
@@ -119,10 +119,10 @@ describe("wizard client helper", () => {
       toFieldErrorMap([
         { field: "title", message: "Title is required." },
         { field: "title", message: "Title is too short." },
-        { field: "", message: "Ignored." }
-      ])
+        { field: "", message: "Ignored." },
+      ]),
     ).toEqual({
-      title: ["Title is required.", "Title is too short."]
+      title: ["Title is required.", "Title is too short."],
     });
 
     expect(
@@ -130,8 +130,8 @@ describe("wizard client helper", () => {
         { field: "title", message: "Title is required." },
         { field: "ignored", message: "" },
         { message: "Missing field." },
-        null
-      ])
+        null,
+      ]),
     ).toEqual([{ field: "title", message: "Title is required." }]);
   });
 
