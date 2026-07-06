@@ -5,20 +5,20 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-05T19:20:00Z            |
-| Total issue  | 38                              |
-| Open issue   | 0                               |
-| Closed issue | 38                              |
+| Snapshot     | 2026-07-06T13:39:59Z            |
+| Total issue  | 55                              |
+| Open issue   | 5                               |
+| Closed issue | 50                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
-| Milestones   | 24 (5 doc 06 + 19 peninggalan)  |
+| Milestones   | 25 (6 doc 06 + 19 peninggalan)  |
 
 ## File snapshot
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    0 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   38 |
-| LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 24 milestones |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    5 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   50 |
+| LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 25 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
 ## Aturan pencatatan
@@ -42,10 +42,34 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                                                                                                                                   |
-| ------ | -----: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |      0 | **Tidak ada issue open** — seluruh 18 issue backlog base generik `docs/awcms-mini/06_github_issues_detail.md` sudah `completed`.                                                                                                                          |
-| CLOSED |     38 | 20 issue domain ditutup `not planned`; #371-#373, #376-#379, #391-#393, #398, #401, #403-#406, #407, dan #408 ditutup `completed` setelah Issue 0.1-0.3, epic M2 (2.1-2.4), 12.1, epic M5 (6.1-6.3), epic M7 (8.1-9.1), 10.1, 10.2, 10.3, 11.1, dan 12.2. |
+| State  | Jumlah | Catatan                                                                                                                                                                                                                                                                                                   |
+| ------ | -----: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |      5 | #461-#465 — issue docs/tooling/planning pasca-analisis lanjutan (refresh snapshot, tooling snapshot, panduan deploy Coolify, contoh modul domain minimal, rencana pilot aplikasi turunan). Bukan bagian backlog doc06 (18 issue itu sudah `completed` seluruhnya).                                        |
+| CLOSED |     50 | 20 issue domain ditutup `not planned`; 18 issue backlog doc06 (#371-#373, #376-#379, #391-#393, #398, #401, #403-#408) ditutup `completed`; epic M9 (#433-#438, #447, 7 issue) dan 5 issue pasca-analisis lanjutan pertama (#450-#454) ditutup `completed` di luar backlog doc06 — lihat bagian di bawah. |
+
+### Issue pasca-analisis #450-#454 completed (2026-07-06)
+
+Lima issue perbaikan/perluasan di luar backlog doc06, dibuat setelah analisis repo pasca-M9 dan semuanya ditutup `completed` pada hari yang sama:
+
+- **[#450](https://github.com/ahliweb/awcms-mini/issues/450)** — sinkronisasi `AGENTS.md`/`docs/awcms-mini/README.md`/`docs/ARCHITECTURE.md`/`src/lib/README.md` agar tidak lagi terbaca seolah base masih di tengah foundation ("Kerjakan Issue 0.1", "modul belum diimplementasikan"); arsip bootstrap di doc 12/13 diberi banner status, bukan dihapus.
+- **[#451](https://github.com/ahliweb/awcms-mini/issues/451)** — ADR-0008: tiga skema SemVer independen (rilis package, kontrak OpenAPI/AsyncAPI, module descriptor). Kontrak dinaikkan `0.1.0` → `1.0.0`; ketujuh module descriptor `experimental` → `active`. `api:spec:check` kini memvalidasi `info.version` berbentuk SemVer.
+- **[#452](https://github.com/ahliweb/awcms-mini/issues/452)** — CodeQL matrix diperluas dari `actions` saja menjadi `actions` + `javascript-typescript` (`build-mode: none`, Bun-only). Dua temuan nyata dari scan pertama (`js/unused-local-variable`, `js/file-system-race`) diperbaiki dan dikonfirmasi `state: fixed` — lihat `security.md`.
+- **[#453](https://github.com/ahliweb/awcms-mini/issues/453)** — `docs/awcms-mini/derived-application-guide.md` baru: tabel base-reusable vs domain-specific, alur 9 langkah berbasis skill nyata, 5 contoh aplikasi turunan ilustratif, checklist keamanan.
+- **[#454](https://github.com/ahliweb/awcms-mini/issues/454)** — `Dockerfile.production` opsional (registry-based deployment, berdampingan dengan `docker-compose.yml` LAN-first) — diverifikasi nyata: `docker build` + `docker run` terhadap Postgres nyata, non-root user dikonfirmasi, `GET /api/v1/health` → 200, `POST /setup/initialize` menulis baris nyata.
+
+### Epic M9 — Peningkatan & Hardening pasca-backlog tuntas (2026-07-06)
+
+Milestone M9 (5 anak issue peningkatan pasca-backlog v0.22.0, epic [#438](https://github.com/ahliweb/awcms-mini/issues/438)) dan satu issue lanjutan berdiri sendiri di milestone yang sama, seluruhnya `completed`:
+
+- **[#433](https://github.com/ahliweb/awcms-mini/issues/433)** — runtime i18n (katalog `.po` gettext, default `en`, min en+id).
+- **[#434](https://github.com/ahliweb/awcms-mini/issues/434)** — audit UX/UI & aksesibilitas WCAG 2.1 AA atas layar admin yang sudah ada.
+- **[#435](https://github.com/ahliweb/awcms-mini/issues/435)** — audit performa (index RLS-aware, N+1 dihilangkan, keyset pagination — diukur `EXPLAIN ANALYZE` sebelum/sesudah).
+- **[#436](https://github.com/ahliweb/awcms-mini/issues/436)** — dispatcher object sync queue nyata + kerasan integrasi eksternal (circuit breaker per-provider, timeout).
+- **[#437](https://github.com/ahliweb/awcms-mini/issues/437)** — security hardening berbasis standar (matrix kepatuhan OWASP Top 10/ASVS/ISO 27001).
+- **[#438](https://github.com/ahliweb/awcms-mini/issues/438)** — epic tracking, ditutup setelah 5/5 anak issue selesai.
+- **[#447](https://github.com/ahliweb/awcms-mini/issues/447)** — aktivasi sistem log & manajemennya (correlation ID otomatis lintas endpoint, retensi/purge audit log terjadwal, extension point observability) — issue berdiri sendiri, bukan bagian 5 anak epic #438.
+
+Detail lengkap tiap issue: `CHANGELOG.md` (versi 0.23.0-0.23.5) dan `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` §Perawatan pasca-backlog.
 
 ### Offline/LAN deployment profile 12.2 completed — seluruh backlog base generik tuntas (2026-07-05)
 
