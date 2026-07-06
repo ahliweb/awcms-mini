@@ -2,25 +2,25 @@
 
 Snapshot: 2026-07-05T00:05:58Z
 
-Dokumen ini mencatat konfigurasi GitHub Security untuk `ahliweb/awcms-mini` sesuai baseline repo: Bun + Astro 7 + PostgreSQL, docs-only sampai scaffold Issue 0.1 tersedia.
+Dokumen ini mencatat konfigurasi GitHub Security untuk `ahliweb/awcms-mini`: Bun + Astro 7 + PostgreSQL, base generik selesai (v0.23.5). Baris konfigurasi diperbarui saat setup berubah (baris CodeQL code scanning disegarkan untuk Issue #452 — coverage `javascript-typescript`); metrik point-in-time (alert count, commit run) mengikuti timestamp snapshot di atas dan disegarkan lewat §Proses Refresh.
 
 ## Ringkasan Live State
 
-| Kontrol                               | Status                                                                                                                                        |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Repository visibility                 | Public                                                                                                                                        |
-| Viewer permission saat setup          | Admin                                                                                                                                         |
-| Security policy                       | Ditambahkan lewat `SECURITY.md`                                                                                                               |
-| Dependabot alerts                     | Enabled                                                                                                                                       |
-| Dependabot security updates           | Enabled                                                                                                                                       |
-| Dependabot version updates            | Ditambahkan lewat `.github/dependabot.yml`                                                                                                    |
-| Secret scanning                       | Enabled                                                                                                                                       |
-| Secret scanning push protection       | Enabled                                                                                                                                       |
-| Secret scanning non-provider patterns | Disabled pada GitHub saat setup                                                                                                               |
-| Secret scanning validity checks       | Disabled pada GitHub saat setup                                                                                                               |
-| Code scanning                         | Enabled lewat `.github/workflows/codeql.yml` untuk GitHub Actions; default setup `not-configured` agar tidak konflik dengan advanced workflow |
-| Private vulnerability reporting       | Enabled; gunakan link GitHub advisory di `SECURITY.md`                                                                                        |
-| Latest CodeQL run                     | Success pada `main` commit `17a851f`                                                                                                          |
+| Kontrol                               | Status                                                                                                                                                                                                              |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repository visibility                 | Public                                                                                                                                                                                                              |
+| Viewer permission saat setup          | Admin                                                                                                                                                                                                               |
+| Security policy                       | Ditambahkan lewat `SECURITY.md`                                                                                                                                                                                     |
+| Dependabot alerts                     | Enabled                                                                                                                                                                                                             |
+| Dependabot security updates           | Enabled                                                                                                                                                                                                             |
+| Dependabot version updates            | Ditambahkan lewat `.github/dependabot.yml`                                                                                                                                                                          |
+| Secret scanning                       | Enabled                                                                                                                                                                                                             |
+| Secret scanning push protection       | Enabled                                                                                                                                                                                                             |
+| Secret scanning non-provider patterns | Disabled pada GitHub saat setup                                                                                                                                                                                     |
+| Secret scanning validity checks       | Disabled pada GitHub saat setup                                                                                                                                                                                     |
+| Code scanning                         | Enabled lewat `.github/workflows/codeql.yml` untuk GitHub Actions **dan** `javascript-typescript` (source TypeScript/Astro, Issue #452); default setup `not-configured` agar tidak konflik dengan advanced workflow |
+| Private vulnerability reporting       | Enabled; gunakan link GitHub advisory di `SECURITY.md`                                                                                                                                                              |
+| Latest CodeQL run                     | Success pada `main` commit `17a851f`                                                                                                                                                                                |
 
 ## Alert Count Saat Setup
 
@@ -32,12 +32,12 @@ Dokumen ini mencatat konfigurasi GitHub Security untuk `ahliweb/awcms-mini` sesu
 
 ## File Yang Menjadi Standar
 
-| File                                 | Fungsi                                                                                                                                  |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `SECURITY.md`                        | Instruksi pelaporan vulnerability dan baseline kontrol keamanan.                                                                        |
-| `.github/dependabot.yml`             | Dependabot weekly untuk ecosystem `bun` dan `github-actions`.                                                                           |
-| `.github/workflows/codeql.yml`       | CodeQL advanced setup untuk GitHub Actions pada baseline docs-only; tambah `javascript-typescript` setelah scaffold Astro/Bun tersedia. |
-| `docs/awcms-mini/github/security.md` | Snapshot audit konfigurasi security repo.                                                                                               |
+| File                                 | Fungsi                                                                                                                                                                                           |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SECURITY.md`                        | Instruksi pelaporan vulnerability dan baseline kontrol keamanan.                                                                                                                                 |
+| `.github/dependabot.yml`             | Dependabot weekly untuk ecosystem `bun` dan `github-actions`.                                                                                                                                    |
+| `.github/workflows/codeql.yml`       | CodeQL advanced setup: matrix `actions` + `javascript-typescript` (`build-mode: none`, no-build source extraction, Bun-only) dengan query `security-extended,security-and-quality` (Issue #452). |
+| `docs/awcms-mini/github/security.md` | Snapshot audit konfigurasi security repo.                                                                                                                                                        |
 
 ## Catatan Bun
 
