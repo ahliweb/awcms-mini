@@ -17,7 +17,7 @@ export type WizardValidationResult = {
 
 export type WizardValidator<TPayload extends Record<string, unknown>> = (
   step: WizardStepDefinition,
-  payload: Readonly<TPayload>
+  payload: Readonly<TPayload>,
 ) => WizardFieldError[];
 
 export type WizardState = {
@@ -33,7 +33,7 @@ export type WizardAdvanceResult =
 
 export function createWizardState(
   steps: readonly WizardStepDefinition[],
-  activeStepKey?: string
+  activeStepKey?: string,
 ): WizardState {
   const normalizedSteps = normalizeWizardSteps(steps);
   const activeStepIndex = activeStepKey
@@ -48,12 +48,12 @@ export function createWizardState(
     steps: normalizedSteps,
     activeStepIndex,
     completedStepKeys: [],
-    fieldErrors: {}
+    fieldErrors: {},
   };
 }
 
 export function normalizeWizardSteps(
-  steps: readonly WizardStepDefinition[]
+  steps: readonly WizardStepDefinition[],
 ): readonly WizardStepDefinition[] {
   if (steps.length === 0) {
     throw new Error("Wizard must define at least one step.");
@@ -78,7 +78,7 @@ export function normalizeWizardSteps(
   return steps.map((step) => ({
     ...step,
     key: step.key.trim(),
-    title: step.title.trim()
+    title: step.title.trim(),
   }));
 }
 
@@ -105,7 +105,7 @@ export function getWizardProgress(state: WizardState): {
     current,
     total,
     percent: Math.round((current / total) * 100),
-    activeStep: getActiveWizardStep(state)
+    activeStep: getActiveWizardStep(state),
   };
 }
 
@@ -117,24 +117,26 @@ export function canGoForward(state: WizardState): boolean {
   return state.activeStepIndex < state.steps.length - 1;
 }
 
-export function validateCurrentWizardStep<TPayload extends Record<string, unknown>>(
+export function validateCurrentWizardStep<
+  TPayload extends Record<string, unknown>,
+>(
   state: WizardState,
   payload: Readonly<TPayload>,
-  validator: WizardValidator<TPayload>
+  validator: WizardValidator<TPayload>,
 ): WizardValidationResult {
   const activeStep = getActiveWizardStep(state);
   const errors = validator(activeStep, payload);
 
   return {
     valid: errors.length === 0,
-    errors
+    errors,
   };
 }
 
 export function advanceWizard<TPayload extends Record<string, unknown>>(
   state: WizardState,
   payload: Readonly<TPayload>,
-  validator: WizardValidator<TPayload>
+  validator: WizardValidator<TPayload>,
 ): WizardAdvanceResult {
   const activeStep = getActiveWizardStep(state);
   const validation = validateCurrentWizardStep(state, payload, validator);
@@ -144,15 +146,15 @@ export function advanceWizard<TPayload extends Record<string, unknown>>(
       advanced: false,
       state: {
         ...state,
-        fieldErrors: toFieldErrorMap(validation.errors)
+        fieldErrors: toFieldErrorMap(validation.errors),
       },
-      errors: validation.errors
+      errors: validation.errors,
     };
   }
 
   const completedStepKeys = uniqueStrings([
     ...state.completedStepKeys,
-    activeStep.key
+    activeStep.key,
   ]);
 
   return {
@@ -163,8 +165,8 @@ export function advanceWizard<TPayload extends Record<string, unknown>>(
         ? state.activeStepIndex + 1
         : state.activeStepIndex,
       completedStepKeys,
-      fieldErrors: {}
-    }
+      fieldErrors: {},
+    },
   };
 }
 
@@ -176,13 +178,13 @@ export function rewindWizard(state: WizardState): WizardState {
   return {
     ...state,
     activeStepIndex: state.activeStepIndex - 1,
-    fieldErrors: {}
+    fieldErrors: {},
   };
 }
 
 export function jumpToWizardStep(
   state: WizardState,
-  stepKey: string
+  stepKey: string,
 ): WizardState {
   const targetIndex = state.steps.findIndex((step) => step.key === stepKey);
 
@@ -202,12 +204,12 @@ export function jumpToWizardStep(
   return {
     ...state,
     activeStepIndex: targetIndex,
-    fieldErrors: {}
+    fieldErrors: {},
   };
 }
 
 export function toFieldErrorMap(
-  errors: readonly WizardFieldError[]
+  errors: readonly WizardFieldError[],
 ): Readonly<Record<string, readonly string[]>> {
   const map: Record<string, string[]> = {};
 
@@ -223,7 +225,7 @@ export function toFieldErrorMap(
 }
 
 export function mapValidationDetailsToFieldErrors(
-  details: unknown
+  details: unknown,
 ): WizardFieldError[] {
   if (!Array.isArray(details)) {
     return [];
@@ -248,7 +250,7 @@ export function mapValidationDetailsToFieldErrors(
 
 export function getFieldErrors(
   state: WizardState,
-  field: string
+  field: string,
 ): readonly string[] {
   return state.fieldErrors[field] ?? [];
 }
