@@ -38,6 +38,13 @@ mekanis lewat `gh` CLI (tidak pernah membaca/menyimpan token sendiri):
 Tinjau bagian-bagian ini manual setelah menjalankan script bila ada
 issue/label/milestone baru yang butuh konteks naratif.
 
+**Catatan (Issue #475):** bila CodeQL run terbaru untuk `main` masih
+`in_progress`/`queued` (mis. baru saja push/merge), baris "Latest CodeQL
+run" di `security.md` **sengaja tidak diperbarui** — script mencetak
+peringatan di console dan membiarkan nilai lama, bukan menebak status
+run yang belum selesai sebagai `Failure`. Jalankan ulang script beberapa
+menit kemudian bila baris itu perlu nilai terbaru.
+
 ## Alur
 
 ```mermaid
