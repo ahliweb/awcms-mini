@@ -6,6 +6,20 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 ## [Unreleased]
 
+## [0.23.4] - 2026-07-06
+
+### Added
+
+- **Security hardening berbasis standar OWASP Top 10 / ASVS / ISO 27001** (Issue #437, milestone M9 — pakai skill `awcms-mini-security-hardening`, issue terakhir epic M9): matrix kepatuhan baru di `docs/awcms-mini/20_threat_model_security_architecture.md` §"Matrix kepatuhan OWASP / ASVS / ISO 27001" memetakan kontrol yang sudah ada (ABAC default-deny, RLS FORCE, audit append-only, redaction, argon2id, HMAC sync) ke OWASP Top 10 (2021) 10/10 terpenuhi, ASVS L1/L2 8/8 area terpenuhi, dan ISO/IEC 27001:2022 Annex A 9/10 terpenuhi (1 di luar scope kode: A.8.16 monitoring/SIEM terpusat, tanggung jawab lapisan operasional aplikasi turunan) — setiap baris disertai bukti konkret (path file/fungsi/query), bukan asumsi.
+- **Security response headers** (`src/lib/security/security-headers.ts`, dipasang di `src/middleware.ts` untuk setiap response): `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, `Strict-Transport-Security` (digerbang `APP_ENV=production`). Sebelumnya tidak satupun ada — gap nyata ditemukan lewat grep repo, ditutup di PR ini.
+- **Content-Security-Policy** memakai fitur bawaan Astro `security.csp` (`astro.config.mjs`), bukan nonce/hash manual. Dua pendekatan manual dicoba lebih dulu dan dibatalkan setelah verifikasi **headless-Chrome/CDP nyata** (curl tidak bisa mendeteksi pelanggaran CSP karena tidak mengeksekusi JS/CSS): nonce per-request dihapus diam-diam oleh compiler Astro dari atribut `is:inline`; hash manual untuk satu skrip `is:inline` yang diketahui ternyata melewatkan beberapa skrip/style lain yang di-inline Astro per-komponen (`ThemeToggle.astro`, `LanguageSwitcher.astro`, tombol logout) dan benar-benar memblokir fungsinya (tombol tema tidak merespons klik) saat diverifikasi di browser sungguhan. Solusi akhir: hash otomatis Astro untuk semua yang di-inline-nya + satu hash manual (`src/lib/security/theme-init-script.ts`, dijaga sinkron oleh `tests/theme-init-script.test.ts`) untuk satu-satunya skrip `is:inline` tersisa (pencegah flash tema di `AdminLayout.astro`).
+- **Rate limiting login** (`src/lib/security/rate-limit.ts`, env baru `AUTH_LOGIN_RATE_LIMIT_MAX`/`AUTH_LOGIN_RATE_LIMIT_WINDOW_SEC`, default 20/60 detik): memperluas pola lockout `AUTH_LOGIN_MAX_ATTEMPTS` yang sudah ada (per-identitas) dengan limiter sumber+tenant untuk menutup celah enumerasi lintas-identitas dari sumber yang sama. Diverifikasi live: percobaan ke-21 dari IP+tenant sama → `429 RATE_LIMITED` + header `Retry-After`; sumber IP berbeda tidak terpengaruh.
+- `scripts/security-readiness.ts` diperluas dua check baru (`checkSecurityHeadersPresent` — live, hit server nyata; `checkLoginRateLimitImplemented` — murni), keduanya `warning` (defense-in-depth, bukan kontrol akses primer yang sudah `critical`).
+
+### Fixed
+
+- **False-positive pada gate `security:readiness` sendiri**: `checkNoHardcodedSecret` menandai `ERROR_CODE_KEYS.TOKEN_EXPIRED: "error.token_expired"` (`src/lib/i18n/error-messages.ts`, kode yang sudah ada sejak Issue #433) sebagai kemungkinan secret karena nama variabel mengandung "TOKEN" — nilainya sebenarnya kunci katalog i18n. Ditemukan dengan menjalankan gate ini sendiri terhadap kode yang sudah ada, bukan hipotetis; `bun run security:readiness` sebelumnya gagal (`GO-LIVE DIBLOKIR`) pada kode yang sudah merged. Diperbaiki dengan heuristik tambahan yang mengecualikan nilai berbentuk kunci i18n dot-namespace huruf kecil.
+
 ## [0.23.3] - 2026-07-06
 
 ### Added
@@ -390,7 +404,11 @@ Aplikasi turunan (mis. AWPOS) memakai peta versinya sendiri di atas base ini.
 
 Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0`-`0.4.0` berisi Issue 2.1 (tenant/office), 2.2 (central profile), dan 2.3 (identity/login) dari slot "Tenant, identity, profile" (tuntas); rilis `0.5.0` berisi Issue 2.4 (RBAC/ABAC) dari slot "RBAC/ABAC evaluator + assignment" (tuntas). Epic M2 (2.1–2.4) selesai penuh. Rilis `0.6.0` berisi Issue 12.1 (Setup Wizard) dan rilis `0.7.0` berisi Issue 6.1 (Sync Outbox/Inbox) — keduanya tidak punya slot eksplisit sendiri di tabel peta versi doc 09 (12.1 ditempatkan setelah M2, 6.1 dimulai dari slot "Sync storage" `v0.4.0` yang sebelumnya ditarget jauh lebih lambat dari realisasi progresif ini). Rilis `0.8.0` berisi Issue 6.2 (Sync Conflict Tracking/Resolution), lanjutan langsung dari slot "Sync storage" yang sama dengan 6.1. Rilis `0.9.0` berisi Issue 6.3 (R2 Object Sync Queue), menuntaskan epic M5 (Sync Storage) sepenuhnya. Rilis `0.10.0` berisi Issue 8.1 (Admin Layout Shell), issue pertama epic M7 (UI/UX & Reporting) dan issue frontend pertama di repo ini. Rilis `0.11.0` berisi Issue 9.1 (Management Reporting Views), menuntaskan epic M7 sepenuhnya. Rilis `0.11.1` adalah patch (bug fix jsonb double-encoding pada sync push, bukan issue baru). Rilis `0.12.0` berisi Issue 10.1 (Structured Logging and Audit Trail), issue pertama epic M8 (Security, Performance, Production). Rilis `0.13.0` berisi Issue 10.2 (Database Connection Pooling and Backpressure) — tidak ada migration baru, murni infrastruktur aplikasi. Rilis `0.14.0` berisi Issue 10.3 (Production Security Readiness Checklist) — juga tidak ada migration baru, murni tooling CLI yang memverifikasi kontrol yang sudah dibangun sebelumnya. Rilis `0.15.0` berisi Issue 11.1 (Workflow Approval Engine), mendarat lebih awal dari rencana semula (slot 015) karena mengikuti tepat setelah 10.3 yang tidak butuh migration. Rilis `0.16.0` berisi Issue 12.2 (Offline/LAN Deployment Profile) — tidak ada migration baru, murni aset deployment — menuntaskan epic M8 sekaligus seluruh backlog base generik (18 issue doc06).
 
-[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.23.0...HEAD
+[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.23.4...HEAD
+[0.23.4]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.23.3...awcms-mini@0.23.4
+[0.23.3]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.23.2...awcms-mini@0.23.3
+[0.23.2]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.23.1...awcms-mini@0.23.2
+[0.23.1]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.23.0...awcms-mini@0.23.1
 [0.23.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.22.0...awcms-mini@0.23.0
 [0.22.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.21.0...awcms-mini@0.22.0
 [0.21.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.20.0...awcms-mini@0.21.0

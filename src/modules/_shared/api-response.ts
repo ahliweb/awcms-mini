@@ -21,6 +21,7 @@ export type ApiError = {
 
 type JsonResponseInit = {
   status?: number;
+  headers?: Record<string, string>;
 };
 
 export function jsonResponse<TBody>(
@@ -30,7 +31,8 @@ export function jsonResponse<TBody>(
   return new Response(JSON.stringify(body), {
     status: init.status ?? 200,
     headers: {
-      "content-type": "application/json; charset=utf-8"
+      "content-type": "application/json; charset=utf-8",
+      ...init.headers
     }
   });
 }
@@ -51,7 +53,10 @@ export function fail(
   code: string,
   message: string,
   meta: ApiMeta = {},
-  details?: unknown
+  details?: unknown,
+  // Additive, optional (Issue #437 — rate limiting needs `Retry-After` on a
+  // 429 response). Every existing call site omits this and is unaffected.
+  headers?: Record<string, string>
 ): Response {
   return jsonResponse<ApiError>(
     {
@@ -63,6 +68,6 @@ export function fail(
       },
       meta
     },
-    { status }
+    { status, headers }
   );
 }

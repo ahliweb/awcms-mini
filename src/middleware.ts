@@ -3,6 +3,7 @@ import { defineMiddleware } from "astro:middleware";
 import { resolveSsrContext } from "./lib/auth/ssr-session";
 import { resolveRequestLocale } from "./lib/i18n/request-locale";
 import { LOCALE_COOKIE_NAME, resolveLocale } from "./lib/i18n/locale";
+import { buildSecurityHeaders } from "./lib/security/security-headers";
 
 const PROTECTED_PREFIX = "/admin";
 const CORRELATION_ID_HEADER = "X-Correlation-ID";
@@ -24,6 +25,31 @@ function resolveCorrelationId(request: Request): string {
   return incoming && incoming.trim().length > 0
     ? incoming
     : crypto.randomUUID();
+}
+
+/**
+ * Applies the response headers that must be present on *every* response
+ * (Issue 10.1's correlation ID, Issue #437's security headers) — factored
+ * out so both the pre-auth and `/admin/*` branches below apply them
+ * identically instead of duplicating the header-setting calls. The security
+ * headers (CSP/X-Frame-Options/etc., `src/lib/security/security-headers.ts`)
+ * need no per-request input — the CSP's one inline-script allowance is a
+ * build-time SHA-256 hash of a static string, not a per-request nonce (see
+ * that module's doc comment for why a nonce was tried and abandoned).
+ */
+function applyResponseHeaders(
+  response: Response,
+  correlationId: string
+): Response {
+  response.headers.set(CORRELATION_ID_HEADER, correlationId);
+
+  for (const [name, value] of buildSecurityHeaders({
+    isProduction: process.env.APP_ENV === "production"
+  })) {
+    response.headers.set(name, value);
+  }
+
+  return response;
 }
 
 /**
@@ -52,9 +78,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   if (!context.url.pathname.startsWith(PROTECTED_PREFIX)) {
     const response = await next();
 
-    response.headers.set(CORRELATION_ID_HEADER, context.locals.correlationId);
-
-    return response;
+    return applyResponseHeaders(response, context.locals.correlationId);
   }
 
   const ssrContext = await resolveSsrContext(context.cookies, new Date());
@@ -77,7 +101,5 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   const response = await next();
 
-  response.headers.set(CORRELATION_ID_HEADER, context.locals.correlationId);
-
-  return response;
+  return applyResponseHeaders(response, context.locals.correlationId);
 });

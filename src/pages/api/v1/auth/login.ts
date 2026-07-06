@@ -12,21 +12,66 @@ import {
   SESSION_COOKIE_NAME,
   TENANT_COOKIE_NAME
 } from "../../../../lib/auth/ssr-session";
+import {
+  checkRateLimit,
+  resolveClientIp
+} from "../../../../lib/security/rate-limit";
 
 const MAX_FAILED_ATTEMPTS = Number(process.env.AUTH_LOGIN_MAX_ATTEMPTS ?? 5);
 const LOCKOUT_MINUTES = 15;
 const SESSION_TTL_MIN = Number(process.env.AUTH_SESSION_TTL_MIN ?? 120);
+
+/**
+ * Source-scoped volumetric rate limit (Issue #437), complementary to the
+ * per-identity lockout above: `evaluateLoginAttempt`'s `failed_login_count`
+ * only ever trips for repeated attempts against the *same* identity, so an
+ * attacker rotating `loginIdentifier` values against the same tenant from
+ * the same source never crosses it. This is a much looser ceiling (higher
+ * than `MAX_FAILED_ATTEMPTS`) so it never fires for a legitimate user
+ * simply mistyping their password a few times — it exists to bound request
+ * *volume* (this endpoint runs an argon2id verify, doc 20's "Denial of
+ * service" STRIDE row) and cross-identity enumeration, not to replace the
+ * account lockout.
+ */
+const LOGIN_RATE_LIMIT_MAX_ATTEMPTS = Number(
+  process.env.AUTH_LOGIN_RATE_LIMIT_MAX ?? 20
+);
+const LOGIN_RATE_LIMIT_WINDOW_SEC = Number(
+  process.env.AUTH_LOGIN_RATE_LIMIT_WINDOW_SEC ?? 60
+);
 
 type LoginBody = {
   loginIdentifier?: unknown;
   password?: unknown;
 };
 
-export const POST: APIRoute = async ({ request, cookies }) => {
+export const POST: APIRoute = async ({ request, cookies, clientAddress }) => {
   const tenantId = request.headers.get("x-awcms-mini-tenant-id");
 
   if (!tenantId) {
     return fail(400, "TENANT_REQUIRED", "Tenant header is required.");
+  }
+
+  // Rate limit before touching the database or hashing anything (Issue
+  // #437) — the cheapest possible rejection point for a volumetric attack
+  // against this expensive, public endpoint. Keyed by source + tenant, not
+  // by `loginIdentifier`, so it also catches an attacker rotating
+  // identifiers to dodge the per-identity lockout below.
+  const clientIp = resolveClientIp(request, clientAddress);
+  const rateLimit = checkRateLimit(`${clientIp}:${tenantId}`, {
+    maxAttempts: LOGIN_RATE_LIMIT_MAX_ATTEMPTS,
+    windowMs: LOGIN_RATE_LIMIT_WINDOW_SEC * 1000
+  });
+
+  if (!rateLimit.allowed) {
+    return fail(
+      429,
+      "RATE_LIMITED",
+      "Too many login attempts from this source. Try again later.",
+      {},
+      undefined,
+      { "retry-after": String(rateLimit.retryAfterSec) }
+    );
   }
 
   const body = (await request.json().catch(() => null)) as LoginBody | null;

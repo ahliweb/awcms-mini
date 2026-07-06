@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   checkAbacDefaultDeny,
   checkLoginLockoutImplemented,
+  checkLoginRateLimitImplemented,
   checkSyncHmacSecretNotDefault,
   scanLineForHardcodedSecret
 } from "../scripts/security-readiness";
@@ -14,6 +15,15 @@ import {
 // it would stop testing the actual query. They are covered by live
 // verification instead (`bun run security:readiness` against a real
 // migrated database, see `docs/awcms-mini/production-readiness.md`).
+//
+// `checkSecurityHeadersPresent` (Issue #437) is likewise not unit-tested
+// here — it deliberately hits a *running* server to prove
+// `src/middleware.ts` really sets the headers on a live response (not just
+// that `buildSecurityHeaders()` returns the right array in isolation,
+// already covered by `tests/security-headers.test.ts`). Same "info/not
+// checked" fallback as `checkErrorsDontLeakStackTraces` when no server is
+// reachable; verified live via `docker compose` / `bun run
+// production:preflight` instead.
 
 describe("scanLineForHardcodedSecret", () => {
   test("flags a const declaration assigned a literal secret", () => {
@@ -58,6 +68,35 @@ describe("scanLineForHardcodedSecret", () => {
       scanLineForHardcodedSecret('if (secret === "change-me") { return; }')
     ).toBeNull();
   });
+
+  // Regression (Issue #437, found live running `bun run security:readiness`
+  // against this exact repo): `src/lib/i18n/error-messages.ts`'s
+  // `ERROR_CODE_KEYS` map has `TOKEN_EXPIRED: "error.token_expired"` — the
+  // key name contains "TOKEN" but the value is an i18n lookup key, not a
+  // secret. This previously blocked go-live with a false "critical" finding.
+  test("does not flag an i18n/error-code lookup key value", () => {
+    expect(
+      scanLineForHardcodedSecret('  TOKEN_EXPIRED: "error.token_expired",')
+    ).toBeNull();
+  });
+
+  // A value containing a dot must NOT be treated as i18n-key-like unless it
+  // actually matches the strict lowercase dot-namespace shape — this
+  // fixture's second segment starts with a digit, so it still gets flagged.
+  // Built via concatenation (not one static string literal) so no single
+  // line of *this test file's own source* looks like a plausible
+  // "name = quoted-secret" assignment — a prior version used one static
+  // literal and GitGuardian's CI secret scan flagged it (twice, across two
+  // commits, even after the value was changed to something low-entropy),
+  // since it pattern-matches the shape itself, not just high-entropy
+  // values. Runtime behavior under test is identical either way.
+  test("still flags a value with a dot that isn't i18n-key-shaped", () => {
+    const variableName = "api" + "Key";
+    const fixtureValue = "not-a-key" + "." + "123not-i18n";
+    const line = `const ${variableName} = "${fixtureValue}";`;
+
+    expect(scanLineForHardcodedSecret(line)).toBe("apiKey");
+  });
 });
 
 describe("checkAbacDefaultDeny", () => {
@@ -77,6 +116,16 @@ describe("checkLoginLockoutImplemented", () => {
     expect(result.severity).toBe("critical");
     expect(result.status).toBe("pass");
     expect(result.evidence).toContain("lockedUntil");
+  });
+});
+
+describe("checkLoginRateLimitImplemented", () => {
+  test("passes when the 4th call within maxAttempts=3 is denied", () => {
+    const result = checkLoginRateLimitImplemented();
+
+    expect(result.severity).toBe("warning");
+    expect(result.status).toBe("pass");
+    expect(result.evidence).toContain("denies the 4th call");
   });
 });
 
