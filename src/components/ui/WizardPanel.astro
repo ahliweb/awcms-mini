@@ -1,0 +1,99 @@
+---
+interface Props {
+  id: string;
+  title: string;
+  description?: string;
+  active?: boolean;
+  errorSummary?: readonly string[];
+  errorSummaryHeading?: string;
+}
+
+const {
+  id,
+  title,
+  description,
+  active = true,
+  errorSummary = [],
+  errorSummaryHeading = "Please review the following fields:"
+} = Astro.props;
+---
+
+<section
+  id={id}
+  class="wizard-panel"
+  data-active={active ? "true" : "false"}
+  aria-labelledby={`${id}-title`}
+  hidden={!active}
+>
+  <header class="wizard-panel-header">
+    <h2 id={`${id}-title`}>{title}</h2>
+    {description && <p>{description}</p>}
+  </header>
+
+  {
+    errorSummary.length > 0 && (
+      <div class="wizard-panel-errors" role="alert">
+        <strong>{errorSummaryHeading}</strong>
+        <ul>
+          {errorSummary.map((message) => (
+            <li>{message}</li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
+  <div class="wizard-panel-body">
+    <slot />
+  </div>
+</section>
+
+<style>
+  .wizard-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    padding: var(--sp-4);
+  }
+
+  .wizard-panel-header h2 {
+    margin: 0;
+    font-size: var(--fs-lg);
+  }
+
+  .wizard-panel-header p {
+    margin: var(--sp-1) 0 0;
+    color: var(--color-text-muted);
+    font-size: var(--fs-sm);
+  }
+
+  .wizard-panel-errors {
+    border: 1px solid var(--color-danger-strong);
+    border-radius: var(--radius-sm);
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 12%,
+      var(--color-surface)
+    );
+    padding: var(--sp-3);
+  }
+
+  .wizard-panel-errors strong {
+    display: block;
+    margin-bottom: var(--sp-2);
+  }
+
+  .wizard-panel-errors ul {
+    margin: 0;
+    padding-left: var(--sp-4);
+  }
+
+  .wizard-panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+</style>

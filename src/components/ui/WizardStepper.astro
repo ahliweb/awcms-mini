@@ -1,0 +1,146 @@
+---
+import type { WizardStepDefinition } from "../../lib/ui/wizard-client";
+
+interface Props {
+  steps: readonly WizardStepDefinition[];
+  activeStepKey: string;
+  completedStepKeys?: readonly string[];
+  label?: string;
+  currentLabel?: string;
+  completedLabel?: string;
+  pendingLabel?: string;
+}
+
+const {
+  steps,
+  activeStepKey,
+  completedStepKeys = [],
+  label = "Wizard steps",
+  currentLabel = "Current",
+  completedLabel = "Completed",
+  pendingLabel = "Pending"
+} = Astro.props;
+---
+
+<nav class="wizard-stepper" aria-label={label}>
+  <ol class="wizard-stepper-list">
+    {
+      steps.map((step, index) => {
+        const isActive = step.key === activeStepKey;
+        const isCompleted = completedStepKeys.includes(step.key);
+        const stateLabel = isActive
+          ? currentLabel
+          : isCompleted
+            ? completedLabel
+            : pendingLabel;
+
+        return (
+          <li
+            class="wizard-stepper-item"
+            data-active={isActive ? "true" : "false"}
+            data-completed={isCompleted ? "true" : "false"}
+          >
+            <span class="wizard-stepper-marker" aria-hidden="true">
+              {isCompleted ? "✓" : index + 1}
+            </span>
+            <span class="wizard-stepper-copy">
+              <span class="wizard-stepper-status">{stateLabel}</span>
+              <span
+                class="wizard-stepper-title"
+                aria-current={isActive ? "step" : undefined}
+              >
+                {step.title}
+              </span>
+              {step.description && (
+                <span class="wizard-stepper-description">
+                  {step.description}
+                </span>
+              )}
+            </span>
+          </li>
+        );
+      })
+    }
+  </ol>
+</nav>
+
+<style>
+  .wizard-stepper {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    padding: var(--sp-3);
+  }
+
+  .wizard-stepper-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--sp-3);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .wizard-stepper-item {
+    display: flex;
+    gap: var(--sp-2);
+    align-items: flex-start;
+    min-width: 0;
+  }
+
+  .wizard-stepper-marker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 2rem;
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--radius-full);
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    font-size: var(--fs-sm);
+    font-weight: 700;
+  }
+
+  .wizard-stepper-item[data-active="true"] .wizard-stepper-marker {
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border-color: var(--color-primary-strong);
+  }
+
+  .wizard-stepper-item[data-completed="true"] .wizard-stepper-marker {
+    background: var(--color-success-strong);
+    color: var(--color-primary-contrast);
+    border-color: var(--color-success-strong);
+  }
+
+  .wizard-stepper-copy {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    min-width: 0;
+  }
+
+  .wizard-stepper-status {
+    color: var(--color-text-muted);
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .wizard-stepper-title {
+    font-weight: 700;
+  }
+
+  .wizard-stepper-description {
+    color: var(--color-text-muted);
+    font-size: var(--fs-xs);
+    line-height: 1.4;
+  }
+
+  @media (max-width: 768px) {
+    .wizard-stepper-list {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
