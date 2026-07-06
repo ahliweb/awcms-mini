@@ -25,12 +25,26 @@
  *     (doc 18 documents them as "bila R2" in its fuller reference table) —
  *     that's fine, they are validated conditionally regardless of whether
  *     `.env.example` carries commented-out placeholders for them.
+ *  4. Conditional (Issue #493, epic #492): if EMAIL_ENABLED === "true",
+ *     then EMAIL_FROM_ADDRESS must be set, EMAIL_PROVIDER must be one of
+ *     `KNOWN_EMAIL_PROVIDERS` (`../src/modules/email/domain/email-config`),
+ *     and — when EMAIL_PROVIDER === "mailketing" — EMAIL_MAILKETING_ACCOUNT_ID,
+ *     EMAIL_MAILKETING_API_TOKEN, and EMAIL_MAILKETING_API_BASE_URL must all
+ *     be set. Mirrors the R2 conditional check above; see
+ *     `src/modules/email/README.md` for why these vars are namespaced
+ *     `EMAIL_*`/`EMAIL_MAILKETING_*` rather than the illustrative
+ *     `MAILKETING_*` rows in doc 18 §Provider CRM (opsional).
  *
  * Never prints actual secret values — only which variable name is
  * missing/invalid (doc 18: "Var wajib hilang → gagal start dengan pesan
  * jelas (tanpa membocorkan nilai)"). Exits non-zero on any failure.
  */
 import { checkSyncHmacSecretNotDefault } from "./security-readiness";
+import {
+  EMAIL_MAILKETING_REQUIRED_WHEN_SELECTED,
+  EMAIL_REQUIRED_WHEN_ENABLED,
+  isKnownEmailProvider
+} from "../src/modules/email/domain/email-config";
 
 export type EnvCheckResult = {
   name: string;
@@ -134,13 +148,75 @@ export function checkR2Config(
   });
 }
 
+export function checkEmailConfig(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult[] {
+  if (env.EMAIL_ENABLED !== "true") {
+    return [
+      {
+        name: "Email config (conditional on EMAIL_ENABLED)",
+        status: "pass",
+        detail: 'EMAIL_ENABLED is not "true" — email config not required.'
+      }
+    ];
+  }
+
+  const results: EnvCheckResult[] = EMAIL_REQUIRED_WHEN_ENABLED.map((name) => {
+    if (isSet(env[name])) {
+      return { name, status: "pass", detail: `${name} is set.` };
+    }
+
+    return {
+      name,
+      status: "fail",
+      detail: `EMAIL_ENABLED=true but ${name} is missing or empty.`
+    };
+  });
+
+  const provider = env.EMAIL_PROVIDER;
+
+  if (!isKnownEmailProvider(provider)) {
+    results.push({
+      name: "EMAIL_PROVIDER",
+      status: "fail",
+      detail:
+        'EMAIL_ENABLED=true but EMAIL_PROVIDER is missing or not a known provider ("mailketing").'
+    });
+    return results;
+  }
+
+  results.push({
+    name: "EMAIL_PROVIDER",
+    status: "pass",
+    detail: `EMAIL_PROVIDER is a known provider (${provider}).`
+  });
+
+  if (provider === "mailketing") {
+    for (const name of EMAIL_MAILKETING_REQUIRED_WHEN_SELECTED) {
+      if (isSet(env[name])) {
+        results.push({ name, status: "pass", detail: `${name} is set.` });
+        continue;
+      }
+
+      results.push({
+        name,
+        status: "fail",
+        detail: `EMAIL_PROVIDER=mailketing but ${name} is missing or empty.`
+      });
+    }
+  }
+
+  return results;
+}
+
 export function runEnvValidation(
   env: NodeJS.ProcessEnv = process.env
 ): EnvCheckResult[] {
   return [
     ...checkRequiredVars(env),
     checkSyncConfig(env),
-    ...checkR2Config(env)
+    ...checkR2Config(env),
+    ...checkEmailConfig(env)
   ];
 }
 

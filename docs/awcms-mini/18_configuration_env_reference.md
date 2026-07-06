@@ -95,7 +95,29 @@ Legenda: Wajib = perlu untuk boot; Sensitif = jangan bocor ke log/response.
 | `R2_BUCKET`                     | bila R2 | –           | –        | Bucket                                                                  |
 | `OBJECT_SYNC_UPLOAD_TIMEOUT_MS` | –       | `10000`     | –        | Timeout upload dispatcher (Issue #436, `bun run sync:objects:dispatch`) |
 
-### Provider CRM (opsional)
+### Email (opsional, base — Issue #493, epic #492)
+
+Modul base reusable (bukan contoh domain) untuk password reset, system
+announcement, dan workflow notification — lihat `src/modules/email/README.md`.
+Provider-neutral: `EMAIL_PROVIDER` memilih adapter, baru `mailketing` yang
+didukung (Issue #495). **Sengaja beda namespace** dari baris
+`MAILKETING_ENABLED`/`MAILKETING_API_TOKEN` di §Provider CRM (opsional) di
+bawah — baris itu tetap contoh ilustratif domain retail/POS "email receipt"
+(historical issue #390, closed _not planned_), tidak diubah oleh epic ini.
+
+| Var                             | Wajib           | Default      | Sensitif | Fungsi                                                |
+| ------------------------------- | --------------- | ------------ | -------- | ----------------------------------------------------- |
+| `EMAIL_ENABLED`                 | –               | `false`      | –        | Aktifkan modul email                                  |
+| `EMAIL_PROVIDER`                | bila aktif      | –            | –        | Adapter terpilih; hanya `mailketing` didukung kini    |
+| `EMAIL_FROM_ADDRESS`            | bila aktif      | –            | –        | Alamat pengirim default                               |
+| `EMAIL_FROM_NAME`               | –               | `AWCMS-Mini` | –        | Nama pengirim default                                 |
+| `EMAIL_SEND_TIMEOUT_MS`         | –               | `10000`      | –        | Timeout satu percobaan kirim (dispatcher, Issue #495) |
+| `EMAIL_SEND_MAX_RETRIES`        | –               | `5`          | –        | Batas percobaan retry sebelum `failed` final          |
+| `EMAIL_MAILKETING_ACCOUNT_ID`   | bila mailketing | –            | Ya       | Identifier akun Mailketing                            |
+| `EMAIL_MAILKETING_API_TOKEN`    | bila mailketing | –            | Ya       | Token/secret API Mailketing                           |
+| `EMAIL_MAILKETING_API_BASE_URL` | bila mailketing | –            | –        | Base URL endpoint API Mailketing                      |
+
+### Provider CRM (opsional) — contoh domain retail/POS
 
 | Var                    | Wajib      | Default | Sensitif | Fungsi             |
 | ---------------------- | ---------- | ------- | -------- | ------------------ |
@@ -119,13 +141,14 @@ flowchart LR
   Boot[Boot] --> Val[Validasi env]
   Val --> Flags{Feature flags}
   Flags -->|R2 off| L[Storage lokal]
+  Flags -->|EMAIL_ENABLED off| Q0[Email module - outbox menunggu, dispatcher tidak jalan]
   Flags -->|StarSender off| Q1[WA masuk queue - tak terkirim]
   Flags -->|Mailketing off| Q2[Email masuk queue - tak terkirim]
   Flags -->|AI off| NoAi[Endpoint AI nonaktif]
   Flags -->|Sync off| LanOnly[LAN-only]
 ```
 
-Aturan: fitur off tidak menghentikan POS; pesan/objek tetap masuk queue dan menunggu fitur diaktifkan.
+Aturan: fitur off tidak menghentikan POS; pesan/objek tetap masuk queue dan menunggu fitur diaktifkan. `EMAIL_ENABLED off` (base, Issue #493) dan `Mailketing off` (contoh domain retail/POS §Provider CRM) sama-sama "queue menunggu", tapi keduanya jalur terpisah — base tidak mengasumsikan use case "email receipt".
 
 ## `.env.example` lengkap (rekomendasi)
 
@@ -164,7 +187,13 @@ LOCAL_STORAGE_PATH=./storage
 OBJECT_SYNC_UPLOAD_TIMEOUT_MS=10000
 R2_ENABLED=false
 
-# Provider opsional (default off)
+# Email (base, Issue #493) — lihat src/modules/email/README.md
+EMAIL_ENABLED=false
+EMAIL_FROM_NAME=AWCMS-Mini
+EMAIL_SEND_TIMEOUT_MS=10000
+EMAIL_SEND_MAX_RETRIES=5
+
+# Provider opsional (default off) — contoh domain retail/POS
 STARSENDER_ENABLED=false
 MAILKETING_ENABLED=false
 AI_ANALYST_ENABLED=false
