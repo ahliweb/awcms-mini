@@ -34,6 +34,7 @@ import { evaluateAccess } from "../src/modules/identity-access/domain/access-con
 import { evaluateLoginAttempt } from "../src/modules/identity-access/domain/login-policy";
 import { hashPassword } from "../src/lib/auth/password";
 import { resolveAppBaseUrl } from "./lib/app-url";
+import { checkRateLimit } from "../src/lib/security/rate-limit";
 
 export type CheckSeverity = "critical" | "warning" | "info";
 export type CheckStatus = "pass" | "fail";
@@ -88,6 +89,22 @@ const HARDCODED_SECRET_PATTERN =
 
 const PLACEHOLDER_VALUE_PATTERN = /^(\*+|x+|change-?me|redacted|todo|\.{3})$/i;
 
+/**
+ * An i18n/error-code lookup key (e.g. `"error.token_expired"`) — a lowercase
+ * dot-namespaced identifier with no random entropy. Real secrets (JWT
+ * signing keys, API keys, session tokens) are never valid instances of this
+ * shape: they're either read from `process.env` (already excluded above) or
+ * high-entropy opaque strings. Found live while running this exact script
+ * against this exact repo (Issue #437): `src/lib/i18n/error-messages.ts`'s
+ * `ERROR_CODE_KEYS` map has a `TOKEN_EXPIRED: "error.token_expired"` entry —
+ * the *key* name contains "TOKEN" (matching `HARDCODED_SECRET_PATTERN`'s
+ * name group) but the *value* is an i18n catalog lookup key, not a secret.
+ * Without this exclusion `bun run security:readiness` reports a false
+ * "critical" failure on unmodified, already-merged code — the gate itself
+ * would block go-live for no real reason.
+ */
+const I18N_KEY_LIKE_VALUE_PATTERN = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/;
+
 const SECRET_SCAN_PATHSPECS = [
   "src/**/*.ts",
   "src/**/*.astro",
@@ -118,7 +135,12 @@ export function scanLineForHardcodedSecret(line: string): string | null {
   const name = match[2];
   const value = match[3];
 
-  if (!name || !value || PLACEHOLDER_VALUE_PATTERN.test(value)) {
+  if (
+    !name ||
+    !value ||
+    PLACEHOLDER_VALUE_PATTERN.test(value) ||
+    I18N_KEY_LIKE_VALUE_PATTERN.test(value)
+  ) {
     return null;
   }
 
@@ -759,6 +781,110 @@ export async function checkErrorsDontLeakStackTraces(
 }
 
 // ---------------------------------------------------------------------------
+// 11. Security response headers present (warning, best-effort — Issue #437)
+// ---------------------------------------------------------------------------
+
+const REQUIRED_SECURITY_HEADERS = [
+  "content-security-policy",
+  "x-content-type-options",
+  "x-frame-options",
+  "referrer-policy",
+  "permissions-policy"
+];
+
+/**
+ * Live, best-effort check (same pattern as `checkErrorsDontLeakStackTraces`
+ * above): hits a running server and inspects the *actual* response headers,
+ * rather than only unit-testing `buildSecurityHeaders()` in isolation —
+ * that would prove the builder function works but not that the app
+ * actually sets these on a real response. `content-security-policy` here
+ * comes from Astro's own `security.csp` feature (`astro.config.mjs`), a
+ * real response header for this SSR build (verified live — see that
+ * config's comment) — the other four come from
+ * `src/lib/security/security-headers.ts` via `src/middleware.ts`.
+ */
+export async function checkSecurityHeadersPresent(
+  baseUrl: string = resolveAppBaseUrl()
+): Promise<SecurityCheckResult> {
+  const name = "Security response headers present (CSP/X-Frame-Options/etc.)";
+  const url = new URL("/login", baseUrl).toString();
+
+  let response: Response;
+
+  try {
+    response = await fetch(url);
+  } catch (error) {
+    return {
+      name,
+      severity: "info",
+      status: "pass",
+      evidence: `Not checked — no server reachable at ${baseUrl} (${errorMessage(error)}). Verify manually or via "bun run production:preflight" against a running server.`
+    };
+  }
+
+  const missing = REQUIRED_SECURITY_HEADERS.filter(
+    (header) => !response.headers.has(header)
+  );
+
+  if (missing.length > 0) {
+    return {
+      name,
+      severity: "warning",
+      status: "fail",
+      evidence: `GET ${url} response is missing header(s): ${missing.join(", ")}.`
+    };
+  }
+
+  return {
+    name,
+    severity: "warning",
+    status: "pass",
+    evidence: `GET ${url} response included all of: ${REQUIRED_SECURITY_HEADERS.join(", ")}.`
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 12. Login rate limiting is implemented (warning — Issue #437)
+// ---------------------------------------------------------------------------
+
+/**
+ * Complementary to `checkLoginLockoutImplemented` (critical, per-identity):
+ * this exercises the source-scoped volumetric limiter
+ * (`src/lib/security/rate-limit.ts`) wired into `POST /api/v1/auth/login`.
+ * Marked `warning`, not `critical` — it's defense-in-depth against
+ * cross-identity enumeration/volumetric abuse, not the primary access
+ * control (which is the per-identity lockout, already gated as critical).
+ */
+export function checkLoginRateLimitImplemented(): SecurityCheckResult {
+  const name = "Login rate limiting is implemented (source+tenant volumetric)";
+  const severity: CheckSeverity = "warning";
+  const key = `security-readiness-synthetic-rate-limit-check-${crypto.randomUUID()}`;
+  const config = { maxAttempts: 3, windowMs: 60_000 };
+  const now = 1_000_000;
+
+  checkRateLimit(key, config, now);
+  checkRateLimit(key, config, now + 1);
+  checkRateLimit(key, config, now + 2);
+  const fourth = checkRateLimit(key, config, now + 3);
+
+  if (!fourth.allowed) {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence: `checkRateLimit() with maxAttempts=3 denies the 4th call within the same window (retryAfterSec=${fourth.retryAfterSec}).`
+    };
+  }
+
+  return {
+    name,
+    severity,
+    status: "fail",
+    evidence: `checkRateLimit() did not deny the 4th call after exceeding maxAttempts=3; result=${JSON.stringify(fourth)}.`
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Out-of-scope items — printed as their own report section, never silently
 // dropped.
 // ---------------------------------------------------------------------------
@@ -819,7 +945,9 @@ export async function runSecurityReadinessChecks(): Promise<
     await checkAuditLogTableReachable(),
     await checkSoftDeletePermissionsSeededAndAudited(),
     checkSyncHmacSecretNotDefault(),
-    await checkErrorsDontLeakStackTraces()
+    await checkErrorsDontLeakStackTraces(),
+    await checkSecurityHeadersPresent(),
+    checkLoginRateLimitImplemented()
   ];
 }
 

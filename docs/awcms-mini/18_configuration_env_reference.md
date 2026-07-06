@@ -63,12 +63,14 @@ Legenda: Wajib = perlu untuk boot; Sensitif = jangan bocor ke log/response.
 
 ### Auth & keamanan
 
-| Var                       | Wajib | Default | Sensitif | Fungsi                     |
-| ------------------------- | ----- | ------- | -------- | -------------------------- |
-| `AUTH_JWT_SECRET`         | Ya    | –       | Ya       | Signing token sesi         |
-| `AUTH_SESSION_TTL_MIN`    | –     | `120`   | –        | Umur sesi                  |
-| `AUTH_COOKIE_SECURE`      | –     | `true`  | –        | Cookie hanya HTTPS di prod |
-| `AUTH_LOGIN_MAX_ATTEMPTS` | –     | `5`     | –        | Lockout login              |
+| Var                                | Wajib | Default | Sensitif | Fungsi                                          |
+| ---------------------------------- | ----- | ------- | -------- | ----------------------------------------------- |
+| `AUTH_JWT_SECRET`                  | Ya    | –       | Ya       | Signing token sesi                              |
+| `AUTH_SESSION_TTL_MIN`             | –     | `120`   | –        | Umur sesi                                       |
+| `AUTH_COOKIE_SECURE`               | –     | `true`  | –        | Cookie hanya HTTPS di prod                      |
+| `AUTH_LOGIN_MAX_ATTEMPTS`          | –     | `5`     | –        | Lockout login (per identitas)                   |
+| `AUTH_LOGIN_RATE_LIMIT_MAX`        | –     | `20`    | –        | Rate limit login per sumber+tenant (Issue #437) |
+| `AUTH_LOGIN_RATE_LIMIT_WINDOW_SEC` | –     | `60`    | –        | Jendela waktu rate limit login (detik)          |
 
 ### Sync & node
 
@@ -145,6 +147,8 @@ AUTH_JWT_SECRET=change-me-in-production
 AUTH_SESSION_TTL_MIN=120
 AUTH_COOKIE_SECURE=true
 AUTH_LOGIN_MAX_ATTEMPTS=5
+AUTH_LOGIN_RATE_LIMIT_MAX=20
+AUTH_LOGIN_RATE_LIMIT_WINDOW_SEC=60
 
 # Sync
 AWCMS_MINI_NODE_ID=local-dev-node

@@ -29,6 +29,7 @@ import { getDatabaseClient } from "../lib/database/client";
 import { withTenant } from "../lib/database/tenant-context";
 import { fetchSyncIndicatorActive } from "../modules/reporting/application/sync-indicator";
 import { createTranslator } from "../lib/i18n/translate";
+import { THEME_INIT_SCRIPT_BODY } from "../lib/security/theme-init-script";
 
 interface Props {
   title: string;
@@ -103,7 +104,7 @@ const isSettingsActive = pathname === "/admin/settings";
 ---
 
 <!doctype html>
-<html lang={locale}>
+<html lang={locale} data-tenant-default-theme={tenantDefaultTheme}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -115,28 +116,38 @@ const isSettingsActive = pathname === "/admin/settings";
         personal per-browser override, set by ThemeToggle.astro — always
         wins once present); falls back to the tenant's
         `awcms_mini_tenants.default_theme` (editable at /admin/settings,
-        Settings PR) for a browser that has never picked a theme. Resolves
-        against prefers-color-scheme when the effective value is "system",
-        and sets data-theme on <html>. `is:inline` + `define:vars` keeps this
-        script exactly as authored (no bundling/defer) so it executes
-        synchronously here in <head>, ahead of body paint, while still
-        safely injecting the server-computed default (`define:vars`
-        JSON-serializes it — no manual string interpolation into JS source).
+        Settings PR, exposed above as the `data-tenant-default-theme`
+        attribute on <html>, read by the script below) for a browser that
+        has never picked a theme. Resolves against prefers-color-scheme
+        when the effective value is "system", and sets data-theme on
+        <html>. `is:inline` keeps this script exactly as authored (no
+        bundling/defer) so it executes synchronously here in <head>, ahead
+        of body paint.
+
+        CSP note (Issue #437): every inline `<script>`/`<style>` Astro
+        emits per-component (`ThemeToggle.astro`, `LanguageSwitcher.astro`,
+        the logout button's script below) is covered by Astro's own
+        built-in `security.csp` feature (`astro.config.mjs`), which hashes
+        whatever it actually inlines at build time and sets a real
+        `Content-Security-Policy` response header for this SSR build. THIS
+        script is the one exception — real headless-Chrome verification
+        found Astro's own hashing does not cover `is:inline` scripts at all
+        (by design: `is:inline` opts a script out of Astro's processing
+        pipeline, and Astro can only hash what it processes). Its body
+        (`THEME_INIT_SCRIPT_BODY`, `src/lib/security/theme-init-script.ts`)
+        is therefore inlined verbatim via `set:html` — never hand-authored
+        a second time here — and its hash is registered manually via
+        `security.csp.scriptDirective.hashes` in `astro.config.mjs`. That
+        module also explains why the body reads its server-computed
+        default from the `data-tenant-default-theme` HTML attribute above
+        instead of `define:vars` textual interpolation: it keeps this
+        script's bytes identical on every request (no per-tenant
+        variation), so the one manually-registered hash is correct for
+        every tenant, not just whichever value happened to be used when it
+        was computed.
       */
     }
-    <script is:inline define:vars={{ tenantDefaultTheme }}>
-      (function () {
-        var STORAGE_KEY = "awcms_mini_theme";
-        var stored = localStorage.getItem(STORAGE_KEY) || tenantDefaultTheme;
-        var resolved =
-          stored === "light" || stored === "dark"
-            ? stored
-            : window.matchMedia("(prefers-color-scheme: dark)").matches
-              ? "dark"
-              : "light";
-        document.documentElement.setAttribute("data-theme", resolved);
-      })();
-    </script>
+    <script is:inline set:html={THEME_INIT_SCRIPT_BODY} />
   </head>
   <body>
     <a href="#admin-main-content" class="skip-link">

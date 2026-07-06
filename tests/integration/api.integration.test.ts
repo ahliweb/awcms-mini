@@ -20,7 +20,8 @@ import {
   invoke,
   provisionAppRole,
   resetDatabase,
-  createCookieJar
+  createCookieJar,
+  type InvokeResult
 } from "./harness";
 
 import { POST as setupInitialize } from "../../src/pages/api/v1/setup/initialize";
@@ -31,6 +32,7 @@ import { GET as decisionLogs } from "../../src/pages/api/v1/access/decision-logs
 import { DELETE as profileDelete } from "../../src/pages/api/v1/profiles/[id]";
 import { hashPassword } from "../../src/lib/auth/password";
 import { withTenant } from "../../src/lib/database/tenant-context";
+import { resetRateLimitStoreForTests } from "../../src/lib/security/rate-limit";
 
 const OWNER_LOGIN = "owner@example.com";
 const OWNER_PASSWORD = "integration-test-owner-password";
@@ -152,6 +154,88 @@ suite("API integration (real Postgres)", () => {
     });
     expect(bad.status).toBe(401);
     expect(bad.body.error.code).toBe("AUTH_INVALID_CREDENTIALS");
+  });
+
+  // Issue #437 — rate limiting on the public, expensive login endpoint,
+  // complementary to (not a replacement for) the per-identity lockout
+  // covered by the test above. Uses a *different* loginIdentifier on every
+  // call so the per-identity lockout (AUTH_LOGIN_MAX_ATTEMPTS=5) never
+  // trips — only the source-scoped (X-Forwarded-For + tenant) volumetric
+  // limiter (AUTH_LOGIN_RATE_LIMIT_MAX, default 20) can explain a 429 here.
+  test("rate limits login after AUTH_LOGIN_RATE_LIMIT_MAX attempts from the same source", async () => {
+    resetRateLimitStoreForTests();
+    const { tenantId } = await bootstrapTenant("rate-limit-tenant");
+    const rateLimitMax = Number(process.env.AUTH_LOGIN_RATE_LIMIT_MAX ?? 20);
+    const sourceIp = "203.0.113.77";
+
+    let lastStatus = 0;
+    let lastResponse: InvokeResult<{ error: { code: string } }> | undefined;
+
+    for (let attempt = 0; attempt < rateLimitMax; attempt += 1) {
+      const response = await invoke<{ error: { code: string } }>(authLogin, {
+        method: "POST",
+        path: "/api/v1/auth/login",
+        headers: {
+          "content-type": "application/json",
+          "x-awcms-mini-tenant-id": tenantId,
+          "x-forwarded-for": sourceIp
+        },
+        body: {
+          loginIdentifier: `no-such-user-${attempt}@example.com`,
+          password: "wrong-password"
+        },
+        cookies: createCookieJar()
+      });
+      lastStatus = response.status;
+      lastResponse = response;
+    }
+
+    // The first `rateLimitMax` attempts are all rejected as invalid
+    // credentials (never a 429) — the endpoint's normal behavior.
+    expect(lastStatus).toBe(401);
+    expect(lastResponse?.body.error.code).toBe("AUTH_INVALID_CREDENTIALS");
+
+    const overLimit = await invoke<{ error: { code: string } }>(authLogin, {
+      method: "POST",
+      path: "/api/v1/auth/login",
+      headers: {
+        "content-type": "application/json",
+        "x-awcms-mini-tenant-id": tenantId,
+        "x-forwarded-for": sourceIp
+      },
+      body: {
+        loginIdentifier: "no-such-user-over-limit@example.com",
+        password: "wrong-password"
+      },
+      cookies: createCookieJar()
+    });
+
+    expect(overLimit.status).toBe(429);
+    expect(overLimit.body.error.code).toBe("RATE_LIMITED");
+    expect(overLimit.response.headers.get("retry-after")).toBeTruthy();
+
+    // A different source IP against the same tenant is unaffected — the
+    // limiter is scoped per source, not a blanket per-tenant block.
+    const differentSource = await invoke<{ error: { code: string } }>(
+      authLogin,
+      {
+        method: "POST",
+        path: "/api/v1/auth/login",
+        headers: {
+          "content-type": "application/json",
+          "x-awcms-mini-tenant-id": tenantId,
+          "x-forwarded-for": "198.51.100.20"
+        },
+        body: {
+          loginIdentifier: "no-such-user-different-source@example.com",
+          password: "wrong-password"
+        },
+        cookies: createCookieJar()
+      }
+    );
+
+    expect(differentSource.status).toBe(401);
+    expect(differentSource.body.error.code).toBe("AUTH_INVALID_CREDENTIALS");
   });
 
   test("ABAC guard: owner is allowed, a role-less user is default-denied (403)", async () => {
