@@ -129,7 +129,8 @@ suite("email schema — RLS isolation", () => {
         INSERT INTO awcms_mini_email_templates
           (tenant_id, template_key, name, subject_template, text_body_template, created_by, updated_by)
         VALUES (
-          ${TENANT_A}, 'BadKey', 'Bad', 'Subject', 'Body', gen_random_uuid(), gen_random_uuid()
+          ${TENANT_A}, 'BadKey', 'Bad', ${{ en: "Subject" }}, ${{ en: "Body" }},
+          gen_random_uuid(), gen_random_uuid()
         )
       `;
     } catch {
@@ -146,7 +147,8 @@ suite("email schema — RLS isolation", () => {
       INSERT INTO awcms_mini_email_templates
         (tenant_id, template_key, name, subject_template, text_body_template, created_by, updated_by)
       VALUES (
-        ${TENANT_A}, 'auth.password_reset', 'v1', 'Subject', 'Body', gen_random_uuid(), gen_random_uuid()
+        ${TENANT_A}, 'auth.password_reset', 'v1', ${{ en: "Subject" }}, ${{ en: "Body" }},
+        gen_random_uuid(), gen_random_uuid()
       )
     `;
 
@@ -160,7 +162,8 @@ suite("email schema — RLS isolation", () => {
       INSERT INTO awcms_mini_email_templates
         (tenant_id, template_key, name, subject_template, text_body_template, created_by, updated_by)
       VALUES (
-        ${TENANT_A}, 'auth.password_reset', 'v2', 'Subject', 'Body', gen_random_uuid(), gen_random_uuid()
+        ${TENANT_A}, 'auth.password_reset', 'v2', ${{ en: "Subject" }}, ${{ en: "Body" }},
+        gen_random_uuid(), gen_random_uuid()
       )
       RETURNING id
     `;
@@ -184,6 +187,7 @@ suite("email schema — RLS isolation", () => {
       "template.create",
       "template.delete",
       "template.read",
+      "template.restore",
       "template.update"
     ]);
   });

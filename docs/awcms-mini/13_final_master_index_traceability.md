@@ -206,6 +206,7 @@ flowchart LR
 | UI/design system/a11y                 | `awcms-mini-ui-screen`                                                                                 |
 | Form multi-step (wizard)              | `awcms-mini-wizard-form`                                                                               |
 | Server-side draft persistence         | `awcms-mini-form-drafts`                                                                               |
+| Kirim email transaksional             | `awcms-mini-email`                                                                                     |
 | Rilis/CHANGELOG                       | `awcms-mini-release`                                                                                   |
 | Legacy migration                      | `awcms-mini-legacy-migration`                                                                          |
 | Implementasi issue                    | skill `awcms-mini-implement-issue` + agent `awcms-mini-coder`                                          |

@@ -112,6 +112,7 @@ AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode sta
 | Layar/komponen UI sesuai design system                             | `awcms-mini-ui-screen`            |
 | Form multi-step (reusable wizard pattern)                          | `awcms-mini-wizard-form`          |
 | Server-side draft persistence (resume lintas sesi/perangkat)       | `awcms-mini-form-drafts`          |
+| Kirim email transaksional (provider-neutral, template, outbox)     | `awcms-mini-email`                |
 | String UI `.po` gettext & konten multi-bahasa                      | `awcms-mini-i18n`                 |
 | Rilis versi (Changesets, tag, CHANGELOG)                           | `awcms-mini-release`              |
 | Migrasi data legacy (dry-run, backfill)                            | `awcms-mini-legacy-migration`     |
@@ -155,6 +156,9 @@ flowchart LR
   EP --> PERF[performance]
   EP --> INT[integration]
   SEC --> HARD[security-hardening]
+  EP --> EMAIL[email]
+  EMAIL --> INT
+  EMAIL --> SD
 ```
 
 Skill merujuk `docs/awcms-mini/*` sebagai sumber kebenaran; bila standar berubah, perbarui doc **dan** skill terkait.

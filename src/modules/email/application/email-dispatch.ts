@@ -13,10 +13,12 @@
  *    same reuse `sql/020`'s own comment documents).
  * 2. SEND — for each claimed row, renders the body from its
  *    `template_key`/`variables` (`../domain/email-template-render.ts`,
- *    Issue #495's minimal renderer — Issue #498 will own the full "safe
- *    rendering" version behind the same seam) and calls the resolved
- *    `EmailProvider` (`../infrastructure/email-provider-resolver.ts`)
- *    *outside* any transaction.
+ *    safe rendering: per-category variable allowlist + locale resolution,
+ *    Issue #498) and calls the resolved `EmailProvider`
+ *    (`../infrastructure/email-provider-resolver.ts`) *outside* any
+ *    transaction. Rendering locale is the tenant's `default_locale`
+ *    (`awcms_mini_tenants`, no per-message override yet — #496/#497 can add
+ *    one if a real need surfaces).
  * 3. FINALIZE — one short transaction per row flips `sending` to `sent`,
  *    or (on failure) to `retry_wait` with backoff
  *    (`../domain/email-retry.ts`) or `failed` once retries are exhausted
@@ -31,6 +33,7 @@
 import { getProviderCircuitBreaker } from "../../../lib/database/circuit-breaker";
 import { withTenant } from "../../../lib/database/tenant-context";
 import { log } from "../../../lib/logging/logger";
+import { fetchActiveEmailTemplateByKey } from "./email-template-directory";
 import { resolveEmailSendMaxRetries } from "../domain/email-config";
 import { redactEmailAddressesInText } from "../domain/email-log-redaction";
 import { evaluateEmailRetry } from "../domain/email-retry";
@@ -40,6 +43,8 @@ import {
 } from "../domain/email-template-render";
 import type { EmailProvider } from "../domain/email-provider-contract";
 import { resolveEmailProvider } from "../infrastructure/email-provider-resolver";
+
+const DEFAULT_RENDER_LOCALE = "en";
 
 const MODULE_KEY = "email";
 const CIRCUIT_BREAKER_KEY = "email-mailketing";
@@ -130,40 +135,16 @@ async function claimEligibleEntries(
   );
 }
 
-async function fetchActiveTemplate(
+/** `awcms_mini_tenants` has no RLS (it's the root table, not tenant-scoped data — same reasoning `object-sync-dispatch.ts` relies on) — queried directly, no `withTenant` needed. Falls back to `DEFAULT_RENDER_LOCALE` if the tenant row is somehow missing (defensive; should never happen for an active tenant). */
+async function fetchTenantDefaultLocale(
   sql: Bun.SQL,
-  tenantId: string,
-  templateKey: string
-): Promise<EmailTemplateSource | null> {
-  const rows = await withTenant(
-    sql,
-    tenantId,
-    (tx) => tx`
-      SELECT subject_template, text_body_template, html_body_template
-      FROM awcms_mini_email_templates
-      WHERE tenant_id = ${tenantId} AND template_key = ${templateKey}
-        AND is_active = true AND deleted_at IS NULL
-    `,
-    { workClass: "background_sync" }
-  );
+  tenantId: string
+): Promise<string> {
+  const rows = (await sql`
+    SELECT default_locale FROM awcms_mini_tenants WHERE id = ${tenantId}
+  `) as { default_locale: string }[];
 
-  const row = (
-    rows as {
-      subject_template: string;
-      text_body_template: string | null;
-      html_body_template: string | null;
-    }[]
-  )[0];
-
-  if (!row) {
-    return null;
-  }
-
-  return {
-    subjectTemplate: row.subject_template,
-    textBodyTemplate: row.text_body_template,
-    htmlBodyTemplate: row.html_body_template
-  };
+  return rows[0]?.default_locale ?? DEFAULT_RENDER_LOCALE;
 }
 
 async function recordDeliveryAttempt(
@@ -308,6 +289,7 @@ export async function dispatchEmailQueue(
   const provider = (options.resolveProvider ?? resolveEmailProvider)(env);
   const fromAddress = options.fromAddress ?? env.EMAIL_FROM_ADDRESS ?? "";
   const fromName = options.fromName ?? env.EMAIL_FROM_NAME ?? "";
+  const renderLocale = await fetchTenantDefaultLocale(sql, tenantId);
 
   for (const entry of claimed) {
     const retryCount = Number(entry.retry_count);
@@ -317,7 +299,13 @@ export async function dispatchEmailQueue(
     let template: EmailTemplateSource | null = null;
 
     if (entry.template_key) {
-      template = await fetchActiveTemplate(sql, tenantId, entry.template_key);
+      template = await withTenant(
+        sql,
+        tenantId,
+        (tx) =>
+          fetchActiveEmailTemplateByKey(tx, tenantId, entry.template_key!),
+        { workClass: "background_sync" }
+      );
     }
 
     if (!template) {
@@ -351,7 +339,9 @@ export async function dispatchEmailQueue(
 
     const rendered = renderEmailTemplate(
       template,
-      toStringVariables(entry.variables)
+      toStringVariables(entry.variables),
+      entry.template_key!,
+      renderLocale
     );
 
     const deliveryResult = await provider.send({

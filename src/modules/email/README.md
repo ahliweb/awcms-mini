@@ -1,9 +1,10 @@
 # Email
 
-Implementasi Issue #493-#495 (epic #492) — arsitektur modul email reusable,
-skema/RLS/delivery queue (`sql/020`), dan adapter Mailketing nyata +
-dispatcher. **Belum ada** endpoint publik (password reset, announcement)
-atau admin UI — itu Issue #496/#497/#499 (lihat §Roadmap).
+Implementasi Issue #493-#495, #498 (epic #492) — arsitektur modul email
+reusable, skema/RLS/delivery queue (`sql/020`/`021`), adapter Mailketing
+nyata + dispatcher, dan template management (CRUD, i18n, allowlist,
+preview). **Belum ada** endpoint yang benar-benar meng-enqueue pesan
+(password reset, announcement) — itu Issue #496/#497 (lihat §Roadmap).
 
 ## Kenapa modul ini ada — hubungan dengan historical issue #390
 
@@ -78,16 +79,59 @@ alih-alih memanggil provider nyata; dipakai dev lokal tanpa kredensial
 Mailketing dan test. **Beda** dari `EMAIL_ENABLED=false` (dispatcher sama
 sekali tidak claim baris, tidak pernah sampai ke provider manapun).
 
-### Rendering minimal — `domain/email-template-render.ts`
+### Template management — Issue #498
 
-Dispatcher me-render body dari `template_key`+`variables` (bukan
-menyimpan rendered body — `sql/020`) via substitusi `{{key}}` sederhana,
-HTML-escaped untuk `html_body_template`. Ini **bukan** scope penuh "safe
-rendering" Issue #498 (allowlist variabel per kategori, preview/dry-run,
-default templates) — sengaja seam sempit yang akan digantikan/diperluas
-#498, bukan implementasi bersaing. Template tidak ditemukan/`is_active =
-false` → kegagalan non-retryable (retry tidak akan menemukan template
-yang sama), langsung `failed`.
+`sql/021` mengubah tiga kolom body `awcms_mini_email_templates`
+(`subject_template`, `text_body_template`, `html_body_template`) dari
+`text` menjadi `jsonb` per-locale (`{"en": "...", "id": "..."}`, doc 04
+§Konten multi-bahasa "JSONB per-locale") — dipilih ketimbang tabel
+translasi terpisah karena template jarang di-query per-locale (selalu
+dibaca utuh satu baris). Kolom `restored_at`/`restored_by` juga
+ditambahkan (berbeda dari `form_drafts`: template adalah master/config
+data, restore-nya bermakna).
+
+- **Kategori & allowlist variabel** — `domain/email-template-categories.ts`.
+  `template_key` (format sama seperti constraint SQL) SEKALIGUS menjadi
+  kategori: 5 kategori base fixed (`auth.password_reset`,
+  `system.announcement`, `system.security_notice`,
+  `workflow.task_assigned`, `workflow.decision_required`) plus
+  `derived.transactional` sebagai contoh; masing-masing punya daftar nama
+  variabel yang diizinkan. `derived.*` lain **harus** didaftarkan dulu via
+  `registerDerivedEmailTemplateCategory(category, allowedVariables)`
+  sebelum dipakai — kategori tak dikenal ditolak saat create (fail-closed),
+  bukan diperlakukan "semua variabel diizinkan".
+- **Rendering aman** — `domain/email-template-render.ts` (Issue #495's
+  seam sempit, sekarang scope penuh): resolve locale (`resolveLocaleVariant`,
+  fallback ke `en`), filter variabel pemanggil lewat allowlist kategori
+  (variabel di luar daftar didiamkan/dibuang, tidak pernah disubstitusi),
+  baru substitusi `{{key}}` — HTML-escaped untuk `htmlBody`. Dispatcher
+  (`application/email-dispatch.ts`) merender pada locale
+  `default_locale` tenant (`awcms_mini_tenants`, tanpa override per-pesan
+  saat ini). Template tidak ditemukan/`is_active = false` → kegagalan
+  non-retryable, langsung `failed`.
+- **Validasi input** — `domain/email-template-validation.ts`: format
+  `templateKey` + kategori dikenal, setiap `LocalizedTemplateText` wajib
+  punya entri `en`, kode locale 2-huruf, dan `htmlBodyTemplate` ditolak
+  bila mengandung `<script>`/`<iframe>`/inline event handler/`javascript:`
+  (shell HTML yang ditulis admin — variabel yang disubstitusi ke dalamnya
+  di-escape terpisah saat render, dua lapis perlindungan berbeda).
+- **CRUD + restore + preview** — `application/email-template-directory.ts`
+  (create/read/list/update/soft-delete/restore, pola sama
+  `form-draft-directory.ts`) di balik
+  `POST/GET/PATCH/DELETE /api/v1/email/templates[/{id}]` dan
+  `POST /api/v1/email/templates/{id}/restore` (action `restore` khusus,
+  pola sama `POST /profiles/{id}/restore`, bukan reuse `update`).
+  `POST /api/v1/email/templates/{id}/preview` merender dengan data sampel
+  sintetis (`domain/email-template-preview.ts` — tidak pernah alamat
+  penerima nyata) dan **tidak pernah** menyentuh
+  `awcms_mini_email_messages`/antrean — murni pratinjau.
+- **Default templates** — `domain/email-default-templates.ts` (EN+ID
+  untuk 5 kategori base) + `application/email-template-directory.ts`'s
+  `seedDefaultEmailTemplates` (idempotent — skip key yang sudah aktif,
+  tidak pernah menimpa kustomisasi tenant), dijalankan operator via
+  `bun run email:templates:seed-defaults -- --tenant=<id> --actor=<tenantUserId>`
+  (bukan migration — migration tidak bisa INSERT untuk tenant yang belum
+  ada saat migration jalan).
 
 ### Retry/backoff — `domain/email-retry.ts`
 
@@ -157,9 +201,7 @@ Selaras ISO/IEC 27001 Annex A (manajemen secret/config) dan ISO/IEC 27002
 
 - ~~**#494**~~ — migration tenant-aware, RLS FORCE, status transition. **Selesai.**
 - ~~**#495**~~ — adapter Mailketing nyata + dispatcher Bun. **Selesai.**
-- **#498** — template management + safe rendering penuh (kategori
-  `auth.password_reset`, `system.announcement`, dst — menggantikan
-  rendering minimal `domain/email-template-render.ts` di atas).
+- ~~**#498**~~ — template management + safe rendering penuh. **Selesai.**
 - **#496** — flow forgot/reset password (caller pertama yang benar-benar
   meng-enqueue baris `email_messages`).
 - **#497** — announcement/notification workflow.

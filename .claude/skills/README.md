@@ -28,6 +28,7 @@ Skill Claude Code tingkat-proyek untuk AWCMS-Mini. Setiap skill meng-encode stan
 | `awcms-mini-ui-screen`                                 | Implementasi layar/komponen UI sesuai design system                         | 14, 15                 |
 | `awcms-mini-wizard-form`                               | Form multi-step (reusable wizard pattern)                                   | wizard-form-pattern.md |
 | `awcms-mini-form-drafts`                               | Server-side draft persistence (resume lintas sesi/perangkat)                | form-drafts/README.md  |
+| `awcms-mini-email`                                     | Kirim email transaksional (provider-neutral, template management, outbox)   | email/README.md        |
 | `awcms-mini-i18n`                                      | String UI `.po` gettext & konten multi-bahasa                               | 14, 04, 19             |
 | `awcms-mini-release`                                   | Rilis versi via Changesets (bump, CHANGELOG, tag)                           | 09                     |
 | `awcms-mini-legacy-migration`                          | Migrasi data legacy aman (dry-run, backfill)                                | 07, 06                 |
@@ -91,6 +92,9 @@ flowchart TD
   HARD --> OBS
   PERF --> PF
   HARD --> PF
+  EP --> EMAIL[awcms-mini-email]
+  EMAIL --> INT
+  EMAIL --> SD
 ```
 
 ## Subagents (`.claude/agents/`)
