@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-06T14:02:04.204Z        |
-| Total issue  | 55                              |
-| Open issue   | 4                               |
-| Closed issue | 51                              |
+| Snapshot     | 2026-07-06T17:17:45.853Z        |
+| Total issue  | 58                              |
+| Open issue   | 1                               |
+| Closed issue | 57                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 25 (6 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    4 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   51 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    1 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   57 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 25 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -65,10 +65,24 @@ Update juga metadata di `docs/awcms-mini/README.md`, `06_github_issues_detail.md
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                                                                                                                                                                                    |
-| ------ | -----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |      4 | #462-#465 — issue docs/tooling/planning pasca-analisis lanjutan (panduan deploy Coolify, contoh modul domain minimal, tooling snapshot, rencana pilot aplikasi turunan). #461 (refresh snapshot) sudah `completed` — lihat CLOSED. Bukan bagian backlog doc06 (18 issue itu sudah `completed` seluruhnya). |
-| CLOSED |     51 | 20 issue domain ditutup `not planned`; 18 issue backlog doc06 (#371-#373, #376-#379, #391-#393, #398, #401, #403-#408) ditutup `completed`; epic M9 (#433-#438, #447, 7 issue) dan 6 issue pasca-analisis lanjutan (#450-#454, #461) ditutup `completed` di luar backlog doc06 — lihat bagian di bawah.    |
+| State  | Jumlah | Catatan                                                                                                                                                                                                                                                                                                                   |
+| ------ | -----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |      1 | #472 — refresh snapshot ini sendiri (docs-only); akan `completed` begitu PR-nya merge. Bukan bagian backlog doc06 (18 issue itu sudah `completed` seluruhnya).                                                                                                                                                            |
+| CLOSED |     57 | 20 issue domain ditutup `not planned`; 18 issue backlog doc06 (#371-#373, #376-#379, #391-#393, #398, #401, #403-#408) ditutup `completed`; epic M9 (#433-#438, #447, 7 issue) dan 12 issue pasca-analisis lanjutan (#450-#454, #461-#465, #473, #475) ditutup `completed` di luar backlog doc06 — lihat bagian di bawah. |
+
+### Issue pasca-analisis #461-#465, #473, #475 completed (2026-07-06 s.d. 2026-07-07)
+
+Tujuh issue lanjutan di luar backlog doc06, dibuka setelah #450-#454 selesai dan seluruhnya ditutup `completed`:
+
+- **[#461](https://github.com/ahliweb/awcms-mini/issues/461)** — refresh manual snapshot `docs/awcms-mini/github/` (issue, label, milestone, security) setelah #450-#454 closed.
+- **[#464](https://github.com/ahliweb/awcms-mini/issues/464)** — `scripts/github-snapshot-refresh.ts` (`bun run github:snapshot:refresh`): regenerasi mekanis tabel metadata + dua tabel daftar issue via marker, tanpa menyentuh narasi hand-written.
+- **[#462](https://github.com/ahliweb/awcms-mini/issues/462)** — `docs/awcms-mini/deploy-coolify.md`: panduan deploy Coolify (single-VPS, multi-aplikasi, opsi PostgreSQL, checklist keamanan).
+- **[#463](https://github.com/ahliweb/awcms-mini/issues/463)** — `docs/awcms-mini/examples/minimal-domain-module.md`: contoh konkret satu modul domain minimal (`asset-register`), tiap snippet diverifikasi terhadap modul aktif nyata.
+- **[#465](https://github.com/ahliweb/awcms-mini/issues/465)** — `docs/awcms-mini/derived-app-pilot-plan.md`: rekomendasi AWPOS sebagai pilot aplikasi turunan pertama, berdasarkan inspeksi nyata repo `ahliweb/awpos` (18 dari 38 issue-nya sudah tercakup base ini).
+- **[#473](https://github.com/ahliweb/awcms-mini/issues/473)** — perbaikan `issueTableRow()` di `github-snapshot-refresh.ts` agar URL issue generated memakai repo dinamis, bukan hardcode `ahliweb/awcms-mini`.
+- **[#475](https://github.com/ahliweb/awcms-mini/issues/475)** — perbaikan `github-snapshot-refresh.ts` agar CodeQL run yang masih `in_progress` tidak salah dilaporkan sebagai `Failure` — ditemukan live saat menjalankan refresh untuk #472 (baris "Latest CodeQL run" kini dilewati, bukan ditebak, bila run belum `completed`).
+
+Dua skill baru ditambahkan mengikuti kapabilitas di atas: `awcms-mini-deploy` dan `awcms-mini-github-snapshot` (lihat `.claude/skills/README.md`).
 
 ### Issue pasca-analisis #450-#454 completed (2026-07-06)
 

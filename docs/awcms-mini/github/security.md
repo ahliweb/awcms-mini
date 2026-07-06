@@ -1,6 +1,6 @@
 # GitHub Security Setup AWCMS-Mini
 
-Snapshot: 2026-07-06T14:02:04.204Z
+Snapshot: 2026-07-06T17:17:45.853Z
 
 Dokumen ini mencatat konfigurasi GitHub Security untuk `ahliweb/awcms-mini`: Bun + Astro 7 + PostgreSQL, base generik selesai (v0.23.5). Baris konfigurasi diperbarui saat setup berubah (baris CodeQL code scanning disegarkan untuk Issue #452 — coverage `javascript-typescript`); metrik point-in-time (alert count, commit run) mengikuti timestamp snapshot di atas dan disegarkan lewat §Proses Refresh. Refresh 2026-07-06 (Issue #461): dua temuan nyata dari scan `javascript-typescript` pertama (alert #8 `js/file-system-race`, #9 `js/unused-local-variable`) diperbaiki dan dikonfirmasi `state: fixed` via API — lihat §Alert Count Saat Setup.
 
