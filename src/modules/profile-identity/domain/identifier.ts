@@ -31,8 +31,20 @@ export function normalizeIdentifier(
   return trimmed;
 }
 
+/**
+ * Not a credential hash: this is a deterministic lookup/dedup key for an
+ * identifier (email/phone/NIK/etc, doc 04 §Alur perlindungan data
+ * sensitif), never a user-chosen password. A slow adaptive hash (bcrypt/
+ * argon2/scrypt) exists to defend low-entropy secrets against offline
+ * guessing; it would make every lookup query impractically slow here and
+ * adds no real protection — enumeration risk is mitigated by RLS/access
+ * control on the table this hash is stored in, not by the hash
+ * algorithm's cost. Real passwords go through `lib/auth/password.ts`'s
+ * `hashPassword` (Bun.password/argon2id) exclusively; this function is
+ * never used for credential storage.
+ */
 export function hashIdentifier(normalizedValue: string): string {
-  return `sha256:${createHash("sha256").update(normalizedValue).digest("hex")}`;
+  return `sha256:${createHash("sha256").update(normalizedValue).digest("hex")}`; // codeql[js/insufficient-password-hash]
 }
 
 export function maskIdentifier(
