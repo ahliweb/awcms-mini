@@ -99,6 +99,55 @@ sebagai peran least-privilege — jadi `docker compose up` mengurut sendiri:
 `db` init membuat peran → `migrate` menerapkan skema + FORCE RLS + grant →
 `app` mulai.
 
+### production (online) — image registry (`Dockerfile.production`, opsional)
+
+`docker-compose.yml` di atas **tetap jadi jalur yang direkomendasikan**
+untuk topologi LAN-first satu-server (bind-mount + `bun install && bun run
+build` saat container start — praktis untuk operator yang `git
+pull`/rebuild in-place, lihat komentar header berkas itu). `Dockerfile.production`
+adalah jalur **opsional lain**, untuk deployment berbasis image registry
+(build sekali di CI, push image, pull+run identik di tiap environment) —
+dipakai saat build-saat-startup tidak diinginkan (cold start lebih lambat,
+image ingin immutable) atau saat orkestrator (Coolify, k8s, ECS, dsb.)
+mengharapkan image siap-pakai, bukan bind-mount sumber.
+
+Perbedaan kunci vs `docker-compose.yml`'s `app` service:
+
+| Aspek       | `docker-compose.yml` (`app`)                                | `Dockerfile.production`                                                    |
+| ----------- | ----------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Sumber kode | Bind-mount repo langsung (`volumes: - .:/app`)              | `COPY` ke dalam image saat build — immutable setelah dibuat                |
+| Build       | Saat container start (`bun install && bun run build`)       | Saat `docker build` (multi-stage) — start container jadi instan            |
+| User        | Host user (`APP_UID`/`APP_GID`) — perlu bind-mount writable | User bawaan image `oven/bun:1`, `bun` (non-root, uid 1000)                 |
+| Migration   | Service `migrate` terpisah dalam compose yang sama          | Tidak disertakan — jalankan `bun run db:migrate` terpisah (lihat di bawah) |
+| Cocok untuk | LAN-first satu server, operator `git pull` in-place         | Registry/CI-push, orkestrator container (Coolify/k8s/ECS)                  |
+
+Build dan jalankan:
+
+```bash
+docker build -f Dockerfile.production -t awcms-mini:prod .
+docker run -d --name awcms-mini \
+  -p 4321:4321 \
+  -e DATABASE_URL=postgres://awcms_mini_app:<password>@<db-host>:5432/awcms-mini \
+  -e AUTH_JWT_SECRET=<secret> \
+  -e AUTH_COOKIE_SECURE=true \
+  -e APP_ENV=production \
+  awcms-mini:prod
+curl http://localhost:4321/api/v1/health
+```
+
+Secret (`DATABASE_URL`, `AUTH_JWT_SECRET`, HMAC sync, kredensial R2, dst.)
+**selalu** disuntikkan saat `docker run`/lewat orkestrator (env var, secret
+store, atau `--env-file`) — **tidak pernah** dibakar ke dalam image.
+`.dockerignore` mengecualikan `.env`/`.env.*` dari build context sehingga
+`.env` lokal operator tidak mungkin ikut ter-cache di satu layer.
+
+Image ini **tidak** menjalankan migration — peran runtime-nya
+(`awcms_mini_app`, least-privilege) tidak punya hak DDL/GRANT yang
+migration butuhkan (model dua-peran di bawah). Jalankan `bun run
+db:migrate` sebagai langkah terpisah (job CI, atau `docker run` sekali
+pakai dengan `DATABASE_URL` privileged) terhadap database baru sebelum
+container ini pertama kali dijalankan.
+
 ## Model dua-peran basis data (RLS enforcement)
 
 Isolasi antar-tenant memakai PostgreSQL Row-Level Security (ADR-0003).

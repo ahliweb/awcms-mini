@@ -1,0 +1,71 @@
+# Dockerfile.production — optional registry-based deployment image
+# (Issue #454, doc 18 §Profil per-environment "production (online)").
+#
+# This is OPTIONAL and does NOT replace `docker-compose.yml`, which stays
+# the recommended path for the LAN-first/offline single-server topology
+# (bind-mount + `bun install && bun run build` at container start — see
+# that file's own top-of-file comment for why). This Dockerfile instead
+# targets a registry-based flow (build once in CI, push an image, pull +
+# run identically across environments) where build-at-startup is
+# undesirable: slower cold start, and the image should be immutable once
+# built rather than re-installing/rebuilding from a live bind mount.
+#
+# Bun-only (AGENTS.md rule 14): base image is `oven/bun:1`, never `node`.
+#
+# Usage:
+#   docker build -f Dockerfile.production -t awcms-mini:prod .
+#   docker run -d --name awcms-mini \
+#     -p 4321:4321 \
+#     -e DATABASE_URL=postgres://awcms_mini_app:<password>@<db-host>:5432/awcms-mini \
+#     -e AUTH_JWT_SECRET=<secret> \
+#     -e AUTH_COOKIE_SECURE=true \
+#     -e APP_ENV=production \
+#     awcms-mini:prod
+#   curl http://localhost:4321/api/v1/health
+#
+# Secrets (DATABASE_URL, AUTH_JWT_SECRET, AWCMS_MINI_SYNC_HMAC_SECRET, R2
+# credentials, etc.) are supplied at `docker run`/orchestrator level
+# (env vars, secret store, or an env file passed via `--env-file`) — never
+# baked into the image. `.dockerignore` excludes `.env`/`.env.*` from the
+# build context so a local `.env` can never accidentally end up in a layer.
+#
+# Migrations are NOT run by this image — `bun run db:migrate` needs the
+# privileged DB role this image's runtime user does not have (two-role
+# model, see docs/awcms-mini/deployment-profiles.md §Model dua-peran). Run
+# migrations as a separate one-shot step (CI job, `docker run` with the
+# privileged DATABASE_URL, or plain `bun run db:migrate` from a checkout)
+# before starting this container against a fresh database.
+
+FROM oven/bun:1 AS deps
+WORKDIR /app
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+
+FROM oven/bun:1 AS build
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN bun run build
+
+# Fresh production-only install — keeps devDependencies (typescript,
+# prettier, changesets, etc.) out of the final image entirely, rather than
+# copying the `deps` stage's full node_modules forward.
+FROM oven/bun:1 AS prod-deps
+WORKDIR /app
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile --production
+
+FROM oven/bun:1 AS runtime
+WORKDIR /app
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/package.json ./package.json
+
+# `oven/bun:1` ships a built-in non-root `bun` user (uid 1000) for exactly
+# this purpose — never run the server as root.
+USER bun
+
+EXPOSE 4321
+ENV HOST=0.0.0.0 PORT=4321
+
+CMD ["bun", "./dist/server/entry.mjs"]
