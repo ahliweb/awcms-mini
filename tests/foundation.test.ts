@@ -202,7 +202,8 @@ describe("database migration runner helpers", () => {
       "016_awcms_mini_tenant_default_locale_english_schema.sql",
       "017_awcms_mini_sync_queue_conflict_performance_indexes.sql",
       "018_awcms_mini_object_sync_queue_dispatcher_schema.sql",
-      "019_awcms_mini_form_drafts_schema.sql"
+      "019_awcms_mini_form_drafts_schema.sql",
+      "020_awcms_mini_email_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
