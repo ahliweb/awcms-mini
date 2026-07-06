@@ -216,6 +216,9 @@ profil non-development, termasuk offline/LAN (doc 18: "backup lokal").
 
 ## Lihat juga
 
+- [`deploy-coolify.md`](deploy-coolify.md) — panduan deploy Coolify
+  khusus: topologi single VPS, multi aplikasi dalam satu VPS, opsi
+  PostgreSQL, dan checklist keamanan (Issue #462).
 - [`18_configuration_env_reference.md`](18_configuration_env_reference.md)
   — referensi environment variable lengkap dan topologi LAN-first.
 - [`database-pooling.md`](database-pooling.md) — kapan PgBouncer relevan.
