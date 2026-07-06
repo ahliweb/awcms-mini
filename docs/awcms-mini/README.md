@@ -122,7 +122,11 @@ Dokumen dikelompokkan mengikuti alur pengembangan agar mudah diimplementasi.
 |  19 | `19_glossary_terminology.md`               | Glossary & terminologi lintas dokumen                                                                  |
 |  20 | `20_threat_model_security_architecture.md` | Threat model (STRIDE), trust boundary, kontrol keamanan berlapis (dokumen base, bukan contoh domain)   |
 |   – | `database-migrations.md`                   | Panduan runner migrasi PostgreSQL Bun-native                                                           |
+|   – | `deployment-profiles.md`                   | Profil deployment (development/staging/production/offline-LAN) dan model dua-peran basis data          |
+|   – | `deploy-coolify.md`                        | Panduan deploy Coolify: single-VPS, multi-aplikasi, opsi PostgreSQL, checklist keamanan (Issue #462)   |
 |   – | `derived-application-guide.md`             | Panduan membangun aplikasi turunan di atas base (9 langkah + 5 contoh ilustratif + checklist keamanan) |
+|   – | `examples/minimal-domain-module.md`        | Contoh konkret satu modul domain minimal (Issue #463)                                                  |
+|   – | `derived-app-pilot-plan.md`                | Rencana pilot aplikasi turunan pertama — rekomendasi AWPOS (Issue #465)                                |
 |   – | `../../openapi/` dan `../../asyncapi/`     | Baseline kontrak OpenAPI/AsyncAPI dan validator `api:spec:check`                                       |
 
 ### Architecture Decision Records
@@ -212,7 +216,7 @@ Kontribusi baru masuk salah satu dari dua jalur:
 6. UI/admin screen sesuai design system (doc 14/15) — skill `awcms-mini-ui-screen`; string via i18n — skill `awcms-mini-i18n`.
 7. Audit/logging aksi high-risk — skill `awcms-mini-audit-log`; idempotency mutation high-risk — skill `awcms-mini-idempotency`.
 8. Test berlapis — skill `awcms-mini-testing`; review keamanan — skill `awcms-mini-security-review`.
-9. Deployment & go-live — skill `awcms-mini-production-preflight`.
+9. Deployment & go-live — skill `awcms-mini-production-preflight`; pilih & jalankan profil deployment — skill `awcms-mini-deploy` (`deployment-profiles.md`, atau `deploy-coolify.md` bila Coolify).
 
 Orkestrasi penuh satu unit kerja: skill `awcms-mini-implement-issue`. Pertahankan lapisan reusable (tabel §AWCMS-Mini sebagai standar pengembangan di atas), ganti hanya lapisan spesifik domain.
 

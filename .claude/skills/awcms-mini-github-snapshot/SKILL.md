@@ -1,0 +1,58 @@
+---
+name: awcms-mini-github-snapshot
+description: Refresh snapshot dokumentasi GitHub (docs/awcms-mini/github/) setelah issue/label/milestone/security alert berubah di GitHub. Gunakan sebelum audit/release, atau saat diminta menyinkronkan docs dengan state GitHub terbaru. Sesuai docs/awcms-mini/github/README.md.
+---
+
+# AWCMS-Mini — GitHub Snapshot Refresh
+
+Ikuti `docs/awcms-mini/github/README.md`. Snapshot ini adalah salinan
+faktual state GitHub (issue, label, milestone, security alert) — bukan
+backlog rencana (itu tetap `docs/awcms-mini/06_github_issues_detail.md`).
+
+## Command
+
+```bash
+gh auth status
+bun run github:snapshot:refresh   # default repo ahliweb/awcms-mini
+```
+
+`scripts/github-snapshot-refresh.ts` (Issue #464) meregenerasi bagian
+mekanis lewat `gh` CLI (tidak pernah membaca/menyimpan token sendiri):
+
+- **Tabel metadata** (snapshot timestamp, jumlah issue/label/milestone,
+  latest CodeQL run, alert count) di `README.md`, `issues-open-001.md`,
+  `issues-closed-001.md`, `labels-milestones.md`, `security.md` —
+  diganti utuh per baris.
+- **Dua tabel daftar issue yang tumbuh** (open issues; closed issues
+  pasca-doc06, `>= #433`) diregenerasi penuh di antara marker
+  `<!-- github-snapshot:NAME:start/end -->`.
+
+## Yang TIDAK disentuh script (tetap manual)
+
+- Narasi hand-written (bagian "### ... completed" di `README.md`).
+- Tabel historis 38-issue doc06 asli di `issues-closed-001.md`.
+- Tabel klasifikasi detail label/milestone di `labels-milestones.md`.
+- Tabel "Ringkasan state saat snapshot" di `README.md` (kolom Catatan
+  prose-heavy) — perbarui manual bila OPEN/CLOSED count berubah.
+
+Tinjau bagian-bagian ini manual setelah menjalankan script bila ada
+issue/label/milestone baru yang butuh konteks naratif.
+
+## Alur
+
+```mermaid
+flowchart LR
+  A[gh auth status] --> B[bun run github:snapshot:refresh]
+  B --> C[bun run format]
+  C --> D[bun run check:docs]
+  D --> E{Narasi manual perlu update?}
+  E -- Ya --> F[Edit bagian hand-written yang relevan]
+  E -- Tidak --> G[Commit]
+  F --> G
+```
+
+## Output
+
+Ringkasan: file yang diperbarui, angka open/closed/label/milestone baru,
+dan daftar bagian manual yang perlu ditinjau (bila ada issue/label baru
+sejak snapshot terakhir).
