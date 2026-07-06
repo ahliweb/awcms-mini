@@ -1,7 +1,13 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import { redactSensitiveAttributes } from "../src/modules/_shared/redaction";
-import type { AuditEventInput } from "../src/modules/logging/application/audit-log";
+import {
+  getAuditExportHook,
+  recordAuditEvent,
+  setAuditExportHook,
+  type AuditEventInput,
+  type AuditEventRecorded
+} from "../src/modules/logging/application/audit-log";
 
 describe("redactSensitiveAttributes", () => {
   test("undefined input stays undefined", () => {
@@ -126,5 +132,111 @@ describe("AuditEventInput shape", () => {
 
     expect(sample.moduleKey).toBe("profile_identity");
     expect(sample.severity).toBe("warning");
+  });
+});
+
+/**
+ * `AuditExportHook` extension point (Issue #447). No DB is needed to test
+ * the hook plumbing itself — `recordAuditEvent`'s only interaction with `tx`
+ * is one tagged-template call, so a plain function standing in for
+ * `Bun.SQL` is enough to exercise everything after the INSERT.
+ */
+describe("AuditExportHook extension point", () => {
+  let originalConsoleLog: typeof console.log;
+
+  function fakeTx(): Promise<unknown[]> {
+    return Promise.resolve([]);
+  }
+
+  beforeEach(() => {
+    originalConsoleLog = console.log;
+    console.log = () => {};
+  });
+
+  afterEach(() => {
+    console.log = originalConsoleLog;
+    setAuditExportHook(null);
+  });
+
+  test("default hook is null — zero behavior change for every deployment that never registers one", () => {
+    expect(getAuditExportHook()).toBeNull();
+  });
+
+  test("a registered hook receives the already-redacted event right after the write", async () => {
+    const received: AuditEventRecorded[] = [];
+    setAuditExportHook((event) => {
+      received.push(event);
+    });
+
+    await recordAuditEvent(fakeTx as unknown as Bun.SQL, {
+      tenantId: "11111111-1111-1111-1111-111111111111",
+      moduleKey: "logging",
+      action: "purge",
+      resourceType: "audit_event",
+      severity: "warning",
+      message: "Purged expired audit events.",
+      attributes: { email: "user@example.com", purgedCount: 3 }
+    });
+
+    expect(received).toHaveLength(1);
+    expect(received[0]!.action).toBe("purge");
+    expect(received[0]!.resourceType).toBe("audit_event");
+    // Redaction already applied — a hook can never see raw PII either.
+    expect(received[0]!.attributes).toEqual({
+      email: "[REDACTED]",
+      purgedCount: 3
+    });
+    expect(received[0]!.recordedAt).toBeInstanceOf(Date);
+  });
+
+  test("a synchronously throwing hook never fails recordAuditEvent", async () => {
+    setAuditExportHook(() => {
+      throw new Error("derived app export hook exploded");
+    });
+
+    await expect(
+      recordAuditEvent(fakeTx as unknown as Bun.SQL, {
+        tenantId: "11111111-1111-1111-1111-111111111111",
+        moduleKey: "logging",
+        action: "purge",
+        resourceType: "audit_event",
+        message: "test"
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  test("a rejecting async hook never fails recordAuditEvent", async () => {
+    setAuditExportHook(async () => {
+      throw new Error("derived app export hook rejected");
+    });
+
+    await expect(
+      recordAuditEvent(fakeTx as unknown as Bun.SQL, {
+        tenantId: "11111111-1111-1111-1111-111111111111",
+        moduleKey: "logging",
+        action: "purge",
+        resourceType: "audit_event",
+        message: "test"
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  test("setAuditExportHook(null) detaches a previously registered hook", async () => {
+    const received: AuditEventRecorded[] = [];
+    setAuditExportHook((event) => {
+      received.push(event);
+    });
+    setAuditExportHook(null);
+
+    await recordAuditEvent(fakeTx as unknown as Bun.SQL, {
+      tenantId: "11111111-1111-1111-1111-111111111111",
+      moduleKey: "logging",
+      action: "purge",
+      resourceType: "audit_event",
+      message: "test"
+    });
+
+    expect(received).toHaveLength(0);
+    expect(getAuditExportHook()).toBeNull();
   });
 });

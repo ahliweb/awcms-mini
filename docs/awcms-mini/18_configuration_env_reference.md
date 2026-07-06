@@ -44,13 +44,14 @@ Legenda: Wajib = perlu untuk boot; Sensitif = jangan bocor ke log/response.
 
 ### Inti aplikasi
 
-| Var                  | Wajib | Default                 | Sensitif | Fungsi                         |
-| -------------------- | ----- | ----------------------- | -------- | ------------------------------ |
-| `APP_ENV`            | Ya    | `development`           | –        | development/staging/production |
-| `APP_URL`            | Ya    | `http://localhost:4321` | –        | Base URL aplikasi              |
-| `APP_TIMEZONE`       | Ya    | `Asia/Jakarta`          | –        | Timezone default               |
-| `APP_DEFAULT_LOCALE` | –     | `id`                    | –        | Locale default                 |
-| `LOG_LEVEL`          | –     | `info`                  | –        | debug/info/warn/error          |
+| Var                        | Wajib | Default                 | Sensitif | Fungsi                                                                                                           |
+| -------------------------- | ----- | ----------------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| `APP_ENV`                  | Ya    | `development`           | –        | development/staging/production                                                                                   |
+| `APP_URL`                  | Ya    | `http://localhost:4321` | –        | Base URL aplikasi                                                                                                |
+| `APP_TIMEZONE`             | Ya    | `Asia/Jakarta`          | –        | Timezone default                                                                                                 |
+| `APP_DEFAULT_LOCALE`       | –     | `id`                    | –        | Locale default                                                                                                   |
+| `LOG_LEVEL`                | –     | `info`                  | –        | debug/info/warn/error                                                                                            |
+| `AUDIT_LOG_RETENTION_DAYS` | –     | `730`                   | –        | Retensi `awcms_mini_audit_events` (hari) dipakai `bun run logs:audit:purge` (Issue #447; doc 04 §Retention awal) |
 
 ### Database & pool
 
@@ -135,6 +136,7 @@ APP_URL=http://localhost:4321
 APP_TIMEZONE=Asia/Jakarta
 APP_DEFAULT_LOCALE=id
 LOG_LEVEL=info
+AUDIT_LOG_RETENTION_DAYS=730
 
 # Database
 DATABASE_URL=postgres://awcms-mini:awcms_mini_password@localhost:5432/awcms-mini

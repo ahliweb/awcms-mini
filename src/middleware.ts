@@ -4,6 +4,10 @@ import { resolveSsrContext } from "./lib/auth/ssr-session";
 import { resolveRequestLocale } from "./lib/i18n/request-locale";
 import { LOCALE_COOKIE_NAME, resolveLocale } from "./lib/i18n/locale";
 import { buildSecurityHeaders } from "./lib/security/security-headers";
+import {
+  isApiJsonResponseCandidate,
+  mergeCorrelationIdIntoApiPayload
+} from "./lib/logging/correlation-response";
 
 const PROTECTED_PREFIX = "/admin";
 const CORRELATION_ID_HEADER = "X-Correlation-ID";
@@ -25,6 +29,47 @@ function resolveCorrelationId(request: Request): string {
   return incoming && incoming.trim().length > 0
     ? incoming
     : crypto.randomUUID();
+}
+
+/**
+ * Full `ApiMeta.correlationId` propagation (Issue #447 — see
+ * `src/lib/logging/correlation-response.ts` for why this lives here as one
+ * choke point instead of 30+ individual handler edits). Only touches
+ * `/api/*` JSON responses, and only when `meta.correlationId` isn't already
+ * set by the handler itself. Reads the body via `.clone()` so the original
+ * response is never consumed out from under a caller that doesn't need the
+ * rewritten one.
+ */
+async function applyCorrelationIdToApiBody(
+  response: Response,
+  pathname: string,
+  correlationId: string
+): Promise<Response> {
+  if (
+    !isApiJsonResponseCandidate(pathname, response.headers.get("content-type"))
+  ) {
+    return response;
+  }
+
+  let payload: unknown;
+
+  try {
+    payload = await response.clone().json();
+  } catch {
+    // Not actually valid JSON despite the content-type — leave untouched.
+    return response;
+  }
+
+  const merged = mergeCorrelationIdIntoApiPayload(payload, correlationId);
+
+  if (!merged.changed) {
+    return response;
+  }
+
+  return new Response(JSON.stringify(merged.payload), {
+    status: response.status,
+    headers: response.headers
+  });
 }
 
 /**
@@ -76,7 +121,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
   context.locals.locale = resolveRequestLocale(context.cookies);
 
   if (!context.url.pathname.startsWith(PROTECTED_PREFIX)) {
-    const response = await next();
+    const response = await applyCorrelationIdToApiBody(
+      await next(),
+      context.url.pathname,
+      context.locals.correlationId
+    );
 
     return applyResponseHeaders(response, context.locals.correlationId);
   }
