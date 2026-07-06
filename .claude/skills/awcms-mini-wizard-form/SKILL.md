@@ -49,10 +49,10 @@ murni: `createWizardState`, `advanceWizard`, `rewindWizard`,
    memperbarui state stepper via JS setelah render awal (SSR-only, tidak
    reaktif sendiri).
 7. **Draft client-side hanya data non-sensitif**, dan tidak persisten
-   (tidak ada `localStorage`). Data sensitif/butuh resume lintas sesi →
-   itu scope server-side draft persistence (Issue #484, **belum
-   dikerjakan** — gate: dipakai minimal 2 modul domain nyata atau
-   disetujui maintainer lebih awal).
+   (tidak ada `localStorage`). Butuh resume lintas sesi/perangkat, atau
+   payload mengandung apa pun yang lebih dari UX scratch state? Pakai
+   server-side draft persistence — skill `awcms-mini-form-drafts`
+   (tersedia sejak Issue #484, `/api/v1/form-drafts`).
 
 ## Verifikasi
 
@@ -65,4 +65,5 @@ keyboard-only.
 
 `awcms-mini-ui-screen` (pola layar/token/a11y umum), `awcms-mini-i18n`
 (katalog `.po`), `awcms-mini-idempotency` (submit final high-risk),
-`awcms-mini-new-endpoint` (endpoint domain target submit).
+`awcms-mini-new-endpoint` (endpoint domain target submit),
+`awcms-mini-form-drafts` (resume-on-load lintas sesi via server).

@@ -1,22 +1,35 @@
 ---
 /**
- * Wizard fixture page (Issue #483) — non-domain, dummy-data example
+ * Wizard fixture page (Issue #483/#484) — non-domain, dummy-data example
  * exercising the reusable wizard pattern (Issue #479/#480,
  * `docs/awcms-mini/examples/wizard-form-pattern.md`) end-to-end inside the
  * real admin shell. Not linked from `AdminLayout.astro`'s nav (it's a
  * fixture for developers building a derived module, not a shipped admin
  * feature) — reachable directly at `/admin/examples/wizard`.
  *
- * Submit is a local mock (`setTimeout`, no `fetch`) — no new endpoint,
- * schema, or migration, per the issue's explicit scope. A real derived
- * module wires the same wizard-client.ts helper to an actual endpoint;
- * see `wizard-derived-module-example.md` (Issue #482) for that version.
+ * Draft save/resume/submit wired to the real `/api/v1/form-drafts` API
+ * (Issue #484's pilot integration) — `moduleKey: "admin_examples"`,
+ * `wizardKey: "wizard_fixture"`. This is the only thing that changed from
+ * #483's original local-mock version; a real derived module follows the
+ * exact same pattern against its own `moduleKey`/`wizardKey`/`resourceType`
+ * — see `wizard-derived-module-example.md` (Issue #482).
  */
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import WizardStepper from "../../../components/ui/WizardStepper.astro";
 import WizardPanel from "../../../components/ui/WizardPanel.astro";
 import WizardActions from "../../../components/ui/WizardActions.astro";
 import { createTranslator } from "../../../lib/i18n/translate";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import { listFormDrafts } from "../../../modules/form-drafts/application/form-draft-directory";
+
+// Kept in sync with the identical constants in the client `<script>` below
+// (frontmatter and client script are separate bundles — this SSR side only
+// needs moduleKey/wizardKey to query for a resumable draft; resourceType is
+// only needed when the client script creates one).
+const FORM_DRAFT_MODULE_KEY = "admin_examples";
+const FORM_DRAFT_WIZARD_KEY = "wizard_fixture";
 
 const context = Astro.locals.ssrContext;
 
@@ -34,6 +47,27 @@ const steps = [
   { key: "review", title: t("admin.examples.wizard.step_review_title") }
 ];
 
+// Resume-on-load: SSR fetch via the application layer directly (same
+// pattern as `admin/index.astro`'s dashboard reports) rather than an HTTP
+// round-trip to this page's own API. Permission-gated the same way — if the
+// caller somehow lacks `form_drafts.draft.read` (shouldn't happen for the
+// owner role, which gets every permission at setup), the fixture just
+// starts fresh instead of failing the whole page.
+const canReadDrafts = context.permissions.has(
+  permissionKey("form_drafts", "draft", "read")
+);
+
+const existingDraft = canReadDrafts
+  ? await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
+      const drafts = await listFormDrafts(tx, context.tenantId, {
+        moduleKey: FORM_DRAFT_MODULE_KEY,
+        wizardKey: FORM_DRAFT_WIZARD_KEY,
+        status: "draft"
+      });
+      return drafts[0] ?? null;
+    })
+  : null;
+
 const clientStrings = {
   stepperLabel: t("admin.examples.wizard.stepper_label"),
   stepCurrent: t("admin.examples.wizard.step_current"),
@@ -43,7 +77,15 @@ const clientStrings = {
   titleRequired: t("admin.examples.wizard.validation_title_required"),
   categoryRequired: t("admin.examples.wizard.validation_category_required"),
   pleaseWait: t("common.please_wait"),
-  submitSuccess: t("admin.examples.wizard.submit_success_message")
+  submitSuccess: t("admin.examples.wizard.submit_success_message"),
+  draftSaveError: t("admin.examples.wizard.draft_save_error"),
+  draftResumedNotice: t("admin.examples.wizard.draft_resumed_notice")
+};
+
+const initialDraft = existingDraft && {
+  id: existingDraft.id,
+  currentStep: existingDraft.currentStep,
+  payload: existingDraft.payload
 };
 ---
 
@@ -57,6 +99,12 @@ const clientStrings = {
       type="application/json"
       id="i18n-strings"
       set:html={JSON.stringify(clientStrings)}
+    />
+
+    <script
+      type="application/json"
+      id="initial-draft"
+      set:html={JSON.stringify(initialDraft ?? null)}
     />
 
     <WizardStepper
@@ -223,6 +271,7 @@ const clientStrings = {
   } from "../../../lib/ui/admin-form-client";
   import {
     advanceWizard,
+    createWizardIdempotencyKey,
     createWizardState,
     rewindWizard,
     toFieldErrorMap,
@@ -242,9 +291,22 @@ const clientStrings = {
     categoryRequired: string;
     pleaseWait: string;
     submitSuccess: string;
+    draftSaveError: string;
+    draftResumedNotice: string;
   }
 
+  type InitialDraft = {
+    id: string;
+    currentStep: string;
+    payload: Record<string, unknown>;
+  } | null;
+
   const strings = readClientStrings<FixtureStrings>();
+  const initialDraft = readClientStrings<InitialDraft>("initial-draft");
+
+  const FORM_DRAFT_MODULE_KEY = "admin_examples";
+  const FORM_DRAFT_WIZARD_KEY = "wizard_fixture";
+  const FORM_DRAFT_RESOURCE_TYPE = "fixture";
 
   const steps: WizardStepDefinition[] = [
     { key: "basic", title: "basic", fields: ["title", "category"] },
@@ -252,7 +314,8 @@ const clientStrings = {
     { key: "review", title: "review", fields: [] }
   ];
 
-  let state: WizardState = createWizardState(steps);
+  let state: WizardState = createWizardState(steps, initialDraft?.currentStep);
+  let draftId: string | null = initialDraft?.id ?? null;
 
   const form = document.getElementById(
     "wizard-fixture-form"
@@ -267,6 +330,62 @@ const clientStrings = {
       category: data.get("category"),
       notes: data.get("notes")
     };
+  }
+
+  function applyPayloadToForm(payload: Record<string, unknown>): void {
+    if (!form) return;
+    const title = form.querySelector<HTMLInputElement>('[name="title"]');
+    const category = form.querySelector<HTMLSelectElement>('[name="category"]');
+    const notes = form.querySelector<HTMLTextAreaElement>('[name="notes"]');
+    if (title && typeof payload.title === "string") title.value = payload.title;
+    if (category && typeof payload.category === "string")
+      category.value = payload.category;
+    if (notes && typeof payload.notes === "string") notes.value = payload.notes;
+  }
+
+  /**
+   * Persists the wizard's current step + payload — creates the draft on the
+   * first save, `PATCH`es it on every save after. Fire-and-forget from the
+   * caller's perspective (navigation isn't blocked on this), but failures
+   * are surfaced via the banner rather than swallowed silently, since a
+   * failed save means progress genuinely wasn't saved.
+   */
+  async function saveDraftProgress(stepKey: string): Promise<void> {
+    const payload = currentPayload();
+
+    try {
+      if (!draftId) {
+        const res = await fetch("/api/v1/form-drafts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            moduleKey: FORM_DRAFT_MODULE_KEY,
+            wizardKey: FORM_DRAFT_WIZARD_KEY,
+            resourceType: FORM_DRAFT_RESOURCE_TYPE,
+            currentStep: stepKey,
+            payload
+          })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error?.message ?? "create failed");
+        draftId = json.data.id as string;
+        return;
+      }
+
+      const res = await fetch(`/api/v1/form-drafts/${draftId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ currentStep: stepKey, payload })
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.error?.message ?? "update failed");
+      }
+    } catch {
+      showBanner("action-banner", strings.draftSaveError, "error");
+    }
   }
 
   const validateFixtureStep: WizardValidator<Record<string, unknown>> = (
@@ -364,7 +483,7 @@ const clientStrings = {
     );
   }
 
-  function showActiveStep(): void {
+  function showActiveStep(options: { focus?: boolean } = {}): void {
     const activeKey = steps[state.activeStepIndex]!.key;
     for (const step of steps) {
       const panel = document.getElementById(`step-${step.key}`);
@@ -372,7 +491,18 @@ const clientStrings = {
     }
     renderStepper();
     if (activeKey === "review") renderReviewSummary();
-    focusPanelHeading(activeKey);
+    if (options.focus !== false) focusPanelHeading(activeKey);
+  }
+
+  // Resume-on-load (Issue #484): if an active draft was found server-side,
+  // pre-fill the form and jump straight to where the user left off — no
+  // focus steal, since the user didn't just take a navigation action.
+  if (initialDraft) {
+    applyPayloadToForm(initialDraft.payload);
+    if (initialDraft.currentStep !== "basic") {
+      showActiveStep({ focus: false });
+    }
+    showBanner("action-banner", strings.draftResumedNotice, "success");
   }
 
   form?.addEventListener("click", (event) => {
@@ -396,12 +526,14 @@ const clientStrings = {
       state = result.state;
       renderFieldErrors(activeKeyBeforeAdvance, []);
       showActiveStep();
+      void saveDraftProgress(steps[state.activeStepIndex]!.key);
     }
 
     if (target.closest("[data-wizard-back]")) {
       event.preventDefault();
       state = rewindWizard(state);
       showActiveStep();
+      void saveDraftProgress(steps[state.activeStepIndex]!.key);
     }
 
     if (target.closest("[data-wizard-submit]")) {
@@ -411,14 +543,36 @@ const clientStrings = {
       ) as HTMLButtonElement;
       if (button.disabled) return;
 
+      if (!draftId) {
+        // Reached review without a single successful Next (shouldn't
+        // happen through normal navigation) — nothing to submit yet.
+        showBanner("action-banner", strings.draftSaveError, "error");
+        return;
+      }
+
       const unlock = lockElement(button, strings.pleaseWait);
-      // Local mock — no fetch, no new endpoint/schema (Issue #483 scope).
-      // A real derived module submits with an Idempotency-Key against its
-      // own endpoint instead — see wizard-derived-module-example.md.
-      setTimeout(() => {
-        unlock();
-        showBanner("action-banner", strings.submitSuccess, "success");
-      }, 400);
+      const idempotencyKey = createWizardIdempotencyKey(
+        "wizard-fixture-submit"
+      );
+
+      fetch(`/api/v1/form-drafts/${draftId}/submit`, {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        credentials: "same-origin"
+      })
+        .then(async (res) => {
+          const json = await res.json().catch(() => null);
+          if (!res.ok) {
+            throw new Error(json?.error?.message ?? "submit failed");
+          }
+          showBanner("action-banner", strings.submitSuccess, "success");
+        })
+        .catch(() => {
+          showBanner("action-banner", strings.draftSaveError, "error");
+        })
+        .finally(() => {
+          unlock();
+        });
     }
   });
 </script>

@@ -577,4 +577,10 @@ msgid "admin.examples.wizard.validation_category_required"
 msgstr "Kategori wajib diisi."
 
 msgid "admin.examples.wizard.submit_success_message"
-msgstr "Terkirim (dummy — tidak ada yang benar-benar disimpan)."
+msgstr "Terkirim — draft disimpan lewat API form-drafts (tidak ada aksi domain yang dijalankan)."
+
+msgid "admin.examples.wizard.draft_save_error"
+msgstr "Progres tidak bisa disimpan. Isian Anda masih ada — coba lagi."
+
+msgid "admin.examples.wizard.draft_resumed_notice"
+msgstr "Draft tersimpan Anda dilanjutkan."

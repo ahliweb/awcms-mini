@@ -6,21 +6,22 @@
 
 Sebelum menulis kode apa pun, pahami batasnya: base menyediakan infrastruktur dan kontrak yang **dipakai ulang tanpa diubah**; aplikasi turunan hanya menambah **modul domain baru** di atasnya.
 
-| Reusable (base — jangan diubah)                                                                                                      | Domain-specific (aplikasi turunan — Anda tambahkan)                              |
-| ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| Modular monolith + module contract (`src/modules/_shared/module-contract.ts`, doc 10/11)                                             | Modul domain baru di `src/modules/<domain>/`                                     |
-| RBAC + ABAC default-deny + RLS (ADR-0003/0004, `src/modules/identity-access/`)                                                       | Permission/role/policy spesifik domain (doc 17 pola, bukan isinya)               |
-| Migration runner checksum-based, konvensi `NNN_awcms_mini_<area>_<desc>.sql`                                                         | Skema tabel domain (skill `awcms-mini-new-migration`)                            |
-| Kontrak OpenAPI/AsyncAPI wajib + `api:spec:check` (ADR-0007/0008)                                                                    | Endpoint/event domain (skill `awcms-mini-new-endpoint`/`awcms-mini-new-event`)   |
-| Soft delete + immutability posted (ADR-0005)                                                                                         | Kebijakan resource domain mana yang boleh restore/purge                          |
-| Audit trail generik (`awcms_mini_audit_events`) + retensi/purge + correlation ID (Issue 10.1/#447, skill `awcms-mini-observability`) | Aksi high-risk spesifik domain yang wajib diaudit (skill `awcms-mini-audit-log`) |
-| Idempotency ledger generik (`awcms_mini_idempotency_keys`)                                                                           | Mutation high-risk domain mana yang wajib `Idempotency-Key`                      |
-| Structured logger + extension point (`setLogSink`/`setAuditExportHook`)                                                              | Consumer log/audit nyata (SIEM, alerting) — base hanya sediakan titik pasang     |
-| Design system, token, state pattern, i18n (doc 14, skill `awcms-mini-i18n`)                                                          | Layar admin/operator/portal domain (skill `awcms-mini-ui-screen`)                |
-| Offline-first sync (outbox/inbox, HMAC, conflict tracking, object queue dispatcher — Issue 6.1-6.3/#436)                             | Payload event domain yang disinkronkan lewat outbox yang sama                    |
-| Connection pooling + work-class backpressure + circuit breaker (Issue 10.2, per-provider sejak #436)                                 | Provider eksternal domain (WA/email/AI/pajak) di belakang flag + outbox          |
-| Production readiness tooling (`db:pool:health`, `security:readiness`, `production:preflight`)                                        | Item checklist domain tambahan (mis. tax data masking untuk aplikasi pajak)      |
-| Skill proyek `.claude/skills/`                                                                                                       | —                                                                                |
+| Reusable (base — jangan diubah)                                                                                                      | Domain-specific (aplikasi turunan — Anda tambahkan)                                |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| Modular monolith + module contract (`src/modules/_shared/module-contract.ts`, doc 10/11)                                             | Modul domain baru di `src/modules/<domain>/`                                       |
+| RBAC + ABAC default-deny + RLS (ADR-0003/0004, `src/modules/identity-access/`)                                                       | Permission/role/policy spesifik domain (doc 17 pola, bukan isinya)                 |
+| Migration runner checksum-based, konvensi `NNN_awcms_mini_<area>_<desc>.sql`                                                         | Skema tabel domain (skill `awcms-mini-new-migration`)                              |
+| Kontrak OpenAPI/AsyncAPI wajib + `api:spec:check` (ADR-0007/0008)                                                                    | Endpoint/event domain (skill `awcms-mini-new-endpoint`/`awcms-mini-new-event`)     |
+| Soft delete + immutability posted (ADR-0005)                                                                                         | Kebijakan resource domain mana yang boleh restore/purge                            |
+| Audit trail generik (`awcms_mini_audit_events`) + retensi/purge + correlation ID (Issue 10.1/#447, skill `awcms-mini-observability`) | Aksi high-risk spesifik domain yang wajib diaudit (skill `awcms-mini-audit-log`)   |
+| Idempotency ledger generik (`awcms_mini_idempotency_keys`)                                                                           | Mutation high-risk domain mana yang wajib `Idempotency-Key`                        |
+| Server-side form draft persistence generik (`awcms_mini_form_drafts`, `/api/v1/form-drafts`, Issue #484)                             | Apa isi `payload` draft dan `moduleKey`/`wizardKey`/`resourceType` spesifik domain |
+| Structured logger + extension point (`setLogSink`/`setAuditExportHook`)                                                              | Consumer log/audit nyata (SIEM, alerting) — base hanya sediakan titik pasang       |
+| Design system, token, state pattern, i18n (doc 14, skill `awcms-mini-i18n`)                                                          | Layar admin/operator/portal domain (skill `awcms-mini-ui-screen`)                  |
+| Offline-first sync (outbox/inbox, HMAC, conflict tracking, object queue dispatcher — Issue 6.1-6.3/#436)                             | Payload event domain yang disinkronkan lewat outbox yang sama                      |
+| Connection pooling + work-class backpressure + circuit breaker (Issue 10.2, per-provider sejak #436)                                 | Provider eksternal domain (WA/email/AI/pajak) di belakang flag + outbox            |
+| Production readiness tooling (`db:pool:health`, `security:readiness`, `production:preflight`)                                        | Item checklist domain tambahan (mis. tax data masking untuk aplikasi pajak)        |
+| Skill proyek `.claude/skills/`                                                                                                       | —                                                                                  |
 
 Prinsip: **pertahankan** kolom kiri apa adanya; **tambahkan** kolom kanan mengikuti pola yang sudah mapan. Jangan menulis ulang RLS/ABAC/audit/idempotency Anda sendiri — base sudah menyediakannya, cukup dipakai.
 

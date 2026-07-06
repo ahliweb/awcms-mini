@@ -1,4 +1,5 @@
 import type { ModuleDescriptor } from "./_shared/module-contract";
+import { formDraftsModule } from "./form-drafts/module";
 import { identityAccessModule } from "./identity-access/module";
 import { loggingModule } from "./logging/module";
 import { profileIdentityModule } from "./profile-identity/module";
@@ -14,7 +15,8 @@ export const modules: ModuleDescriptor[] = [
   syncStorageModule,
   reportingModule,
   loggingModule,
-  workflowApprovalModule
+  workflowApprovalModule,
+  formDraftsModule
 ];
 
 export function getModuleByKey(

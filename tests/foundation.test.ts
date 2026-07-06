@@ -58,8 +58,8 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, and workflow are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, and 11.1", () => {
-    expect(listModules()).toHaveLength(7);
+  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, and form_drafts are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, and #484", () => {
+    expect(listModules()).toHaveLength(8);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "active"
@@ -93,6 +93,11 @@ describe("module registry", () => {
       key: "workflow",
       status: "active",
       dependencies: ["tenant_admin", "identity_access"]
+    });
+    expect(getModuleByKey("form_drafts")).toMatchObject({
+      key: "form_drafts",
+      status: "active",
+      dependencies: ["identity_access"]
     });
     expect(getModuleByKey("unknown_module")).toBeUndefined();
   });
@@ -191,7 +196,8 @@ describe("database migration runner helpers", () => {
       "015_awcms_mini_tenant_settings_management_permission_schema.sql",
       "016_awcms_mini_tenant_default_locale_english_schema.sql",
       "017_awcms_mini_sync_queue_conflict_performance_indexes.sql",
-      "018_awcms_mini_object_sync_queue_dispatcher_schema.sql"
+      "018_awcms_mini_object_sync_queue_dispatcher_schema.sql",
+      "019_awcms_mini_form_drafts_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

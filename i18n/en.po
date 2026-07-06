@@ -577,4 +577,10 @@ msgid "admin.examples.wizard.validation_category_required"
 msgstr "Category is required."
 
 msgid "admin.examples.wizard.submit_success_message"
-msgstr "Submitted (dummy — nothing was actually saved)."
+msgstr "Submitted — draft saved via the form-drafts API (no domain action was taken)."
+
+msgid "admin.examples.wizard.draft_save_error"
+msgstr "Could not save your progress. Your entries are still here — try again."
+
+msgid "admin.examples.wizard.draft_resumed_notice"
+msgstr "Resumed your saved draft."
