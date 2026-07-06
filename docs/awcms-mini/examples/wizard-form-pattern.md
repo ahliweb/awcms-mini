@@ -286,6 +286,39 @@ pemanggil, dengan implementasi referensi nyata di
   mengorkestrasi transisi step, persis seperti fungsi
   `focusPanelHeading()` di fixture di atas.
 
+### Regression guard otomatis
+
+`tests/wizard-accessibility.test.ts` (Issue #485) menegaskan atribut di
+atas tetap ada di markup/CSS komponen — bukan pengganti pengujian
+assistive-tech nyata, hanya mencegah atribut aksesibilitas terhapus diam-diam
+saat edit berikutnya (pola yang sama seperti guard hash
+`theme-init-script.test.ts`).
+
+### Walkthrough manual keyboard-only
+
+Jalankan di `src/pages/admin/examples/wizard.astro` (`/admin/examples/wizard`,
+Issue #483) — buka halaman, lalu **jangan sentuh mouse**:
+
+1. `Tab` dari luar halaman ke dalam — fokus harus mendarat di skip-link
+   (bila ada) lalu tombol/field pertama halaman dalam urutan visual.
+2. Isi field step "Basic info" hanya dengan keyboard; tekan `Enter`/klik
+   `Next` (via `Space`/`Enter` saat tombol fokus) dengan salah satu field
+   kosong — fokus harus tetap di step yang sama, error field + ringkasan
+   error muncul dan terbaca (uji dengan screen reader: `role="alert"`
+   harus terumumkan otomatis tanpa perlu fokus berpindah manual).
+3. Isi field wajib, tekan `Next` lagi — step berpindah ke "Details", dan
+   fokus harus berpindah ke judul panel baru (`focusPanelHeading()`),
+   bukan tetap di tombol `Next` step sebelumnya (elemen itu kini `hidden`).
+4. Dari step "Details", `Tab` ke tombol `Back` lalu `Next` — urutan tab
+   harus Back sebelum Next (`wizard-actions-secondary` sebelum
+   `wizard-actions-primary` di markup).
+5. Lanjut ke step "Review", tekan `Submit` — tombol harus terlihat
+   `aria-busy="true"` dan disabled selama mock delay (~400ms), lalu
+   banner sukses muncul dan terbaca.
+6. Ulangi langkah 1-5 memakai screen reader (VoiceOver/NVDA) untuk
+   memverifikasi step aktif, status (Current/Completed/Pending), dan
+   error summary benar-benar diumumkan, bukan hanya terlihat visual.
+
 ## Testing checklist
 
 - Step awal selalu valid secara state dan tidak melewati daftar step.
