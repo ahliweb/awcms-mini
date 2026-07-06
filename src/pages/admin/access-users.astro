@@ -35,6 +35,8 @@ import {
   fetchTenantUsersWithRoles,
   type PermissionCatalogEntry
 } from "../../modules/identity-access/application/user-directory";
+import { createTranslator } from "../../lib/i18n/translate";
+import { buildClientErrorMessages } from "../../lib/i18n/error-messages";
 
 const context = Astro.locals.ssrContext;
 
@@ -43,6 +45,25 @@ if (!context) {
     "admin/access-users.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
   );
 }
+
+const t = await createTranslator(Astro.locals.locale);
+
+// i18n (Issue #433): the client <script> below can't read the .po catalog
+// itself (server-side only, via Bun.file) — translated strings/error-code
+// map it needs are injected as a <script type="application/json"> blob, the
+// same pattern login.astro uses.
+const clientStrings = {
+  createUserSuccess: t("admin.access_users.create_user_success"),
+  createRoleSuccess: t("admin.access_users.create_role_success"),
+  updateRoleSuccess: t("admin.access_users.update_role_success"),
+  deleteRoleSuccess: t("admin.access_users.delete_role_success"),
+  updateStatusSuccess: t("admin.access_users.update_status_success"),
+  assignRoleSuccess: t("admin.access_users.assign_role_success"),
+  unassignRoleSuccess: t("admin.access_users.unassign_role_success"),
+  deleteRolePrompt: t("admin.access_users.delete_role_prompt"),
+  networkError: t("common.network_error"),
+  errorMessages: buildClientErrorMessages(t)
+};
 
 const CAN_READ_USERS = context.permissions.has(
   permissionKey("identity_access", "user_management", "read")
@@ -88,17 +109,14 @@ if (data) {
 }
 ---
 
-<AdminLayout title="Access & Users">
+<AdminLayout title={t("admin.layout.nav_access_users")}>
   {
     !data && (
       <div class="permission-denied" role="alert">
         <p>
-          <strong>Akses ditolak.</strong>
+          <strong>{t("admin.access_users.access_denied_title")}</strong>
         </p>
-        <p>
-          Akun Anda tidak memiliki izin untuk melihat pengguna maupun
-          role/permission. Hubungi admin/owner tenant Anda untuk meminta akses.
-        </p>
+        <p>{t("admin.access_users.access_denied_body")}</p>
       </div>
     )
   }
@@ -106,28 +124,35 @@ if (data) {
     data && (
       <div class="access-users">
         <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
 
         {CAN_READ_USERS && (
           <section class="au-section">
             <div class="au-section-header">
-              <h2>Pengguna</h2>
+              <h2>{t("admin.access_users.users_title")}</h2>
             </div>
 
             <table class="au-table">
               <thead>
                 <tr>
-                  <th>Nama</th>
-                  <th>Login</th>
-                  <th>Status</th>
-                  <th>Role</th>
-                  {(CAN_UPDATE_USERS || CAN_ASSIGN) && <th>Aksi</th>}
+                  <th>{t("admin.access_users.name_column")}</th>
+                  <th>{t("admin.access_users.login_column")}</th>
+                  <th>{t("admin.access_users.status_column")}</th>
+                  <th>{t("admin.access_users.role_column")}</th>
+                  {(CAN_UPDATE_USERS || CAN_ASSIGN) && (
+                    <th>{t("admin.access_users.actions_column")}</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {data.users.length === 0 && (
                   <tr>
                     <td colspan={CAN_UPDATE_USERS || CAN_ASSIGN ? 5 : 4}>
-                      Belum ada pengguna.
+                      {t("admin.access_users.no_users")}
                     </td>
                   </tr>
                 )}
@@ -137,13 +162,17 @@ if (data) {
                     <td>{user.loginIdentifier}</td>
                     <td>
                       <span class="status-pill" data-status={user.status}>
-                        {user.status === "active" ? "Aktif" : "Nonaktif"}
+                        {user.status === "active"
+                          ? t("common.status_active")
+                          : t("common.status_inactive")}
                       </span>
                     </td>
                     <td>
                       <div class="role-chip-list">
                         {user.roles.length === 0 && (
-                          <span class="role-chip-empty">Tanpa role</span>
+                          <span class="role-chip-empty">
+                            {t("admin.layout.no_role")}
+                          </span>
                         )}
                         {user.roles.map((role) => (
                           <span class="role-chip">
@@ -154,7 +183,10 @@ if (data) {
                                 class="role-chip-remove"
                                 data-unassign-user={user.tenantUserId}
                                 data-unassign-role={role.roleId}
-                                aria-label={`Lepas role ${role.roleName}`}
+                                aria-label={t(
+                                  "admin.access_users.unassign_role_aria_label",
+                                  { role: role.roleName }
+                                )}
                               >
                                 &times;
                               </button>
@@ -168,7 +200,9 @@ if (data) {
                           data-assign-user={user.tenantUserId}
                         >
                           <select name="roleId" required>
-                            <option value="">+ assign role</option>
+                            <option value="">
+                              {t("admin.access_users.assign_role_placeholder")}
+                            </option>
                             {data.roles
                               .filter(
                                 (role) =>
@@ -182,7 +216,9 @@ if (data) {
                                 </option>
                               ))}
                           </select>
-                          <button type="submit">Assign</button>
+                          <button type="submit">
+                            {t("admin.access_users.assign_button")}
+                          </button>
                         </form>
                       )}
                     </td>
@@ -198,8 +234,8 @@ if (data) {
                             }
                           >
                             {user.status === "active"
-                              ? "Nonaktifkan"
-                              : "Aktifkan"}
+                              ? t("admin.access_users.deactivate_button")
+                              : t("admin.access_users.activate_button")}
                           </button>
                         )}
                       </td>
@@ -211,18 +247,18 @@ if (data) {
 
             {CAN_CREATE_USERS && (
               <details class="au-create">
-                <summary>Tambah pengguna</summary>
+                <summary>{t("admin.access_users.create_user_summary")}</summary>
                 <form id="create-user-form" class="au-form">
                   <label>
-                    Nama
+                    {t("admin.access_users.name_label")}
                     <input type="text" name="displayName" required />
                   </label>
                   <label>
-                    Login identifier
+                    {t("admin.access_users.login_identifier_label")}
                     <input type="text" name="loginIdentifier" required />
                   </label>
                   <label>
-                    Password
+                    {t("admin.access_users.password_label")}
                     <input
                       type="password"
                       name="password"
@@ -231,7 +267,9 @@ if (data) {
                     />
                   </label>
                   <fieldset class="role-checkbox-group">
-                    <legend>Role awal (opsional)</legend>
+                    <legend>
+                      {t("admin.access_users.initial_roles_legend")}
+                    </legend>
                     {data.roles.map((role) => (
                       <label class="checkbox-label">
                         <input
@@ -243,7 +281,9 @@ if (data) {
                       </label>
                     ))}
                   </fieldset>
-                  <button type="submit">Buat pengguna</button>
+                  <button type="submit">
+                    {t("admin.access_users.create_user_submit")}
+                  </button>
                 </form>
               </details>
             )}
@@ -253,17 +293,19 @@ if (data) {
         {CAN_READ_ROLES && (
           <section class="au-section">
             <div class="au-section-header">
-              <h2>Role &amp; Permission</h2>
+              <h2>{t("admin.access_users.roles_title")}</h2>
             </div>
 
             <table class="au-table">
               <thead>
                 <tr>
-                  <th>Role</th>
-                  <th>Kode</th>
-                  <th>Permission</th>
-                  <th>Pengguna</th>
-                  {CAN_CONFIGURE_ROLES && <th>Aksi</th>}
+                  <th>{t("admin.access_users.role_column")}</th>
+                  <th>{t("admin.access_users.code_column")}</th>
+                  <th>{t("admin.access_users.permission_column")}</th>
+                  <th>{t("admin.access_users.users_column")}</th>
+                  {CAN_CONFIGURE_ROLES && (
+                    <th>{t("admin.access_users.actions_column")}</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -272,7 +314,9 @@ if (data) {
                     <td>
                       {role.roleName}
                       {role.isSystem && (
-                        <em class="system-role-badge">Sistem</em>
+                        <em class="system-role-badge">
+                          {t("admin.access_users.system_role_badge")}
+                        </em>
                       )}
                     </td>
                     <td>
@@ -283,14 +327,16 @@ if (data) {
                     {CAN_CONFIGURE_ROLES && (
                       <td>
                         <details>
-                          <summary>Edit</summary>
+                          <summary>
+                            {t("admin.access_users.edit_summary")}
+                          </summary>
                           <form
                             class="edit-role-form"
                             data-role-id={role.roleId}
                             data-role-system={role.isSystem ? "true" : "false"}
                           >
                             <label>
-                              Nama role
+                              {t("admin.access_users.role_name_label")}
                               <input
                                 type="text"
                                 name="roleName"
@@ -303,9 +349,9 @@ if (data) {
                               disabled={role.isSystem}
                             >
                               <legend>
-                                Permission
+                                {t("admin.access_users.permission_legend")}
                                 {role.isSystem &&
-                                  " (role sistem — tidak dapat diubah)"}
+                                  ` ${t("admin.access_users.system_role_note")}`}
                               </legend>
                               {[...permissionGroups.entries()].map(
                                 ([moduleKey, perms]) => (
@@ -329,7 +375,9 @@ if (data) {
                                 )
                               )}
                             </fieldset>
-                            <button type="submit">Simpan</button>
+                            <button type="submit">
+                              {t("admin.access_users.save_button")}
+                            </button>
                           </form>
                         </details>
                         {!role.isSystem && (
@@ -338,7 +386,7 @@ if (data) {
                             class="delete-role-button"
                             data-delete-role={role.roleId}
                           >
-                            Hapus
+                            {t("admin.access_users.delete_button")}
                           </button>
                         )}
                       </td>
@@ -350,24 +398,26 @@ if (data) {
 
             {CAN_CONFIGURE_ROLES && (
               <details class="au-create">
-                <summary>Tambah role</summary>
+                <summary>{t("admin.access_users.create_role_summary")}</summary>
                 <form id="create-role-form" class="au-form">
                   <label>
-                    Kode role
+                    {t("admin.access_users.role_code_label")}
                     <input
                       type="text"
                       name="roleCode"
                       pattern="^[a-z][a-z0-9_]*$"
-                      placeholder="mis. viewer"
+                      placeholder={t(
+                        "admin.access_users.role_code_placeholder"
+                      )}
                       required
                     />
                   </label>
                   <label>
-                    Nama role
+                    {t("admin.access_users.role_name_label")}
                     <input type="text" name="roleName" required />
                   </label>
                   <fieldset class="role-checkbox-group">
-                    <legend>Permission</legend>
+                    <legend>{t("admin.access_users.permission_legend")}</legend>
                     {[...permissionGroups.entries()].map(
                       ([moduleKey, perms]) => (
                         <div class="permission-module-group">
@@ -386,7 +436,9 @@ if (data) {
                       )
                     )}
                   </fieldset>
-                  <button type="submit">Buat role</button>
+                  <button type="submit">
+                    {t("admin.access_users.create_role_submit")}
+                  </button>
                 </form>
               </details>
             )}
@@ -616,6 +668,9 @@ if (data) {
 
 <script>
   const JSON_HEADERS = { "Content-Type": "application/json" };
+  const strings = JSON.parse(
+    document.getElementById("i18n-strings")?.textContent ?? "{}"
+  );
 
   function showBanner(message: string, variant: "success" | "error") {
     const banner = document.getElementById("action-banner");
@@ -629,7 +684,7 @@ if (data) {
     url: string,
     method: string,
     body: unknown
-  ): Promise<{ ok: boolean; message: string }> {
+  ): Promise<{ ok: boolean; code?: string; message: string }> {
     try {
       const res = await fetch(url, {
         method,
@@ -640,15 +695,17 @@ if (data) {
       const json = await res.json().catch(() => null);
 
       if (!res.ok) {
-        return {
-          ok: false,
-          message: json?.error?.message ?? `Request failed (${res.status}).`
-        };
+        const code = json?.error?.code as string | undefined;
+        const message: string =
+          (code && strings.errorMessages?.[code]) ??
+          json?.error?.message ??
+          `Request failed (${res.status}).`;
+        return { ok: false, code, message };
       }
 
-      return { ok: true, message: "Berhasil." };
+      return { ok: true, message: "" };
     } catch {
-      return { ok: false, message: "Terjadi kesalahan jaringan." };
+      return { ok: false, message: strings.networkError };
     }
   }
 
@@ -672,7 +729,7 @@ if (data) {
       });
 
       showBanner(
-        result.ok ? "Pengguna berhasil dibuat." : result.message,
+        result.ok ? strings.createUserSuccess : result.message,
         result.ok ? "success" : "error"
       );
       if (result.ok) reloadAfterDelay();
@@ -693,7 +750,7 @@ if (data) {
       });
 
       showBanner(
-        result.ok ? "Role berhasil dibuat." : result.message,
+        result.ok ? strings.createRoleSuccess : result.message,
         result.ok ? "success" : "error"
       );
       if (result.ok) reloadAfterDelay();
@@ -716,7 +773,7 @@ if (data) {
 
       const result = await submitJson(`/api/v1/roles/${roleId}`, "PATCH", body);
       showBanner(
-        result.ok ? "Role berhasil diperbarui." : result.message,
+        result.ok ? strings.updateRoleSuccess : result.message,
         result.ok ? "success" : "error"
       );
       if (result.ok) reloadAfterDelay();
@@ -726,14 +783,14 @@ if (data) {
   document.querySelectorAll(".delete-role-button").forEach((button) => {
     button.addEventListener("click", async () => {
       const roleId = (button as HTMLElement).dataset.deleteRole!;
-      const reason = window.prompt("Alasan menghapus role ini:");
+      const reason = window.prompt(strings.deleteRolePrompt);
       if (!reason || reason.trim().length === 0) return;
 
       const result = await submitJson(`/api/v1/roles/${roleId}`, "DELETE", {
         reason
       });
       showBanner(
-        result.ok ? "Role berhasil dihapus." : result.message,
+        result.ok ? strings.deleteRoleSuccess : result.message,
         result.ok ? "success" : "error"
       );
       if (result.ok) reloadAfterDelay();
@@ -754,7 +811,7 @@ if (data) {
         }
       );
       showBanner(
-        result.ok ? "Status pengguna diperbarui." : result.message,
+        result.ok ? strings.updateStatusSuccess : result.message,
         result.ok ? "success" : "error"
       );
       if (result.ok) reloadAfterDelay();
@@ -776,7 +833,7 @@ if (data) {
         roleId
       });
       showBanner(
-        result.ok ? "Role berhasil di-assign." : result.message,
+        result.ok ? strings.assignRoleSuccess : result.message,
         result.ok ? "success" : "error"
       );
       if (result.ok) reloadAfterDelay();
@@ -794,7 +851,7 @@ if (data) {
         roleId
       });
       showBanner(
-        result.ok ? "Role berhasil dilepas." : result.message,
+        result.ok ? strings.unassignRoleSuccess : result.message,
         result.ok ? "success" : "error"
       );
       if (result.ok) reloadAfterDelay();

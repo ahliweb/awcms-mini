@@ -14,10 +14,12 @@
  */
 interface Props {
   active?: boolean;
+  activeLabel: string;
+  inactiveLabel: string;
 }
 
-const { active = false } = Astro.props;
-const label = active ? "Sync aktif" : "Sync nonaktif";
+const { active = false, activeLabel, inactiveLabel } = Astro.props;
+const label = active ? activeLabel : inactiveLabel;
 ---
 
 <div class="sync-indicator" data-status={active ? "active" : "inactive"}>

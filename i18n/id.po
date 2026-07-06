@@ -1,0 +1,471 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: awcms-mini\n"
+"Language: id\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. auth.login
+msgid "auth.login.page_title"
+msgstr "Masuk · AWCMS-Mini"
+
+msgid "auth.login.tenant_id_label"
+msgstr "Tenant ID"
+
+msgid "auth.login.identifier_label"
+msgstr "Login identifier"
+
+msgid "auth.login.password_label"
+msgstr "Kata sandi"
+
+msgid "auth.login.submit"
+msgstr "Masuk"
+
+msgid "auth.login.generic_error"
+msgstr "Login gagal. Coba lagi."
+
+#. common
+msgid "common.network_error"
+msgstr "Tidak dapat menghubungi server. Coba lagi."
+
+#. error codes (doc 05 §Error code standard)
+msgid "error.validation_error"
+msgstr "Data yang dikirim tidak valid."
+
+msgid "error.auth_required"
+msgstr "Silakan masuk untuk melanjutkan."
+
+msgid "error.auth_invalid_credentials"
+msgstr "Login identifier atau kata sandi salah."
+
+msgid "error.token_expired"
+msgstr "Sesi Anda telah berakhir. Silakan masuk kembali."
+
+msgid "error.access_denied"
+msgstr "Anda tidak memiliki izin untuk melakukan ini."
+
+msgid "error.tenant_required"
+msgstr "Tenant wajib diisi untuk permintaan ini."
+
+msgid "error.resource_not_found"
+msgstr "Data yang diminta tidak ditemukan."
+
+msgid "error.resource_deleted"
+msgstr "Data ini telah diarsipkan."
+
+msgid "error.resource_conflict"
+msgstr "Aksi ini bertentangan dengan status saat ini."
+
+msgid "error.idempotency_required"
+msgstr "Aksi ini memerlukan idempotency key."
+
+msgid "error.idempotency_conflict"
+msgstr "Aksi ini sudah pernah dikirim dengan data berbeda."
+
+msgid "error.workflow_approval_required"
+msgstr "Aksi ini memerlukan persetujuan terlebih dahulu."
+
+msgid "error.stock_not_available"
+msgstr "Stok tidak mencukupi."
+
+msgid "error.sync_conflict"
+msgstr "Terdeteksi konflik sinkronisasi."
+
+msgid "error.database_busy"
+msgstr "Sistem sedang sibuk. Coba lagi sebentar."
+
+msgid "error.provider_error"
+msgstr "Layanan eksternal gagal. Coba lagi."
+
+msgid "error.internal_error"
+msgstr "Terjadi kesalahan. Coba lagi."
+
+msgid "error.purge_blocked_by_dependents"
+msgstr "Tidak dapat dihapus permanen selama masih direferensikan data lain."
+
+msgid "error.purge_requires_soft_delete"
+msgstr "Data ini harus diarsipkan dulu sebelum dapat dihapus permanen."
+
+#. admin.layout (shared shell)
+msgid "admin.layout.no_role"
+msgstr "Tanpa role"
+
+msgid "admin.layout.logout"
+msgstr "Keluar"
+
+msgid "admin.layout.nav_aria_label"
+msgstr "Navigasi utama"
+
+msgid "admin.layout.nav_dashboard"
+msgstr "Dashboard"
+
+msgid "admin.layout.nav_access_users"
+msgstr "Access & Users"
+
+msgid "admin.layout.nav_sync"
+msgstr "Sync"
+
+msgid "admin.layout.nav_settings"
+msgstr "Pengaturan"
+
+msgid "admin.layout.breadcrumb_aria_label"
+msgstr "Breadcrumb"
+
+msgid "admin.layout.active_tenant_aria_label"
+msgstr "Tenant aktif"
+
+msgid "admin.layout.sync_active"
+msgstr "Sync aktif"
+
+msgid "admin.layout.sync_inactive"
+msgstr "Sync nonaktif"
+
+#. admin.dashboard
+msgid "admin.dashboard.access_denied_title"
+msgstr "Akses ditolak."
+
+msgid "admin.dashboard.access_denied_body"
+msgstr "Akun Anda tidak memiliki izin {permission} untuk melihat dashboard ini. Hubungi admin/owner tenant Anda untuk meminta akses."
+
+msgid "admin.dashboard.tenant_activity_title"
+msgstr "Aktivitas Tenant"
+
+msgid "admin.dashboard.tenant_label"
+msgstr "Tenant"
+
+msgid "admin.dashboard.active_users_label"
+msgstr "User aktif"
+
+msgid "admin.dashboard.active_offices_label"
+msgstr "Kantor aktif"
+
+msgid "admin.dashboard.last_login_label"
+msgstr "Login terakhir"
+
+msgid "admin.dashboard.access_audit_title"
+msgstr "Access & Audit"
+
+msgid "admin.dashboard.allow_count_label"
+msgstr "Allow ({days} hari)"
+
+msgid "admin.dashboard.deny_count_label"
+msgstr "Deny ({days} hari)"
+
+msgid "admin.dashboard.total_decision_log_label"
+msgstr "Total decision log"
+
+msgid "admin.dashboard.profile_audit_log_label"
+msgstr "Profile audit log"
+
+msgid "admin.dashboard.sync_health_title"
+msgstr "Sync Health"
+
+msgid "admin.dashboard.active_nodes_label"
+msgstr "Node aktif"
+
+msgid "admin.dashboard.open_conflicts_label"
+msgstr "Konflik terbuka"
+
+msgid "admin.dashboard.pending_objects_label"
+msgstr "Objek pending"
+
+msgid "admin.dashboard.failed_objects_label"
+msgstr "Objek gagal"
+
+msgid "admin.dashboard.status_label"
+msgstr "Status"
+
+msgid "admin.dashboard.status_healthy"
+msgstr "Sehat"
+
+msgid "admin.dashboard.status_needs_attention"
+msgstr "Perlu perhatian"
+
+msgid "admin.dashboard.module_usage_title"
+msgstr "Penggunaan Modul"
+
+msgid "admin.dashboard.module_column"
+msgstr "Modul"
+
+msgid "admin.dashboard.metric_column"
+msgstr "Metrik"
+
+msgid "admin.dashboard.count_column"
+msgstr "Jumlah"
+
+#. common (shared across pages)
+msgid "common.status_active"
+msgstr "Aktif"
+
+msgid "common.status_inactive"
+msgstr "Nonaktif"
+
+#. admin.access_users
+msgid "admin.access_users.access_denied_title"
+msgstr "Akses ditolak."
+
+msgid "admin.access_users.access_denied_body"
+msgstr "Akun Anda tidak memiliki izin untuk melihat pengguna maupun role/permission. Hubungi admin/owner tenant Anda untuk meminta akses."
+
+msgid "admin.access_users.users_title"
+msgstr "Pengguna"
+
+msgid "admin.access_users.name_column"
+msgstr "Nama"
+
+msgid "admin.access_users.login_column"
+msgstr "Login"
+
+msgid "admin.access_users.status_column"
+msgstr "Status"
+
+msgid "admin.access_users.role_column"
+msgstr "Role"
+
+msgid "admin.access_users.actions_column"
+msgstr "Aksi"
+
+msgid "admin.access_users.no_users"
+msgstr "Belum ada pengguna."
+
+msgid "admin.access_users.unassign_role_aria_label"
+msgstr "Lepas role {role}"
+
+msgid "admin.access_users.assign_role_placeholder"
+msgstr "+ assign role"
+
+msgid "admin.access_users.assign_button"
+msgstr "Assign"
+
+msgid "admin.access_users.deactivate_button"
+msgstr "Nonaktifkan"
+
+msgid "admin.access_users.activate_button"
+msgstr "Aktifkan"
+
+msgid "admin.access_users.create_user_summary"
+msgstr "Tambah pengguna"
+
+msgid "admin.access_users.name_label"
+msgstr "Nama"
+
+msgid "admin.access_users.login_identifier_label"
+msgstr "Login identifier"
+
+msgid "admin.access_users.password_label"
+msgstr "Password"
+
+msgid "admin.access_users.initial_roles_legend"
+msgstr "Role awal (opsional)"
+
+msgid "admin.access_users.create_user_submit"
+msgstr "Buat pengguna"
+
+msgid "admin.access_users.roles_title"
+msgstr "Role & Permission"
+
+msgid "admin.access_users.code_column"
+msgstr "Kode"
+
+msgid "admin.access_users.permission_column"
+msgstr "Permission"
+
+msgid "admin.access_users.users_column"
+msgstr "Pengguna"
+
+msgid "admin.access_users.system_role_badge"
+msgstr "Sistem"
+
+msgid "admin.access_users.edit_summary"
+msgstr "Edit"
+
+msgid "admin.access_users.role_name_label"
+msgstr "Nama role"
+
+msgid "admin.access_users.permission_legend"
+msgstr "Permission"
+
+msgid "admin.access_users.system_role_note"
+msgstr "(role sistem — tidak dapat diubah)"
+
+msgid "admin.access_users.save_button"
+msgstr "Simpan"
+
+msgid "admin.access_users.delete_button"
+msgstr "Hapus"
+
+msgid "admin.access_users.create_role_summary"
+msgstr "Tambah role"
+
+msgid "admin.access_users.role_code_label"
+msgstr "Kode role"
+
+msgid "admin.access_users.role_code_placeholder"
+msgstr "mis. viewer"
+
+msgid "admin.access_users.create_role_submit"
+msgstr "Buat role"
+
+msgid "admin.access_users.create_user_success"
+msgstr "Pengguna berhasil dibuat."
+
+msgid "admin.access_users.create_role_success"
+msgstr "Role berhasil dibuat."
+
+msgid "admin.access_users.update_role_success"
+msgstr "Role berhasil diperbarui."
+
+msgid "admin.access_users.delete_role_success"
+msgstr "Role berhasil dihapus."
+
+msgid "admin.access_users.update_status_success"
+msgstr "Status pengguna diperbarui."
+
+msgid "admin.access_users.assign_role_success"
+msgstr "Role berhasil di-assign."
+
+msgid "admin.access_users.unassign_role_success"
+msgstr "Role berhasil dilepas."
+
+msgid "admin.access_users.delete_role_prompt"
+msgstr "Alasan menghapus role ini:"
+
+#. admin.sync
+msgid "admin.sync.access_denied_title"
+msgstr "Akses ditolak."
+
+msgid "admin.sync.access_denied_body"
+msgstr "Akun Anda tidak memiliki izin untuk melihat node, konflik, maupun antrean sync. Hubungi admin/owner tenant Anda untuk meminta akses."
+
+msgid "admin.sync.summary_title"
+msgstr "Ringkasan"
+
+msgid "admin.sync.nodes_title"
+msgstr "Node Sync"
+
+msgid "admin.sync.node_column"
+msgstr "Node"
+
+msgid "admin.sync.last_pushed_column"
+msgstr "Push terakhir"
+
+msgid "admin.sync.last_pulled_column"
+msgstr "Pull terakhir"
+
+msgid "admin.sync.no_nodes"
+msgstr "Belum ada node terdaftar."
+
+msgid "admin.sync.open_conflicts_title"
+msgstr "Konflik Terbuka"
+
+msgid "admin.sync.aggregate_column"
+msgstr "Aggregate"
+
+msgid "admin.sync.conflict_type_column"
+msgstr "Tipe konflik"
+
+msgid "admin.sync.batch_column"
+msgstr "Batch"
+
+msgid "admin.sync.created_column"
+msgstr "Dibuat"
+
+msgid "admin.sync.resolution_column"
+msgstr "Resolusi"
+
+msgid "admin.sync.no_open_conflicts"
+msgstr "Tidak ada konflik terbuka."
+
+msgid "admin.sync.resolution_accept_incoming"
+msgstr "Terima data masuk"
+
+msgid "admin.sync.resolution_keep_existing"
+msgstr "Pertahankan data lama"
+
+msgid "admin.sync.resolution_manual"
+msgstr "Manual"
+
+msgid "admin.sync.resolution_note_placeholder"
+msgstr "Catatan (opsional)"
+
+msgid "admin.sync.resolve_button"
+msgstr "Resolve"
+
+msgid "admin.sync.failed_queue_title"
+msgstr "Antrean Objek Gagal"
+
+msgid "admin.sync.object_key_column"
+msgstr "Object key"
+
+msgid "admin.sync.retry_column"
+msgstr "Retry"
+
+msgid "admin.sync.last_error_column"
+msgstr "Error terakhir"
+
+msgid "admin.sync.no_failed_objects"
+msgstr "Tidak ada objek gagal."
+
+msgid "admin.sync.retry_button"
+msgstr "Retry"
+
+msgid "admin.sync.update_node_success"
+msgstr "Status node diperbarui."
+
+msgid "admin.sync.resolve_conflict_success"
+msgstr "Konflik berhasil diresolusi."
+
+msgid "admin.sync.retry_object_success"
+msgstr "Objek berhasil di-retry."
+
+msgid "admin.layout.language_switcher_aria_label"
+msgstr "Bahasa"
+
+#. admin.settings
+msgid "admin.settings.access_denied_title"
+msgstr "Akses ditolak."
+
+msgid "admin.settings.access_denied_body"
+msgstr "Akun Anda tidak memiliki izin untuk melihat pengaturan tenant. Hubungi admin/owner tenant Anda untuk meminta akses."
+
+msgid "admin.settings.tenant_profile_legend"
+msgstr "Profil Tenant"
+
+msgid "admin.settings.tenant_name_label"
+msgstr "Nama tenant"
+
+msgid "admin.settings.legal_name_label"
+msgstr "Nama legal (opsional)"
+
+msgid "admin.settings.display_preferences_legend"
+msgstr "Preferensi Tampilan"
+
+msgid "admin.settings.default_locale_label"
+msgstr "Bahasa default"
+
+msgid "admin.settings.default_theme_label"
+msgstr "Tema default"
+
+msgid "admin.settings.default_theme_hint"
+msgstr "Tema default berlaku untuk sesi/browser baru yang belum pernah memilih tema secara manual. Pilihan tema pribadi Anda (tombol di topbar) tetap menang di browser ini."
+
+msgid "admin.settings.timezone_legend"
+msgstr "Zona Waktu"
+
+msgid "admin.settings.timezone_label"
+msgstr "Timezone (IANA)"
+
+msgid "admin.settings.feature_flags_legend"
+msgstr "Feature Flags"
+
+msgid "admin.settings.feature_flags_json_label"
+msgstr "JSON object"
+
+msgid "admin.settings.feature_flags_hint"
+msgstr "Harus berupa JSON object valid (mis. {\"betaReports\": true})."
+
+msgid "admin.settings.invalid_feature_flags"
+msgstr "Feature flags harus berupa JSON object yang valid."
+
+msgid "admin.settings.save_success"
+msgstr "Pengaturan berhasil disimpan."

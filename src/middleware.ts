@@ -1,6 +1,8 @@
 import { defineMiddleware } from "astro:middleware";
 
 import { resolveSsrContext } from "./lib/auth/ssr-session";
+import { resolveRequestLocale } from "./lib/i18n/request-locale";
+import { LOCALE_COOKIE_NAME, resolveLocale } from "./lib/i18n/locale";
 
 const PROTECTED_PREFIX = "/admin";
 const CORRELATION_ID_HEADER = "X-Correlation-ID";
@@ -40,6 +42,12 @@ function resolveCorrelationId(request: Request): string {
  */
 export const onRequest = defineMiddleware(async (context, next) => {
   context.locals.correlationId = resolveCorrelationId(context.request);
+  // Cookie-only resolution (no DB call) for every request — good enough for
+  // pre-auth pages (`/`, `/login`) where no tenant is known yet. Re-resolved
+  // with the tenant's `default_locale` as an additional fallback below, once
+  // `ssrContext` is available for `/admin/*` routes (doc 14
+  // §Internationalization precedence: cookie -> tenant default -> `en`).
+  context.locals.locale = resolveRequestLocale(context.cookies);
 
   if (!context.url.pathname.startsWith(PROTECTED_PREFIX)) {
     const response = await next();
@@ -56,6 +64,16 @@ export const onRequest = defineMiddleware(async (context, next) => {
   }
 
   context.locals.ssrContext = ssrContext;
+  // Must happen here, before `next()` renders any /admin/* page: a page's own
+  // frontmatter (and its own `t()` calls) runs before the AdminLayout
+  // component it's nested in, so resolving the tenant fallback inside the
+  // layout would be too late for the page's own translations (found during
+  // live verification — a legacy tenant with default_locale='id' rendered
+  // its shell in Indonesian but its dashboard content in English).
+  context.locals.locale = resolveLocale({
+    cookieLocale: context.cookies.get(LOCALE_COOKIE_NAME)?.value ?? null,
+    tenantDefaultLocale: ssrContext.tenantDefaultLocale
+  });
 
   const response = await next();
 

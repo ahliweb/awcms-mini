@@ -1,0 +1,471 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: awcms-mini\n"
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. auth.login
+msgid "auth.login.page_title"
+msgstr "Sign in · AWCMS-Mini"
+
+msgid "auth.login.tenant_id_label"
+msgstr "Tenant ID"
+
+msgid "auth.login.identifier_label"
+msgstr "Login identifier"
+
+msgid "auth.login.password_label"
+msgstr "Password"
+
+msgid "auth.login.submit"
+msgstr "Sign in"
+
+msgid "auth.login.generic_error"
+msgstr "Login failed. Try again."
+
+#. common
+msgid "common.network_error"
+msgstr "Could not reach the server. Try again."
+
+#. error codes (doc 05 §Error code standard)
+msgid "error.validation_error"
+msgstr "The submitted data is invalid."
+
+msgid "error.auth_required"
+msgstr "Please sign in to continue."
+
+msgid "error.auth_invalid_credentials"
+msgstr "Invalid login identifier or password."
+
+msgid "error.token_expired"
+msgstr "Your session has expired. Please sign in again."
+
+msgid "error.access_denied"
+msgstr "You do not have permission to do that."
+
+msgid "error.tenant_required"
+msgstr "A tenant is required for this request."
+
+msgid "error.resource_not_found"
+msgstr "The requested item could not be found."
+
+msgid "error.resource_deleted"
+msgstr "This item has been archived."
+
+msgid "error.resource_conflict"
+msgstr "This action conflicts with the current state."
+
+msgid "error.idempotency_required"
+msgstr "This action requires an idempotency key."
+
+msgid "error.idempotency_conflict"
+msgstr "This action was already submitted with different data."
+
+msgid "error.workflow_approval_required"
+msgstr "This action requires approval first."
+
+msgid "error.stock_not_available"
+msgstr "Not enough stock is available."
+
+msgid "error.sync_conflict"
+msgstr "A sync conflict was detected."
+
+msgid "error.database_busy"
+msgstr "The system is busy. Please try again shortly."
+
+msgid "error.provider_error"
+msgstr "An external service failed. Please try again."
+
+msgid "error.internal_error"
+msgstr "Something went wrong. Please try again."
+
+msgid "error.purge_blocked_by_dependents"
+msgstr "This cannot be permanently deleted while other records depend on it."
+
+msgid "error.purge_requires_soft_delete"
+msgstr "This must be archived before it can be permanently deleted."
+
+#. admin.layout (shared shell)
+msgid "admin.layout.no_role"
+msgstr "No role"
+
+msgid "admin.layout.logout"
+msgstr "Log out"
+
+msgid "admin.layout.nav_aria_label"
+msgstr "Main navigation"
+
+msgid "admin.layout.nav_dashboard"
+msgstr "Dashboard"
+
+msgid "admin.layout.nav_access_users"
+msgstr "Access & Users"
+
+msgid "admin.layout.nav_sync"
+msgstr "Sync"
+
+msgid "admin.layout.nav_settings"
+msgstr "Settings"
+
+msgid "admin.layout.breadcrumb_aria_label"
+msgstr "Breadcrumb"
+
+msgid "admin.layout.active_tenant_aria_label"
+msgstr "Active tenant"
+
+msgid "admin.layout.sync_active"
+msgstr "Sync active"
+
+msgid "admin.layout.sync_inactive"
+msgstr "Sync inactive"
+
+#. admin.dashboard
+msgid "admin.dashboard.access_denied_title"
+msgstr "Access denied."
+
+msgid "admin.dashboard.access_denied_body"
+msgstr "Your account does not have the {permission} permission to view this dashboard. Contact your tenant admin/owner to request access."
+
+msgid "admin.dashboard.tenant_activity_title"
+msgstr "Tenant Activity"
+
+msgid "admin.dashboard.tenant_label"
+msgstr "Tenant"
+
+msgid "admin.dashboard.active_users_label"
+msgstr "Active users"
+
+msgid "admin.dashboard.active_offices_label"
+msgstr "Active offices"
+
+msgid "admin.dashboard.last_login_label"
+msgstr "Last login"
+
+msgid "admin.dashboard.access_audit_title"
+msgstr "Access & Audit"
+
+msgid "admin.dashboard.allow_count_label"
+msgstr "Allow ({days} days)"
+
+msgid "admin.dashboard.deny_count_label"
+msgstr "Deny ({days} days)"
+
+msgid "admin.dashboard.total_decision_log_label"
+msgstr "Total decision logs"
+
+msgid "admin.dashboard.profile_audit_log_label"
+msgstr "Profile audit logs"
+
+msgid "admin.dashboard.sync_health_title"
+msgstr "Sync Health"
+
+msgid "admin.dashboard.active_nodes_label"
+msgstr "Active nodes"
+
+msgid "admin.dashboard.open_conflicts_label"
+msgstr "Open conflicts"
+
+msgid "admin.dashboard.pending_objects_label"
+msgstr "Pending objects"
+
+msgid "admin.dashboard.failed_objects_label"
+msgstr "Failed objects"
+
+msgid "admin.dashboard.status_label"
+msgstr "Status"
+
+msgid "admin.dashboard.status_healthy"
+msgstr "Healthy"
+
+msgid "admin.dashboard.status_needs_attention"
+msgstr "Needs attention"
+
+msgid "admin.dashboard.module_usage_title"
+msgstr "Module Usage"
+
+msgid "admin.dashboard.module_column"
+msgstr "Module"
+
+msgid "admin.dashboard.metric_column"
+msgstr "Metric"
+
+msgid "admin.dashboard.count_column"
+msgstr "Count"
+
+#. common (shared across pages)
+msgid "common.status_active"
+msgstr "Active"
+
+msgid "common.status_inactive"
+msgstr "Inactive"
+
+#. admin.access_users
+msgid "admin.access_users.access_denied_title"
+msgstr "Access denied."
+
+msgid "admin.access_users.access_denied_body"
+msgstr "Your account does not have permission to view users or roles/permissions. Contact your tenant admin/owner to request access."
+
+msgid "admin.access_users.users_title"
+msgstr "Users"
+
+msgid "admin.access_users.name_column"
+msgstr "Name"
+
+msgid "admin.access_users.login_column"
+msgstr "Login"
+
+msgid "admin.access_users.status_column"
+msgstr "Status"
+
+msgid "admin.access_users.role_column"
+msgstr "Role"
+
+msgid "admin.access_users.actions_column"
+msgstr "Actions"
+
+msgid "admin.access_users.no_users"
+msgstr "No users yet."
+
+msgid "admin.access_users.unassign_role_aria_label"
+msgstr "Unassign role {role}"
+
+msgid "admin.access_users.assign_role_placeholder"
+msgstr "+ assign role"
+
+msgid "admin.access_users.assign_button"
+msgstr "Assign"
+
+msgid "admin.access_users.deactivate_button"
+msgstr "Deactivate"
+
+msgid "admin.access_users.activate_button"
+msgstr "Activate"
+
+msgid "admin.access_users.create_user_summary"
+msgstr "Add user"
+
+msgid "admin.access_users.name_label"
+msgstr "Name"
+
+msgid "admin.access_users.login_identifier_label"
+msgstr "Login identifier"
+
+msgid "admin.access_users.password_label"
+msgstr "Password"
+
+msgid "admin.access_users.initial_roles_legend"
+msgstr "Initial roles (optional)"
+
+msgid "admin.access_users.create_user_submit"
+msgstr "Create user"
+
+msgid "admin.access_users.roles_title"
+msgstr "Roles & Permissions"
+
+msgid "admin.access_users.code_column"
+msgstr "Code"
+
+msgid "admin.access_users.permission_column"
+msgstr "Permissions"
+
+msgid "admin.access_users.users_column"
+msgstr "Users"
+
+msgid "admin.access_users.system_role_badge"
+msgstr "System"
+
+msgid "admin.access_users.edit_summary"
+msgstr "Edit"
+
+msgid "admin.access_users.role_name_label"
+msgstr "Role name"
+
+msgid "admin.access_users.permission_legend"
+msgstr "Permissions"
+
+msgid "admin.access_users.system_role_note"
+msgstr "(system role — cannot be changed)"
+
+msgid "admin.access_users.save_button"
+msgstr "Save"
+
+msgid "admin.access_users.delete_button"
+msgstr "Delete"
+
+msgid "admin.access_users.create_role_summary"
+msgstr "Add role"
+
+msgid "admin.access_users.role_code_label"
+msgstr "Role code"
+
+msgid "admin.access_users.role_code_placeholder"
+msgstr "e.g. viewer"
+
+msgid "admin.access_users.create_role_submit"
+msgstr "Create role"
+
+msgid "admin.access_users.create_user_success"
+msgstr "User created successfully."
+
+msgid "admin.access_users.create_role_success"
+msgstr "Role created successfully."
+
+msgid "admin.access_users.update_role_success"
+msgstr "Role updated successfully."
+
+msgid "admin.access_users.delete_role_success"
+msgstr "Role deleted successfully."
+
+msgid "admin.access_users.update_status_success"
+msgstr "User status updated."
+
+msgid "admin.access_users.assign_role_success"
+msgstr "Role assigned successfully."
+
+msgid "admin.access_users.unassign_role_success"
+msgstr "Role unassigned successfully."
+
+msgid "admin.access_users.delete_role_prompt"
+msgstr "Reason for deleting this role:"
+
+#. admin.sync
+msgid "admin.sync.access_denied_title"
+msgstr "Access denied."
+
+msgid "admin.sync.access_denied_body"
+msgstr "Your account does not have permission to view sync nodes, conflicts, or the object queue. Contact your tenant admin/owner to request access."
+
+msgid "admin.sync.summary_title"
+msgstr "Summary"
+
+msgid "admin.sync.nodes_title"
+msgstr "Sync Nodes"
+
+msgid "admin.sync.node_column"
+msgstr "Node"
+
+msgid "admin.sync.last_pushed_column"
+msgstr "Last pushed"
+
+msgid "admin.sync.last_pulled_column"
+msgstr "Last pulled"
+
+msgid "admin.sync.no_nodes"
+msgstr "No nodes registered yet."
+
+msgid "admin.sync.open_conflicts_title"
+msgstr "Open Conflicts"
+
+msgid "admin.sync.aggregate_column"
+msgstr "Aggregate"
+
+msgid "admin.sync.conflict_type_column"
+msgstr "Conflict type"
+
+msgid "admin.sync.batch_column"
+msgstr "Batch"
+
+msgid "admin.sync.created_column"
+msgstr "Created"
+
+msgid "admin.sync.resolution_column"
+msgstr "Resolution"
+
+msgid "admin.sync.no_open_conflicts"
+msgstr "No open conflicts."
+
+msgid "admin.sync.resolution_accept_incoming"
+msgstr "Accept incoming data"
+
+msgid "admin.sync.resolution_keep_existing"
+msgstr "Keep existing data"
+
+msgid "admin.sync.resolution_manual"
+msgstr "Manual"
+
+msgid "admin.sync.resolution_note_placeholder"
+msgstr "Note (optional)"
+
+msgid "admin.sync.resolve_button"
+msgstr "Resolve"
+
+msgid "admin.sync.failed_queue_title"
+msgstr "Failed Object Queue"
+
+msgid "admin.sync.object_key_column"
+msgstr "Object key"
+
+msgid "admin.sync.retry_column"
+msgstr "Retries"
+
+msgid "admin.sync.last_error_column"
+msgstr "Last error"
+
+msgid "admin.sync.no_failed_objects"
+msgstr "No failed objects."
+
+msgid "admin.sync.retry_button"
+msgstr "Retry"
+
+msgid "admin.sync.update_node_success"
+msgstr "Node status updated."
+
+msgid "admin.sync.resolve_conflict_success"
+msgstr "Conflict resolved successfully."
+
+msgid "admin.sync.retry_object_success"
+msgstr "Object retried successfully."
+
+msgid "admin.layout.language_switcher_aria_label"
+msgstr "Language"
+
+#. admin.settings
+msgid "admin.settings.access_denied_title"
+msgstr "Access denied."
+
+msgid "admin.settings.access_denied_body"
+msgstr "Your account does not have permission to view tenant settings. Contact your tenant admin/owner to request access."
+
+msgid "admin.settings.tenant_profile_legend"
+msgstr "Tenant Profile"
+
+msgid "admin.settings.tenant_name_label"
+msgstr "Tenant name"
+
+msgid "admin.settings.legal_name_label"
+msgstr "Legal name (optional)"
+
+msgid "admin.settings.display_preferences_legend"
+msgstr "Display Preferences"
+
+msgid "admin.settings.default_locale_label"
+msgstr "Default language"
+
+msgid "admin.settings.default_theme_label"
+msgstr "Default theme"
+
+msgid "admin.settings.default_theme_hint"
+msgstr "The default theme applies to new sessions/browsers that have never manually picked a theme. Your personal theme choice (the topbar button) still wins on this browser."
+
+msgid "admin.settings.timezone_legend"
+msgstr "Timezone"
+
+msgid "admin.settings.timezone_label"
+msgstr "Timezone (IANA)"
+
+msgid "admin.settings.feature_flags_legend"
+msgstr "Feature Flags"
+
+msgid "admin.settings.feature_flags_json_label"
+msgstr "JSON object"
+
+msgid "admin.settings.feature_flags_hint"
+msgstr "Must be a valid JSON object (e.g. {\"betaReports\": true})."
+
+msgid "admin.settings.invalid_feature_flags"
+msgstr "Feature flags must be a valid JSON object."
+
+msgid "admin.settings.save_success"
+msgstr "Settings saved successfully."

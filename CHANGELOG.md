@@ -6,6 +6,20 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-07-06
+
+### Added
+
+- **Runtime i18n** (Issue #433): katalog gettext `.po` tanpa dependency (`i18n/{messages.pot,en.po,id.po}`, parser murni di `src/lib/i18n/po-parser.ts`) untuk string UI statis — di-bundle bersama aplikasi (dibaca via `Bun.file`, bukan database). Konten data multi-bahasa (input pengguna) memakai konvensi terpisah, disimpan di database per locale aktif (`docs/awcms-mini/04_erd_data_dictionary.md` §Konten multi-bahasa; base belum punya field yang memakainya).
+- Komponen **`LanguageSwitcher.astro`** di topbar admin — menampilkan nama asli + ikon bendera tiap bahasa (🇬🇧 English, 🇮🇩 Bahasa Indonesia), memilih men-set cookie `awcms_mini_locale` lalu reload penuh.
+- Migrasi **`016`** mengubah default `awcms_mini_tenants.default_locale` dari `'id'` ke `'en'` untuk tenant baru (`ALTER COLUMN ... SET DEFAULT`; tenant lama tidak diubah).
+- Seluruh string hardcode di halaman login, admin shell (`AdminLayout.astro`), dan layar dashboard/access-users/sync/settings diekstrak ke katalog; pesan error banner memetakan kode error (doc 05) ke pesan ter-lokalisasi lewat blob `<script type="application/json">` (katalog `.po` hanya bisa dibaca server-side).
+- Formatter angka/mata uang IDR dan tanggal sadar-locale (`src/lib/i18n/format.ts`, `Intl.NumberFormat`/`DateTimeFormat`, timezone tetap `Asia/Jakarta`).
+
+### Fixed
+
+- **Bug ditemukan+diperbaiki saat verifikasi live**: locale tenant-fallback yang di-resolve di dalam `AdminLayout.astro` datang terlambat untuk konten halaman itu sendiri (frontmatter halaman berjalan lebih dulu daripada frontmatter layout yang membungkusnya) — shell ter-render dalam bahasa tenant yang benar, tetapi konten dashboard/access-users/sync/settings tetap Inggris. Diperbaiki dengan memindahkan resolusi locale (cookie → `default_locale` tenant → `en`) ke `src/middleware.ts`, sebelum halaman `/admin/*` mana pun dirender.
+
 ## [0.22.0] - 2026-07-06
 
 ### Added
@@ -331,7 +345,8 @@ Aplikasi turunan (mis. AWPOS) memakai peta versinya sendiri di atas base ini.
 
 Nomor versi naik progresif per rilis, bukan hanya saat satu slot epic selesai penuh: rilis `0.2.0`-`0.4.0` berisi Issue 2.1 (tenant/office), 2.2 (central profile), dan 2.3 (identity/login) dari slot "Tenant, identity, profile" (tuntas); rilis `0.5.0` berisi Issue 2.4 (RBAC/ABAC) dari slot "RBAC/ABAC evaluator + assignment" (tuntas). Epic M2 (2.1–2.4) selesai penuh. Rilis `0.6.0` berisi Issue 12.1 (Setup Wizard) dan rilis `0.7.0` berisi Issue 6.1 (Sync Outbox/Inbox) — keduanya tidak punya slot eksplisit sendiri di tabel peta versi doc 09 (12.1 ditempatkan setelah M2, 6.1 dimulai dari slot "Sync storage" `v0.4.0` yang sebelumnya ditarget jauh lebih lambat dari realisasi progresif ini). Rilis `0.8.0` berisi Issue 6.2 (Sync Conflict Tracking/Resolution), lanjutan langsung dari slot "Sync storage" yang sama dengan 6.1. Rilis `0.9.0` berisi Issue 6.3 (R2 Object Sync Queue), menuntaskan epic M5 (Sync Storage) sepenuhnya. Rilis `0.10.0` berisi Issue 8.1 (Admin Layout Shell), issue pertama epic M7 (UI/UX & Reporting) dan issue frontend pertama di repo ini. Rilis `0.11.0` berisi Issue 9.1 (Management Reporting Views), menuntaskan epic M7 sepenuhnya. Rilis `0.11.1` adalah patch (bug fix jsonb double-encoding pada sync push, bukan issue baru). Rilis `0.12.0` berisi Issue 10.1 (Structured Logging and Audit Trail), issue pertama epic M8 (Security, Performance, Production). Rilis `0.13.0` berisi Issue 10.2 (Database Connection Pooling and Backpressure) — tidak ada migration baru, murni infrastruktur aplikasi. Rilis `0.14.0` berisi Issue 10.3 (Production Security Readiness Checklist) — juga tidak ada migration baru, murni tooling CLI yang memverifikasi kontrol yang sudah dibangun sebelumnya. Rilis `0.15.0` berisi Issue 11.1 (Workflow Approval Engine), mendarat lebih awal dari rencana semula (slot 015) karena mengikuti tepat setelah 10.3 yang tidak butuh migration. Rilis `0.16.0` berisi Issue 12.2 (Offline/LAN Deployment Profile) — tidak ada migration baru, murni aset deployment — menuntaskan epic M8 sekaligus seluruh backlog base generik (18 issue doc06).
 
-[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.22.0...HEAD
+[Unreleased]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.23.0...HEAD
+[0.23.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.22.0...awcms-mini@0.23.0
 [0.22.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.21.0...awcms-mini@0.22.0
 [0.21.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.20.0...awcms-mini@0.21.0
 [0.20.0]: https://github.com/ahliweb/awcms-mini/compare/awcms-mini@0.19.0...awcms-mini@0.20.0

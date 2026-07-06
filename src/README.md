@@ -21,6 +21,6 @@ Frontend pertama di repo ini. Cakupan: token desain, theming, layout admin SSR, 
 
 - **Tenant switcher nyata** — perlu cross-tenant identity linking yang belum ada di skema (`awcms_mini_identities.tenant_id` masih 1:1).
 - **Sync indicator berbasis data nyata** — perlu endpoint sync-health yang admin-facing (bukan HMAC node auth); scope Issue 9.1.
-- **Katalog i18n/PO** — doc 14 menyinggung migration message catalog, tetapi tidak ada issue GitHub untuk ini di `docs/awcms-mini/06_github_issues_detail.md`; string UI di issue ini hardcode Bahasa Indonesia (`id`).
+- ~~**Katalog i18n/PO**~~ — **diimplementasikan Issue #433** (milestone M9, pasca-Issue 8.1): `src/lib/i18n/` + katalog `i18n/{messages.pot,en.po,id.po}` + `LanguageSwitcher.astro`; string UI di seluruh admin shell dan halaman kini melalui `t()`, bukan hardcode. Lihat doc 14 §Internationalization.
 - **PWA/service worker/IndexedDB outbox** — itu scope offline-first POS (Issue 8.2/8.3), yang sudah ditutup `not planned` di repo ini (base generik, bukan aplikasi POS).
 - **Komponen UI lengkap** (Button, DataGrid, Dialog, Toast, dst. — doc 14 §Component library) — hanya dibangun sesuai kebutuhan issue yang benar-benar memakainya; issue ini hanya butuh tiga komponen di atas.

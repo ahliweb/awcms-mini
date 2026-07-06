@@ -1,0 +1,471 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: awcms-mini\n"
+"Report-Msgid-Bugs-To: \n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. auth.login
+msgid "auth.login.page_title"
+msgstr ""
+
+msgid "auth.login.tenant_id_label"
+msgstr ""
+
+msgid "auth.login.identifier_label"
+msgstr ""
+
+msgid "auth.login.password_label"
+msgstr ""
+
+msgid "auth.login.submit"
+msgstr ""
+
+msgid "auth.login.generic_error"
+msgstr ""
+
+#. common
+msgid "common.network_error"
+msgstr ""
+
+#. error codes (doc 05 §Error code standard)
+msgid "error.validation_error"
+msgstr ""
+
+msgid "error.auth_required"
+msgstr ""
+
+msgid "error.auth_invalid_credentials"
+msgstr ""
+
+msgid "error.token_expired"
+msgstr ""
+
+msgid "error.access_denied"
+msgstr ""
+
+msgid "error.tenant_required"
+msgstr ""
+
+msgid "error.resource_not_found"
+msgstr ""
+
+msgid "error.resource_deleted"
+msgstr ""
+
+msgid "error.resource_conflict"
+msgstr ""
+
+msgid "error.idempotency_required"
+msgstr ""
+
+msgid "error.idempotency_conflict"
+msgstr ""
+
+msgid "error.workflow_approval_required"
+msgstr ""
+
+msgid "error.stock_not_available"
+msgstr ""
+
+msgid "error.sync_conflict"
+msgstr ""
+
+msgid "error.database_busy"
+msgstr ""
+
+msgid "error.provider_error"
+msgstr ""
+
+msgid "error.internal_error"
+msgstr ""
+
+msgid "error.purge_blocked_by_dependents"
+msgstr ""
+
+msgid "error.purge_requires_soft_delete"
+msgstr ""
+
+#. admin.layout (shared shell)
+msgid "admin.layout.no_role"
+msgstr ""
+
+msgid "admin.layout.logout"
+msgstr ""
+
+msgid "admin.layout.nav_aria_label"
+msgstr ""
+
+msgid "admin.layout.nav_dashboard"
+msgstr ""
+
+msgid "admin.layout.nav_access_users"
+msgstr ""
+
+msgid "admin.layout.nav_sync"
+msgstr ""
+
+msgid "admin.layout.nav_settings"
+msgstr ""
+
+msgid "admin.layout.breadcrumb_aria_label"
+msgstr ""
+
+msgid "admin.layout.active_tenant_aria_label"
+msgstr ""
+
+msgid "admin.layout.sync_active"
+msgstr ""
+
+msgid "admin.layout.sync_inactive"
+msgstr ""
+
+#. admin.dashboard
+msgid "admin.dashboard.access_denied_title"
+msgstr ""
+
+msgid "admin.dashboard.access_denied_body"
+msgstr ""
+
+msgid "admin.dashboard.tenant_activity_title"
+msgstr ""
+
+msgid "admin.dashboard.tenant_label"
+msgstr ""
+
+msgid "admin.dashboard.active_users_label"
+msgstr ""
+
+msgid "admin.dashboard.active_offices_label"
+msgstr ""
+
+msgid "admin.dashboard.last_login_label"
+msgstr ""
+
+msgid "admin.dashboard.access_audit_title"
+msgstr ""
+
+msgid "admin.dashboard.allow_count_label"
+msgstr ""
+
+msgid "admin.dashboard.deny_count_label"
+msgstr ""
+
+msgid "admin.dashboard.total_decision_log_label"
+msgstr ""
+
+msgid "admin.dashboard.profile_audit_log_label"
+msgstr ""
+
+msgid "admin.dashboard.sync_health_title"
+msgstr ""
+
+msgid "admin.dashboard.active_nodes_label"
+msgstr ""
+
+msgid "admin.dashboard.open_conflicts_label"
+msgstr ""
+
+msgid "admin.dashboard.pending_objects_label"
+msgstr ""
+
+msgid "admin.dashboard.failed_objects_label"
+msgstr ""
+
+msgid "admin.dashboard.status_label"
+msgstr ""
+
+msgid "admin.dashboard.status_healthy"
+msgstr ""
+
+msgid "admin.dashboard.status_needs_attention"
+msgstr ""
+
+msgid "admin.dashboard.module_usage_title"
+msgstr ""
+
+msgid "admin.dashboard.module_column"
+msgstr ""
+
+msgid "admin.dashboard.metric_column"
+msgstr ""
+
+msgid "admin.dashboard.count_column"
+msgstr ""
+
+#. common (shared across pages)
+msgid "common.status_active"
+msgstr ""
+
+msgid "common.status_inactive"
+msgstr ""
+
+#. admin.access_users
+msgid "admin.access_users.access_denied_title"
+msgstr ""
+
+msgid "admin.access_users.access_denied_body"
+msgstr ""
+
+msgid "admin.access_users.users_title"
+msgstr ""
+
+msgid "admin.access_users.name_column"
+msgstr ""
+
+msgid "admin.access_users.login_column"
+msgstr ""
+
+msgid "admin.access_users.status_column"
+msgstr ""
+
+msgid "admin.access_users.role_column"
+msgstr ""
+
+msgid "admin.access_users.actions_column"
+msgstr ""
+
+msgid "admin.access_users.no_users"
+msgstr ""
+
+msgid "admin.access_users.unassign_role_aria_label"
+msgstr ""
+
+msgid "admin.access_users.assign_role_placeholder"
+msgstr ""
+
+msgid "admin.access_users.assign_button"
+msgstr ""
+
+msgid "admin.access_users.deactivate_button"
+msgstr ""
+
+msgid "admin.access_users.activate_button"
+msgstr ""
+
+msgid "admin.access_users.create_user_summary"
+msgstr ""
+
+msgid "admin.access_users.name_label"
+msgstr ""
+
+msgid "admin.access_users.login_identifier_label"
+msgstr ""
+
+msgid "admin.access_users.password_label"
+msgstr ""
+
+msgid "admin.access_users.initial_roles_legend"
+msgstr ""
+
+msgid "admin.access_users.create_user_submit"
+msgstr ""
+
+msgid "admin.access_users.roles_title"
+msgstr ""
+
+msgid "admin.access_users.code_column"
+msgstr ""
+
+msgid "admin.access_users.permission_column"
+msgstr ""
+
+msgid "admin.access_users.users_column"
+msgstr ""
+
+msgid "admin.access_users.system_role_badge"
+msgstr ""
+
+msgid "admin.access_users.edit_summary"
+msgstr ""
+
+msgid "admin.access_users.role_name_label"
+msgstr ""
+
+msgid "admin.access_users.permission_legend"
+msgstr ""
+
+msgid "admin.access_users.system_role_note"
+msgstr ""
+
+msgid "admin.access_users.save_button"
+msgstr ""
+
+msgid "admin.access_users.delete_button"
+msgstr ""
+
+msgid "admin.access_users.create_role_summary"
+msgstr ""
+
+msgid "admin.access_users.role_code_label"
+msgstr ""
+
+msgid "admin.access_users.role_code_placeholder"
+msgstr ""
+
+msgid "admin.access_users.create_role_submit"
+msgstr ""
+
+msgid "admin.access_users.create_user_success"
+msgstr ""
+
+msgid "admin.access_users.create_role_success"
+msgstr ""
+
+msgid "admin.access_users.update_role_success"
+msgstr ""
+
+msgid "admin.access_users.delete_role_success"
+msgstr ""
+
+msgid "admin.access_users.update_status_success"
+msgstr ""
+
+msgid "admin.access_users.assign_role_success"
+msgstr ""
+
+msgid "admin.access_users.unassign_role_success"
+msgstr ""
+
+msgid "admin.access_users.delete_role_prompt"
+msgstr ""
+
+#. admin.sync
+msgid "admin.sync.access_denied_title"
+msgstr ""
+
+msgid "admin.sync.access_denied_body"
+msgstr ""
+
+msgid "admin.sync.summary_title"
+msgstr ""
+
+msgid "admin.sync.nodes_title"
+msgstr ""
+
+msgid "admin.sync.node_column"
+msgstr ""
+
+msgid "admin.sync.last_pushed_column"
+msgstr ""
+
+msgid "admin.sync.last_pulled_column"
+msgstr ""
+
+msgid "admin.sync.no_nodes"
+msgstr ""
+
+msgid "admin.sync.open_conflicts_title"
+msgstr ""
+
+msgid "admin.sync.aggregate_column"
+msgstr ""
+
+msgid "admin.sync.conflict_type_column"
+msgstr ""
+
+msgid "admin.sync.batch_column"
+msgstr ""
+
+msgid "admin.sync.created_column"
+msgstr ""
+
+msgid "admin.sync.resolution_column"
+msgstr ""
+
+msgid "admin.sync.no_open_conflicts"
+msgstr ""
+
+msgid "admin.sync.resolution_accept_incoming"
+msgstr ""
+
+msgid "admin.sync.resolution_keep_existing"
+msgstr ""
+
+msgid "admin.sync.resolution_manual"
+msgstr ""
+
+msgid "admin.sync.resolution_note_placeholder"
+msgstr ""
+
+msgid "admin.sync.resolve_button"
+msgstr ""
+
+msgid "admin.sync.failed_queue_title"
+msgstr ""
+
+msgid "admin.sync.object_key_column"
+msgstr ""
+
+msgid "admin.sync.retry_column"
+msgstr ""
+
+msgid "admin.sync.last_error_column"
+msgstr ""
+
+msgid "admin.sync.no_failed_objects"
+msgstr ""
+
+msgid "admin.sync.retry_button"
+msgstr ""
+
+msgid "admin.sync.update_node_success"
+msgstr ""
+
+msgid "admin.sync.resolve_conflict_success"
+msgstr ""
+
+msgid "admin.sync.retry_object_success"
+msgstr ""
+
+msgid "admin.layout.language_switcher_aria_label"
+msgstr ""
+
+#. admin.settings
+msgid "admin.settings.access_denied_title"
+msgstr ""
+
+msgid "admin.settings.access_denied_body"
+msgstr ""
+
+msgid "admin.settings.tenant_profile_legend"
+msgstr ""
+
+msgid "admin.settings.tenant_name_label"
+msgstr ""
+
+msgid "admin.settings.legal_name_label"
+msgstr ""
+
+msgid "admin.settings.display_preferences_legend"
+msgstr ""
+
+msgid "admin.settings.default_locale_label"
+msgstr ""
+
+msgid "admin.settings.default_theme_label"
+msgstr ""
+
+msgid "admin.settings.default_theme_hint"
+msgstr ""
+
+msgid "admin.settings.timezone_legend"
+msgstr ""
+
+msgid "admin.settings.timezone_label"
+msgstr ""
+
+msgid "admin.settings.feature_flags_legend"
+msgstr ""
+
+msgid "admin.settings.feature_flags_json_label"
+msgstr ""
+
+msgid "admin.settings.feature_flags_hint"
+msgstr ""
+
+msgid "admin.settings.invalid_feature_flags"
+msgstr ""
+
+msgid "admin.settings.save_success"
+msgstr ""

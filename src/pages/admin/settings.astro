@@ -21,6 +21,13 @@ import { getDatabaseClient } from "../../lib/database/client";
 import { withTenant } from "../../lib/database/tenant-context";
 import { permissionKey } from "../../modules/identity-access/domain/access-control";
 import { fetchTenantSettings } from "../../modules/tenant-admin/application/tenant-settings-directory";
+import { createTranslator } from "../../lib/i18n/translate";
+import { buildClientErrorMessages } from "../../lib/i18n/error-messages";
+import {
+  LOCALE_FLAGS,
+  LOCALE_LABELS,
+  SUPPORTED_LOCALES
+} from "../../lib/i18n/locale";
 
 const context = Astro.locals.ssrContext;
 
@@ -29,6 +36,15 @@ if (!context) {
     "admin/settings.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
   );
 }
+
+const t = await createTranslator(Astro.locals.locale);
+
+const clientStrings = {
+  invalidFeatureFlags: t("admin.settings.invalid_feature_flags"),
+  saveSuccess: t("admin.settings.save_success"),
+  networkError: t("common.network_error"),
+  errorMessages: buildClientErrorMessages(t)
+};
 
 const CAN_READ = context.permissions.has(
   permissionKey("tenant_admin", "tenant_settings", "read")
@@ -44,17 +60,14 @@ const settings = CAN_READ
   : null;
 ---
 
-<AdminLayout title="Pengaturan">
+<AdminLayout title={t("admin.layout.nav_settings")}>
   {
     !settings && (
       <div class="permission-denied" role="alert">
         <p>
-          <strong>Akses ditolak.</strong>
+          <strong>{t("admin.settings.access_denied_title")}</strong>
         </p>
-        <p>
-          Akun Anda tidak memiliki izin untuk melihat pengaturan tenant. Hubungi
-          admin/owner tenant Anda untuk meminta akses.
-        </p>
+        <p>{t("admin.settings.access_denied_body")}</p>
       </div>
     )
   }
@@ -62,12 +75,17 @@ const settings = CAN_READ
     settings && (
       <div class="settings-admin">
         <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
 
         <form id="settings-form" class="settings-form">
           <fieldset disabled={!CAN_UPDATE}>
-            <legend>Profil Tenant</legend>
+            <legend>{t("admin.settings.tenant_profile_legend")}</legend>
             <label>
-              Nama tenant
+              {t("admin.settings.tenant_name_label")}
               <input
                 type="text"
                 name="tenantName"
@@ -76,7 +94,7 @@ const settings = CAN_READ
               />
             </label>
             <label>
-              Nama legal (opsional)
+              {t("admin.settings.legal_name_label")}
               <input
                 type="text"
                 name="legalName"
@@ -86,22 +104,22 @@ const settings = CAN_READ
           </fieldset>
 
           <fieldset disabled={!CAN_UPDATE}>
-            <legend>Preferensi Tampilan</legend>
+            <legend>{t("admin.settings.display_preferences_legend")}</legend>
             <label>
-              Bahasa default
+              {t("admin.settings.default_locale_label")}
               <select name="defaultLocale">
-                {["id", "en", "ms", "ar"].map((locale) => (
+                {SUPPORTED_LOCALES.map((locale) => (
                   <option
                     value={locale}
                     selected={locale === settings.defaultLocale}
                   >
-                    {locale}
+                    {LOCALE_FLAGS[locale]} {LOCALE_LABELS[locale]}
                   </option>
                 ))}
               </select>
             </label>
             <label>
-              Tema default
+              {t("admin.settings.default_theme_label")}
               <select name="defaultTheme">
                 {["system", "light", "dark"].map((theme) => (
                   <option
@@ -113,17 +131,13 @@ const settings = CAN_READ
                 ))}
               </select>
             </label>
-            <p class="field-hint">
-              Tema default berlaku untuk sesi/browser baru yang belum pernah
-              memilih tema secara manual. Pilihan tema pribadi Anda (tombol di
-              topbar) tetap menang di browser ini.
-            </p>
+            <p class="field-hint">{t("admin.settings.default_theme_hint")}</p>
           </fieldset>
 
           <fieldset disabled={!CAN_UPDATE}>
-            <legend>Zona Waktu</legend>
+            <legend>{t("admin.settings.timezone_legend")}</legend>
             <label>
-              Timezone (IANA)
+              {t("admin.settings.timezone_label")}
               <input
                 type="text"
                 name="timezone"
@@ -135,20 +149,19 @@ const settings = CAN_READ
           </fieldset>
 
           <fieldset disabled={!CAN_UPDATE}>
-            <legend>Feature Flags</legend>
+            <legend>{t("admin.settings.feature_flags_legend")}</legend>
             <label>
-              JSON object
+              {t("admin.settings.feature_flags_json_label")}
               <textarea name="featureFlags" rows="6" spellcheck="false">
                 {JSON.stringify(settings.featureFlags, null, 2)}
               </textarea>
             </label>
-            <p class="field-hint">
-              Harus berupa JSON object valid (mis. {"{"}"betaReports": true{"}"}
-              ).
-            </p>
+            <p class="field-hint">{t("admin.settings.feature_flags_hint")}</p>
           </fieldset>
 
-          {CAN_UPDATE && <button type="submit">Simpan</button>}
+          {CAN_UPDATE && (
+            <button type="submit">{t("admin.access_users.save_button")}</button>
+          )}
         </form>
       </div>
     )
@@ -256,6 +269,9 @@ const settings = CAN_READ
 
 <script>
   const JSON_HEADERS = { "Content-Type": "application/json" };
+  const strings = JSON.parse(
+    document.getElementById("i18n-strings")?.textContent ?? "{}"
+  );
 
   function showBanner(message: string, variant: "success" | "error") {
     const banner = document.getElementById("action-banner");
@@ -277,10 +293,7 @@ const settings = CAN_READ
       try {
         featureFlags = JSON.parse(featureFlagsRaw);
       } catch {
-        showBanner(
-          "Feature flags harus berupa JSON object yang valid.",
-          "error"
-        );
+        showBanner(strings.invalidFeatureFlags, "error");
         return;
       }
 
@@ -307,16 +320,18 @@ const settings = CAN_READ
         const json = await res.json().catch(() => null);
 
         if (!res.ok) {
-          showBanner(
-            json?.error?.message ?? `Request failed (${res.status}).`,
-            "error"
-          );
+          const code = json?.error?.code as string | undefined;
+          const message: string =
+            (code && strings.errorMessages?.[code]) ??
+            json?.error?.message ??
+            `Request failed (${res.status}).`;
+          showBanner(message, "error");
           return;
         }
 
-        showBanner("Pengaturan berhasil disimpan.", "success");
+        showBanner(strings.saveSuccess, "success");
       } catch {
-        showBanner("Terjadi kesalahan jaringan.", "error");
+        showBanner(strings.networkError, "error");
       }
     });
 </script>
