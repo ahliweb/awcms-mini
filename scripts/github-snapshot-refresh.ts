@@ -263,8 +263,16 @@ function replaceBetweenMarkers(
   return `${before}\n\n${replacement}\n\n${after}`;
 }
 
-function issueTableRow(issue: Issue, milestoneFallback = "-"): string {
-  const url = `https://github.com/ahliweb/awcms-mini/issues/${issue.number}`;
+// `repo` comes from the same `owner/repo` argument fetchLiveState() was
+// called with — keeps generated issue links pointing at the repo actually
+// being processed instead of hardcoding this repo, so this script stays a
+// valid pattern to copy into a derived repo (e.g. AWPOS) unchanged.
+function issueTableRow(
+  issue: Issue,
+  repo: string,
+  milestoneFallback = "-"
+): string {
+  const url = `https://github.com/${repo}/issues/${issue.number}`;
   const milestone = issue.milestone?.title ?? milestoneFallback;
   return `| [#${issue.number}](${url}) | ${issue.title} | ${milestone} |`;
 }
@@ -345,7 +353,7 @@ async function main() {
         ? [
             "|                                                        # | Judul | Milestone (saat dibuat) |",
             "| -------------------------------------------------------: | ----- | ----------------------- |",
-            ...sorted.map((issue) => issueTableRow(issue))
+            ...sorted.map((issue) => issueTableRow(issue, repo))
           ].join("\n")
         : "**Tidak ada issue open.**";
     content = replaceBetweenMarkers(content, "open-issues", table);
@@ -370,7 +378,7 @@ async function main() {
     const table = [
       "|                                                        # | Judul | Milestone (saat dibuat) |",
       "| -------------------------------------------------------: | ----- | ----------------------- |",
-      ...postDoc06.map((issue) => issueTableRow(issue))
+      ...postDoc06.map((issue) => issueTableRow(issue, repo))
     ].join("\n");
     content = replaceBetweenMarkers(content, "closed-issues-post-doc06", table);
     writeFileSync(file, content);
