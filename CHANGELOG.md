@@ -6,6 +6,18 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 ## [Unreleased]
 
+## [0.23.3] - 2026-07-06
+
+### Added
+
+- **Dispatcher object sync queue nyata** (Issue #436, milestone M9 — kerasan backend & integrasi eksternal): `dispatchObjectSyncQueue` (`src/modules/sync-storage/application/object-dispatch.ts`) menutup gap "dispatcher upload R2 nyata" yang sebelumnya jadi backlog eksplisit di `sync-storage/README.md`. Pola tiga fase claim/upload/finalize sesuai ADR-0006 (provider tidak pernah dipanggil di dalam transaction DB): CLAIM memindahkan baris `pending` jatuh tempo ke status transien baru `sending` (migrasi `018` menambah `sending` ke `CHECK` constraint, reuse kolom `next_retry_at` sebagai lease claim — tidak ada kolom baru), UPLOAD memanggil provider di luar transaction, FINALIZE menandai `sent`/`pending`+backoff/`failed` sesuai hasil. Backoff memakai ulang `evaluateObjectRetry` (`domain/object-queue.ts`) tanpa modifikasi; retry manual tetap lewat `POST /sync/object-queue/{id}/retry` yang sudah ada, tidak diubah.
+- **Upload nyata via `Bun.S3Client`** (`src/modules/sync-storage/infrastructure/object-storage-uploader.ts`) — Bun-only, tanpa SDK AWS/S3 npm. Route `requires_upload=false` (R2 off/`STORAGE_DRIVER=local`) lewat no-op uploader (tanpa jaringan/I/O sama sekali, selalu sukses — provider off tidak pernah menghentikan operasional, ADR-0006); `requires_upload=true` memverifikasi checksum sha256 lokal aktual sebelum upload (pemanggil nyata pertama `verifyObjectChecksum`, sebelumnya hanya diuji langsung oleh unit test).
+- **Circuit breaker generik diperluas ke provider eksternal**: `src/lib/database/circuit-breaker.ts` menambah `getProviderCircuitBreaker(providerKey)` — registry per-provider (bukan singleton tunggal seperti breaker database), dipakai uploader object storage (`"object-storage"`). Saat breaker terbuka, baris `requires_upload=true` tidak diklaim sama sekali pada pass tersebut; baris `requires_upload=false` tetap jalan karena tak pernah menyentuh provider.
+- **Timeout panggilan keluar**: `src/lib/integration/timeout.ts` (`withTimeout`), env baru `OBJECT_SYNC_UPLOAD_TIMEOUT_MS` (default 10000ms).
+- **CLI dispatcher terjadwal**: `bun run sync:objects:dispatch` (`scripts/object-sync-dispatch.ts`) — bukan endpoint HTTP publik, mengiterasi tenant `active` dan menguras backlog `awcms_mini_object_sync_queue` per tenant, dimaksudkan untuk cron/systemd timer/k8s CronJob.
+- Idempotensi dispatcher: baris `sent`/`failed` tidak pernah diklaim ulang; kunci upload (`objectKey`) sendiri jadi dedup key alami (PUT S3/R2 ke key yang sama adalah overwrite, bukan duplikat).
+- Tidak ada endpoint/event baru — dispatcher murni internal, sehingga OpenAPI/AsyncAPI baseline tidak berubah untuk issue ini.
+
 ## [0.23.2] - 2026-07-06
 
 ### Fixed

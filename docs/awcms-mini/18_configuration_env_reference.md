@@ -81,15 +81,16 @@ Legenda: Wajib = perlu untuk boot; Sensitif = jangan bocor ke log/response.
 
 ### Storage
 
-| Var                    | Wajib   | Default     | Sensitif | Fungsi          |
-| ---------------------- | ------- | ----------- | -------- | --------------- |
-| `STORAGE_DRIVER`       | –       | `local`     | –        | local/r2        |
-| `LOCAL_STORAGE_PATH`   | –       | `./storage` | –        | Path file lokal |
-| `R2_ENABLED`           | –       | `false`     | –        | Aktifkan R2     |
-| `R2_ACCOUNT_ID`        | bila R2 | –           | Ya       | Akun R2         |
-| `R2_ACCESS_KEY_ID`     | bila R2 | –           | Ya       | Kredensial R2   |
-| `R2_SECRET_ACCESS_KEY` | bila R2 | –           | Ya       | Kredensial R2   |
-| `R2_BUCKET`            | bila R2 | –           | –        | Bucket          |
+| Var                             | Wajib   | Default     | Sensitif | Fungsi                                                                  |
+| ------------------------------- | ------- | ----------- | -------- | ----------------------------------------------------------------------- |
+| `STORAGE_DRIVER`                | –       | `local`     | –        | local/r2                                                                |
+| `LOCAL_STORAGE_PATH`            | –       | `./storage` | –        | Path file lokal                                                         |
+| `R2_ENABLED`                    | –       | `false`     | –        | Aktifkan R2                                                             |
+| `R2_ACCOUNT_ID`                 | bila R2 | –           | Ya       | Akun R2                                                                 |
+| `R2_ACCESS_KEY_ID`              | bila R2 | –           | Ya       | Kredensial R2                                                           |
+| `R2_SECRET_ACCESS_KEY`          | bila R2 | –           | Ya       | Kredensial R2                                                           |
+| `R2_BUCKET`                     | bila R2 | –           | –        | Bucket                                                                  |
+| `OBJECT_SYNC_UPLOAD_TIMEOUT_MS` | –       | `10000`     | –        | Timeout upload dispatcher (Issue #436, `bun run sync:objects:dispatch`) |
 
 ### Provider CRM (opsional)
 
@@ -154,6 +155,7 @@ AWCMS_MINI_SYNC_MAX_SKEW_SEC=300
 # Storage
 STORAGE_DRIVER=local
 LOCAL_STORAGE_PATH=./storage
+OBJECT_SYNC_UPLOAD_TIMEOUT_MS=10000
 R2_ENABLED=false
 
 # Provider opsional (default off)
