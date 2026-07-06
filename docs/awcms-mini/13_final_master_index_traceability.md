@@ -204,6 +204,7 @@ flowchart LR
 | Go-live gate                          | `awcms-mini-production-preflight`                                                                      |
 | Profil deployment (LAN-first/Coolify) | `awcms-mini-deploy`                                                                                    |
 | UI/design system/a11y                 | `awcms-mini-ui-screen`                                                                                 |
+| Form multi-step (wizard)              | `awcms-mini-wizard-form`                                                                               |
 | Rilis/CHANGELOG                       | `awcms-mini-release`                                                                                   |
 | Legacy migration                      | `awcms-mini-legacy-migration`                                                                          |
 | Implementasi issue                    | skill `awcms-mini-implement-issue` + agent `awcms-mini-coder`                                          |
@@ -323,7 +324,7 @@ Alasan:
 - `AGENTS.md`
 - `README.md`
 - `CHANGELOG.md` + `.changeset/` (versioning via Changesets)
-- `.claude/skills/` (24 skill proyek + katalog README)
+- `.claude/skills/` (25 skill proyek + katalog README)
 - `.claude/agents/` (3 subagent: coder, reviewer, security-auditor)
 - `package.json`
 - `astro.config.mjs`
