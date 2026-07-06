@@ -197,10 +197,24 @@ SemVer + [Changesets](../../.changeset/README.md); riwayat di [`../../CHANGELOG.
 
 ## Langkah berikutnya
 
-Mulai dari:
+**Base generik sudah selesai** (v0.23.5) — seluruh 18 issue backlog base (doc 06) + peningkatan pasca-backlog milestone M9 tuntas (ringkasan di [`../../README.md`](../../README.md) §Versioning dan log per-issue di `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`). Tenant/office, identity/login, RBAC/ABAC, Sync Storage, reporting, audit/logging, workflow approval, dan deployment profile **sudah** ada dan berjalan; jangan membangunnya ulang.
 
-```text
-Issue 0.1 — Initialize AWCMS-Mini Modular Monolith Repository Structure
-```
+Kontribusi baru masuk salah satu dari dua jalur:
 
-Lanjutkan sesuai urutan di dokumen `09_roadmap_repository_commit.md` dan `12_generator_prompt.md`.
+**A. Membangun aplikasi turunan / modul domain** (mis. AWPOS retail/POS, portal sekolah, sistem pengaduan, sistem manajemen mutu) di atas base ini:
+
+1. Definisikan PRD/SRS domain (pola doc 02/03, ganti entitas retail/POS ilustratif dengan domain Anda).
+2. Scaffold modul domain di `src/modules/` — skill `awcms-mini-new-module`.
+3. Migration PostgreSQL + RLS tenant-scoped — skill `awcms-mini-new-migration`.
+4. Seed RBAC/ABAC domain (doc 17) — permission/role/policy khusus domain.
+5. Endpoint REST + OpenAPI — skill `awcms-mini-new-endpoint`; domain event + AsyncAPI — skill `awcms-mini-new-event`.
+6. UI/admin screen sesuai design system (doc 14/15) — skill `awcms-mini-ui-screen`; string via i18n — skill `awcms-mini-i18n`.
+7. Audit/logging aksi high-risk — skill `awcms-mini-audit-log`; idempotency mutation high-risk — skill `awcms-mini-idempotency`.
+8. Test berlapis — skill `awcms-mini-testing`; review keamanan — skill `awcms-mini-security-review`.
+9. Deployment & go-live — skill `awcms-mini-production-preflight`.
+
+Orkestrasi penuh satu unit kerja: skill `awcms-mini-implement-issue`. Pertahankan lapisan reusable (tabel §AWCMS-Mini sebagai standar pengembangan di atas), ganti hanya lapisan spesifik domain.
+
+**B. Perawatan / peningkatan base** (performa, UX/a11y, integrasi, keamanan, observability): pakai skill peningkatan terkait dan catat di §Perawatan pasca-backlog pada `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`.
+
+Dokumen `09_roadmap_repository_commit.md` dan `12_generator_prompt.md` tetap acuan konvensi commit/roadmap/generator — bukan lagi daftar urutan issue foundation yang sudah tuntas.

@@ -2,7 +2,7 @@
 
 Dokumen ini adalah **kontrak kerja** untuk coding agent (Claude Code, Codex, dsb.) maupun developer manusia yang mengimplementasikan AWCMS-Mini. Setiap sesi implementasi **wajib membaca file ini terlebih dahulu**, lalu dokumen terkait di `docs/awcms-mini/`.
 
-> AWCMS-Mini sudah memiliki **Sprint foundation Issue 0.1-0.3**: Astro build, health endpoint, module contract, response helper, soft-delete convention, folder standar, runner migrasi PostgreSQL berbasis checksum, serta baseline OpenAPI/AsyncAPI dengan validator. Modul tenant/auth/RBAC/sync/deployment belum diimplementasikan dan harus mengikuti issue berikutnya.
+> **Status base generik: selesai (v0.23.5).** Seluruh 18 issue backlog base generik (doc 06) tuntas — foundation, tenant/office, central profile, identity/login, RBAC/ABAC, setup wizard, Sync Storage (outbox/inbox/conflict/object-queue), management reporting, structured logging & audit trail, connection pooling & backpressure, production readiness, workflow approval, dan deployment profile — plus perawatan/peningkatan pasca-backlog milestone M9 (penegakan RLS + role least-privilege, Access & Users / Sync / Settings admin, runtime i18n, audit UX/UI & aksesibilitas AA, audit performa, dispatcher object-sync + kerasan integrasi, security hardening OWASP/ASVS/ISO, dan aktivasi sistem log). Tabel tenant/auth/RBAC/sync/logging/deployment **sudah** ada dan berjalan — jangan membangunnya ulang. Pekerjaan baru = **aplikasi turunan / modul domain** di atas base ini (lihat [`docs/awcms-mini/README.md`](docs/awcms-mini/README.md) §Langkah berikutnya), atau perawatan/peningkatan lanjutan. Status per-issue historis dicatat di [`docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`](docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md).
 
 ## Ringkasan proyek
 
@@ -191,7 +191,7 @@ untuk setiap kode baru sesuai doc 07 §Testing Strategy dan doc 10.
 
 ## Perintah standar (target)
 
-Skrip berikut menjadi target repository (lihat doc 11). Setelah Issue 0.1-0.3, script dev/build/preview/check, `db:migrate`, dan `api:spec:check` sudah tersedia; script deployment readiness masuk issue berikutnya.
+Skrip berikut menjadi target repository (lihat doc 11). Seluruhnya kini **sudah tersedia** (base generik selesai, v0.23.5): dev/build/preview/check, `db:migrate`, `api:spec:check`, `changeset`/`changeset:version`, tooling readiness (`db:pool:health`, `security:readiness`, `production:preflight`, `config:validate`), serta job terjadwal (`sync:objects:dispatch`, `logs:audit:purge`).
 
 ```bash
 bun install
@@ -331,7 +331,9 @@ Next recommended step:
 
 ## Mulai dari sini
 
-```text
-Kerjakan Issue 0.1 — Initialize AWCMS-Mini Modular Monolith Repository Structure.
-Lanjutkan sesuai urutan di doc 09 dan doc 12.
-```
+Base generik sudah selesai (v0.23.5, lihat blockquote status di atas) — tidak ada lagi "Issue 0.1" untuk dikerjakan sebagai pekerjaan baru. Untuk kontribusi baru:
+
+- **Membangun aplikasi turunan / modul domain** (AWPOS, portal, sistem pengaduan, dsb.) di atas base ini → mulai dengan skill `awcms-mini-new-module`, lalu `awcms-mini-new-migration` → `awcms-mini-new-endpoint` → `awcms-mini-new-event` → `awcms-mini-testing` → `awcms-mini-security-review` → `awcms-mini-production-preflight`. Orkestrasi penuh: skill `awcms-mini-implement-issue`. Lihat panduan lengkap di [`docs/awcms-mini/README.md`](docs/awcms-mini/README.md) §Langkah berikutnya.
+- **Perawatan / peningkatan base** (performa, UX, integrasi, keamanan, observability) → pakai skill peningkatan terkait (`awcms-mini-performance`, `awcms-mini-ux-review`, `awcms-mini-integration`, `awcms-mini-security-hardening`, `awcms-mini-observability`) dan catat di §Perawatan pasca-backlog pada `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`.
+
+Pertahankan lapisan reusable base; ganti/ tambah hanya lapisan spesifik domain. Doc 09 dan doc 12 tetap acuan konvensi commit/roadmap/generator, bukan urutan pengerjaan issue foundation yang sudah selesai.
