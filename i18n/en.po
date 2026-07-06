@@ -40,6 +40,15 @@ msgstr "Try again"
 msgid "common.please_wait"
 msgstr "Please wait…"
 
+msgid "common.back"
+msgstr "Back"
+
+msgid "common.next"
+msgstr "Next"
+
+msgid "common.submit"
+msgstr "Submit"
+
 #. error codes (doc 05 §Error code standard)
 msgid "error.validation_error"
 msgstr "The submitted data is invalid."
@@ -502,3 +511,70 @@ msgstr "Feature flags must be a valid JSON object."
 
 msgid "admin.settings.save_success"
 msgstr "Settings saved successfully."
+
+#. admin.examples.wizard — Issue #483, non-domain fixture page
+msgid "admin.examples.wizard.nav_title"
+msgstr "Wizard Example"
+
+msgid "admin.examples.wizard.intro"
+msgstr "Non-domain fixture demonstrating the reusable wizard pattern with dummy data. See docs/awcms-mini/examples/wizard-form-pattern.md."
+
+msgid "admin.examples.wizard.stepper_label"
+msgstr "Wizard steps"
+
+msgid "admin.examples.wizard.step_current"
+msgstr "Current"
+
+msgid "admin.examples.wizard.step_completed"
+msgstr "Completed"
+
+msgid "admin.examples.wizard.step_pending"
+msgstr "Pending"
+
+msgid "admin.examples.wizard.error_summary_heading"
+msgstr "Please review the following fields:"
+
+msgid "admin.examples.wizard.step_basic_title"
+msgstr "Basic info"
+
+msgid "admin.examples.wizard.step_basic_description"
+msgstr "Title and category for this example item."
+
+msgid "admin.examples.wizard.step_details_title"
+msgstr "Details"
+
+msgid "admin.examples.wizard.step_details_description"
+msgstr "Optional notes."
+
+msgid "admin.examples.wizard.step_review_title"
+msgstr "Review"
+
+msgid "admin.examples.wizard.step_review_description"
+msgstr "Check your answers before submitting."
+
+msgid "admin.examples.wizard.field_title_label"
+msgstr "Title"
+
+msgid "admin.examples.wizard.field_category_label"
+msgstr "Category"
+
+msgid "admin.examples.wizard.field_category_option_general"
+msgstr "General"
+
+msgid "admin.examples.wizard.field_category_option_reference"
+msgstr "Reference"
+
+msgid "admin.examples.wizard.field_category_option_misc"
+msgstr "Miscellaneous"
+
+msgid "admin.examples.wizard.field_notes_label"
+msgstr "Notes"
+
+msgid "admin.examples.wizard.validation_title_required"
+msgstr "Title is required."
+
+msgid "admin.examples.wizard.validation_category_required"
+msgstr "Category is required."
+
+msgid "admin.examples.wizard.submit_success_message"
+msgstr "Submitted (dummy — nothing was actually saved)."
