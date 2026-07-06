@@ -28,6 +28,18 @@ msgstr "Login gagal. Coba lagi."
 msgid "common.network_error"
 msgstr "Tidak dapat menghubungi server. Coba lagi."
 
+msgid "common.error_title"
+msgstr "Terjadi kesalahan."
+
+msgid "common.error_body"
+msgstr "Data halaman ini gagal dimuat. Silakan coba lagi."
+
+msgid "common.retry"
+msgstr "Coba lagi"
+
+msgid "common.please_wait"
+msgstr "Mohon tunggu…"
+
 #. error codes (doc 05 §Error code standard)
 msgid "error.validation_error"
 msgstr "Data yang dikirim tidak valid."
@@ -120,6 +132,21 @@ msgstr "Sync aktif"
 msgid "admin.layout.sync_inactive"
 msgstr "Sync nonaktif"
 
+msgid "admin.layout.skip_to_content"
+msgstr "Lewati ke konten utama"
+
+msgid "admin.layout.theme_toggle_aria_label"
+msgstr "Ganti tema tampilan"
+
+msgid "admin.layout.theme_system"
+msgstr "Sistem"
+
+msgid "admin.layout.theme_light"
+msgstr "Terang"
+
+msgid "admin.layout.theme_dark"
+msgstr "Gelap"
+
 #. admin.dashboard
 msgid "admin.dashboard.access_denied_title"
 msgstr "Akses ditolak."
@@ -193,6 +220,9 @@ msgstr "Metrik"
 msgid "admin.dashboard.count_column"
 msgstr "Jumlah"
 
+msgid "admin.dashboard.no_module_usage"
+msgstr "Belum ada penggunaan modul yang tercatat."
+
 #. common (shared across pages)
 msgid "common.status_active"
 msgstr "Aktif"
@@ -227,6 +257,9 @@ msgstr "Aksi"
 
 msgid "admin.access_users.no_users"
 msgstr "Belum ada pengguna."
+
+msgid "admin.access_users.no_roles"
+msgstr "Belum ada role."
 
 msgid "admin.access_users.unassign_role_aria_label"
 msgstr "Lepas role {role}"

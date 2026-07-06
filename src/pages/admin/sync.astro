@@ -24,6 +24,7 @@
  *   - sync_storage.object_queue.{read,retry}
  */
 import AdminLayout from "../../layouts/AdminLayout.astro";
+import StateNotice from "../../components/ui/StateNotice.astro";
 import { getDatabaseClient } from "../../lib/database/client";
 import { withTenant } from "../../lib/database/tenant-context";
 import { permissionKey } from "../../modules/identity-access/domain/access-control";
@@ -52,6 +53,7 @@ const clientStrings = {
   resolveConflictSuccess: t("admin.sync.resolve_conflict_success"),
   retryObjectSuccess: t("admin.sync.retry_object_success"),
   networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
   errorMessages: buildClientErrorMessages(t)
 };
 
@@ -76,45 +78,78 @@ const CAN_RETRY_QUEUE = context.permissions.has(
 
 const hasAnyAccess = CAN_READ_NODES || CAN_READ_CONFLICTS || CAN_READ_QUEUE;
 
-const data = hasAnyAccess
-  ? await withTenant(getDatabaseClient(), context.tenantId, async (tx) => ({
-      health: await fetchSyncHealthReport(tx, context.tenantId),
-      nodes: CAN_READ_NODES ? await fetchSyncNodes(tx, context.tenantId) : [],
-      openConflicts: CAN_READ_CONFLICTS
-        ? ((await tx`
+// Issue #434 (UX/UI audit) — see `admin/access-users.astro` for the same
+// pattern: distinguish "denied" (no permission) from "error" (transient DB
+// failure) so the page can show the doc 14 §State pattern wajib Error
+// branch instead of an unhandled 500.
+type OpenConflictRow = {
+  id: string;
+  node_id: string;
+  batch_id: string;
+  aggregate_type: string;
+  aggregate_id: string;
+  conflict_type: string;
+  payload_json: unknown;
+  created_at: Date;
+};
+
+let data: {
+  health: Awaited<ReturnType<typeof fetchSyncHealthReport>>;
+  nodes: Awaited<ReturnType<typeof fetchSyncNodes>>;
+  openConflicts: OpenConflictRow[];
+  failedObjects: Awaited<ReturnType<typeof fetchObjectQueueEntries>>;
+} | null = null;
+let loadError = false;
+
+if (hasAnyAccess) {
+  try {
+    data = await withTenant(
+      getDatabaseClient(),
+      context.tenantId,
+      async (tx) => ({
+        health: await fetchSyncHealthReport(tx, context.tenantId),
+        nodes: CAN_READ_NODES ? await fetchSyncNodes(tx, context.tenantId) : [],
+        openConflicts: CAN_READ_CONFLICTS
+          ? ((await tx`
             SELECT id, node_id, batch_id, aggregate_type, aggregate_id, conflict_type,
                    payload_json, created_at
             FROM awcms_mini_sync_conflicts
             WHERE tenant_id = ${context.tenantId} AND status = 'open'
             ORDER BY created_at DESC
             LIMIT 50
-          `) as {
-            id: string;
-            node_id: string;
-            batch_id: string;
-            aggregate_type: string;
-            aggregate_id: string;
-            conflict_type: string;
-            payload_json: unknown;
-            created_at: Date;
-          }[])
-        : [],
-      failedObjects: CAN_READ_QUEUE
-        ? await fetchObjectQueueEntries(tx, context.tenantId, "failed")
-        : []
-    }))
-  : null;
+          `) as OpenConflictRow[])
+          : [],
+        failedObjects: CAN_READ_QUEUE
+          ? await fetchObjectQueueEntries(tx, context.tenantId, "failed")
+          : []
+      })
+    );
+  } catch (error) {
+    console.error("admin/sync.astro: failed to load data", error);
+    loadError = true;
+  }
+}
 ---
 
 <AdminLayout title={t("admin.layout.nav_sync")}>
   {
-    !data && (
-      <div class="permission-denied" role="alert">
-        <p>
-          <strong>{t("admin.sync.access_denied_title")}</strong>
-        </p>
-        <p>{t("admin.sync.access_denied_body")}</p>
-      </div>
+    !hasAnyAccess && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.sync.access_denied_title")}
+        body={t("admin.sync.access_denied_body")}
+      />
+    )
+  }
+  {
+    hasAnyAccess && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
     )
   }
   {
@@ -162,188 +197,194 @@ const data = hasAnyAccess
         {CAN_READ_NODES && (
           <section class="sync-section">
             <h2>{t("admin.sync.nodes_title")}</h2>
-            <table class="sync-table">
-              <thead>
-                <tr>
-                  <th>{t("admin.sync.node_column")}</th>
-                  <th>{t("admin.access_users.code_column")}</th>
-                  <th>{t("admin.access_users.status_column")}</th>
-                  <th>{t("admin.sync.last_pushed_column")}</th>
-                  <th>{t("admin.sync.last_pulled_column")}</th>
-                  {CAN_UPDATE_NODES && (
-                    <th>{t("admin.access_users.actions_column")}</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {data.nodes.length === 0 && (
+            <div class="table-scroll">
+              <table class="sync-table">
+                <thead>
                   <tr>
-                    <td colspan={CAN_UPDATE_NODES ? 6 : 5}>
-                      {t("admin.sync.no_nodes")}
-                    </td>
-                  </tr>
-                )}
-                {data.nodes.map((node) => (
-                  <tr>
-                    <td>{node.nodeName}</td>
-                    <td>
-                      <code>{node.nodeCode}</code>
-                    </td>
-                    <td>
-                      <span class="status-pill" data-status={node.status}>
-                        {node.status === "active"
-                          ? t("common.status_active")
-                          : t("common.status_inactive")}
-                      </span>
-                    </td>
-                    <td>
-                      {node.lastPushedAt
-                        ? formatDateTime(new Date(node.lastPushedAt), locale)
-                        : "-"}
-                    </td>
-                    <td>
-                      {node.lastPulledAt
-                        ? formatDateTime(new Date(node.lastPulledAt), locale)
-                        : "-"}
-                    </td>
+                    <th>{t("admin.sync.node_column")}</th>
+                    <th>{t("admin.access_users.code_column")}</th>
+                    <th>{t("admin.access_users.status_column")}</th>
+                    <th>{t("admin.sync.last_pushed_column")}</th>
+                    <th>{t("admin.sync.last_pulled_column")}</th>
                     {CAN_UPDATE_NODES && (
-                      <td>
-                        <button
-                          type="button"
-                          class="toggle-node-button"
-                          data-toggle-node={node.nodeId}
-                          data-next-status={
-                            node.status === "active" ? "inactive" : "active"
-                          }
-                        >
-                          {node.status === "active"
-                            ? t("admin.access_users.deactivate_button")
-                            : t("admin.access_users.activate_button")}
-                        </button>
-                      </td>
+                      <th>{t("admin.access_users.actions_column")}</th>
                     )}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.nodes.length === 0 && (
+                    <tr>
+                      <td colspan={CAN_UPDATE_NODES ? 6 : 5}>
+                        {t("admin.sync.no_nodes")}
+                      </td>
+                    </tr>
+                  )}
+                  {data.nodes.map((node) => (
+                    <tr>
+                      <td>{node.nodeName}</td>
+                      <td>
+                        <code>{node.nodeCode}</code>
+                      </td>
+                      <td>
+                        <span class="status-pill" data-status={node.status}>
+                          {node.status === "active"
+                            ? t("common.status_active")
+                            : t("common.status_inactive")}
+                        </span>
+                      </td>
+                      <td>
+                        {node.lastPushedAt
+                          ? formatDateTime(new Date(node.lastPushedAt), locale)
+                          : "-"}
+                      </td>
+                      <td>
+                        {node.lastPulledAt
+                          ? formatDateTime(new Date(node.lastPulledAt), locale)
+                          : "-"}
+                      </td>
+                      {CAN_UPDATE_NODES && (
+                        <td>
+                          <button
+                            type="button"
+                            class="toggle-node-button"
+                            data-toggle-node={node.nodeId}
+                            data-next-status={
+                              node.status === "active" ? "inactive" : "active"
+                            }
+                          >
+                            {node.status === "active"
+                              ? t("admin.access_users.deactivate_button")
+                              : t("admin.access_users.activate_button")}
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
         )}
 
         {CAN_READ_CONFLICTS && (
           <section class="sync-section">
             <h2>{t("admin.sync.open_conflicts_title")}</h2>
-            <table class="sync-table">
-              <thead>
-                <tr>
-                  <th>{t("admin.sync.aggregate_column")}</th>
-                  <th>{t("admin.sync.conflict_type_column")}</th>
-                  <th>{t("admin.sync.batch_column")}</th>
-                  <th>{t("admin.sync.created_column")}</th>
-                  {CAN_APPROVE_CONFLICTS && (
-                    <th>{t("admin.sync.resolution_column")}</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {data.openConflicts.length === 0 && (
+            <div class="table-scroll">
+              <table class="sync-table">
+                <thead>
                   <tr>
-                    <td colspan={CAN_APPROVE_CONFLICTS ? 5 : 4}>
-                      {t("admin.sync.no_open_conflicts")}
-                    </td>
-                  </tr>
-                )}
-                {data.openConflicts.map((conflict) => (
-                  <tr>
-                    <td>
-                      {conflict.aggregate_type} <br />
-                      <code>{conflict.aggregate_id}</code>
-                    </td>
-                    <td>{conflict.conflict_type}</td>
-                    <td>{conflict.batch_id}</td>
-                    <td>{formatDateTime(conflict.created_at, locale)}</td>
+                    <th>{t("admin.sync.aggregate_column")}</th>
+                    <th>{t("admin.sync.conflict_type_column")}</th>
+                    <th>{t("admin.sync.batch_column")}</th>
+                    <th>{t("admin.sync.created_column")}</th>
                     {CAN_APPROVE_CONFLICTS && (
-                      <td>
-                        <form
-                          class="resolve-conflict-form"
-                          data-conflict-id={conflict.id}
-                        >
-                          <select name="resolution" required>
-                            <option value="accept_incoming">
-                              {t("admin.sync.resolution_accept_incoming")}
-                            </option>
-                            <option value="keep_existing">
-                              {t("admin.sync.resolution_keep_existing")}
-                            </option>
-                            <option value="manual">
-                              {t("admin.sync.resolution_manual")}
-                            </option>
-                          </select>
-                          <input
-                            type="text"
-                            name="note"
-                            placeholder={t(
-                              "admin.sync.resolution_note_placeholder"
-                            )}
-                          />
-                          <button type="submit">
-                            {t("admin.sync.resolve_button")}
-                          </button>
-                        </form>
-                      </td>
+                      <th>{t("admin.sync.resolution_column")}</th>
                     )}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.openConflicts.length === 0 && (
+                    <tr>
+                      <td colspan={CAN_APPROVE_CONFLICTS ? 5 : 4}>
+                        {t("admin.sync.no_open_conflicts")}
+                      </td>
+                    </tr>
+                  )}
+                  {data.openConflicts.map((conflict) => (
+                    <tr>
+                      <td>
+                        {conflict.aggregate_type} <br />
+                        <code>{conflict.aggregate_id}</code>
+                      </td>
+                      <td>{conflict.conflict_type}</td>
+                      <td>{conflict.batch_id}</td>
+                      <td>{formatDateTime(conflict.created_at, locale)}</td>
+                      {CAN_APPROVE_CONFLICTS && (
+                        <td>
+                          <form
+                            class="resolve-conflict-form"
+                            data-conflict-id={conflict.id}
+                          >
+                            <select name="resolution" required>
+                              <option value="accept_incoming">
+                                {t("admin.sync.resolution_accept_incoming")}
+                              </option>
+                              <option value="keep_existing">
+                                {t("admin.sync.resolution_keep_existing")}
+                              </option>
+                              <option value="manual">
+                                {t("admin.sync.resolution_manual")}
+                              </option>
+                            </select>
+                            <input
+                              type="text"
+                              name="note"
+                              placeholder={t(
+                                "admin.sync.resolution_note_placeholder"
+                              )}
+                            />
+                            <button type="submit">
+                              {t("admin.sync.resolve_button")}
+                            </button>
+                          </form>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
         )}
 
         {CAN_READ_QUEUE && (
           <section class="sync-section">
             <h2>{t("admin.sync.failed_queue_title")}</h2>
-            <table class="sync-table">
-              <thead>
-                <tr>
-                  <th>{t("admin.sync.node_column")}</th>
-                  <th>{t("admin.sync.object_key_column")}</th>
-                  <th>{t("admin.sync.retry_column")}</th>
-                  <th>{t("admin.sync.last_error_column")}</th>
-                  {CAN_RETRY_QUEUE && (
-                    <th>{t("admin.access_users.actions_column")}</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {data.failedObjects.length === 0 && (
+            <div class="table-scroll">
+              <table class="sync-table">
+                <thead>
                   <tr>
-                    <td colspan={CAN_RETRY_QUEUE ? 5 : 4}>
-                      {t("admin.sync.no_failed_objects")}
-                    </td>
-                  </tr>
-                )}
-                {data.failedObjects.map((entry) => (
-                  <tr>
-                    <td>
-                      <code>{entry.nodeCode}</code>
-                    </td>
-                    <td>{entry.objectKey}</td>
-                    <td>{entry.retryCount}</td>
-                    <td>{entry.lastError ?? "-"}</td>
+                    <th>{t("admin.sync.node_column")}</th>
+                    <th>{t("admin.sync.object_key_column")}</th>
+                    <th>{t("admin.sync.retry_column")}</th>
+                    <th>{t("admin.sync.last_error_column")}</th>
                     {CAN_RETRY_QUEUE && (
-                      <td>
-                        <button
-                          type="button"
-                          class="retry-object-button"
-                          data-retry-object={entry.objectQueueId}
-                        >
-                          {t("admin.sync.retry_button")}
-                        </button>
-                      </td>
+                      <th>{t("admin.access_users.actions_column")}</th>
                     )}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.failedObjects.length === 0 && (
+                    <tr>
+                      <td colspan={CAN_RETRY_QUEUE ? 5 : 4}>
+                        {t("admin.sync.no_failed_objects")}
+                      </td>
+                    </tr>
+                  )}
+                  {data.failedObjects.map((entry) => (
+                    <tr>
+                      <td>
+                        <code>{entry.nodeCode}</code>
+                      </td>
+                      <td>{entry.objectKey}</td>
+                      <td>{entry.retryCount}</td>
+                      <td>{entry.lastError ?? "-"}</td>
+                      {CAN_RETRY_QUEUE && (
+                        <td>
+                          <button
+                            type="button"
+                            class="retry-object-button"
+                            data-retry-object={entry.objectQueueId}
+                          >
+                            {t("admin.sync.retry_button")}
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
         )}
       </div>
@@ -412,6 +453,12 @@ const data = hasAnyAccess
     font-size: var(--fs-lg);
   }
 
+  /* Responsive (doc 14 §Responsif) — wide tables scroll in their own
+     container instead of forcing the whole page to scroll horizontally. */
+  .table-scroll {
+    overflow-x: auto;
+  }
+
   .sync-table {
     width: 100%;
     border-collapse: collapse;
@@ -426,20 +473,24 @@ const data = hasAnyAccess
     vertical-align: top;
   }
 
+  /* Solid-fill badge — see `admin/access-users.astro`'s `.status-pill`
+     comment (Issue #434 UX/UI audit): text-on-tint failed WCAG AA contrast
+     in both themes; the "-strong" tokens are tuned for white text on a
+     solid fill. */
   .status-pill {
     display: inline-block;
     padding: 0 var(--sp-2);
     border-radius: var(--radius-full);
     font-size: var(--fs-xs);
-    background: var(--color-surface-2);
+    color: var(--color-primary-contrast);
   }
 
   .status-pill[data-status="active"] {
-    color: var(--color-success);
+    background: var(--color-success-strong);
   }
 
   .status-pill[data-status="inactive"] {
-    color: var(--color-danger);
+    background: var(--color-danger-strong);
   }
 
   .toggle-node-button,
@@ -464,75 +515,73 @@ const data = hasAnyAccess
     font-size: var(--fs-xs);
   }
 
-  .permission-denied {
-    background: var(--color-surface-2);
-    border: 1px solid var(--color-danger);
-    border-radius: var(--radius-md);
-    padding: var(--sp-4);
+  .toggle-node-button:disabled,
+  .retry-object-button:disabled,
+  .resolve-conflict-form button:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  /* Touch target >= 44px on tablet/mobile (doc 14 §Aksesibilitas). */
+  @media (max-width: 768px) {
+    .toggle-node-button,
+    .retry-object-button,
+    .resolve-conflict-form button {
+      min-height: 44px;
+      min-width: 44px;
+    }
   }
 </style>
 
 <script>
-  const JSON_HEADERS = { "Content-Type": "application/json" };
-  const strings = JSON.parse(
-    document.getElementById("i18n-strings")?.textContent ?? "{}"
-  );
+  // Issue #434 (UX/UI audit) — see `admin/access-users.astro` for why this
+  // is now a shared import instead of a duplicated inline implementation,
+  // and why every mutation locks its trigger button for the duration of the
+  // request (doc 14 §Form UX "cegah double-submit").
+  import {
+    lockElement,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../lib/ui/admin-form-client";
 
-  function showBanner(message: string, variant: "success" | "error") {
-    const banner = document.getElementById("action-banner");
-    if (!banner) return;
-    banner.textContent = message;
-    banner.setAttribute("data-variant", variant);
-    banner.hidden = false;
+  interface SyncStrings {
+    updateNodeSuccess: string;
+    resolveConflictSuccess: string;
+    retryObjectSuccess: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
   }
 
-  async function submitJson(
-    url: string,
-    method: string,
-    body: unknown
-  ): Promise<{ ok: boolean; message: string }> {
-    try {
-      const res = await fetch(url, {
-        method,
-        headers: JSON_HEADERS,
-        credentials: "same-origin",
-        body: JSON.stringify(body)
-      });
-      const json = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        const code = json?.error?.code as string | undefined;
-        const message: string =
-          (code && strings.errorMessages?.[code]) ??
-          json?.error?.message ??
-          `Request failed (${res.status}).`;
-        return { ok: false, message };
-      }
-
-      return { ok: true, message: "" };
-    } catch {
-      return { ok: false, message: strings.networkError };
-    }
-  }
-
-  function reloadAfterDelay() {
-    setTimeout(() => window.location.reload(), 400);
-  }
+  const strings = readClientStrings<SyncStrings>();
 
   document.querySelectorAll(".toggle-node-button").forEach((button) => {
     button.addEventListener("click", async () => {
-      const el = button as HTMLElement;
-      const nodeId = el.dataset.toggleNode!;
-      const nextStatus = el.dataset.nextStatus!;
+      const el = button as HTMLButtonElement;
+      if (el.disabled) return;
+      const unlock = lockElement(el, strings.pleaseWait);
 
-      const result = await submitJson(`/api/v1/sync/nodes/${nodeId}`, "PATCH", {
-        status: nextStatus
-      });
-      showBanner(
-        result.ok ? strings.updateNodeSuccess : result.message,
-        result.ok ? "success" : "error"
-      );
-      if (result.ok) reloadAfterDelay();
+      try {
+        const nodeId = el.dataset.toggleNode!;
+        const nextStatus = el.dataset.nextStatus!;
+
+        const result = await submitJson(
+          `/api/v1/sync/nodes/${nodeId}`,
+          "PATCH",
+          { status: nextStatus },
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.updateNodeSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock();
+      }
     });
   });
 
@@ -540,41 +589,62 @@ const data = hasAnyAccess
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const el = event.target as HTMLFormElement;
-      const conflictId = el.dataset.conflictId!;
-      const formData = new FormData(el);
-      const note = formData.get("note");
+      const button = el.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (button?.disabled) return;
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
 
-      const result = await submitJson(
-        `/api/v1/sync/conflicts/${conflictId}/resolve`,
-        "POST",
-        {
-          resolution: formData.get("resolution"),
-          note: typeof note === "string" && note.length > 0 ? note : undefined
-        }
-      );
-      showBanner(
-        result.ok ? strings.resolveConflictSuccess : result.message,
-        result.ok ? "success" : "error"
-      );
-      if (result.ok) reloadAfterDelay();
+      try {
+        const conflictId = el.dataset.conflictId!;
+        const formData = new FormData(el);
+        const note = formData.get("note");
+
+        const result = await submitJson(
+          `/api/v1/sync/conflicts/${conflictId}/resolve`,
+          "POST",
+          {
+            resolution: formData.get("resolution"),
+            note: typeof note === "string" && note.length > 0 ? note : undefined
+          },
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.resolveConflictSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
     });
   });
 
   document.querySelectorAll(".retry-object-button").forEach((button) => {
     button.addEventListener("click", async () => {
-      const el = button as HTMLElement;
-      const objectQueueId = el.dataset.retryObject!;
+      const el = button as HTMLButtonElement;
+      if (el.disabled) return;
+      const unlock = lockElement(el, strings.pleaseWait);
 
-      const result = await submitJson(
-        `/api/v1/sync/object-queue/${objectQueueId}/retry`,
-        "POST",
-        {}
-      );
-      showBanner(
-        result.ok ? strings.retryObjectSuccess : result.message,
-        result.ok ? "success" : "error"
-      );
-      if (result.ok) reloadAfterDelay();
+      try {
+        const objectQueueId = el.dataset.retryObject!;
+
+        const result = await submitJson(
+          `/api/v1/sync/object-queue/${objectQueueId}/retry`,
+          "POST",
+          {},
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.retryObjectSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock();
+      }
     });
   });
 </script>

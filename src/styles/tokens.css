@@ -26,6 +26,24 @@
   --color-info: #0891b2;
   --color-focus: #2563eb;
 
+  /*
+   * "-strong" variants — Issue #434 (UX/UI audit). `--color-primary`,
+   * `--color-success`, `--color-danger` above are tuned for use as *text* or
+   * *border* color against a light/tinted surface (links, status text,
+   * icons) — that is a different contrast job than a *solid fill* with
+   * `--color-primary-contrast` (white) text on top of it (buttons, solid
+   * status badges, error banners). Measured against WCAG 2.1 AA (4.5:1,
+   * see docs/awcms-mini/14_ui_ux_design_system.md §Aksesibilitas): the plain
+   * tokens fail that second job in several cases (e.g. dark-theme
+   * `--color-primary` + white text is only 3.68:1). These derived, slightly
+   * darker values keep the same hue while restoring >=4.5:1 with white text
+   * in both themes. Use these — not the plain token — whenever
+   * `--color-primary-contrast` text sits directly on the fill.
+   */
+  --color-primary-strong: #2563eb;
+  --color-success-strong: #12873d;
+  --color-danger-strong: #dc2626;
+
   /* Font */
   --font-sans:
     system-ui, -apple-system, "Inter", "Segoe UI", sans-serif;
@@ -91,6 +109,13 @@
   --color-danger: #ef4444;
   --color-info: #06b6d4;
   --color-focus: #60a5fa;
+
+  /* See :root's comment above — darkened so white text on a solid fill of
+     these stays >=4.5:1 in the dark theme too (the plain tokens above are
+     tuned brighter for legibility as text-on-dark-surface instead). */
+  --color-primary-strong: #3472d8;
+  --color-success-strong: #178841;
+  --color-danger-strong: #d73d3d;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);

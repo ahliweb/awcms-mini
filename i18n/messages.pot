@@ -28,6 +28,18 @@ msgstr ""
 msgid "common.network_error"
 msgstr ""
 
+msgid "common.error_title"
+msgstr ""
+
+msgid "common.error_body"
+msgstr ""
+
+msgid "common.retry"
+msgstr ""
+
+msgid "common.please_wait"
+msgstr ""
+
 #. error codes (doc 05 §Error code standard)
 msgid "error.validation_error"
 msgstr ""
@@ -120,6 +132,21 @@ msgstr ""
 msgid "admin.layout.sync_inactive"
 msgstr ""
 
+msgid "admin.layout.skip_to_content"
+msgstr ""
+
+msgid "admin.layout.theme_toggle_aria_label"
+msgstr ""
+
+msgid "admin.layout.theme_system"
+msgstr ""
+
+msgid "admin.layout.theme_light"
+msgstr ""
+
+msgid "admin.layout.theme_dark"
+msgstr ""
+
 #. admin.dashboard
 msgid "admin.dashboard.access_denied_title"
 msgstr ""
@@ -193,6 +220,9 @@ msgstr ""
 msgid "admin.dashboard.count_column"
 msgstr ""
 
+msgid "admin.dashboard.no_module_usage"
+msgstr ""
+
 #. common (shared across pages)
 msgid "common.status_active"
 msgstr ""
@@ -226,6 +256,9 @@ msgid "admin.access_users.actions_column"
 msgstr ""
 
 msgid "admin.access_users.no_users"
+msgstr ""
+
+msgid "admin.access_users.no_roles"
 msgstr ""
 
 msgid "admin.access_users.unassign_role_aria_label"

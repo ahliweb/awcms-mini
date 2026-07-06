@@ -25,21 +25,26 @@ Token diimplementasikan sebagai CSS custom properties, di-scope ke `:root` dan o
 
 ### Warna semantik
 
-| Token                      | Light     | Dark      | Fungsi               |
-| -------------------------- | --------- | --------- | -------------------- |
-| `--color-bg`               | `#f7f8fa` | `#0e1116` | Latar aplikasi       |
-| `--color-surface`          | `#ffffff` | `#161b22` | Kartu/panel          |
-| `--color-surface-2`        | `#eef1f5` | `#1f262e` | Panel sekunder       |
-| `--color-border`           | `#d8dee6` | `#2b333c` | Garis/pembatas       |
-| `--color-text`             | `#1a1f26` | `#e6edf3` | Teks utama           |
-| `--color-text-muted`       | `#5b6672` | `#9aa7b2` | Teks sekunder        |
-| `--color-primary`          | `#2563eb` | `#3b82f6` | Aksi utama           |
-| `--color-primary-contrast` | `#ffffff` | `#ffffff` | Teks di atas primary |
-| `--color-success`          | `#16a34a` | `#22c55e` | Sukses/posted        |
-| `--color-warning`          | `#d97706` | `#f59e0b` | Peringatan/held      |
-| `--color-danger`           | `#dc2626` | `#ef4444` | Error/stok kurang    |
-| `--color-info`             | `#0891b2` | `#06b6d4` | Info/sync            |
-| `--color-focus`            | `#2563eb` | `#60a5fa` | Cincin fokus         |
+| Token                      | Light     | Dark      | Fungsi                  |
+| -------------------------- | --------- | --------- | ----------------------- |
+| `--color-bg`               | `#f7f8fa` | `#0e1116` | Latar aplikasi          |
+| `--color-surface`          | `#ffffff` | `#161b22` | Kartu/panel             |
+| `--color-surface-2`        | `#eef1f5` | `#1f262e` | Panel sekunder          |
+| `--color-border`           | `#d8dee6` | `#2b333c` | Garis/pembatas          |
+| `--color-text`             | `#1a1f26` | `#e6edf3` | Teks utama              |
+| `--color-text-muted`       | `#5b6672` | `#9aa7b2` | Teks sekunder           |
+| `--color-primary`          | `#2563eb` | `#3b82f6` | Aksi utama              |
+| `--color-primary-contrast` | `#ffffff` | `#ffffff` | Teks di atas primary    |
+| `--color-success`          | `#16a34a` | `#22c55e` | Sukses/posted           |
+| `--color-warning`          | `#d97706` | `#f59e0b` | Peringatan/held         |
+| `--color-danger`           | `#dc2626` | `#ef4444` | Error/stok kurang       |
+| `--color-info`             | `#0891b2` | `#06b6d4` | Info/sync               |
+| `--color-focus`            | `#2563eb` | `#60a5fa` | Cincin fokus            |
+| `--color-primary-strong`   | `#2563eb` | `#3472d8` | Fill solid + teks putih |
+| `--color-success-strong`   | `#12873d` | `#178841` | Fill solid + teks putih |
+| `--color-danger-strong`    | `#dc2626` | `#d73d3d` | Fill solid + teks putih |
+
+> **`-strong` vs token polos** (Issue #434 — audit UX/UI): `--color-primary`/`--color-success`/`--color-danger` polos ditujukan untuk dipakai sebagai _teks/ikon/border_ di atas `--color-surface`/`--color-surface-2` — kontras yang diperlukan berbeda dari kasus _fill solid_ + `--color-primary-contrast` (putih) di atasnya (tombol CTA, banner error, status pill solid). Diukur (formula WCAG relative-luminance): token polos dengan teks putih hanya 3.19–3.76:1 di beberapa kombinasi (di bawah AA 4.5:1). Token `-strong` adalah varian yang di-gelapkan secukupnya (khusus tema gelap; tema terang sebagian sudah lulus tanpa perlu digelapkan) agar teks putih di atasnya selalu ≥4.5:1 — pakai token ini, bukan yang polos, setiap kali `--color-primary-contrast` dirender langsung di atas fill warna semantik.
 
 ### Skala lain
 
@@ -71,26 +76,29 @@ Aturan: default `system`; pilihan personal per-browser disimpan di localStorage 
 
 Komponen dasar di `src/components/ui`, dipakai lintas persona.
 
-| Komponen                                  | Catatan penting                                                 |
-| ----------------------------------------- | --------------------------------------------------------------- |
-| Button                                    | varian primary/secondary/ghost/danger; state loading & disabled |
-| Input / NumberInput                       | label, hint, error; NumberInput untuk qty/harga (mono)          |
-| Select / Combobox                         | Combobox mendukung search produk/customer                       |
-| Checkbox / Radio / Switch                 | switch untuk consent & feature toggle                           |
-| Dialog / Drawer                           | fokus terperangkap, `Esc` menutup                               |
-| Toast                                     | sukses/error/info; non-blocking                                 |
-| Table / DataGrid                          | sort, pagination keyset, kolom sticky, row density              |
-| Badge / StatusPill                        | status lifecycle (draft/held/posted/quarantine) berkode warna   |
-| ArchiveFilter                             | toggle/filter `aktif`, `arsip`, `semua` untuk role berizin      |
-| Card / Panel                              | kontainer konten                                                |
-| FormField                                 | membungkus label+input+error konsisten                          |
-| Tabs                                      | detail entity (produk, transfer, profile)                       |
-| Pagination                                | keyset (next/prev), bukan offset besar                          |
-| SearchBar                                 | debounce, hasil <300ms (doc 07)                                 |
-| EmptyState / ErrorState / LoadingSkeleton | wajib untuk tiap list/detail                                    |
-| KeyboardHint                              | menampilkan shortcut aktif di POS                               |
-| SyncIndicator / OfflineBanner             | status koneksi & antrean sync                                   |
-| MoneyText / MaskedText                    | format IDR & masking data sensitif                              |
+| Komponen                                  | Catatan penting                                                                                                          |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Button                                    | varian primary/secondary/ghost/danger; state loading & disabled                                                          |
+| Input / NumberInput                       | label, hint, error; NumberInput untuk qty/harga (mono)                                                                   |
+| Select / Combobox                         | Combobox mendukung search produk/customer                                                                                |
+| Checkbox / Radio / Switch                 | switch untuk consent & feature toggle                                                                                    |
+| Dialog / Drawer                           | fokus terperangkap, `Esc` menutup                                                                                        |
+| Toast                                     | sukses/error/info; non-blocking                                                                                          |
+| Table / DataGrid                          | sort, pagination keyset, kolom sticky, row density                                                                       |
+| Badge / StatusPill                        | status lifecycle (draft/held/posted/quarantine) berkode warna                                                            |
+| ArchiveFilter                             | toggle/filter `aktif`, `arsip`, `semua` untuk role berizin                                                               |
+| Card / Panel                              | kontainer konten                                                                                                         |
+| FormField                                 | membungkus label+input+error konsisten                                                                                   |
+| Tabs                                      | detail entity (produk, transfer, profile)                                                                                |
+| Pagination                                | keyset (next/prev), bukan offset besar                                                                                   |
+| SearchBar                                 | debounce, hasil <300ms (doc 07)                                                                                          |
+| EmptyState / ErrorState / LoadingSkeleton | wajib untuk tiap list/detail                                                                                             |
+| KeyboardHint                              | menampilkan shortcut aktif di POS                                                                                        |
+| SyncIndicator / OfflineBanner             | status koneksi & antrean sync                                                                                            |
+| MoneyText / MaskedText                    | format IDR & masking data sensitif                                                                                       |
+| `StateNotice` (Issue #434)                | denied/error banner bersama; `kind="error"` menutup cabang Error state pattern di layar SSR (lihat §State pattern wajib) |
+
+Helper klien non-visual `src/lib/ui/admin-form-client.ts` (Issue #434) — `submitJson`/`showBanner`/`lockElement` dipakai bersama oleh `<script>` tiap layar admin untuk fetch+banner+anti-double-submit; bukan komponen Astro, tapi sumber kebenaran yang sama untuk pola "kunci tombol pemicu selama mutation in-flight" di §Form UX.
 
 ## Information architecture (navigasi role-aware)
 

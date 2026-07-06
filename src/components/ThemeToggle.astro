@@ -12,7 +12,27 @@
  * override yet. This toggle's own choice always wins once set — it is a
  * purely personal, per-browser override and is never written back to the
  * tenant default.
+ *
+ * i18n (Issue #434 UX/UI audit): this component's label/aria-label were
+ * hardcoded Indonesian strings ("Sistem"/"Terang"/"Gelap", "Ganti tema
+ * tampilan") left over from before Issue #433 wired the rest of the admin
+ * shell through the `.po` catalog — a real inconsistency the audit found
+ * (switching the language switcher to English translated everything else in
+ * the topbar except this button). Labels now come in as props, translated
+ * by the caller (`AdminLayout.astro`) via `t()`, and are also serialized
+ * into the button's `data-label-*` attributes so the client-side cycle
+ * script — which cannot read the `.po` catalog itself (server-only, via
+ * `Bun.file`) — can restore the correct translated label after each click
+ * without a full reload.
  */
+interface Props {
+  ariaLabel: string;
+  systemLabel: string;
+  lightLabel: string;
+  darkLabel: string;
+}
+
+const { ariaLabel, systemLabel, lightLabel, darkLabel } = Astro.props;
 ---
 
 <button
@@ -20,10 +40,13 @@
   id="theme-toggle"
   class="theme-toggle"
   data-mode="system"
-  aria-label="Ganti tema tampilan"
+  data-label-system={systemLabel}
+  data-label-light={lightLabel}
+  data-label-dark={darkLabel}
+  aria-label={ariaLabel}
 >
   <span class="theme-toggle-icon" aria-hidden="true">🖥️</span>
-  <span class="theme-toggle-label">Sistem</span>
+  <span class="theme-toggle-label">{systemLabel}</span>
 </button>
 
 <style>
@@ -43,22 +66,35 @@
   .theme-toggle:hover {
     background: var(--color-surface-2);
   }
+
+  /* Touch target >= 44px on tablet/mobile (doc 14 §Aksesibilitas) — desktop
+     admin keeps the compact density above. */
+  @media (max-width: 768px) {
+    .theme-toggle {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
 </style>
 
 <script>
   const STORAGE_KEY = "awcms_mini_theme";
   const ORDER = ["system", "light", "dark"] as const;
   type ThemeMode = (typeof ORDER)[number];
-  const LABELS: Record<ThemeMode, string> = {
-    system: "Sistem",
-    light: "Terang",
-    dark: "Gelap"
-  };
   const ICONS: Record<ThemeMode, string> = {
     system: "🖥️",
     light: "☀️",
     dark: "🌙"
   };
+
+  function labelFor(button: HTMLElement, mode: ThemeMode): string {
+    return (
+      button.dataset[
+        `label${mode.charAt(0).toUpperCase()}${mode.slice(1)}` as
+          "labelSystem" | "labelLight" | "labelDark"
+      ] ?? mode
+    );
+  }
 
   function resolveTheme(mode: ThemeMode): "light" | "dark" {
     if (mode === "light" || mode === "dark") {
@@ -80,7 +116,7 @@
     }
 
     if (label) {
-      label.textContent = LABELS[mode];
+      label.textContent = labelFor(button, mode);
     }
   }
 

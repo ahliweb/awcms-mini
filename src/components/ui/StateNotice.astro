@@ -1,0 +1,84 @@
+---
+/**
+ * StateNotice — shared "you can't see the content below" banner.
+ *
+ * Issue #434 (UX/UI audit): every admin screen (`admin/index.astro`,
+ * `admin/access-users.astro`, `admin/sync.astro`, `admin/settings.astro`)
+ * duplicated an identical `.permission-denied` block (markup + CSS)
+ * verbatim for its "access denied" branch — doc 14 §Konsistensi calls this
+ * kind of inline duplication out directly ("ekstrak dari duplikasi inline
+ * di .astro yang ada"). This is also the first component under
+ * `src/components/ui` (doc 14 §Component library) — a starting point other
+ * screens can build on rather than re-copying markup again.
+ *
+ * It now also covers the "error" branch of the doc 14 §State pattern wajib
+ * (`Loading -> Error: gagal`) that none of these SSR pages previously had:
+ * before this, an SSR data-fetch failure (e.g. the DB call inside
+ * `withTenant` throwing) had no graceful rendering path at all. `kind`
+ * distinguishes the two cases (permission vs. transient failure) so the
+ * copy and follow-up action make sense for each — "contact your admin" for
+ * denied, "try again" for error.
+ */
+interface Props {
+  kind: "denied" | "error";
+  title: string;
+  body: string;
+  retryLabel?: string;
+  retryHref?: string;
+}
+
+const { kind, title, body, retryLabel, retryHref } = Astro.props;
+---
+
+<div class="state-notice" data-kind={kind} role="alert">
+  <p class="state-notice-heading">
+    <span class="state-notice-icon" aria-hidden="true">
+      {kind === "denied" ? "⛔" : "⚠️"}
+    </span>
+    <strong>{title}</strong>
+  </p>
+  <p class="state-notice-body">{body}</p>
+  {
+    kind === "error" && retryHref && retryLabel && (
+      <a class="state-notice-retry" href={retryHref}>
+        {retryLabel}
+      </a>
+    )
+  }
+</div>
+
+<style>
+  .state-notice {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius-md);
+    padding: var(--sp-4);
+  }
+
+  .state-notice[data-kind="error"] {
+    border-color: var(--color-warning);
+  }
+
+  .state-notice-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin: 0;
+  }
+
+  .state-notice-body {
+    margin: var(--sp-1) 0 0;
+  }
+
+  .state-notice-retry {
+    display: inline-block;
+    margin-top: var(--sp-3);
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  .state-notice code {
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+  }
+</style>
