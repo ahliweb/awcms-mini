@@ -68,32 +68,34 @@ persis diagram gate skill `awcms-mini-production-preflight`.
 
 ### Pemetaan checklist doc 07 → status implementasi
 
-| Item checklist doc 07                        | Status                                                                                                                                                                       |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| No hardcoded secret                          | **Otomatis** (critical) — heuristik grep `src/`, `scripts/`, config file yang di-track git                                                                                   |
-| `.env` tidak dikomit                         | **Otomatis** (critical) — `git ls-files` tidak boleh memuat `.env`                                                                                                           |
-| Password hash modern                         | **Otomatis** (critical) — memanggil `hashPassword()` sungguhan, memeriksa awalan `$argon2id$`                                                                                |
-| Login lockout                                | **Otomatis** (critical) — memanggil `evaluateLoginAttempt()` dengan skenario 5x gagal                                                                                        |
-| RLS aktif                                    | **Otomatis** (critical) — query langsung `pg_class.relrowsecurity` per tabel `awcms_mini_%`                                                                                  |
-| ABAC aktif (default deny)                    | **Otomatis** (critical) — memanggil `evaluateAccess()` dengan permission kosong                                                                                              |
-| Audit log aktif                              | **Otomatis** (critical) — `SELECT to_regclass('awcms_mini_audit_events')`                                                                                                    |
-| Soft delete/restore/purge audit aktif        | **Otomatis** (warning) — cek seed permission + grep `recordAuditEvent` di 3 endpoint profile                                                                                 |
-| Sync HMAC bila hybrid                        | **Otomatis** (warning/info) — cek env secret bukan placeholder `.env.example`, skip bila sync off                                                                            |
-| Error tidak expose stack trace               | **Best-effort otomatis** (warning/info) — butuh server hidup; `info` bila tidak bisa dicek                                                                                   |
-| Restore/purge berizin dan diaudit            | Tercakup di baris "soft delete/restore/purge audit aktif" di atas (satu check gabungan)                                                                                      |
-| Tax data masking                             | **Out of scope** — lihat §Item di luar cakupan                                                                                                                               |
-| CRM opt-out                                  | **Out of scope** — lihat §Item di luar cakupan                                                                                                                               |
-| AI read-only                                 | **Out of scope** — lihat §Item di luar cakupan                                                                                                                               |
-| PostgreSQL tidak public                      | **Manual / deferred ke Issue 12.2** — lihat §Item di luar cakupan                                                                                                            |
-| Least-privilege DB user                      | **Manual / deferred ke Issue 12.2**                                                                                                                                          |
-| Backup aktif / restore tested                | **Manual / deferred ke Issue 12.2** (SOP sudah ada di skill `awcms-mini-production-preflight`)                                                                               |
-| PostgreSQL version sesuai target             | **Manual / deferred ke Issue 12.2**                                                                                                                                          |
-| Build pass / migration pass / API spec valid | **Otomatis** — via `production:preflight` (bukan `security:readiness`), tahap `build`/`db:migrate`/`api:spec:check`                                                          |
-| Setup wizard locked                          | Sudah diverifikasi live sejak Issue 12.1 (`awcms_mini_setup_state` singleton); tidak diulang sebagai check readiness terpisah di issue ini — di luar cakupan penambahan baru |
-| Role default tersedia                        | Sudah diverifikasi live sejak Issue 12.1; tidak diulang sebagai check readiness terpisah                                                                                     |
-| Logging aktif                                | Sudah ada sejak Issue 10.1 (`src/lib/logging/logger.ts`); tidak diulang sebagai check terpisah                                                                               |
-| Index utama / partial index soft delete      | Diverifikasi lewat test migration per issue (lihat `tests/*.test.ts` masing-masing); tidak diulang sebagai check runtime terpisah di sini                                    |
-| Pool sehat / slow query monitoring           | **Otomatis** via `db:pool:health` (pool); slow query monitoring di luar cakupan base ini (butuh `pg_stat_statements`/APM eksternal — deployment concern)                     |
+| Item checklist doc 07                        | Status                                                                                                                                                                                          |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No hardcoded secret                          | **Otomatis** (critical) — heuristik grep `src/`, `scripts/`, config file yang di-track git                                                                                                      |
+| `.env` tidak dikomit                         | **Otomatis** (critical) — `git ls-files` tidak boleh memuat `.env`                                                                                                                              |
+| Password hash modern                         | **Otomatis** (critical) — memanggil `hashPassword()` sungguhan, memeriksa awalan `$argon2id$`                                                                                                   |
+| Login lockout                                | **Otomatis** (critical) — memanggil `evaluateLoginAttempt()` dengan skenario 5x gagal                                                                                                           |
+| RLS aktif                                    | **Otomatis** (critical) — query langsung `pg_class.relrowsecurity` per tabel `awcms_mini_%`                                                                                                     |
+| ABAC aktif (default deny)                    | **Otomatis** (critical) — memanggil `evaluateAccess()` dengan permission kosong                                                                                                                 |
+| Audit log aktif                              | **Otomatis** (critical) — `SELECT to_regclass('awcms_mini_audit_events')`                                                                                                                       |
+| Soft delete/restore/purge audit aktif        | **Otomatis** (warning) — cek seed permission + grep `recordAuditEvent` di 3 endpoint profile                                                                                                    |
+| Sync HMAC bila hybrid                        | **Otomatis** (warning/info) — cek env secret bukan placeholder `.env.example`, skip bila sync off                                                                                               |
+| Error tidak expose stack trace               | **Best-effort otomatis** (warning/info) — butuh server hidup; `info` bila tidak bisa dicek                                                                                                      |
+| Restore/purge berizin dan diaudit            | Tercakup di baris "soft delete/restore/purge audit aktif" di atas (satu check gabungan)                                                                                                         |
+| Tax data masking                             | **Out of scope** — lihat §Item di luar cakupan                                                                                                                                                  |
+| CRM opt-out                                  | **Out of scope** — lihat §Item di luar cakupan                                                                                                                                                  |
+| AI read-only                                 | **Out of scope** — lihat §Item di luar cakupan                                                                                                                                                  |
+| PostgreSQL tidak public                      | **Manual** — lihat §Item di luar cakupan                                                                                                                                                        |
+| Least-privilege DB user                      | **Otomatis sebagian** (critical, cakupan connection role — lihat "App DB connection role does not bypass RLS" di atas) + **manual** untuk provisioning grant/role menyeluruh                    |
+| Backup aktif / restore tested                | **Manual** (SOP + skrip sudah ada di `deploy/backup/{backup,restore}-postgres.sh` sejak Issue 12.2 — lihat skill `awcms-mini-production-preflight`)                                             |
+| PostgreSQL version sesuai target             | **Manual** — versi di-pin di `docker-compose.yml` (Issue 12.2, `postgres:18.4`), tidak diverifikasi ulang dari kode aplikasi                                                                    |
+| Build pass / migration pass / API spec valid | **Otomatis** — via `production:preflight` (bukan `security:readiness`), tahap `build`/`db:migrate`/`api:spec:check`                                                                             |
+| Setup wizard locked                          | Sudah diverifikasi live sejak Issue 12.1 (`awcms_mini_setup_state` singleton); tidak diulang sebagai check readiness terpisah di issue ini — di luar cakupan penambahan baru                    |
+| Role default tersedia                        | Sudah diverifikasi live sejak Issue 12.1; tidak diulang sebagai check readiness terpisah                                                                                                        |
+| Logging aktif                                | Sudah ada sejak Issue 10.1 (`src/lib/logging/logger.ts`); tidak diulang sebagai check terpisah                                                                                                  |
+| Index utama / partial index soft delete      | Diverifikasi lewat test migration per issue (lihat `tests/*.test.ts` masing-masing); tidak diulang sebagai check runtime terpisah di sini                                                       |
+| Pool sehat / slow query monitoring           | **Otomatis** via `db:pool:health` (pool); slow query monitoring di luar cakupan base ini (butuh `pg_stat_statements`/APM eksternal — deployment concern)                                        |
+| Security response headers (CSP/HSTS/dst.)    | **Diperbarui Issue #437** (warning) — hit server nyata, cek `content-security-policy`/`x-content-type-options`/`x-frame-options`/`referrer-policy`/`permissions-policy` di respons `GET /login` |
+| Login rate limiting (sumber+tenant)          | **Diperbarui Issue #437** (warning) — `checkRateLimit()` murni, menegaskan percobaan ke-4 ditolak setelah `maxAttempts=3`                                                                       |
 
 ### Item di luar cakupan generic base ini
 
@@ -101,15 +103,15 @@ Dicetak eksplisit di laporan `security:readiness` sebagai bagian "Out of
 scope for this generic base" — **tidak** disembunyikan atau dipaksakan jadi
 check palsu:
 
-| Item                      | Alasan                                                                                                                                                  |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tax data masking          | Tidak ada modul pajak/Coretax di base generik ini — concern domain aplikasi turunan (mis. AWPOS).                                                       |
-| CRM opt-out               | Tidak ada modul CRM di base generik ini — concern domain aplikasi turunan.                                                                              |
-| AI read-only              | Tidak ada modul AI analyst/tool-calling di base generik ini — concern domain aplikasi turunan.                                                          |
-| PostgreSQL tidak public   | Concern deployment profile; `docker-compose.yml`/deployment profile masih Issue 12.2 (belum ada). Tidak bisa diverifikasi dari kode aplikasi saja.      |
-| Least-privilege DB user   | Role/grant DB diprovisi saat deploy, bukan oleh kode repo ini. Manual / deferred ke Issue 12.2.                                                         |
-| Backup/restore tested     | Butuh backup/restore sungguhan terhadap environment terprovisi (lihat SOP di skill `awcms-mini-production-preflight`). Manual / deferred ke Issue 12.2. |
-| PostgreSQL version pinned | Version pin ada di image/compose deployment, bukan kode aplikasi. Manual / deferred ke Issue 12.2.                                                      |
+| Item                      | Alasan                                                                                                                                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tax data masking          | Tidak ada modul pajak/Coretax di base generik ini — concern domain aplikasi turunan (mis. AWPOS).                                                                                                                                          |
+| CRM opt-out               | Tidak ada modul CRM di base generik ini — concern domain aplikasi turunan.                                                                                                                                                                 |
+| AI read-only              | Tidak ada modul AI analyst/tool-calling di base generik ini — concern domain aplikasi turunan.                                                                                                                                             |
+| PostgreSQL tidak public   | Concern deployment profile — `docker-compose.yml`/`deployment-profiles.md` ada sejak Issue 12.2, tapi eksposur jaringan nyata bergantung konfigurasi operator saat deploy, tidak bisa diverifikasi dari kode aplikasi saja. Manual.        |
+| Least-privilege DB user   | Role/grant DB diprovisi saat deploy. Connection role aplikasi sendiri (bukan superuser/bypass-RLS) sudah diverifikasi otomatis (lihat check di atas); grant/role lain tetap manual.                                                        |
+| Backup/restore tested     | Skrip `deploy/backup/{backup,restore}-postgres.sh` sudah ada sejak Issue 12.2 — butuh dijalankan sungguhan terhadap environment terprovisi untuk membuktikan hasil restore (lihat SOP di skill `awcms-mini-production-preflight`). Manual. |
+| PostgreSQL version pinned | Version pin ada di `docker-compose.yml` (`postgres:18.4`) sejak Issue 12.2, bukan diverifikasi dari kode aplikasi. Manual — konfirmasi versi server nyata (`SELECT version();`).                                                           |
 
 ## 3. `production:preflight`
 
@@ -181,6 +183,16 @@ memblokir, bukan sekadar skrip yang selalu mencetak "pass".
 - `checkErrorsDontLeakStackTraces` best-effort: hanya menguji satu bentuk
   request (POST `/sync/push` tanpa header HMAC) terhadap satu daftar
   substring stack-trace yang umum; bukan jaminan menyeluruh seluruh endpoint.
-- Item deployment (PostgreSQL tidak public, least-privilege user,
-  backup/restore, version pinned) menunggu `docker-compose.yml`/deployment
-  profile di Issue 12.2.
+- Item deployment (PostgreSQL tidak public, least-privilege user menyeluruh,
+  backup/restore, version pinned) tetap verifikasi **manual** terhadap
+  environment terprovisi — `docker-compose.yml`/deployment profile/skrip
+  backup sudah ada sejak Issue 12.2, tapi eksposur jaringan nyata, hasil
+  restore, dan versi server yang benar-benar berjalan tidak bisa dibuktikan
+  dari kode aplikasi saja.
+- Security headers (Issue #437) hanya dicek **kehadirannya** (nama header
+  ada di respons), bukan validitas isi CSP secara mendalam — lihat
+  `docs/awcms-mini/20_threat_model_security_architecture.md` §Matrix
+  kepatuhan untuk verifikasi CSP yang lebih lengkap (headless-Chrome/CDP).
+- Rate limiter login (Issue #437) in-memory per-proses, tidak dibagi antar
+  instance pada deployment multi-instance — lihat
+  `src/lib/security/rate-limit.ts` untuk detail keterbatasan ini.

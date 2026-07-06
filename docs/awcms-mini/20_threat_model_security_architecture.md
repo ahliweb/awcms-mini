@@ -99,7 +99,7 @@ flowchart LR
 
 ## Batasan (yang belum tercakup)
 
-Base ini menyediakan **kontrol dan standar**; efektivitasnya bergantung pada implementasi nyata (kode belum ada sampai Issue 0.1 selesai). WAF, rate limiting edge, manajemen secret terpusat (vault), dan pengerasan host adalah tanggung jawab lapisan deployment/aplikasi turunan dan berada di luar cakupan dokumen ini.
+Kontrol di dokumen ini sudah terimplementasi nyata sejak seluruh 18 issue backlog doc06 tuntas (v0.22.0) dan diperkuat lebih lanjut oleh epic M9 (§Matrix kepatuhan di bawah, v0.23.4) — bukan lagi standar tanpa kode. Yang tetap di luar cakupan base ini (tanggung jawab lapisan deployment/aplikasi turunan, bukan celah yang terlewat): WAF, rate limiting di edge/proxy (app-level login rate limiting sendiri sudah ada sejak Issue #437, lihat matrix di bawah), manajemen secret terpusat (vault), pengerasan host, provisioning sertifikat TLS nyata, dan monitoring/SIEM terpusat (A.8.16 di matrix).
 
 ## Matrix kepatuhan OWASP / ASVS / ISO 27001 (Issue #437)
 
