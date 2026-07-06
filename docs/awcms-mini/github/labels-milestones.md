@@ -1,11 +1,11 @@
 # GitHub Labels dan Milestones AWCMS-Mini
 
-| Metadata         | Nilai                |
-| ---------------- | -------------------- |
-| Repository       | `ahliweb/awcms-mini` |
-| Snapshot         | 2026-07-06T13:39:59Z |
-| Total labels     | 98                   |
-| Total milestones | 25                   |
+| Metadata         | Nilai                    |
+| ---------------- | ------------------------ |
+| Repository       | `ahliweb/awcms-mini`     |
+| Snapshot         | 2026-07-06T14:02:04.204Z |
+| Total labels     | 98                       |
+| Total milestones | 25                       |
 
 Label diurutkan menjadi dua kelompok: **taksonomi doc 06** (dipakai backlog issue atomic base generik) dan **peninggalan proyek sebelumnya** (SIKESRA/governance-overlay, dibiarkan apa adanya, tidak dihapus/diubah).
 

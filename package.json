@@ -43,6 +43,7 @@
     "security:readiness": "bun scripts/security-readiness.ts",
     "config:validate": "bun scripts/validate-env.ts",
     "production:preflight": "bun scripts/production-preflight.ts",
+    "github:snapshot:refresh": "bun scripts/github-snapshot-refresh.ts",
     "lint": "prettier --check \"**/*.md\" \"**/*.{json,yml,yaml}\" \"**/*.{ts,mjs,astro}\"",
     "format": "prettier --write \"**/*.md\" \"**/*.{json,yml,yaml}\" \"**/*.{ts,mjs,astro}\"",
     "check:docs": "bun scripts/check-docs.mjs",

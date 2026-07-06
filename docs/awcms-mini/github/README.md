@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-06T13:39:59Z            |
+| Snapshot     | 2026-07-06T14:02:04.204Z        |
 | Total issue  | 55                              |
-| Open issue   | 5                               |
-| Closed issue | 50                              |
+| Open issue   | 4                               |
+| Closed issue | 51                              |
 | Labels       | 98 (25 doc 06 + 73 peninggalan) |
 | Milestones   | 25 (6 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    5 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   50 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    4 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   51 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 25 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -42,10 +42,10 @@ Setelah data diambil, regenerate file di folder ini dengan pembagian state dan b
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                                                                                                                                                                                   |
-| ------ | -----: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |      5 | #461-#465 — issue docs/tooling/planning pasca-analisis lanjutan (refresh snapshot, tooling snapshot, panduan deploy Coolify, contoh modul domain minimal, rencana pilot aplikasi turunan). Bukan bagian backlog doc06 (18 issue itu sudah `completed` seluruhnya).                                        |
-| CLOSED |     50 | 20 issue domain ditutup `not planned`; 18 issue backlog doc06 (#371-#373, #376-#379, #391-#393, #398, #401, #403-#408) ditutup `completed`; epic M9 (#433-#438, #447, 7 issue) dan 5 issue pasca-analisis lanjutan pertama (#450-#454) ditutup `completed` di luar backlog doc06 — lihat bagian di bawah. |
+| State  | Jumlah | Catatan                                                                                                                                                                                                                                                                                                    |
+| ------ | -----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |      4 | #462-#465 — issue docs/tooling/planning pasca-analisis lanjutan (panduan deploy Coolify, contoh modul domain minimal, tooling snapshot, rencana pilot aplikasi turunan). #461 (refresh snapshot) sudah `completed` — lihat CLOSED. Bukan bagian backlog doc06 (18 issue itu sudah `completed` seluruhnya). |
+| CLOSED |     51 | 20 issue domain ditutup `not planned`; 18 issue backlog doc06 (#371-#373, #376-#379, #391-#393, #398, #401, #403-#408) ditutup `completed`; epic M9 (#433-#438, #447, 7 issue) dan 6 issue pasca-analisis lanjutan (#450-#454, #461) ditutup `completed` di luar backlog doc06 — lihat bagian di bawah.    |
 
 ### Issue pasca-analisis #450-#454 completed (2026-07-06)
 
