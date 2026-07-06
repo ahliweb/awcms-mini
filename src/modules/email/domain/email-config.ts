@@ -16,7 +16,16 @@
  * historical issue #390.
  */
 
-export const KNOWN_EMAIL_PROVIDERS = ["mailketing"] as const;
+/**
+ * `"log"` (Issue #495) is the safe local-dev/test provider — it writes a
+ * structured log line instead of calling a real provider. It still requires
+ * `EMAIL_PROVIDER=log` to be explicitly selected; it is not what happens
+ * when `EMAIL_ENABLED=false` (that case never reaches a provider at all —
+ * the dispatcher does not claim rows, see `../README.md` §Perilaku
+ * disabled). `"mailketing"` is the real adapter (Issue #495,
+ * `../infrastructure/mailketing-provider.ts`).
+ */
+export const KNOWN_EMAIL_PROVIDERS = ["mailketing", "log"] as const;
 
 export type EmailProviderKind = (typeof KNOWN_EMAIL_PROVIDERS)[number];
 
@@ -54,4 +63,17 @@ export function resolveEmailSendMaxRetries(
   return Number.isFinite(raw) && raw >= 0
     ? raw
     : DEFAULT_EMAIL_SEND_MAX_RETRIES;
+}
+
+/** Empty when unset — the dispatcher (Issue #495) treats a blank sender address as a per-row send failure, not a crash; `config:validate` (Issue #493) already fails boot when `EMAIL_ENABLED=true` and this is unset. */
+export function resolveEmailFromAddress(
+  env: NodeJS.ProcessEnv = process.env
+): string {
+  return env.EMAIL_FROM_ADDRESS?.trim() ?? "";
+}
+
+export function resolveEmailFromName(
+  env: NodeJS.ProcessEnv = process.env
+): string {
+  return env.EMAIL_FROM_NAME?.trim() || DEFAULT_EMAIL_FROM_NAME;
 }

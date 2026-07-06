@@ -95,20 +95,22 @@ Legenda: Wajib = perlu untuk boot; Sensitif = jangan bocor ke log/response.
 | `R2_BUCKET`                     | bila R2 | –           | –        | Bucket                                                                  |
 | `OBJECT_SYNC_UPLOAD_TIMEOUT_MS` | –       | `10000`     | –        | Timeout upload dispatcher (Issue #436, `bun run sync:objects:dispatch`) |
 
-### Email (opsional, base — Issue #493, epic #492)
+### Email (base — Issue #493-#495, epic #492)
 
 Modul base reusable (bukan contoh domain) untuk password reset, system
 announcement, dan workflow notification — lihat `src/modules/email/README.md`.
-Provider-neutral: `EMAIL_PROVIDER` memilih adapter, baru `mailketing` yang
-didukung (Issue #495). **Sengaja beda namespace** dari baris
-`MAILKETING_ENABLED`/`MAILKETING_API_TOKEN` di §Provider CRM (opsional) di
-bawah — baris itu tetap contoh ilustratif domain retail/POS "email receipt"
-(historical issue #390, closed _not planned_), tidak diubah oleh epic ini.
+Provider-neutral: `EMAIL_PROVIDER` memilih adapter — `mailketing` (adapter
+nyata, Issue #495) atau `log` (menulis log terstruktur alih-alih memanggil
+provider nyata; dev lokal/test tanpa kredensial Mailketing). **Sengaja beda
+namespace** dari baris `MAILKETING_ENABLED`/`MAILKETING_API_TOKEN` di
+§Provider CRM (opsional) di bawah — baris itu tetap contoh ilustratif
+domain retail/POS "email receipt" (historical issue #390, closed _not
+planned_), tidak diubah oleh epic ini.
 
 | Var                             | Wajib           | Default      | Sensitif | Fungsi                                                |
 | ------------------------------- | --------------- | ------------ | -------- | ----------------------------------------------------- |
 | `EMAIL_ENABLED`                 | –               | `false`      | –        | Aktifkan modul email                                  |
-| `EMAIL_PROVIDER`                | bila aktif      | –            | –        | Adapter terpilih; hanya `mailketing` didukung kini    |
+| `EMAIL_PROVIDER`                | bila aktif      | –            | –        | `mailketing` atau `log`                               |
 | `EMAIL_FROM_ADDRESS`            | bila aktif      | –            | –        | Alamat pengirim default                               |
 | `EMAIL_FROM_NAME`               | –               | `AWCMS-Mini` | –        | Nama pengirim default                                 |
 | `EMAIL_SEND_TIMEOUT_MS`         | –               | `10000`      | –        | Timeout satu percobaan kirim (dispatcher, Issue #495) |

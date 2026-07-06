@@ -188,6 +188,16 @@ describe("checkEmailConfig", () => {
 
     expect(results.every((result) => result.status === "pass")).toBe(true);
   });
+
+  test("all pass when email is enabled with the log provider (no Mailketing creds required)", () => {
+    const results = checkEmailConfig({
+      EMAIL_ENABLED: "true",
+      EMAIL_FROM_ADDRESS: "no-reply@example.com",
+      EMAIL_PROVIDER: "log"
+    } as NodeJS.ProcessEnv);
+
+    expect(results.every((result) => result.status === "pass")).toBe(true);
+  });
 });
 
 describe("runEnvValidation", () => {

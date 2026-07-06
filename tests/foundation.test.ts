@@ -58,7 +58,7 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, and email are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, and #493", () => {
+  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, and email are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#495", () => {
     expect(listModules()).toHaveLength(9);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
@@ -101,8 +101,8 @@ describe("module registry", () => {
     });
     expect(getModuleByKey("email")).toMatchObject({
       key: "email",
-      status: "experimental",
-      dependencies: ["tenant_admin"]
+      status: "active",
+      dependencies: ["tenant_admin", "profile_identity"]
     });
     expect(getModuleByKey("unknown_module")).toBeUndefined();
   });
