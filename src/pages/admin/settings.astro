@@ -17,6 +17,7 @@
  * (migration 015) — defense-in-depth, the endpoint is the real enforcement.
  */
 import AdminLayout from "../../layouts/AdminLayout.astro";
+import StateNotice from "../../components/ui/StateNotice.astro";
 import { getDatabaseClient } from "../../lib/database/client";
 import { withTenant } from "../../lib/database/tenant-context";
 import { permissionKey } from "../../modules/identity-access/domain/access-control";
@@ -43,6 +44,7 @@ const clientStrings = {
   invalidFeatureFlags: t("admin.settings.invalid_feature_flags"),
   saveSuccess: t("admin.settings.save_success"),
   networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
   errorMessages: buildClientErrorMessages(t)
 };
 
@@ -53,22 +55,42 @@ const CAN_UPDATE = context.permissions.has(
   permissionKey("tenant_admin", "tenant_settings", "update")
 );
 
-const settings = CAN_READ
-  ? await withTenant(getDatabaseClient(), context.tenantId, (tx) =>
+// Issue #434 (UX/UI audit) — see `admin/access-users.astro` for the same
+// denied-vs-error split (doc 14 §State pattern wajib Error branch).
+let settings: Awaited<ReturnType<typeof fetchTenantSettings>> | null = null;
+let loadError = false;
+
+if (CAN_READ) {
+  try {
+    settings = await withTenant(getDatabaseClient(), context.tenantId, (tx) =>
       fetchTenantSettings(tx, context.tenantId)
-    )
-  : null;
+    );
+  } catch (error) {
+    console.error("admin/settings.astro: failed to load settings", error);
+    loadError = true;
+  }
+}
 ---
 
 <AdminLayout title={t("admin.layout.nav_settings")}>
   {
-    !settings && (
-      <div class="permission-denied" role="alert">
-        <p>
-          <strong>{t("admin.settings.access_denied_title")}</strong>
-        </p>
-        <p>{t("admin.settings.access_denied_body")}</p>
-      </div>
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.settings.access_denied_title")}
+        body={t("admin.settings.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
     )
   }
   {
@@ -160,7 +182,9 @@ const settings = CAN_READ
           </fieldset>
 
           {CAN_UPDATE && (
-            <button type="submit">{t("admin.access_users.save_button")}</button>
+            <button type="submit" id="settings-save-button">
+              {t("admin.access_users.save_button")}
+            </button>
           )}
         </form>
       </div>
@@ -243,6 +267,14 @@ const settings = CAN_READ
     font-size: var(--fs-xs);
   }
 
+  /* Touch target >= 44px on tablet/mobile (doc 14 §Aksesibilitas). */
+  @media (max-width: 768px) {
+    .settings-form input,
+    .settings-form select {
+      min-height: 44px;
+    }
+  }
+
   .field-hint {
     margin: 0;
     font-size: var(--fs-xs);
@@ -251,41 +283,53 @@ const settings = CAN_READ
 
   .settings-form button {
     align-self: flex-start;
-    background: var(--color-primary);
+    background: var(--color-primary-strong);
     color: var(--color-primary-contrast);
     border: none;
     border-radius: var(--radius-sm);
     padding: var(--sp-2) var(--sp-4);
+    min-height: 44px;
     cursor: pointer;
   }
 
-  .permission-denied {
-    background: var(--color-surface-2);
-    border: 1px solid var(--color-danger);
-    border-radius: var(--radius-md);
-    padding: var(--sp-4);
+  .settings-form button:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
   }
 </style>
 
 <script>
-  const JSON_HEADERS = { "Content-Type": "application/json" };
-  const strings = JSON.parse(
-    document.getElementById("i18n-strings")?.textContent ?? "{}"
-  );
+  // Issue #434 (UX/UI audit) — see `admin/access-users.astro` for why this
+  // is now a shared import instead of a duplicated inline implementation,
+  // and why the save button locks for the duration of the request (doc 14
+  // §Form UX "cegah double-submit").
+  import {
+    lockElement,
+    readClientStrings,
+    showBanner,
+    submitJson
+  } from "../../lib/ui/admin-form-client";
 
-  function showBanner(message: string, variant: "success" | "error") {
-    const banner = document.getElementById("action-banner");
-    if (!banner) return;
-    banner.textContent = message;
-    banner.setAttribute("data-variant", variant);
-    banner.hidden = false;
+  interface SettingsStrings {
+    invalidFeatureFlags: string;
+    saveSuccess: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
   }
+
+  const strings = readClientStrings<SettingsStrings>();
 
   document
     .getElementById("settings-form")
     ?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = event.target as HTMLFormElement;
+      const button = document.getElementById(
+        "settings-save-button"
+      ) as HTMLButtonElement | null;
+      if (button?.disabled) return;
+
       const formData = new FormData(form);
 
       const featureFlagsRaw = String(formData.get("featureFlags") ?? "{}");
@@ -293,45 +337,38 @@ const settings = CAN_READ
       try {
         featureFlags = JSON.parse(featureFlagsRaw);
       } catch {
-        showBanner(strings.invalidFeatureFlags, "error");
+        showBanner("action-banner", strings.invalidFeatureFlags, "error");
         return;
       }
 
-      const legalNameRaw = formData.get("legalName");
-      const body = {
-        tenantName: formData.get("tenantName"),
-        legalName:
-          typeof legalNameRaw === "string" && legalNameRaw.trim().length > 0
-            ? legalNameRaw
-            : null,
-        defaultLocale: formData.get("defaultLocale"),
-        defaultTheme: formData.get("defaultTheme"),
-        timezone: formData.get("timezone"),
-        featureFlags
-      };
-
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
       try {
-        const res = await fetch("/api/v1/settings", {
-          method: "PATCH",
-          headers: JSON_HEADERS,
-          credentials: "same-origin",
-          body: JSON.stringify(body)
-        });
-        const json = await res.json().catch(() => null);
+        const legalNameRaw = formData.get("legalName");
+        const body = {
+          tenantName: formData.get("tenantName"),
+          legalName:
+            typeof legalNameRaw === "string" && legalNameRaw.trim().length > 0
+              ? legalNameRaw
+              : null,
+          defaultLocale: formData.get("defaultLocale"),
+          defaultTheme: formData.get("defaultTheme"),
+          timezone: formData.get("timezone"),
+          featureFlags
+        };
 
-        if (!res.ok) {
-          const code = json?.error?.code as string | undefined;
-          const message: string =
-            (code && strings.errorMessages?.[code]) ??
-            json?.error?.message ??
-            `Request failed (${res.status}).`;
-          showBanner(message, "error");
-          return;
-        }
-
-        showBanner(strings.saveSuccess, "success");
-      } catch {
-        showBanner(strings.networkError, "error");
+        const result = await submitJson(
+          "/api/v1/settings",
+          "PATCH",
+          body,
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.saveSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+      } finally {
+        unlock?.();
       }
     });
 </script>

@@ -26,6 +26,7 @@
  *   - identity_access.access_control.assign    -> assign/unassign role chips
  */
 import AdminLayout from "../../layouts/AdminLayout.astro";
+import StateNotice from "../../components/ui/StateNotice.astro";
 import { getDatabaseClient } from "../../lib/database/client";
 import { withTenant } from "../../lib/database/tenant-context";
 import { permissionKey } from "../../modules/identity-access/domain/access-control";
@@ -62,6 +63,7 @@ const clientStrings = {
   unassignRoleSuccess: t("admin.access_users.unassign_role_success"),
   deleteRolePrompt: t("admin.access_users.delete_role_prompt"),
   networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
   errorMessages: buildClientErrorMessages(t)
 };
 
@@ -86,17 +88,38 @@ const CAN_ASSIGN = context.permissions.has(
 
 const hasAnyAccess = CAN_READ_USERS || CAN_READ_ROLES;
 
-const data = hasAnyAccess
-  ? await withTenant(getDatabaseClient(), context.tenantId, async (tx) => ({
-      users: CAN_READ_USERS
-        ? await fetchTenantUsersWithRoles(tx, context.tenantId)
-        : [],
-      roles: CAN_READ_ROLES
-        ? await fetchRolesWithPermissions(tx, context.tenantId)
-        : [],
-      permissions: CAN_READ_ROLES ? await fetchPermissionCatalog(tx) : []
-    }))
-  : null;
+// Issue #434 (UX/UI audit): the doc 14 §State pattern wajib requires an
+// explicit Error branch ("Loading -> Error: gagal") — previously a DB
+// failure here had no graceful path at all (unhandled 500). `loadError`
+// distinguishes "you can't see this" (permission) from "we couldn't load
+// it right now" (transient failure); see `StateNotice.astro`.
+let data: {
+  users: Awaited<ReturnType<typeof fetchTenantUsersWithRoles>>;
+  roles: Awaited<ReturnType<typeof fetchRolesWithPermissions>>;
+  permissions: PermissionCatalogEntry[];
+} | null = null;
+let loadError = false;
+
+if (hasAnyAccess) {
+  try {
+    data = await withTenant(
+      getDatabaseClient(),
+      context.tenantId,
+      async (tx) => ({
+        users: CAN_READ_USERS
+          ? await fetchTenantUsersWithRoles(tx, context.tenantId)
+          : [],
+        roles: CAN_READ_ROLES
+          ? await fetchRolesWithPermissions(tx, context.tenantId)
+          : [],
+        permissions: CAN_READ_ROLES ? await fetchPermissionCatalog(tx) : []
+      })
+    );
+  } catch (error) {
+    console.error("admin/access-users.astro: failed to load data", error);
+    loadError = true;
+  }
+}
 
 // Group the permission catalog by moduleKey for a readable checkbox layout.
 const permissionGroups = new Map<string, PermissionCatalogEntry[]>();
@@ -111,13 +134,23 @@ if (data) {
 
 <AdminLayout title={t("admin.layout.nav_access_users")}>
   {
-    !data && (
-      <div class="permission-denied" role="alert">
-        <p>
-          <strong>{t("admin.access_users.access_denied_title")}</strong>
-        </p>
-        <p>{t("admin.access_users.access_denied_body")}</p>
-      </div>
+    !hasAnyAccess && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.access_users.access_denied_title")}
+        body={t("admin.access_users.access_denied_body")}
+      />
+    )
+  }
+  {
+    hasAnyAccess && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
     )
   }
   {
@@ -136,114 +169,118 @@ if (data) {
               <h2>{t("admin.access_users.users_title")}</h2>
             </div>
 
-            <table class="au-table">
-              <thead>
-                <tr>
-                  <th>{t("admin.access_users.name_column")}</th>
-                  <th>{t("admin.access_users.login_column")}</th>
-                  <th>{t("admin.access_users.status_column")}</th>
-                  <th>{t("admin.access_users.role_column")}</th>
-                  {(CAN_UPDATE_USERS || CAN_ASSIGN) && (
-                    <th>{t("admin.access_users.actions_column")}</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {data.users.length === 0 && (
+            <div class="table-scroll">
+              <table class="au-table">
+                <thead>
                   <tr>
-                    <td colspan={CAN_UPDATE_USERS || CAN_ASSIGN ? 5 : 4}>
-                      {t("admin.access_users.no_users")}
-                    </td>
-                  </tr>
-                )}
-                {data.users.map((user) => (
-                  <tr data-user-row={user.tenantUserId}>
-                    <td>{user.displayName}</td>
-                    <td>{user.loginIdentifier}</td>
-                    <td>
-                      <span class="status-pill" data-status={user.status}>
-                        {user.status === "active"
-                          ? t("common.status_active")
-                          : t("common.status_inactive")}
-                      </span>
-                    </td>
-                    <td>
-                      <div class="role-chip-list">
-                        {user.roles.length === 0 && (
-                          <span class="role-chip-empty">
-                            {t("admin.layout.no_role")}
-                          </span>
-                        )}
-                        {user.roles.map((role) => (
-                          <span class="role-chip">
-                            {role.roleName}
-                            {CAN_ASSIGN && (
-                              <button
-                                type="button"
-                                class="role-chip-remove"
-                                data-unassign-user={user.tenantUserId}
-                                data-unassign-role={role.roleId}
-                                aria-label={t(
-                                  "admin.access_users.unassign_role_aria_label",
-                                  { role: role.roleName }
-                                )}
-                              >
-                                &times;
-                              </button>
-                            )}
-                          </span>
-                        ))}
-                      </div>
-                      {CAN_ASSIGN && (
-                        <form
-                          class="assign-role-form"
-                          data-assign-user={user.tenantUserId}
-                        >
-                          <select name="roleId" required>
-                            <option value="">
-                              {t("admin.access_users.assign_role_placeholder")}
-                            </option>
-                            {data.roles
-                              .filter(
-                                (role) =>
-                                  !user.roles.some(
-                                    (r) => r.roleId === role.roleId
-                                  )
-                              )
-                              .map((role) => (
-                                <option value={role.roleId}>
-                                  {role.roleName}
-                                </option>
-                              ))}
-                          </select>
-                          <button type="submit">
-                            {t("admin.access_users.assign_button")}
-                          </button>
-                        </form>
-                      )}
-                    </td>
+                    <th>{t("admin.access_users.name_column")}</th>
+                    <th>{t("admin.access_users.login_column")}</th>
+                    <th>{t("admin.access_users.status_column")}</th>
+                    <th>{t("admin.access_users.role_column")}</th>
                     {(CAN_UPDATE_USERS || CAN_ASSIGN) && (
-                      <td>
-                        {CAN_UPDATE_USERS && (
-                          <button
-                            type="button"
-                            class="toggle-status-button"
-                            data-toggle-user={user.tenantUserId}
-                            data-next-status={
-                              user.status === "active" ? "inactive" : "active"
-                            }
-                          >
-                            {user.status === "active"
-                              ? t("admin.access_users.deactivate_button")
-                              : t("admin.access_users.activate_button")}
-                          </button>
-                        )}
-                      </td>
+                      <th>{t("admin.access_users.actions_column")}</th>
                     )}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.users.length === 0 && (
+                    <tr>
+                      <td colspan={CAN_UPDATE_USERS || CAN_ASSIGN ? 5 : 4}>
+                        {t("admin.access_users.no_users")}
+                      </td>
+                    </tr>
+                  )}
+                  {data.users.map((user) => (
+                    <tr data-user-row={user.tenantUserId}>
+                      <td>{user.displayName}</td>
+                      <td>{user.loginIdentifier}</td>
+                      <td>
+                        <span class="status-pill" data-status={user.status}>
+                          {user.status === "active"
+                            ? t("common.status_active")
+                            : t("common.status_inactive")}
+                        </span>
+                      </td>
+                      <td>
+                        <div class="role-chip-list">
+                          {user.roles.length === 0 && (
+                            <span class="role-chip-empty">
+                              {t("admin.layout.no_role")}
+                            </span>
+                          )}
+                          {user.roles.map((role) => (
+                            <span class="role-chip">
+                              {role.roleName}
+                              {CAN_ASSIGN && (
+                                <button
+                                  type="button"
+                                  class="role-chip-remove"
+                                  data-unassign-user={user.tenantUserId}
+                                  data-unassign-role={role.roleId}
+                                  aria-label={t(
+                                    "admin.access_users.unassign_role_aria_label",
+                                    { role: role.roleName }
+                                  )}
+                                >
+                                  &times;
+                                </button>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                        {CAN_ASSIGN && (
+                          <form
+                            class="assign-role-form"
+                            data-assign-user={user.tenantUserId}
+                          >
+                            <select name="roleId" required>
+                              <option value="">
+                                {t(
+                                  "admin.access_users.assign_role_placeholder"
+                                )}
+                              </option>
+                              {data.roles
+                                .filter(
+                                  (role) =>
+                                    !user.roles.some(
+                                      (r) => r.roleId === role.roleId
+                                    )
+                                )
+                                .map((role) => (
+                                  <option value={role.roleId}>
+                                    {role.roleName}
+                                  </option>
+                                ))}
+                            </select>
+                            <button type="submit">
+                              {t("admin.access_users.assign_button")}
+                            </button>
+                          </form>
+                        )}
+                      </td>
+                      {(CAN_UPDATE_USERS || CAN_ASSIGN) && (
+                        <td>
+                          {CAN_UPDATE_USERS && (
+                            <button
+                              type="button"
+                              class="toggle-status-button"
+                              data-toggle-user={user.tenantUserId}
+                              data-next-status={
+                                user.status === "active" ? "inactive" : "active"
+                              }
+                            >
+                              {user.status === "active"
+                                ? t("admin.access_users.deactivate_button")
+                                : t("admin.access_users.activate_button")}
+                            </button>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             {CAN_CREATE_USERS && (
               <details class="au-create">
@@ -296,105 +333,116 @@ if (data) {
               <h2>{t("admin.access_users.roles_title")}</h2>
             </div>
 
-            <table class="au-table">
-              <thead>
-                <tr>
-                  <th>{t("admin.access_users.role_column")}</th>
-                  <th>{t("admin.access_users.code_column")}</th>
-                  <th>{t("admin.access_users.permission_column")}</th>
-                  <th>{t("admin.access_users.users_column")}</th>
-                  {CAN_CONFIGURE_ROLES && (
-                    <th>{t("admin.access_users.actions_column")}</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {data.roles.map((role) => (
+            <div class="table-scroll">
+              <table class="au-table">
+                <thead>
                   <tr>
-                    <td>
-                      {role.roleName}
-                      {role.isSystem && (
-                        <em class="system-role-badge">
-                          {t("admin.access_users.system_role_badge")}
-                        </em>
-                      )}
-                    </td>
-                    <td>
-                      <code>{role.roleCode}</code>
-                    </td>
-                    <td>{role.permissionIds.length}</td>
-                    <td>{role.assignedUserCount}</td>
+                    <th>{t("admin.access_users.role_column")}</th>
+                    <th>{t("admin.access_users.code_column")}</th>
+                    <th>{t("admin.access_users.permission_column")}</th>
+                    <th>{t("admin.access_users.users_column")}</th>
                     {CAN_CONFIGURE_ROLES && (
-                      <td>
-                        <details>
-                          <summary>
-                            {t("admin.access_users.edit_summary")}
-                          </summary>
-                          <form
-                            class="edit-role-form"
-                            data-role-id={role.roleId}
-                            data-role-system={role.isSystem ? "true" : "false"}
-                          >
-                            <label>
-                              {t("admin.access_users.role_name_label")}
-                              <input
-                                type="text"
-                                name="roleName"
-                                value={role.roleName}
-                                required
-                              />
-                            </label>
-                            <fieldset
-                              class="role-checkbox-group"
-                              disabled={role.isSystem}
-                            >
-                              <legend>
-                                {t("admin.access_users.permission_legend")}
-                                {role.isSystem &&
-                                  ` ${t("admin.access_users.system_role_note")}`}
-                              </legend>
-                              {[...permissionGroups.entries()].map(
-                                ([moduleKey, perms]) => (
-                                  <div class="permission-module-group">
-                                    <strong>{moduleKey}</strong>
-                                    {perms.map((permission) => (
-                                      <label class="checkbox-label">
-                                        <input
-                                          type="checkbox"
-                                          name="permissionIds"
-                                          value={permission.permissionId}
-                                          checked={role.permissionIds.includes(
-                                            permission.permissionId
-                                          )}
-                                        />
-                                        {permission.activityCode}.
-                                        {permission.action}
-                                      </label>
-                                    ))}
-                                  </div>
-                                )
-                              )}
-                            </fieldset>
-                            <button type="submit">
-                              {t("admin.access_users.save_button")}
-                            </button>
-                          </form>
-                        </details>
-                        {!role.isSystem && (
-                          <button
-                            type="button"
-                            class="delete-role-button"
-                            data-delete-role={role.roleId}
-                          >
-                            {t("admin.access_users.delete_button")}
-                          </button>
-                        )}
-                      </td>
+                      <th>{t("admin.access_users.actions_column")}</th>
                     )}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.roles.length === 0 && (
+                    <tr>
+                      <td colspan={CAN_CONFIGURE_ROLES ? 5 : 4}>
+                        {t("admin.access_users.no_roles")}
+                      </td>
+                    </tr>
+                  )}
+                  {data.roles.map((role) => (
+                    <tr>
+                      <td>
+                        {role.roleName}
+                        {role.isSystem && (
+                          <em class="system-role-badge">
+                            {t("admin.access_users.system_role_badge")}
+                          </em>
+                        )}
+                      </td>
+                      <td>
+                        <code>{role.roleCode}</code>
+                      </td>
+                      <td>{role.permissionIds.length}</td>
+                      <td>{role.assignedUserCount}</td>
+                      {CAN_CONFIGURE_ROLES && (
+                        <td>
+                          <details>
+                            <summary>
+                              {t("admin.access_users.edit_summary")}
+                            </summary>
+                            <form
+                              class="edit-role-form"
+                              data-role-id={role.roleId}
+                              data-role-system={
+                                role.isSystem ? "true" : "false"
+                              }
+                            >
+                              <label>
+                                {t("admin.access_users.role_name_label")}
+                                <input
+                                  type="text"
+                                  name="roleName"
+                                  value={role.roleName}
+                                  required
+                                />
+                              </label>
+                              <fieldset
+                                class="role-checkbox-group"
+                                disabled={role.isSystem}
+                              >
+                                <legend>
+                                  {t("admin.access_users.permission_legend")}
+                                  {role.isSystem &&
+                                    ` ${t("admin.access_users.system_role_note")}`}
+                                </legend>
+                                {[...permissionGroups.entries()].map(
+                                  ([moduleKey, perms]) => (
+                                    <div class="permission-module-group">
+                                      <strong>{moduleKey}</strong>
+                                      {perms.map((permission) => (
+                                        <label class="checkbox-label">
+                                          <input
+                                            type="checkbox"
+                                            name="permissionIds"
+                                            value={permission.permissionId}
+                                            checked={role.permissionIds.includes(
+                                              permission.permissionId
+                                            )}
+                                          />
+                                          {permission.activityCode}.
+                                          {permission.action}
+                                        </label>
+                                      ))}
+                                    </div>
+                                  )
+                                )}
+                              </fieldset>
+                              <button type="submit">
+                                {t("admin.access_users.save_button")}
+                              </button>
+                            </form>
+                          </details>
+                          {!role.isSystem && (
+                            <button
+                              type="button"
+                              class="delete-role-button"
+                              data-delete-role={role.roleId}
+                            >
+                              {t("admin.access_users.delete_button")}
+                            </button>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             {CAN_CONFIGURE_ROLES && (
               <details class="au-create">
@@ -485,10 +533,17 @@ if (data) {
     font-size: var(--fs-md);
   }
 
+  /* Responsive (doc 14 §Responsif) — a wide table scrolls inside its own
+     container on tablet instead of forcing the whole page to scroll
+     horizontally. */
+  .table-scroll {
+    overflow-x: auto;
+    margin-bottom: var(--sp-3);
+  }
+
   .au-table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: var(--sp-3);
   }
 
   .au-table th,
@@ -500,20 +555,30 @@ if (data) {
     vertical-align: top;
   }
 
+  /*
+   * Solid-fill badge (Issue #434 UX/UI audit): the previous style used
+   * `--color-success`/`--color-danger` as *text* color on `--color-surface-2`
+   * — measured at 2.91:1 (active, light) and 4.06:1 (inactive, dark),
+   * both below the WCAG AA 4.5:1 minimum for text. A solid fill paired with
+   * `--color-primary-contrast` (white) using the "-strong" tokens (tuned for
+   * exactly this pairing, see tokens.css) fixes contrast in both themes.
+   * Status is still conveyed by the text label too ("Aktif"/"Tidak aktif"),
+   * not color alone.
+   */
   .status-pill {
     display: inline-block;
     padding: 0 var(--sp-2);
     border-radius: var(--radius-full);
     font-size: var(--fs-xs);
-    background: var(--color-surface-2);
+    color: var(--color-primary-contrast);
   }
 
   .status-pill[data-status="active"] {
-    color: var(--color-success);
+    background: var(--color-success-strong);
   }
 
   .status-pill[data-status="inactive"] {
-    color: var(--color-danger);
+    background: var(--color-danger-strong);
   }
 
   .role-chip-list {
@@ -549,7 +614,18 @@ if (data) {
   }
 
   .role-chip-remove:hover {
-    color: var(--color-danger);
+    color: var(--color-danger-strong);
+  }
+
+  /* Touch target >= 44px on tablet/mobile (doc 14 §Aksesibilitas). */
+  @media (max-width: 768px) {
+    .role-chip-remove,
+    .toggle-status-button,
+    .delete-role-button,
+    .assign-role-form button {
+      min-height: 44px;
+      min-width: 44px;
+    }
   }
 
   .assign-role-form {
@@ -583,8 +659,8 @@ if (data) {
 
   .delete-role-button {
     margin-top: var(--sp-1);
-    color: var(--color-danger);
-    border-color: var(--color-danger);
+    color: var(--color-danger-strong);
+    border-color: var(--color-danger-strong);
   }
 
   .au-create {
@@ -650,67 +726,58 @@ if (data) {
 
   .au-form button {
     align-self: flex-start;
-    background: var(--color-primary);
+    background: var(--color-primary-strong);
     color: var(--color-primary-contrast);
     border: none;
     border-radius: var(--radius-sm);
     padding: var(--sp-2) var(--sp-4);
+    min-height: 44px;
     cursor: pointer;
   }
 
-  .permission-denied {
-    background: var(--color-surface-2);
-    border: 1px solid var(--color-danger);
-    border-radius: var(--radius-md);
-    padding: var(--sp-4);
+  .au-form button:disabled,
+  .assign-role-form button:disabled,
+  .toggle-status-button:disabled,
+  .delete-role-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
   }
 </style>
 
 <script>
-  const JSON_HEADERS = { "Content-Type": "application/json" };
-  const strings = JSON.parse(
-    document.getElementById("i18n-strings")?.textContent ?? "{}"
-  );
+  // Issue #434 (UX/UI audit): `submitJson`/`showBanner`/`reloadAfterDelay`
+  // used to be duplicated verbatim in this file, `admin/sync.astro`, and
+  // `admin/settings.astro` — now shared (doc 14 §Konsistensi). `lockElement`
+  // is new: it disables the button that triggered a mutation for the
+  // duration of the request so a fast double-click/double-Enter can't fire
+  // it twice (doc 14 §Form UX "cegah double-submit"); errors leave the
+  // button re-enabled and every field exactly as the user left it.
+  import {
+    lockElement,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../lib/ui/admin-form-client";
 
-  function showBanner(message: string, variant: "success" | "error") {
-    const banner = document.getElementById("action-banner");
-    if (!banner) return;
-    banner.textContent = message;
-    banner.setAttribute("data-variant", variant);
-    banner.hidden = false;
+  interface AccessUsersStrings {
+    createUserSuccess: string;
+    createRoleSuccess: string;
+    updateRoleSuccess: string;
+    deleteRoleSuccess: string;
+    updateStatusSuccess: string;
+    assignRoleSuccess: string;
+    unassignRoleSuccess: string;
+    deleteRolePrompt: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
   }
 
-  async function submitJson(
-    url: string,
-    method: string,
-    body: unknown
-  ): Promise<{ ok: boolean; code?: string; message: string }> {
-    try {
-      const res = await fetch(url, {
-        method,
-        headers: JSON_HEADERS,
-        credentials: "same-origin",
-        body: JSON.stringify(body)
-      });
-      const json = await res.json().catch(() => null);
+  const strings = readClientStrings<AccessUsersStrings>();
 
-      if (!res.ok) {
-        const code = json?.error?.code as string | undefined;
-        const message: string =
-          (code && strings.errorMessages?.[code]) ??
-          json?.error?.message ??
-          `Request failed (${res.status}).`;
-        return { ok: false, code, message };
-      }
-
-      return { ok: true, message: "" };
-    } catch {
-      return { ok: false, message: strings.networkError };
-    }
-  }
-
-  function reloadAfterDelay() {
-    setTimeout(() => window.location.reload(), 400);
+  function submitButtonOf(form: HTMLFormElement): HTMLButtonElement | null {
+    return form.querySelector('button[type="submit"]');
   }
 
   document
@@ -718,21 +785,35 @@ if (data) {
     ?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = event.target as HTMLFormElement;
-      const formData = new FormData(form);
-      const roleIds = formData.getAll("roleIds") as string[];
+      const button = submitButtonOf(form);
+      if (button?.disabled) return;
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
 
-      const result = await submitJson("/api/v1/users", "POST", {
-        displayName: formData.get("displayName"),
-        loginIdentifier: formData.get("loginIdentifier"),
-        password: formData.get("password"),
-        roleIds
-      });
+      try {
+        const formData = new FormData(form);
+        const roleIds = formData.getAll("roleIds") as string[];
 
-      showBanner(
-        result.ok ? strings.createUserSuccess : result.message,
-        result.ok ? "success" : "error"
-      );
-      if (result.ok) reloadAfterDelay();
+        const result = await submitJson(
+          "/api/v1/users",
+          "POST",
+          {
+            displayName: formData.get("displayName"),
+            loginIdentifier: formData.get("loginIdentifier"),
+            password: formData.get("password"),
+            roleIds
+          },
+          strings
+        );
+
+        showBanner(
+          "action-banner",
+          result.ok ? strings.createUserSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
     });
 
   document
@@ -740,81 +821,128 @@ if (data) {
     ?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = event.target as HTMLFormElement;
-      const formData = new FormData(form);
-      const permissionIds = formData.getAll("permissionIds") as string[];
+      const button = submitButtonOf(form);
+      if (button?.disabled) return;
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
 
-      const result = await submitJson("/api/v1/roles", "POST", {
-        roleCode: formData.get("roleCode"),
-        roleName: formData.get("roleName"),
-        permissionIds
-      });
+      try {
+        const formData = new FormData(form);
+        const permissionIds = formData.getAll("permissionIds") as string[];
 
-      showBanner(
-        result.ok ? strings.createRoleSuccess : result.message,
-        result.ok ? "success" : "error"
-      );
-      if (result.ok) reloadAfterDelay();
+        const result = await submitJson(
+          "/api/v1/roles",
+          "POST",
+          {
+            roleCode: formData.get("roleCode"),
+            roleName: formData.get("roleName"),
+            permissionIds
+          },
+          strings
+        );
+
+        showBanner(
+          "action-banner",
+          result.ok ? strings.createRoleSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
     });
 
   document.querySelectorAll(".edit-role-form").forEach((form) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const el = event.target as HTMLFormElement;
-      const roleId = el.dataset.roleId!;
-      const isSystem = el.dataset.roleSystem === "true";
-      const formData = new FormData(el);
+      const button = submitButtonOf(el);
+      if (button?.disabled) return;
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
 
-      const body: Record<string, unknown> = {
-        roleName: formData.get("roleName")
-      };
-      if (!isSystem) {
-        body.permissionIds = formData.getAll("permissionIds");
+      try {
+        const roleId = el.dataset.roleId!;
+        const isSystem = el.dataset.roleSystem === "true";
+        const formData = new FormData(el);
+
+        const body: Record<string, unknown> = {
+          roleName: formData.get("roleName")
+        };
+        if (!isSystem) {
+          body.permissionIds = formData.getAll("permissionIds");
+        }
+
+        const result = await submitJson(
+          `/api/v1/roles/${roleId}`,
+          "PATCH",
+          body,
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.updateRoleSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
       }
-
-      const result = await submitJson(`/api/v1/roles/${roleId}`, "PATCH", body);
-      showBanner(
-        result.ok ? strings.updateRoleSuccess : result.message,
-        result.ok ? "success" : "error"
-      );
-      if (result.ok) reloadAfterDelay();
     });
   });
 
   document.querySelectorAll(".delete-role-button").forEach((button) => {
     button.addEventListener("click", async () => {
-      const roleId = (button as HTMLElement).dataset.deleteRole!;
+      const el = button as HTMLButtonElement;
+      if (el.disabled) return;
+
+      const roleId = el.dataset.deleteRole!;
       const reason = window.prompt(strings.deleteRolePrompt);
       if (!reason || reason.trim().length === 0) return;
 
-      const result = await submitJson(`/api/v1/roles/${roleId}`, "DELETE", {
-        reason
-      });
-      showBanner(
-        result.ok ? strings.deleteRoleSuccess : result.message,
-        result.ok ? "success" : "error"
-      );
-      if (result.ok) reloadAfterDelay();
+      const unlock = lockElement(el, strings.pleaseWait);
+      try {
+        const result = await submitJson(
+          `/api/v1/roles/${roleId}`,
+          "DELETE",
+          { reason },
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.deleteRoleSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock();
+      }
     });
   });
 
   document.querySelectorAll(".toggle-status-button").forEach((button) => {
     button.addEventListener("click", async () => {
-      const el = button as HTMLElement;
-      const tenantUserId = el.dataset.toggleUser!;
-      const nextStatus = el.dataset.nextStatus!;
+      const el = button as HTMLButtonElement;
+      if (el.disabled) return;
+      const unlock = lockElement(el, strings.pleaseWait);
 
-      const result = await submitJson(
-        `/api/v1/users/${tenantUserId}`,
-        "PATCH",
-        {
-          status: nextStatus
-        }
-      );
-      showBanner(
-        result.ok ? strings.updateStatusSuccess : result.message,
-        result.ok ? "success" : "error"
-      );
-      if (result.ok) reloadAfterDelay();
+      try {
+        const tenantUserId = el.dataset.toggleUser!;
+        const nextStatus = el.dataset.nextStatus!;
+
+        const result = await submitJson(
+          `/api/v1/users/${tenantUserId}`,
+          "PATCH",
+          { status: nextStatus },
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.updateStatusSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock();
+      }
     });
   });
 
@@ -822,39 +950,59 @@ if (data) {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const el = event.target as HTMLFormElement;
-      const tenantUserId = el.dataset.assignUser!;
+      const button = submitButtonOf(el);
+      if (button?.disabled) return;
+
       const formData = new FormData(el);
       const roleId = formData.get("roleId");
-
       if (!roleId) return;
 
-      const result = await submitJson("/api/v1/access/assignments", "POST", {
-        tenantUserId,
-        roleId
-      });
-      showBanner(
-        result.ok ? strings.assignRoleSuccess : result.message,
-        result.ok ? "success" : "error"
-      );
-      if (result.ok) reloadAfterDelay();
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+      try {
+        const tenantUserId = el.dataset.assignUser!;
+        const result = await submitJson(
+          "/api/v1/access/assignments",
+          "POST",
+          { tenantUserId, roleId },
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.assignRoleSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
     });
   });
 
   document.querySelectorAll(".role-chip-remove").forEach((button) => {
     button.addEventListener("click", async () => {
-      const el = button as HTMLElement;
-      const tenantUserId = el.dataset.unassignUser!;
-      const roleId = el.dataset.unassignRole!;
+      const el = button as HTMLButtonElement;
+      if (el.disabled) return;
+      const unlock = lockElement(el);
 
-      const result = await submitJson("/api/v1/access/assignments", "DELETE", {
-        tenantUserId,
-        roleId
-      });
-      showBanner(
-        result.ok ? strings.unassignRoleSuccess : result.message,
-        result.ok ? "success" : "error"
-      );
-      if (result.ok) reloadAfterDelay();
+      try {
+        const tenantUserId = el.dataset.unassignUser!;
+        const roleId = el.dataset.unassignRole!;
+
+        const result = await submitJson(
+          "/api/v1/access/assignments",
+          "DELETE",
+          { tenantUserId, roleId },
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.unassignRoleSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock();
+      }
     });
   });
 </script>

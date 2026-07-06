@@ -28,6 +28,18 @@ msgstr "Login failed. Try again."
 msgid "common.network_error"
 msgstr "Could not reach the server. Try again."
 
+msgid "common.error_title"
+msgstr "Something went wrong."
+
+msgid "common.error_body"
+msgstr "We could not load this page's data. Please try again."
+
+msgid "common.retry"
+msgstr "Try again"
+
+msgid "common.please_wait"
+msgstr "Please wait…"
+
 #. error codes (doc 05 §Error code standard)
 msgid "error.validation_error"
 msgstr "The submitted data is invalid."
@@ -120,6 +132,21 @@ msgstr "Sync active"
 msgid "admin.layout.sync_inactive"
 msgstr "Sync inactive"
 
+msgid "admin.layout.skip_to_content"
+msgstr "Skip to main content"
+
+msgid "admin.layout.theme_toggle_aria_label"
+msgstr "Change display theme"
+
+msgid "admin.layout.theme_system"
+msgstr "System"
+
+msgid "admin.layout.theme_light"
+msgstr "Light"
+
+msgid "admin.layout.theme_dark"
+msgstr "Dark"
+
 #. admin.dashboard
 msgid "admin.dashboard.access_denied_title"
 msgstr "Access denied."
@@ -193,6 +220,9 @@ msgstr "Metric"
 msgid "admin.dashboard.count_column"
 msgstr "Count"
 
+msgid "admin.dashboard.no_module_usage"
+msgstr "No module usage recorded yet."
+
 #. common (shared across pages)
 msgid "common.status_active"
 msgstr "Active"
@@ -227,6 +257,9 @@ msgstr "Actions"
 
 msgid "admin.access_users.no_users"
 msgstr "No users yet."
+
+msgid "admin.access_users.no_roles"
+msgstr "No roles yet."
 
 msgid "admin.access_users.unassign_role_aria_label"
 msgstr "Unassign role {role}"

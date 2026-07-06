@@ -6,6 +6,24 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/id/1.1.0/) dan pr
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-07-06
+
+### Fixed
+
+- **Audit UX/UI & aksesibilitas WCAG 2.1 AA** (Issue #434, milestone M9) atas layar admin yang sudah ada (`/login`, `/admin`, `/admin/access-users`, `/admin/sync`, `/admin/settings`, `AdminLayout.astro`) — menaikkan mutu, bukan membangun layar baru.
+- **Kontras warna di bawah AA**: status pill aktif/nonaktif (teks berwarna di atas `--color-surface-2`, terukur 2.91:1/4.26:1 di tema terang dan 4.06:1 di tema gelap) dan tombol/banner primer bertulisan putih di tema gelap (`--color-primary`/`--color-danger` polos hanya 3.68:1/3.76:1 dengan teks putih) — token baru `--color-primary-strong`/`--color-success-strong`/`--color-danger-strong` (diukur ulang, semua ≥4.5:1) dipakai di tombol CTA, banner error, dan status pill (kini solid-fill, bukan teks-di-atas-tint).
+- **Double-submit pada mutation form/tombol**: tak satu pun form/tombol admin (login, tambah/ubah user & role, assign/unassign role, toggle status, resolve conflict, retry queue, simpan settings) menonaktifkan dirinya selama request berjalan — klik ganda/`Enter` ganda yang cepat bisa mengirim mutation dua kali. Ditambahkan `lockElement` (`src/lib/ui/admin-form-client.ts`, modul klien bersama baru) yang menonaktifkan + `aria-busy` tombol pemicu selama request, mengembalikan state semula (termasuk saat gagal — input pengguna tetap utuh).
+- **Baris empty-state hilang** pada tabel Roles di `/admin/access-users` (tabel Users sudah punya, tabel Roles tidak).
+- **String hardcode lolos ekstraksi i18n #433**: `ThemeToggle.astro` masih hardcode Indonesia ("Sistem"/"Terang"/"Gelap", aria-label "Ganti tema tampilan") — kini menerima label ter-terjemahkan dari `AdminLayout.astro` seperti komponen topbar lainnya.
+- **Cabang Error tak pernah ada** pada empat state pattern doc 14 (`Loading -> Error: gagal`) — kegagalan fetch data SSR (mis. DB error di `AdminLayout.astro`/keempat layar admin) sebelumnya tidak punya jalur render sama sekali (500 mentah). Ditambahkan `StateNotice.astro` (komponen bersama baru, `src/components/ui`) yang membedakan "akses ditolak" dari "gagal sementara, coba lagi" — juga menggantikan empat blok `.permission-denied` yang sebelumnya duplikat identik.
+
+### Changed
+
+- Empat implementasi `submitJson`/`showBanner`/`reloadAfterDelay` yang identik di `login.astro`, `admin/access-users.astro`, `admin/sync.astro`, `admin/settings.astro` diekstrak ke satu modul klien bersama (`src/lib/ui/admin-form-client.ts`).
+- Ditambahkan skip-link keyboard di `AdminLayout.astro` (lompat ke konten utama, melewati topbar/sidebar), container scroll (`overflow-x: auto`) untuk semua tabel lebar (tablet), dan target sentuh ≥44px pada breakpoint tablet/mobile untuk kontrol interaktif kecil (theme toggle, tombol aksi tabel, chip hapus role).
+- `AdminLayout.astro`: query nama tenant/status sync kini dibungkus `try/catch` dengan fallback aman — sebelumnya kegagalan salah satu query (dijalankan di setiap request `/admin/*`) menjatuhkan seluruh shell.
+- Key `.po` baru (`common.error_*`, `common.retry`, `common.please_wait`, `admin.access_users.no_roles`, `admin.dashboard.no_module_usage`, `admin.layout.skip_to_content`, `admin.layout.theme_*`) ditambahkan paralel di `en.po`/`id.po`/`messages.pot` — keyset tetap identik di ketiga berkas.
+
 ## [0.23.0] - 2026-07-06
 
 ### Added

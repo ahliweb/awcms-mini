@@ -11,6 +11,7 @@
  * documented in the OpenAPI contract for external/API callers.
  */
 import AdminLayout from "../../layouts/AdminLayout.astro";
+import StateNotice from "../../components/ui/StateNotice.astro";
 import { getDatabaseClient } from "../../lib/database/client";
 import { withTenant } from "../../lib/database/tenant-context";
 import { permissionKey } from "../../modules/identity-access/domain/access-control";
@@ -39,29 +40,59 @@ const hasDashboardAccess = context.permissions.has(
   REPORTING_DASHBOARD_PERMISSION
 );
 
-const dashboard = hasDashboardAccess
-  ? await withTenant(getDatabaseClient(), context.tenantId, async (tx) => ({
-      tenantActivity: await fetchTenantActivityReport(tx, context.tenantId),
-      accessAudit: await fetchAccessAuditReport(tx, context.tenantId),
-      syncHealth: await fetchSyncHealthReport(tx, context.tenantId),
-      moduleUsage: await fetchModuleUsageReport(tx, context.tenantId)
-    }))
-  : null;
+// Issue #434 (UX/UI audit) — see `admin/access-users.astro` for the same
+// denied-vs-error split (doc 14 §State pattern wajib Error branch): a
+// failure in any of these four report queries previously had no graceful
+// rendering path (unhandled 500) on the one page every admin lands on
+// first.
+let dashboard: {
+  tenantActivity: Awaited<ReturnType<typeof fetchTenantActivityReport>>;
+  accessAudit: Awaited<ReturnType<typeof fetchAccessAuditReport>>;
+  syncHealth: Awaited<ReturnType<typeof fetchSyncHealthReport>>;
+  moduleUsage: Awaited<ReturnType<typeof fetchModuleUsageReport>>;
+} | null = null;
+let loadError = false;
+
+if (hasDashboardAccess) {
+  try {
+    dashboard = await withTenant(
+      getDatabaseClient(),
+      context.tenantId,
+      async (tx) => ({
+        tenantActivity: await fetchTenantActivityReport(tx, context.tenantId),
+        accessAudit: await fetchAccessAuditReport(tx, context.tenantId),
+        syncHealth: await fetchSyncHealthReport(tx, context.tenantId),
+        moduleUsage: await fetchModuleUsageReport(tx, context.tenantId)
+      })
+    );
+  } catch (error) {
+    console.error("admin/index.astro: failed to load dashboard", error);
+    loadError = true;
+  }
+}
 ---
 
 <AdminLayout title={t("admin.layout.nav_dashboard")}>
   {
-    !dashboard && (
-      <div class="permission-denied" role="alert">
-        <p>
-          <strong>{t("admin.dashboard.access_denied_title")}</strong>
-        </p>
-        <p>
-          {t("admin.dashboard.access_denied_body", {
-            permission: REPORTING_DASHBOARD_PERMISSION
-          })}
-        </p>
-      </div>
+    !hasDashboardAccess && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.dashboard.access_denied_title")}
+        body={t("admin.dashboard.access_denied_body", {
+          permission: REPORTING_DASHBOARD_PERMISSION
+        })}
+      />
+    )
+  }
+  {
+    hasDashboardAccess && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
     )
   }
   {
@@ -128,24 +159,31 @@ const dashboard = hasDashboardAccess
         </section>
         <section class="dashboard-card">
           <h2>{t("admin.dashboard.module_usage_title")}</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>{t("admin.dashboard.module_column")}</th>
-                <th>{t("admin.dashboard.metric_column")}</th>
-                <th>{t("admin.dashboard.count_column")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dashboard.moduleUsage.map((entry) => (
+          <div class="table-scroll">
+            <table>
+              <thead>
                 <tr>
-                  <td>{entry.moduleName}</td>
-                  <td>{entry.metricLabel}</td>
-                  <td>{entry.recordCount}</td>
+                  <th>{t("admin.dashboard.module_column")}</th>
+                  <th>{t("admin.dashboard.metric_column")}</th>
+                  <th>{t("admin.dashboard.count_column")}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {dashboard.moduleUsage.length === 0 && (
+                  <tr>
+                    <td colspan={3}>{t("admin.dashboard.no_module_usage")}</td>
+                  </tr>
+                )}
+                {dashboard.moduleUsage.map((entry) => (
+                  <tr>
+                    <td>{entry.moduleName}</td>
+                    <td>{entry.metricLabel}</td>
+                    <td>{entry.recordCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       </div>
     )
@@ -189,6 +227,12 @@ const dashboard = hasDashboardAccess
     text-align: right;
   }
 
+  /* Responsive (doc 14 §Responsif) — wide tables scroll in their own
+     container instead of forcing the whole page to scroll horizontally. */
+  .table-scroll {
+    overflow-x: auto;
+  }
+
   .dashboard-card table {
     width: 100%;
     border-collapse: collapse;
@@ -199,18 +243,6 @@ const dashboard = hasDashboardAccess
     text-align: left;
     padding: var(--sp-1) var(--sp-2);
     border-bottom: 1px solid var(--color-border);
-    font-size: var(--fs-sm);
-  }
-
-  .permission-denied {
-    background: var(--color-surface-2);
-    border: 1px solid var(--color-danger);
-    border-radius: var(--radius-md);
-    padding: var(--sp-4);
-  }
-
-  .permission-denied code {
-    font-family: var(--font-mono);
     font-size: var(--fs-sm);
   }
 </style>

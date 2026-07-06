@@ -22,6 +22,8 @@ const t = await createTranslator(locale);
 const clientStrings = {
   genericError: t("auth.login.generic_error"),
   networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  submitLabel: t("auth.login.submit"),
   errorMessages: buildClientErrorMessages(t)
 };
 ---
@@ -72,7 +74,9 @@ const clientStrings = {
           autocomplete="current-password"
         />
 
-        <button type="submit">{t("auth.login.submit")}</button>
+        <button type="submit" id="login-submit">
+          {t("auth.login.submit")}
+        </button>
       </form>
     </main>
 
@@ -82,14 +86,29 @@ const clientStrings = {
       set:html={JSON.stringify(clientStrings)}
     />
 
-    <script type="module">
-      const form = document.getElementById("login-form");
-      const errorBox = document.getElementById("login-error");
-      const strings = JSON.parse(
-        document.getElementById("i18n-strings")?.textContent ?? "{}"
-      );
+    <script>
+      import {
+        lockElement,
+        readClientStrings
+      } from "../lib/ui/admin-form-client";
 
-      function showError(message) {
+      interface LoginStrings {
+        genericError: string;
+        networkError: string;
+        pleaseWait: string;
+        errorMessages?: Record<string, string>;
+      }
+
+      const form = document.getElementById(
+        "login-form"
+      ) as HTMLFormElement | null;
+      const errorBox = document.getElementById("login-error");
+      const submitButton = document.getElementById(
+        "login-submit"
+      ) as HTMLButtonElement | null;
+      const strings = readClientStrings<LoginStrings>();
+
+      function showError(message: string): void {
         if (!errorBox) return;
         errorBox.textContent = message;
         errorBox.hidden = false;
@@ -97,6 +116,15 @@ const clientStrings = {
 
       form?.addEventListener("submit", async (event) => {
         event.preventDefault();
+
+        // Issue #434 (UX/UI audit): guard + disable the submit button for
+        // the duration of the request — previously a fast double-click (or
+        // double Enter) could fire two login POSTs before the first
+        // redirect landed (doc 14 §Form UX "cegah double-submit").
+        if (!submitButton || submitButton.disabled) {
+          return;
+        }
+        const unlock = lockElement(submitButton, strings.pleaseWait);
 
         if (errorBox) {
           errorBox.hidden = true;
@@ -123,15 +151,19 @@ const clientStrings = {
           const payload = await response.json().catch(() => null);
 
           if (!response.ok || !payload || payload.success !== true) {
-            const code = payload?.error?.code;
+            const code = payload?.error?.code as string | undefined;
             const localized = code ? strings.errorMessages?.[code] : null;
             showError(localized ?? strings.genericError);
+            unlock();
             return;
           }
 
+          // Navigating away — leave the button disabled/busy rather than
+          // unlocking, so it can't be clicked again during the redirect.
           window.location.href = "/admin";
         } catch {
           showError(strings.networkError);
+          unlock();
         }
       });
     </script>
@@ -181,7 +213,8 @@ const clientStrings = {
   .login-form button {
     margin-top: var(--sp-3);
     padding: var(--sp-2) var(--sp-3);
-    background: var(--color-primary);
+    min-height: 44px;
+    background: var(--color-primary-strong);
     color: var(--color-primary-contrast);
     border: none;
     border-radius: var(--radius-sm);
@@ -189,9 +222,18 @@ const clientStrings = {
     font-weight: 600;
   }
 
+  .login-form button:disabled {
+    cursor: not-allowed;
+    opacity: 0.75;
+  }
+
+  .login-form input {
+    min-height: 44px;
+  }
+
   .login-error {
     color: var(--color-primary-contrast);
-    background: var(--color-danger);
+    background: var(--color-danger-strong);
     border-radius: var(--radius-sm);
     padding: var(--sp-2) var(--sp-3);
     font-size: var(--fs-sm);
