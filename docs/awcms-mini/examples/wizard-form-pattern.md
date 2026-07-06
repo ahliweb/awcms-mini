@@ -13,6 +13,13 @@ step, i18n, validasi, submit `Idempotency-Key`, anti-double-submit):
 [`wizard-derived-module-example.md`](wizard-derived-module-example.md)
 (Issue #482).
 
+Fixture non-domain yang bisa langsung dijalankan di repo ini (admin shell
+nyata, data dummy, submit mock lokal tanpa endpoint baru):
+`src/pages/admin/examples/wizard.astro` (`/admin/examples/wizard`, Issue
+#483) — juga tempat pola "pindahkan fokus ke judul panel saat step
+berubah" (lihat §Accessibility checklist di bawah) benar-benar
+diimplementasikan, bukan sekadar didokumentasikan.
+
 ## Tujuan
 
 1. Membagi form panjang menjadi beberapa langkah yang mudah dipahami operator.
@@ -267,15 +274,17 @@ export const dutyTravelWizardSteps: WizardStep[] = [
 - Status step tidak hanya ditandai warna; tambahkan teks atau ikon.
 - Submit state memakai `aria-busy="true"`.
 
-Belum diimplementasikan di komponen MVP ini — jadi tanggung jawab
-halaman pemanggil, bukan jaminan `WizardPanel`/`WizardStepper` itu sendiri
-(komponen ini tidak menyertakan `<script>` client apa pun):
+Bukan jaminan `WizardPanel`/`WizardStepper` itu sendiri (komponen ini
+tidak menyertakan `<script>` client apa pun) — tanggung jawab halaman
+pemanggil, dengan implementasi referensi nyata di
+`src/pages/admin/examples/wizard.astro` (Issue #483):
 
-- Pindahkan fokus ke judul panel (`#${id}-title`) setiap kali step aktif
-  berubah (mis. setelah `Next`/`Back`/jump), supaya pembaca layar
-  mengumumkan step baru. Panggil `document.getElementById(...).focus()`
-  (dengan `tabindex="-1"` pada elemen judul) dari script halaman yang
-  mengorkestrasi transisi step.
+- Pindahkan fokus ke panel (elemen `<section id="step-...">` yang
+  dirender `WizardPanel`, diberi `tabindex="-1"` sesaat lalu `.focus()`)
+  setiap kali step aktif berubah (mis. setelah `Next`/`Back`), supaya
+  pembaca layar mengumumkan step baru. Panggil dari script halaman yang
+  mengorkestrasi transisi step, persis seperti fungsi
+  `focusPanelHeading()` di fixture di atas.
 
 ## Testing checklist
 
