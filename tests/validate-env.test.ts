@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  checkEmailConfig,
   checkR2Config,
   checkRequiredVars,
   checkSyncConfig,
@@ -117,12 +118,85 @@ describe("checkR2Config", () => {
   });
 });
 
+describe("checkEmailConfig", () => {
+  test("passes (single check) when email is disabled", () => {
+    const results = checkEmailConfig({
+      EMAIL_ENABLED: "false"
+    } as NodeJS.ProcessEnv);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe("pass");
+  });
+
+  test("fails when email is enabled but EMAIL_FROM_ADDRESS/EMAIL_PROVIDER are missing", () => {
+    const results = checkEmailConfig({
+      EMAIL_ENABLED: "true"
+    } as NodeJS.ProcessEnv);
+
+    const failedNames = results
+      .filter((result) => result.status === "fail")
+      .map((result) => result.name)
+      .sort();
+
+    expect(failedNames).toEqual(
+      ["EMAIL_FROM_ADDRESS", "EMAIL_PROVIDER"].sort()
+    );
+  });
+
+  test("fails when EMAIL_PROVIDER is not a known provider", () => {
+    const results = checkEmailConfig({
+      EMAIL_ENABLED: "true",
+      EMAIL_FROM_ADDRESS: "no-reply@example.com",
+      EMAIL_PROVIDER: "sendgrid"
+    } as NodeJS.ProcessEnv);
+
+    const failed = results.find((result) => result.name === "EMAIL_PROVIDER");
+    expect(failed?.status).toBe("fail");
+  });
+
+  test("fails and names each missing Mailketing credential when EMAIL_PROVIDER=mailketing", () => {
+    const results = checkEmailConfig({
+      EMAIL_ENABLED: "true",
+      EMAIL_FROM_ADDRESS: "no-reply@example.com",
+      EMAIL_PROVIDER: "mailketing",
+      EMAIL_MAILKETING_ACCOUNT_ID: "acct-123"
+    } as NodeJS.ProcessEnv);
+
+    const failedNames = results
+      .filter((result) => result.status === "fail")
+      .map((result) => result.name)
+      .sort();
+
+    expect(failedNames).toEqual(
+      ["EMAIL_MAILKETING_API_TOKEN", "EMAIL_MAILKETING_API_BASE_URL"].sort()
+    );
+    expect(
+      results.find((result) => result.name === "EMAIL_MAILKETING_ACCOUNT_ID")
+        ?.status
+    ).toBe("pass");
+  });
+
+  test("all pass when email is enabled with mailketing and every credential is set", () => {
+    const results = checkEmailConfig({
+      EMAIL_ENABLED: "true",
+      EMAIL_FROM_ADDRESS: "no-reply@example.com",
+      EMAIL_PROVIDER: "mailketing",
+      EMAIL_MAILKETING_ACCOUNT_ID: "acct-123",
+      EMAIL_MAILKETING_API_TOKEN: "a-real-token",
+      EMAIL_MAILKETING_API_BASE_URL: "https://api.mailketing.example/v1"
+    } as NodeJS.ProcessEnv);
+
+    expect(results.every((result) => result.status === "pass")).toBe(true);
+  });
+});
+
 describe("runEnvValidation", () => {
-  test("passes end-to-end for a minimal valid env (sync/R2 both off)", () => {
+  test("passes end-to-end for a minimal valid env (sync/R2/email all off)", () => {
     const env = {
       ...VALID_ENV,
       AWCMS_MINI_SYNC_ENABLED: "false",
-      R2_ENABLED: "false"
+      R2_ENABLED: "false",
+      EMAIL_ENABLED: "false"
     } as NodeJS.ProcessEnv;
 
     const results = runEnvValidation(env);
@@ -133,6 +207,16 @@ describe("runEnvValidation", () => {
     const env = { ...VALID_ENV, DATABASE_URL: "" } as NodeJS.ProcessEnv;
     const results = runEnvValidation(env);
 
+    expect(results.some((result) => result.status === "fail")).toBe(true);
+  });
+
+  test("fails end-to-end when email is enabled but misconfigured", () => {
+    const env = {
+      ...VALID_ENV,
+      EMAIL_ENABLED: "true"
+    } as NodeJS.ProcessEnv;
+
+    const results = runEnvValidation(env);
     expect(results.some((result) => result.status === "fail")).toBe(true);
   });
 });
