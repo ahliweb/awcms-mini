@@ -72,6 +72,7 @@ type WorkflowRun = {
   conclusion: string | null;
   headSha: string;
   createdAt: string;
+  status: string;
 };
 
 /** Runs `gh` and returns stdout. Never logs args that could contain a token — this script never passes one. */
@@ -174,7 +175,7 @@ async function fetchLiveState(repo: string) {
     "--limit",
     "1",
     "--json",
-    "conclusion,headSha,createdAt"
+    "conclusion,headSha,createdAt,status"
   ])?.[0];
 
   return {
@@ -404,7 +405,7 @@ async function main() {
     const file = path.join(DOCS_DIR, "security.md");
     let content = readFileSync(file, "utf8");
     content = content.replace(/^Snapshot: .*$/m, `Snapshot: ${snapshotAt}`);
-    if (state.latestCodeQlRun) {
+    if (state.latestCodeQlRun?.status === "completed") {
       const shortSha = state.latestCodeQlRun.headSha.slice(0, 7);
       const status =
         state.latestCodeQlRun.conclusion === "success" ? "Success" : "Failure";
@@ -412,6 +413,13 @@ async function main() {
         content,
         "Latest CodeQL run",
         `${status} pada \`main\` commit \`${shortSha}\` (${state.latestCodeQlRun.createdAt})`
+      );
+    } else if (state.latestCodeQlRun) {
+      // Run hasn't finished yet (queued/in_progress) — `conclusion` would be
+      // null/empty here, which would otherwise be misread as "Failure". Leave
+      // the row as whatever it currently says rather than guess.
+      console.log(
+        "Latest CodeQL run belum selesai (status bukan 'completed') — baris 'Latest CodeQL run' TIDAK diperbarui, tinjau ulang nanti."
       );
     }
     if (state.dependabotOpen !== null && state.dependabotAll !== null) {
