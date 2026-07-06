@@ -6,7 +6,11 @@ import {
   resetWorkClassGatesForTests,
   WorkClassTimeoutError
 } from "../src/lib/database/work-class";
-import { createCircuitBreaker } from "../src/lib/database/circuit-breaker";
+import {
+  createCircuitBreaker,
+  getProviderCircuitBreaker,
+  resetProviderCircuitBreakersForTests
+} from "../src/lib/database/circuit-breaker";
 
 describe("acquireWorkClassSlot", () => {
   beforeEach(() => {
@@ -246,5 +250,66 @@ describe("createCircuitBreaker", () => {
     const elapsedAgain = new Date(afterElapsed.getTime() + 1000);
 
     expect(breaker.getState(elapsedAgain)).toBe("half_open");
+  });
+});
+
+// Issue #436 — extends the same generic circuit breaker (above) to outbound
+// calls to external providers (object storage upload dispatcher), via a
+// per-provider-key registry rather than a single DB-only singleton.
+describe("getProviderCircuitBreaker", () => {
+  afterEach(() => {
+    resetProviderCircuitBreakersForTests();
+  });
+
+  test("returns the same breaker instance for the same provider key", () => {
+    const first = getProviderCircuitBreaker("object-storage", {
+      failureThreshold: 3,
+      openDurationMs: 1000
+    });
+    const second = getProviderCircuitBreaker("object-storage");
+
+    const t0 = new Date("2026-01-01T00:00:00.000Z");
+    first.recordFailure(t0);
+    first.recordFailure(t0);
+    first.recordFailure(t0);
+
+    expect(second.getState(t0)).toBe("open");
+  });
+
+  test("keeps separate state for different provider keys", () => {
+    const objectStorage = getProviderCircuitBreaker("object-storage", {
+      failureThreshold: 2,
+      openDurationMs: 1000
+    });
+    const otherProvider = getProviderCircuitBreaker("other-provider", {
+      failureThreshold: 2,
+      openDurationMs: 1000
+    });
+    const t0 = new Date("2026-01-01T00:00:00.000Z");
+
+    objectStorage.recordFailure(t0);
+    objectStorage.recordFailure(t0);
+
+    expect(objectStorage.getState(t0)).toBe("open");
+    expect(otherProvider.getState(t0)).toBe("closed");
+  });
+
+  test("resetProviderCircuitBreakersForTests clears all registered breakers", () => {
+    const breaker = getProviderCircuitBreaker("object-storage", {
+      failureThreshold: 1,
+      openDurationMs: 1000
+    });
+    const t0 = new Date("2026-01-01T00:00:00.000Z");
+
+    breaker.recordFailure(t0);
+    expect(breaker.getState(t0)).toBe("open");
+
+    resetProviderCircuitBreakersForTests();
+
+    const fresh = getProviderCircuitBreaker("object-storage", {
+      failureThreshold: 1,
+      openDurationMs: 1000
+    });
+    expect(fresh.getState(t0)).toBe("closed");
   });
 });

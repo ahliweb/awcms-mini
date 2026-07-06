@@ -119,3 +119,46 @@ export function getDatabaseCircuitBreaker(): CircuitBreaker {
 export function resetDatabaseCircuitBreakerForTests(): void {
   sharedDatabaseCircuitBreaker = undefined;
 }
+
+// -----------------------------------------------------------------------
+// Provider circuit breakers (Issue #436 — extend this same generic breaker
+// to outbound calls to external providers, not just the database). One
+// breaker per provider key (e.g. "object-storage") so an outage in one
+// provider doesn't trip the breaker for an unrelated one — a registry
+// instead of a single singleton like `getDatabaseCircuitBreaker` above,
+// since (unlike the DB) this app can have more than one external provider.
+// -----------------------------------------------------------------------
+
+const DEFAULT_PROVIDER_FAILURE_THRESHOLD = 5;
+const DEFAULT_PROVIDER_OPEN_DURATION_MS = 30_000;
+
+const providerCircuitBreakers = new Map<string, CircuitBreaker>();
+
+/**
+ * Module-level singleton per `providerKey`, shared across the whole app (not
+ * per-request/per-tenant), so consecutive failures calling the same
+ * provider accumulate against the same breaker regardless of which tenant's
+ * request triggered them. `options` only applies the first time a given
+ * `providerKey` is requested; later calls return the existing breaker.
+ */
+export function getProviderCircuitBreaker(
+  providerKey: string,
+  options: CircuitBreakerOptions = {
+    failureThreshold: DEFAULT_PROVIDER_FAILURE_THRESHOLD,
+    openDurationMs: DEFAULT_PROVIDER_OPEN_DURATION_MS
+  }
+): CircuitBreaker {
+  let breaker = providerCircuitBreakers.get(providerKey);
+
+  if (!breaker) {
+    breaker = createCircuitBreaker(options);
+    providerCircuitBreakers.set(providerKey, breaker);
+  }
+
+  return breaker;
+}
+
+/** Test-only reset so breaker state doesn't leak between test cases. */
+export function resetProviderCircuitBreakersForTests(): void {
+  providerCircuitBreakers.clear();
+}
