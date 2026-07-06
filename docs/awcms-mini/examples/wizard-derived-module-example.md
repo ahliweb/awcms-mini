@@ -16,8 +16,12 @@ nyata, bukan sekadar daftar tanggung jawab komponen.
 Ikuti kriteria di `wizard-form-pattern.md` §Kapan memakai wizard. Contoh
 konkret di sini: form registrasi aset dengan tiga kategori data (identitas
 aset, lokasi, kategori/kondisi) — cukup panjang untuk manfaat dari step
-terpisah, tapi tidak butuh lampiran/draft/resume (jadi tetap MVP, bukan
-alasan untuk server-side draft persistence — lihat #484).
+terpisah, tapi tidak butuh lampiran/draft/resume di contoh ini secara
+spesifik. Server-side draft persistence generik memang tersedia
+(`/api/v1/form-drafts`, Issue #484) bila modul domain Anda membutuhkannya —
+lihat §6 di bawah untuk pola submit yang sama, dan
+[`wizard-form-pattern.md`](wizard-form-pattern.md) §Server-side draft
+untuk API lengkap.
 
 ## 1. Import komponen dan helper
 

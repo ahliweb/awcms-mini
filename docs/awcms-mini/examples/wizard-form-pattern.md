@@ -183,13 +183,21 @@ Pola ini wajib mengikuti guardrail AWCMS-Mini:
 9. Provider eksternal seperti R2, email, WhatsApp, atau AI tidak boleh dipanggil
    di dalam transaksi database.
 
-## Server-side draft: follow-up, bukan MVP
+## Server-side draft — tersedia (Issue #484)
 
-Issue #479 sengaja tidak langsung membangun draft persistence agar scope tetap
-kecil dan tidak over-engineering. Setelah pattern dipakai minimal oleh dua modul
-domain nyata, buat issue lanjutan untuk server-side draft.
+Issue #479 sengaja tidak langsung membangun draft persistence agar scope MVP
+tetap kecil. Setelah #482 (contoh pemakaian derived module) dan #483
+(fixture nyata) landed, maintainer meng-unblock follow-up ini dengan pilot
+plan konkret — sekarang tersedia sebagai modul generik
+`src/modules/form-drafts/` (lihat README modul itu untuk detail lengkap:
+endpoint, model idempotency per-aksi, retensi/expiry, dan alasan tiap
+keputusan desain).
 
-Tabel draft yang disarankan:
+Skema final (`sql/019_awcms_mini_form_drafts_schema.sql`) — satu
+perbedaan dari rancangan awal di bawah: `resource_id` bertipe `text`,
+bukan `uuid`, disamakan dengan `awcms_mini_workflow_instances`/
+`awcms_mini_audit_events.resource_id` supaya draft bisa menunjuk resource
+yang belum ada atau identifier non-UUID:
 
 ```sql
 CREATE TABLE awcms_mini_form_drafts (
@@ -198,7 +206,7 @@ CREATE TABLE awcms_mini_form_drafts (
   module_key text NOT NULL,
   wizard_key text NOT NULL,
   resource_type text NOT NULL,
-  resource_id uuid,
+  resource_id text,
   current_step text NOT NULL,
   payload jsonb NOT NULL,
   status text NOT NULL CHECK (status IN ('draft', 'submitted', 'abandoned', 'expired')),
@@ -215,16 +223,11 @@ CREATE TABLE awcms_mini_form_drafts (
 );
 ```
 
-Follow-up server-side draft wajib menambah:
-
-- migration SQL berurutan;
-- RLS policy tenant-scoped;
-- repository dan service layer;
-- OpenAPI endpoint;
-- audit log untuk create/update/submit/delete draft;
-- retention/expiry policy;
-- test RLS dan permission;
-- dokumentasi operasi.
+Pemakaian dari modul domain turunan: lihat
+[`wizard-derived-module-example.md`](wizard-derived-module-example.md)
+§6-7 (submit `Idempotency-Key`, anti-double-submit) — pola create/
+update/submit/delete draft mengikuti API `/api/v1/form-drafts` yang sama
+persis dipakai `admin/examples/wizard.astro` sebagai pilot.
 
 ## Contoh definisi step
 

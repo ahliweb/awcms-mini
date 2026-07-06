@@ -27,6 +27,7 @@ Skill Claude Code tingkat-proyek untuk AWCMS-Mini. Setiap skill meng-encode stan
 | `awcms-mini-deploy`                                    | Pilih & jalankan profil deployment (LAN-first vs registry/Coolify)          | 18, deploy-coolify.md  |
 | `awcms-mini-ui-screen`                                 | Implementasi layar/komponen UI sesuai design system                         | 14, 15                 |
 | `awcms-mini-wizard-form`                               | Form multi-step (reusable wizard pattern)                                   | wizard-form-pattern.md |
+| `awcms-mini-form-drafts`                               | Server-side draft persistence (resume lintas sesi/perangkat)                | form-drafts/README.md  |
 | `awcms-mini-i18n`                                      | String UI `.po` gettext & konten multi-bahasa                               | 14, 04, 19             |
 | `awcms-mini-release`                                   | Rilis versi via Changesets (bump, CHANGELOG, tag)                           | 09                     |
 | `awcms-mini-legacy-migration`                          | Migrasi data legacy aman (dry-run, backfill)                                | 07, 06                 |
@@ -72,6 +73,9 @@ flowchart TD
   UI --> WIZ[awcms-mini-wizard-form]
   WIZ --> IDEM
   WIZ --> I18N
+  WIZ --> DRAFT[awcms-mini-form-drafts]
+  DRAFT --> IDEM
+  DRAFT --> ABAC
   II --> LEG[awcms-mini-legacy-migration]
   II --> PR[awcms-mini-pr-review]
   PR --> SEC[awcms-mini-security-review]
