@@ -58,12 +58,31 @@ function checkLinks(file, content) {
     const resolved = path.startsWith("/")
       ? join(ROOT, path)
       : resolve(dir, path);
-    if (!existsSync(resolved)) {
+
+    // Single stat instead of a separate `existsSync` check followed by a
+    // later re-touch of the same path (CodeQL js/file-system-race) — the
+    // file could disappear between an initial existence check and this
+    // read, so the "does it exist" answer and the actual read now come
+    // from one `try`, not two syscalls with a window between them.
+    let stat;
+    try {
+      stat = statSync(resolved);
+    } catch {
       problems.push({ file, line, message: `tautan rusak: ${target}` });
       continue;
     }
-    if (hash && resolved.endsWith(".md") && statSync(resolved).isFile()) {
-      const slugs = headingSlugs(readFileSync(resolved, "utf8"));
+
+    if (hash && resolved.endsWith(".md") && stat.isFile()) {
+      let targetContent;
+      try {
+        targetContent = readFileSync(resolved, "utf8");
+      } catch {
+        // Vanished between the stat above and this read — same "broken
+        // link" outcome a user would see if it were simply missing.
+        problems.push({ file, line, message: `tautan rusak: ${target}` });
+        continue;
+      }
+      const slugs = headingSlugs(targetContent);
       if (!slugs.has(hash.toLowerCase())) {
         problems.push({
           file,

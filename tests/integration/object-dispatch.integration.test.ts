@@ -15,7 +15,6 @@
  * Skipped unless DATABASE_URL is set (see tests/integration/harness.ts).
  */
 import {
-  afterAll,
   afterEach,
   beforeAll,
   beforeEach,
