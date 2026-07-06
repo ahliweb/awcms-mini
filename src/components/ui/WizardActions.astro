@@ -1,0 +1,139 @@
+---
+interface Props {
+  backLabel?: string;
+  nextLabel?: string;
+  submitLabel?: string;
+  saveDraftLabel?: string;
+  showBack?: boolean;
+  showNext?: boolean;
+  showSubmit?: boolean;
+  showSaveDraft?: boolean;
+  busy?: boolean;
+}
+
+const {
+  backLabel = "Back",
+  nextLabel = "Next",
+  submitLabel = "Submit",
+  saveDraftLabel = "Save draft",
+  showBack = true,
+  showNext = true,
+  showSubmit = false,
+  showSaveDraft = false,
+  busy = false
+} = Astro.props;
+---
+
+<div class="wizard-actions" aria-busy={busy ? "true" : "false"}>
+  <div class="wizard-actions-secondary">
+    {
+      showBack && (
+        <button
+          type="button"
+          class="wizard-action wizard-action-secondary"
+          data-wizard-back
+          disabled={busy}
+        >
+          {backLabel}
+        </button>
+      )
+    }
+    {
+      showSaveDraft && (
+        <button
+          type="button"
+          class="wizard-action wizard-action-secondary"
+          data-wizard-save-draft
+          disabled={busy}
+        >
+          {saveDraftLabel}
+        </button>
+      )
+    }
+  </div>
+
+  <div class="wizard-actions-primary">
+    {
+      showNext && (
+        <button
+          type="button"
+          class="wizard-action wizard-action-primary"
+          data-wizard-next
+          disabled={busy}
+        >
+          {nextLabel}
+        </button>
+      )
+    }
+    {
+      showSubmit && (
+        <button
+          type="submit"
+          class="wizard-action wizard-action-primary"
+          data-wizard-submit
+          disabled={busy}
+        >
+          {submitLabel}
+        </button>
+      )
+    }
+  </div>
+</div>
+
+<style>
+  .wizard-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    align-items: center;
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--sp-3);
+  }
+
+  .wizard-actions-secondary,
+  .wizard-actions-primary {
+    display: flex;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
+  }
+
+  .wizard-action {
+    min-height: 44px;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-2) var(--sp-4);
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .wizard-action-primary {
+    border: 1px solid var(--color-primary-strong);
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+  }
+
+  .wizard-action-secondary {
+    border: 1px solid var(--color-border);
+    background: var(--color-surface-2);
+    color: var(--color-text);
+  }
+
+  .wizard-action:focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  .wizard-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  @media (max-width: 640px) {
+    .wizard-actions,
+    .wizard-actions-secondary,
+    .wizard-actions-primary {
+      align-items: stretch;
+      flex-direction: column;
+    }
+  }
+</style>
