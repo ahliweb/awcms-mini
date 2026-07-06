@@ -9,7 +9,7 @@ import {
 } from "../../../../../lib/security/rate-limit";
 import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
 import { completePasswordReset } from "../../../../../modules/identity-access/application/password-reset";
-import { validateResetPasswordInput } from "../../../../../modules/identity-access/domain/password-reset-validation";
+import { validateCompleteResetInput } from "../../../../../modules/identity-access/domain/password-reset-validation";
 
 const RATE_LIMIT_MAX_ATTEMPTS = Number(
   process.env.AUTH_PASSWORD_RESET_RATE_LIMIT_MAX ?? 5
@@ -56,7 +56,7 @@ export const POST: APIRoute = async ({ request, clientAddress, locals }) => {
     );
   }
 
-  const validation = validateResetPasswordInput(
+  const validation = validateCompleteResetInput(
     await request.json().catch(() => null)
   );
 

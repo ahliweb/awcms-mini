@@ -44,7 +44,7 @@ export function normalizeIdentifier(
  * never used for credential storage.
  */
 export function hashIdentifier(normalizedValue: string): string {
-  return `sha256:${createHash("sha256").update(normalizedValue).digest("hex")}`; // codeql[js/insufficient-password-hash]
+  return `sha256:${createHash("sha256").update(normalizedValue).digest("hex")}`;
 }
 
 export function maskIdentifier(

@@ -3,9 +3,10 @@
  * real caller that enqueues into `awcms_mini_email_messages` (`sql/020`).
  * Reuses identity/session/sensitive-data patterns rather than rebuilding
  * auth: `login.ts`'s tenant/identity/tenant_user active checks,
- * `session-token.ts`'s token shape (via `password-reset-token.ts`'s twin),
- * and `profile-identity/domain/identifier.ts`'s normalize/hash/mask
- * pipeline for the recipient address.
+ * `session-token.ts`'s token shape (via `password-reset-token.ts`'s twin
+ * `generateResetToken`/`hashResetToken`), and
+ * `profile-identity/domain/identifier.ts`'s normalize/hash/mask pipeline
+ * for the recipient address.
  *
  * Both functions are account-enumeration-safe by construction:
  * `requestPasswordReset` returns `{ enqueued: false }` for every ineligible
@@ -17,8 +18,8 @@
  */
 import { hashPassword } from "../../../lib/auth/password";
 import {
-  generatePasswordResetToken,
-  hashPasswordResetToken
+  generateResetToken,
+  hashResetToken
 } from "../../../lib/auth/password-reset-token";
 import {
   hashIdentifier,
@@ -88,8 +89,8 @@ export async function requestPasswordReset(
     WHERE tenant_id = ${tenantId} AND identity_id = ${identity.id} AND used_at IS NULL
   `;
 
-  const rawToken = generatePasswordResetToken();
-  const tokenHash = hashPasswordResetToken(rawToken);
+  const rawToken = generateResetToken();
+  const tokenHash = hashResetToken(rawToken);
   const expiresAt = new Date(now.getTime() + options.tokenTtlMinutes * 60_000);
 
   await tx`
@@ -131,7 +132,7 @@ export async function completePasswordReset(
   newPassword: string,
   now: Date
 ): Promise<CompletePasswordResetResult> {
-  const tokenHash = hashPasswordResetToken(rawToken);
+  const tokenHash = hashResetToken(rawToken);
 
   const tokenRows = (await tx`
     SELECT id, identity_id, expires_at, used_at

@@ -9,7 +9,7 @@ import {
 } from "../../../../../lib/security/rate-limit";
 import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
 import { requestPasswordReset } from "../../../../../modules/identity-access/application/password-reset";
-import { validateForgotPasswordInput } from "../../../../../modules/identity-access/domain/password-reset-validation";
+import { validateForgotIdentifierInput } from "../../../../../modules/identity-access/domain/password-reset-validation";
 
 const TOKEN_TTL_MIN = Number(
   process.env.AUTH_PASSWORD_RESET_TOKEN_TTL_MIN ?? 30
@@ -62,7 +62,7 @@ export const POST: APIRoute = async ({ request, clientAddress, locals }) => {
     );
   }
 
-  const validation = validateForgotPasswordInput(
+  const validation = validateForgotIdentifierInput(
     await request.json().catch(() => null)
   );
 

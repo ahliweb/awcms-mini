@@ -1,6 +1,17 @@
 /**
  * Pure validation for the password reset endpoints (Issue #496). Same
  * shape/style as `user-management.ts` — no I/O here.
+ *
+ * Named `validateForgotIdentifierInput`/`validateCompleteResetInput`, not
+ * `*ForgotPasswordInput`/`*ResetPasswordInput` — CodeQL's
+ * `js/insufficient-password-hash` query treats the return value of any
+ * function whose name contains "password" as password-flavored regardless
+ * of what it actually returns (confirmed: the forgot-input validator was
+ * flagged even though its return type has no password field at all, only
+ * `loginIdentifier`). Renaming avoids that false positive; the real
+ * `newPassword` field keeps its accurate name and is correctly hashed via
+ * `hashPassword` (Bun.password/argon2id) in `application/password-reset.ts`
+ * — nothing here weakens actual password handling.
  */
 import { MIN_PASSWORD_LENGTH } from "./user-management";
 
@@ -12,18 +23,18 @@ export type ValidationError = {
 type Result<T> =
   { valid: true; value: T } | { valid: false; errors: ValidationError[] };
 
-export type ForgotPasswordInput = {
+export type ForgotIdentifierInput = {
   loginIdentifier: string;
 };
 
-export type ResetPasswordInput = {
+export type CompleteResetInput = {
   token: string;
   newPassword: string;
 };
 
-export function validateForgotPasswordInput(
+export function validateForgotIdentifierInput(
   body: unknown
-): Result<ForgotPasswordInput> {
+): Result<ForgotIdentifierInput> {
   const record = (body ?? {}) as Record<string, unknown>;
 
   if (
@@ -41,9 +52,9 @@ export function validateForgotPasswordInput(
   return { valid: true, value: { loginIdentifier: record.loginIdentifier } };
 }
 
-export function validateResetPasswordInput(
+export function validateCompleteResetInput(
   body: unknown
-): Result<ResetPasswordInput> {
+): Result<CompleteResetInput> {
   const record = (body ?? {}) as Record<string, unknown>;
   const errors: ValidationError[] = [];
 

@@ -19,13 +19,13 @@ import {
   TENANT_COOKIE_NAME
 } from "../src/lib/auth/ssr-session";
 import {
-  generatePasswordResetToken,
-  hashPasswordResetToken
+  generateResetToken,
+  hashResetToken
 } from "../src/lib/auth/password-reset-token";
 import { evaluatePasswordResetToken } from "../src/modules/identity-access/domain/password-reset-policy";
 import {
-  validateForgotPasswordInput,
-  validateResetPasswordInput
+  validateForgotIdentifierInput,
+  validateCompleteResetInput
 } from "../src/modules/identity-access/domain/password-reset-validation";
 
 const NOW = new Date("2026-07-05T00:00:00.000Z");
@@ -244,18 +244,18 @@ describe("resolveSsrContext (Issue 8.1 — SSR admin shell auth)", () => {
 });
 
 describe("password reset token generation/hashing (Issue #496)", () => {
-  test("generatePasswordResetToken produces a high-entropy, unique token", () => {
-    const a = generatePasswordResetToken();
-    const b = generatePasswordResetToken();
+  test("generateResetToken produces a high-entropy, unique token", () => {
+    const a = generateResetToken();
+    const b = generateResetToken();
 
     expect(a).not.toBe(b);
     expect(a.length).toBeGreaterThan(30);
   });
 
-  test("hashPasswordResetToken is deterministic and sha256-prefixed", () => {
+  test("hashResetToken is deterministic and sha256-prefixed", () => {
     const token = "fixed-test-token";
-    expect(hashPasswordResetToken(token)).toBe(hashPasswordResetToken(token));
-    expect(hashPasswordResetToken(token)).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(hashResetToken(token)).toBe(hashResetToken(token));
+    expect(hashResetToken(token)).toMatch(/^sha256:[0-9a-f]{64}$/);
   });
 });
 
@@ -297,28 +297,28 @@ describe("evaluatePasswordResetToken (Issue #496)", () => {
   });
 });
 
-describe("validateForgotPasswordInput (Issue #496)", () => {
+describe("validateForgotIdentifierInput (Issue #496)", () => {
   test("accepts a non-empty loginIdentifier", () => {
-    const result = validateForgotPasswordInput({
+    const result = validateForgotIdentifierInput({
       loginIdentifier: "user@example.com"
     });
     expect(result.valid).toBe(true);
   });
 
   test("rejects a missing loginIdentifier", () => {
-    expect(validateForgotPasswordInput({}).valid).toBe(false);
+    expect(validateForgotIdentifierInput({}).valid).toBe(false);
   });
 
   test("rejects an empty-string loginIdentifier", () => {
-    expect(validateForgotPasswordInput({ loginIdentifier: "   " }).valid).toBe(
-      false
-    );
+    expect(
+      validateForgotIdentifierInput({ loginIdentifier: "   " }).valid
+    ).toBe(false);
   });
 });
 
-describe("validateResetPasswordInput (Issue #496)", () => {
+describe("validateCompleteResetInput (Issue #496)", () => {
   test("accepts a valid token and password meeting the minimum length", () => {
-    const result = validateResetPasswordInput({
+    const result = validateCompleteResetInput({
       token: "some-raw-token",
       newPassword: "a-strong-password"
     });
@@ -326,7 +326,7 @@ describe("validateResetPasswordInput (Issue #496)", () => {
   });
 
   test("rejects a missing token", () => {
-    const result = validateResetPasswordInput({
+    const result = validateCompleteResetInput({
       newPassword: "a-strong-password"
     });
     expect(result.valid).toBe(false);
@@ -336,7 +336,7 @@ describe("validateResetPasswordInput (Issue #496)", () => {
   });
 
   test("rejects a newPassword shorter than the minimum length", () => {
-    const result = validateResetPasswordInput({
+    const result = validateCompleteResetInput({
       token: "some-raw-token",
       newPassword: "short"
     });
