@@ -15,11 +15,13 @@ import {
 } from "../../../../../modules/identity-access/application/auth-context";
 import { recordDecisionLog } from "../../../../../modules/identity-access/application/decision-log";
 import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
+import { log } from "../../../../../lib/logging/logger";
 import {
   fetchBlogPostById,
   softDeleteBlogPost,
   updateBlogPost
 } from "../../../../../modules/blog-content/application/blog-post-directory";
+import { createBlogRevision } from "../../../../../modules/blog-content/application/blog-revision-directory";
 import {
   countExistingTerms,
   fetchPostTermIds,
@@ -30,6 +32,7 @@ import {
   validateUpdateBlogPostInput
 } from "../../../../../modules/blog-content/domain/blog-post-validation";
 import { evaluatePostUpdateAccess } from "../../../../../modules/blog-content/domain/post-access-policy";
+import { isSignificantContentChange } from "../../../../../modules/blog-content/domain/revision-policy";
 
 const READ_GUARD = {
   moduleKey: "blog_content",
@@ -237,6 +240,28 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
 
     const termIds = await fetchPostTermIds(tx, tenantId, postId);
 
+    if (isSignificantContentChange(input)) {
+      await createBlogRevision(
+        tx,
+        tenantId,
+        "post",
+        postId,
+        context.tenantUserId,
+        {
+          title: updated.title,
+          contentJson: updated.contentJson,
+          contentText: updated.contentText,
+          excerpt: updated.excerpt,
+          seoTitle: updated.seoTitle,
+          metaDescription: updated.metaDescription,
+          canonicalUrl: updated.canonicalUrl,
+          status: updated.status
+        },
+        null,
+        correlationId
+      );
+    }
+
     await recordAuditEvent(tx, {
       tenantId,
       actorTenantUserId: context.tenantUserId,
@@ -247,6 +272,14 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
       severity: "info",
       message: `Blog post updated: ${updated.slug}.`,
       correlationId
+    });
+
+    log("info", "blog-content.post.updated", {
+      correlationId,
+      tenantId,
+      moduleKey: "blog_content",
+      postId,
+      slug: updated.slug
     });
 
     return ok({ ...updated, termIds });
@@ -331,6 +364,13 @@ export const DELETE: APIRoute = async ({
       message: "Blog post deleted.",
       attributes: { reason },
       correlationId
+    });
+
+    log("info", "blog-content.post.deleted", {
+      correlationId,
+      tenantId,
+      moduleKey: "blog_content",
+      postId
     });
 
     return ok({ id: postId, deleted: true });

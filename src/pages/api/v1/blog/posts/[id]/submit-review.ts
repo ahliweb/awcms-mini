@@ -4,6 +4,7 @@ import { fail, ok } from "../../../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../../../lib/database/client";
 import { withTenant } from "../../../../../../lib/database/tenant-context";
 import { hashSessionToken } from "../../../../../../lib/auth/session-token";
+import { log } from "../../../../../../lib/logging/logger";
 import { extractBearerToken } from "../../../../../../modules/identity-access/application/session-lookup";
 import {
   fetchGrantedPermissionKeys,
@@ -136,6 +137,14 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
       severity: "info",
       message: `Blog post submitted for review: ${updated.slug}.`,
       correlationId
+    });
+
+    log("info", "blog-content.post.submitted-for-review", {
+      correlationId,
+      tenantId,
+      moduleKey: "blog_content",
+      postId,
+      slug: updated.slug
     });
 
     return ok(updated);

@@ -78,8 +78,9 @@ tags:
       Tenant-scoped blog post admin API (epic #536, Issue #538) — CRUD plus
       lifecycle actions (submit for review, publish, schedule, archive,
       restore, purge). Builds on the `blog_content` schema/permission
-      foundation from Issue #537; pages, taxonomies, public routes, and
-      revisions are separate, later issues.
+      foundation from Issue #537; pages, taxonomies, and public routes are
+      separate issues. Revision history is a distinct tag, see Blog
+      Revisions.
   - name: Blog Pages
     description: >-
       Tenant-scoped static page admin API (epic #536, Issue #539) — plain
@@ -99,6 +100,13 @@ tags:
       public-safe search predicate (published + public content only) is a
       backend helper only in this issue — no public route yet (Issue
       #540).
+  - name: Blog Revisions
+    description: >-
+      Append-only revision history for blog posts (epic #536, Issue #541).
+      List/read revisions, restore a revision (never overwrites history —
+      restoring appends a new revision with the restored content).
+      `awcms_mini_blog_revisions` also stores page revisions, but only post
+      revision routes are exposed in this issue.
 paths:
   /api/v1/sync/push:
     post:
@@ -4025,6 +4033,176 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/blog/posts/{id}/revisions:
+    get:
+      tags:
+        - Blog Revisions
+      summary: List a blog post's revision history
+      operationId: blogPostRevisionsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Revisions, newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - revisions
+                        properties:
+                          revisions:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/BlogRevisionSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/posts/{id}/revisions/{revisionId}:
+    get:
+      tags:
+        - Blog Revisions
+      summary: Read one revision's full content snapshot
+      operationId: blogPostRevisionsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: revisionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Revision detail.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogRevisionItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Post not found, or revision not found for this post.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/posts/{id}/revisions/{revisionId}/restore:
+    post:
+      tags:
+        - Blog Revisions
+      summary: Restore a revision onto the live post (appends a new revision)
+      operationId: blogPostRevisionsRestore
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: revisionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: >-
+            Post updated with the revision's content; a new revision was
+            appended recording the restore.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogPostItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Post not found, or revision not found for this post.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/blog/pages:
     get:
       tags:
@@ -7292,6 +7470,123 @@ components:
             Category/tag ids currently assigned to this post (Issue #539).
             Only present on responses from endpoints that compute it
             (create/update/get detail), not on the list endpoint.
+    BlogRevisionSummary:
+      type: object
+      description: >-
+        One row of `GET /api/v1/blog/posts/{id}/revisions` — summary only,
+        no content body (see BlogRevisionItem for the full snapshot).
+      required:
+        - id
+        - tenantId
+        - resourceType
+        - resourceId
+        - revisionNumber
+        - title
+        - status
+        - changeNote
+        - createdByTenantUserId
+        - createdAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        resourceType:
+          type: string
+          enum: [post, page]
+        resourceId:
+          type: string
+          format: uuid
+        revisionNumber:
+          type: integer
+          minimum: 1
+        title:
+          type: string
+        status:
+          type: string
+          description: The resource's lifecycle status at the moment this revision was captured.
+        changeNote:
+          type: string
+          nullable: true
+          description: Set when a revision is created by a restore (e.g. "Restored from revision 3.").
+        createdByTenantUserId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+    BlogRevisionItem:
+      type: object
+      description: Full revision detail — `GET /api/v1/blog/posts/{id}/revisions/{revisionId}`.
+      required:
+        - id
+        - tenantId
+        - resourceType
+        - resourceId
+        - revisionNumber
+        - title
+        - contentJson
+        - contentText
+        - excerpt
+        - seoTitle
+        - metaDescription
+        - canonicalUrl
+        - status
+        - changeNote
+        - createdByTenantUserId
+        - createdAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        resourceType:
+          type: string
+          enum: [post, page]
+        resourceId:
+          type: string
+          format: uuid
+        revisionNumber:
+          type: integer
+          minimum: 1
+        title:
+          type: string
+        contentJson:
+          type: object
+          description: Structured content snapshot at the time this revision was captured.
+        contentText:
+          type: string
+        excerpt:
+          type: string
+          nullable: true
+        seoTitle:
+          type: string
+          nullable: true
+        metaDescription:
+          type: string
+          nullable: true
+        canonicalUrl:
+          type: string
+          nullable: true
+        status:
+          type: string
+          description: The resource's lifecycle status at the moment this revision was captured.
+        changeNote:
+          type: string
+          nullable: true
+          description: Set when a revision is created by a restore (e.g. "Restored from revision 3.").
+        createdByTenantUserId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
     BlogPostListItem:
       type: object
       required:

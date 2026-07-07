@@ -1,0 +1,203 @@
+import type { APIRoute } from "astro";
+
+import {
+  fail,
+  jsonResponse,
+  ok
+} from "../../../../../../../../modules/_shared/api-response";
+import { getDatabaseClient } from "../../../../../../../../lib/database/client";
+import { withTenant } from "../../../../../../../../lib/database/tenant-context";
+import {
+  authorizeInTransaction,
+  resolveAuthInputs
+} from "../../../../../../../../modules/identity-access/application/access-guard";
+import { hashSessionToken } from "../../../../../../../../lib/auth/session-token";
+import { recordAuditEvent } from "../../../../../../../../modules/logging/application/audit-log";
+import {
+  computeRequestHash,
+  findIdempotencyRecord,
+  saveIdempotencyRecord
+} from "../../../../../../../../modules/_shared/idempotency";
+import {
+  fetchBlogPostById,
+  updateBlogPost
+} from "../../../../../../../../modules/blog-content/application/blog-post-directory";
+import {
+  createBlogRevision,
+  fetchBlogRevisionById
+} from "../../../../../../../../modules/blog-content/application/blog-revision-directory";
+
+const RESTORE_GUARD = {
+  moduleKey: "blog_content",
+  activityCode: "revisions",
+  action: "restore" as const
+};
+
+const IDEMPOTENCY_SCOPE = "blog_revision_restore";
+
+/**
+ * `POST /api/v1/blog/posts/{id}/revisions/{revisionId}/restore` (Issue
+ * #541). Requires explicit `blog_content.revisions.restore` permission
+ * (doc issue #541 §Revision Rules: "restore requires explicit permission").
+ * Restoring never overwrites revision history — it writes the target
+ * revision's content back onto the live post (`updateBlogPost`) and then
+ * appends a *new* revision snapshotting that write (`createBlogRevision`),
+ * so `awcms_mini_blog_revisions` stays append-only (module README §Skema
+ * data, point 5). High-risk mutation: requires `Idempotency-Key`.
+ */
+export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
+  const { tenantId, token } = resolveAuthInputs(request, cookies);
+  const postId = params.id;
+  const revisionId = params.revisionId;
+
+  if (!tenantId) {
+    return fail(400, "TENANT_REQUIRED", "Tenant header is required.");
+  }
+
+  if (!postId || !revisionId) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      "Post id and revision id are required."
+    );
+  }
+
+  if (!token) {
+    return fail(401, "AUTH_REQUIRED", "Authentication required.");
+  }
+
+  const idempotencyKey = request.headers.get("idempotency-key");
+
+  if (!idempotencyKey) {
+    return fail(
+      400,
+      "IDEMPOTENCY_REQUIRED",
+      "Idempotency-Key header is required."
+    );
+  }
+
+  const requestHash = computeRequestHash({
+    postId,
+    revisionId,
+    action: "restore"
+  });
+  const sql = getDatabaseClient();
+  const tokenHash = hashSessionToken(token);
+  const now = new Date();
+  const correlationId = locals.correlationId;
+
+  return withTenant(sql, tenantId, async (tx) => {
+    const auth = await authorizeInTransaction(
+      tx,
+      tenantId,
+      tokenHash,
+      now,
+      RESTORE_GUARD
+    );
+
+    if (!auth.allowed) {
+      return auth.denied;
+    }
+
+    const existingIdempotency = await findIdempotencyRecord(
+      tx,
+      tenantId,
+      IDEMPOTENCY_SCOPE,
+      idempotencyKey
+    );
+
+    if (existingIdempotency) {
+      if (existingIdempotency.requestHash !== requestHash) {
+        return fail(
+          409,
+          "IDEMPOTENCY_CONFLICT",
+          "Idempotency-Key was already used with a different request."
+        );
+      }
+
+      return jsonResponse(existingIdempotency.responseBody, {
+        status: existingIdempotency.responseStatus
+      });
+    }
+
+    const post = await fetchBlogPostById(tx, tenantId, postId);
+
+    if (!post) {
+      return fail(404, "RESOURCE_NOT_FOUND", "Blog post not found.");
+    }
+
+    const revision = await fetchBlogRevisionById(
+      tx,
+      tenantId,
+      "post",
+      postId,
+      revisionId
+    );
+
+    if (!revision) {
+      return fail(404, "RESOURCE_NOT_FOUND", "Revision not found.");
+    }
+
+    const updated = await updateBlogPost(tx, tenantId, postId, {
+      title: revision.title,
+      contentJson: revision.contentJson,
+      contentText: revision.contentText,
+      excerpt: revision.excerpt,
+      seoTitle: revision.seoTitle,
+      metaDescription: revision.metaDescription,
+      canonicalUrl: revision.canonicalUrl
+    });
+
+    if (!updated) {
+      return fail(404, "RESOURCE_NOT_FOUND", "Blog post not found.");
+    }
+
+    await createBlogRevision(
+      tx,
+      tenantId,
+      "post",
+      postId,
+      auth.context.tenantUserId,
+      {
+        title: updated.title,
+        contentJson: updated.contentJson,
+        contentText: updated.contentText,
+        excerpt: updated.excerpt,
+        seoTitle: updated.seoTitle,
+        metaDescription: updated.metaDescription,
+        canonicalUrl: updated.canonicalUrl,
+        status: updated.status
+      },
+      `Restored from revision ${revision.revisionNumber}.`,
+      correlationId
+    );
+
+    await recordAuditEvent(tx, {
+      tenantId,
+      actorTenantUserId: auth.context.tenantUserId,
+      moduleKey: "blog_content",
+      action: "blog.post.revision_restored",
+      resourceType: "blog_post",
+      resourceId: postId,
+      severity: "warning",
+      message: `Blog post restored from revision ${revision.revisionNumber}: ${updated.slug}.`,
+      attributes: { revisionId, revisionNumber: revision.revisionNumber },
+      correlationId
+    });
+
+    const successResponse = ok(updated);
+    const successBody = await successResponse.clone().json();
+
+    await saveIdempotencyRecord(
+      tx,
+      tenantId,
+      IDEMPOTENCY_SCOPE,
+      idempotencyKey,
+      requestHash,
+      200,
+      successBody
+    );
+
+    return successResponse;
+  });
+};

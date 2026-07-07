@@ -20,11 +20,13 @@ import {
   softDeleteBlogPage,
   updateBlogPage
 } from "../../../../../modules/blog-content/application/blog-page-directory";
+import { createBlogRevision } from "../../../../../modules/blog-content/application/blog-revision-directory";
 import {
   validateSoftDeleteBlogPageInput,
   validateUpdateBlogPageInput
 } from "../../../../../modules/blog-content/domain/blog-page-validation";
 import { evaluatePageUpdateAccess } from "../../../../../modules/blog-content/domain/page-access-policy";
+import { isSignificantContentChange } from "../../../../../modules/blog-content/domain/revision-policy";
 
 const READ_GUARD = {
   moduleKey: "blog_content",
@@ -226,6 +228,28 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
 
     if (!updated) {
       return fail(404, "RESOURCE_NOT_FOUND", "Blog page not found.");
+    }
+
+    if (isSignificantContentChange(input)) {
+      await createBlogRevision(
+        tx,
+        tenantId,
+        "page",
+        pageId,
+        context.tenantUserId,
+        {
+          title: updated.title,
+          contentJson: updated.contentJson,
+          contentText: updated.contentText,
+          excerpt: updated.excerpt,
+          seoTitle: updated.seoTitle,
+          metaDescription: updated.metaDescription,
+          canonicalUrl: updated.canonicalUrl,
+          status: updated.status
+        },
+        null,
+        correlationId
+      );
     }
 
     await recordAuditEvent(tx, {

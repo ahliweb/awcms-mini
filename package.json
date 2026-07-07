@@ -41,6 +41,7 @@
     "sync:objects:dispatch": "bun scripts/object-sync-dispatch.ts",
     "logs:audit:purge": "bun scripts/audit-log-purge.ts",
     "form-drafts:purge": "bun scripts/form-draft-purge.ts",
+    "blog:publish:scheduled": "bun scripts/blog-scheduled-publish.ts",
     "email:dispatch": "bun scripts/email-dispatch.ts",
     "email:provider:health": "bun scripts/email-provider-health.ts",
     "email:templates:seed-defaults": "bun scripts/email-templates-seed-defaults.ts",
