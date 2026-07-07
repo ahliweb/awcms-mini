@@ -361,13 +361,23 @@ export function checkLoginLockoutImplemented(): SecurityCheckResult {
  *   permission catalog, shared by all tenants.
  * - `awcms_mini_setup_state` (sql/006) — global singleton setup lock that
  *   exists before any tenant does.
+ * - `awcms_mini_module_dependencies`, `awcms_mini_module_navigation`,
+ *   `awcms_mini_module_jobs`, `awcms_mini_module_health_checks` (sql/025) —
+ *   code-derived module registry metadata (dependency graph, admin nav,
+ *   job/command catalog, instance-level health check history), synced from
+ *   trusted descriptors, never tenant-writable. Same reasoning as
+ *   `awcms_mini_modules` above.
  */
 const RLS_FREE_TABLES = new Set([
   "awcms_mini_schema_migrations",
   "awcms_mini_modules",
   "awcms_mini_tenants",
   "awcms_mini_permissions",
-  "awcms_mini_setup_state"
+  "awcms_mini_setup_state",
+  "awcms_mini_module_dependencies",
+  "awcms_mini_module_navigation",
+  "awcms_mini_module_jobs",
+  "awcms_mini_module_health_checks"
 ]);
 
 export async function checkRlsEnabled(): Promise<SecurityCheckResult> {

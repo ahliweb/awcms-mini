@@ -207,7 +207,8 @@ describe("database migration runner helpers", () => {
       "021_awcms_mini_email_template_i18n_schema.sql",
       "022_awcms_mini_password_reset_schema.sql",
       "023_awcms_mini_email_announcement_permission_schema.sql",
-      "024_awcms_mini_email_message_cancel_permission_schema.sql"
+      "024_awcms_mini_email_message_cancel_permission_schema.sql",
+      "025_awcms_mini_module_management_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
