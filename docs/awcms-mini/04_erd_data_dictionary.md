@@ -91,6 +91,7 @@ erDiagram
 | Workflow             | `awcms_mini_workflow_definitions`, `awcms_mini_workflow_instances`, `awcms_mini_workflow_tasks`, `awcms_mini_workflow_decisions`                                                                                                                             |
 | Reporting            | report views/materialized views                                                                                                                                                                                                                              |
 | Production Security  | `awcms_mini_security_controls`, `awcms_mini_security_readiness_assessments`, `awcms_mini_security_findings`, `awcms_mini_go_live_gates`                                                                                                                      |
+| Module Management    | `awcms_mini_modules` (extended), `awcms_mini_tenant_modules`, `awcms_mini_module_dependencies`, `awcms_mini_module_settings`, `awcms_mini_module_navigation`, `awcms_mini_module_jobs`, `awcms_mini_module_health_checks`                                    |
 
 ## Data dictionary ringkas per modul
 
@@ -218,6 +219,19 @@ Berbeda dari `awcms_mini_message_outbox` di atas (contoh domain retail/POS) — 
 Event lokal yang perlu disinkronkan.
 
 Kolom penting: `node_id`, `event_type`, `aggregate_type`, `aggregate_id`, `payload_json`, `status`.
+
+### Module Management (Issue #511–#521, epic #510, `sql/025`)
+
+Mengubah registry modul dari code-only (`src/modules/index.ts`) jadi database-backed sekaligus tenant-aware. `awcms_mini_modules` sudah ada sejak migration 001 (dormant, belum pernah ditulis aplikasi) — migration 025 memperluasnya di tempat (`module_type`, `lifecycle_status`, `descriptor_version`, `is_core`, `is_tenant_configurable`, `updated_at`) dan menambah tabel pendukung berikut. Semua tabel "registry" (dependencies/navigation/jobs/health-checks) **RLS-free** — metadata code-derived, sama untuk semua tenant, sinkron dari `listModules()` lewat `syncModuleDescriptors` (Issue #513); dua tabel tenant-writable (`tenant_modules`/`module_settings`) **RLS FORCE**.
+
+- **`awcms_mini_tenant_modules`** (Issue #515) — status aktif/nonaktif modul **per tenant**. Baris tidak ada = default enabled (backward-compatible dengan perilaku pre-epic "semua modul selalu aktif"). Kolom: `enabled`, `enabled_at`/`enabled_by`, `disabled_at`/`disabled_by`/`disable_reason`. Unik `(tenant_id, module_key)`. RLS FORCE.
+- **`awcms_mini_module_dependencies`** — graph dependency antar modul, dibaca validasi enable/disable Issue #515. Composite PK `(module_key, depends_on_module_key)`, `CHECK` menolak self-dependency.
+- **`awcms_mini_module_settings`** (Issue #516) — override pengaturan non-secret **per tenant** (`settings` jsonb, `schema_version`). Tidak boleh berisi secret/token mentah — ditegakkan di application layer (`findSensitiveKeys`, `_shared/redaction.ts`), bukan skema. Unik `(tenant_id, module_key)`. RLS FORCE.
+- **`awcms_mini_module_navigation`** (Issue #518) — entri navigasi admin per modul (`label_key`, `path`, `sort_order`, `nav_group`, `required_permission`). `path` unik global — dua modul mendeklarasikan route sama adalah bug authoring descriptor.
+- **`awcms_mini_module_jobs`** (Issue #519) — registry command operasional (`command`, `purpose`, `recommended_schedule`, `environment_notes`, `safe_in_offline_lan`). Dokumentasi murni — tidak pernah jadi permukaan "eksekusi command". Unik `(module_key, command)`.
+- **`awcms_mini_module_health_checks`** (Issue #520) — riwayat hasil health check, **instance-level** (bukan per-tenant — status kesehatan adalah fakta tentang instance yang di-deploy). `status` (`healthy`/`degraded`/`failed`/`unknown`), `message` (harus redaction-ready, sama seperti `email_delivery_attempts.provider_response_snippet` — tidak pernah raw secret/stack trace). Hanya ditulis oleh `POST /api/v1/modules/{moduleKey}/health/check` (aksi eksplisit) — `GET .../health` murni baca, tidak pernah menulis baris.
+
+Tidak ada tabel `awcms_mini_module_lifecycle_events` terpisah (sempat diusulkan draft issue awal) — aksi lifecycle/config modul tetap tercatat lewat `awcms_mini_audit_events` generik yang sudah ada (`module_key = 'module_management'`, `resource_type` = `tenant_module`/`module_settings`/`module_health`), menghindari sumber kebenaran kedua yang divergen untuk fakta yang sama.
 
 ## Konten multi-bahasa (translatable content)
 

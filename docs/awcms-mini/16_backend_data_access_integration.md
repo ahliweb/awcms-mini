@@ -226,6 +226,14 @@ flowchart TD
 5. Hindari N+1: gunakan join/batch.
 6. Untuk tabel soft-deletable, repository list/detail default menambahkan `deleted_at IS NULL`; `includeDeleted`/`onlyDeleted` hanya setelah ABAC.
 
+## Contoh multi-tabel: module registry (Issue #511–#521, epic #510)
+
+Registry modul (`src/modules/module-management/`) memakai dua kelas akses data yang kontras, ilustrasi konkret dari aturan RLS di atas (baris 60-89):
+
+- **Registry global, RLS-free** — `awcms_mini_modules`/`_dependencies`/`_navigation`/`_jobs`/`_health_checks`. Metadata code-derived, sama untuk semua tenant (sinkron dari `listModules()` lewat `syncModuleDescriptors`, sama alasan `awcms_mini_permissions` RLS-free) — jalan di koneksi app biasa, **tidak** butuh `withTenant`/`SET LOCAL app.current_tenant_id`.
+- **State tenant-writable, RLS FORCE** — `awcms_mini_tenant_modules` (enable/disable per tenant) dan `awcms_mini_module_settings` (pengaturan non-secret per tenant). Setiap akses **wajib** lewat `withTenant`, sama seperti tabel tenant-scoped lainnya.
+- **"Sync first" sebelum tulis tenant-scoped**: `enableTenantModule`/`disableTenantModule`/`updateModuleSettings`/`runModuleHealthCheck` semua memanggil `syncModuleDescriptors(tx)` di awal — dua tabel di atas punya FK ke `awcms_mini_modules.module_key`, jadi baris registry harus ada dulu sebelum insert baris tenant-scoped. Pola ini generik: kapan pun tabel tenant-scoped punya FK ke tabel registry code-derived, pastikan registry di-sync dalam transaction yang sama sebelum menulis, jangan mengasumsikan operator sudah menjalankan sync manual lebih dulu.
+
 ## Soft delete data access
 
 Soft delete adalah update status data, bukan `DELETE` SQL pada jalur operasional.

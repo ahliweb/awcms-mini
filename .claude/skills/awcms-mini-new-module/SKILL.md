@@ -28,7 +28,7 @@ export const <camelCase>Module: ModuleDescriptor = {
   key: "<snake_case>",
   name: "<Nama Modul>",
   version: "0.1.0",
-  status: "active", // active | experimental | deprecated
+  status: "active", // active | experimental | deprecated | maintenance | disabled
   description: "...",
   dependencies: ["tenant_admin", "identity_access", "observability_logging"],
   api: { openApiPath: "openapi/modules/<module>.openapi.yaml", basePath: "/api/v1" },
@@ -37,6 +37,13 @@ export const <camelCase>Module: ModuleDescriptor = {
     publishes: [],
     subscribes: []
   }
+  // Field opsional lain (Issue #511, epic #510 — Module Management):
+  // type, isCore, permissions, navigation, settings, jobs, health,
+  // compatibility, maintainers. Deklarasikan hanya setelah fitur
+  // sungguhan yang bersangkutan ADA di modul ini — jangan klaim
+  // kapabilitas yang belum diimplementasi (lihat contoh nyata:
+  // `src/modules/module-management/module.ts` menambah `navigation`
+  // baru setelah Issue #518 selesai, `jobs` setelah #519, satu-satu).
 };
 ```
 
@@ -47,10 +54,14 @@ export const <camelCase>Module: ModuleDescriptor = {
 3. Route tipis → guard → validasi → service → repository (lihat `awcms-mini-abac-guard`).
 4. Sertakan TODO jelas; jangan klaim production-ready.
 5. Jika modul punya tabel → `awcms-mini-new-migration`. Jika ada API → `awcms-mini-new-endpoint`. Jika ada event → `awcms-mini-new-event`.
+6. **Sync descriptor ke database registry wajib** (Issue #513, epic #510) — mendaftarkan modul di `src/modules/index.ts` saja **tidak otomatis** membuat baris `awcms_mini_modules`/`_dependencies`/`_navigation`/`_jobs`. Jalankan `POST /api/v1/modules/sync` (atau `bun run modules:sync` bila skrip CLI tersedia) minimal sekali setelah modul terdaftar — atau andalkan sinkronisasi otomatis yang sudah terpasang di beberapa mutasi tenant-scoped modul lain yang punya FK ke `awcms_mini_modules` (`enableTenantModule`/`disableTenantModule`/`updateModuleSettings`/`runModuleHealthCheck` semua memanggil `syncModuleDescriptors(tx)` sendiri) — **jangan asumsikan** operator sudah sync manual sebelum modul barumu dipakai lewat jalur itu.
+7. Jika modul mendeklarasikan `permissions` di descriptor, verifikasi juga migration seed permission-nya konsisten (`GET /api/v1/modules/{moduleKey}/permissions`, Issue #517, akan melaporkan `missing`/`mismatched_description` kalau tidak sinkron).
 
 ## Nama modul valid
 
-`tenant-admin`, `identity-access`, `profile-identity`, `catalog-inventory`, `sales-pos`, `shared-stock-routing`, `warehouse-management`, `accounting-tax`, `crm-communication`, `sync-storage`, `ai-analyst`, `localization-ui`, `observability-logging`, `database-connectivity`, `workflow-approval`, `management-reporting`, `ui-experience`, `production-security-readiness`.
+Domain retail/POS contoh (aspirational, belum tentu ada di base generik ini): `tenant-admin`, `identity-access`, `profile-identity`, `catalog-inventory`, `sales-pos`, `shared-stock-routing`, `warehouse-management`, `accounting-tax`, `crm-communication`, `sync-storage`, `ai-analyst`, `localization-ui`, `observability-logging`, `database-connectivity`, `workflow-approval`, `management-reporting`, `ui-experience`, `production-security-readiness`.
+
+Modul base generik yang **sudah nyata terdaftar** di repo ini (`src/modules/index.ts`): `tenant-admin`, `profile-identity`, `identity-access`, `sync-storage`, `reporting`, `logging`, `workflow-approval`, `form-drafts`, `email`, `module-management`.
 
 ## Verifikasi
 

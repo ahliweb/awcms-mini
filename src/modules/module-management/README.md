@@ -270,6 +270,19 @@ stack trace, or `DATABASE_URL`. Every `catch` logs the real error
 server-side via `log()` (which redacts defensively anyway) before
 returning the safe, generic `detail`.
 
+**`awcms_mini_module_health_checks` (migration 025) is written only by
+`POST .../health/check`, never `GET .../health`.** Found and fixed during
+Issue #522's documentation pass — migration 025 already provisioned this
+table explicitly for Issue #520 ("Health check result history"), but the
+original #520 implementation never wrote to it. `runModuleHealthCheck`
+now inserts one row per explicit check (`module_key`, `status`, a safe
+`message` built from failed signal _names_ only — never a signal's own
+`detail` text). That table has an FK to `awcms_mini_modules`, so `POST`
+also syncs the registry first (same reasoning as
+`tenant-module-lifecycle.ts`/`module-settings.ts`) — the one place
+`db_registry_synced` can genuinely read differently between `GET` and
+`POST` for the same module.
+
 ## Admin UI (Issue #521)
 
 `/admin/modules` (list — replaces #518's minimal stub) and

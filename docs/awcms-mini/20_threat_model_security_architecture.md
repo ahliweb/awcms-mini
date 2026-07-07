@@ -227,3 +227,100 @@ PSTE spesifik-email tambahan di luar itu yang teridentifikasi untuk base
 generik ini. Kewajiban sertifikasi/pendaftaran PSE (bila berlaku untuk
 skala operator tertentu) adalah tanggung jawab lapisan operasional
 aplikasi turunan, bukan sesuatu yang bisa dibuktikan dari kode.
+
+## Standar tambahan dipicu modul Manajemen Modul (Issue #511-#521, epic #510)
+
+Modul Management memperkenalkan trust boundary yang belum pernah dibahas
+eksplisit oleh matrix di atas: **admin dapat mengubah ketersediaan/
+konfigurasi modul lain untuk tenant-nya sendiri** (bukan cuma CRUD data
+domain), dan **registry code-derived (dependency/jobs/navigation) yang
+dulunya statis kini sebagian tersinkron ke database**. Bagian ini
+memetakan tujuh risiko yang diminta eksplisit oleh Issue #522, tidak
+mengulang kontrol generik (RLS, ABAC default-deny, redaction) yang sudah
+dicakup di atas dan berlaku sama di sini.
+
+### Privilege escalation lewat enable/disable modul
+
+Setiap mutasi lifecycle (`enable`/`disable`) dan config (`settings.update`,
+`health.check`) tetap lewat ABAC default-deny standar — tidak ada jalur
+pintas. Yang membedakan modul ini: efek sebuah keputusan **menyebar ke
+endpoint modul lain**, bukan cuma resource-nya sendiri. `authorizeInTransaction`
+(guard bersama semua endpoint terproteksi) mengecek
+`awcms_mini_tenant_modules` **sebelum** evaluasi ABAC/RBAC — menonaktifkan
+modul memblokir `403 MODULE_DISABLED` untuk _permintaan apa pun_ ke modul
+itu, terlepas permission yang dimiliki actor (`src/modules/identity-access/README.md`
+§"Enforcement modul disabled"). Ini mencegah skenario "modul terlihat
+nonaktif di UI tapi endpoint-nya tetap bisa diakses" — visibilitas
+navigasi bukan otorisasi (issue's own security note).
+
+### Module misconfiguration dan dependency abuse
+
+Validasi dependency (Issue #515, `domain/tenant-module-lifecycle.ts`)
+berjalan **server-side**, tidak bisa dilewati dari client: modul tidak
+bisa diaktifkan bila dependency-nya hilang/nonaktif
+(`MODULE_DEPENDENCY_MISSING`/`_DISABLED`), tidak bisa dinonaktifkan bila
+modul lain yang masih aktif bergantung padanya
+(`MODULE_REVERSE_DEPENDENCY_ACTIVE`), circular dependency terdeteksi
+eksplisit (`MODULE_DEPENDENCY_CYCLE`), dan modul core (`isCore: true`)
+tidak bisa dinonaktifkan sama sekali (`CORE_MODULE_CANNOT_BE_DISABLED`).
+Graph dependency sendiri **selalu dibaca dari registry code
+(`listModules()`)**, tidak pernah dari tabel database
+(`awcms_mini_module_dependencies` hanya cache hasil sync terakhir) — actor
+dengan akses database langsung tidak bisa memanipulasi graph yang
+dipakai untuk keputusan enable/disable dengan mengubah tabel itu saja.
+
+### Kebocoran konfigurasi sensitif (module settings)
+
+`awcms_mini_module_settings` tenant-scoped (RLS FORCE) tapi **tetap
+divalidasi di application layer**, bukan cuma diandalkan pada isolasi
+tenant: key berbentuk secret (mengandung `password`/`token`/`apikey`/
+`secret`/`credential`, daftar sama `_shared/redaction.ts`'s
+`REDACTION_KEYS`) **ditolak saat request** (`400 SETTINGS_SENSITIVE_KEY_REJECTED`),
+bukan disimpan lalu di-redact saat dibaca — nilai yang tidak pernah
+disimpan tidak bisa bocor kemudian. Audit trail (`settings_updated`)
+hanya mencatat _nama key_ yang berubah (`addedKeys`/`changedKeys`/`removedKeys`),
+tidak pernah nilainya — konsisten dengan prinsip data minimization yang
+sama dipakai modul Email untuk data recipient (§ di atas).
+
+### Provider outage (module health check)
+
+Satu-satunya live network call di seluruh epic ini
+(`resolveEmailProvider().healthCheck()`, dipanggil dari
+`POST /modules/email/health/check`) sudah timeout-bounded dan
+error-truncating sejak Issue #495 (dipakai ulang, bukan diimplementasi
+baru) — kegagalan/outage provider tidak pernah melempar exception tak
+tertangani (`{ok: false, error}` selalu, tidak pernah throw) dan tidak
+pernah memblokir transaksi bisnis lain, karena endpoint ini bukan bagian
+dari alur bisnis manapun (aksi admin eksplisit dan terpisah). `GET
+/modules/{moduleKey}/health` (passive) tidak pernah memanggil provider
+sama sekali — sesuai acceptance criteria issue ini "provider checks are
+explicit and do not block normal business transactions".
+
+### Stale/orphaned permission
+
+Issue #517's `comparePermissions` melaporkan permission yang ada di
+katalog (`awcms_mini_permissions`) tapi tidak lagi dideklarasikan
+descriptor (`orphaned`) — **dilaporkan, tidak pernah dihapus otomatis**
+(security note eksplisit issue #517: keputusan hapus/pertahankan tetap
+di tangan operator manusia). Ini secara sengaja mencegah dua kelas
+risiko sekaligus: penghapusan otomatis yang bisa memutus assignment role
+yang masih valid (jika laporan salah/ada race), dan permission
+"tersesat" tak bertuan yang tidak pernah terlihat oleh siapa pun karena
+tidak ada mekanisme audit read-only untuk menemukannya.
+
+### Admin lockout risk
+
+Dua lapis mitigasi independen mencegah tenant mengunci diri sendiri dari
+kemampuan administratif: (1) modul `module_management` sendiri
+dideklarasikan `isCore: true` — tidak bisa dinonaktifkan sama sekali,
+jadi kemampuan mengelola modul lain (termasuk mengaktifkan kembali
+sesuatu yang salah dinonaktifkan) tidak pernah hilang; (2) dependency
+graph mencegah menonaktifkan modul yang masih dibutuhkan modul aktif
+lain (§Dependency abuse di atas) — kombinasi keduanya berarti tidak ada
+urutan enable/disable yang valid yang bisa membuat tenant kehilangan
+akses ke `/admin/modules` itu sendiri. Catatan: modul lain (`identity_access`,
+`tenant_admin`, dll.) **tidak** dideklarasikan `isCore` — secara teori
+bisa dinonaktifkan bila tidak ada dependent aktif lain, tapi dependency
+graph (`identity_access` punya beberapa reverse dependent aktif secara
+default) membuat skenario ini butuh langkah eksplisit berurutan yang
+disengaja, bukan kecelakaan satu klik.

@@ -58,6 +58,13 @@ flowchart LR
 | `workflow_approval`             | `approval`            | read, approve                         |
 | `observability_logging`         | `logs`                | read                                  |
 | `production_security_readiness` | `go_live`             | read, approve                         |
+| `module_management`             | `modules`             | read, sync                            |
+| `module_management`             | `tenant_modules`      | read, enable, disable                 |
+| `module_management`             | `settings`            | read, update                          |
+| `module_management`             | `permissions`         | read                                  |
+| `module_management`             | `navigation`          | read                                  |
+| `module_management`             | `jobs`                | read                                  |
+| `module_management`             | `health`              | read, check                           |
 
 ## Role default
 
@@ -76,7 +83,7 @@ flowchart LR
 
 ## Matriks role → permission (ringkas)
 
-Legenda action: R=read, C=create, U=update, P=post, X=cancel, A=approve, E=export, S=send, G=assign, N=analyze, F=configure.
+Legenda action: R=read, C=create, U=update, P=post, X=cancel, A=approve, E=export, S=send, G=assign, N=analyze, F=configure, Y=sync, I=enable, D=disable, K=health check.
 
 Permission `delete`, `restore`, dan `purge` untuk soft delete tidak tersirat dari `U`; seed harus memberikannya eksplisit per resource dan ABAC tetap default deny untuk archive/restore/purge.
 
@@ -108,6 +115,13 @@ Permission `delete`, `restore`, dan `purge` untuk soft delete tidak tersirat dar
 | workflow.approval              | RA    | R     | –     | RA      | –      | –          | –   | –   | –       | R       |
 | logs.logs                      | R     | R     | –     | –       | –      | –          | –   | –   | –       | R       |
 | security.go_live               | RA    | R     | –     | –       | –      | –          | –   | –   | –       | R       |
+| module_management.modules      | RY    | RY    | –     | –       | –      | –          | –   | –   | –       | R       |
+| module_management.tenant       | RID   | RID   | –     | –       | –      | –          | –   | –   | –       | R       |
+| module_management.settings     | RU    | RU    | –     | –       | –      | –          | –   | –   | –       | R       |
+| module_management.permissions  | R     | R     | –     | –       | –      | –          | –   | –   | –       | R       |
+| module_management.navigation   | R     | R     | –     | –       | –      | –          | –   | –   | –       | R       |
+| module_management.jobs         | R     | R     | –     | –       | –      | –          | –   | –   | –       | R       |
+| module_management.health       | RK    | RK    | –     | –       | –      | –          | –   | –   | –       | R       |
 
 `*` Diskon operator dibatasi ABAC (batas nominal/persentase sesuai kebijakan).
 

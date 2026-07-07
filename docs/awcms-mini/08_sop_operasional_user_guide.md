@@ -509,6 +509,68 @@ pakai, dan sesi identity **dicabut penuh** setelah reset berhasil.
    runbook lengkap (provider outage, rotasi kredensial, accidental bulk
    send).
 
+## SOP Modul Manajemen Modul (epic #510, Issue #511-#521)
+
+Registry modul database-backed, tenant-aware (`src/modules/module-management/README.md`) — infrastruktur generik untuk mengelola modul lain, bukan fitur domain. Belum ada tabel "aksi eksekusi command" — job registry murni dokumentasi (lihat §Inspeksi job registry di bawah), sesuai batasan out-of-scope epic (tidak ada marketplace/instalasi plugin runtime).
+
+### Sinkronisasi descriptor modul
+
+1. `POST /api/v1/modules/sync` (butuh `module_management.modules.sync`) — menyamakan `awcms_mini_modules`/`_dependencies`/`_navigation`/`_jobs` dengan `listModules()` code saat ini. Idempoten — jalankan berulang aman, hasil kedua kali `unchanged`.
+2. Modul yang hilang dari code (di-uninstall/dihapus) **ditandai** `lifecycle_status = 'disabled'`, tidak pernah dihapus — riwayat dependency/navigation/jobs tetap ada sebagai catatan historis.
+3. Beberapa aksi lain (enable/disable modul, update settings, trigger health check) otomatis menjalankan sync ini lebih dulu di dalam transaction yang sama (FK ke `awcms_mini_modules`) — operator **tidak wajib** menjalankan sync manual sebelum aksi tersebut.
+
+### Enable/disable modul untuk tenant
+
+1. Cek status: `GET /api/v1/tenant/modules` (butuh `module_management.tenant_modules.read`) — daftar semua modul + status aktif/nonaktif untuk tenant pemanggil. Baris tanpa state eksplisit berarti aktif (default backward-compatible).
+2. Aktifkan: `POST /api/v1/tenant/modules/{moduleKey}/enable` (butuh `.enable`).
+3. Nonaktifkan: `POST /api/v1/tenant/modules/{moduleKey}/disable` (butuh `.disable`) dengan body `{ "reason": "..." }` — **wajib** diisi, tercatat di `disable_reason`.
+4. Modul core (`isCore: true`, mis. `module_management` sendiri) **tidak bisa** dinonaktifkan — selalu `409 CORE_MODULE_CANNOT_BE_DISABLED`.
+5. Menonaktifkan modul **tidak pernah menghapus data tenant** — hanya menulis baris `awcms_mini_tenant_modules`. Data modul yang dinonaktifkan tetap utuh, siap dipakai lagi begitu diaktifkan kembali.
+6. Setiap enable/disable tercatat di audit trail (`tenant_module_enabled`/`tenant_module_disabled`, `resource_type: tenant_module`, `resource_id: moduleKey`).
+7. **Efeknya nyata di seluruh endpoint modul tersebut**, bukan cuma status di halaman ini — guard bersama (`authorizeInTransaction`) menolak `403 MODULE_DISABLED` untuk request apa pun ke modul yang dinonaktifkan tenant tsb (lihat `src/modules/identity-access/README.md` §"Enforcement modul disabled").
+
+### Update pengaturan modul (tenant)
+
+1. `GET /api/v1/tenant/modules/{moduleKey}/settings` (butuh `.settings.read`) — mengembalikan `defaults` (bawaan code), `tenantOverride` (yang sudah diset tenant ini), dan `effective` (gabungan, override menang).
+2. `PATCH /api/v1/tenant/modules/{moduleKey}/settings` (butuh `.settings.update`) — body JSON di-**merge dangkal** ke override yang ada (key yang tidak disebut tetap tidak berubah); **tidak** mengganti seluruh objek.
+3. Key berbentuk secret (mengandung `password`/`token`/`secret`/`credential`/dll., daftar sama dengan redaksi log/audit) **ditolak** `400 SETTINGS_SENSITIVE_KEY_REJECTED` — secret provider selalu lewat environment variable/secret manager, tidak pernah lewat settings tenant.
+4. Setiap update tercatat di audit trail (`settings_updated`) dengan **diff key yang berubah saja** (`addedKeys`/`changedKeys`/`removedKeys`) — tidak pernah nilai settings itu sendiri.
+
+### Inspeksi kesehatan modul
+
+1. `GET /api/v1/modules/{moduleKey}/health` (butuh `.health.read`) — cepat, read-only, **tidak pernah** memanggil provider eksternal. Status `healthy`/`degraded`/`failed`/`unknown` dari sekumpulan sinyal (registry ter-sync, migrasi diterapkan, permission katalog sinkron, settings valid, jobs terdokumentasi, OpenAPI/AsyncAPI terdokumentasi).
+2. `POST /api/v1/modules/{moduleKey}/health/check` (butuh `.health.check`) — sinyal sama seperti di atas **plus** live check ke provider eksternal bila modul punya satu (hanya `email` saat ini, timeout-bounded, tidak pernah memblokir transaksi bisnis normal). Hasilnya dicatat di `awcms_mini_module_health_checks` (riwayat instance-level) dan diaudit (`health_checked`).
+3. Setiap `detail` sinyal adalah teks generik tetap — **tidak pernah** pesan error mentah, stack trace, atau nilai `DATABASE_URL`/secret.
+
+### Interpretasi error validasi dependency
+
+Kode error dari `POST .../enable` atau `.../disable` (semua `409` kecuali disebutkan lain):
+
+| Kode                               | Arti                                                          | Tindakan                                                        |
+| ---------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------- |
+| `MODULE_NOT_FOUND` (`404`)         | Module key tidak terdaftar atau dinonaktifkan global (code)   | Cek ejaan/`GET /modules` untuk daftar valid                     |
+| `MODULE_ALREADY_ENABLED`           | Sudah aktif untuk tenant ini                                  | Tidak perlu aksi                                                |
+| `MODULE_ALREADY_DISABLED`          | Sudah nonaktif untuk tenant ini                               | Tidak perlu aksi                                                |
+| `MODULE_DEPENDENCY_MISSING`        | Modul yang dibutuhkan tidak terdaftar sama sekali             | Periksa `dependencies` descriptor; kemungkinan bug authoring    |
+| `MODULE_DEPENDENCY_DISABLED`       | Modul yang dibutuhkan nonaktif (global atau untuk tenant ini) | Aktifkan dependency-nya dulu, baru modul ini                    |
+| `MODULE_REVERSE_DEPENDENCY_ACTIVE` | Modul lain yang masih aktif bergantung pada modul ini         | Nonaktifkan modul dependent dulu, atau batalkan rencana disable |
+| `MODULE_DEPENDENCY_CYCLE`          | Terdeteksi circular dependency pada graph                     | Bug authoring descriptor — laporkan ke tim modul terkait        |
+| `MODULE_VERSION_INCOMPATIBLE`      | `minAppVersion` modul lebih tinggi dari versi app saat ini    | Upgrade aplikasi dulu sebelum mengaktifkan modul ini            |
+| `CORE_MODULE_CANNOT_BE_DISABLED`   | Modul core (`isCore: true`)                                   | Tidak bisa dinonaktifkan — ini bukan bug                        |
+
+### Inspeksi job registry
+
+1. `GET /api/v1/modules/{moduleKey}/jobs` (butuh `.jobs.read`) — daftar command operasional modul (`command`, `purpose`, `recommendedSchedule`, `environmentNotes`, `safeInOfflineLan`). **Dokumentasi murni** — tidak ada endpoint untuk menjalankan command dari sini, dan tidak akan pernah ada (lihat §Batasan keamanan epic ini di doc 20).
+2. Untuk menjadwalkan command yang muncul di sini (mis. `bun run sync:objects:dispatch`, `bun run logs:audit:purge`), lihat `docs/awcms-mini/deployment-profiles.md` §Job registry lainnya.
+
+### Insiden misconfiguration modul
+
+1. **Modul tampak "degraded"/"failed" di health check**: baca `signals[].detail` untuk tahu sinyal mana yang gagal (mis. `db_registry_synced` gagal → jalankan `POST /modules/sync`; `permission_catalog_synced` gagal → migrasi permission belum diterapkan, cek migration terbaru).
+2. **Tenant tidak sengaja menonaktifkan modul yang dibutuhkan modul lain**: dependency graph mencegah ini di sisi enable (`MODULE_DEPENDENCY_DISABLED`) — tapi jika sudah terlanjur (mis. dinonaktifkan sebelum dependent-nya ada), aktifkan kembali lewat `POST .../enable`, tidak ada data yang hilang.
+3. **Tenant tidak sengaja mengisi settings dengan nilai salah**: `PATCH .../settings` dengan value yang benar untuk key yang sama — merge dangkal berarti hanya key tsb yang berubah.
+4. **Curiga ada secret ter-input ke settings**: request akan **ditolak** di request time (`SETTINGS_SENSITIVE_KEY_REJECTED`) untuk key bernama secret — bila ada kebocoran nilai lewat jalur lain, audit `settings_updated` hanya berisi nama key (bukan nilai), jadi cek langsung baris `awcms_mini_module_settings` (admin DB) sebagai langkah forensik, lalu rotasi kredensial yang bersangkutan di environment variable/secret manager.
+5. **Modul core ter-disable secara tidak sengaja**: tidak mungkin — enforced server-side (`CORE_MODULE_CANNOT_BE_DISABLED`), bukan cuma UI hint.
+
 ## SOP Backup/Restore
 
 Backup:

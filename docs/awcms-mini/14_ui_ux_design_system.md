@@ -179,23 +179,25 @@ Item menu difilter oleh permission efektif user (lihat doc 17). Menu tanpa akses
 
 ## Screen inventory
 
-| Route                        | Persona         | Tujuan                      | Komponen utama               | API utama                                                     |
-| ---------------------------- | --------------- | --------------------------- | ---------------------------- | ------------------------------------------------------------- |
-| `/login`                     | Semua           | Autentikasi                 | FormField, Button            | `POST /auth/login`                                            |
-| `/setup`                     | Owner awal      | Setup wizard                | Stepper, FormField           | `GET/POST /setup/*`                                           |
-| `/admin`                     | Admin/Owner     | Dashboard                   | Card, Chart, Table           | `GET /reports/*`                                              |
-| `/admin/products`            | Admin/Inventory | List/CRUD produk            | DataGrid, SearchBar, Dialog  | `/inventory/products`                                         |
-| `/admin/stock`               | Admin/Inventory | Stok & opening balance      | DataGrid, NumberInput        | `/inventory/stock-balances`                                   |
-| `/admin/warehouse`           | Gudang          | Transfer, bin, cycle count  | Tabs, StatusPill             | `/warehouses`, `/warehouse-transfers`                         |
-| `/admin/tax`                 | Tax Officer     | VAT invoice, Coretax        | DataGrid, MaskedText         | `/tax/*`                                                      |
-| `/admin/crm`                 | CRM Staff       | Kontak, receipt, outbox     | Table, Switch                | `/crm/*`                                                      |
-| `/admin/reports`             | Analyst/Owner   | Laporan                     | Chart, Table                 | `/reports/*`                                                  |
-| `/admin/ai`                  | Analyst/Owner   | AI analyst chat             | Chat, Card                   | `/ai/business-analyst/chat`                                   |
-| `/admin/access-users`        | Admin/Owner     | User & akses                | Table, FormField             | `/users/*`, `/roles/*`, `/permissions`, `/access/assignments` |
-| `/admin/sync`                | Admin/Owner     | Node, konflik, antrean sync | Table, StatusPill, FormField | `/sync/nodes`, `/sync/conflicts/*`, `/sync/object-queue/*`    |
-| `/admin/logs`                | Auditor/Admin   | Logs & security             | DataGrid, Badge              | `/logs/*`, `/security/*`                                      |
-| `/pos`                       | Kasir           | Transaksi POS               | POS shell, Combobox          | `/sales/*`                                                    |
-| `/customer/receipts/{token}` | Customer        | Receipt & consent           | Card, Switch                 | `/crm/receipts/*`                                             |
+| Route                        | Persona         | Tujuan                                                                         | Komponen utama                      | API utama                                                                                                  |
+| ---------------------------- | --------------- | ------------------------------------------------------------------------------ | ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `/login`                     | Semua           | Autentikasi                                                                    | FormField, Button                   | `POST /auth/login`                                                                                         |
+| `/setup`                     | Owner awal      | Setup wizard                                                                   | Stepper, FormField                  | `GET/POST /setup/*`                                                                                        |
+| `/admin`                     | Admin/Owner     | Dashboard                                                                      | Card, Chart, Table                  | `GET /reports/*`                                                                                           |
+| `/admin/products`            | Admin/Inventory | List/CRUD produk                                                               | DataGrid, SearchBar, Dialog         | `/inventory/products`                                                                                      |
+| `/admin/stock`               | Admin/Inventory | Stok & opening balance                                                         | DataGrid, NumberInput               | `/inventory/stock-balances`                                                                                |
+| `/admin/warehouse`           | Gudang          | Transfer, bin, cycle count                                                     | Tabs, StatusPill                    | `/warehouses`, `/warehouse-transfers`                                                                      |
+| `/admin/tax`                 | Tax Officer     | VAT invoice, Coretax                                                           | DataGrid, MaskedText                | `/tax/*`                                                                                                   |
+| `/admin/crm`                 | CRM Staff       | Kontak, receipt, outbox                                                        | Table, Switch                       | `/crm/*`                                                                                                   |
+| `/admin/reports`             | Analyst/Owner   | Laporan                                                                        | Chart, Table                        | `/reports/*`                                                                                               |
+| `/admin/ai`                  | Analyst/Owner   | AI analyst chat                                                                | Chat, Card                          | `/ai/business-analyst/chat`                                                                                |
+| `/admin/access-users`        | Admin/Owner     | User & akses                                                                   | Table, FormField                    | `/users/*`, `/roles/*`, `/permissions`, `/access/assignments`                                              |
+| `/admin/sync`                | Admin/Owner     | Node, konflik, antrean sync                                                    | Table, StatusPill, FormField        | `/sync/nodes`, `/sync/conflicts/*`, `/sync/object-queue/*`                                                 |
+| `/admin/logs`                | Auditor/Admin   | Logs & security                                                                | DataGrid, Badge                     | `/logs/*`, `/security/*`                                                                                   |
+| `/admin/modules`             | Admin/Owner     | List, filter modul + health                                                    | DataGrid, StatusPill                | `/modules`, `/modules/{moduleKey}/health`                                                                  |
+| `/admin/modules/{moduleKey}` | Admin/Owner     | Detail, dependency, settings, permission sync, navigation, jobs, health, audit | Tabs/Section, FormField, StatusPill | `/modules/{moduleKey}`, `/tenant/modules/{moduleKey}/*`, `/modules/{moduleKey}/{permissions,jobs,health*}` |
+| `/pos`                       | Kasir           | Transaksi POS                                                                  | POS shell, Combobox                 | `/sales/*`                                                                                                 |
+| `/customer/receipts/{token}` | Customer        | Receipt & consent                                                              | Card, Switch                        | `/crm/receipts/*`                                                                                          |
 
 ## State pattern wajib
 
