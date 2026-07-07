@@ -3072,6 +3072,116 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/tenant/modules/{moduleKey}/settings:
+    get:
+      tags:
+        - Module Management
+      summary: Read effective tenant module settings
+      description: >-
+        Effective settings = the module's own code-declared defaults with
+        the tenant's stored override applied on top. A module with no
+        override row yet still returns a view (defaults-only `effective`),
+        not a `404` — only an unknown `moduleKey` is `404`.
+      operationId: tenantModuleSettingsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Effective module settings for the tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleSettingsView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Module Management
+      summary: Update tenant module settings
+      description: >-
+        Merges the body into the tenant's existing settings override
+        (shallow, top-level JSON-merge-patch — omitted keys are left
+        untouched). Rejected with `400 SETTINGS_SENSITIVE_KEY_REJECTED` if
+        any key anywhere in the body looks secret-shaped (matches the
+        shared redaction key list) — provider secrets belong in environment
+        variables or a secret manager, never tenant-writable settings.
+        Audited with safe diff metadata (changed key names only, never
+        values).
+      operationId: tenantModuleSettingsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: >-
+                Arbitrary non-secret JSON object; merged into the tenant's
+                existing override.
+      responses:
+        "200":
+          description: Module settings updated for the tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleSettingsView"
+        "400":
+          description: >-
+            Validation failed (see `error.code`: `VALIDATION_ERROR`,
+            `SETTINGS_SENSITIVE_KEY_REJECTED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/health:
     get:
       tags:
@@ -4994,6 +5104,36 @@ components:
           type: string
         tenantEnabled:
           type: boolean
+    ModuleSettingsView:
+      type: object
+      required:
+        - moduleKey
+        - schemaVersion
+        - defaults
+        - tenantOverride
+        - effective
+        - updatedAt
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        schemaVersion:
+          type: integer
+        defaults:
+          type: object
+          description: The module's own code-declared default settings.
+        tenantOverride:
+          type: object
+          description: >-
+            Only the keys this tenant has explicitly set — never includes
+            secret-shaped keys (rejected at write time).
+        effective:
+          type: object
+          description: defaults with tenantOverride applied on top.
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
     ModuleUsageEntry:
       type: object
       required:

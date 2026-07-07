@@ -19,6 +19,7 @@ const REDACTION_KEYS = [
   "refreshtoken",
   "apikey",
   "secret",
+  "credential",
   "authorization",
   "npwp",
   "nik",
@@ -67,4 +68,40 @@ export function redactSensitiveAttributes(
   }
 
   return redactRecord(input);
+}
+
+function collectKeysDeep(value: unknown, keys: Set<string>): void {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectKeysDeep(item, keys);
+    }
+  } else if (value && typeof value === "object") {
+    for (const [key, nested] of Object.entries(
+      value as Record<string, unknown>
+    )) {
+      keys.add(key);
+      collectKeysDeep(nested, keys);
+    }
+  }
+}
+
+/**
+ * Every secret-shaped key present anywhere in `input` (recursively through
+ * nested objects/arrays), by name — used to *reject* input containing a key
+ * like `apiToken`/`credential` outright (module settings, Issue #516) rather
+ * than silently redact-and-store it, since a value the app never persisted
+ * can't leak later. `redactSensitiveAttributes` above stays the read-side/
+ * defense-in-depth complement for values already at rest.
+ */
+export function findSensitiveKeys(
+  input: Record<string, unknown> | undefined
+): string[] {
+  if (input === undefined) {
+    return [];
+  }
+
+  const keys = new Set<string>();
+  collectKeysDeep(input, keys);
+
+  return [...keys].filter(isSensitiveKey);
 }
