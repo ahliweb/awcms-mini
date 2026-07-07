@@ -3001,6 +3001,96 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/modules/{moduleKey}/health:
+    get:
+      tags:
+        - Module Management
+      summary: Module health/readiness (fast, bounded)
+      description: >-
+        Fast, bounded readiness signals (descriptor registered, DB registry
+        synced, migrations applied, permission catalog synced, settings
+        valid, jobs documented, OpenAPI/AsyncAPI documented). Never runs a
+        live provider/network check — that's the explicit
+        `POST .../health/check` action only.
+      operationId: modulesGetHealth
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Health/readiness report for the module.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleHealthReport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/modules/{moduleKey}/health/check:
+    post:
+      tags:
+        - Module Management
+      summary: Trigger an explicit module health check
+      description: >-
+        Same generic signals as `GET .../health`, plus a real, bounded,
+        network-calling provider health check where one exists (`email`
+        only today). Deliberately a separate action/permission from the
+        passive `GET` — never invoked automatically from a business
+        transaction path. Audited.
+      operationId: modulesRunHealthCheck
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Health/readiness report for the module, including the live provider check where applicable.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleHealthReport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/tenant/modules:
     get:
       tags:
@@ -5307,6 +5397,49 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/JobRegistryEntry"
+    ReadinessSignal:
+      type: object
+      required:
+        - name
+        - status
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+            - pass
+            - fail
+            - not_applicable
+        detail:
+          type: string
+          description: Safe, generic text only — never a raw error message, stack trace, or env/secret value.
+    ModuleHealthReport:
+      type: object
+      required:
+        - moduleKey
+        - status
+        - signals
+        - generatedAt
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        status:
+          type: string
+          enum:
+            - healthy
+            - degraded
+            - failed
+            - unknown
+        signals:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReadinessSignal"
+        generatedAt:
+          type: string
+          format: date-time
     ModuleUsageEntry:
       type: object
       required:

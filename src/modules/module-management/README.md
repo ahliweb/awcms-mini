@@ -221,6 +221,55 @@ automated content scanner: a free-text `environmentNotes`/`purpose`
 string has no reliable secret-shaped _key_ the way a JSON-object settings
 value does (`findSensitiveKeys`, Issue #516).
 
+## Module health/readiness — `application/health-registry.ts` (Issue #520)
+
+`GET /api/v1/modules/{moduleKey}/health` (fast, bounded, `module_management.health.read`)
+and `POST /api/v1/modules/{moduleKey}/health/check` (explicit/on-demand,
+`module_management.health.check`, audited as `action: "health_checked"`).
+`domain/health-registry.ts`'s `classifyHealthStatus` (pure) aggregates a
+list of `ReadinessSignal`s (`pass`/`fail`/`not_applicable`) into one of
+`healthy`/`degraded`/`failed`/`unknown`.
+
+**Generic signals, computed identically for every module** (both `GET`
+and `POST` run these):
+
+- `descriptor_registered` — always `pass` (we only get this far if it is).
+- `db_registry_synced` — the `awcms_mini_modules` row's `lifecycle_status`
+  matches the descriptor's own `status`.
+- `migrations_applied` — every `sql/*.sql` file has a matching
+  `awcms_mini_schema_migrations` row. A **local, minimal re-listing** of
+  migration filenames, not an import of `scripts/db-migrate.ts`'s own
+  `discoverMigrationFiles` — importing from `scripts/` into `src/` would
+  be a backwards dependency, and that function's checksum/transaction-control
+  validation isn't needed for a read-only readiness check.
+- `permission_catalog_synced` — reuses Issue #517's `comparePermissions`;
+  fails only on `missing`/`mismatched_description` entries (an `orphaned`
+  entry isn't this module's fault, so it doesn't count against it).
+- `settings_valid` — reuses Issue #516's `fetchModuleSettingsView`; `pass`
+  if it resolves without throwing (no required-field validation exists
+  yet to fail against).
+- `jobs_documented` — reuses Issue #519's `fetchModuleJobs` +
+  `validateJobDescriptor`; `not_applicable` if the module declares no
+  jobs at all.
+- `openapi_documented` / `asyncapi_documented` — `not_applicable` unless
+  the descriptor declares `api`/`events`; otherwise checks the referenced
+  YAML file actually documents the module's `basePath`/published events.
+
+**`provider_health_check` — the one deliberately module-specific
+signal**, `POST` only: `not_applicable` for every module except `email`,
+where it calls the real `resolveEmailProvider().healthCheck()` (Issue
+#495 — already timeout-bounded, error-truncating, the same function
+`bun run email:provider:health` uses). This mirrors an existing precedent
+rather than inventing a new one: `scripts/security-readiness.ts` already
+names `email`'s provider-config check specifically inside an otherwise
+generic/shared script.
+
+**Never leaks secrets**: every signal's `detail` is a small set of fixed,
+generic strings (counts and static phrases) — never a raw error message,
+stack trace, or `DATABASE_URL`. Every `catch` logs the real error
+server-side via `log()` (which redacts defensively anyway) before
+returning the safe, generic `detail`.
+
 ## Out of scope for this issue
 
 Admin UI, and runtime plugin installation are explicitly out of scope —

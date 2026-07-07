@@ -50,6 +50,10 @@ describe("isHighRiskAction", () => {
     expect(isHighRiskAction("enable")).toBe(false);
     expect(isHighRiskAction("disable")).toBe(false);
   });
+
+  test("does not classify check as high risk (Issue #520 — read-mostly, bounded health check)", () => {
+    expect(isHighRiskAction("check")).toBe(false);
+  });
 });
 
 describe("evaluateAccess", () => {
