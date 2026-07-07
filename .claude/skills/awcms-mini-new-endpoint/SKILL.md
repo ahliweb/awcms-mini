@@ -20,6 +20,7 @@ flowchart LR
 1. Route hanya orkestrasi; business logic di service, query di repository.
 2. Base path `/api/v1`. Auth wajib kecuali endpoint public eksplisit.
 3. Tenant-scoped → wajib header `X-AWCMS-Mini-Tenant-ID` + tenant context + RLS.
+   **Rute publik tenant-scoped** (tanpa sesi/header — mis. halaman blog publik, RSS, sitemap) resolve tenant lewat segmen path `tenantCode` (`/<prefix>/{tenantCode}/...`), **bukan** subdomain — lihat ADR-0009 (`docs/adr/0009-public-tenant-scoped-routes.md`) untuk alasan lengkap (subdomain butuh wildcard DNS/TLS, bertentangan dengan topologi LAN-first default). Belum ada implementasi contoh di base ini — Issue #540 (epic #536, `blog_content`) adalah konsumen pertama.
 4. Cek akses dengan `awcms-mini-abac-guard` (default deny).
 5. Validasi semua input (UUID, enum, length, numeric range, unknown field).
 6. Mutation high-risk → `awcms-mini-idempotency` (`Idempotency-Key`).
@@ -44,7 +45,9 @@ Sukses `{ success:true, data, meta }`; error `{ success:false, error:{ code, mes
 
 ```bash
 bun run api:spec:check
-bun run api:contract:test
+bun test
 ```
+
+(`api:contract:test` sempat direncanakan di blueprint awal, doc 11 — belum pernah dibangun; `bun test` mencakup unit+integration termasuk kontrak API hari ini, lihat `awcms-mini-testing`.)
 
 Endpoint mutation high-risk (post, cancel, resolve, link, merge, delete/restore/purge master data, transfer approve/ship/receive, cycle-count, adjustment, vat generate, coretax batch, receipt send, sync push, workflow decision) **wajib** idempotency.

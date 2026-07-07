@@ -113,6 +113,21 @@ sequenceDiagram
   end
 ```
 
+## Rute publik tenant-scoped (tanpa sesi)
+
+Berbeda dari `/admin/*` (sesi cookie) dan API client terautentikasi
+(header `X-AWCMS-Mini-Tenant-ID`) di atas — keduanya mengasumsikan
+pemanggil sudah tahu tenant-nya. Rute publik untuk pengunjung anonim
+(mis. halaman blog publik, RSS, sitemap — Issue #540, epic #536) **belum
+punya contoh implementasi di base ini**; ADR-0009
+(`docs/adr/0009-public-tenant-scoped-routes.md`) menetapkan polanya:
+tenant di-resolve dari segmen path eksplisit yang membawa `tenantCode`
+(`/<prefix>/{tenantCode}/...`, look up ke `awcms_mini_tenants` yang
+RLS-free), **bukan** subdomain — subdomain butuh wildcard DNS/TLS yang
+bertentangan dengan topologi LAN-first default (doc 18). `tenantCode`
+tidak ditemukan/tenant tidak aktif → `404`, bukan bocor keberadaan
+tenant.
+
 ## Offline-first (inti sistem)
 
 POS **wajib** berjalan tanpa internet. Mekanisme:

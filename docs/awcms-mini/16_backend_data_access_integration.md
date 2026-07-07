@@ -71,7 +71,7 @@ COMMIT;
 Catatan penting:
 
 - Gunakan **`SET LOCAL`** (bukan `SET` sesi) agar aman dengan **PgBouncer transaction pooling** — konteks tidak bocor antar transaksi/koneksi.
-- Nilai berasal dari auth middleware, **bukan** header publik mentah.
+- Nilai berasal dari auth middleware, **bukan** header publik mentah. Untuk rute publik tanpa sesi (ADR-0009, `docs/adr/0009-public-tenant-scoped-routes.md`), nilai tetap harus lewat lookup terverifikasi (`tenantCode → tenant_id` dari `awcms_mini_tenants`) — bukan menerima `tenant_id` mentah dari path/query sebagai kebenaran, prinsip yang sama persis.
 - RLS adalah pertahanan lapis kedua; query tetap memfilter `tenant_id` secara eksplisit.
 
 ```ts
