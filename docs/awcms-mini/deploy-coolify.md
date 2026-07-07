@@ -270,6 +270,20 @@ aplikasi yang sudah diatur lewat `R2_BUCKET` dan variabel R2 lain di
 environment variable masing-masing aplikasi — jangan berbagi bucket/prefix
 antar aplikasi tanpa pemisahan path yang jelas.
 
+## Dispatcher terjadwal (email)
+
+`bun run email:dispatch` (Issue #499, lihat
+[`deployment-profiles.md`](deployment-profiles.md) §Dispatcher email
+terjadwal untuk detail lengkap) adalah CLI, bukan endpoint — di Coolify
+dijalankan lewat **Scheduled Task** Coolify (bila plan/versi mendukung)
+atau cron di VPS host, memanggil `docker exec <container-app> bun run
+email:dispatch` setiap 1-2 menit. Sama seperti backup, pada topologi
+multi-app setiap aplikasi punya jadwal dispatch sendiri sesuai
+`EMAIL_ENABLED`/`DATABASE_URL` masing-masing — tidak ada dispatcher
+bersama lintas aplikasi. Bila `EMAIL_ENABLED` aplikasi tersebut `false`,
+perintah ini no-op (exit 0) sehingga aman dijadwalkan meski belum
+diaktifkan.
+
 ## Rollback
 
 - **Image registry (Pola 2)**: rollback = deploy ulang tag image

@@ -37,6 +37,7 @@ import { fetchActiveEmailTemplateByKey } from "./email-template-directory";
 import { resolveEmailSendMaxRetries } from "../domain/email-config";
 import { redactEmailAddressesInText } from "../domain/email-log-redaction";
 import { evaluateEmailRetry } from "../domain/email-retry";
+import { fetchSuppressedRecipientHashes } from "./suppression-directory";
 import {
   renderEmailTemplate,
   type EmailTemplateSource
@@ -59,6 +60,7 @@ type ClaimedRow = {
   category: string;
   template_key: string | null;
   to_address: string;
+  to_address_hash: string;
   subject: string;
   variables: Record<string, unknown> | null;
   retry_count: string | number;
@@ -79,6 +81,7 @@ export type DispatchEmailQueueResult = {
   sent: number;
   retried: number;
   failed: number;
+  suppressed: number;
   breakerOpen: boolean;
 };
 
@@ -126,7 +129,7 @@ async function claimEligibleEntries(
           LIMIT ${limit}
           FOR UPDATE SKIP LOCKED
         )
-        RETURNING id, correlation_id, category, template_key, to_address, subject, variables, retry_count
+        RETURNING id, correlation_id, category, template_key, to_address, to_address_hash, subject, variables, retry_count
       `;
 
       return rows as unknown as ClaimedRow[];
@@ -186,6 +189,34 @@ async function finalizeSent(
       UPDATE awcms_mini_email_messages
       SET status = 'sent', sent_at = now(), next_attempt_at = null,
           provider_name = ${providerName}, provider_message_id = ${providerMessageId ?? null}
+      WHERE tenant_id = ${tenantId} AND id = ${id} AND status = 'sending'
+    `,
+    { workClass: "background_sync" }
+  );
+}
+
+/**
+ * A recipient can land on the suppression list (bounce/complaint/manual/
+ * unsubscribe) *after* a message was enqueued but *before* the dispatcher
+ * gets to it — `enqueueAnnouncement`/`requestPasswordReset` only check the
+ * list at enqueue time. Checked again here, right before the provider call,
+ * so a fresh suppression always wins. No provider call is made and no
+ * `awcms_mini_email_delivery_attempts` row is written (that table's
+ * `outcome` constraint only allows `success`/`failure` — this was never a
+ * delivery attempt at all).
+ */
+async function finalizeSuppressed(
+  sql: Bun.SQL,
+  tenantId: string,
+  id: string
+): Promise<void> {
+  await withTenant(
+    sql,
+    tenantId,
+    (tx) => tx`
+      UPDATE awcms_mini_email_messages
+      SET status = 'suppressed', next_attempt_at = null,
+          last_error = 'Recipient is on the suppression list.'
       WHERE tenant_id = ${tenantId} AND id = ${id} AND status = 'sending'
     `,
     { workClass: "background_sync" }
@@ -261,6 +292,7 @@ export async function dispatchEmailQueue(
     sent: 0,
     retried: 0,
     failed: 0,
+    suppressed: 0,
     breakerOpen
   };
 
@@ -269,6 +301,11 @@ export async function dispatchEmailQueue(
   }
 
   if (breakerOpen) {
+    log("warning", "email.dispatch.breaker_open", {
+      correlationId,
+      tenantId,
+      moduleKey: MODULE_KEY
+    });
     return result;
   }
 
@@ -290,8 +327,26 @@ export async function dispatchEmailQueue(
   const fromAddress = options.fromAddress ?? env.EMAIL_FROM_ADDRESS ?? "";
   const fromName = options.fromName ?? env.EMAIL_FROM_NAME ?? "";
   const renderLocale = await fetchTenantDefaultLocale(sql, tenantId);
+  const suppressedHashes = await withTenant(
+    sql,
+    tenantId,
+    (tx) => fetchSuppressedRecipientHashes(tx, tenantId),
+    { workClass: "background_sync" }
+  );
 
   for (const entry of claimed) {
+    if (suppressedHashes.has(entry.to_address_hash)) {
+      await finalizeSuppressed(sql, tenantId, entry.id);
+      log("info", "email.dispatch.suppressed", {
+        correlationId: entry.correlation_id ?? correlationId,
+        tenantId,
+        moduleKey: MODULE_KEY,
+        category: entry.category
+      });
+      result.suppressed += 1;
+      continue;
+    }
+
     const retryCount = Number(entry.retry_count);
     const attemptNo = retryCount + 1;
     const messageCorrelationId = entry.correlation_id ?? correlationId;

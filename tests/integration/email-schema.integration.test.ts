@@ -181,6 +181,7 @@ suite("email schema — RLS isolation", () => {
 
     expect(rows.map((row) => `${row.activity_code}.${row.action}`)).toEqual([
       "announcement.create",
+      "message.cancel",
       "message.read",
       "notification.create",
       "suppression.create",

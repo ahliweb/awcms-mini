@@ -66,6 +66,30 @@ channels:
       failure) for a queued message. Documented contract only; producer is
       the structured JSON logger (`email/application/email-dispatch.ts`'s
       `email.dispatch.failed` log line).
+  awcms-mini.email.message.suppressed:
+    address: awcms-mini.email.message.suppressed
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      The email dispatcher (Issue #499) found a claimed message's recipient
+      newly present on `awcms_mini_email_suppression_list` (added after
+      enqueue, before dispatch) and skipped the provider call entirely.
+      Documented contract only; producer is the structured JSON logger
+      (`email/application/email-dispatch.ts`'s `email.dispatch.suppressed`
+      log line).
+  awcms-mini.email.message.cancelled:
+    address: awcms-mini.email.message.cancelled
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      An operator cancelled a still-queued message (Issue #499,
+      `POST /api/v1/email/messages/{id}/cancel`) — the technical mitigation
+      for the "accidental bulk send" incident scenario. Documented contract
+      only; producer is the structured JSON logger, invoked from
+      `pages/api/v1/email/messages/[id]/cancel.ts` (`email.message.cancelled`
+      log line).
 operations:
   publishSyncPushRequested:
     action: send
@@ -97,6 +121,18 @@ operations:
       $ref: "#/channels/awcms-mini.email.message.failed"
     messages:
       - $ref: "#/channels/awcms-mini.email.message.failed/messages/DomainEvent"
+  publishEmailMessageSuppressed:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.email.message.suppressed"
+    messages:
+      - $ref: "#/channels/awcms-mini.email.message.suppressed/messages/DomainEvent"
+  publishEmailMessageCancelled:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.email.message.cancelled"
+    messages:
+      - $ref: "#/channels/awcms-mini.email.message.cancelled/messages/DomainEvent"
 components:
   securitySchemes:
     syncHmac:

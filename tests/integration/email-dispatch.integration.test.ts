@@ -29,7 +29,10 @@ import {
 } from "./harness";
 
 import { getDatabaseClient } from "../../src/lib/database/client";
-import { resetProviderCircuitBreakersForTests } from "../../src/lib/database/circuit-breaker";
+import {
+  getProviderCircuitBreaker,
+  resetProviderCircuitBreakersForTests
+} from "../../src/lib/database/circuit-breaker";
 import { dispatchEmailQueue } from "../../src/modules/email/application/email-dispatch";
 import { createMailketingEmailProvider } from "../../src/modules/email/infrastructure/mailketing-provider";
 import { createLogEmailProvider } from "../../src/modules/email/infrastructure/log-email-provider";
@@ -347,6 +350,84 @@ suite("email dispatcher", () => {
     } finally {
       server.stop(true);
     }
+  });
+
+  test("a recipient suppressed after enqueue is skipped at dispatch time, without calling the provider", async () => {
+    await seedTemplate("auth.password_reset");
+    const id = await seedMessage({
+      templateKey: "auth.password_reset",
+      toAddress: "suppressed@example.com"
+    });
+
+    const admin = getAdminSql();
+    const hash = `sha256:${new Bun.CryptoHasher("sha256").update("suppressed@example.com").digest("hex")}`;
+    await admin`
+      UPDATE awcms_mini_email_messages SET to_address_hash = ${hash}
+      WHERE id = ${id}
+    `;
+    await admin`
+      INSERT INTO awcms_mini_email_suppression_list
+        (tenant_id, recipient_hash, recipient_masked, reason)
+      VALUES (${TENANT_ID}, ${hash}, 's***@example.com', 'bounced')
+    `;
+
+    let calls = 0;
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        calls += 1;
+        return Response.json({ status: "success", response: "Mail Sent" });
+      }
+    });
+
+    try {
+      const sql = getDatabaseClient();
+      const result = await dispatchEmailQueue(sql, TENANT_ID, {
+        env: { ...BASE_ENV, EMAIL_PROVIDER: "mailketing" },
+        resolveProvider: () =>
+          createMailketingEmailProvider({
+            apiToken: "test-token",
+            baseUrl: `http://127.0.0.1:${server.port}`
+          })
+      });
+
+      expect(result).toMatchObject({
+        claimed: 1,
+        sent: 0,
+        retried: 0,
+        failed: 0,
+        suppressed: 1
+      });
+      expect(calls).toBe(0);
+
+      const row = await fetchMessageRow(id);
+      expect(row.status).toBe("suppressed");
+      expect(await countDeliveryAttempts(id)).toBe(0);
+    } finally {
+      server.stop(true);
+    }
+  });
+
+  test("open circuit breaker: skips the pass entirely without claiming anything", async () => {
+    await seedTemplate("auth.password_reset");
+    await seedMessage({ templateKey: "auth.password_reset" });
+
+    const breaker = getProviderCircuitBreaker("email-mailketing");
+    const now = new Date();
+    breaker.recordFailure(now);
+    breaker.recordFailure(now);
+    breaker.recordFailure(now);
+    breaker.recordFailure(now);
+    breaker.recordFailure(now);
+
+    const sql = getDatabaseClient();
+    const result = await dispatchEmailQueue(sql, TENANT_ID, {
+      env: { ...BASE_ENV, EMAIL_PROVIDER: "mailketing" },
+      now
+    });
+
+    expect(result.breakerOpen).toBe(true);
+    expect(result.claimed).toBe(0);
   });
 
   afterEach(() => {

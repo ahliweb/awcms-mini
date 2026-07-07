@@ -82,7 +82,7 @@ describe("module registry", () => {
     expect(getModuleByKey("reporting")).toMatchObject({
       key: "reporting",
       status: "active",
-      dependencies: ["tenant_admin", "identity_access", "sync_storage"]
+      dependencies: ["tenant_admin", "identity_access", "sync_storage", "email"]
     });
     expect(getModuleByKey("logging")).toMatchObject({
       key: "logging",
@@ -206,7 +206,8 @@ describe("database migration runner helpers", () => {
       "020_awcms_mini_email_schema.sql",
       "021_awcms_mini_email_template_i18n_schema.sql",
       "022_awcms_mini_password_reset_schema.sql",
-      "023_awcms_mini_email_announcement_permission_schema.sql"
+      "023_awcms_mini_email_announcement_permission_schema.sql",
+      "024_awcms_mini_email_message_cancel_permission_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

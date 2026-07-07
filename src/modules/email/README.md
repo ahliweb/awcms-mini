@@ -255,6 +255,126 @@ secret/config) dan ISO/IEC 27002 (kontrol operasional). Announcement
 preview tidak pernah mengembalikan daftar penerima, audit hanya mencatat
 jumlah bukan daftar, dan targeting selalu memfilter suppression list.
 
+## Observability, security tests, and production readiness (Issue #499)
+
+### Structured logs (full lifecycle)
+
+Every stage of a message's life is a structured JSON log line
+(`src/lib/logging/logger.ts`), always carrying `correlationId`/`tenantId`/
+`moduleKey`, never a raw recipient address (only masked, and only where
+truly needed — most lines omit the recipient entirely):
+
+| Stage                                        | Log line                         | Emitted from                                 |
+| -------------------------------------------- | -------------------------------- | -------------------------------------------- |
+| Enqueue (bulk)                               | `email.message.queued`           | `application/announcement-directory.ts`      |
+| Claim (batch)                                | `email.dispatch.claimed`         | `application/email-dispatch.ts`              |
+| Dispatch success                             | `email.dispatch.sent`            | `application/email-dispatch.ts`              |
+| Dispatch retry scheduled                     | `email.dispatch.retry_scheduled` | `application/email-dispatch.ts`              |
+| Dispatch final failure                       | `email.dispatch.failed`          | `application/email-dispatch.ts`              |
+| Suppressed at dispatch time                  | `email.dispatch.suppressed`      | `application/email-dispatch.ts`              |
+| Provider circuit breaker open (pass skipped) | `email.dispatch.breaker_open`    | `application/email-dispatch.ts`              |
+| Cancelled by an operator                     | `email.message.cancelled`        | `pages/api/v1/email/messages/[id]/cancel.ts` |
+
+The first 3 (`.queued`/`.sent`/`.failed`) plus the 2 new ones
+(`.suppressed`/`.cancelled`) are also documented AsyncAPI channels
+(`asyncapi/awcms-mini-domain-events.asyncapi.yaml`) — contract-only, same
+"structured logger is the producer" convention as
+`awcms-mini.database.pool.saturated` (no live pub/sub bus in this repo).
+
+A recipient can land on the suppression list _after_ enqueue but _before_
+dispatch (bounce/complaint arriving between the two) — the dispatcher
+re-checks the suppression list right before calling the provider (not just
+at enqueue time) and skips the send entirely if newly suppressed, moving
+the message straight to `status = 'suppressed'` with no
+`email_delivery_attempts` row (no provider call was ever attempted).
+
+### Audit events (high-risk actions)
+
+Every mutating admin/user action already records an
+`awcms_mini_audit_events` row (`recordAuditEvent`): template CRUD/restore
+(#498), password reset request/complete (#496), announcement send (#497),
+and — new in #499 — `message_cancelled`, `suppression_created`,
+`suppression_deleted`. Attributes never include a raw recipient address
+(only category/reason/counts).
+
+### Metrics / report views
+
+- `GET /api/v1/email/messages` — tenant-wide queue diagnostics
+  (`status`/`cursor` filterable), the failed-queue and retry-backlog
+  visibility the issue's own "Observability requirements" calls for.
+  Never selects `to_address`, only `to_address_masked`.
+- `POST /api/v1/email/messages/{id}/cancel` — stop a still-queued message
+  before it sends (`queued`/`retry_wait` only; anything past that is a
+  `409`). The concrete technical mitigation behind the "accidental bulk
+  send" incident note below.
+- `GET /api/v1/email/suppressions` / `POST` / `DELETE /{id}` — manual
+  suppression list management (the `suppression.{read,create,delete}`
+  permissions seeded back in migration 020, unused until this issue).
+- `GET /api/v1/reports/email-health` — queue health aggregate (queued/
+  retry_wait/failed/suppressed counts, sent-last-24h, `isHealthy`),
+  `reporting` module (`modules/reporting/application/email-health-report.ts`),
+  same permission (`reporting.dashboard.read`) as `GET /reports/sync-health`.
+- `bun run email:provider:health` (Issue #495) — manual/CLI provider
+  health check; no HTTP endpoint (deliberate — a live network call
+  against the real provider is not something a request handler should
+  trigger synchronously).
+
+### Readiness/preflight
+
+`checkEmailConfig` (`scripts/validate-env.ts`, Issue #493) already blocks
+`bun run config:validate` — and therefore `bun run production:preflight`,
+which runs `config:validate` as its first stage — when `EMAIL_ENABLED=true`
+but required vars (`EMAIL_FROM_ADDRESS`, `EMAIL_PROVIDER`, and
+`EMAIL_MAILKETING_*` when `EMAIL_PROVIDER=mailketing`) are incomplete.
+Issue #499 adds `checkEmailProviderConfigReady` to
+`scripts/security-readiness.ts` (critical severity) — the same signal
+surfaced a second time inside `bun run security:readiness`'s own
+report/gate, for an operator who runs that command on its own rather than
+the full preflight. See
+[`../../../docs/awcms-mini/production-readiness.md`](../../../docs/awcms-mini/production-readiness.md).
+
+### Security tests
+
+Redaction (never a raw address in a log/audit/delivery-attempt row —
+`tests/email-log-redaction.test.ts`, dispatcher integration tests), RLS
+(`tests/integration/email-schema.integration.test.ts`, plus new tests on
+the #499 endpoints in `tests/integration/email-messages.integration.test.ts`
+/ `email-suppressions.integration.test.ts`), ABAC default-deny on every
+new endpoint, and password-reset enumeration-safety
+(`tests/integration/password-reset.integration.test.ts`, #496, still
+green) are all covered live against a real PostgreSQL.
+
+### Incident response
+
+- **Provider outage** (Mailketing 5xx/timeout/unreachable): the
+  per-provider circuit breaker (`lib/database/circuit-breaker.ts`,
+  `email-mailketing` key) opens after 5 consecutive failures and stops the
+  dispatcher from claiming anything for 30s (`email.dispatch.breaker_open`
+  warning log) — no manual action needed to stop hammering a down
+  provider. Messages already `queued`/`retry_wait` stay queued (nothing is
+  lost); they drain automatically once the breaker closes. To force a
+  faster recovery check: `bun run email:provider:health`. Local/critical
+  transactions are never blocked by an email outage — the provider call
+  happens strictly outside any DB transaction (ADR-0006), so a slow/down
+  provider cannot hold a lock or fail an unrelated write.
+- **Credential rotation** (`EMAIL_MAILKETING_API_TOKEN` compromised or
+  scheduled rotation): update the env var and restart/redeploy the app and
+  dispatcher process — no database change needed (the token is never
+  persisted, only read from `process.env` at dispatch time). Run `bun run
+email:provider:health` immediately after rotation to confirm the new
+  token works before relying on it. Old messages in flight are unaffected
+  (the provider call uses whatever token is current at send time).
+- **Accidental bulk send** (wrong `target`, wrong template, fat-fingered
+  tenant-wide announcement): `POST /api/v1/email/messages/{id}/cancel`
+  stops any row still `queued`/`retry_wait` for that `correlation_id`
+  before the dispatcher claims it — query
+  `GET /api/v1/email/messages?status=queued` (or `retry_wait`) filtered by
+  the announcement's `correlationId` (returned by
+  `POST /api/v1/email/announcements`) to find and cancel every affected
+  row. Rows already `sending`/`sent` cannot be recalled (no provider
+  supports unsend) — the mitigation is prevention (two-tier ABAC, #497)
+  plus fast cancellation of whatever hasn't gone out yet.
+
 ## Roadmap (epic #492)
 
 - ~~**#494**~~ — migration tenant-aware, RLS FORCE, status transition. **Selesai.**
@@ -265,7 +385,11 @@ jumlah bukan daftar, dan targeting selalu memfilter suppression list.
   `identity-access/README.md` §Password reset.
 - ~~**#497**~~ — announcement/notification bulk workflow. **Selesai** —
   lihat §Announcement/notification workflows di atas.
-- **#499** — observability, security test, production readiness gate
-  (termasuk automated purge job untuk `email_messages`/`_delivery_attempts`
-  terminal-state, didokumentasikan di doc 04 tapi belum diimplementasikan).
+- ~~**#499**~~ — observability, security test, production readiness gate.
+  **Selesai** — lihat §Observability, security tests, and production
+  readiness di atas. Automated purge job untuk
+  `email_messages`/`_delivery_attempts` terminal-state tetap
+  didokumentasikan di doc 04 tapi belum diimplementasikan (di luar cakupan
+  #499's acceptance criteria, bukan sebuah observability/security/readiness
+  gap).
 - **#500** — sinkronisasi OpenAPI/AsyncAPI/ERD/SOP/threat model/changeset.
