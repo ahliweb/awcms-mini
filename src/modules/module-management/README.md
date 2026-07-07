@@ -99,6 +99,45 @@ variables or a secret manager.
   migration-between-versions logic exists yet — out of scope until a real
   module actually bumps its settings shape.
 
+## Module permission sync/status — `application/permission-sync.ts` (Issue #517)
+
+`GET /api/v1/modules/{moduleKey}/permissions`. Read-only comparison
+between a module's descriptor-declared `permissions` (trusted code
+metadata, `ModuleDescriptor.permissions`) and the actual
+`awcms_mini_permissions` catalog rows for that module —
+`domain/permission-sync.ts`'s `comparePermissions`, pure, no I/O.
+
+- **`synced`** — declared and present, same description.
+- **`missing`** — declared in the descriptor, no catalog row (a migration
+  seeding it hasn't run yet, or was simply never added).
+- **`orphaned`** — a catalog row exists, no descriptor declares it anymore.
+  **Never auto-deleted or auto-corrected** — this is a report an operator
+  reads and acts on manually (issue's own security note), not a mutation.
+- **`mismatched_description`** — present in both, but the description text
+  differs.
+- **The "optional safe sync action" the issue mentions is deliberately not
+  implemented.** `descriptor-sync.ts` (Issue #513) already upserts
+  `awcms_mini_modules`/`_dependencies`/`_navigation`/`_jobs` from
+  `listModules()`, but never touches `awcms_mini_permissions` — extending
+  it to write permissions too is a real, separate capability the
+  acceptance criteria for this issue doesn't actually require (only the
+  read-side report does), so it's left out rather than half-built.
+- **Only `module_management`'s own descriptor currently declares
+  `permissions`** (the other 9 registered modules' permissions were seeded
+  directly by their own migrations, e.g. migration 005/010/014, without
+  ever being added to their `module.ts`). This means every one of those
+  modules' catalog permissions legitimately shows as `orphaned` today —
+  an honest reflection of incomplete descriptor metadata, not a real
+  drift/incident. Backfilling every other module's `permissions` array is
+  out of scope here (the issue itself says this metadata is "optional...
+  if not completed in Issue 1" — #511 didn't do it for the pre-existing
+  modules, and this issue's job is the comparison service, not that
+  backfill).
+- A `moduleKey` that is neither a registered descriptor nor present in the
+  permission catalog at all is `404` — distinct from a registered module
+  with zero declared permissions (still `200`, an empty or
+  all-`orphaned` report).
+
 ## Out of scope for this issue
 
 Admin UI, and runtime plugin installation are explicitly out of scope —
