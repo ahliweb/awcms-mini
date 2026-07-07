@@ -93,6 +93,62 @@ describe("renderContentJsonToHtml", () => {
     expect(renderContentJsonToHtml({})).toBe("");
     expect(renderContentJsonToHtml({ blocks: "not-an-array" })).toBe("");
   });
+
+  test("renders a gallery block with image and video items (Issue #542)", () => {
+    const html = renderContentJsonToHtml({
+      blocks: [
+        {
+          type: "gallery",
+          items: [
+            {
+              mediaType: "image",
+              url: "https://cdn.example.com/a.jpg",
+              caption: "A & B"
+            },
+            { mediaType: "video", url: "https://cdn.example.com/a.mp4" }
+          ]
+        }
+      ]
+    });
+    expect(html).toContain('<img src="https://cdn.example.com/a.jpg"');
+    expect(html).toContain("A &amp; B");
+    expect(html).toContain(
+      '<video src="https://cdn.example.com/a.mp4" controls>'
+    );
+  });
+
+  test("skips a gallery item with an unsafe/relative URL", () => {
+    const html = renderContentJsonToHtml({
+      blocks: [
+        {
+          type: "gallery",
+          items: [
+            { mediaType: "image", url: "javascript:alert(1)" },
+            { mediaType: "image", url: "/relative/path.jpg" }
+          ]
+        }
+      ]
+    });
+    expect(html).toBe("");
+  });
+
+  test("skips a gallery item with an invalid mediaType", () => {
+    const html = renderContentJsonToHtml({
+      blocks: [
+        {
+          type: "gallery",
+          items: [{ mediaType: "audio", url: "https://cdn.example.com/a.mp3" }]
+        }
+      ]
+    });
+    expect(html).toBe("");
+  });
+
+  test("returns null for an empty gallery items array", () => {
+    expect(
+      renderContentJsonToHtml({ blocks: [{ type: "gallery", items: [] }] })
+    ).toBe("");
+  });
 });
 
 describe("resolveSeoTitle", () => {

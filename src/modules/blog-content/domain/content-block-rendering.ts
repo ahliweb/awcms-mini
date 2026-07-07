@@ -1,4 +1,5 @@
 import { escapeHtml } from "../../../lib/html/escape";
+import { isAbsoluteHttpUrl } from "./seo-validation";
 
 /**
  * Safe, whitelist-based renderer for `content_json` (Issue #540 §Content
@@ -17,16 +18,27 @@ import { escapeHtml } from "../../../lib/html/escape";
  *
  * This is the first place in the repo that defines a concrete shape for
  * `content_json` (previously "opaque to the API", doc issue #537/#538) —
- * `{ blocks: ContentBlock[] }` with four block types (paragraph, heading,
- * list, quote). A derived app or later issue needing richer blocks
- * (image, embed, table, ...) extends the `switch` below, not a general
- * raw-HTML escape hatch.
+ * `{ blocks: ContentBlock[] }` with five block types (paragraph, heading,
+ * list, quote, and gallery — the latter added by Issue #542 for public
+ * image/video display, deliberately not a new media-library table since
+ * there is no base media library to integrate with beyond a loose URL, see
+ * `sql/029_awcms_mini_blog_content_presentation_schema.sql`'s header
+ * comment). A derived app or later issue needing richer blocks (embed,
+ * table, ...) extends the `switch` below, not a general raw-HTML escape
+ * hatch.
  */
+export type GalleryItem = {
+  mediaType: "image" | "video";
+  url: string;
+  caption?: string;
+};
+
 export type ContentBlock =
   | { type: "paragraph"; text: string }
   | { type: "heading"; level: 1 | 2 | 3 | 4 | 5 | 6; text: string }
   | { type: "list"; ordered?: boolean; items: string[] }
-  | { type: "quote"; text: string };
+  | { type: "quote"; text: string }
+  | { type: "gallery"; items: GalleryItem[] };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -84,6 +96,60 @@ function renderQuote(text: unknown): string | null {
   return `<blockquote>${escapeHtml(text)}</blockquote>`;
 }
 
+/**
+ * Gallery block (Issue #542 §Media/Gallery: "Support image and video
+ * gallery display. Validate allowed file/media references."). Every item's
+ * `url` is re-validated `isAbsoluteHttpUrl` at render time (same
+ * defense-in-depth convention `resolveCanonicalUrl` uses) — an item that
+ * fails is silently skipped, not thrown, same "degrade, don't 500"
+ * convention every other block here follows. `<img>`/`<video controls>`
+ * only — no `<iframe>`/embed, so a gallery item can never become an
+ * arbitrary-origin embed.
+ */
+function renderGalleryItem(item: unknown): string | null {
+  if (typeof item !== "object" || item === null || Array.isArray(item)) {
+    return null;
+  }
+
+  const record = item as Record<string, unknown>;
+
+  if (
+    (record.mediaType !== "image" && record.mediaType !== "video") ||
+    typeof record.url !== "string" ||
+    !isAbsoluteHttpUrl(record.url)
+  ) {
+    return null;
+  }
+
+  const url = escapeHtml(record.url);
+  const caption =
+    typeof record.caption === "string" && record.caption.trim().length > 0
+      ? `<figcaption>${escapeHtml(record.caption)}</figcaption>`
+      : "";
+  const media =
+    record.mediaType === "image"
+      ? `<img src="${url}" alt="${caption ? escapeHtml(record.caption as string) : ""}">`
+      : `<video src="${url}" controls></video>`;
+
+  return `<figure>${media}${caption}</figure>`;
+}
+
+function renderGallery(items: unknown): string | null {
+  if (!Array.isArray(items) || items.length === 0) {
+    return null;
+  }
+
+  const rendered = items
+    .map((item) => renderGalleryItem(item))
+    .filter((html): html is string => html !== null);
+
+  if (rendered.length === 0) {
+    return null;
+  }
+
+  return `<div class="gallery">${rendered.join("\n")}</div>`;
+}
+
 function renderBlock(block: unknown): string | null {
   if (!isRecord(block)) {
     return null;
@@ -98,6 +164,8 @@ function renderBlock(block: unknown): string | null {
       return renderList(block.ordered, block.items);
     case "quote":
       return renderQuote(block.text);
+    case "gallery":
+      return renderGallery(block.items);
     default:
       return null;
   }

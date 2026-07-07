@@ -27,6 +27,7 @@ import {
   fetchPostTermIds,
   syncPostTermAssignments
 } from "../../../../../modules/blog-content/application/blog-taxonomy-directory";
+import { setPostTranslationGroup } from "../../../../../modules/blog-content/application/localized-content-directory";
 import {
   validateSoftDeleteBlogPostInput,
   validateUpdateBlogPostInput
@@ -236,6 +237,15 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
 
     if (input.termIds) {
       await syncPostTermAssignments(tx, tenantId, postId, input.termIds);
+    }
+
+    if (input.translationGroupId !== undefined) {
+      await setPostTranslationGroup(
+        tx,
+        tenantId,
+        postId,
+        input.translationGroupId
+      );
     }
 
     const termIds = await fetchPostTermIds(tx, tenantId, postId);

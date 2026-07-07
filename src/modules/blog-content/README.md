@@ -1,6 +1,6 @@
 # Blog Content
 
-Implementasi Issue #537, #538, #539, #540, dan #541 (epic #536 — `blog_content`, `docs/adr/0009-public-tenant-scoped-routes.md`). **Modul domain pertama yang didaftarkan langsung di repo base ini** — sebelumnya `AGENTS.md` §Peta modul hanya mendaftarkan modul base generik; lihat catatan di sana untuk konteks.
+Implementasi Issue #537, #538, #539, #540, #541, dan #542 (epic #536 — `blog_content`, `docs/adr/0009-public-tenant-scoped-routes.md`). **Modul domain pertama yang didaftarkan langsung di repo base ini** — sebelumnya `AGENTS.md` §Peta modul hanya mendaftarkan modul base generik; lihat catatan di sana untuk konteks.
 
 ## Scope per issue
 
@@ -14,7 +14,9 @@ Issue #540: rute publik anonim (tanpa sesi) di bawah `/blog/{tenantCode}/...` se
 
 Issue #541: revision history append-only untuk post/page, restore revisi (permission eksplisit + Idempotency-Key), scheduled-publishing job (`bun run blog:publish:scheduled`), dan kontrak AsyncAPI domain event penuh untuk lifecycle modul ini. Lihat §Revisions dan §Scheduled publishing.
 
-Presentation extensions (#542) dan admin UI (#543) masih backlog — lihat §Belum tersedia.
+Issue #542: presentation/monetization extensions — template, menu hierarkis, widget, iklan (ads) dengan placement/scheduling, override tema per-tenant, `translation_group_id` untuk multilingual, dan block `gallery` baru di `content_json` untuk gambar/video publik. Migration `029`/`030`. Lihat §Presentation extensions.
+
+Admin UI (#543) masih backlog — lihat §Belum tersedia.
 
 ## Tabel (migration `026_awcms_mini_blog_content_schema.sql`)
 
@@ -30,9 +32,22 @@ Tujuh tabel persis sesuai doc issue #537 §Database Tables, semuanya tenant-scop
 
 Tidak ada `GRANT` eksplisit ke `awcms_mini_app` di migration 026 — migration 013 sudah memasang `ALTER DEFAULT PRIVILEGES` yang otomatis meng-grant tabel baru apa pun yang dibuat role pemilik (dipakai ulang oleh migration 025 untuk alasan yang sama).
 
-## Permission seed (migration `027_awcms_mini_blog_content_permissions.sql`)
+## Tabel presentasi (migration `029_awcms_mini_blog_content_presentation_schema.sql`, Issue #542)
 
-26 permission persis sesuai doc issue #537 §Permission Seed (`blog_content.posts.*`, `.pages.*`, `.taxonomies.*`, `.revisions.*`, `.settings.*`, `.seo.configure`, `.search.read`). Tidak ada role grant implisit — hanya assignable lewat Access & Users yang sudah ada.
+Delapan penambahan skema, semua tenant-scoped RLS FORCE seperti migration 026, per doc issue #542 §Important Scope Control (tidak membangun ulang base media library/tenant/RBAC/audit/theme engine):
+
+1. **`awcms_mini_blog_templates`** — `layout_json` **whitelisted**, bukan JSON bebas (`{ columns: 1|2|3, sidebarPosition: 'left'|'right'|'none' }`, divalidasi `domain/template-policy.ts`). Unik per `(tenant_id, key)` selama `deleted_at IS NULL`.
+2. **`awcms_mini_blog_menus`** + **`awcms_mini_blog_menu_items`** — hierarkis, **satu level** nesting saja (sama seperti batas parent kategori/tag). `menu_items.link_type` (`post|page|url`) menggerbangi field mana yang berarti (`target_id` untuk post/page, `url` untuk url — divalidasi absolute http(s), `isAbsoluteHttpUrl`).
+3. **`awcms_mini_blog_widgets`** — `position` (`header|sidebar|footer|content_before|content_after`), `body_text` plain text (di-escape saat render, tidak ada field raw-HTML).
+4. **`awcms_mini_blog_ads`** + **`awcms_mini_blog_ad_placements`** — `image_url`/`link_url` wajib absolute http(s). `ad_placements.placement_type` (`global|widget|post|page`) menggerbangi `target_id` (`NULL` untuk `global`, wajib UUID untuk sisanya).
+5. **`awcms_mini_blog_theme_settings`** — satu baris per tenant (`tenant_id` = PK, pola sama `awcms_mini_blog_settings`), `mode` (`light|dark|system`) adalah **override** dari `awcms_mini_tenants.default_theme` (migration 002) — baris tidak ada berarti "warisi default tenant", bukan `'light'` hardcoded.
+6. `awcms_mini_blog_posts`/`awcms_mini_blog_pages` mendapat kolom baru `translation_group_id uuid` (nullable, self-grouping, tanpa trigger) — lihat §Presentation extensions §Multilingual.
+
+Tidak ada tabel baru untuk galeri media — lihat §Presentation extensions §Media/Gallery untuk alasannya.
+
+## Permission seed (migration `027_awcms_mini_blog_content_permissions.sql`, `030_awcms_mini_blog_content_presentation_permissions.sql`)
+
+26 permission dari migration 027 persis sesuai doc issue #537 §Permission Seed (`blog_content.posts.*`, `.pages.*`, `.taxonomies.*`, `.revisions.*`, `.settings.*`, `.seo.configure`, `.search.read`). Migration 030 (Issue #542) menambah 10 permission lagi: `templates.{read,configure}`, `menus.{read,configure}`, `widgets.{read,configure}`, `ads.{read,configure}`, `theme.{read,configure}` — satu `read` + satu `configure` per resource, pola granularitas yang sama seperti `taxonomies.{read,configure}` (master/config data admin, bukan konten dengan lifecycle). Tidak ada role grant implisit — hanya assignable lewat Access & Users yang sudah ada.
 
 ## Domain validation (`domain/`)
 
@@ -46,6 +61,11 @@ Tidak ada `GRANT` eksplisit ke `awcms_mini_app` di migration 026 — migration 0
 - `blog-post-validation.ts` — `validateCreateBlogPostInput`/`validateUpdateBlogPostInput`/`validateScheduleBlogPostInput`/`validateSoftDeleteBlogPostInput`. Issue #539 menambah `termIds?: string[]` (validasi bentuk saja — array UUID, dedup; eksistensi per-tenant dicek di application layer).
 - `blog-page-validation.ts` (Issue #539) — sama strukturnya seperti `blog-post-validation.ts`, plus `pageType`/`parentPageId` (menolak diri sendiri sebagai parent)/`menuOrder` (integer ≥0).
 - `blog-term-validation.ts` (Issue #539) — `validateCreateBlogTermInput`/`validateUpdateBlogTermInput`/`validateSoftDeleteBlogTermInput`. Update tidak bisa mengecek ulang aturan tag-tanpa-parent terhadap baris yang sudah ada (validator murni, tidak query DB) — endpoint (`PATCH /api/v1/blog/terms/{id}`) yang menggabungkan field baru dengan baris existing sebelum memanggil `validateTermParent` lagi.
+- `template-policy.ts` (Issue #542) — `validateTemplateLayout` (whitelist `{ columns, sidebarPosition }`), `validateCreateTemplateInput`/`validateUpdateTemplateInput` (key format = `isValidSlug`).
+- `menu-policy.ts` (Issue #542) — `validateMenuItemsInput`: cross-item validation dalam satu batch (id unik, `parentItemId` wajib merujuk item lain di batch yang sama, maksimal satu level nesting) — lihat §Presentation extensions §Menus untuk kenapa `id` wajib client-supplied.
+- `widget-policy.ts` (Issue #542) — `validateCreateWidgetInput`/`validateUpdateWidgetInput`, `bodyText` memakai ulang `content-validation.ts`'s `containsUnsafeHtml` (baru diekspor Issue #542, sebelumnya privat).
+- `ad-policy.ts` (Issue #542) — `validateCreateAdInput`/`validateUpdateAdInput` (`imageUrl`/`linkUrl` = `isAbsoluteHttpUrl`, `endsAt > startsAt`), `validateAdPlacementsInput` (`targetId` wajib untuk `widget|post|page`, terlarang untuk `global`).
+- `theme-policy.ts` (Issue #542) — `validateUpdateThemeSettingsInput` (`mode` = `light|dark|system`, set nilai sama seperti `tenant-admin`'s `VALID_THEMES` tapi didefinisikan independen — repo ini tidak punya konvensi shared-domain-constant lintas modul).
 
 ## Application (`application/`)
 
@@ -56,6 +76,8 @@ Tidak ada `GRANT` eksplisit ke `awcms_mini_app` di migration 026 — migration 0
 - `blog-revision-directory.ts` (Issue #541) — `createBlogRevision` (INSERT-only, `revision_number` = `MAX(...)+1` scoped ke `(tenant_id, resource_type, resource_id)`), `listBlogRevisions`, `fetchBlogRevisionById` (di-scope ke `resource_id` juga, bukan cuma `id` — revisionId dari post lain tidak bisa dibaca lewat URL post ini). Tidak ada fungsi update/delete di file ini sama sekali — lihat §Revisions.
 - `blog-scheduled-publish.ts` (Issue #541) — `publishDueScheduledPosts`, satu `UPDATE` set-based per tenant, dipanggil `scripts/blog-scheduled-publish.ts` — lihat §Scheduled publishing.
 - `domain/revision-policy.ts` (Issue #541) — `isSignificantContentChange` (true kalau `title`/`contentJson`/`contentText` ada di input update; field kosmetik seperti `seoTitle`/`canonicalUrl`/`slug` tidak memicu revisi baru).
+- `template-directory.ts`/`menu-directory.ts`/`widget-directory.ts`/`ads-directory.ts`/`theme-settings-directory.ts` (Issue #542) — CRUD directory per resource, pola identik `blog-taxonomy-directory.ts` (satu file, baca+tulis, soft-delete). `menu-directory.ts`'s `syncMenuItems` dan `ads-directory.ts`'s `syncAdPlacements` full-replace sub-resource (delete-lalu-insert), sama seperti `syncPostTermAssignments`.
+- `localized-content-directory.ts` (Issue #542) — `setPostTranslationGroup`/`fetchPostTranslations`, satu kolom `UPDATE`/`SELECT` yang sengaja berdiri sendiri, **tidak** menyentuh `blog-post-directory.ts`'s `createBlogPost`/`updateBlogPost` (lihat §Presentation extensions §Multilingual untuk alasan risk/invasiveness-nya).
 
 ## Admin API — Blog Posts (Issue #538)
 
@@ -244,35 +266,101 @@ Audit per post yang dipublish: `blog.post.published` (reuse action yang sama den
 
 Tidak ada pemanggilan provider eksternal sama sekali di job ini (ADR-0006 tidak relevan di sini — job murni transisi database, tidak ada dispatcher/provider yang perlu dijaga di luar transaction).
 
-## Domain events (AsyncAPI, Issue #541)
+## Domain events (AsyncAPI, Issue #541, diperluas Issue #542)
 
-`asyncapi/awcms-mini-domain-events.asyncapi.yaml` — 13 channel baru untuk `blog_content`, terdaftar juga di `module.ts`'s `events.publishes` (divalidasi `scripts/api-spec-check.ts`'s `checkModuleEventChannels`: tiap entry `publishes` module manapun wajib punya channel AsyncAPI yang cocok). Sama seperti setiap event lain di kontrak ini sejak Issue 0.3: **dokumentasi kontrak saja** — tidak ada dispatcher pub/sub nyata di repo ini; produser sebenarnya adalah structured JSON logger (`src/lib/logging/logger.ts`'s `log()`), bukan event bus. Konvensi penamaan log line: buang prefix `awcms-mini.` dari event type (`awcms-mini.blog-content.post.published` -> log message `blog-content.post.published`) — pola sama persis `email.message.queued` dkk.
+`asyncapi/awcms-mini-domain-events.asyncapi.yaml` — 26 channel untuk `blog_content` (13 dari Issue #541 + 13 dari Issue #542), terdaftar juga di `module.ts`'s `events.publishes` (divalidasi `scripts/api-spec-check.ts`'s `checkModuleEventChannels`: tiap entry `publishes` module manapun wajib punya channel AsyncAPI yang cocok). Sama seperti setiap event lain di kontrak ini sejak Issue 0.3: **dokumentasi kontrak saja** — tidak ada dispatcher pub/sub nyata di repo ini; produser sebenarnya adalah structured JSON logger (`src/lib/logging/logger.ts`'s `log()`), bukan event bus. Konvensi penamaan log line: buang prefix `awcms-mini.` dari event type (`awcms-mini.blog-content.post.published` -> log message `blog-content.post.published`) — pola sama persis `email.message.queued` dkk.
 
-12 dari 13 event punya produser nyata di kode saat ini:
+25 dari 26 event punya produser nyata di kode saat ini:
 
-| Event (AsyncAPI channel, tanpa prefix `awcms-mini.`) | Log line diemisikan dari                                                                                                                                                                                         |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `blog-content.post.created`                          | `pages/api/v1/blog/posts/index.ts` (`POST`)                                                                                                                                                                      |
-| `blog-content.post.updated`                          | `pages/api/v1/blog/posts/[id].ts` (`PATCH`)                                                                                                                                                                      |
-| `blog-content.post.submitted-for-review`             | `pages/api/v1/blog/posts/[id]/submit-review.ts`                                                                                                                                                                  |
-| `blog-content.post.published`                        | `pages/api/v1/blog/posts/[id]/publish.ts` **dan** `blog-content/application/blog-scheduled-publish.ts` (atribut `trigger` membedakan)                                                                            |
-| `blog-content.post.scheduled`                        | `pages/api/v1/blog/posts/[id]/schedule.ts`                                                                                                                                                                       |
-| `blog-content.post.archived`                         | `pages/api/v1/blog/posts/[id]/archive.ts`                                                                                                                                                                        |
-| `blog-content.post.deleted`                          | `pages/api/v1/blog/posts/[id].ts` (`DELETE`)                                                                                                                                                                     |
-| `blog-content.post.restored`                         | `pages/api/v1/blog/posts/[id]/restore.ts` (restore soft-delete, **bukan** restore revisi)                                                                                                                        |
-| `blog-content.post.purged`                           | `pages/api/v1/blog/posts/[id]/purge.ts`                                                                                                                                                                          |
-| `blog-content.revision.created`                      | `blog-content/application/blog-revision-directory.ts`'s `createBlogRevision` — satu titik untuk PATCH signifikan **dan** restore revisi, jadi log line-nya otomatis muncul dari kedua jalur tanpa duplikasi kode |
-| `blog-content.term.created`                          | `pages/api/v1/blog/terms/index.ts` (`POST`)                                                                                                                                                                      |
-| `blog-content.term.updated`                          | `pages/api/v1/blog/terms/[id].ts` (`PATCH`)                                                                                                                                                                      |
+| Event (AsyncAPI channel, tanpa prefix `awcms-mini.`)  | Log line diemisikan dari                                                                                                                                                                                         |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `blog-content.post.created`                           | `pages/api/v1/blog/posts/index.ts` (`POST`)                                                                                                                                                                      |
+| `blog-content.post.updated`                           | `pages/api/v1/blog/posts/[id].ts` (`PATCH`)                                                                                                                                                                      |
+| `blog-content.post.submitted-for-review`              | `pages/api/v1/blog/posts/[id]/submit-review.ts`                                                                                                                                                                  |
+| `blog-content.post.published`                         | `pages/api/v1/blog/posts/[id]/publish.ts` **dan** `blog-content/application/blog-scheduled-publish.ts` (atribut `trigger` membedakan)                                                                            |
+| `blog-content.post.scheduled`                         | `pages/api/v1/blog/posts/[id]/schedule.ts`                                                                                                                                                                       |
+| `blog-content.post.archived`                          | `pages/api/v1/blog/posts/[id]/archive.ts`                                                                                                                                                                        |
+| `blog-content.post.deleted`                           | `pages/api/v1/blog/posts/[id].ts` (`DELETE`)                                                                                                                                                                     |
+| `blog-content.post.restored`                          | `pages/api/v1/blog/posts/[id]/restore.ts` (restore soft-delete, **bukan** restore revisi)                                                                                                                        |
+| `blog-content.post.purged`                            | `pages/api/v1/blog/posts/[id]/purge.ts`                                                                                                                                                                          |
+| `blog-content.revision.created`                       | `blog-content/application/blog-revision-directory.ts`'s `createBlogRevision` — satu titik untuk PATCH signifikan **dan** restore revisi, jadi log line-nya otomatis muncul dari kedua jalur tanpa duplikasi kode |
+| `blog-content.term.created`                           | `pages/api/v1/blog/terms/index.ts` (`POST`)                                                                                                                                                                      |
+| `blog-content.term.updated`                           | `pages/api/v1/blog/terms/[id].ts` (`PATCH`)                                                                                                                                                                      |
+| `blog-content.template.created`/`.updated`/`.deleted` | `pages/api/v1/blog/templates/index.ts` (`POST`), `[id].ts` (`PATCH`/`DELETE`)                                                                                                                                    |
+| `blog-content.menu.created`/`.updated`/`.deleted`     | `pages/api/v1/blog/menus/index.ts` (`POST`), `[id].ts` (`PATCH`/`DELETE`)                                                                                                                                        |
+| `blog-content.widget.created`/`.updated`/`.deleted`   | `pages/api/v1/blog/widgets/index.ts` (`POST`), `[id].ts` (`PATCH`/`DELETE`)                                                                                                                                      |
+| `blog-content.ad.created`/`.updated`/`.deleted`       | `pages/api/v1/blog/ads/index.ts` (`POST`), `[id].ts` (`PATCH`/`DELETE`)                                                                                                                                          |
+| `blog-content.theme.updated`                          | `pages/api/v1/blog/theme/index.ts` (`PATCH`) — **beda** dari `settings.updated` di bawah, ini tegas tentang `awcms_mini_blog_theme_settings`, bukan `awcms_mini_blog_settings`                                   |
 
 Satu-satunya event **tanpa** produser saat ini: `blog-content.settings.updated` — didaftarkan sesuai daftar literal doc issue #541, tapi belum ada endpoint yang menulis `awcms_mini_blog_settings` (`blog_content.settings.configure` sudah diseed sejak Issue #537, menunggu endpoint-nya). `checkModuleEventChannels` hanya memvalidasi arah module.ts→AsyncAPI (setiap `publishes` wajib ada channel), bukan sebaliknya, jadi channel tanpa produser tidak membuat `api:spec:check` gagal.
+
+## Presentation extensions (Issue #542)
+
+Doc issue #542 sendiri berjudul "Templates, Menus, Widgets, Media/Gallery, Multilingual, Theme Mode, and Ads" dengan §Suggested Files/§Suggested Database Additions/§Suggested Routes eksplisit berlabel **"Suggested"** (beda dari §Routes literal di issue #537-#541) — jadi implementasi ini punya keleluasaan lebih untuk memilih pendekatan paling konsisten dengan arsitektur yang sudah ada, selama Acceptance Criteria tetap terpenuhi. §Important Scope Control issue ini eksplisit: jangan bangun ulang base media library, base tenant system, base RBAC/ABAC, base audit, atau base theme engine.
+
+### Templates, Menus, Widgets, Ads — CRUD penuh
+
+Empat resource ini dibangun sebagai admin CRUD nyata (bukan lightweight), karena masing-masing eksplisit punya §Suggested Routes sendiri di issue dan butuh guard/audit/RLS lengkap:
+
+```txt
+GET    /api/v1/blog/templates          -> blog_content.templates.read
+POST   /api/v1/blog/templates          -> blog_content.templates.configure
+PATCH  /api/v1/blog/templates/{id}     -> blog_content.templates.configure
+DELETE /api/v1/blog/templates/{id}     -> blog_content.templates.configure
+
+GET    /api/v1/blog/menus              -> blog_content.menus.read
+POST   /api/v1/blog/menus              -> blog_content.menus.configure
+PATCH  /api/v1/blog/menus/{id}         -> blog_content.menus.configure
+DELETE /api/v1/blog/menus/{id}         -> blog_content.menus.configure
+
+GET    /api/v1/blog/widgets            -> blog_content.widgets.read
+POST   /api/v1/blog/widgets            -> blog_content.widgets.configure
+PATCH  /api/v1/blog/widgets/{id}       -> blog_content.widgets.configure
+DELETE /api/v1/blog/widgets/{id}       -> blog_content.widgets.configure
+
+GET    /api/v1/blog/ads                -> blog_content.ads.read
+POST   /api/v1/blog/ads                -> blog_content.ads.configure
+PATCH  /api/v1/blog/ads/{id}           -> blog_content.ads.configure
+DELETE /api/v1/blog/ads/{id}           -> blog_content.ads.configure
+```
+
+Satu permission `configure` menggerbangi create/update/delete sekaligus (pola sama seperti `blog_content.taxonomies.configure`) — bukan permission per-aksi seperti posts (`.publish`/`.schedule`/dst) karena resource ini adalah master/config data admin, bukan konten dengan lifecycle status. Tidak ada ownership override ABAC — `configure` selalu dicek murni via `authorizeInTransaction`.
+
+### Menus — hierarki satu level, `id` wajib client-supplied
+
+`POST`/`PATCH .../menus(/{id})` menerima `items?: MenuItemEntryInput[]` — **full replace** (delete semua item lama, insert set baru), sama seperti `termIds` di payload post. Karena full-replace berarti id lama sudah hilang di saat baris baru di-insert, `id` tiap item **wajib disuplai klien** (bukan `gen_random_uuid()` DB) — supaya `parentItemId` di payload yang sama bisa merujuk sibling-nya sendiri tanpa perlu tahu id yang di-generate DB terlebih dulu. `domain/menu-policy.ts`'s `validateMenuItemsInput` memvalidasi: id unik dalam batch, `parentItemId` (kalau ada) wajib merujuk item lain di batch yang sama, dan nesting maksimal satu level (item dengan `parentItemId` yang parent-nya sendiri juga punya parent → ditolak) — batas yang sama seperti kategori/tag di `taxonomy-policy.ts`.
+
+`linkType` (`post|page|url`) menggerbangi field mana yang wajib: `post`/`page` butuh `targetId` (UUID, **tidak** dicek eksistensinya terhadap tabel posts/pages — konsisten dengan `termIds`' pola "shape only, existence check kalau perlu request DB tambahan," yang di sini sengaja dilewati karena menu bisa menunjuk resource yang belum ada saat menu-nya sendiri dibuat), `url` butuh URL http(s) absolut (`isAbsoluteHttpUrl`, sama seperti `canonicalUrl`).
+
+### Widgets — posisi tetap, body plain text
+
+`position` salah satu dari `header|sidebar|footer|content_before|content_after` (constraint DB + `domain/widget-policy.ts`). `bodyText` bukan `content_json` — plain text, direject (bukan disanitasi) kalau mengandung pola HTML tidak aman (`content-validation.ts`'s `containsUnsafeHtml`, baru diekspor issue ini). Rendering publik widget (kalau/ketika dibangun) wajib escape `bodyText`, sama seperti block renderer content_json — belum ada rute publik untuk widget di issue ini.
+
+### Ads — placement targeting + scheduling
+
+`imageUrl`/`linkUrl` wajib URL http(s) absolut — tidak ada field embed/iframe/raw-HTML sama sekali di skema, jadi rendering (`ads-directory.ts`'s `renderAdHtml`, whitelist `<img>`/`<a>` saja) **tidak bisa** jadi kanal XSS apa pun isi request-nya. `placements` (full replace, sama seperti `menu items`) menautkan satu ad ke `global`/`widget`/`post`/`page`; `targetId` wajib untuk tiga terakhir, terlarang untuk `global`. Scheduling: `startsAt`/`endsAt` opsional, `endsAt` wajib > `startsAt` kalau keduanya ada.
+
+`listActiveAdsForPlacement` (query publik-aman: `is_active=true` + jendela jadwal + tenant scope) dan `renderAdHtml` sudah tersedia dan diuji, tapi **belum dipasang ke rute mana pun** — precedent yang sama seperti `searchPublicBlogContent` di Issue #539 ("helper teruji, pemasangannya issue lain").
+
+### Theme mode — override tenant, bukan engine baru
+
+`GET`/`PATCH /api/v1/blog/theme` membaca/menulis `awcms_mini_blog_theme_settings` (satu baris per tenant). `GET` tanpa baris override mengembalikan `{ mode: <tenant.default_theme>, isOverride: false }` — base theme engine (`awcms_mini_tenants.default_theme`, migration 002) tetap satu-satunya sumber kebenaran default; tabel blog ini murni lapisan override opsional, sama sekali tidak menduplikasi logic tenant.
+
+### Multilingual — kolom link tipis, bukan endpoint baru
+
+Persyaratan inti ("locale-based storage/retrieval", "slug uniqueness tenant+locale aware") **sudah terpenuhi sejak Issue #537** lewat kolom `locale` + partial unique index `(tenant_id, locale, slug)` yang sudah ada di posts/pages — issue ini tidak mendesain ulang itu. Yang baru: kolom `translation_group_id` (nullable, tanpa FK/trigger) supaya beberapa varian-locale dari satu post logis bisa ditautkan. Diimplementasikan sebagai fungsi berdiri sendiri (`localized-content-directory.ts`'s `setPostTranslationGroup`/`fetchPostTranslations`) yang dipanggil dari `POST`/`PATCH /api/v1/blog/posts(/{id})` **setelah** `createBlogPost`/`updateBlogPost` sukses — **bukan** ditambahkan ke `INSERT`/`UPDATE`/`RETURNING` `blog-post-directory.ts` yang sudah ada, karena kolom itu disentuh di 7+ tempat berbeda di file itu; satu `UPDATE` sempit yang independen jauh lebih rendah risiko daripada bedah ulang setiap `RETURNING` clause di file yang sudah teruji sejak Issue #538. Hanya posts, tidak pages (scope-control: cukup satu jalur untuk membuktikan pola-nya bekerja).
+
+### Media/Gallery — block `content_json` baru, bukan tabel media
+
+Doc issue #542 eksplisit: "Do not rebuild the base media library... Integrate with existing media/file capability where available." Base repo ini **tidak punya** media library nyata — `featuredMediaId` di posts/pages (Issue #538) cuma UUID longgar tanpa FK, tervalidasi bentuknya saja. Karena tidak ada yang nyata untuk diintegrasikan, galeri diimplementasikan sebagai tipe block baru di whitelist renderer yang sudah ada (`content-block-rendering.ts`, lihat §Content block schema di §Public routes): `{ type: "gallery", items: GalleryItem[] }`, tiap item `{ mediaType: "image"|"video", url, caption? }`. `url` divalidasi `isAbsoluteHttpUrl` saat render (defense-in-depth yang sama seperti `canonicalUrl`); item gagal validasi di-skip diam-diam (bukan throw). Render hanya `<img>`/`<video controls>` — tidak ada `<iframe>`/embed. Tidak ada endpoint/tabel gallery terpisah — galeri adalah bagian dari `content_json` post/page yang sudah ada, ditulis lewat `PATCH` yang sudah ada juga.
 
 ## Belum tersedia (backlog eksplisit, bukan kelalaian)
 
 - Public page (halaman statis) rendering — hanya post yang punya rute publik di Issue #540, lihat §Public routes.
 - Page revision list/detail/restore endpoints — `createBlogRevision` sudah dipanggil dari `PATCH /api/v1/blog/pages/{id}` (baris tersimpan), tapi tidak ada rute baca/restore untuk `resource_type = 'page'`, hanya post (lihat §Revisions).
 - `POST /api/v1/blog/settings` (atau setara) — `blog-content.settings.updated` sudah didaftarkan di kontrak AsyncAPI (Issue #541) tapi belum ada endpoint yang menulis `awcms_mini_blog_settings`.
-- Template, menu, widget, media/gallery, multilingual, theme mode, ads — Issue #542.
+- Rute publik untuk widget/ads rendering (header/sidebar/footer placement nyata di halaman publik) — `listActiveAdsForPlacement`/`renderAdHtml`/`listWidgets({ activeOnly: true })` sudah ada dan teruji, belum dipasang ke rute publik manapun.
+- Rute revisi/`translationGroupId` untuk pages — `setPostTranslationGroup` hanya untuk posts di issue ini.
 - Admin UI, dokumentasi akhir, hardening — Issue #543.
 - Page lifecycle-action endpoints (`submit-review`/`publish`/`schedule`/`archive`/`restore`/`purge` untuk pages) — permission-nya sudah diseed (Issue #537) tapi tidak ada issue yang eksplisit membangun endpoint-nya; backlog terbuka, bukan bagian #539.
 - Optimistic-concurrency check yang membaca kolom `version` — kolom sudah di-increment tiap write, tapi belum ada endpoint yang menolak write berdasarkan `version` mismatch.

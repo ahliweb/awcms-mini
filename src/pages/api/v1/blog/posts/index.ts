@@ -18,6 +18,7 @@ import {
   countExistingTerms,
   syncPostTermAssignments
 } from "../../../../../modules/blog-content/application/blog-taxonomy-directory";
+import { setPostTranslationGroup } from "../../../../../modules/blog-content/application/localized-content-directory";
 import { validateCreateBlogPostInput } from "../../../../../modules/blog-content/domain/blog-post-validation";
 import {
   isBlogContentStatus,
@@ -185,6 +186,15 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
 
     if (input.termIds) {
       await syncPostTermAssignments(tx, tenantId, post.id, input.termIds);
+    }
+
+    if (input.translationGroupId) {
+      await setPostTranslationGroup(
+        tx,
+        tenantId,
+        post.id,
+        input.translationGroupId
+      );
     }
 
     await recordAuditEvent(tx, {

@@ -237,6 +237,139 @@ channels:
       this module) — listed now per doc issue #541's required AsyncAPI
       event set so the contract is complete ahead of the route landing in a
       later issue.
+  awcms-mini.blog-content.template.created:
+    address: awcms-mini.blog-content.template.created
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A presentation template was created (Issue #542). Documented contract
+      only; producer is the structured JSON logger, invoked from
+      `pages/api/v1/blog/templates/index.ts`'s `POST` handler
+      (`blog-content.template.created` log line).
+  awcms-mini.blog-content.template.updated:
+    address: awcms-mini.blog-content.template.updated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A presentation template was updated (Issue #542). Documented contract
+      only; producer is the structured JSON logger, invoked from
+      `pages/api/v1/blog/templates/[id].ts`'s `PATCH` handler
+      (`blog-content.template.updated` log line).
+  awcms-mini.blog-content.template.deleted:
+    address: awcms-mini.blog-content.template.deleted
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A presentation template was soft-deleted (Issue #542). Documented
+      contract only; producer is the structured JSON logger, invoked from
+      `pages/api/v1/blog/templates/[id].ts`'s `DELETE` handler
+      (`blog-content.template.deleted` log line).
+  awcms-mini.blog-content.menu.created:
+    address: awcms-mini.blog-content.menu.created
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A navigation menu was created (Issue #542). Documented contract only;
+      producer is the structured JSON logger, invoked from
+      `pages/api/v1/blog/menus/index.ts`'s `POST` handler
+      (`blog-content.menu.created` log line).
+  awcms-mini.blog-content.menu.updated:
+    address: awcms-mini.blog-content.menu.updated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A navigation menu (or its item tree, full-replace) was updated
+      (Issue #542). Documented contract only; producer is the structured
+      JSON logger, invoked from `pages/api/v1/blog/menus/[id].ts`'s
+      `PATCH` handler (`blog-content.menu.updated` log line).
+  awcms-mini.blog-content.menu.deleted:
+    address: awcms-mini.blog-content.menu.deleted
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A navigation menu was soft-deleted (Issue #542). Documented contract
+      only; producer is the structured JSON logger, invoked from
+      `pages/api/v1/blog/menus/[id].ts`'s `DELETE` handler
+      (`blog-content.menu.deleted` log line).
+  awcms-mini.blog-content.widget.created:
+    address: awcms-mini.blog-content.widget.created
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A widget was created (Issue #542). Documented contract only; producer
+      is the structured JSON logger, invoked from
+      `pages/api/v1/blog/widgets/index.ts`'s `POST` handler
+      (`blog-content.widget.created` log line).
+  awcms-mini.blog-content.widget.updated:
+    address: awcms-mini.blog-content.widget.updated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A widget was updated (Issue #542). Documented contract only; producer
+      is the structured JSON logger, invoked from
+      `pages/api/v1/blog/widgets/[id].ts`'s `PATCH` handler
+      (`blog-content.widget.updated` log line).
+  awcms-mini.blog-content.widget.deleted:
+    address: awcms-mini.blog-content.widget.deleted
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A widget was soft-deleted (Issue #542). Documented contract only;
+      producer is the structured JSON logger, invoked from
+      `pages/api/v1/blog/widgets/[id].ts`'s `DELETE` handler
+      (`blog-content.widget.deleted` log line).
+  awcms-mini.blog-content.ad.created:
+    address: awcms-mini.blog-content.ad.created
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      An advertisement was created (Issue #542). Documented contract only;
+      producer is the structured JSON logger, invoked from
+      `pages/api/v1/blog/ads/index.ts`'s `POST` handler
+      (`blog-content.ad.created` log line).
+  awcms-mini.blog-content.ad.updated:
+    address: awcms-mini.blog-content.ad.updated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      An advertisement (or its placement targeting, full-replace) was
+      updated (Issue #542). Documented contract only; producer is the
+      structured JSON logger, invoked from
+      `pages/api/v1/blog/ads/[id].ts`'s `PATCH` handler
+      (`blog-content.ad.updated` log line).
+  awcms-mini.blog-content.ad.deleted:
+    address: awcms-mini.blog-content.ad.deleted
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      An advertisement was soft-deleted (Issue #542). Documented contract
+      only; producer is the structured JSON logger, invoked from
+      `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler
+      (`blog-content.ad.deleted` log line).
+  awcms-mini.blog-content.theme.updated:
+    address: awcms-mini.blog-content.theme.updated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      The tenant's blog theme mode override was set (Issue #542) — a
+      blog-scoped override of the base tenant theme engine
+      (`awcms_mini_tenants.default_theme`, migration 002), not a
+      replacement for it. Documented contract only; producer is the
+      structured JSON logger, invoked from `pages/api/v1/blog/theme/
+      index.ts`'s `PATCH` handler (`blog-content.theme.updated` log line).
 operations:
   publishSyncPushRequested:
     action: send
@@ -358,6 +491,84 @@ operations:
       $ref: "#/channels/awcms-mini.blog-content.settings.updated"
     messages:
       - $ref: "#/channels/awcms-mini.blog-content.settings.updated/messages/DomainEvent"
+  publishBlogContentTemplateCreated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.template.created"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.template.created/messages/DomainEvent"
+  publishBlogContentTemplateUpdated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.template.updated"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.template.updated/messages/DomainEvent"
+  publishBlogContentTemplateDeleted:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.template.deleted"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.template.deleted/messages/DomainEvent"
+  publishBlogContentMenuCreated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.menu.created"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.menu.created/messages/DomainEvent"
+  publishBlogContentMenuUpdated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.menu.updated"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.menu.updated/messages/DomainEvent"
+  publishBlogContentMenuDeleted:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.menu.deleted"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.menu.deleted/messages/DomainEvent"
+  publishBlogContentWidgetCreated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.widget.created"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.widget.created/messages/DomainEvent"
+  publishBlogContentWidgetUpdated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.widget.updated"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.widget.updated/messages/DomainEvent"
+  publishBlogContentWidgetDeleted:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.widget.deleted"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.widget.deleted/messages/DomainEvent"
+  publishBlogContentAdCreated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.ad.created"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.ad.created/messages/DomainEvent"
+  publishBlogContentAdUpdated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.ad.updated"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.ad.updated/messages/DomainEvent"
+  publishBlogContentAdDeleted:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.ad.deleted"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.ad.deleted/messages/DomainEvent"
+  publishBlogContentThemeUpdated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.theme.updated"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.theme.updated/messages/DomainEvent"
 components:
   securitySchemes:
     syncHmac:
