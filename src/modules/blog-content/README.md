@@ -1,10 +1,12 @@
 # Blog Content
 
-Implementasi Issue #537 (epic #536 — `blog_content`, `docs/adr/0009-public-tenant-scoped-routes.md`). **Modul domain pertama yang didaftarkan langsung di repo base ini** — sebelumnya `AGENTS.md` §Peta modul hanya mendaftarkan modul base generik; lihat catatan di sana untuk konteks.
+Implementasi Issue #537 dan #538 (epic #536 — `blog_content`, `docs/adr/0009-public-tenant-scoped-routes.md`). **Modul domain pertama yang didaftarkan langsung di repo base ini** — sebelumnya `AGENTS.md` §Peta modul hanya mendaftarkan modul base generik; lihat catatan di sana untuk konteks.
 
-## Scope Issue #537 (foundation only)
+## Scope Issue #537 (foundation) vs Issue #538 (posts admin API)
 
-Hanya fondasi: module descriptor, domain validation, application placeholder read-only, dan schema database. **Tidak ada** endpoint admin/publik, OpenAPI/AsyncAPI, atau UI — itu Issue #538-#543 (lihat §Belum tersedia).
+Issue #537: module descriptor, domain validation, application placeholder read-only, dan schema database (migration 026/027) — lihat §Tabel dan §Permission seed.
+
+Issue #538: API admin CRUD + lifecycle untuk blog post di `/api/v1/blog/posts` (lihat §Admin API — Blog Posts). Pages/taksonomi/search (#539), rute publik (#540), revisi/scheduled publishing (#541), presentation extensions (#542), dan admin UI (#543) masih backlog — lihat §Belum tersedia.
 
 ## Tabel (migration `026_awcms_mini_blog_content_schema.sql`)
 
@@ -32,16 +34,64 @@ Tidak ada `GRANT` eksplisit ke `awcms_mini_app` di migration 026 — migration 0
 - `seo-validation.ts` — `validateSeoFields` (`seoTitle` ≤70 char, `metaDescription` ≤160 char, `canonicalUrl` harus URL http(s) absolut).
 - `taxonomy-policy.ts` — `validateTermParent` (tag tidak boleh punya parent, term tidak boleh jadi parent dirinya sendiri) — pre-check aplikasi sebelum constraint DB `awcms_mini_blog_terms_tag_no_parent_check` tersentuh.
 
-## Application placeholders (`application/`)
+## Application (`application/`)
 
-`blog-post-directory.ts` (`fetchBlogPostById`, `listBlogPostsByStatus`) dan `blog-taxonomy-directory.ts` (`fetchBlogTermsByTaxonomyType`) — query read-only tenant-scoped (filter `tenant_id` eksplisit + RLS, defense-in-depth sama seperti `identity-access/application/user-directory.ts`). Belum dipanggil endpoint manapun; disediakan supaya Issue #538/#539 langsung memakai ulang, bukan menulis query baru dari nol.
+- `blog-post-directory.ts` — dulu (Issue #537) hanya placeholder read-only; Issue #538 melengkapinya dengan seluruh mutation post (`createBlogPost`, `updateBlogPost`, `softDeleteBlogPost`, `transitionBlogPostStatus`, `restoreBlogPost`, `purgeBlogPost`) di file yang sama — konvensi "satu directory, baca+tulis" yang sama seperti `email/application/email-template-directory.ts`, bukan dipecah jadi file service terpisah. `version` (kolom integer di schema #537) di-increment tiap `updateBlogPost`/`transitionBlogPostStatus` sukses — penanda perubahan monoton saja, **belum** ada optimistic-concurrency check (If-Match/expected-version) yang membacanya.
+- `blog-taxonomy-directory.ts` (`fetchBlogTermsByTaxonomyType`) — masih placeholder read-only, dipakai ulang oleh Issue #539.
+
+## Admin API — Blog Posts (Issue #538)
+
+`/api/v1/blog/posts` (`src/pages/api/v1/blog/posts/`), bearer session + `X-AWCMS-Mini-Tenant-ID`, pola identik endpoint lain di base ini (`resolveAuthInputs`/`extractBearerToken` → `authorizeInTransaction`/`evaluateAccess` → service → `recordAuditEvent` → `ok()`/`fail()`).
+
+```txt
+GET    /api/v1/blog/posts                    -> blog_content.posts.read
+POST   /api/v1/blog/posts                     -> blog_content.posts.create
+GET    /api/v1/blog/posts/{id}                -> blog_content.posts.read
+PATCH  /api/v1/blog/posts/{id}                -> blog_content.posts.update (+ author-own-draft override, lihat di bawah)
+DELETE /api/v1/blog/posts/{id}                -> blog_content.posts.delete
+POST   /api/v1/blog/posts/{id}/submit-review  -> blog_content.posts.update (sama override)
+POST   /api/v1/blog/posts/{id}/publish        -> blog_content.posts.publish (Idempotency-Key wajib)
+POST   /api/v1/blog/posts/{id}/schedule       -> blog_content.posts.schedule (Idempotency-Key wajib)
+POST   /api/v1/blog/posts/{id}/archive        -> blog_content.posts.archive (Idempotency-Key wajib)
+POST   /api/v1/blog/posts/{id}/restore        -> blog_content.posts.restore (Idempotency-Key wajib)
+POST   /api/v1/blog/posts/{id}/purge          -> blog_content.posts.purge (Idempotency-Key wajib)
+```
+
+### ABAC — author boleh edit draft sendiri tanpa permission `update`
+
+Doc issue #538 §ABAC Rules menuntut dua hal sekaligus dari **satu** permission `blog_content.posts.update`: "Editor/Admin dengan permission boleh edit semua post tenant" **dan** "Author boleh edit draft sendiri walau belum published" (tanpa permission itu). `domain/post-access-policy.ts`'s `evaluatePostUpdateAccess` mengekspresikan ini sebagai OR: role permission (jalur "Editor/Admin") ATAU (pemanggil = `authorTenantUserId` DAN `status !== 'published'`) (jalur "Author"). Fungsi ini **sengaja tidak** ditaruh di `identity-access/domain/access-control.ts`'s `evaluateAccess` generik — itu evaluator lintas-modul yang deny-biased (ADR-0004 "default deny, deny overrides allow"); override ALLOW berbasis kepemilikan resource adalah business logic spesifik `blog_content`, disusun di atas `evaluateAccess` (memanggilnya dulu, baru fallback ke ownership check kalau satu-satunya alasan deny adalah `default_deny`), bukan primitive lintas-modul baru seperti `self_approval_deny` yang sudah ada.
+
+Dipakai oleh `PATCH /{id}` dan `POST /{id}/submit-review` (keduanya map ke permission `update`); endpoint lain (`publish`/`schedule`/`archive`/`restore`/`purge`) TIDAK punya ownership override — cek permission murni via `authorizeInTransaction`, sesuai literal doc issue #538: "Author may not publish unless granted `blog_content.posts.publish`".
+
+### `AccessAction` union diperluas: `publish`, `schedule`, `archive`
+
+Sama seperti Issue 10.1 menambah `restore`/`purge` dan sync object-queue menambah `retry`, guard `posts.publish`/`.schedule`/`.archive` butuh tiga nilai baru di `identity-access/domain/access-control.ts`'s `AccessAction` union (lihat README modul itu). **Tidak** ditambahkan ke `HIGH_RISK_ACTIONS` (metadata dokumentatif, bukan gerbang) — endpoint-nya tetap memanggil `recordAuditEvent` eksplisit dan mewajibkan `Idempotency-Key` terlepas dari klasifikasi itu.
+
+### Validasi status transition & purge/restore precondition
+
+- Semua transisi status (submit-review/publish/schedule/archive) divalidasi via `isValidStatusTransition` (Issue #537) sebelum mutasi — transisi tidak sah → `409 INVALID_STATUS_TRANSITION`.
+- `canPurgePost(status, deletedAt)` (baru di `post-status.ts`) — purge hanya boleh untuk post yang sudah `archived` atau sudah soft-deleted; selain itu → `409 PURGE_NOT_ALLOWED`.
+- `canRestorePost(deletedAt)` — restore hanya untuk post yang sedang soft-deleted; selain itu → `404`.
+
+### Sanitasi HTML
+
+`domain/content-validation.ts`'s `validateContentJsonField`/`validateContentTextField` menolak (bukan men-sanitize) `<script>`, `<iframe>`, `<embed>`, `<object>`, atribut event-handler inline, dan URL `javascript:` — pola persis sama yang dipakai `email-template-validation.ts` (doc 20 §XSS).
+
+### Idempotency & audit
+
+`Idempotency-Key` wajib untuk `publish`/`schedule`/`archive`/`restore`/`purge` (scope: `blog_post_publish`/`blog_post_schedule`/`blog_post_archive`/`blog_post_restore`/`blog_post_purge`, tabel generik `awcms_mini_idempotency_keys`). `create`/`update` tidak mewajibkannya (direkomendasikan saja per doc issue #538) — retry `create` yang mengulang slug yang sama akan kena `409 SLUG_CONFLICT` dari partial unique index, sama seperti `POST /api/v1/email/templates`.
+
+Audit `action` memakai string persis dari doc issue #538 §Audit Requirements (`blog.post.created`, `.updated`, `.submitted_for_review`, `.published`, `.scheduled`, `.archived`, `.deleted`, `.restored`, `.purged`) — bukan verb generik singkat (`create`/`update`) yang dipakai modul lain, karena issue ini eksplisit meminta identifier tersebut.
+
+### Purge — pembersihan `post_terms`
+
+`purgeBlogPost` menghapus baris `awcms_mini_blog_post_terms` milik post itu lebih dulu (metadata join murni, tidak berarti apa-apa begitu post-nya hilang) sebelum `DELETE` post-nya sendiri — **berbeda** dari pola `POST /api/v1/profiles/{id}/purge` yang menangkap foreign-key violation via savepoint, karena di sini kita sendiri yang memiliki kedua tabel dan tahu persis apa yang aman dihapus lebih dulu. `awcms_mini_blog_revisions` sengaja **tidak** disentuh (tidak ber-FK ke post, tetap jadi riwayat historis meski post-nya sudah purge).
 
 ## Belum tersedia (backlog eksplisit, bukan kelalaian)
 
-- Admin API (`POST/PATCH/DELETE /api/v1/blog/posts`, lifecycle actions) — Issue #538.
 - Halaman, taksonomi, dan PostgreSQL full-text search sungguhan (trigger `search_vector`) — Issue #539.
 - Rute publik, RSS, sitemap, SEO rendering — Issue #540 (lihat ADR-0009 untuk resolusi tenant tanpa sesi via `/blog/{tenantCode}/...`).
 - Endpoint restore revisi dan scheduled-publishing dispatcher — Issue #541.
 - Template, menu, widget, media/gallery, multilingual, theme mode, ads — Issue #542.
 - Admin UI, dokumentasi akhir, hardening — Issue #543.
-- OpenAPI/AsyncAPI belum diperbarui — tidak relevan sampai ada endpoint sungguhan (Issue #538 yang pertama menambahkannya).
+- Optimistic-concurrency check yang membaca kolom `version` — kolom sudah di-increment tiap write, tapi belum ada endpoint yang menolak write berdasarkan `version` mismatch.

@@ -28,7 +28,10 @@ export type AccessAction =
   | "sync"
   | "enable"
   | "disable"
-  | "check";
+  | "check"
+  | "publish"
+  | "schedule"
+  | "archive";
 
 export type AccessRequest = {
   moduleKey: string;

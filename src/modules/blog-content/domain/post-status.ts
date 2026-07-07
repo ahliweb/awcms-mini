@@ -62,3 +62,21 @@ export function isValidStatusTransition(
 
   return ALLOWED_STATUS_TRANSITIONS[from].includes(to);
 }
+
+/** Restore only makes sense for a currently soft-deleted post (Issue #538, same precondition `POST /api/v1/profiles/{id}/restore` already enforces). */
+export function canRestorePost(deletedAt: Date | null): boolean {
+  return deletedAt !== null;
+}
+
+/**
+ * Issue #538 §ABAC Rules: "Purge is forbidden for published content unless
+ * archived or soft-deleted first." A post already soft-deleted, or one whose
+ * lifecycle status is `archived`, may be purged; anything else (including
+ * `published`) may not.
+ */
+export function canPurgePost(
+  status: BlogContentStatus,
+  deletedAt: Date | null
+): boolean {
+  return deletedAt !== null || status === "archived";
+}
