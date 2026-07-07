@@ -134,7 +134,38 @@ flowchart LR
   Disp -->|gagal| Retry[Backoff + retry]
 ```
 
-Tabel terkait: `awcms_mini_sync_outbox`, `awcms_mini_message_outbox`, `awcms_mini_object_sync_queue`. Status: `pending → sent/failed`, dengan `next_retry_at`.
+Tabel terkait: `awcms_mini_sync_outbox`, `awcms_mini_message_outbox`, `awcms_mini_object_sync_queue`, `awcms_mini_email_messages` (Issue #494/#495, epic #492). Status: `pending → sent/failed`, dengan `next_retry_at`.
+
+### Dispatcher claim-lease (email, sync object queue)
+
+Pola konkret di balik "worker terpisah" pada diagram di atas — sama persis
+untuk `email/application/email-dispatch.ts` (`bun run email:dispatch`) dan
+`sync-storage/application/object-dispatch.ts`
+(`bun run sync:objects:dispatch`):
+
+1. **CLAIM** — satu transaksi pendek memindahkan baris yang eligible
+   (`queued`/`retry_wait` untuk email; `pending` untuk object queue) ke
+   status transient `sending`, dengan `UPDATE ... WHERE ... FOR UPDATE
+SKIP LOCKED` sehingga pemanggilan bersamaan (dua cron tick tumpang
+   tindih) aman tanpa duplikasi. `next_attempt_at`/`next_retry_at` dipakai
+   ulang sebagai lease expiry selama status `sending` — tidak ada kolom
+   lease terpisah.
+2. **SEND** — provider (Mailketing/R2) dipanggil **di luar** transaksi apa
+   pun (ADR-0006) untuk setiap baris yang di-claim.
+3. **FINALIZE** — satu transaksi pendek per baris memindahkan `sending`
+   ke status akhir: `sent` (sukses), `retry_wait` dengan backoff
+   eksponensial (gagal, masih ada sisa retry), atau `failed` (retry habis
+   atau kegagalan non-retryable). Setiap percobaan — sukses maupun gagal —
+   dicatat di tabel riwayat percobaan (`awcms_mini_email_delivery_attempts`
+   / analognya).
+
+Circuit breaker per-provider (`src/lib/database/circuit-breaker.ts`)
+membungkus fase SEND: setelah sejumlah kegagalan beruntun, breaker
+`open` menghentikan panggilan provider berikutnya untuk sementara waktu
+(mencegah retry-loop menghantam provider yang sedang outage) — email
+dispatcher bahkan berhenti meng-claim baris sama sekali selagi breaker
+`open` (`email.dispatch.breaker_open` log, Issue #499), object-dispatch
+tetap meng-claim baris yang tak butuh upload sambil breaker terbuka.
 
 ## Connection pooling dan backpressure
 
