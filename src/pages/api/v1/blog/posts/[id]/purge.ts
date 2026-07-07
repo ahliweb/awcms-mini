@@ -12,6 +12,7 @@ import {
   resolveAuthInputs
 } from "../../../../../../modules/identity-access/application/access-guard";
 import { hashSessionToken } from "../../../../../../lib/auth/session-token";
+import { log } from "../../../../../../lib/logging/logger";
 import { recordAuditEvent } from "../../../../../../modules/logging/application/audit-log";
 import {
   computeRequestHash,
@@ -135,6 +136,13 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
       severity: "critical",
       message: "Blog post purged.",
       correlationId
+    });
+
+    log("info", "blog-content.post.purged", {
+      correlationId,
+      tenantId,
+      moduleKey: "blog_content",
+      postId
     });
 
     const successResponse = ok({ id: postId, status: "purged" });

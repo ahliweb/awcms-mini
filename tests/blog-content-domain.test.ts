@@ -17,6 +17,7 @@ import {
   isTaxonomyType,
   validateTermParent
 } from "../src/modules/blog-content/domain/taxonomy-policy";
+import { isSignificantContentChange } from "../src/modules/blog-content/domain/revision-policy";
 
 describe("validateBlogContentCore", () => {
   test("accepts a valid core payload and trims/defaults fields", () => {
@@ -224,5 +225,25 @@ describe("taxonomy-policy", () => {
   test("rejects a term being its own parent", () => {
     const result = validateTermParent("category", "term-1", "term-1");
     expect(result.valid).toBe(false);
+  });
+});
+
+describe("revision-policy", () => {
+  test("isSignificantContentChange is true when title changes", () => {
+    expect(isSignificantContentChange({ title: "New title" })).toBe(true);
+  });
+
+  test("isSignificantContentChange is true when contentJson changes", () => {
+    expect(isSignificantContentChange({ contentJson: { blocks: [] } })).toBe(
+      true
+    );
+  });
+
+  test("isSignificantContentChange is true when contentText changes", () => {
+    expect(isSignificantContentChange({ contentText: "New body" })).toBe(true);
+  });
+
+  test("isSignificantContentChange is false for an empty input (e.g. a PATCH touching only cosmetic fields)", () => {
+    expect(isSignificantContentChange({})).toBe(false);
   });
 });

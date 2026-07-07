@@ -8,6 +8,7 @@ import {
   resolveAuthInputs
 } from "../../../../../modules/identity-access/application/access-guard";
 import { hashSessionToken } from "../../../../../lib/auth/session-token";
+import { log } from "../../../../../lib/logging/logger";
 import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
 import {
   fetchBlogTermById,
@@ -158,6 +159,14 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
       severity: "info",
       message: `Blog term updated: ${updated.slug}.`,
       correlationId
+    });
+
+    log("info", "blog-content.term.updated", {
+      correlationId,
+      tenantId,
+      moduleKey: "blog_content",
+      termId,
+      slug: updated.slug
     });
 
     return ok(updated);

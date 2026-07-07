@@ -90,6 +90,153 @@ channels:
       only; producer is the structured JSON logger, invoked from
       `pages/api/v1/email/messages/[id]/cancel.ts` (`email.message.cancelled`
       log line).
+  awcms-mini.blog-content.post.created:
+    address: awcms-mini.blog-content.post.created
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A blog post draft was created (Issue #538/#541). Documented contract
+      only, same convention as the email channels above — producer is the
+      structured JSON logger, invoked from
+      `pages/api/v1/blog/posts/index.ts`'s `POST` handler
+      (`blog-content.post.created` log line).
+  awcms-mini.blog-content.post.updated:
+    address: awcms-mini.blog-content.post.updated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A blog post was updated (Issue #538/#541). Documented contract only;
+      producer is the structured JSON logger, invoked from
+      `pages/api/v1/blog/posts/[id].ts`'s `PATCH` handler
+      (`blog-content.post.updated` log line).
+  awcms-mini.blog-content.post.submitted-for-review:
+    address: awcms-mini.blog-content.post.submitted-for-review
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A blog post moved from `draft`/`review` into `review` (Issue
+      #538/#541). Documented contract only; producer is the structured JSON
+      logger, invoked from
+      `pages/api/v1/blog/posts/[id]/submit-review.ts`
+      (`blog-content.post.submitted-for-review` log line).
+  awcms-mini.blog-content.post.published:
+    address: awcms-mini.blog-content.post.published
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A blog post transitioned to `published` (Issue #538/#541), either via
+      the admin `POST /api/v1/blog/posts/{id}/publish` action or the
+      `bun run blog:publish:scheduled` job publishing a due `scheduled`
+      post. Documented contract only; producer is the structured JSON
+      logger, invoked from `pages/api/v1/blog/posts/[id]/publish.ts` and
+      `blog-content/application/blog-scheduled-publish.ts`
+      (`blog-content.post.published` log line, `trigger` attribute
+      distinguishes the two callers).
+  awcms-mini.blog-content.post.scheduled:
+    address: awcms-mini.blog-content.post.scheduled
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A blog post was scheduled for future publication (Issue #538/#541).
+      Documented contract only; producer is the structured JSON logger,
+      invoked from `pages/api/v1/blog/posts/[id]/schedule.ts`
+      (`blog-content.post.scheduled` log line).
+  awcms-mini.blog-content.post.archived:
+    address: awcms-mini.blog-content.post.archived
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A blog post was archived (Issue #538/#541). Documented contract only;
+      producer is the structured JSON logger, invoked from
+      `pages/api/v1/blog/posts/[id]/archive.ts`
+      (`blog-content.post.archived` log line).
+  awcms-mini.blog-content.post.deleted:
+    address: awcms-mini.blog-content.post.deleted
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A blog post was soft-deleted (Issue #538/#541). Documented contract
+      only; producer is the structured JSON logger, invoked from
+      `pages/api/v1/blog/posts/[id].ts`'s `DELETE` handler
+      (`blog-content.post.deleted` log line).
+  awcms-mini.blog-content.post.restored:
+    address: awcms-mini.blog-content.post.restored
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A soft-deleted blog post was restored (Issue #538/#541 — not to be
+      confused with `revision.created`, which fires when a *revision* is
+      restored onto the live post). Documented contract only; producer is
+      the structured JSON logger, invoked from
+      `pages/api/v1/blog/posts/[id]/restore.ts`
+      (`blog-content.post.restored` log line).
+  awcms-mini.blog-content.post.purged:
+    address: awcms-mini.blog-content.post.purged
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A blog post was hard-deleted (Issue #538/#541). Documented contract
+      only; producer is the structured JSON logger, invoked from
+      `pages/api/v1/blog/posts/[id]/purge.ts`
+      (`blog-content.post.purged` log line).
+  awcms-mini.blog-content.revision.created:
+    address: awcms-mini.blog-content.revision.created
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A new row was appended to `awcms_mini_blog_revisions` (Issue #541) —
+      either a significant title/contentJson/contentText change on
+      `PATCH /api/v1/blog/{posts,pages}/{id}`, or a revision restore
+      (`POST /api/v1/blog/posts/{id}/revisions/{revisionId}/restore`)
+      appending the restored snapshot. `awcms_mini_blog_revisions` is
+      append-only — this event never corresponds to an `UPDATE`/`DELETE` of
+      an existing revision row. Documented contract only; producer is the
+      structured JSON logger, invoked from
+      `blog-content/application/blog-revision-directory.ts`'s
+      `createBlogRevision` (`blog-content.revision.created` log line).
+  awcms-mini.blog-content.term.created:
+    address: awcms-mini.blog-content.term.created
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A taxonomy term (category/tag) was created (Issue #539/#541).
+      Documented contract only; producer is the structured JSON logger,
+      invoked from `pages/api/v1/blog/terms/index.ts`'s `POST` handler
+      (`blog-content.term.created` log line).
+  awcms-mini.blog-content.term.updated:
+    address: awcms-mini.blog-content.term.updated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A taxonomy term (category/tag) was updated (Issue #539/#541).
+      Documented contract only; producer is the structured JSON logger,
+      invoked from `pages/api/v1/blog/terms/[id].ts`'s `PATCH` handler
+      (`blog-content.term.updated` log line).
+  awcms-mini.blog-content.settings.updated:
+    address: awcms-mini.blog-content.settings.updated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      Reserved for when `awcms_mini_blog_settings` (migration 026) gets a
+      write route — the `blog_content.settings.configure` permission was
+      seeded in Issue #537 but no endpoint consumes it yet. Documented
+      contract only, no current producer (unlike every other channel in
+      this module) — listed now per doc issue #541's required AsyncAPI
+      event set so the contract is complete ahead of the route landing in a
+      later issue.
 operations:
   publishSyncPushRequested:
     action: send
@@ -133,6 +280,84 @@ operations:
       $ref: "#/channels/awcms-mini.email.message.cancelled"
     messages:
       - $ref: "#/channels/awcms-mini.email.message.cancelled/messages/DomainEvent"
+  publishBlogContentPostCreated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.post.created"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.post.created/messages/DomainEvent"
+  publishBlogContentPostUpdated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.post.updated"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.post.updated/messages/DomainEvent"
+  publishBlogContentPostSubmittedForReview:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.post.submitted-for-review"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.post.submitted-for-review/messages/DomainEvent"
+  publishBlogContentPostPublished:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.post.published"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.post.published/messages/DomainEvent"
+  publishBlogContentPostScheduled:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.post.scheduled"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.post.scheduled/messages/DomainEvent"
+  publishBlogContentPostArchived:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.post.archived"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.post.archived/messages/DomainEvent"
+  publishBlogContentPostDeleted:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.post.deleted"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.post.deleted/messages/DomainEvent"
+  publishBlogContentPostRestored:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.post.restored"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.post.restored/messages/DomainEvent"
+  publishBlogContentPostPurged:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.post.purged"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.post.purged/messages/DomainEvent"
+  publishBlogContentRevisionCreated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.revision.created"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.revision.created/messages/DomainEvent"
+  publishBlogContentTermCreated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.term.created"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.term.created/messages/DomainEvent"
+  publishBlogContentTermUpdated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.term.updated"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.term.updated/messages/DomainEvent"
+  publishBlogContentSettingsUpdated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.settings.updated"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.settings.updated/messages/DomainEvent"
 components:
   securitySchemes:
     syncHmac:

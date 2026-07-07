@@ -8,6 +8,7 @@ import {
   resolveAuthInputs
 } from "../../../../../modules/identity-access/application/access-guard";
 import { hashSessionToken } from "../../../../../lib/auth/session-token";
+import { log } from "../../../../../lib/logging/logger";
 import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
 import {
   createBlogTerm,
@@ -167,6 +168,14 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       severity: "info",
       message: `Blog term created: ${term.slug}.`,
       correlationId
+    });
+
+    log("info", "blog-content.term.created", {
+      correlationId,
+      tenantId,
+      moduleKey: "blog_content",
+      termId: term.id,
+      slug: term.slug
     });
 
     return ok(term);
