@@ -10,32 +10,32 @@ import {
 import { hashSessionToken } from "../../../../../lib/auth/session-token";
 import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
 import {
-  createBlogPost,
-  listBlogPosts
-} from "../../../../../modules/blog-content/application/blog-post-directory";
-import {
-  countExistingTerms,
-  syncPostTermAssignments
-} from "../../../../../modules/blog-content/application/blog-taxonomy-directory";
-import { validateCreateBlogPostInput } from "../../../../../modules/blog-content/domain/blog-post-validation";
+  createBlogPage,
+  listBlogPages
+} from "../../../../../modules/blog-content/application/blog-page-directory";
+import { validateCreateBlogPageInput } from "../../../../../modules/blog-content/domain/blog-page-validation";
 import {
   isBlogContentStatus,
   type BlogContentStatus
 } from "../../../../../modules/blog-content/domain/post-status";
+import {
+  isPageType,
+  type PageType
+} from "../../../../../modules/blog-content/domain/page-type";
 
 const READ_GUARD = {
   moduleKey: "blog_content",
-  activityCode: "posts",
+  activityCode: "pages",
   action: "read" as const
 };
 
 const CREATE_GUARD = {
   moduleKey: "blog_content",
-  activityCode: "posts",
+  activityCode: "pages",
   action: "create" as const
 };
 
-/** `GET /api/v1/blog/posts` (Issue #538) — list this tenant's non-deleted posts, `?status=` optional filter, `?limit=` bounded (default 20, max 100). */
+/** `GET /api/v1/blog/pages` (Issue #539) — list this tenant's non-deleted pages, `?status=`/`?pageType=` optional filters, `?limit=` bounded (default 20, max 100). */
 export const GET: APIRoute = async ({ request, cookies, url }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
 
@@ -60,6 +60,21 @@ export const GET: APIRoute = async ({ request, cookies, url }) => {
     }
 
     status = statusParam;
+  }
+
+  const pageTypeParam = url.searchParams.get("pageType");
+  let pageType: PageType | undefined;
+
+  if (pageTypeParam !== null) {
+    if (!isPageType(pageTypeParam)) {
+      return fail(
+        400,
+        "VALIDATION_ERROR",
+        "pageType must be one of standard, landing, legal, system."
+      );
+    }
+
+    pageType = pageTypeParam;
   }
 
   const limitParam = url.searchParams.get("limit");
@@ -89,16 +104,17 @@ export const GET: APIRoute = async ({ request, cookies, url }) => {
       return auth.denied;
     }
 
-    const posts = await listBlogPosts(tx, tenantId, {
+    const pages = await listBlogPages(tx, tenantId, {
       status,
+      pageType,
       limit
     });
 
-    return ok({ posts });
+    return ok({ pages });
   });
 };
 
-/** `POST /api/v1/blog/posts` (Issue #538) — create a draft post. Not idempotent (recommended, not required, per doc issue #538 §Idempotency Requirements) — a network retry duplicating a create is caught by the `(tenant_id, locale, slug)` partial unique index, same reasoning `POST /api/v1/email/templates` documents. */
+/** `POST /api/v1/blog/pages` (Issue #539) — create a draft page. Not idempotent (same reasoning as `POST /api/v1/blog/posts`) — a retry duplicating a create is caught by the `(tenant_id, locale, slug)` partial unique index. */
 export const POST: APIRoute = async ({ request, cookies, locals }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
 
@@ -110,7 +126,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
   }
 
-  const validation = validateCreateBlogPostInput(
+  const validation = validateCreateBlogPageInput(
     await request.json().catch(() => null)
   );
 
@@ -118,7 +134,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     return fail(
       400,
       "VALIDATION_ERROR",
-      "Blog post is invalid.",
+      "Blog page is invalid.",
       {},
       validation.errors
     );
@@ -143,26 +159,25 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       return auth.denied;
     }
 
-    if (input.termIds && input.termIds.length > 0) {
-      const existingCount = await countExistingTerms(
-        tx,
-        tenantId,
-        input.termIds
-      );
+    if (input.parentPageId) {
+      const parentRows = await tx`
+        SELECT id FROM awcms_mini_blog_pages
+        WHERE tenant_id = ${tenantId} AND id = ${input.parentPageId} AND deleted_at IS NULL
+      `;
 
-      if (existingCount !== input.termIds.length) {
+      if (parentRows.length === 0) {
         return fail(
           400,
           "VALIDATION_ERROR",
-          "termIds contains an id that does not exist for this tenant."
+          "parentPageId does not reference an existing page."
         );
       }
     }
 
-    let post;
+    let page;
 
     try {
-      post = await createBlogPost(
+      page = await createBlogPage(
         tx,
         tenantId,
         auth.context.tenantUserId,
@@ -171,33 +186,29 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
 
-      if (message.includes("awcms_mini_blog_posts_slug_dedup")) {
+      if (message.includes("awcms_mini_blog_pages_slug_dedup")) {
         return fail(
           409,
           "SLUG_CONFLICT",
-          `A post already exists for slug "${input.slug}" in locale "${input.locale}".`
+          `A page already exists for slug "${input.slug}" in locale "${input.locale}".`
         );
       }
 
       throw error;
     }
 
-    if (input.termIds) {
-      await syncPostTermAssignments(tx, tenantId, post.id, input.termIds);
-    }
-
     await recordAuditEvent(tx, {
       tenantId,
       actorTenantUserId: auth.context.tenantUserId,
       moduleKey: "blog_content",
-      action: "blog.post.created",
-      resourceType: "blog_post",
-      resourceId: post.id,
+      action: "blog.page.created",
+      resourceType: "blog_page",
+      resourceId: page.id,
       severity: "info",
-      message: `Blog post created: ${post.slug}.`,
+      message: `Blog page created: ${page.slug}.`,
       correlationId
     });
 
-    return ok({ ...post, termIds: input.termIds ?? [] });
+    return ok(page);
   });
 };

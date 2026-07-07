@@ -113,7 +113,7 @@ describe("module registry", () => {
     });
     expect(getModuleByKey("blog_content")).toMatchObject({
       key: "blog_content",
-      version: "0.2.0",
+      version: "0.3.0",
       status: "experimental",
       type: "domain",
       dependencies: ["tenant_admin", "identity_access"]
@@ -224,7 +224,8 @@ describe("database migration runner helpers", () => {
       "024_awcms_mini_email_message_cancel_permission_schema.sql",
       "025_awcms_mini_module_management_schema.sql",
       "026_awcms_mini_blog_content_schema.sql",
-      "027_awcms_mini_blog_content_permissions.sql"
+      "027_awcms_mini_blog_content_permissions.sql",
+      "028_awcms_mini_blog_content_search_vector.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

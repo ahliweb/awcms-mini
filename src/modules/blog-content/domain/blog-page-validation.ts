@@ -14,30 +14,12 @@ import {
   isBlogContentVisibility,
   type BlogContentVisibility
 } from "./post-status";
+import { isPageType, type PageType } from "./page-type";
 
 export type ValidationError = {
   field: string;
   message: string;
 };
-
-export type CreateBlogPostInput = {
-  title: string;
-  slug: string;
-  excerpt: string | null;
-  contentJson: Record<string, unknown>;
-  contentText: string;
-  locale: string;
-  visibility: BlogContentVisibility;
-  featuredMediaId: string | null;
-  seoTitle: string | null;
-  metaDescription: string | null;
-  canonicalUrl: string | null;
-  termIds: string[] | undefined;
-};
-
-export type CreateBlogPostValidationResult =
-  | { valid: true; value: CreateBlogPostInput }
-  | { valid: false; errors: ValidationError[] };
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -56,34 +38,64 @@ function validateFeaturedMediaId(
   return { valid: true, value };
 }
 
-/**
- * `termIds` (doc issue #539 §Scope: "Post-term relation handling") —
- * validated here purely for shape (array of UUIDs); existence within the
- * caller's tenant is checked at the application layer
- * (`countExistingTerms`) since that requires a database round-trip a pure
- * validator cannot do.
- */
-function validateTermIds(
-  value: unknown
-): { valid: true; value: string[] | undefined } | { valid: false } {
-  if (value === undefined) {
-    return { valid: true, value: undefined };
+function validateParentPageId(
+  value: unknown,
+  pageId: string | null
+): { valid: true; value: string | null } | { valid: false; message: string } {
+  if (value === undefined || value === null) {
+    return { valid: true, value: null };
   }
 
-  if (
-    !Array.isArray(value) ||
-    !value.every((item) => typeof item === "string" && UUID_PATTERN.test(item))
-  ) {
+  if (typeof value !== "string" || !UUID_PATTERN.test(value)) {
+    return { valid: false, message: "parentPageId must be a UUID or null." };
+  }
+
+  if (pageId !== null && value === pageId) {
+    return { valid: false, message: "A page cannot be its own parent." };
+  }
+
+  return { valid: true, value };
+}
+
+function validateMenuOrder(
+  value: unknown
+): { valid: true; value: number } | { valid: false } {
+  if (value === undefined) {
+    return { valid: true, value: 0 };
+  }
+
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
     return { valid: false };
   }
 
-  return { valid: true, value: [...new Set(value as string[])] };
+  return { valid: true, value };
 }
 
-/** `POST /api/v1/blog/posts` (Issue #538). Composes the shared core/SEO validators from Issue #537 plus post-only fields (`visibility`, `featuredMediaId`). */
-export function validateCreateBlogPostInput(
+export type CreateBlogPageInput = {
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  contentJson: Record<string, unknown>;
+  contentText: string;
+  locale: string;
+  visibility: BlogContentVisibility;
+  featuredMediaId: string | null;
+  seoTitle: string | null;
+  metaDescription: string | null;
+  canonicalUrl: string | null;
+  pageType: PageType;
+  parentPageId: string | null;
+  menuOrder: number;
+};
+
+export type CreateBlogPageValidationResult =
+  | { valid: true; value: CreateBlogPageInput }
+  | { valid: false; errors: ValidationError[] };
+
+/** `POST /api/v1/blog/pages` (Issue #539). Same core/SEO composition as `validateCreateBlogPostInput`, plus page-only fields (`pageType`, `parentPageId`, `menuOrder`, doc issue #539 §Data Rules — Pages). */
+export function validateCreateBlogPageInput(
   body: unknown
-): CreateBlogPostValidationResult {
+): CreateBlogPageValidationResult {
   const errors: ValidationError[] = [];
   const record = (body ?? {}) as Record<string, unknown>;
 
@@ -117,11 +129,28 @@ export function validateCreateBlogPostInput(
     });
   }
 
-  const termIdsResult = validateTermIds(record.termIds);
-  if (!termIdsResult.valid) {
+  let pageType: PageType = "standard";
+  if (record.pageType !== undefined) {
+    if (!isPageType(record.pageType)) {
+      errors.push({
+        field: "pageType",
+        message: "pageType must be one of standard, landing, legal, system."
+      });
+    } else {
+      pageType = record.pageType;
+    }
+  }
+
+  const parentPageIdResult = validateParentPageId(record.parentPageId, null);
+  if (!parentPageIdResult.valid) {
+    errors.push({ field: "parentPageId", message: parentPageIdResult.message });
+  }
+
+  const menuOrderResult = validateMenuOrder(record.menuOrder);
+  if (!menuOrderResult.valid) {
     errors.push({
-      field: "termIds",
-      message: "termIds must be an array of UUIDs when provided."
+      field: "menuOrder",
+      message: "menuOrder must be a non-negative integer."
     });
   }
 
@@ -130,7 +159,8 @@ export function validateCreateBlogPostInput(
     !coreResult.valid ||
     !seoResult.valid ||
     !featuredMediaIdResult.valid ||
-    !termIdsResult.valid
+    !parentPageIdResult.valid ||
+    !menuOrderResult.valid
   ) {
     return { valid: false, errors };
   }
@@ -144,12 +174,14 @@ export function validateCreateBlogPostInput(
       seoTitle: seoResult.value.seoTitle ?? null,
       metaDescription: seoResult.value.metaDescription ?? null,
       canonicalUrl: seoResult.value.canonicalUrl ?? null,
-      termIds: termIdsResult.value
+      pageType,
+      parentPageId: parentPageIdResult.value,
+      menuOrder: menuOrderResult.value
     }
   };
 }
 
-export type UpdateBlogPostInput = {
+export type UpdateBlogPageInput = {
   title?: string;
   slug?: string;
   excerpt?: string | null;
@@ -161,20 +193,23 @@ export type UpdateBlogPostInput = {
   seoTitle?: string | null;
   metaDescription?: string | null;
   canonicalUrl?: string | null;
-  termIds?: string[];
+  pageType?: PageType;
+  parentPageId?: string | null;
+  menuOrder?: number;
 };
 
-export type UpdateBlogPostValidationResult =
-  | { valid: true; value: UpdateBlogPostInput }
+export type UpdateBlogPageValidationResult =
+  | { valid: true; value: UpdateBlogPageInput }
   | { valid: false; errors: ValidationError[] };
 
-/** `PATCH /api/v1/blog/posts/{id}` (Issue #538). Only the fields actually present in the body are validated/copied — each reuses the same field-level validator `validateBlogContentCore` composes for create, so update and create can never silently drift apart on what counts as a valid slug/contentJson/etc. */
-export function validateUpdateBlogPostInput(
-  body: unknown
-): UpdateBlogPostValidationResult {
+/** `PATCH /api/v1/blog/pages/{id}` (Issue #539). Only fields present in the body are validated/copied — same partial-update shape as `validateUpdateBlogPostInput`. */
+export function validateUpdateBlogPageInput(
+  body: unknown,
+  pageId: string
+): UpdateBlogPageValidationResult {
   const errors: ValidationError[] = [];
   const record = (body ?? {}) as Record<string, unknown>;
-  const value: UpdateBlogPostInput = {};
+  const value: UpdateBlogPageInput = {};
 
   if (record.title !== undefined) {
     const error = validateTitleField(record.title);
@@ -256,6 +291,44 @@ export function validateUpdateBlogPostInput(
     }
   }
 
+  if (record.pageType !== undefined) {
+    if (!isPageType(record.pageType)) {
+      errors.push({
+        field: "pageType",
+        message: "pageType must be one of standard, landing, legal, system."
+      });
+    } else {
+      value.pageType = record.pageType;
+    }
+  }
+
+  if (record.parentPageId !== undefined) {
+    const parentPageIdResult = validateParentPageId(
+      record.parentPageId,
+      pageId
+    );
+    if (!parentPageIdResult.valid) {
+      errors.push({
+        field: "parentPageId",
+        message: parentPageIdResult.message
+      });
+    } else {
+      value.parentPageId = parentPageIdResult.value;
+    }
+  }
+
+  if (record.menuOrder !== undefined) {
+    const menuOrderResult = validateMenuOrder(record.menuOrder);
+    if (!menuOrderResult.valid) {
+      errors.push({
+        field: "menuOrder",
+        message: "menuOrder must be a non-negative integer."
+      });
+    } else {
+      value.menuOrder = menuOrderResult.value;
+    }
+  }
+
   if (
     record.seoTitle !== undefined ||
     record.metaDescription !== undefined ||
@@ -277,18 +350,6 @@ export function validateUpdateBlogPostInput(
     }
   }
 
-  if (record.termIds !== undefined) {
-    const termIdsResult = validateTermIds(record.termIds);
-    if (!termIdsResult.valid) {
-      errors.push({
-        field: "termIds",
-        message: "termIds must be an array of UUIDs when provided."
-      });
-    } else {
-      value.termIds = termIdsResult.value;
-    }
-  }
-
   if (errors.length > 0) {
     return { valid: false, errors };
   }
@@ -296,62 +357,15 @@ export function validateUpdateBlogPostInput(
   return { valid: true, value };
 }
 
-export type ScheduleBlogPostInput = {
-  scheduledAt: Date;
-};
+export type SoftDeleteBlogPageInput = DeleteReasonInput;
 
-export type ScheduleBlogPostValidationResult =
-  | { valid: true; value: ScheduleBlogPostInput }
+export type SoftDeleteBlogPageValidationResult =
+  | { valid: true; value: SoftDeleteBlogPageInput }
   | { valid: false; errors: ValidationError[] };
 
-/** `POST /api/v1/blog/posts/{id}/schedule` body: `{ scheduledAt: <ISO 8601 datetime> }`, must be in the future. */
-export function validateScheduleBlogPostInput(
+/** `DELETE /api/v1/blog/pages/{id}` body: `{ reason: string }`. */
+export function validateSoftDeleteBlogPageInput(
   body: unknown
-): ScheduleBlogPostValidationResult {
-  const record = (body ?? {}) as Record<string, unknown>;
-
-  if (typeof record.scheduledAt !== "string") {
-    return {
-      valid: false,
-      errors: [{ field: "scheduledAt", message: "scheduledAt is required." }]
-    };
-  }
-
-  const scheduledAt = new Date(record.scheduledAt);
-
-  if (Number.isNaN(scheduledAt.getTime())) {
-    return {
-      valid: false,
-      errors: [
-        {
-          field: "scheduledAt",
-          message: "scheduledAt must be a valid ISO 8601 datetime."
-        }
-      ]
-    };
-  }
-
-  if (scheduledAt.getTime() <= Date.now()) {
-    return {
-      valid: false,
-      errors: [
-        { field: "scheduledAt", message: "scheduledAt must be in the future." }
-      ]
-    };
-  }
-
-  return { valid: true, value: { scheduledAt } };
-}
-
-export type SoftDeleteBlogPostInput = DeleteReasonInput;
-
-export type SoftDeleteBlogPostValidationResult =
-  | { valid: true; value: SoftDeleteBlogPostInput }
-  | { valid: false; errors: ValidationError[] };
-
-/** `DELETE /api/v1/blog/posts/{id}` body: `{ reason: string }` — same required-reason convention as `DELETE /api/v1/profiles/{id}` and `DELETE /api/v1/email/templates/{id}`. Thin wrapper over the shared `validateDeleteReasonInput` (Issue #539 reuses it directly for pages/terms instead of duplicating this). */
-export function validateSoftDeleteBlogPostInput(
-  body: unknown
-): SoftDeleteBlogPostValidationResult {
+): SoftDeleteBlogPageValidationResult {
   return validateDeleteReasonInput(body);
 }
