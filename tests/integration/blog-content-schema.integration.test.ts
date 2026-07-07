@@ -57,6 +57,10 @@ suite("blog_content schema — RLS isolation and constraints", () => {
     `) as { activity_code: string; action: string }[];
 
     expect(rows.map((row) => `${row.activity_code}.${row.action}`)).toEqual([
+      "ads.configure",
+      "ads.read",
+      "menus.configure",
+      "menus.read",
       "pages.archive",
       "pages.create",
       "pages.delete",
@@ -82,7 +86,13 @@ suite("blog_content schema — RLS isolation and constraints", () => {
       "settings.configure",
       "settings.read",
       "taxonomies.configure",
-      "taxonomies.read"
+      "taxonomies.read",
+      "templates.configure",
+      "templates.read",
+      "theme.configure",
+      "theme.read",
+      "widgets.configure",
+      "widgets.read"
     ]);
   });
 

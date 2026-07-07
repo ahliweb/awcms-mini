@@ -33,6 +33,7 @@ export type CreateBlogPostInput = {
   metaDescription: string | null;
   canonicalUrl: string | null;
   termIds: string[] | undefined;
+  translationGroupId: string | null;
 };
 
 export type CreateBlogPostValidationResult =
@@ -54,6 +55,18 @@ function validateFeaturedMediaId(
   }
 
   return { valid: true, value };
+}
+
+/**
+ * `translationGroupId` (Issue #542 §Multilingual Content) — an optional
+ * UUID linking this post to its translation siblings; same shape/rule as
+ * `featuredMediaId` above (optional, UUID-or-null, no existence check here
+ * — that's `application/localized-content-directory.ts`'s job).
+ */
+function validateTranslationGroupId(
+  value: unknown
+): { valid: true; value: string | null } | { valid: false } {
+  return validateFeaturedMediaId(value);
 }
 
 /**
@@ -125,12 +138,23 @@ export function validateCreateBlogPostInput(
     });
   }
 
+  const translationGroupIdResult = validateTranslationGroupId(
+    record.translationGroupId
+  );
+  if (!translationGroupIdResult.valid) {
+    errors.push({
+      field: "translationGroupId",
+      message: "translationGroupId must be a UUID when provided."
+    });
+  }
+
   if (
     errors.length > 0 ||
     !coreResult.valid ||
     !seoResult.valid ||
     !featuredMediaIdResult.valid ||
-    !termIdsResult.valid
+    !termIdsResult.valid ||
+    !translationGroupIdResult.valid
   ) {
     return { valid: false, errors };
   }
@@ -144,7 +168,8 @@ export function validateCreateBlogPostInput(
       seoTitle: seoResult.value.seoTitle ?? null,
       metaDescription: seoResult.value.metaDescription ?? null,
       canonicalUrl: seoResult.value.canonicalUrl ?? null,
-      termIds: termIdsResult.value
+      termIds: termIdsResult.value,
+      translationGroupId: translationGroupIdResult.value
     }
   };
 }
@@ -162,6 +187,7 @@ export type UpdateBlogPostInput = {
   metaDescription?: string | null;
   canonicalUrl?: string | null;
   termIds?: string[];
+  translationGroupId?: string | null;
 };
 
 export type UpdateBlogPostValidationResult =
@@ -286,6 +312,20 @@ export function validateUpdateBlogPostInput(
       });
     } else {
       value.termIds = termIdsResult.value;
+    }
+  }
+
+  if (record.translationGroupId !== undefined) {
+    const translationGroupIdResult = validateTranslationGroupId(
+      record.translationGroupId
+    );
+    if (!translationGroupIdResult.valid) {
+      errors.push({
+        field: "translationGroupId",
+        message: "translationGroupId must be a UUID or null."
+      });
+    } else {
+      value.translationGroupId = translationGroupIdResult.value;
     }
   }
 

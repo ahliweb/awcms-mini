@@ -38,7 +38,8 @@ const UNSAFE_HTML_PATTERNS: readonly RegExp[] = [
   /javascript:/i
 ];
 
-function containsUnsafeHtml(value: string): boolean {
+/** Exported for reuse by other free-text fields in this module (Issue #542's widget `bodyText`) that need the same reject-don't-sanitize check, without duplicating the pattern list. */
+export function containsUnsafeHtml(value: string): boolean {
   return UNSAFE_HTML_PATTERNS.some((pattern) => pattern.test(value));
 }
 
