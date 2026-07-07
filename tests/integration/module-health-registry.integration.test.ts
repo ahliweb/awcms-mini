@@ -175,6 +175,47 @@ suite("module health/readiness API", () => {
     expect(auditRows[0]!.resource_id).toBe("email");
   });
 
+  test("POST .../health/check records a row in awcms_mini_module_health_checks (instance-level history, RLS-free)", async () => {
+    const owner = await bootstrap();
+
+    await invoke(postHealthCheck, {
+      method: "POST",
+      path: "/api/v1/modules/email/health/check",
+      headers: authHeaders(owner),
+      params: { moduleKey: "email" }
+    });
+
+    const admin = getAdminSql();
+    const historyRows = (await admin`
+      SELECT status, message FROM awcms_mini_module_health_checks
+      WHERE module_key = 'email'
+    `) as { status: string; message: string | null }[];
+
+    expect(historyRows).toHaveLength(1);
+    expect(historyRows[0]!.status).toBe("degraded");
+    expect(historyRows[0]!.message).toBe(
+      "Failed signals: provider_health_check."
+    );
+  });
+
+  test("GET .../health never writes to awcms_mini_module_health_checks (passive read only)", async () => {
+    const owner = await bootstrap();
+
+    await invoke(getModuleHealth, {
+      method: "GET",
+      path: "/api/v1/modules/email/health",
+      headers: authHeaders(owner),
+      params: { moduleKey: "email" }
+    });
+
+    const admin = getAdminSql();
+    const historyRows = (await admin`
+      SELECT count(*)::int AS count FROM awcms_mini_module_health_checks
+    `) as { count: number }[];
+
+    expect(historyRows[0]?.count).toBe(0);
+  });
+
   test("POST .../health/check is not_applicable for a module with no provider (e.g. logging)", async () => {
     const owner = await bootstrap();
 

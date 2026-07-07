@@ -133,34 +133,35 @@ flowchart LR
 
 ## Matrix Modul vs Migration
 
-| Modul                 | Migration                                                        |
-| --------------------- | ---------------------------------------------------------------- |
-| Foundation            | `001_awcms_mini_foundation_schema.sql`                           |
-| Tenant Admin          | `002_awcms_mini_tenant_identity_schema.sql`                      |
-| Catalog Inventory     | `003_awcms_mini_catalog_inventory_schema.sql`                    |
-| Sales POS             | `004_awcms_mini_sales_pos_schema.sql`                            |
-| Sync Storage          | `005_awcms_mini_sync_storage_r2_schema.sql`                      |
-| CRM                   | `006_awcms_mini_crm_receipt_communication_schema.sql`            |
-| Accounting Tax        | `007_awcms_mini_accounting_tax_coretax_schema.sql`               |
-| AI                    | `008_awcms_mini_ai_hermes_business_analyst_schema.sql`           |
-| i18n                  | `009_awcms_mini_i18n_po_schema.sql`                              |
-| Theme                 | `010_awcms_mini_theme_mode_schema.sql`                           |
-| ABAC                  | `011_awcms_mini_abac_access_control_schema.sql`                  |
-| Contracts             | `012_awcms_mini_modular_monolith_contracts_schema.sql`           |
-| Logging               | `013_awcms_mini_logging_observability_schema.sql`                |
-| Profile               | `014_awcms_mini_central_profile_management_schema.sql`           |
-| Profile Stabilization | `015_awcms_mini_profile_stabilization_schema.sql`                |
-| Workflow              | `016_awcms_mini_workflow_approval_audit_schema.sql`              |
-| Reporting             | `017_awcms_mini_management_dashboard_reporting_schema.sql`       |
-| Legacy Migration      | `018_awcms_mini_legacy_migration_backfill_toolkit_schema.sql`    |
-| Performance Sync      | `019_awcms_mini_performance_sync_validation_schema.sql`          |
-| Production Security   | `020_awcms_mini_production_security_readiness_schema.sql`        |
-| DB Pooling            | `021_awcms_mini_database_connection_pooling_schema.sql`          |
-| UI Experience         | `022_awcms_mini_ui_ux_persona_experience_schema.sql`             |
-| Warehouse             | `023_awcms_mini_warehouse_management_schema.sql`                 |
-| Idempotency           | `024_awcms_mini_transaction_integrity_idempotency_hardening.sql` |
-| Setup Wizard          | `025_awcms_mini_setup_wizard_extension.sql`                      |
-| Dashboard Views       | `026_awcms_mini_dashboard_materialized_views.sql`                |
+| Modul                 | Migration                                                                      |
+| --------------------- | ------------------------------------------------------------------------------ |
+| Foundation            | `001_awcms_mini_foundation_schema.sql`                                         |
+| Tenant Admin          | `002_awcms_mini_tenant_identity_schema.sql`                                    |
+| Catalog Inventory     | `003_awcms_mini_catalog_inventory_schema.sql`                                  |
+| Sales POS             | `004_awcms_mini_sales_pos_schema.sql`                                          |
+| Sync Storage          | `005_awcms_mini_sync_storage_r2_schema.sql`                                    |
+| CRM                   | `006_awcms_mini_crm_receipt_communication_schema.sql`                          |
+| Accounting Tax        | `007_awcms_mini_accounting_tax_coretax_schema.sql`                             |
+| AI                    | `008_awcms_mini_ai_hermes_business_analyst_schema.sql`                         |
+| i18n                  | `009_awcms_mini_i18n_po_schema.sql`                                            |
+| Theme                 | `010_awcms_mini_theme_mode_schema.sql`                                         |
+| ABAC                  | `011_awcms_mini_abac_access_control_schema.sql`                                |
+| Contracts             | `012_awcms_mini_modular_monolith_contracts_schema.sql`                         |
+| Logging               | `013_awcms_mini_logging_observability_schema.sql`                              |
+| Profile               | `014_awcms_mini_central_profile_management_schema.sql`                         |
+| Profile Stabilization | `015_awcms_mini_profile_stabilization_schema.sql`                              |
+| Workflow              | `016_awcms_mini_workflow_approval_audit_schema.sql`                            |
+| Reporting             | `017_awcms_mini_management_dashboard_reporting_schema.sql`                     |
+| Legacy Migration      | `018_awcms_mini_legacy_migration_backfill_toolkit_schema.sql`                  |
+| Performance Sync      | `019_awcms_mini_performance_sync_validation_schema.sql`                        |
+| Production Security   | `020_awcms_mini_production_security_readiness_schema.sql`                      |
+| DB Pooling            | `021_awcms_mini_database_connection_pooling_schema.sql`                        |
+| UI Experience         | `022_awcms_mini_ui_ux_persona_experience_schema.sql`                           |
+| Warehouse             | `023_awcms_mini_warehouse_management_schema.sql`                               |
+| Idempotency           | `024_awcms_mini_transaction_integrity_idempotency_hardening.sql`               |
+| Setup Wizard          | `025_awcms_mini_setup_wizard_extension.sql`                                    |
+| Dashboard Views       | `026_awcms_mini_dashboard_materialized_views.sql`                              |
+| Module Management     | `sql/025_awcms_mini_module_management_schema.sql` (epic #510, Issue #511-#521) |
 
 ## Matrix Modul vs Security Control
 
@@ -208,6 +209,7 @@ flowchart LR
 | Form multi-step (wizard)              | `awcms-mini-wizard-form`                                                                               |
 | Server-side draft persistence         | `awcms-mini-form-drafts`                                                                               |
 | Kirim email transaksional             | `awcms-mini-email`                                                                                     |
+| Kelola sistem Module Management       | `awcms-mini-module-management` (+ `awcms-mini-new-module` untuk scaffold field descriptor)             |
 | Rilis/CHANGELOG                       | `awcms-mini-release`                                                                                   |
 | Legacy migration                      | `awcms-mini-legacy-migration`                                                                          |
 | Implementasi issue                    | skill `awcms-mini-implement-issue` + agent `awcms-mini-coder`                                          |
@@ -235,6 +237,7 @@ flowchart LR
 | AI Analyst            | AI                             |
 | Backup/restore        | Deployment/Database            |
 | Troubleshooting       | Observability/DB               |
+| Manajemen modul       | Module Management (epic #510)  |
 | Handover              | Semua                          |
 
 ## Matrix kesiapan implementasi

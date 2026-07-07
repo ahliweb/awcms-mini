@@ -240,6 +240,27 @@ Default response list/detail tidak menampilkan soft-deleted record. Detail soft-
 | POST   | `/sync/conflicts/{id}/resolve` | Resolve conflict      |
 | POST   | `/sync/objects/presign`        | Object upload/presign |
 
+### Module Management (Issue #511–#521, epic #510)
+
+Database-backed, tenant-aware module registry — generic infrastructure for managing every other registered module, not a domain-specific feature. Full detail: `src/modules/module-management/README.md`.
+
+| Method | Endpoint                               | Fungsi                                                     |
+| ------ | -------------------------------------- | ---------------------------------------------------------- |
+| GET    | `/modules`                             | Katalog modul (code + DB registry)                         |
+| GET    | `/modules/{moduleKey}`                 | Detail satu modul                                          |
+| POST   | `/modules/sync`                        | Sync descriptor code → DB registry                         |
+| GET    | `/modules/{moduleKey}/permissions`     | Status sinkron permission (synced/missing/orphaned)        |
+| GET    | `/modules/{moduleKey}/jobs`            | Registry command operasional (dokumentasi, tidak eksekusi) |
+| GET    | `/modules/{moduleKey}/health`          | Health/readiness cepat, read-only                          |
+| POST   | `/modules/{moduleKey}/health/check`    | Trigger health check eksplisit (+ provider check bila ada) |
+| GET    | `/tenant/modules`                      | Status enable/disable modul untuk tenant pemanggil         |
+| POST   | `/tenant/modules/{moduleKey}/enable`   | Aktifkan modul untuk tenant                                |
+| POST   | `/tenant/modules/{moduleKey}/disable`  | Nonaktifkan modul untuk tenant (butuh `reason`)            |
+| GET    | `/tenant/modules/{moduleKey}/settings` | Effective settings (default + override tenant)             |
+| PATCH  | `/tenant/modules/{moduleKey}/settings` | Update override settings tenant                            |
+
+Tidak ada event AsyncAPI baru — perubahan lifecycle/config modul tercatat lewat `awcms_mini_audit_events` generik yang sudah ada, bukan domain event terpisah.
+
 ### AI, Reports, Logs, Workflow, Security
 
 | Modul    | Endpoint utama                                                 |

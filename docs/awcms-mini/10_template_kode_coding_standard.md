@@ -150,14 +150,60 @@ export const warehouseManagementModule: ModuleDescriptor = {
 
 ## Module contract
 
+Diperluas oleh Issue #511 (epic #510, Module Management) — semua field baru **opsional**, descriptor 9 modul yang sudah ada sebelum epic ini tetap valid tanpa perubahan. Lihat `src/modules/_shared/module-contract.ts` untuk sumber kebenaran + doc comment lengkap tiap field (canonical; kode adalah sumber utama, blok ini harus tetap sinkron dengannya).
+
 ```ts
-export type ModuleStatus = "active" | "experimental" | "deprecated";
+export type ModuleType =
+  "base" | "system" | "domain" | "integration" | "derived";
+
+// `disabled` = dimatikan global oleh code/deployment — BUKAN toggle per-tenant
+// (itu `awcms_mini_tenant_modules`, Issue #515, state database independen).
+export type ModuleLifecycleStatus =
+  "active" | "experimental" | "deprecated" | "maintenance" | "disabled";
+
+export type ModulePermissionDescriptor = {
+  activityCode: string;
+  action: string;
+  description: string;
+};
+
+export type ModuleNavigationEntry = {
+  labelKey: string;
+  path: string;
+  icon?: string;
+  order?: number;
+  group?: string;
+  requiredPermission?: string;
+};
+
+// Non-secret defaults saja — jangan pernah taruh default berbentuk secret di sini.
+export type ModuleSettingsContract = {
+  schemaVersion?: number;
+  defaults?: Record<string, unknown>;
+};
+
+export type ModuleJobDescriptor = {
+  command: string;
+  purpose: string;
+  recommendedSchedule?: string;
+  environmentNotes?: string;
+  safeInOfflineLan?: boolean;
+};
+
+export type ModuleHealthContract = {
+  hasHealthCheck?: boolean;
+  hasReadinessCheck?: boolean;
+};
+
+export type ModuleCompatibilityContract = {
+  minAppVersion?: string;
+};
 
 export type ModuleDescriptor = {
   key: string;
   name: string;
   version: string;
-  status: ModuleStatus;
+  status: ModuleLifecycleStatus;
   description: string;
   dependencies: string[];
   api?: {
@@ -169,8 +215,19 @@ export type ModuleDescriptor = {
     publishes?: string[];
     subscribes?: string[];
   };
+  type?: ModuleType;
+  isCore?: boolean;
+  permissions?: ModulePermissionDescriptor[];
+  navigation?: ModuleNavigationEntry[];
+  settings?: ModuleSettingsContract;
+  jobs?: ModuleJobDescriptor[];
+  health?: ModuleHealthContract;
+  compatibility?: ModuleCompatibilityContract;
+  maintainers?: string[];
 };
 ```
+
+Aturan authoring: deklarasikan sebuah field (`navigation`/`jobs`/`health`/`api`/`events`) hanya setelah fitur sungguhan yang bersangkutan ada — descriptor tidak boleh mengklaim kapabilitas yang belum diimplementasi (lihat `src/modules/module-management/README.md` §"module_management's own descriptor" untuk contoh nyata: field `jobs`/`navigation` ditambahkan satu-satu seiring Issue #518/#519 masing-masing selesai, bukan sekaligus di depan).
 
 ## API response helper
 
@@ -291,7 +348,14 @@ export type AccessRequest = {
     | "send"
     | "configure"
     | "analyze"
-    | "assign";
+    | "assign"
+    | "restore"
+    | "purge"
+    | "retry"
+    | "sync"
+    | "enable"
+    | "disable"
+    | "check";
   resourceType?: string;
   resourceId?: string;
   resourceAttributes?: Record<string, unknown>;
@@ -314,6 +378,10 @@ Aturan:
 - RLS tetap wajib.
 - Access denied high-risk masuk decision log.
 - Untuk resource soft-deletable, action `delete` berarti soft delete. Tambahkan action `restore` dan `purge` pada kontrak modul yang membutuhkan pemulihan atau purge retention; keduanya default deny sampai permission/ABAC eksplisit tersedia.
+- `retry` (Issue 6.3/10.2) — retry manual entri antrian (sync/object queue), bukan aksi destruktif; tidak masuk `HIGH_RISK_ACTIONS`.
+- `sync` (Issue #514) — sinkronisasi descriptor code → registry database, idempoten/non-destruktif; tidak masuk `HIGH_RISK_ACTIONS`.
+- `enable`/`disable` (Issue #515) — toggle ketersediaan modul per-tenant, reversibel dan tidak menghapus data; tidak masuk `HIGH_RISK_ACTIONS`. Guard bersama (`authorizeInTransaction`) juga menolak `403 MODULE_DISABLED` untuk permintaan apa pun ke modul yang dinonaktifkan tenant tsb, terlepas dari action-nya — lihat `src/modules/identity-access/README.md` §"Enforcement modul disabled".
+- `check` (Issue #520) — memicu health check eksplisit (read-mostly, bounded); tidak masuk `HIGH_RISK_ACTIONS`.
 
 ## Audit helper
 

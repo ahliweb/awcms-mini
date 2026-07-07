@@ -24,6 +24,7 @@ import type { ModuleDescriptor } from "../../_shared/module-contract";
 import { fetchModulePermissionSyncReport } from "./permission-sync";
 import { fetchModuleSettingsView } from "./module-settings";
 import { fetchModuleJobs } from "./job-registry";
+import { syncModuleDescriptors } from "./descriptor-sync";
 import { validateJobDescriptor } from "../domain/job-registry";
 import {
   classifyHealthStatus,
@@ -374,10 +375,46 @@ async function providerHealthCheckSignal(
 }
 
 /**
+ * `awcms_mini_module_health_checks` (migration 025) — instance-level
+ * history, RLS-free (a health result is a fact about the deployed
+ * instance, not about any one tenant), written only by the explicit
+ * `POST .../health/check` action (never the passive `GET`, which would
+ * otherwise turn every admin page view into a write). `message` is a
+ * fixed, safe summary of which signal names failed — never a signal's
+ * own `detail` text, keeping the same "generic strings only" guarantee
+ * the signals themselves already provide.
+ */
+async function recordHealthCheckHistory(
+  tx: Bun.SQL,
+  moduleKey: string,
+  report: ModuleHealthReport
+): Promise<void> {
+  const failedNames = report.signals
+    .filter((signal) => signal.status === "fail")
+    .map((signal) => signal.name);
+  const message =
+    failedNames.length > 0
+      ? `Failed signals: ${failedNames.join(", ")}.`
+      : null;
+
+  await tx`
+    INSERT INTO awcms_mini_module_health_checks (module_key, status, message)
+    VALUES (${moduleKey}, ${report.status}, ${message})
+  `;
+}
+
+/**
  * The explicit, on-demand variant (`POST .../health/check`) — same
  * generic signals as `fetchModuleHealthReport`, plus the one live
  * provider check where applicable. Never called from `GET .../health`,
- * which stays fast/cheap on every call.
+ * which stays fast/cheap on every call. Records its result into
+ * `awcms_mini_module_health_checks` as a history entry — that table has
+ * an FK to `awcms_mini_modules`, so this syncs the registry first (same
+ * "sync first" reasoning as `tenant-module-lifecycle.ts`/
+ * `module-settings.ts`). This is the one place `db_registry_synced` can
+ * genuinely read differently between `GET` and `POST` for the same
+ * module — `POST` self-heals the registry as a side effect of writing
+ * history, `GET` never does (stays a pure read).
  */
 export async function runModuleHealthCheck(
   tx: Bun.SQL,
@@ -391,6 +428,8 @@ export async function runModuleHealthCheck(
     return null;
   }
 
+  await syncModuleDescriptors(tx);
+
   const signals = await computeGenericSignals(
     tx,
     tenantId,
@@ -399,10 +438,14 @@ export async function runModuleHealthCheck(
   );
   signals.push(await providerHealthCheckSignal(moduleKey, correlationId));
 
-  return {
+  const report: ModuleHealthReport = {
     moduleKey,
     status: classifyHealthStatus(signals),
     signals,
     generatedAt: new Date().toISOString()
   };
+
+  await recordHealthCheckHistory(tx, moduleKey, report);
+
+  return report;
 }
