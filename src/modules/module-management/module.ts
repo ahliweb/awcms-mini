@@ -6,10 +6,14 @@ export const moduleManagementModule = defineModule({
   version: "0.1.0",
   status: "active",
   description:
-    "Database-backed, tenant-aware module registry (epic #510): syncs trusted code descriptors (`listModules()`) into the database, tracks per-tenant module enablement, dependency validation, non-secret settings, permission sync/status, admin navigation, job/command registry, and health/readiness. Generic infrastructure for managing every other registered module — not a domain-specific feature.",
+    "Database-backed, tenant-aware module registry (epic #510): syncs trusted code descriptors (`listModules()`) into the database, tracks per-tenant module enablement, dependency validation, non-secret settings, permission sync/status, admin navigation, job/command registry, and health/readiness. Generic infrastructure for managing every other registered module — not a domain-specific feature. Module catalog API (`GET /api/v1/modules[/{moduleKey}]`, `POST /api/v1/modules/sync`) added Issue #514.",
   dependencies: ["tenant_admin", "identity_access"],
   type: "system",
   isCore: true,
+  api: {
+    openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
+    basePath: "/api/v1/modules"
+  },
   permissions: [
     {
       activityCode: "modules",

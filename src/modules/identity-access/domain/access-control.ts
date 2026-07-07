@@ -24,7 +24,8 @@ export type AccessAction =
   | "assign"
   | "restore"
   | "purge"
-  | "retry";
+  | "retry"
+  | "sync";
 
 export type AccessRequest = {
   moduleKey: string;

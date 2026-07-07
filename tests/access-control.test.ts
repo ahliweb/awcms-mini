@@ -41,6 +41,10 @@ describe("isHighRiskAction", () => {
     expect(isHighRiskAction("create")).toBe(false);
     expect(isHighRiskAction("update")).toBe(false);
   });
+
+  test("does not classify sync as high risk (Issue #514 — idempotent, non-destructive)", () => {
+    expect(isHighRiskAction("sync")).toBe(false);
+  });
 });
 
 describe("evaluateAccess", () => {
