@@ -1,0 +1,209 @@
+/**
+ * Descriptor sync service (Issue #513, epic #510). Reads the trusted,
+ * in-process code registry (`listModules()`, `src/modules/index.ts`) and
+ * upserts it into the database-backed registry (`awcms_mini_modules` +
+ * `awcms_mini_module_dependencies`/`_navigation`/`_jobs`, migration 025).
+ *
+ * No network calls, no user-controlled path — the only input is the
+ * trusted, statically-imported module descriptor list already running in
+ * this process. Safe to call repeatedly: running with the same descriptors
+ * twice in a row produces the same DB state both times (`unchanged` on the
+ * second run), never a duplicate row or a second write of the same value.
+ *
+ * These tables are global/RLS-free (migration 025's own justification —
+ * code-derived registry metadata, not tenant data), so this runs on the
+ * plain app connection with no tenant context needed.
+ */
+import { listModules } from "../..";
+import type { ModuleDescriptor } from "../../_shared/module-contract";
+import {
+  planModuleSync,
+  type ExistingModuleRow
+} from "../domain/descriptor-diff";
+
+export type DescriptorSyncResult = {
+  created: string[];
+  updated: string[];
+  unchanged: string[];
+  orphaned: string[];
+};
+
+async function fetchExistingModules(
+  sql: Bun.SQL
+): Promise<ExistingModuleRow[]> {
+  const rows = (await sql`
+    SELECT module_key, module_name, version, description, lifecycle_status, module_type, is_core
+    FROM awcms_mini_modules
+  `) as {
+    module_key: string;
+    module_name: string;
+    version: string;
+    description: string | null;
+    lifecycle_status: string;
+    module_type: string | null;
+    is_core: boolean;
+  }[];
+
+  return rows.map((row) => ({
+    moduleKey: row.module_key,
+    moduleName: row.module_name,
+    version: row.version,
+    description: row.description,
+    lifecycleStatus: row.lifecycle_status,
+    moduleType: row.module_type,
+    isCore: row.is_core
+  }));
+}
+
+async function upsertModule(
+  sql: Bun.SQL,
+  descriptor: ModuleDescriptor
+): Promise<void> {
+  await sql`
+    INSERT INTO awcms_mini_modules
+      (module_key, module_name, status, version, description, module_type,
+       lifecycle_status, is_core, updated_at)
+    VALUES (
+      ${descriptor.key}, ${descriptor.name}, ${descriptor.status},
+      ${descriptor.version}, ${descriptor.description ?? null},
+      ${descriptor.type ?? null}, ${descriptor.status},
+      ${descriptor.isCore ?? false}, now()
+    )
+    ON CONFLICT (module_key) DO UPDATE SET
+      module_name = EXCLUDED.module_name,
+      status = EXCLUDED.status,
+      version = EXCLUDED.version,
+      description = EXCLUDED.description,
+      module_type = EXCLUDED.module_type,
+      lifecycle_status = EXCLUDED.lifecycle_status,
+      is_core = EXCLUDED.is_core,
+      updated_at = now()
+  `;
+}
+
+/** Full replace, not a diff — cheap at this scale (a handful of rows per module) and guarantees the stored set can never silently drift from the descriptor's declared set. */
+async function replaceDependencies(
+  sql: Bun.SQL,
+  descriptor: ModuleDescriptor
+): Promise<void> {
+  await sql`
+    DELETE FROM awcms_mini_module_dependencies WHERE module_key = ${descriptor.key}
+  `;
+
+  for (const dependsOn of descriptor.dependencies) {
+    await sql`
+      INSERT INTO awcms_mini_module_dependencies (module_key, depends_on_module_key)
+      VALUES (${descriptor.key}, ${dependsOn})
+      ON CONFLICT (module_key, depends_on_module_key) DO NOTHING
+    `;
+  }
+}
+
+async function replaceNavigation(
+  sql: Bun.SQL,
+  descriptor: ModuleDescriptor
+): Promise<void> {
+  await sql`
+    DELETE FROM awcms_mini_module_navigation WHERE module_key = ${descriptor.key}
+  `;
+
+  for (const entry of descriptor.navigation ?? []) {
+    await sql`
+      INSERT INTO awcms_mini_module_navigation
+        (module_key, label_key, path, icon, sort_order, nav_group, required_permission)
+      VALUES (
+        ${descriptor.key}, ${entry.labelKey}, ${entry.path}, ${entry.icon ?? null},
+        ${entry.order ?? 0}, ${entry.group ?? null}, ${entry.requiredPermission ?? null}
+      )
+    `;
+  }
+}
+
+async function replaceJobs(
+  sql: Bun.SQL,
+  descriptor: ModuleDescriptor
+): Promise<void> {
+  await sql`
+    DELETE FROM awcms_mini_module_jobs WHERE module_key = ${descriptor.key}
+  `;
+
+  for (const job of descriptor.jobs ?? []) {
+    await sql`
+      INSERT INTO awcms_mini_module_jobs
+        (module_key, command, purpose, recommended_schedule, environment_notes, safe_in_offline_lan)
+      VALUES (
+        ${descriptor.key}, ${job.command}, ${job.purpose},
+        ${job.recommendedSchedule ?? null}, ${job.environmentNotes ?? null},
+        ${job.safeInOfflineLan ?? false}
+      )
+    `;
+  }
+}
+
+/**
+ * Orphaned modules (registered in the DB previously, no longer in
+ * `listModules()`) are marked `lifecycle_status = 'disabled'` — never
+ * deleted, and never touching their dependencies/navigation/jobs rows,
+ * which stay as a historical record. `#511`'s own contract note applies
+ * here: a module absent from code is, by definition, globally disabled.
+ */
+async function markOrphaned(sql: Bun.SQL, moduleKey: string): Promise<void> {
+  await sql`
+    UPDATE awcms_mini_modules
+    SET lifecycle_status = 'disabled', updated_at = now()
+    WHERE module_key = ${moduleKey} AND lifecycle_status <> 'disabled'
+  `;
+}
+
+export async function syncModuleDescriptors(
+  sql: Bun.SQL,
+  descriptors: readonly ModuleDescriptor[] = listModules()
+): Promise<DescriptorSyncResult> {
+  const existingRows = await fetchExistingModules(sql);
+  const plan = planModuleSync(descriptors, existingRows);
+
+  const result: DescriptorSyncResult = {
+    created: [],
+    updated: [],
+    unchanged: [],
+    orphaned: plan.orphanedModuleKeys
+  };
+
+  const descriptorsByKey = new Map(
+    descriptors.map((descriptor) => [descriptor.key, descriptor] as const)
+  );
+
+  // Pass 1: upsert every module row first. A module can declare a
+  // dependency on one that appears *later* in `descriptors` (e.g.
+  // `reporting` depends on `email`, which is registered after it) — the
+  // dependency FK requires the target row to already exist, so all module
+  // rows must land before any dependency row is written (pass 2 below).
+  for (const entry of plan.entries) {
+    const descriptor = descriptorsByKey.get(entry.moduleKey)!;
+
+    if (entry.action === "unchanged") {
+      result.unchanged.push(entry.moduleKey);
+    } else {
+      await upsertModule(sql, descriptor);
+      (entry.action === "create" ? result.created : result.updated).push(
+        entry.moduleKey
+      );
+    }
+  }
+
+  // Pass 2: now that every module row exists, dependency/navigation/job
+  // rows can be safely (re)written for each module.
+  for (const entry of plan.entries) {
+    const descriptor = descriptorsByKey.get(entry.moduleKey)!;
+
+    await replaceDependencies(sql, descriptor);
+    await replaceNavigation(sql, descriptor);
+    await replaceJobs(sql, descriptor);
+  }
+
+  for (const moduleKey of plan.orphanedModuleKeys) {
+    await markOrphaned(sql, moduleKey);
+  }
+
+  return result;
+}

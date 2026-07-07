@@ -3,6 +3,7 @@ import { emailModule } from "./email/module";
 import { formDraftsModule } from "./form-drafts/module";
 import { identityAccessModule } from "./identity-access/module";
 import { loggingModule } from "./logging/module";
+import { moduleManagementModule } from "./module-management/module";
 import { profileIdentityModule } from "./profile-identity/module";
 import { reportingModule } from "./reporting/module";
 import { syncStorageModule } from "./sync-storage/module";
@@ -18,7 +19,8 @@ export const modules: ModuleDescriptor[] = [
   loggingModule,
   workflowApprovalModule,
   formDraftsModule,
-  emailModule
+  emailModule,
+  moduleManagementModule
 ];
 
 export function getModuleByKey(
