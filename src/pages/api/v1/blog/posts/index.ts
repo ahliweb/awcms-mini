@@ -1,0 +1,179 @@
+import type { APIRoute } from "astro";
+
+import { fail, ok } from "../../../../../modules/_shared/api-response";
+import { getDatabaseClient } from "../../../../../lib/database/client";
+import { withTenant } from "../../../../../lib/database/tenant-context";
+import {
+  authorizeInTransaction,
+  resolveAuthInputs
+} from "../../../../../modules/identity-access/application/access-guard";
+import { hashSessionToken } from "../../../../../lib/auth/session-token";
+import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
+import {
+  createBlogPost,
+  listBlogPosts
+} from "../../../../../modules/blog-content/application/blog-post-directory";
+import { validateCreateBlogPostInput } from "../../../../../modules/blog-content/domain/blog-post-validation";
+import {
+  isBlogContentStatus,
+  type BlogContentStatus
+} from "../../../../../modules/blog-content/domain/post-status";
+
+const READ_GUARD = {
+  moduleKey: "blog_content",
+  activityCode: "posts",
+  action: "read" as const
+};
+
+const CREATE_GUARD = {
+  moduleKey: "blog_content",
+  activityCode: "posts",
+  action: "create" as const
+};
+
+/** `GET /api/v1/blog/posts` (Issue #538) — list this tenant's non-deleted posts, `?status=` optional filter, `?limit=` bounded (default 20, max 100). */
+export const GET: APIRoute = async ({ request, cookies, url }) => {
+  const { tenantId, token } = resolveAuthInputs(request, cookies);
+
+  if (!tenantId) {
+    return fail(400, "TENANT_REQUIRED", "Tenant header is required.");
+  }
+
+  if (!token) {
+    return fail(401, "AUTH_REQUIRED", "Authentication required.");
+  }
+
+  const statusParam = url.searchParams.get("status");
+  let status: BlogContentStatus | undefined;
+
+  if (statusParam !== null) {
+    if (!isBlogContentStatus(statusParam)) {
+      return fail(
+        400,
+        "VALIDATION_ERROR",
+        "status must be one of draft, review, scheduled, published, archived."
+      );
+    }
+
+    status = statusParam;
+  }
+
+  const limitParam = url.searchParams.get("limit");
+  const limit = limitParam ? Number(limitParam) : undefined;
+
+  if (
+    limitParam !== null &&
+    (!Number.isFinite(limit) || (limit as number) < 1)
+  ) {
+    return fail(400, "VALIDATION_ERROR", "limit must be a positive number.");
+  }
+
+  const sql = getDatabaseClient();
+  const tokenHash = hashSessionToken(token);
+  const now = new Date();
+
+  return withTenant(sql, tenantId, async (tx) => {
+    const auth = await authorizeInTransaction(
+      tx,
+      tenantId,
+      tokenHash,
+      now,
+      READ_GUARD
+    );
+
+    if (!auth.allowed) {
+      return auth.denied;
+    }
+
+    const posts = await listBlogPosts(tx, tenantId, {
+      status,
+      limit
+    });
+
+    return ok({ posts });
+  });
+};
+
+/** `POST /api/v1/blog/posts` (Issue #538) — create a draft post. Not idempotent (recommended, not required, per doc issue #538 §Idempotency Requirements) — a network retry duplicating a create is caught by the `(tenant_id, locale, slug)` partial unique index, same reasoning `POST /api/v1/email/templates` documents. */
+export const POST: APIRoute = async ({ request, cookies, locals }) => {
+  const { tenantId, token } = resolveAuthInputs(request, cookies);
+
+  if (!tenantId) {
+    return fail(400, "TENANT_REQUIRED", "Tenant header is required.");
+  }
+
+  if (!token) {
+    return fail(401, "AUTH_REQUIRED", "Authentication required.");
+  }
+
+  const validation = validateCreateBlogPostInput(
+    await request.json().catch(() => null)
+  );
+
+  if (!validation.valid) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      "Blog post is invalid.",
+      {},
+      validation.errors
+    );
+  }
+
+  const input = validation.value;
+  const sql = getDatabaseClient();
+  const tokenHash = hashSessionToken(token);
+  const now = new Date();
+  const correlationId = locals.correlationId;
+
+  return withTenant(sql, tenantId, async (tx) => {
+    const auth = await authorizeInTransaction(
+      tx,
+      tenantId,
+      tokenHash,
+      now,
+      CREATE_GUARD
+    );
+
+    if (!auth.allowed) {
+      return auth.denied;
+    }
+
+    let post;
+
+    try {
+      post = await createBlogPost(
+        tx,
+        tenantId,
+        auth.context.tenantUserId,
+        input
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (message.includes("awcms_mini_blog_posts_slug_dedup")) {
+        return fail(
+          409,
+          "SLUG_CONFLICT",
+          `A post already exists for slug "${input.slug}" in locale "${input.locale}".`
+        );
+      }
+
+      throw error;
+    }
+
+    await recordAuditEvent(tx, {
+      tenantId,
+      actorTenantUserId: auth.context.tenantUserId,
+      moduleKey: "blog_content",
+      action: "blog.post.created",
+      resourceType: "blog_post",
+      resourceId: post.id,
+      severity: "info",
+      message: `Blog post created: ${post.slug}.`,
+      correlationId
+    });
+
+    return ok(post);
+  });
+};

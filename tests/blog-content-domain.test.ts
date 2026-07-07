@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 
 import { validateBlogContentCore } from "../src/modules/blog-content/domain/content-validation";
 import {
+  canPurgePost,
+  canRestorePost,
   isValidStatusTransition,
   isBlogContentStatus,
   isBlogContentVisibility
@@ -69,6 +71,49 @@ describe("validateBlogContentCore", () => {
       );
     }
   });
+
+  test("rejects a <script> tag in contentText", () => {
+    const result = validateBlogContentCore({
+      title: "Title",
+      slug: "title",
+      contentJson: {},
+      contentText: "<script>alert(1)</script>"
+    });
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors.map((error) => error.field)).toContain(
+        "contentText"
+      );
+    }
+  });
+
+  test("rejects an inline event handler embedded in contentJson", () => {
+    const result = validateBlogContentCore({
+      title: "Title",
+      slug: "title",
+      contentJson: { html: '<img src=x onerror="alert(1)">' },
+      contentText: "body"
+    });
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors.map((error) => error.field)).toContain(
+        "contentJson"
+      );
+    }
+  });
+
+  test("accepts plain contentJson/contentText with no markup", () => {
+    const result = validateBlogContentCore({
+      title: "Title",
+      slug: "title",
+      contentJson: { blocks: [{ type: "paragraph", text: "Hello" }] },
+      contentText: "Hello"
+    });
+
+    expect(result.valid).toBe(true);
+  });
 });
 
 describe("post-status", () => {
@@ -91,6 +136,18 @@ describe("post-status", () => {
 
   test("allows a no-op same-state transition", () => {
     expect(isValidStatusTransition("draft", "draft")).toBe(true);
+  });
+
+  test("canRestorePost requires a non-null deletedAt", () => {
+    expect(canRestorePost(new Date())).toBe(true);
+    expect(canRestorePost(null)).toBe(false);
+  });
+
+  test("canPurgePost allows archived or soft-deleted, forbids published", () => {
+    expect(canPurgePost("archived", null)).toBe(true);
+    expect(canPurgePost("draft", new Date())).toBe(true);
+    expect(canPurgePost("published", null)).toBe(false);
+    expect(canPurgePost("draft", null)).toBe(false);
   });
 });
 
