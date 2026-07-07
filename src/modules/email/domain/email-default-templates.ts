@@ -58,6 +58,18 @@ export const DEFAULT_EMAIL_TEMPLATES: readonly DefaultEmailTemplate[] = [
     }
   },
   {
+    templateKey: "system.maintenance",
+    name: "Scheduled maintenance",
+    subjectTemplate: {
+      en: "Scheduled maintenance: {{maintenanceWindow}}",
+      id: "Pemeliharaan terjadwal: {{maintenanceWindow}}"
+    },
+    textBodyTemplate: {
+      en: "Hi {{userName}},\n\nWe will be performing scheduled maintenance during {{maintenanceWindow}} (expected duration: {{expectedDuration}}).\n\n{{impactDescription}}\n\nWe apologize for any inconvenience.",
+      id: "Halo {{userName}},\n\nKami akan melakukan pemeliharaan terjadwal pada {{maintenanceWindow}} (perkiraan durasi: {{expectedDuration}}).\n\n{{impactDescription}}\n\nMohon maaf atas ketidaknyamanannya."
+    }
+  },
+  {
     templateKey: "workflow.task_assigned",
     name: "Task assigned",
     subjectTemplate: {

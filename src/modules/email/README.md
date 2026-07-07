@@ -1,11 +1,14 @@
 # Email
 
-Implementasi Issue #493-#496, #498 (epic #492) — arsitektur modul email
+Implementasi Issue #493-#498 (epic #492) — arsitektur modul email
 reusable, skema/RLS/delivery queue (`sql/020`/`021`), adapter Mailketing
 nyata + dispatcher, template management (CRUD, i18n, allowlist, preview),
-dan caller nyata pertama (`POST /api/v1/auth/password/forgot`/`reset`,
-`src/modules/identity-access/README.md` §Password reset). **Belum ada**
-announcement/notification workflow — itu Issue #497 (lihat §Roadmap).
+flow forgot/reset password (`POST /api/v1/auth/password/forgot`/`reset`,
+`src/modules/identity-access/README.md` §Password reset), dan
+announcement/notification bulk workflow (`POST /api/v1/email/
+announcements[/preview]`, lihat §Announcement/notification workflows di
+bawah). Semua sub-issue epic #492 sudah selesai kecuali #499/#500 (lihat
+§Roadmap).
 
 ## Kenapa modul ini ada — hubungan dengan historical issue #390
 
@@ -48,8 +51,9 @@ tempat lain.
 
 **Ditegakkan sejak Issue #495** (ADR-0006, doc 16 §Transactional outbox):
 pemanggilan provider (Mailketing) **tidak boleh** terjadi di dalam DB
-transaction. Alur nyata: caller (Issue #496/#497, belum ada) menulis baris
-`awcms_mini_email_messages` (`sql/020`) di dalam transaksi bisnisnya
+transaction. Alur nyata: caller (Issue #496's password reset, #497's
+announcements) menulis baris `awcms_mini_email_messages` (`sql/020`) di
+dalam transaksi bisnisnya
 sendiri; dispatcher terpisah (`application/email-dispatch.ts`, `bun run
 email:dispatch`) meng-claim baris dalam transaksi pendek
 (`FOR UPDATE SKIP LOCKED`, reuse `next_attempt_at` sebagai lease — pola
@@ -187,16 +191,69 @@ memang tidak mencoba. Deployment offline/LAN-first berjalan penuh tanpa
 email terkirim; begitu online dan diaktifkan, pesan yang sudah antre
 diproses dispatcher pada run berikutnya.
 
+## Announcement/notification workflows (Issue #497)
+
+`POST /api/v1/email/announcements` (bulk-capable enqueue) dan
+`POST /api/v1/email/announcements/preview` (dry-run), di
+`application/announcement-directory.ts` + `domain/announcement-validation.ts`.
+
+- **Targeting** — `target: {type: "users", userIds}` (daftar eksplisit
+  tenant_user, di-bind via `tx.array(ids, "uuid")` — bukan interpolasi
+  array langsung, gotcha `Bun.SQL` yang sudah terdokumentasi), `{type:
+"role", roleId}` (semua tenant_user aktif ber-role itu), atau `{type:
+"tenant"}` (seluruh tenant). Setiap target di-resolve hanya identity
+  **aktif** dan **tidak** ada di `awcms_mini_email_suppression_list`
+  (Issue #494's suppression list, konsumen nyata pertama).
+- **ABAC dua-tingkat** (acceptance criteria: "Bulk announcement should
+  require stronger permission than ordinary notification enqueue") —
+  `email.notification.create` wajib untuk **semua** request; `target.type
+= "role"`/`"tenant"` (unbounded) **tambahan** wajib
+  `email.announcement.create`. Role yang cuma punya permission dasar bisa
+  mengirim ke user tertentu yang sudah diketahuinya, tapi tidak bisa
+  membanjiri satu role/tenant penuh.
+- **Idempotency wajib** — `Idempotency-Key` selalu diminta (bukan hanya
+  saat bulk), reuse `_shared/idempotency.ts` (pola sama
+  `workflows/tasks/{id}/decisions.ts`).
+- **Preview aman** — resolve target yang SAMA seperti kirim nyata tapi
+  hanya mengembalikan **jumlah** (`matchedCount`) + rendering sampel data
+  sintetis (`buildSyntheticSampleVariables`, Issue #498) — tidak pernah
+  daftar/alamat penerima nyata, dan **tidak menyentuh**
+  `email_messages`/antrean sama sekali.
+- **Satu baris `email_messages` per penerima**, berbagi `correlation_id`
+  yang sama untuk satu request bulk — bukan fan-out (keputusan `sql/020`
+  di Issue #494, dikonfirmasi ulang di sini sebagai konsumen bulk nyata
+  pertamanya). Subjek dirender per-penerima (variabel `userName` = nama
+  tampilan penerima) saat enqueue, bukan saat dispatch.
+- **Audit satu baris per request** (bukan per penerima — hindari spam
+  audit untuk bulk send): `action: "announcement_sent"`, `attributes`
+  berisi `targetType`, `templateKey`, `recipientCount`, `correlationId`,
+  `dispatchStatus: "queued"` — **tidak pernah** daftar penerima nyata.
+- **Kategori baru** `system.maintenance` ditambahkan (allowlist:
+  `userName`, `maintenanceWindow`, `expectedDuration`,
+  `impactDescription`) plus default template EN/ID — kategori
+  `system.security_notice`/`workflow.task_assigned`/
+  `workflow.decision_required`/`derived.transactional` yang relevan sudah
+  ada sejak Issue #498.
+- **Event AsyncAPI** `awcms-mini.email.message.{queued,sent,failed}` —
+  dokumentasi kontrak saja (pola sama `database.pool.saturated`, doc 05),
+  produser nyatanya structured logger: `email.message.queued`
+  (`announcement-directory.ts`), `email.dispatch.sent`/`.failed`
+  (`email-dispatch.ts`, baris log baru ditambahkan issue ini — sebelumnya
+  hanya `email.dispatch.claimed` yang ada sejak Issue #495).
+
 ## Keamanan
 
 Tidak pernah mencatat (log) secret provider, isi lengkap `to`/subject/body,
-atau raw token apa pun terkait email (mis. token reset password, Issue
-#496, belum ada) — hanya alamat yang **di-mask** (log provider) dan respons
-provider yang sudah **diredaksi** (`domain/email-log-redaction.ts`,
-menutup pola email di teks bebas sebelum disimpan ke
-`email_delivery_attempts`/dicatat log) yang pernah tersimpan/tercatat.
-Selaras ISO/IEC 27001 Annex A (manajemen secret/config) dan ISO/IEC 27002
-(kontrol operasional).
+atau raw token apa pun terkait email (token reset password di-hash saat
+disimpan, Issue #496) — hanya alamat yang **di-mask** (log provider) dan
+respons provider yang sudah **diredaksi**
+(`domain/email-log-redaction.ts`, menutup pola email di teks bebas
+sebelum disimpan ke `email_delivery_attempts`/dicatat log) yang pernah
+tersimpan/tercatat. Selaras ISO/IEC 27001 Annex A (manajemen
+secret/config) dan ISO/IEC 27002 (kontrol operasional). Announcement
+(Issue #497) menegakkan data minimization UU PDP secara struktural:
+preview tidak pernah mengembalikan daftar penerima, audit hanya mencatat
+jumlah bukan daftar, dan targeting selalu memfilter suppression list.
 
 ## Roadmap (epic #492)
 
@@ -206,7 +263,8 @@ Selaras ISO/IEC 27001 Annex A (manajemen secret/config) dan ISO/IEC 27002
 - ~~**#496**~~ — flow forgot/reset password (caller pertama yang benar-benar
   meng-enqueue baris `email_messages`). **Selesai** — lihat
   `identity-access/README.md` §Password reset.
-- **#497** — announcement/notification workflow.
+- ~~**#497**~~ — announcement/notification bulk workflow. **Selesai** —
+  lihat §Announcement/notification workflows di atas.
 - **#499** — observability, security test, production readiness gate
   (termasuk automated purge job untuk `email_messages`/`_delivery_attempts`
   terminal-state, didokumentasikan di doc 04 tapi belum diimplementasikan).

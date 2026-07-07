@@ -17,6 +17,7 @@ export const BASE_EMAIL_TEMPLATE_CATEGORIES = [
   "auth.password_reset",
   "system.announcement",
   "system.security_notice",
+  "system.maintenance",
   "workflow.task_assigned",
   "workflow.decision_required",
   "derived.transactional"
@@ -30,6 +31,12 @@ const BASE_CATEGORY_ALLOWLISTS: Readonly<Record<string, readonly string[]>> = {
     "eventDescription",
     "occurredAt",
     "ipAddress"
+  ],
+  "system.maintenance": [
+    "userName",
+    "maintenanceWindow",
+    "expectedDuration",
+    "impactDescription"
   ],
   "workflow.task_assigned": [
     "userName",

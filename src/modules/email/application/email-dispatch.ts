@@ -378,6 +378,12 @@ export async function dispatchEmailQueue(
         env.EMAIL_PROVIDER ?? "unknown",
         deliveryResult.providerMessageId
       );
+      log("info", "email.dispatch.sent", {
+        correlationId: messageCorrelationId,
+        tenantId,
+        moduleKey: MODULE_KEY,
+        category: entry.category
+      });
       result.sent += 1;
       continue;
     }
@@ -409,8 +415,24 @@ export async function dispatchEmailQueue(
     );
 
     if (finalized.eligible) {
+      log("warning", "email.dispatch.retry_scheduled", {
+        correlationId: messageCorrelationId,
+        tenantId,
+        moduleKey: MODULE_KEY,
+        category: entry.category,
+        retryCount: retryCount + 1,
+        error: safeError
+      });
       result.retried += 1;
     } else {
+      log("error", "email.dispatch.failed", {
+        correlationId: messageCorrelationId,
+        tenantId,
+        moduleKey: MODULE_KEY,
+        category: entry.category,
+        retryCount: retryCount + 1,
+        error: safeError
+      });
       result.failed += 1;
     }
   }

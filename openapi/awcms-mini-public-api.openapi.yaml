@@ -2431,6 +2431,110 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/email/announcements:
+    post:
+      tags:
+        - Email Announcements
+      summary: >-
+        Enqueue a notification/announcement to an explicit user list, a
+        role, or the whole tenant
+      operationId: emailAnnouncementsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementRequest"
+      responses:
+        "200":
+          description: Announcement enqueued.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AnnouncementCreateResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: No active template found for the given templateKey.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/email/announcements/preview:
+    post:
+      tags:
+        - Email Announcements
+      summary: >-
+        Dry-run: resolves the same targeting criteria as a real send and
+        returns a recipient count plus a synthetic-data sample render —
+        never the actual recipient list
+      operationId: emailAnnouncementsPreview
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementRequest"
+      responses:
+        "200":
+          description: Preview result.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AnnouncementPreviewResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: No active template found for the given templateKey.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/health:
     get:
       tags:
@@ -4513,6 +4617,77 @@ components:
           type: string
         htmlBody:
           type: string
+    AnnouncementTarget:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [users, role, tenant]
+        userIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Required when type is "users".
+        roleId:
+          type: string
+          format: uuid
+          description: Required when type is "role".
+    AnnouncementRequest:
+      type: object
+      required:
+        - templateKey
+        - target
+      additionalProperties: false
+      properties:
+        templateKey:
+          type: string
+          description: A recognized base category or registered "derived.*" category.
+        variables:
+          type: object
+          additionalProperties:
+            type: string
+        target:
+          $ref: "#/components/schemas/AnnouncementTarget"
+        locale:
+          type: string
+    AnnouncementCreateResponse:
+      type: object
+      required:
+        - recipientCount
+        - correlationId
+      additionalProperties: false
+      properties:
+        recipientCount:
+          type: integer
+        correlationId:
+          type: string
+    AnnouncementPreviewResponse:
+      type: object
+      required:
+        - matchedCount
+        - sample
+      additionalProperties: false
+      properties:
+        matchedCount:
+          type: integer
+          description: >-
+            Recipient count only — the actual recipient list/addresses are
+            never returned.
+        sample:
+          type: object
+          required:
+            - subject
+          additionalProperties: false
+          properties:
+            subject:
+              type: string
+            textBody:
+              type: string
+            htmlBody:
+              type: string
 security:
   - bearerAuth: []
     tenantHeader: []

@@ -28,16 +28,24 @@ Ikuti `src/modules/email/README.md` (arsitektur lengkap: kontrak provider, adapt
    (`{templateKey, name, subjectTemplate: {en, id?}, textBodyTemplate?, htmlBodyTemplate?}`)
    atau `seedDefaultEmailTemplates` untuk kategori base bawaan
    (`bun run email:templates:seed-defaults -- --tenant=<id> --actor=<tenantUserId>`).
-3. **Enqueue** — INSERT langsung ke `awcms_mini_email_messages` (`sql/020`)
-   di dalam transaksi bisnis Anda sendiri (ADR-0006: pemanggilan provider
-   **tidak boleh** di dalam transaction — outbox pattern yang memisahkan
-   ini). Isi `to_address`/`to_address_hash`/`to_address_masked` pakai
-   `normalizeIdentifier("email", ...)`/`hashIdentifier`/`maskIdentifier`
-   (`profile-identity/domain/identifier.ts` — reuse, jangan bikin ulang),
-   `template_key` = kategori Anda, `variables` (jsonb) = hanya nilai yang
-   akan lolos allowlist kategori itu (nilai lain diam-diam tidak pernah
-   disubstitusi saat render), `subject` = subjek final (dirender/ditentukan
-   saat enqueue, bukan saat dispatch).
+3. **Enqueue** — dua opsi:
+   - **Bulk/announcement ke user/role/tenant** — pakai
+     `POST /api/v1/email/announcements` (Issue #497) alih-alih menulis
+     manual: sudah menangani targeting (`{type: "users"|"role"|"tenant"}`),
+     filter suppression list, ABAC dua-tingkat, `Idempotency-Key` wajib,
+     dan audit satu baris per request. `POST .../preview` untuk dry-run
+     (jumlah + sampel render, tidak pernah daftar penerima nyata).
+   - **Kasus lain (mis. modul domain turunan sendiri)** — INSERT langsung
+     ke `awcms_mini_email_messages` (`sql/020`) di dalam transaksi bisnis
+     Anda sendiri (ADR-0006: pemanggilan provider **tidak boleh** di dalam
+     transaction — outbox pattern yang memisahkan ini). Isi
+     `to_address`/`to_address_hash`/`to_address_masked` pakai
+     `normalizeIdentifier("email", ...)`/`hashIdentifier`/`maskIdentifier`
+     (`profile-identity/domain/identifier.ts` — reuse, jangan bikin ulang),
+     `template_key` = kategori Anda, `variables` (jsonb) = hanya nilai yang
+     akan lolos allowlist kategori itu (nilai lain diam-diam tidak pernah
+     disubstitusi saat render), `subject` = subjek final
+     (dirender/ditentukan saat enqueue, bukan saat dispatch).
 4. **Dispatcher** (`bun run email:dispatch`, dijadwalkan cron/systemd
    timer/k8s CronJob) yang mengirim sungguhan — Anda tidak pernah memanggil
    provider langsung.
@@ -76,7 +84,9 @@ Ikuti `src/modules/email/README.md` (arsitektur lengkap: kontrak provider, adapt
 
 `awcms-mini-integration` (pola outbox/retry/circuit-breaker generik),
 `awcms-mini-sensitive-data` (normalize/hash/mask alamat email),
-`awcms-mini-idempotency` (Issue #496/#497's endpoint enqueue akan
-membutuhkan ini untuk mutation high-risk), `awcms-mini-abac-guard`
-(permission `email.template.*` sudah diseed, ikuti pola guard yang sama
-untuk endpoint baru).
+`awcms-mini-idempotency` (`POST /email/announcements` mewajibkan
+`Idempotency-Key` di setiap request, bukan hanya bulk), `awcms-mini-abac-guard`
+(permission `email.template.*`/`email.notification.create`/
+`email.announcement.create` sudah diseed — `announcement.create` **selalu
+tambahan** di atas `notification.create` untuk target role/tenant, contoh
+nyata pola "permission bertingkat untuk aksi bulk vs tunggal").

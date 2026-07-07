@@ -33,6 +33,39 @@ channels:
       from `withTenant` (`src/lib/database/tenant-context.ts`), consistent
       with how AsyncAPI events have been documented since Issue 0.3 without
       requiring a live producer.
+  awcms-mini.email.message.queued:
+    address: awcms-mini.email.message.queued
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      An email message was enqueued into `awcms_mini_email_messages` (Issue
+      #494/#497). Documented contract only, same convention as
+      `database.pool.saturated` above — the concrete producer is the
+      structured JSON logger, invoked from
+      `email/application/announcement-directory.ts`'s `enqueueAnnouncement`
+      (`email.message.queued` log line).
+  awcms-mini.email.message.sent:
+    address: awcms-mini.email.message.sent
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      The email dispatcher (Issue #495, `bun run email:dispatch`)
+      successfully delivered a message through the configured provider.
+      Documented contract only; producer is the structured JSON logger
+      (`email/application/email-dispatch.ts`'s `email.dispatch.sent` log
+      line).
+  awcms-mini.email.message.failed:
+    address: awcms-mini.email.message.failed
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      The email dispatcher exhausted retries (or hit a non-retryable
+      failure) for a queued message. Documented contract only; producer is
+      the structured JSON logger (`email/application/email-dispatch.ts`'s
+      `email.dispatch.failed` log line).
 operations:
   publishSyncPushRequested:
     action: send
@@ -46,6 +79,24 @@ operations:
       $ref: "#/channels/awcms-mini.database.pool.saturated"
     messages:
       - $ref: "#/channels/awcms-mini.database.pool.saturated/messages/DomainEvent"
+  publishEmailMessageQueued:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.email.message.queued"
+    messages:
+      - $ref: "#/channels/awcms-mini.email.message.queued/messages/DomainEvent"
+  publishEmailMessageSent:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.email.message.sent"
+    messages:
+      - $ref: "#/channels/awcms-mini.email.message.sent/messages/DomainEvent"
+  publishEmailMessageFailed:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.email.message.failed"
+    messages:
+      - $ref: "#/channels/awcms-mini.email.message.failed/messages/DomainEvent"
 components:
   securitySchemes:
     syncHmac:
