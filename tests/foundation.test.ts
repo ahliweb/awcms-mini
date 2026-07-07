@@ -58,7 +58,7 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, and email are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#495", () => {
+  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, and email are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498", () => {
     expect(listModules()).toHaveLength(9);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
@@ -102,7 +102,7 @@ describe("module registry", () => {
     expect(getModuleByKey("email")).toMatchObject({
       key: "email",
       status: "active",
-      dependencies: ["tenant_admin", "profile_identity"]
+      dependencies: ["tenant_admin", "profile_identity", "identity_access"]
     });
     expect(getModuleByKey("unknown_module")).toBeUndefined();
   });
@@ -205,7 +205,8 @@ describe("database migration runner helpers", () => {
       "019_awcms_mini_form_drafts_schema.sql",
       "020_awcms_mini_email_schema.sql",
       "021_awcms_mini_email_template_i18n_schema.sql",
-      "022_awcms_mini_password_reset_schema.sql"
+      "022_awcms_mini_password_reset_schema.sql",
+      "023_awcms_mini_email_announcement_permission_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
