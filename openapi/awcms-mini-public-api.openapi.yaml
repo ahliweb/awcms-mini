@@ -2911,6 +2911,51 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/modules/{moduleKey}/permissions:
+    get:
+      tags:
+        - Module Management
+      summary: Module permission sync/status
+      description: >-
+        Compares the module's descriptor-declared `permissions` against the
+        `awcms_mini_permissions` catalog and classifies each one `synced`,
+        `missing`, `orphaned`, or `mismatched_description`. Read-only —
+        never writes to the catalog, never changes a role's assigned
+        permissions.
+      operationId: modulesGetPermissionSync
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Permission sync report for the module.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModulePermissionSyncReport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/tenant/modules:
     get:
       tags:
@@ -5134,6 +5179,55 @@ components:
           type: string
           format: date-time
           nullable: true
+    PermissionSyncEntry:
+      type: object
+      required:
+        - moduleKey
+        - activityCode
+        - action
+        - status
+        - descriptorDescription
+        - catalogDescription
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        activityCode:
+          type: string
+        action:
+          type: string
+        status:
+          type: string
+          enum:
+            - synced
+            - missing
+            - orphaned
+            - mismatched_description
+        descriptorDescription:
+          type: string
+          nullable: true
+          description: >-
+            Description declared in the module's own code descriptor;
+            `null` when `status` is `orphaned`.
+        catalogDescription:
+          type: string
+          nullable: true
+          description: >-
+            Description stored in `awcms_mini_permissions`; `null` when
+            `status` is `missing`.
+    ModulePermissionSyncReport:
+      type: object
+      required:
+        - moduleKey
+        - entries
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/PermissionSyncEntry"
     ModuleUsageEntry:
       type: object
       required:
