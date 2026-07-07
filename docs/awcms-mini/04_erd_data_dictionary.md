@@ -235,7 +235,7 @@ Tidak ada tabel `awcms_mini_module_lifecycle_events` terpisah (sempat diusulkan 
 
 ## Konten multi-bahasa (translatable content)
 
-Berbeda dari **string UI statis** (label/tombol/pesan error) yang memakai katalog `.po` gettext di sisi aplikasi (doc 14 §i18n), **data input pengguna** yang perlu tampil multi-bahasa disimpan **di database, satu nilai per bahasa aktif**. Base generik belum punya kolom konten yang di-i18n-kan (itu scope aplikasi turunan); ini **konvensi/standar** yang wajib diikuti aplikasi turunan saat menambah field konten translatable.
+Berbeda dari **string UI statis** (label/tombol/pesan error) yang memakai katalog `.po` gettext di sisi aplikasi (doc 14 §i18n), **data input pengguna** yang perlu tampil multi-bahasa disimpan **di database, satu nilai per bahasa aktif**. Base generik sudah punya satu contoh nyata (`awcms_mini_email_templates.subject_template`/`text_body_template`/`html_body_template`, `sql/021`, Issue #498 — lihat §Email di atas) — bukan lagi sekadar konvensi belum-terpakai; ini **standar** yang wajib diikuti aplikasi turunan (mis. modul domain seperti `blog_content`, epic #536) saat menambah field konten translatable baru.
 
 Pola yang diizinkan (pilih per kebutuhan, konsisten dalam satu modul):
 

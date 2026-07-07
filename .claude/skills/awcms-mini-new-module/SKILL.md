@@ -31,6 +31,7 @@ export const <camelCase>Module: ModuleDescriptor = {
   status: "active", // active | experimental | deprecated | maintenance | disabled
   description: "...",
   dependencies: ["tenant_admin", "identity_access", "observability_logging"],
+  type: "domain", // base | system | domain | integration | derived — modul domain baru (bukan infrastruktur generik) pakai "domain"
   api: { openApiPath: "openapi/modules/<module>.openapi.yaml", basePath: "/api/v1" },
   events: {
     asyncApiPath: "asyncapi/modules/<module>-events.asyncapi.yaml",
@@ -38,7 +39,7 @@ export const <camelCase>Module: ModuleDescriptor = {
     subscribes: []
   }
   // Field opsional lain (Issue #511, epic #510 — Module Management):
-  // type, isCore, permissions, navigation, settings, jobs, health,
+  // isCore, permissions, navigation, settings, jobs, health,
   // compatibility, maintainers. Deklarasikan hanya setelah fitur
   // sungguhan yang bersangkutan ADA di modul ini — jangan klaim
   // kapabilitas yang belum diimplementasi (lihat contoh nyata:
