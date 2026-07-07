@@ -270,6 +270,11 @@ function uniqueStrings(values: readonly string[]): readonly string[] {
   return Array.from(new Set(values));
 }
 
+/** `value === null` checked before `typeof` narrowing — avoids a CodeQL `js/comparison-between-incompatible-types` false positive on the more common `typeof value === "object" && value !== null` ordering (see `email/domain/email-template-validation.ts`'s `isPlainObject` for the full explanation). Same runtime behavior. */
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  if (value === null) {
+    return false;
+  }
+
+  return typeof value === "object";
 }

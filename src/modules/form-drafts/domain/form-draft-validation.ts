@@ -56,8 +56,13 @@ const FORBIDDEN_PAYLOAD_KEY_PATTERNS: readonly RegExp[] = [
   /private[_-]?key/i
 ];
 
+/** `value === null` checked before `typeof` narrowing — avoids a CodeQL `js/comparison-between-incompatible-types` false positive on the more common `typeof value === "object" && value !== null` ordering (see `email/domain/email-template-validation.ts`'s `isPlainObject` for the full explanation). Same runtime behavior. */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  if (value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  return typeof value === "object";
 }
 
 /**
