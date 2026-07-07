@@ -256,6 +256,41 @@ Catatan operasional:
   deployment (claim-lease aman terhadap tumpang tindih, tapi menjadwalkan
   dari banyak host sekaligus tetap pemborosan resource tanpa manfaat).
 
+## Job registry lainnya (Issue #519)
+
+Selain `email:dispatch` di atas, Module Management (epic #510) sekarang
+mendaftarkan seluruh command operasional lain sebagai metadata trusted
+per modul (`ModuleDescriptor.jobs`, dibaca lewat
+`GET /api/v1/modules/{moduleKey}/jobs`) — lihat
+`src/modules/module-management/README.md` §Module job registry untuk
+daftar lengkap dan alasan tiap job dimiliki modul mana. Dua kategori:
+
+**Dispatcher/purge terjadwal berulang** — pola cron identik dengan
+`email:dispatch` di atas (ganti nama command pada contoh crontab),
+idempoten/aman dijalankan berulang, no-op aman bila fiturnya nonaktif:
+
+| Command                 | Modul        | Jadwal disarankan |
+| ----------------------- | ------------ | ----------------- |
+| `sync:objects:dispatch` | sync_storage | Setiap 1-2 menit  |
+| `logs:audit:purge`      | logging      | Harian            |
+| `form-drafts:purge`     | form_drafts  | Harian            |
+
+Semua tiga bersifat operasi database murni (kecuali `sync:objects:dispatch`
+yang menyentuh R2 bila `STORAGE_DRIVER` bukan `local`) — aman dijadwalkan
+di profil offline/LAN sekalipun.
+
+**On-demand/manual (bukan cron berulang)** — dijalankan operator sesuai
+kebutuhan, bukan dijadwalkan terus-menerus:
+
+- `email:provider:health` — smoke-test manual/deployment, butuh akses
+  jaringan nyata ke provider.
+- `email:templates:seed-defaults` — sekali per tenant, biasanya tepat
+  setelah Setup Wizard.
+- `security:readiness` — sebelum go-live, dan periodik (mis. mingguan) di
+  staging/production untuk mendeteksi drift.
+- `config:validate`/`production:preflight` — sebelum setiap deploy (lihat
+  §Validasi konfigurasi sebelum boot di atas).
+
 ## Backup lokal (semua profil)
 
 `deploy/backup/backup-postgres.sh` dan `deploy/backup/restore-postgres.sh`

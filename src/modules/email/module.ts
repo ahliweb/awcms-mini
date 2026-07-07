@@ -21,5 +21,36 @@ export const emailModule = defineModule({
       "awcms-mini.email.message.suppressed",
       "awcms-mini.email.message.cancelled"
     ]
-  }
+  },
+  jobs: [
+    {
+      command: "bun run email:dispatch",
+      purpose:
+        "Drain the due email delivery queue (claim-lease, retry/backoff, circuit breaker) for every active tenant.",
+      recommendedSchedule: "Every 1-2 minutes via cron/systemd timer.",
+      environmentNotes:
+        'No-op when EMAIL_ENABLED is not "true" — safe to schedule regardless of deployment profile (e.g. offline/LAN).',
+      safeInOfflineLan: true
+    },
+    {
+      command: "bun run email:provider:health",
+      purpose:
+        "Live network check against the configured email provider's health endpoint.",
+      recommendedSchedule:
+        "On-demand — operators run manually or from a deployment smoke-test step, not on a recurring schedule.",
+      environmentNotes:
+        'Exits 0 (no-op) when EMAIL_ENABLED is not "true". Requires real network egress to the provider — not run in CI.',
+      safeInOfflineLan: false
+    },
+    {
+      command: "bun run email:templates:seed-defaults",
+      purpose:
+        "Seed the default system email templates for one tenant (idempotent — skips any template_key that already has an active row).",
+      recommendedSchedule:
+        "On-demand — once per tenant, typically right after tenant setup.",
+      environmentNotes:
+        "Requires --tenant=<tenantId> --actor=<tenantUserId> arguments.",
+      safeInOfflineLan: true
+    }
+  ]
 });

@@ -44,11 +44,13 @@ Declares `type: "system"`, `isCore: true` (module management cannot be
 tenant-disabled — you cannot disable the thing that manages modules), and
 its 12 seeded permissions (`migration 025`). Also declares one `navigation`
 entry (Issue #518 — `/admin/modules`, gated by `module_management.modules.read`)
-now that a real, if minimal, page exists there. Deliberately still does
-**not** declare `jobs`/`health` — those fields exist on `ModuleDescriptor`
-(Issue #511) but the job registry (#519) and health checks (#520) don't
-exist yet. A descriptor should only claim a capability once the
-corresponding feature is real, not in advance.
+now that a real, if minimal, page exists there, and three `jobs` entries
+(Issue #519 — `security:readiness`/`config:validate`/`production:preflight`,
+platform-wide checks not owned by any single domain module). Deliberately
+still does **not** declare `health` — that field exists on
+`ModuleDescriptor` (Issue #511) but health checks (#520) don't exist yet.
+A descriptor should only claim a capability once the corresponding
+feature is real, not in advance.
 
 ## Tenant module lifecycle — `application/tenant-module-lifecycle.ts` (Issue #515)
 
@@ -180,6 +182,44 @@ mutation affordance at all. It exists only so this issue's new nav entry
 doesn't point at a 404; the real experience (filters, module detail,
 dependency/settings/permission-sync/navigation/jobs/health panels, tenant
 enable/disable actions) is Issue #521's job.
+
+## Module job registry — `application/job-registry.ts` (Issue #519)
+
+`GET /api/v1/modules/{moduleKey}/jobs`. Documentation only — never
+executes anything, and there is deliberately no corresponding "run this
+job" endpoint (issue's own security note: running arbitrary commands from
+a web UI is out of scope; if job execution is ever added, it must be a
+separate, heavily-restricted feature). Reads directly from `listModules()`
+— same reasoning as the navigation registry (#518): `awcms_mini_module_jobs`
+only reflects whatever `bun run modules:sync` last wrote, and this is
+operator-facing documentation that shouldn't silently go stale.
+
+Job ownership (`ModuleDescriptor.jobs`) by module:
+
+- `sync_storage` — `sync:objects:dispatch`.
+- `logging` — `logs:audit:purge`.
+- `form_drafts` — `form-drafts:purge`.
+- `email` — `email:dispatch`, `email:provider:health`,
+  `email:templates:seed-defaults`.
+- `module_management` — `security:readiness`, `config:validate`,
+  `production:preflight` (platform-wide/deployment-level checks that
+  aren't owned by any single domain module — `module_management` is
+  already the "generic infrastructure for managing every other registered
+  module", the natural home for these).
+
+Scheduling guidance (LAN/systemd/container/Coolify) lives in
+`docs/awcms-mini/deployment-profiles.md` §Job registry lainnya and
+`docs/awcms-mini/deploy-coolify.md` §Dispatcher terjadwal (email) — not
+duplicated here.
+
+`domain/job-registry.ts`'s `validateJobDescriptor` checks structural shape
+only (`command` must look like `bun run <script>`, `purpose` non-empty).
+"No secrets in job metadata" (acceptance criteria) is enforced the same
+way as every other `ModuleDescriptor` field — review discipline on
+trusted, checked-in code, per the contract's own doc comment — not an
+automated content scanner: a free-text `environmentNotes`/`purpose`
+string has no reliable secret-shaped _key_ the way a JSON-object settings
+value does (`findSensitiveKeys`, Issue #516).
 
 ## Out of scope for this issue
 

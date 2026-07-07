@@ -11,5 +11,16 @@ export const syncStorageModule = defineModule({
   api: {
     openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
     basePath: "/api/v1/sync"
-  }
+  },
+  jobs: [
+    {
+      command: "bun run sync:objects:dispatch",
+      purpose:
+        "Drain the due object sync upload queue (claim-lease, retry/backoff, circuit breaker) for every active tenant.",
+      recommendedSchedule: "Every 1-2 minutes via cron/systemd timer.",
+      environmentNotes:
+        "No-op when R2 is disabled (STORAGE_DRIVER=local) — safe to schedule regardless of deployment profile.",
+      safeInOfflineLan: true
+    }
+  ]
 });
