@@ -9,6 +9,7 @@ import type { AccessRequest, TenantContext } from "../domain/access-control";
 import { evaluateAccess } from "../domain/access-control";
 import {
   fetchGrantedPermissionKeys,
+  resolveModuleEnabled,
   resolveTenantContext
 } from "./auth-context";
 import { recordDecisionLog } from "./decision-log";
@@ -50,12 +51,15 @@ export type AuthorizeResult =
 
 /**
  * Runs the full guard chain inside an existing tenant transaction: resolve the
- * session context → fetch granted permission keys → evaluate ABAC (default
- * deny, deny overrides allow) → record the decision log. Returns the
- * authorized context on allow, or a ready-to-return `fail()` Response (401/403)
- * on deny. This is the same chain the existing access endpoints inline; it is
- * centralized here so the several Access & Users endpoints stay consistent and
- * always record a decision log.
+ * session context → check the guard's module is enabled for this tenant
+ * (Issue #515 — a disabled module must actually block every endpoint it
+ * owns, not just look disabled in the UI) → fetch granted permission keys →
+ * evaluate ABAC (default deny, deny overrides allow) → record the decision
+ * log. Returns the authorized context on allow, or a ready-to-return `fail()`
+ * Response (401/403) on deny. This is the same chain the existing access
+ * endpoints inline; it is centralized here so every guarded endpoint stays
+ * consistent, always enforces tenant module state, and always records a
+ * decision log.
  */
 export async function authorizeInTransaction(
   tx: Bun.SQL,
@@ -70,6 +74,33 @@ export async function authorizeInTransaction(
     return {
       allowed: false,
       denied: fail(401, "AUTH_REQUIRED", "Session is invalid or expired.")
+    };
+  }
+
+  const moduleEnabled = await resolveModuleEnabled(
+    tx,
+    tenantId,
+    guard.moduleKey
+  );
+
+  if (!moduleEnabled) {
+    const decision = {
+      allowed: false,
+      reason: "Module is disabled for this tenant.",
+      matchedPolicy: "module_disabled"
+    };
+
+    await recordDecisionLog(
+      tx,
+      tenantId,
+      context.tenantUserId,
+      guard,
+      decision
+    );
+
+    return {
+      allowed: false,
+      denied: fail(403, "MODULE_DISABLED", decision.reason)
     };
   }
 
