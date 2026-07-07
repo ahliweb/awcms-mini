@@ -2,8 +2,10 @@ import type {
   AccessDecision,
   TenantContext
 } from "../../identity-access/domain/access-control";
-import { evaluateAccess } from "../../identity-access/domain/access-control";
-import type { BlogContentStatus } from "./post-status";
+import {
+  evaluateContentUpdateAccess,
+  type ContentOwnershipAttributes
+} from "./content-access-policy";
 
 const UPDATE_GUARD = {
   moduleKey: "blog_content",
@@ -11,10 +13,7 @@ const UPDATE_GUARD = {
   action: "update" as const
 };
 
-export type PostOwnershipAttributes = {
-  authorTenantUserId: string;
-  status: BlogContentStatus;
-};
+export type PostOwnershipAttributes = ContentOwnershipAttributes;
 
 /**
  * Issue #538 §ABAC Rules: "Author may edit own draft post if the post is
@@ -36,33 +35,22 @@ export type PostOwnershipAttributes = {
  * consult ownership when the sole reason for denial was a missing role
  * permission) keeps the shared engine's default-deny guarantee intact
  * while still supporting the per-module exception.
+ *
+ * Issue #539 factored the actual logic out to
+ * `content-access-policy.ts`'s `evaluateContentUpdateAccess` so
+ * `page-access-policy.ts` can reuse it for pages — this function is now a
+ * thin wrapper fixing the guard to `blog_content.posts.update`, kept for
+ * the resource-specific name callers already use.
  */
 export function evaluatePostUpdateAccess(
   context: TenantContext,
   grantedPermissionKeys: ReadonlySet<string>,
   post: PostOwnershipAttributes
 ): AccessDecision {
-  const roleDecision = evaluateAccess(
+  return evaluateContentUpdateAccess(
     context,
+    grantedPermissionKeys,
     UPDATE_GUARD,
-    grantedPermissionKeys
+    post
   );
-
-  if (roleDecision.allowed) {
-    return roleDecision;
-  }
-
-  if (
-    roleDecision.matchedPolicy === "default_deny" &&
-    post.authorTenantUserId === context.tenantUserId &&
-    post.status !== "published"
-  ) {
-    return {
-      allowed: true,
-      reason: "Author may edit their own unpublished post.",
-      matchedPolicy: "author_own_draft_allow"
-    };
-  }
-
-  return roleDecision;
 }

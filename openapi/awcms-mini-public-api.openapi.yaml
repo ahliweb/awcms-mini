@@ -80,6 +80,25 @@ tags:
       restore, purge). Builds on the `blog_content` schema/permission
       foundation from Issue #537; pages, taxonomies, public routes, and
       revisions are separate, later issues.
+  - name: Blog Pages
+    description: >-
+      Tenant-scoped static page admin API (epic #536, Issue #539) — plain
+      CRUD only (no publish/schedule/archive/restore/purge lifecycle
+      actions in this issue, unlike Blog Posts). Supports `pageType`
+      (standard/landing/legal/system), `parentPageId`, and `menuOrder`.
+  - name: Blog Taxonomies
+    description: >-
+      Tenant-scoped category/tag admin API (epic #536, Issue #539).
+      Categories support parent-child hierarchy; tags must not have a
+      parent. No restore/purge — soft-delete only.
+  - name: Blog Search
+    description: >-
+      Tenant-scoped PostgreSQL full-text admin search across posts and
+      pages (epic #536, Issue #539), keyset-paginated. May return content
+      of any status per the caller's `blog_content.search.read` grant. The
+      public-safe search predicate (published + public content only) is a
+      backend helper only in this issue — no public route yet (Issue
+      #540).
 paths:
   /api/v1/sync/push:
     post:
@@ -4006,6 +4025,541 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/blog/pages:
+    get:
+      tags:
+        - Blog Pages
+      summary: List this tenant's non-deleted blog pages
+      operationId: blogPagesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, review, scheduled, published, archived]
+        - name: pageType
+          in: query
+          schema:
+            type: string
+            enum: [standard, landing, legal, system]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Blog pages for the caller's tenant (limit 100, menu order then newest-updated first).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogPageListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Blog Pages
+      summary: Create a draft blog page
+      operationId: blogPagesCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBlogPageRequest"
+      responses:
+        "200":
+          description: Blog page created (status "draft").
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogPageItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: A page already exists for this slug in this locale.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/pages/{id}:
+    get:
+      tags:
+        - Blog Pages
+      summary: Read one blog page
+      operationId: blogPagesGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The requested blog page.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogPageItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Blog Pages
+      summary: >-
+        Update a blog page (any field). Author may edit their own
+        not-yet-published page even without blog_content.pages.update
+      operationId: blogPagesUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBlogPageRequest"
+      responses:
+        "200":
+          description: Blog page updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogPageItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: >-
+            Access denied — the caller neither holds
+            blog_content.pages.update nor is the page's author editing
+            their own not-yet-published page.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: A page already exists for this slug in this locale.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Blog Pages
+      summary: Soft-delete a blog page
+      operationId: blogPagesDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+      responses:
+        "200":
+          description: Blog page deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - id
+                          - deleted
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/terms:
+    get:
+      tags:
+        - Blog Taxonomies
+      summary: List this tenant's non-deleted categories/tags
+      operationId: blogTermsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: taxonomyType
+          in: query
+          schema:
+            type: string
+            enum: [category, tag]
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Terms for the caller's tenant (limit 100, name ascending).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogTermListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Blog Taxonomies
+      summary: Create a category or tag
+      operationId: blogTermsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBlogTermRequest"
+      responses:
+        "200":
+          description: Term created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogTermItem"
+        "400":
+          description: >-
+            Validation error, including a tag with a non-null parentId.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: A term already exists for this slug in this taxonomy type.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/terms/{id}:
+    patch:
+      tags:
+        - Blog Taxonomies
+      summary: Update a category or tag
+      operationId: blogTermsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBlogTermRequest"
+      responses:
+        "200":
+          description: Term updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogTermItem"
+        "400":
+          description: >-
+            Validation error, including a tag with a non-null parentId.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: A term already exists for this slug in this taxonomy type.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Blog Taxonomies
+      summary: Soft-delete a category or tag
+      operationId: blogTermsDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+      responses:
+        "200":
+          description: Term deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - id
+                          - deleted
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/search:
+    get:
+      tags:
+        - Blog Search
+      summary: Admin full-text search across blog posts and pages
+      operationId: blogSearch
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [post, page]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, review, scheduled, published, archived]
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Matching posts and pages, newest first, keyset-paginated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogSearchResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
 x-awcms-mini-soft-delete-pattern:
   delete:
     method: DELETE
@@ -6729,6 +7283,15 @@ components:
         version:
           type: integer
           minimum: 1
+        termIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: >-
+            Category/tag ids currently assigned to this post (Issue #539).
+            Only present on responses from endpoints that compute it
+            (create/update/get detail), not on the list endpoint.
     BlogPostListItem:
       type: object
       required:
@@ -6821,6 +7384,12 @@ components:
         canonicalUrl:
           type: string
           nullable: true
+        termIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Category/tag ids to assign to this post (Issue #539).
     UpdateBlogPostRequest:
       type: object
       additionalProperties: false
@@ -6859,6 +7428,12 @@ components:
         canonicalUrl:
           type: string
           nullable: true
+        termIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Replaces the full category/tag assignment set for this post (Issue #539).
     ScheduleBlogPostRequest:
       type: object
       required:
@@ -6869,6 +7444,457 @@ components:
           type: string
           format: date-time
           description: Must be in the future.
+    BlogPageItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - authorTenantUserId
+        - title
+        - slug
+        - excerpt
+        - contentJson
+        - contentText
+        - status
+        - visibility
+        - featuredMediaId
+        - seoTitle
+        - metaDescription
+        - canonicalUrl
+        - locale
+        - pageType
+        - parentPageId
+        - menuOrder
+        - publishedAt
+        - scheduledAt
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - deletedBy
+        - deleteReason
+        - restoredAt
+        - restoredBy
+        - version
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        authorTenantUserId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        slug:
+          type: string
+        excerpt:
+          type: string
+          nullable: true
+        contentJson:
+          type: object
+        contentText:
+          type: string
+        status:
+          type: string
+          enum: [draft, review, scheduled, published, archived]
+        visibility:
+          type: string
+          enum: [public, private, unlisted]
+        featuredMediaId:
+          type: string
+          format: uuid
+          nullable: true
+        seoTitle:
+          type: string
+          nullable: true
+        metaDescription:
+          type: string
+          nullable: true
+        canonicalUrl:
+          type: string
+          nullable: true
+        locale:
+          type: string
+        pageType:
+          type: string
+          enum: [standard, landing, legal, system]
+        parentPageId:
+          type: string
+          format: uuid
+          nullable: true
+        menuOrder:
+          type: integer
+          minimum: 0
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletedBy:
+          type: string
+          format: uuid
+          nullable: true
+        deleteReason:
+          type: string
+          nullable: true
+        restoredAt:
+          type: string
+          format: date-time
+          nullable: true
+        restoredBy:
+          type: string
+          format: uuid
+          nullable: true
+        version:
+          type: integer
+          minimum: 1
+    BlogPageListItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - title
+        - slug
+        - status
+        - visibility
+        - pageType
+        - parentPageId
+        - menuOrder
+        - locale
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        slug:
+          type: string
+        status:
+          type: string
+          enum: [draft, review, scheduled, published, archived]
+        visibility:
+          type: string
+          enum: [public, private, unlisted]
+        pageType:
+          type: string
+          enum: [standard, landing, legal, system]
+        parentPageId:
+          type: string
+          format: uuid
+          nullable: true
+        menuOrder:
+          type: integer
+          minimum: 0
+        locale:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+    BlogPageListResponse:
+      type: object
+      required:
+        - pages
+      additionalProperties: false
+      properties:
+        pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlogPageListItem"
+    CreateBlogPageRequest:
+      type: object
+      required:
+        - title
+        - slug
+        - contentJson
+        - contentText
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        slug:
+          type: string
+          pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+        excerpt:
+          type: string
+          maxLength: 500
+          nullable: true
+        contentJson:
+          type: object
+        contentText:
+          type: string
+        locale:
+          type: string
+        visibility:
+          type: string
+          enum: [public, private, unlisted]
+        featuredMediaId:
+          type: string
+          format: uuid
+          nullable: true
+        seoTitle:
+          type: string
+          maxLength: 70
+          nullable: true
+        metaDescription:
+          type: string
+          maxLength: 160
+          nullable: true
+        canonicalUrl:
+          type: string
+          nullable: true
+        pageType:
+          type: string
+          enum: [standard, landing, legal, system]
+        parentPageId:
+          type: string
+          format: uuid
+          nullable: true
+        menuOrder:
+          type: integer
+          minimum: 0
+    UpdateBlogPageRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        slug:
+          type: string
+          pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+        excerpt:
+          type: string
+          maxLength: 500
+          nullable: true
+        contentJson:
+          type: object
+        contentText:
+          type: string
+        locale:
+          type: string
+        visibility:
+          type: string
+          enum: [public, private, unlisted]
+        featuredMediaId:
+          type: string
+          format: uuid
+          nullable: true
+        seoTitle:
+          type: string
+          maxLength: 70
+          nullable: true
+        metaDescription:
+          type: string
+          maxLength: 160
+          nullable: true
+        canonicalUrl:
+          type: string
+          nullable: true
+        pageType:
+          type: string
+          enum: [standard, landing, legal, system]
+        parentPageId:
+          type: string
+          format: uuid
+          nullable: true
+        menuOrder:
+          type: integer
+          minimum: 0
+    BlogTermItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - taxonomyType
+        - parentId
+        - name
+        - slug
+        - description
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - deletedBy
+        - deleteReason
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        taxonomyType:
+          type: string
+          enum: [category, tag]
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletedBy:
+          type: string
+          format: uuid
+          nullable: true
+        deleteReason:
+          type: string
+          nullable: true
+    BlogTermListResponse:
+      type: object
+      required:
+        - terms
+      additionalProperties: false
+      properties:
+        terms:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlogTermItem"
+    CreateBlogTermRequest:
+      type: object
+      required:
+        - taxonomyType
+        - name
+        - slug
+      additionalProperties: false
+      properties:
+        taxonomyType:
+          type: string
+          enum: [category, tag]
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Must be null for a tag.
+        name:
+          type: string
+          maxLength: 100
+        slug:
+          type: string
+          pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+    UpdateBlogTermRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        taxonomyType:
+          type: string
+          enum: [category, tag]
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Must be null for a tag.
+        name:
+          type: string
+          maxLength: 100
+        slug:
+          type: string
+          pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+    BlogSearchResultItem:
+      type: object
+      required:
+        - resourceType
+        - id
+        - title
+        - slug
+        - excerpt
+        - status
+        - visibility
+        - locale
+        - publishedAt
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        resourceType:
+          type: string
+          enum: [post, page]
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        slug:
+          type: string
+        excerpt:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [draft, review, scheduled, published, archived]
+        visibility:
+          type: string
+          enum: [public, private, unlisted]
+        locale:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    BlogSearchResponse:
+      type: object
+      required:
+        - items
+        - nextCursor
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlogSearchResultItem"
+        nextCursor:
+          type: string
+          nullable: true
 security:
   - bearerAuth: []
     tenantHeader: []

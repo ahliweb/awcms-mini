@@ -149,6 +149,34 @@ export function validateLocaleField(value: unknown): ValidationError | null {
   return null;
 }
 
+export type DeleteReasonInput = {
+  reason: string;
+};
+
+export type DeleteReasonValidationResult =
+  | { valid: true; value: DeleteReasonInput }
+  | { valid: false; errors: ValidationError[] };
+
+/**
+ * Shared soft-delete `{ reason: string }` body validator (Issue #538's
+ * `DELETE /api/v1/blog/posts/{id}` established this shape; Issue #539
+ * reuses it verbatim for pages and terms rather than re-deriving it).
+ */
+export function validateDeleteReasonInput(
+  body: unknown
+): DeleteReasonValidationResult {
+  const record = (body ?? {}) as Record<string, unknown>;
+
+  if (!isNonEmptyString(record.reason)) {
+    return {
+      valid: false,
+      errors: [{ field: "reason", message: "reason is required." }]
+    };
+  }
+
+  return { valid: true, value: { reason: record.reason.trim() } };
+}
+
 export function validateBlogContentCore(
   body: unknown
 ): BlogContentCoreValidationResult {

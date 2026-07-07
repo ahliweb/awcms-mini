@@ -10,32 +10,25 @@ import {
 import { hashSessionToken } from "../../../../../lib/auth/session-token";
 import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
 import {
-  createBlogPost,
-  listBlogPosts
-} from "../../../../../modules/blog-content/application/blog-post-directory";
-import {
-  countExistingTerms,
-  syncPostTermAssignments
+  createBlogTerm,
+  listBlogTerms
 } from "../../../../../modules/blog-content/application/blog-taxonomy-directory";
-import { validateCreateBlogPostInput } from "../../../../../modules/blog-content/domain/blog-post-validation";
-import {
-  isBlogContentStatus,
-  type BlogContentStatus
-} from "../../../../../modules/blog-content/domain/post-status";
+import { validateCreateBlogTermInput } from "../../../../../modules/blog-content/domain/blog-term-validation";
+import { isTaxonomyType } from "../../../../../modules/blog-content/domain/taxonomy-policy";
 
 const READ_GUARD = {
   moduleKey: "blog_content",
-  activityCode: "posts",
+  activityCode: "taxonomies",
   action: "read" as const
 };
 
-const CREATE_GUARD = {
+const CONFIGURE_GUARD = {
   moduleKey: "blog_content",
-  activityCode: "posts",
-  action: "create" as const
+  activityCode: "taxonomies",
+  action: "configure" as const
 };
 
-/** `GET /api/v1/blog/posts` (Issue #538) — list this tenant's non-deleted posts, `?status=` optional filter, `?limit=` bounded (default 20, max 100). */
+/** `GET /api/v1/blog/terms` (Issue #539) — list this tenant's non-deleted categories/tags, `?taxonomyType=` optional filter. */
 export const GET: APIRoute = async ({ request, cookies, url }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
 
@@ -47,29 +40,14 @@ export const GET: APIRoute = async ({ request, cookies, url }) => {
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
   }
 
-  const statusParam = url.searchParams.get("status");
-  let status: BlogContentStatus | undefined;
+  const taxonomyTypeParam = url.searchParams.get("taxonomyType");
 
-  if (statusParam !== null) {
-    if (!isBlogContentStatus(statusParam)) {
-      return fail(
-        400,
-        "VALIDATION_ERROR",
-        "status must be one of draft, review, scheduled, published, archived."
-      );
-    }
-
-    status = statusParam;
-  }
-
-  const limitParam = url.searchParams.get("limit");
-  const limit = limitParam ? Number(limitParam) : undefined;
-
-  if (
-    limitParam !== null &&
-    (!Number.isFinite(limit) || (limit as number) < 1)
-  ) {
-    return fail(400, "VALIDATION_ERROR", "limit must be a positive number.");
+  if (taxonomyTypeParam !== null && !isTaxonomyType(taxonomyTypeParam)) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      "taxonomyType must be one of category, tag."
+    );
   }
 
   const sql = getDatabaseClient();
@@ -89,16 +67,15 @@ export const GET: APIRoute = async ({ request, cookies, url }) => {
       return auth.denied;
     }
 
-    const posts = await listBlogPosts(tx, tenantId, {
-      status,
-      limit
+    const terms = await listBlogTerms(tx, tenantId, {
+      taxonomyType: taxonomyTypeParam ?? undefined
     });
 
-    return ok({ posts });
+    return ok({ terms });
   });
 };
 
-/** `POST /api/v1/blog/posts` (Issue #538) — create a draft post. Not idempotent (recommended, not required, per doc issue #538 §Idempotency Requirements) — a network retry duplicating a create is caught by the `(tenant_id, locale, slug)` partial unique index, same reasoning `POST /api/v1/email/templates` documents. */
+/** `POST /api/v1/blog/terms` (Issue #539) — create a category or tag. Not idempotent — a retry duplicating a create is caught by the `(tenant_id, taxonomy_type, slug)` partial unique index. */
 export const POST: APIRoute = async ({ request, cookies, locals }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
 
@@ -110,7 +87,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
   }
 
-  const validation = validateCreateBlogPostInput(
+  const validation = validateCreateBlogTermInput(
     await request.json().catch(() => null)
   );
 
@@ -118,7 +95,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     return fail(
       400,
       "VALIDATION_ERROR",
-      "Blog post is invalid.",
+      "Blog term is invalid.",
       {},
       validation.errors
     );
@@ -136,68 +113,62 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       tenantId,
       tokenHash,
       now,
-      CREATE_GUARD
+      CONFIGURE_GUARD
     );
 
     if (!auth.allowed) {
       return auth.denied;
     }
 
-    if (input.termIds && input.termIds.length > 0) {
-      const existingCount = await countExistingTerms(
-        tx,
-        tenantId,
-        input.termIds
-      );
+    if (input.parentId) {
+      const parentRows = await tx`
+        SELECT taxonomy_type FROM awcms_mini_blog_terms
+        WHERE tenant_id = ${tenantId} AND id = ${input.parentId} AND deleted_at IS NULL
+      `;
 
-      if (existingCount !== input.termIds.length) {
+      if (parentRows.length === 0) {
         return fail(
           400,
           "VALIDATION_ERROR",
-          "termIds contains an id that does not exist for this tenant."
+          "parentId does not reference an existing term."
         );
       }
     }
 
-    let post;
+    let term;
 
     try {
-      post = await createBlogPost(
-        tx,
-        tenantId,
-        auth.context.tenantUserId,
-        input
-      );
+      term = await createBlogTerm(tx, tenantId, input);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
 
-      if (message.includes("awcms_mini_blog_posts_slug_dedup")) {
+      if (message.includes("awcms_mini_blog_terms_slug_dedup")) {
         return fail(
           409,
           "SLUG_CONFLICT",
-          `A post already exists for slug "${input.slug}" in locale "${input.locale}".`
+          `A ${input.taxonomyType} already exists for slug "${input.slug}".`
         );
       }
 
-      throw error;
-    }
+      if (message.includes("awcms_mini_blog_terms_tag_no_parent_check")) {
+        return fail(400, "VALIDATION_ERROR", "A tag must not have a parentId.");
+      }
 
-    if (input.termIds) {
-      await syncPostTermAssignments(tx, tenantId, post.id, input.termIds);
+      throw error;
     }
 
     await recordAuditEvent(tx, {
       tenantId,
       actorTenantUserId: auth.context.tenantUserId,
       moduleKey: "blog_content",
-      action: "blog.post.created",
-      resourceType: "blog_post",
-      resourceId: post.id,
+      action: "blog.term.created",
+      resourceType: "blog_term",
+      resourceId: term.id,
       severity: "info",
-      message: `Blog post created: ${post.slug}.`,
+      message: `Blog term created: ${term.slug}.`,
       correlationId
     });
 
-    return ok({ ...post, termIds: input.termIds ?? [] });
+    return ok(term);
   });
 };

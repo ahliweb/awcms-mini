@@ -16,46 +16,41 @@ import {
 import { recordDecisionLog } from "../../../../../modules/identity-access/application/decision-log";
 import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
 import {
-  fetchBlogPostById,
-  softDeleteBlogPost,
-  updateBlogPost
-} from "../../../../../modules/blog-content/application/blog-post-directory";
+  fetchBlogPageById,
+  softDeleteBlogPage,
+  updateBlogPage
+} from "../../../../../modules/blog-content/application/blog-page-directory";
 import {
-  countExistingTerms,
-  fetchPostTermIds,
-  syncPostTermAssignments
-} from "../../../../../modules/blog-content/application/blog-taxonomy-directory";
-import {
-  validateSoftDeleteBlogPostInput,
-  validateUpdateBlogPostInput
-} from "../../../../../modules/blog-content/domain/blog-post-validation";
-import { evaluatePostUpdateAccess } from "../../../../../modules/blog-content/domain/post-access-policy";
+  validateSoftDeleteBlogPageInput,
+  validateUpdateBlogPageInput
+} from "../../../../../modules/blog-content/domain/blog-page-validation";
+import { evaluatePageUpdateAccess } from "../../../../../modules/blog-content/domain/page-access-policy";
 
 const READ_GUARD = {
   moduleKey: "blog_content",
-  activityCode: "posts",
+  activityCode: "pages",
   action: "read" as const
 };
 
-const UPDATE_ACTIVITY = { moduleKey: "blog_content", activityCode: "posts" };
+const UPDATE_ACTIVITY = { moduleKey: "blog_content", activityCode: "pages" };
 
 const DELETE_GUARD = {
   moduleKey: "blog_content",
-  activityCode: "posts",
+  activityCode: "pages",
   action: "delete" as const
 };
 
-/** `GET /api/v1/blog/posts/{id}` (Issue #538). */
+/** `GET /api/v1/blog/pages/{id}` (Issue #539). */
 export const GET: APIRoute = async ({ request, params, cookies }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
-  const postId = params.id;
+  const pageId = params.id;
 
   if (!tenantId) {
     return fail(400, "TENANT_REQUIRED", "Tenant header is required.");
   }
 
-  if (!postId) {
-    return fail(400, "VALIDATION_ERROR", "Post id is required.");
+  if (!pageId) {
+    return fail(400, "VALIDATION_ERROR", "Page id is required.");
   }
 
   if (!token) {
@@ -79,55 +74,50 @@ export const GET: APIRoute = async ({ request, params, cookies }) => {
       return auth.denied;
     }
 
-    const post = await fetchBlogPostById(tx, tenantId, postId);
+    const page = await fetchBlogPageById(tx, tenantId, pageId);
 
-    if (!post) {
-      return fail(404, "RESOURCE_NOT_FOUND", "Blog post not found.");
+    if (!page) {
+      return fail(404, "RESOURCE_NOT_FOUND", "Blog page not found.");
     }
 
-    const termIds = await fetchPostTermIds(tx, tenantId, postId);
-
-    return ok({ ...post, termIds });
+    return ok(page);
   });
 };
 
 /**
- * `PATCH /api/v1/blog/posts/{id}` (Issue #538). Access is decided by
- * `evaluatePostUpdateAccess` (doc issue #538 §ABAC Rules: an author may
- * update their own not-yet-published post even without the
- * `blog_content.posts.update` role permission; a role that holds it may
- * update any tenant post) — the post is fetched *before* the decision so
- * `authorTenantUserId`/`status` are real values, same pattern
- * `workflows/tasks/{id}/decisions.ts` uses for its self-approval check.
- * Not idempotent (recommended, not required, per doc issue #538
- * §Idempotency Requirements) — same-body PATCH retries converge to the
- * same end state.
+ * `PATCH /api/v1/blog/pages/{id}` (Issue #539). Access decided by
+ * `evaluatePageUpdateAccess` — same author-own-unpublished-content
+ * override `PATCH /api/v1/blog/posts/{id}` uses, fixed to
+ * `blog_content.pages.update` (doc issue #539: "must follow the same
+ * auth, tenant, RBAC/ABAC, ... patterns introduced in the blog post
+ * API").
  */
 export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
-  const postId = params.id;
+  const pageId = params.id;
 
   if (!tenantId) {
     return fail(400, "TENANT_REQUIRED", "Tenant header is required.");
   }
 
-  if (!postId) {
-    return fail(400, "VALIDATION_ERROR", "Post id is required.");
+  if (!pageId) {
+    return fail(400, "VALIDATION_ERROR", "Page id is required.");
   }
 
   if (!token) {
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
   }
 
-  const validation = validateUpdateBlogPostInput(
-    await request.json().catch(() => null)
+  const validation = validateUpdateBlogPageInput(
+    await request.json().catch(() => null),
+    pageId
   );
 
   if (!validation.valid) {
     return fail(
       400,
       "VALIDATION_ERROR",
-      "Blog post update is invalid.",
+      "Blog page update is invalid.",
       {},
       validation.errors
     );
@@ -160,10 +150,10 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
       );
     }
 
-    const post = await fetchBlogPostById(tx, tenantId, postId);
+    const page = await fetchBlogPageById(tx, tenantId, pageId);
 
-    if (!post) {
-      return fail(404, "RESOURCE_NOT_FOUND", "Blog post not found.");
+    if (!page) {
+      return fail(404, "RESOURCE_NOT_FOUND", "Blog page not found.");
     }
 
     const grantedPermissionKeys = await fetchGrantedPermissionKeys(
@@ -171,9 +161,9 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
       tenantId,
       context.tenantUserId
     );
-    const decision = evaluatePostUpdateAccess(context, grantedPermissionKeys, {
-      authorTenantUserId: post.authorTenantUserId,
-      status: post.status
+    const decision = evaluatePageUpdateAccess(context, grantedPermissionKeys, {
+      authorTenantUserId: page.authorTenantUserId,
+      status: page.status
     });
 
     await recordDecisionLog(
@@ -183,8 +173,8 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
       {
         ...UPDATE_ACTIVITY,
         action: "update",
-        resourceType: "blog_post",
-        resourceId: postId
+        resourceType: "blog_page",
+        resourceId: pageId
       },
       decision
     );
@@ -193,18 +183,25 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
       return fail(403, "ACCESS_DENIED", decision.reason);
     }
 
-    if (input.termIds && input.termIds.length > 0) {
-      const existingCount = await countExistingTerms(
-        tx,
-        tenantId,
-        input.termIds
-      );
-
-      if (existingCount !== input.termIds.length) {
+    if (input.parentPageId) {
+      if (input.parentPageId === pageId) {
         return fail(
           400,
           "VALIDATION_ERROR",
-          "termIds contains an id that does not exist for this tenant."
+          "A page cannot be its own parent."
+        );
+      }
+
+      const parentRows = await tx`
+        SELECT id FROM awcms_mini_blog_pages
+        WHERE tenant_id = ${tenantId} AND id = ${input.parentPageId} AND deleted_at IS NULL
+      `;
+
+      if (parentRows.length === 0) {
+        return fail(
+          400,
+          "VALIDATION_ERROR",
+          "parentPageId does not reference an existing page."
         );
       }
     }
@@ -212,15 +209,15 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
     let updated;
 
     try {
-      updated = await updateBlogPost(tx, tenantId, postId, input);
+      updated = await updateBlogPage(tx, tenantId, pageId, input);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
 
-      if (message.includes("awcms_mini_blog_posts_slug_dedup")) {
+      if (message.includes("awcms_mini_blog_pages_slug_dedup")) {
         return fail(
           409,
           "SLUG_CONFLICT",
-          `A post already exists for slug "${input.slug}" in this locale.`
+          `A page already exists for slug "${input.slug}" in this locale.`
         );
       }
 
@@ -228,32 +225,26 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
     }
 
     if (!updated) {
-      return fail(404, "RESOURCE_NOT_FOUND", "Blog post not found.");
+      return fail(404, "RESOURCE_NOT_FOUND", "Blog page not found.");
     }
-
-    if (input.termIds) {
-      await syncPostTermAssignments(tx, tenantId, postId, input.termIds);
-    }
-
-    const termIds = await fetchPostTermIds(tx, tenantId, postId);
 
     await recordAuditEvent(tx, {
       tenantId,
       actorTenantUserId: context.tenantUserId,
       moduleKey: "blog_content",
-      action: "blog.post.updated",
-      resourceType: "blog_post",
-      resourceId: postId,
+      action: "blog.page.updated",
+      resourceType: "blog_page",
+      resourceId: pageId,
       severity: "info",
-      message: `Blog post updated: ${updated.slug}.`,
+      message: `Blog page updated: ${updated.slug}.`,
       correlationId
     });
 
-    return ok({ ...updated, termIds });
+    return ok(updated);
   });
 };
 
-/** `DELETE /api/v1/blog/posts/{id}` (Issue #538) — soft-delete. `reason` required, same convention as `DELETE /api/v1/profiles/{id}` and `DELETE /api/v1/email/templates/{id}`. */
+/** `DELETE /api/v1/blog/pages/{id}` (Issue #539) — soft-delete. `reason` required, same convention as posts. */
 export const DELETE: APIRoute = async ({
   request,
   params,
@@ -261,21 +252,21 @@ export const DELETE: APIRoute = async ({
   locals
 }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
-  const postId = params.id;
+  const pageId = params.id;
 
   if (!tenantId) {
     return fail(400, "TENANT_REQUIRED", "Tenant header is required.");
   }
 
-  if (!postId) {
-    return fail(400, "VALIDATION_ERROR", "Post id is required.");
+  if (!pageId) {
+    return fail(400, "VALIDATION_ERROR", "Page id is required.");
   }
 
   if (!token) {
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
   }
 
-  const validation = validateSoftDeleteBlogPostInput(
+  const validation = validateSoftDeleteBlogPageInput(
     await request.json().catch(() => null)
   );
 
@@ -308,31 +299,31 @@ export const DELETE: APIRoute = async ({
       return auth.denied;
     }
 
-    const deleted = await softDeleteBlogPost(
+    const deleted = await softDeleteBlogPage(
       tx,
       tenantId,
       auth.context.tenantUserId,
-      postId,
+      pageId,
       reason
     );
 
     if (!deleted) {
-      return fail(404, "RESOURCE_NOT_FOUND", "Blog post not found.");
+      return fail(404, "RESOURCE_NOT_FOUND", "Blog page not found.");
     }
 
     await recordAuditEvent(tx, {
       tenantId,
       actorTenantUserId: auth.context.tenantUserId,
       moduleKey: "blog_content",
-      action: "blog.post.deleted",
-      resourceType: "blog_post",
-      resourceId: postId,
+      action: "blog.page.deleted",
+      resourceType: "blog_page",
+      resourceId: pageId,
       severity: "warning",
-      message: "Blog post deleted.",
+      message: "Blog page deleted.",
       attributes: { reason },
       correlationId
     });
 
-    return ok({ id: postId, deleted: true });
+    return ok({ id: pageId, deleted: true });
   });
 };
