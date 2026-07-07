@@ -105,6 +105,7 @@ AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode sta
 | Masking data sensitif                                              | `awcms-mini-sensitive-data`       |
 | Sync HMAC + anti-replay                                            | `awcms-mini-sync-hmac`            |
 | Review keamanan modul                                              | `awcms-mini-security-review`      |
+| Triase & perbaiki temuan CodeQL code scanning                      | `awcms-mini-codeql-triage`        |
 | Review pull request                                                | `awcms-mini-pr-review`            |
 | Tulis test berlapis                                                | `awcms-mini-testing`              |
 | Preflight & go-live                                                | `awcms-mini-production-preflight` |
@@ -234,7 +235,7 @@ awcms-mini/
 ├── AGENTS.md                # file ini
 ├── CHANGELOG.md             # versioning (Changesets)
 ├── .changeset/              # config + changeset entries
-├── .claude/skills/          # 26 skill proyek (implement-issue, new-migration, dst.)
+├── .claude/skills/          # 29 skill proyek (implement-issue, new-migration, dst.)
 ├── .claude/agents/          # subagents (coder, reviewer, security-auditor)
 ├── README.md
 ├── package.json

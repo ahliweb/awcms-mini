@@ -200,6 +200,7 @@ flowchart LR
 | API/event contract                    | `awcms-mini-new-endpoint`, `awcms-mini-new-event`                                                      |
 | Testing berlapis                      | `awcms-mini-testing`                                                                                   |
 | Review keamanan                       | `awcms-mini-security-review` + agent `awcms-mini-security-auditor`                                     |
+| Triase CodeQL code scanning           | `awcms-mini-codeql-triage`                                                                             |
 | Review PR / DoD                       | `awcms-mini-pr-review` + agent `awcms-mini-reviewer`                                                   |
 | Go-live gate                          | `awcms-mini-production-preflight`                                                                      |
 | Profil deployment (LAN-first/Coolify) | `awcms-mini-deploy`                                                                                    |
@@ -326,7 +327,7 @@ Alasan:
 - `AGENTS.md`
 - `README.md`
 - `CHANGELOG.md` + `.changeset/` (versioning via Changesets)
-- `.claude/skills/` (26 skill proyek + katalog README)
+- `.claude/skills/` (29 skill proyek + katalog README)
 - `.claude/agents/` (3 subagent: coder, reviewer, security-auditor)
 - `package.json`
 - `astro.config.mjs`

@@ -48,8 +48,23 @@ const UNSAFE_HTML_PATTERNS: readonly RegExp[] = [
   /javascript:/i
 ];
 
+/**
+ * `value === null` is checked *before* narrowing by `typeof` — CodeQL's
+ * `js/comparison-between-incompatible-types` query flags the more common
+ * `typeof value === "object" && value !== null` ordering as a false
+ * positive here (it infers `value`'s narrowed type as
+ * "Date, object or regular expression" after the `typeof` check, then
+ * treats the subsequent `!== null` as an "incompatible" comparison — `null`
+ * is directly comparable to any reference value in JS, this is the
+ * standard non-null-object check, not a bug). Same runtime behavior,
+ * reordered to avoid the false positive.
+ */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  if (value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  return typeof value === "object";
 }
 
 function validateLocalizedText(
