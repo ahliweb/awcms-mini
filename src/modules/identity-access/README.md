@@ -37,6 +37,8 @@ Doc 10 §ABAC guard: "Tambahkan action `restore` dan `purge` pada kontrak modul 
 
 Pola yang sama diulang untuk `retry` (PR: Sync admin ops dashboard) — migrasi 009 sudah menyeed permission `sync_storage.object_queue.retry` sejak Issue 6.3, tapi tidak ada konsumen sampai action itu ditambahkan ke union `AccessAction`. Berbeda dari `restore`/`purge`, `retry` **tidak** ditambahkan ke `HIGH_RISK_ACTIONS` — ia hanya nudge terhadap jadwal backoff otomatis (`isHighRiskAction("retry") === false`), bukan aksi destruktif/irreversibel. Endpoint yang memakainya tetap memanggil `recordAuditEvent` secara eksplisit terlepas dari klasifikasi risiko (`isHighRiskAction` bersifat metadata dokumentatif, bukan gerbang yang menentukan apakah suatu endpoint boleh skip audit — lihat `src/pages/api/v1/sync/object-queue/[id]/retry.ts`).
 
+Pola yang sama sekali lagi untuk `sync` (Issue #514, epic #510) — migrasi 025 sudah menyeed `module_management.modules.sync` sejak Issue #512, konsumen pertamanya baru `POST /api/v1/modules/sync` di issue ini. `sync` juga **tidak** ditambahkan ke `HIGH_RISK_ACTIONS` — descriptor sync bersifat idempoten/non-destruktif (upsert + tandai orphan, tidak pernah delete), bukan kelas risiko yang sama dengan `delete`/`approve`/`export`. Tetap diaudit eksplisit (`action: "modules_synced"`) terlepas dari klasifikasi itu.
+
 ## Infrastruktur baru
 
 Issue ini adalah endpoint live pertama yang menyentuh database, sehingga menambahkan infrastruktur dasar akses data yang akan dipakai modul lain:

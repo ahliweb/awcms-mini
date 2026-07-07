@@ -67,6 +67,12 @@ tags:
     description: >-
       Manual suppression list read/create/delete — recipients excluded from
       future sends (bounce/complaint/manual/unsubscribed), Issue #499.
+  - name: Module Management
+    description: >-
+      Database-backed module catalog and descriptor sync (epic #510). Read
+      the module registry, inspect a single module's detail, and trigger a
+      sync of trusted code descriptors into the database — distinct from
+      `GET /api/v1/access/modules`'s permission catalog.
 paths:
   /api/v1/sync/push:
     post:
@@ -2790,6 +2796,121 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/modules:
+    get:
+      tags:
+        - Module Management
+      summary: >-
+        List the module catalog — every module currently registered in
+        code, merged with its database-tracked lifecycle state
+      description: >-
+        Distinct from `GET /api/v1/access/modules` (Issue 12.1's permission
+        catalog grouped by module) — that endpoint's behavior is unchanged
+        by this one.
+      operationId: modulesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Module catalog.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleCatalogListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/modules/sync:
+    post:
+      tags:
+        - Module Management
+      summary: Sync trusted code descriptors into the database registry
+      description: >-
+        Naturally idempotent — no `Idempotency-Key` required. Running it
+        repeatedly is always safe and reports the same result each time
+        when nothing has changed.
+      operationId: modulesSync
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Sync result.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleSyncResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/modules/{moduleKey}:
+    get:
+      tags:
+        - Module Management
+      summary: Module catalog detail
+      operationId: modulesGetDetail
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Module catalog entry.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleCatalogEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/health:
     get:
       tags:
@@ -4539,6 +4660,124 @@ components:
           properties:
             alreadySuppressed:
               type: boolean
+    ModuleApiContractInfo:
+      type: object
+      required:
+        - openApiPath
+        - basePath
+      additionalProperties: false
+      properties:
+        openApiPath:
+          type: string
+        basePath:
+          type: string
+    ModuleEventContractInfo:
+      type: object
+      additionalProperties: false
+      properties:
+        asyncApiPath:
+          type: string
+        publishes:
+          type: array
+          items:
+            type: string
+        subscribes:
+          type: array
+          items:
+            type: string
+    ModuleCatalogEntry:
+      type: object
+      required:
+        - moduleKey
+        - name
+        - version
+        - description
+        - status
+        - isCore
+        - dependencies
+        - lastSyncedAt
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - experimental
+            - deprecated
+            - maintenance
+            - disabled
+        type:
+          type: string
+          nullable: true
+          enum:
+            - base
+            - system
+            - domain
+            - integration
+            - derived
+        isCore:
+          type: boolean
+        dependencies:
+          type: array
+          items:
+            type: string
+        api:
+          $ref: "#/components/schemas/ModuleApiContractInfo"
+        events:
+          $ref: "#/components/schemas/ModuleEventContractInfo"
+        lastSyncedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Null if `bun run modules:sync`/`POST /api/v1/modules/sync` has
+            never been run since this module was registered in code.
+    ModuleCatalogListResponse:
+      type: object
+      required:
+        - modules
+      additionalProperties: false
+      properties:
+        modules:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModuleCatalogEntry"
+    ModuleSyncResponse:
+      type: object
+      required:
+        - created
+        - updated
+        - unchanged
+        - orphaned
+      additionalProperties: false
+      properties:
+        created:
+          type: array
+          items:
+            type: string
+        updated:
+          type: array
+          items:
+            type: string
+        unchanged:
+          type: array
+          items:
+            type: string
+        orphaned:
+          type: array
+          items:
+            type: string
+          description: >-
+            Module keys present in the database registry but no longer in
+            `listModules()` — marked `disabled`, never deleted.
     ModuleUsageEntry:
       type: object
       required:
