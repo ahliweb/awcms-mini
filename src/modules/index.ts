@@ -1,4 +1,5 @@
 import type { ModuleDescriptor } from "./_shared/module-contract";
+import { blogContentModule } from "./blog-content/module";
 import { emailModule } from "./email/module";
 import { formDraftsModule } from "./form-drafts/module";
 import { identityAccessModule } from "./identity-access/module";
@@ -20,7 +21,8 @@ export const modules: ModuleDescriptor[] = [
   workflowApprovalModule,
   formDraftsModule,
   emailModule,
-  moduleManagementModule
+  moduleManagementModule,
+  blogContentModule
 ];
 
 export function getModuleByKey(
