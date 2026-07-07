@@ -28,6 +28,7 @@ import LanguageSwitcher from "../components/LanguageSwitcher.astro";
 import { getDatabaseClient } from "../lib/database/client";
 import { withTenant } from "../lib/database/tenant-context";
 import { fetchSyncIndicatorActive } from "../modules/reporting/application/sync-indicator";
+import { fetchVisibleModuleNavigationEntries } from "../modules/module-management/application/navigation-registry";
 import { createTranslator } from "../lib/i18n/translate";
 import { THEME_INIT_SCRIPT_BODY } from "../lib/security/theme-init-script";
 
@@ -77,6 +78,27 @@ try {
   );
 } catch (error) {
   console.error("AdminLayout: failed to load sync indicator state", error);
+}
+
+// Issue #518 — module-declared nav entries (currently just
+// `module_management`'s own `/admin/modules`), appended after the 4
+// existing hardcoded items below. Same defensive pattern as
+// tenantName/syncActive above: a failure here must never hide the
+// hardcoded items or otherwise lock an admin out, so it falls back to an
+// empty list rather than failing the whole page.
+let moduleNavEntries: Awaited<
+  ReturnType<typeof fetchVisibleModuleNavigationEntries>
+> = [];
+try {
+  moduleNavEntries = await withTenant(sql, context.tenantId, (tx) =>
+    fetchVisibleModuleNavigationEntries(
+      tx,
+      context.tenantId,
+      context.permissions
+    )
+  );
+} catch (error) {
+  console.error("AdminLayout: failed to load module navigation entries", error);
 }
 
 // i18n (Issue #433): already fully resolved (cookie -> tenant default -> en)
@@ -239,6 +261,18 @@ const isSettingsActive = pathname === "/admin/settings";
                 {t("admin.layout.nav_settings")}
               </a>
             </li>
+            {
+              moduleNavEntries.map((entry) => (
+                <li>
+                  <a
+                    href={entry.path}
+                    aria-current={pathname === entry.path ? "page" : undefined}
+                  >
+                    {t(entry.labelKey)}
+                  </a>
+                </li>
+              ))
+            }
           </ul>
         </nav>
         <main class="admin-main">

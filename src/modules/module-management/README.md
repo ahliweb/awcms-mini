@@ -42,12 +42,13 @@ runs on the plain app connection with no tenant context needed.
 
 Declares `type: "system"`, `isCore: true` (module management cannot be
 tenant-disabled — you cannot disable the thing that manages modules), and
-its 12 seeded permissions (`migration 025`). Deliberately does **not**
-declare `navigation`/`jobs`/`health`/`api` yet — those fields exist on
-`ModuleDescriptor` (Issue #511) but the actual admin page (`/admin/modules`,
-Issue #521), job registry (#519), health checks (#520), and API routes
-(#514) don't exist yet. A descriptor should only claim a capability once
-the corresponding feature is real, not in advance.
+its 12 seeded permissions (`migration 025`). Also declares one `navigation`
+entry (Issue #518 — `/admin/modules`, gated by `module_management.modules.read`)
+now that a real, if minimal, page exists there. Deliberately still does
+**not** declare `jobs`/`health` — those fields exist on `ModuleDescriptor`
+(Issue #511) but the job registry (#519) and health checks (#520) don't
+exist yet. A descriptor should only claim a capability once the
+corresponding feature is real, not in advance.
 
 ## Tenant module lifecycle — `application/tenant-module-lifecycle.ts` (Issue #515)
 
@@ -137,6 +138,48 @@ metadata, `ModuleDescriptor.permissions`) and the actual
   permission catalog at all is `404` — distinct from a registered module
   with zero declared permissions (still `200`, an empty or
   all-`orphaned` report).
+
+## Module navigation registry — `application/navigation-registry.ts` (Issue #518)
+
+`AdminLayout.astro`'s sidebar. Reads navigation candidates directly from
+`listModules()` (never `awcms_mini_module_navigation` — same reasoning as
+`tenant-module-lifecycle.ts`: that table only reflects whatever
+`bun run modules:sync` last wrote, and a sidebar rendered on every single
+`/admin/*` request must never depend on someone having remembered to run a
+sync first). `domain/navigation-registry.ts`'s `filterVisibleNavigationEntries`
+(pure) decides visibility:
+
+- Hidden if the module is globally `disabled` (code/deployment-level) —
+  `experimental`/`deprecated`/`maintenance` still show.
+- Hidden if the tenant has disabled that module
+  (`awcms_mini_tenant_modules.enabled = false`).
+- Hidden if the entry declares a `requiredPermission` the caller doesn't
+  hold. No `requiredPermission` declared at all means always visible (to
+  anyone who can already reach `/admin/*`).
+- Survivors sort by `order` ascending.
+
+**The 4 pre-existing hardcoded sidebar items (Dashboard/Access &
+Users/Sync/Settings) are deliberately left exactly as they were** —
+still hardcoded in `AdminLayout.astro`, still using their own
+prefix-based permission checks (`hasAccessMenu`/`hasSyncMenu`). Converting
+them to descriptor-declared entries with a single `requiredPermission`
+each would risk _changing_ who sees them (their current checks are
+"holds any `identity_access.*`/`sync_storage.*` permission", not one
+specific permission key) — out of scope for this issue, which only needs
+to add the registry _alongside_ the existing items, not migrate them onto
+it. The registry-driven list is appended after those 4, currently
+surfacing exactly one entry: `module_management`'s own `/admin/modules`.
+A failure loading the registry (e.g. a transient DB hiccup) falls back to
+an empty list — same defensive pattern as `tenantName`/`syncActive` above
+it — so it never hides the 4 hardcoded items or otherwise locks an admin
+out.
+
+`src/pages/admin/modules.astro` is deliberately minimal — a read-only
+module catalog table (reusing `fetchModuleCatalog`, Issue #514), no
+mutation affordance at all. It exists only so this issue's new nav entry
+doesn't point at a 404; the real experience (filters, module detail,
+dependency/settings/permission-sync/navigation/jobs/health panels, tenant
+enable/disable actions) is Issue #521's job.
 
 ## Out of scope for this issue
 

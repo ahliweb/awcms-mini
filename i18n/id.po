@@ -49,6 +49,12 @@ msgstr "Lanjut"
 msgid "common.submit"
 msgstr "Kirim"
 
+msgid "common.yes"
+msgstr "Ya"
+
+msgid "common.no"
+msgstr "Tidak"
+
 #. error codes (doc 05 §Error code standard)
 msgid "error.validation_error"
 msgstr "Data yang dikirim tidak valid."
@@ -128,6 +134,9 @@ msgstr "Sync"
 
 msgid "admin.layout.nav_settings"
 msgstr "Pengaturan"
+
+msgid "admin.layout.nav_modules"
+msgstr "Modul"
 
 msgid "admin.layout.breadcrumb_aria_label"
 msgstr "Breadcrumb"
@@ -511,6 +520,31 @@ msgstr "Feature flags harus berupa JSON object yang valid."
 
 msgid "admin.settings.save_success"
 msgstr "Pengaturan berhasil disimpan."
+
+#. admin.modules — Issue #518 (daftar baca-saja minimal; UI lengkap di #521)
+msgid "admin.modules.access_denied_title"
+msgstr "Akses ditolak."
+
+msgid "admin.modules.access_denied_body"
+msgstr "Akun Anda tidak memiliki izin untuk melihat registry modul. Hubungi admin/owner tenant Anda untuk meminta akses."
+
+msgid "admin.modules.module_column"
+msgstr "Modul"
+
+msgid "admin.modules.version_column"
+msgstr "Versi"
+
+msgid "admin.modules.status_column"
+msgstr "Status"
+
+msgid "admin.modules.type_column"
+msgstr "Tipe"
+
+msgid "admin.modules.core_column"
+msgstr "Inti"
+
+msgid "admin.modules.no_modules"
+msgstr "Belum ada modul yang terdaftar."
 
 #. admin.examples.wizard — Issue #483, fixture non-domain
 msgid "admin.examples.wizard.nav_title"
