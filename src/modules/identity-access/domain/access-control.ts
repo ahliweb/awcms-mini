@@ -27,7 +27,8 @@ export type AccessAction =
   | "retry"
   | "sync"
   | "enable"
-  | "disable";
+  | "disable"
+  | "check";
 
 export type AccessRequest = {
   moduleKey: string;
