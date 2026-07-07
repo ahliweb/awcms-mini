@@ -432,6 +432,83 @@ Soft delete disinkronkan sebagai tombstone event. Node offline harus menyembunyi
 
 Catatan: AWCMS-Mini bersifat Coretax-ready/XML-ready, tidak mengasumsikan API upload resmi.
 
+## SOP Modul Email (base, epic #492)
+
+Berbeda dari §SOP Receipt WhatsApp/Email di atas (contoh domain retail/POS
+"kirim struk", historical issue #390) — bagian ini adalah modul base
+generik (`src/modules/email/README.md`) untuk password reset, system
+announcement, dan workflow notification. Belum ada UI admin khusus;
+seluruh alur ini API-only (`/api/v1/email/*`, `/api/v1/auth/password/*`,
+`/api/v1/reports/email-health`).
+
+### Password reset (end-user)
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant API as /api/v1/auth/password
+  participant Q as Email queue
+  participant D as Dispatcher
+  U->>API: POST /forgot { loginIdentifier }
+  API-->>U: 200 generik (selalu sama, ada/tidaknya akun)
+  API->>Q: enqueue awcms_mini_email_messages (bila akun eligible)
+  D->>D: bun run email:dispatch (terjadwal)
+  D-->>U: Email berisi link reset terkirim
+  U->>API: POST /reset { token, newPassword }
+  API-->>U: 200 generik (sukses, token invalid/expired/reused semuanya sama)
+```
+
+Catatan operasional: respons `POST /forgot` dan `POST /reset` **selalu**
+identik terlepas hasil internalnya (anti-enumeration, Issue #496) — jangan
+menyimpulkan "akun tidak ada" dari respons publik; gunakan audit log
+(`password_reset_requested`/`_failed`/`_completed`) untuk diagnosis
+internal oleh admin/support, bukan respons API publik. Token reset
+berlaku `AUTH_PASSWORD_RESET_TOKEN_TTL_MIN` menit (default 30), sekali
+pakai, dan sesi identity **dicabut penuh** setelah reset berhasil.
+
+### Mengirim announcement/notification (admin)
+
+1. (Opsional) Preview dulu: `POST /api/v1/email/announcements/preview`
+   dengan `templateKey`/`variables`/`target` yang sama — mengembalikan
+   `matchedCount` + sample render, **tidak pernah** daftar penerima nyata,
+   tidak menulis apa pun ke antrean.
+2. Kirim: `POST /api/v1/email/announcements` dengan header
+   `Idempotency-Key` (wajib) — `target.type: "users"` untuk daftar
+   eksplisit (butuh `email.notification.create`), `"role"`/`"tenant"`
+   untuk bulk (butuh **tambahan** `email.announcement.create` — two-tier
+   ABAC, Issue #497).
+3. Setiap kirim tercatat di audit trail (`announcement_sent`) dengan
+   `targetType`/`templateKey`/`recipientCount`/`correlationId` —
+   tidak pernah daftar penerima.
+
+### Memantau pengiriman dan menangani kegagalan (admin/operator)
+
+1. **Kesehatan antrean**: `GET /api/v1/reports/email-health` —
+   `queuedCount`/`retryWaitCount`/`failedCount`/`suppressedCount`,
+   `isHealthy`. Jalankan berkala atau setelah insiden provider.
+2. **Detail pesan gagal/tertunda**: `GET /api/v1/email/messages?status=failed`
+   (atau `retry_wait`) — daftar per-pesan (kategori, `lastError`,
+   `retryCount`, `toAddressMasked` — tidak pernah alamat mentah).
+3. **Batalkan pengiriman yang belum terkirim** (mis. announcement salah
+   target/template): `POST /api/v1/email/messages/{id}/cancel` untuk
+   setiap baris `queued`/`retry_wait` dengan `correlationId` yang sama
+   dengan hasil `POST /email/announcements` — baris yang sudah
+   `sending`/`sent` tidak bisa dibatalkan (`409`).
+4. **Kelola suppression list** (bounce/complaint/unsubscribe/manual):
+   `GET /api/v1/email/suppressions` untuk melihat,
+   `POST /api/v1/email/suppressions` untuk menambah manual (mis. permintaan
+   opt-out lewat kanal lain), `DELETE /api/v1/email/suppressions/{id}`
+   untuk mencabut. Penerima yang tersuppress otomatis dikecualikan dari
+   target announcement berikutnya, dan dicek ulang oleh dispatcher tepat
+   sebelum kirim (bila baru disuppress setelah enqueue).
+5. **Provider outage**: dispatcher berhenti otomatis (circuit breaker,
+   `email.dispatch.breaker_open` log) — tidak perlu intervensi manual,
+   pesan tetap `queued`/`retry_wait` dan terkirim otomatis setelah
+   provider pulih. Cek `bun run email:provider:health` untuk verifikasi
+   cepat. Lihat `src/modules/email/README.md` §Incident response untuk
+   runbook lengkap (provider outage, rotasi kredensial, accidental bulk
+   send).
+
 ## SOP Backup/Restore
 
 Backup:

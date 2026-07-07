@@ -70,6 +70,33 @@ Ikuti `src/modules/email/README.md` (arsitektur lengkap: kontrak provider, adapt
   alamat penerima nyata ke endpoint ini, dan endpoint ini sendiri **tidak**
   menyentuh `email_messages`/antrean.
 
+## Observability & ops (Issue #499)
+
+- **Antrean gagal/tertunda**: `GET /api/v1/email/messages?status=failed|retry_wait`
+  (permission `email.message.read`) — diagnostik admin, `to_address_masked`
+  saja, tidak pernah alamat mentah.
+- **Batalkan pesan yang belum terkirim**: `POST /api/v1/email/messages/{id}/cancel`
+  (permission `email.message.cancel`, diseed `sql/024`) — hanya
+  `queued`/`retry_wait` yang bisa dibatalkan; mitigasi teknis untuk
+  insiden "accidental bulk send".
+- **Kesehatan antrean**: `GET /api/v1/reports/email-health` — hitungan
+  queued/retry_wait/failed/suppressed + `isHealthy`.
+- **Suppression list manual**: `GET/POST /api/v1/email/suppressions`,
+  `DELETE /api/v1/email/suppressions/{id}` (permission
+  `email.suppression.{read,create,delete}`, diseed sejak `sql/020`,
+  endpoint-nya baru ada di Issue #499). Dispatcher juga re-check
+  suppression list tepat sebelum kirim (bukan hanya saat enqueue) —
+  penerima yang baru disuppress setelah enqueue tetap dikecualikan.
+- **Provider outage**: circuit breaker (`email-mailketing`) membuka
+  otomatis setelah 5 kegagalan beruntun, dispatcher berhenti meng-claim
+  (`email.dispatch.breaker_open` log) — tidak perlu intervensi manual.
+  `bun run security:readiness` memblokir go-live (critical) bila
+  `EMAIL_ENABLED=true` tapi config provider tidak lengkap
+  (`checkEmailProviderConfigReady`, reuse `validate-env.ts`'s
+  `checkEmailConfig`).
+- Runbook insiden lengkap (provider outage, rotasi kredensial, accidental
+  bulk send): `src/modules/email/README.md` §Incident response.
+
 ## Verifikasi
 
 - Kirim dengan `EMAIL_PROVIDER=log` dulu (tanpa kredensial Mailketing) —
@@ -87,6 +114,9 @@ Ikuti `src/modules/email/README.md` (arsitektur lengkap: kontrak provider, adapt
 `awcms-mini-idempotency` (`POST /email/announcements` mewajibkan
 `Idempotency-Key` di setiap request, bukan hanya bulk), `awcms-mini-abac-guard`
 (permission `email.template.*`/`email.notification.create`/
-`email.announcement.create` sudah diseed — `announcement.create` **selalu
-tambahan** di atas `notification.create` untuk target role/tenant, contoh
-nyata pola "permission bertingkat untuk aksi bulk vs tunggal").
+`email.announcement.create`/`email.message.{read,cancel}`/
+`email.suppression.{read,create,delete}` sudah diseed — `announcement.create`
+**selalu tambahan** di atas `notification.create` untuk target role/tenant,
+contoh nyata pola "permission bertingkat untuk aksi bulk vs tunggal"),
+`awcms-mini-observability` (`security:readiness` gate, structured log per
+tahap dispatch, `GET /reports/email-health`).
