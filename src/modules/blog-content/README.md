@@ -250,20 +250,20 @@ Tidak ada pemanggilan provider eksternal sama sekali di job ini (ADR-0006 tidak 
 
 12 dari 13 event punya produser nyata di kode saat ini:
 
-| Event (AsyncAPI channel, tanpa prefix `awcms-mini.`) | Log line diemisikan dari |
-| --- | --- |
-| `blog-content.post.created` | `pages/api/v1/blog/posts/index.ts` (`POST`) |
-| `blog-content.post.updated` | `pages/api/v1/blog/posts/[id].ts` (`PATCH`) |
-| `blog-content.post.submitted-for-review` | `pages/api/v1/blog/posts/[id]/submit-review.ts` |
-| `blog-content.post.published` | `pages/api/v1/blog/posts/[id]/publish.ts` **dan** `blog-content/application/blog-scheduled-publish.ts` (atribut `trigger` membedakan) |
-| `blog-content.post.scheduled` | `pages/api/v1/blog/posts/[id]/schedule.ts` |
-| `blog-content.post.archived` | `pages/api/v1/blog/posts/[id]/archive.ts` |
-| `blog-content.post.deleted` | `pages/api/v1/blog/posts/[id].ts` (`DELETE`) |
-| `blog-content.post.restored` | `pages/api/v1/blog/posts/[id]/restore.ts` (restore soft-delete, **bukan** restore revisi) |
-| `blog-content.post.purged` | `pages/api/v1/blog/posts/[id]/purge.ts` |
-| `blog-content.revision.created` | `blog-content/application/blog-revision-directory.ts`'s `createBlogRevision` — satu titik untuk PATCH signifikan **dan** restore revisi, jadi log line-nya otomatis muncul dari kedua jalur tanpa duplikasi kode |
-| `blog-content.term.created` | `pages/api/v1/blog/terms/index.ts` (`POST`) |
-| `blog-content.term.updated` | `pages/api/v1/blog/terms/[id].ts` (`PATCH`) |
+| Event (AsyncAPI channel, tanpa prefix `awcms-mini.`) | Log line diemisikan dari                                                                                                                                                                                         |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `blog-content.post.created`                          | `pages/api/v1/blog/posts/index.ts` (`POST`)                                                                                                                                                                      |
+| `blog-content.post.updated`                          | `pages/api/v1/blog/posts/[id].ts` (`PATCH`)                                                                                                                                                                      |
+| `blog-content.post.submitted-for-review`             | `pages/api/v1/blog/posts/[id]/submit-review.ts`                                                                                                                                                                  |
+| `blog-content.post.published`                        | `pages/api/v1/blog/posts/[id]/publish.ts` **dan** `blog-content/application/blog-scheduled-publish.ts` (atribut `trigger` membedakan)                                                                            |
+| `blog-content.post.scheduled`                        | `pages/api/v1/blog/posts/[id]/schedule.ts`                                                                                                                                                                       |
+| `blog-content.post.archived`                         | `pages/api/v1/blog/posts/[id]/archive.ts`                                                                                                                                                                        |
+| `blog-content.post.deleted`                          | `pages/api/v1/blog/posts/[id].ts` (`DELETE`)                                                                                                                                                                     |
+| `blog-content.post.restored`                         | `pages/api/v1/blog/posts/[id]/restore.ts` (restore soft-delete, **bukan** restore revisi)                                                                                                                        |
+| `blog-content.post.purged`                           | `pages/api/v1/blog/posts/[id]/purge.ts`                                                                                                                                                                          |
+| `blog-content.revision.created`                      | `blog-content/application/blog-revision-directory.ts`'s `createBlogRevision` — satu titik untuk PATCH signifikan **dan** restore revisi, jadi log line-nya otomatis muncul dari kedua jalur tanpa duplikasi kode |
+| `blog-content.term.created`                          | `pages/api/v1/blog/terms/index.ts` (`POST`)                                                                                                                                                                      |
+| `blog-content.term.updated`                          | `pages/api/v1/blog/terms/[id].ts` (`PATCH`)                                                                                                                                                                      |
 
 Satu-satunya event **tanpa** produser saat ini: `blog-content.settings.updated` — didaftarkan sesuai daftar literal doc issue #541, tapi belum ada endpoint yang menulis `awcms_mini_blog_settings` (`blog_content.settings.configure` sudah diseed sejak Issue #537, menunggu endpoint-nya). `checkModuleEventChannels` hanya memvalidasi arah module.ts→AsyncAPI (setiap `publishes` wajib ada channel), bukan sebaliknya, jadi channel tanpa produser tidak membuat `api:spec:check` gagal.
 

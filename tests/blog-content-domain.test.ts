@@ -234,15 +234,13 @@ describe("revision-policy", () => {
   });
 
   test("isSignificantContentChange is true when contentJson changes", () => {
-    expect(
-      isSignificantContentChange({ contentJson: { blocks: [] } })
-    ).toBe(true);
+    expect(isSignificantContentChange({ contentJson: { blocks: [] } })).toBe(
+      true
+    );
   });
 
   test("isSignificantContentChange is true when contentText changes", () => {
-    expect(isSignificantContentChange({ contentText: "New body" })).toBe(
-      true
-    );
+    expect(isSignificantContentChange({ contentText: "New body" })).toBe(true);
   });
 
   test("isSignificantContentChange is false for an empty input (e.g. a PATCH touching only cosmetic fields)", () => {

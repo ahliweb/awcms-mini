@@ -24,15 +24,15 @@ membaca satu file migration.
 
 ## Status per issue (jangan bangun ulang yang sudah ada)
 
-| Issue | Scope                                       | Status                                                  |
-| ----- | ------------------------------------------- | ------------------------------------------------------- |
-| #537  | Schema, domain validation, permission seed  | **Selesai** (migration 026/027)                         |
-| #538  | Admin API + lifecycle actions (posts)       | **Selesai** (`/api/v1/blog/posts`, lihat README)        |
-| #539  | Pages, taxonomi, post-term relation, search | **Selesai** (`/api/v1/blog/pages`, `/terms`, `/search`) |
-| #540  | Rute publik, RSS, sitemap, SEO              | **Selesai** (`/blog/{tenantCode}/...`, lihat README)    |
+| Issue | Scope                                       | Status                                                                        |
+| ----- | ------------------------------------------- | ----------------------------------------------------------------------------- |
+| #537  | Schema, domain validation, permission seed  | **Selesai** (migration 026/027)                                               |
+| #538  | Admin API + lifecycle actions (posts)       | **Selesai** (`/api/v1/blog/posts`, lihat README)                              |
+| #539  | Pages, taxonomi, post-term relation, search | **Selesai** (`/api/v1/blog/pages`, `/terms`, `/search`)                       |
+| #540  | Rute publik, RSS, sitemap, SEO              | **Selesai** (`/blog/{tenantCode}/...`, lihat README)                          |
 | #541  | Revisions + scheduled publishing + AsyncAPI | **Selesai** (`/posts/{id}/revisions`, `blog:publish:scheduled`, lihat README) |
-| #542  | Template/menu/widget/media/multilingual/ads | Belum                                                   |
-| #543  | Admin UI, dokumentasi akhir, hardening      | Belum                                                   |
+| #542  | Template/menu/widget/media/multilingual/ads | Belum                                                                         |
+| #543  | Admin UI, dokumentasi akhir, hardening      | Belum                                                                         |
 
 ## Yang sudah ada — pakai ulang, jangan re-derive
 

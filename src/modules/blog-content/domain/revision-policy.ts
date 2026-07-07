@@ -21,9 +21,7 @@ export type ContentChangeInput = {
  * column (migration 026), so a slug-only change has nothing to snapshot
  * beyond what the previous revision already recorded.
  */
-export function isSignificantContentChange(
-  input: ContentChangeInput
-): boolean {
+export function isSignificantContentChange(input: ContentChangeInput): boolean {
   return (
     input.title !== undefined ||
     input.contentJson !== undefined ||

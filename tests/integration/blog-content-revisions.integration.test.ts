@@ -25,12 +25,8 @@ import { POST as setupInitialize } from "../../src/pages/api/v1/setup/initialize
 import { POST as authLogin } from "../../src/pages/api/v1/auth/login";
 import { POST as createPost } from "../../src/pages/api/v1/blog/posts/index";
 import { PATCH as updatePost } from "../../src/pages/api/v1/blog/posts/[id]";
-import {
-  GET as listRevisions
-} from "../../src/pages/api/v1/blog/posts/[id]/revisions/index";
-import {
-  GET as getRevision
-} from "../../src/pages/api/v1/blog/posts/[id]/revisions/[revisionId]";
+import { GET as listRevisions } from "../../src/pages/api/v1/blog/posts/[id]/revisions/index";
+import { GET as getRevision } from "../../src/pages/api/v1/blog/posts/[id]/revisions/[revisionId]";
 import { POST as restoreRevision } from "../../src/pages/api/v1/blog/posts/[id]/revisions/[revisionId]/restore";
 
 const OWNER_LOGIN = "owner@example.com";
@@ -259,15 +255,14 @@ suite("blog post revisions", () => {
       body: { title: "Updated title" }
     });
 
-    const list = await invoke<{ data: { revisions: { revisionNumber: number }[] } }>(
-      listRevisions,
-      {
-        method: "GET",
-        path: `/api/v1/blog/posts/${postId}/revisions`,
-        headers: authHeaders(owner),
-        params: { id: postId }
-      }
-    );
+    const list = await invoke<{
+      data: { revisions: { revisionNumber: number }[] };
+    }>(listRevisions, {
+      method: "GET",
+      path: `/api/v1/blog/posts/${postId}/revisions`,
+      headers: authHeaders(owner),
+      params: { id: postId }
+    });
     expect(list.status).toBe(200);
     expect(list.body.data.revisions).toHaveLength(1);
     expect(list.body.data.revisions[0]?.revisionNumber).toBe(1);
@@ -329,15 +324,16 @@ suite("blog post revisions", () => {
       body: { title: "Second revision title" }
     });
 
-    const list = await invoke<{ data: { revisions: { id: string; revisionNumber: number; title: string }[] } }>(
-      listRevisions,
-      {
-        method: "GET",
-        path: `/api/v1/blog/posts/${postId}/revisions`,
-        headers: authHeaders(owner),
-        params: { id: postId }
-      }
-    );
+    const list = await invoke<{
+      data: {
+        revisions: { id: string; revisionNumber: number; title: string }[];
+      };
+    }>(listRevisions, {
+      method: "GET",
+      path: `/api/v1/blog/posts/${postId}/revisions`,
+      headers: authHeaders(owner),
+      params: { id: postId }
+    });
     expect(list.status).toBe(200);
     expect(list.body.data.revisions.map((r) => r.revisionNumber)).toEqual([
       2, 1
@@ -537,7 +533,9 @@ suite("blog post revisions", () => {
     });
 
     const listBefore = await invoke<{
-      data: { revisions: { id: string; revisionNumber: number; title: string }[] };
+      data: {
+        revisions: { id: string; revisionNumber: number; title: string }[];
+      };
     }>(listRevisions, {
       method: "GET",
       path: `/api/v1/blog/posts/${postId}/revisions`,
@@ -551,23 +549,26 @@ suite("blog post revisions", () => {
     )!;
     expect(firstRevision.title).toBe("First revision title");
 
-    const restore = await invoke<{ data: { title: string } }>(
-      restoreRevision,
-      {
-        method: "POST",
-        path: `/api/v1/blog/posts/${postId}/revisions/${firstRevision.id}/restore`,
-        headers: {
-          ...authHeaders(owner),
-          "idempotency-key": "restore-1"
-        },
-        params: { id: postId, revisionId: firstRevision.id }
-      }
-    );
+    const restore = await invoke<{ data: { title: string } }>(restoreRevision, {
+      method: "POST",
+      path: `/api/v1/blog/posts/${postId}/revisions/${firstRevision.id}/restore`,
+      headers: {
+        ...authHeaders(owner),
+        "idempotency-key": "restore-1"
+      },
+      params: { id: postId, revisionId: firstRevision.id }
+    });
     expect(restore.status).toBe(200);
     expect(restore.body.data.title).toBe("First revision title");
 
     const listAfter = await invoke<{
-      data: { revisions: { revisionNumber: number; title: string; changeNote: string | null }[] };
+      data: {
+        revisions: {
+          revisionNumber: number;
+          title: string;
+          changeNote: string | null;
+        }[];
+      };
     }>(listRevisions, {
       method: "GET",
       path: `/api/v1/blog/posts/${postId}/revisions`,

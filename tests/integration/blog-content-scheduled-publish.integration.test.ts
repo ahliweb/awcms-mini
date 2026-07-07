@@ -138,17 +138,18 @@ suite("blog scheduled publishing", () => {
     const past = new Date(Date.now() - 60 * 1000);
     await backdateScheduledAt(owner.tenantId, postId, past);
 
-    const result = await publishDueScheduledPosts(
-      getTestSql(),
-      owner.tenantId
-    );
+    const result = await publishDueScheduledPosts(getTestSql(), owner.tenantId);
     expect(result.publishedCount).toBe(1);
     expect(result.publishedPostIds).toEqual([postId]);
 
     const rows = (await getAdminSql()`
       SELECT status, published_at, scheduled_at FROM awcms_mini_blog_posts
       WHERE tenant_id = ${owner.tenantId} AND id = ${postId}
-    `) as { status: string; published_at: Date | null; scheduled_at: Date | null }[];
+    `) as {
+      status: string;
+      published_at: Date | null;
+      scheduled_at: Date | null;
+    }[];
     expect(rows[0]?.status).toBe("published");
     expect(rows[0]?.published_at).not.toBeNull();
     expect(rows[0]?.scheduled_at).toBeNull();
@@ -173,10 +174,7 @@ suite("blog scheduled publishing", () => {
       body: { scheduledAt: future.toISOString() }
     });
 
-    const result = await publishDueScheduledPosts(
-      getTestSql(),
-      owner.tenantId
-    );
+    const result = await publishDueScheduledPosts(getTestSql(), owner.tenantId);
     expect(result.publishedCount).toBe(0);
 
     const rows = (await getAdminSql()`
@@ -203,10 +201,7 @@ suite("blog scheduled publishing", () => {
       params: { id: postId }
     });
 
-    const result = await publishDueScheduledPosts(
-      getTestSql(),
-      owner.tenantId
-    );
+    const result = await publishDueScheduledPosts(getTestSql(), owner.tenantId);
     expect(result.publishedCount).toBe(0);
   });
 
@@ -241,10 +236,7 @@ suite("blog scheduled publishing", () => {
     `) as { published_at: Date }[];
     const publishedAtAfterFirst = rowsAfterFirst[0]!.published_at;
 
-    const second = await publishDueScheduledPosts(
-      getTestSql(),
-      owner.tenantId
-    );
+    const second = await publishDueScheduledPosts(getTestSql(), owner.tenantId);
     expect(second.publishedCount).toBe(0);
 
     const rowsAfterSecond = (await getAdminSql()`
@@ -275,10 +267,7 @@ suite("blog scheduled publishing", () => {
       WHERE tenant_id = ${owner.tenantId} AND id = ${postId}
     `;
 
-    const result = await publishDueScheduledPosts(
-      getTestSql(),
-      owner.tenantId
-    );
+    const result = await publishDueScheduledPosts(getTestSql(), owner.tenantId);
     expect(result.publishedCount).toBe(1);
 
     const rows = (await getAdminSql()`
