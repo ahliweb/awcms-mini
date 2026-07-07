@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
-import { redactSensitiveAttributes } from "../src/modules/_shared/redaction";
+import {
+  findSensitiveKeys,
+  redactSensitiveAttributes
+} from "../src/modules/_shared/redaction";
 import {
   getAuditExportHook,
   recordAuditEvent,
@@ -112,6 +115,38 @@ describe("redactSensitiveAttributes", () => {
 
     expect(input.password).toBe("hunter2");
     expect(result).not.toBe(input);
+  });
+
+  test("redacts credential (Issue #516 — added for module settings rejection)", () => {
+    expect(redactSensitiveAttributes({ credential: "shh" })).toEqual({
+      credential: "[REDACTED]"
+    });
+  });
+});
+
+describe("findSensitiveKeys", () => {
+  test("undefined input yields no keys", () => {
+    expect(findSensitiveKeys(undefined)).toEqual([]);
+  });
+
+  test("no keys when nothing matches", () => {
+    expect(findSensitiveKeys({ theme: "dark", retries: 3 })).toEqual([]);
+  });
+
+  test("finds a top-level secret-shaped key", () => {
+    expect(findSensitiveKeys({ apiToken: "sk-123" })).toEqual(["apiToken"]);
+  });
+
+  test("finds a secret-shaped key nested in an object", () => {
+    expect(findSensitiveKeys({ provider: { credential: "shh" } })).toEqual([
+      "credential"
+    ]);
+  });
+
+  test("finds a secret-shaped key nested inside an array of objects", () => {
+    expect(
+      findSensitiveKeys({ webhooks: [{ url: "x", secret: "shh" }] })
+    ).toEqual(["secret"]);
   });
 });
 
