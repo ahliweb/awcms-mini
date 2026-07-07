@@ -2911,6 +2911,167 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/tenant/modules:
+    get:
+      tags:
+        - Module Management
+      summary: List every registered module's enablement state for the caller's tenant
+      description: >-
+        A module with no explicit state (`tenantEnabled: true`, no
+        `enabledAt`/`disabledAt`) has never been toggled — available by
+        default (backward-compatible with pre-epic behavior).
+      operationId: tenantModulesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Tenant module enablement state.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantModuleListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant/modules/{moduleKey}/enable:
+    post:
+      tags:
+        - Module Management
+      summary: Enable a module for the caller's tenant
+      description: >-
+        Tenant-level availability only, never a runtime code load.
+        Server-side dependency validation rejects the request with `409`
+        if a direct dependency is missing/disabled, the module is part of
+        a dependency cycle, or the module declares an incompatible
+        `minAppVersion`. `404` only for an unknown/globally-disabled
+        module key.
+      operationId: tenantModulesEnable
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Module enabled for the tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantModuleMutationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: >-
+            Dependency validation failed (see `error.code`:
+            `MODULE_ALREADY_ENABLED`, `MODULE_DEPENDENCY_MISSING`,
+            `MODULE_DEPENDENCY_DISABLED`, `MODULE_DEPENDENCY_CYCLE`,
+            `MODULE_VERSION_INCOMPATIBLE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant/modules/{moduleKey}/disable:
+    post:
+      tags:
+        - Module Management
+      summary: Disable a module for the caller's tenant
+      description: >-
+        `reason` required. Never deletes tenant data — only writes
+        `awcms_mini_tenant_modules`. Rejected with `409` if the module is
+        core/system, already disabled, or another still-enabled module
+        depends on it.
+      operationId: tenantModulesDisable
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              additionalProperties: false
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Module disabled for the tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantModuleMutationResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: >-
+            Dependency validation failed (see `error.code`:
+            `MODULE_ALREADY_DISABLED`, `CORE_MODULE_CANNOT_BE_DISABLED`,
+            `MODULE_REVERSE_DEPENDENCY_ACTIVE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/health:
     get:
       tags:
@@ -4778,6 +4939,61 @@ components:
           description: >-
             Module keys present in the database registry but no longer in
             `listModules()` — marked `disabled`, never deleted.
+    TenantModuleEntry:
+      type: object
+      required:
+        - moduleKey
+        - name
+        - version
+        - isCore
+        - tenantEnabled
+        - enabledAt
+        - disabledAt
+        - disableReason
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        isCore:
+          type: boolean
+        tenantEnabled:
+          type: boolean
+        enabledAt:
+          type: string
+          format: date-time
+          nullable: true
+        disabledAt:
+          type: string
+          format: date-time
+          nullable: true
+        disableReason:
+          type: string
+          nullable: true
+    TenantModuleListResponse:
+      type: object
+      required:
+        - modules
+      additionalProperties: false
+      properties:
+        modules:
+          type: array
+          items:
+            $ref: "#/components/schemas/TenantModuleEntry"
+    TenantModuleMutationResponse:
+      type: object
+      required:
+        - moduleKey
+        - tenantEnabled
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        tenantEnabled:
+          type: boolean
     ModuleUsageEntry:
       type: object
       required:

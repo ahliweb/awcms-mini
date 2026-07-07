@@ -39,6 +39,8 @@ Pola yang sama diulang untuk `retry` (PR: Sync admin ops dashboard) — migrasi 
 
 Pola yang sama sekali lagi untuk `sync` (Issue #514, epic #510) — migrasi 025 sudah menyeed `module_management.modules.sync` sejak Issue #512, konsumen pertamanya baru `POST /api/v1/modules/sync` di issue ini. `sync` juga **tidak** ditambahkan ke `HIGH_RISK_ACTIONS` — descriptor sync bersifat idempoten/non-destruktif (upsert + tandai orphan, tidak pernah delete), bukan kelas risiko yang sama dengan `delete`/`approve`/`export`. Tetap diaudit eksplisit (`action: "modules_synced"`) terlepas dari klasifikasi itu.
 
+Dan sekali lagi untuk `enable`/`disable` (Issue #515, epic #510) — migrasi 025 sudah menyeed `module_management.tenant_modules.{enable,disable}`, konsumen pertamanya `POST /api/v1/tenant/modules/{moduleKey}/{enable,disable}` di issue ini. Keduanya **tidak** ditambahkan ke `HIGH_RISK_ACTIONS` — toggle ketersediaan modul per-tenant bersifat reversibel dan tidak menghapus data tenant (`disable` hanya menulis baris `awcms_mini_tenant_modules`, tidak pernah menyentuh data modul lain), berbeda dari `delete`/`purge` yang ireversibel. Tetap diaudit eksplisit (`action: "tenant_module_enabled"`/`"tenant_module_disabled"`) terlepas dari klasifikasi itu.
+
 ## Infrastruktur baru
 
 Issue ini adalah endpoint live pertama yang menyentuh database, sehingga menambahkan infrastruktur dasar akses data yang akan dipakai modul lain:

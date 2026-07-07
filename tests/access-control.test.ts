@@ -45,6 +45,11 @@ describe("isHighRiskAction", () => {
   test("does not classify sync as high risk (Issue #514 — idempotent, non-destructive)", () => {
     expect(isHighRiskAction("sync")).toBe(false);
   });
+
+  test("does not classify enable/disable as high risk (Issue #515 — reversible, never deletes tenant data)", () => {
+    expect(isHighRiskAction("enable")).toBe(false);
+    expect(isHighRiskAction("disable")).toBe(false);
+  });
 });
 
 describe("evaluateAccess", () => {
