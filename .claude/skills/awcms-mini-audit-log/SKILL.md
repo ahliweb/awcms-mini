@@ -39,7 +39,7 @@ Login failed/success · access assignment · profile merge · product price chan
 
 ## Redaction keys
 
-`password`, `passwordHash`, `token`, `accessToken`, `refreshToken`, `apiKey`, `secret`, `authorization`, `npwp`, `nik`, `phone`, `whatsapp`, `email`.
+`password`, `passwordHash`, `token`, `accessToken`, `refreshToken`, `apiKey`, `secret`, `credential`, `authorization`, `npwp`, `nik`, `phone`, `whatsapp`, `email`.
 
 ## Verifikasi
 

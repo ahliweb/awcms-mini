@@ -34,7 +34,14 @@ type AccessRequest = {
     | "send"
     | "configure"
     | "analyze"
-    | "assign";
+    | "assign"
+    | "restore"
+    | "purge"
+    | "retry"
+    | "sync"
+    | "enable"
+    | "disable"
+    | "check";
   resourceType?: string;
   resourceId?: string;
   resourceAttributes?: Record<string, unknown>;
