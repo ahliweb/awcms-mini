@@ -34,6 +34,7 @@ Skill Claude Code tingkat-proyek untuk AWCMS-Mini. Setiap skill meng-encode stan
 | `awcms-mini-i18n`                                      | String UI `.po` gettext & konten multi-bahasa                                    | 14, 04, 19                  |
 | `awcms-mini-release`                                   | Rilis versi via Changesets (bump, CHANGELOG, tag)                                | 09                          |
 | `awcms-mini-legacy-migration`                          | Migrasi data legacy aman (dry-run, backfill)                                     | 07, 06                      |
+| `awcms-mini-blog-content`                              | Kerjakan bagian mana pun epic blog_content (Issue #537-#543)                     | blog-content/README.md      |
 
 ## Katalog peningkatan (improvement/hardening)
 
@@ -82,6 +83,9 @@ flowchart TD
   DRAFT --> IDEM
   DRAFT --> ABAC
   II --> LEG[awcms-mini-legacy-migration]
+  II --> BLOG[awcms-mini-blog-content]
+  BLOG --> EP
+  BLOG --> MIG
   II --> PR[awcms-mini-pr-review]
   PR --> SEC[awcms-mini-security-review]
   PR --> CQ[awcms-mini-codeql-triage]

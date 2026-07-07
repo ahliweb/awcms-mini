@@ -118,6 +118,7 @@ AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode sta
 | String UI `.po` gettext & konten multi-bahasa                          | `awcms-mini-i18n`                 |
 | Rilis versi (Changesets, tag, CHANGELOG)                               | `awcms-mini-release`              |
 | Migrasi data legacy (dry-run, backfill)                                | `awcms-mini-legacy-migration`     |
+| Kerjakan bagian mana pun epic blog_content (Issue #537-#543)           | `awcms-mini-blog-content`         |
 
 **Peningkatan (audit & hardening artefak yang sudah ada):**
 
@@ -161,6 +162,9 @@ flowchart LR
   EP --> EMAIL[email]
   EMAIL --> INT
   EMAIL --> SD
+  II --> BLOG[blog-content]
+  BLOG --> EP
+  BLOG --> MIG
 ```
 
 Skill merujuk `docs/awcms-mini/*` sebagai sumber kebenaran; bila standar berubah, perbarui doc **dan** skill terkait.
@@ -264,7 +268,9 @@ awcms-mini/
 
 `_shared`, `tenant-admin`, `identity-access`, `profile-identity`, `sync-storage`, `localization-ui`, `observability-logging`, `database-connectivity`, `workflow-approval`, `management-reporting`, `ui-experience`, `production-security-readiness`.
 
-Ini adalah modul **base generik** milik AWCMS-Mini sendiri. Modul domain (mis. katalog produk, POS, gudang, pajak, CRM, AI analyst) **bukan bagian repo ini** — itu ditambahkan di aplikasi turunan contoh (mis. AWPOS) di atas base ini; lihat `docs/awcms-mini/README.md` §Reusable vs domain turunan.
+Ini adalah modul **base generik** milik AWCMS-Mini sendiri. Modul domain (mis. katalog produk, POS, gudang, pajak, CRM, AI analyst) pada umumnya **bukan bagian repo ini** — itu ditambahkan di aplikasi turunan contoh (mis. AWPOS) di atas base ini; lihat `docs/awcms-mini/README.md` §Reusable vs domain turunan.
+
+**Pengecualian:** `blog-content` (`src/modules/blog-content`, key `blog_content`) adalah modul domain pertama yang didaftarkan **langsung** di repo base ini (epic #536, Issue #537 dst., `docs/adr/0009-public-tenant-scoped-routes.md`) — bukan di aplikasi turunan terpisah. Perlakukan sebagai contoh referensi domain module di atas base, bukan preseden untuk memindahkan modul domain lain (POS, gudang, dst.) ke repo ini.
 
 Struktur tiap modul: `module.ts`, `domain/`, `application/`, `infrastructure/`, `api/`, `README.md`.
 
