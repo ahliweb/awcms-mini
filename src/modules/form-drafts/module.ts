@@ -11,5 +11,16 @@ export const formDraftsModule = defineModule({
   api: {
     openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
     basePath: "/api/v1/form-drafts"
-  }
+  },
+  jobs: [
+    {
+      command: "bun run form-drafts:purge",
+      purpose:
+        "Expire overdue draft rows, then physically delete expired/abandoned drafts past the retention cutoff, for every active tenant.",
+      recommendedSchedule: "Daily via cron/systemd timer.",
+      environmentNotes:
+        "Pure database operation — no external network dependency.",
+      safeInOfflineLan: true
+    }
+  ]
 });

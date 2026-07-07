@@ -83,5 +83,35 @@ export const moduleManagementModule = defineModule({
       action: "check",
       description: "Trigger a module health check"
     }
+  ],
+  jobs: [
+    {
+      command: "bun run security:readiness",
+      purpose:
+        "Run the go-live security readiness checklist (RLS, RBAC/ABAC, secrets, env) against the real codebase/database/environment. Any critical failure blocks go-live.",
+      recommendedSchedule:
+        "On-demand — before go-live, and periodically (e.g. weekly) in staging/production to catch drift.",
+      environmentNotes: "Requires DATABASE_URL to be reachable.",
+      safeInOfflineLan: true
+    },
+    {
+      command: "bun run config:validate",
+      purpose:
+        "Validate required/conditional environment variables at boot time before anything attempts to connect to a database or run migrations.",
+      recommendedSchedule:
+        "On-demand — run before every deploy, first stage of `production:preflight`.",
+      environmentNotes: "No database connection required.",
+      safeInOfflineLan: true
+    },
+    {
+      command: "bun run production:preflight",
+      purpose:
+        "Orchestrate the full go-live checklist in order (config:validate, db:migrate, api:spec:check, bun test, build, db:pool:health, security:readiness) and print an aggregated go/no-go verdict.",
+      recommendedSchedule:
+        "On-demand — before every production deploy/go-live.",
+      environmentNotes:
+        "db:pool:health is skipped (not failed) when no server is reachable, e.g. in a CI preflight run.",
+      safeInOfflineLan: true
+    }
   ]
 });

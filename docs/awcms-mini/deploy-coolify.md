@@ -284,6 +284,13 @@ bersama lintas aplikasi. Bila `EMAIL_ENABLED` aplikasi tersebut `false`,
 perintah ini no-op (exit 0) sehingga aman dijadwalkan meski belum
 diaktifkan.
 
+`sync:objects:dispatch` (setiap 1-2 menit) dan `logs:audit:purge`/
+`form-drafts:purge` (harian) dijadwalkan dengan pola **Scheduled
+Task**/cron `docker exec` yang sama persis, hanya beda nama command —
+lihat [`deployment-profiles.md`](deployment-profiles.md) §Job registry
+lainnya (Issue #519) untuk daftar lengkap job dan mana yang on-demand
+(bukan cron berulang).
+
 ## Rollback
 
 - **Image registry (Pola 2)**: rollback = deploy ulang tag image

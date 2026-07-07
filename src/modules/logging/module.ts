@@ -11,5 +11,16 @@ export const loggingModule = defineModule({
   api: {
     openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
     basePath: "/api/v1/logs"
-  }
+  },
+  jobs: [
+    {
+      command: "bun run logs:audit:purge",
+      purpose:
+        "Delete awcms_mini_audit_events rows past their retention cutoff for every active tenant, in bounded batches.",
+      recommendedSchedule: "Daily via cron/systemd timer.",
+      environmentNotes:
+        "Pure database operation — no external network dependency.",
+      safeInOfflineLan: true
+    }
+  ]
 });
