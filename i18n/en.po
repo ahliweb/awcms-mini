@@ -49,6 +49,12 @@ msgstr "Next"
 msgid "common.submit"
 msgstr "Submit"
 
+msgid "common.yes"
+msgstr "Yes"
+
+msgid "common.no"
+msgstr "No"
+
 #. error codes (doc 05 §Error code standard)
 msgid "error.validation_error"
 msgstr "The submitted data is invalid."
@@ -128,6 +134,9 @@ msgstr "Sync"
 
 msgid "admin.layout.nav_settings"
 msgstr "Settings"
+
+msgid "admin.layout.nav_modules"
+msgstr "Modules"
 
 msgid "admin.layout.breadcrumb_aria_label"
 msgstr "Breadcrumb"
@@ -511,6 +520,31 @@ msgstr "Feature flags must be a valid JSON object."
 
 msgid "admin.settings.save_success"
 msgstr "Settings saved successfully."
+
+#. admin.modules — Issue #518 (minimal read-only list; full UI is #521)
+msgid "admin.modules.access_denied_title"
+msgstr "Access denied."
+
+msgid "admin.modules.access_denied_body"
+msgstr "Your account does not have permission to view the module registry. Contact your tenant admin/owner to request access."
+
+msgid "admin.modules.module_column"
+msgstr "Module"
+
+msgid "admin.modules.version_column"
+msgstr "Version"
+
+msgid "admin.modules.status_column"
+msgstr "Status"
+
+msgid "admin.modules.type_column"
+msgstr "Type"
+
+msgid "admin.modules.core_column"
+msgstr "Core"
+
+msgid "admin.modules.no_modules"
+msgstr "No modules registered."
 
 #. admin.examples.wizard — Issue #483, non-domain fixture page
 msgid "admin.examples.wizard.nav_title"

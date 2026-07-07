@@ -14,6 +14,14 @@ export const moduleManagementModule = defineModule({
     openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
     basePath: "/api/v1/modules"
   },
+  navigation: [
+    {
+      labelKey: "admin.layout.nav_modules",
+      path: "/admin/modules",
+      order: 50,
+      requiredPermission: "module_management.modules.read"
+    }
+  ],
   permissions: [
     {
       activityCode: "modules",
