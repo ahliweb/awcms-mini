@@ -24,6 +24,7 @@ import { POST as authLogin } from "../../src/pages/api/v1/auth/login";
 import { GET as listTenantModules } from "../../src/pages/api/v1/tenant/modules/index";
 import { POST as enableModule } from "../../src/pages/api/v1/tenant/modules/[moduleKey]/enable";
 import { POST as disableModule } from "../../src/pages/api/v1/tenant/modules/[moduleKey]/disable";
+import { GET as listFormDrafts } from "../../src/pages/api/v1/form-drafts/index";
 import { syncModuleDescriptors } from "../../src/modules/module-management/application/descriptor-sync";
 
 const OWNER_LOGIN = "owner@example.com";
@@ -286,6 +287,35 @@ suite("tenant module lifecycle API", () => {
     });
 
     expect(result.status).toBe(400);
+  });
+
+  test("disabling a module actually blocks its own endpoints (not just the tenant_modules flag)", async () => {
+    const owner = await bootstrap();
+
+    const before = await invoke(listFormDrafts, {
+      method: "GET",
+      path: "/api/v1/form-drafts",
+      headers: authHeaders(owner)
+    });
+    expect(before.status).toBe(200);
+
+    await invoke(disableModule, {
+      method: "POST",
+      path: "/api/v1/tenant/modules/form_drafts/disable",
+      headers: authHeaders(owner),
+      params: { moduleKey: "form_drafts" },
+      body: { reason: "Not used by this tenant." }
+    });
+
+    const after = await invoke(listFormDrafts, {
+      method: "GET",
+      path: "/api/v1/form-drafts",
+      headers: authHeaders(owner)
+    });
+    expect(after.status).toBe(403);
+    expect((after.body as { error: { code: string } }).error.code).toBe(
+      "MODULE_DISABLED"
+    );
   });
 
   test("RLS: disabling a module for tenant A never affects tenant B's state", async () => {

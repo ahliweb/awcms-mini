@@ -41,6 +41,24 @@ export async function resolveTenantContext(
   };
 }
 
+/**
+ * Whether `moduleKey` is available for `tenantId` (Issue #515's
+ * `awcms_mini_tenant_modules` — no row means "never toggled", available by
+ * default, same convention as the tenant module lifecycle service itself).
+ */
+export async function resolveModuleEnabled(
+  tx: Bun.SQL,
+  tenantId: string,
+  moduleKey: string
+): Promise<boolean> {
+  const rows = (await tx`
+    SELECT enabled FROM awcms_mini_tenant_modules
+    WHERE tenant_id = ${tenantId} AND module_key = ${moduleKey}
+  `) as { enabled: boolean }[];
+
+  return rows[0]?.enabled ?? true;
+}
+
 export async function fetchGrantedPermissionKeys(
   tx: Bun.SQL,
   tenantId: string,
