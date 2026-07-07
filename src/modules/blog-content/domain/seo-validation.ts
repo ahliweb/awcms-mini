@@ -20,7 +20,8 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function isAbsoluteHttpUrl(value: string): boolean {
+/** Exported for render-time re-validation (Issue #540: "Do not render unsafe URLs" — defense in depth on top of the write-time check below). */
+export function isAbsoluteHttpUrl(value: string): boolean {
   try {
     const parsed = new URL(value);
     return parsed.protocol === "http:" || parsed.protocol === "https:";

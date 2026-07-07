@@ -209,3 +209,43 @@ export async function invoke<T = unknown>(
 
   return { status: response.status, body, response };
 }
+
+export type InvokeRawResult = {
+  status: number;
+  text: string;
+  response: Response;
+};
+
+/**
+ * Same as `invoke()`, but for handlers that return non-JSON bodies
+ * (HTML/XML public pages, Issue #540) — `invoke()`'s `JSON.parse(text)`
+ * would throw on those. Returns the raw text instead of a parsed body.
+ */
+export async function invokeRaw(
+  handler: APIRoute,
+  options: InvokeOptions = {}
+): Promise<InvokeRawResult> {
+  const method = options.method ?? "GET";
+  const path = options.path ?? "/";
+  const url = new URL(`http://integration.test${path}`);
+
+  const hasBody = options.body !== undefined && method !== "GET";
+  const request = new Request(url.toString(), {
+    method,
+    headers: options.headers,
+    body: hasBody ? JSON.stringify(options.body) : undefined
+  });
+
+  const context = {
+    request,
+    url,
+    params: options.params ?? {},
+    locals: options.locals ?? {},
+    cookies: options.cookies ?? createCookieJar()
+  } as unknown as APIContext;
+
+  const response = await handler(context);
+  const text = await response.text();
+
+  return { status: response.status, text, response };
+}

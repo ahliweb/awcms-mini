@@ -1,0 +1,243 @@
+import { describe, expect, test } from "bun:test";
+
+import { renderContentJsonToHtml } from "../src/modules/blog-content/domain/content-block-rendering";
+import {
+  resolveCanonicalUrl,
+  resolveMetaDescription,
+  resolveSeoTitle
+} from "../src/modules/blog-content/domain/seo-rendering";
+import {
+  renderPaginationNavHtml,
+  renderPostSummaryListHtml,
+  renderPublicPageShell
+} from "../src/modules/blog-content/domain/public-page-rendering";
+import { escapeHtml } from "../src/lib/html/escape";
+
+describe("escapeHtml", () => {
+  test("escapes all five special characters", () => {
+    expect(escapeHtml(`&<>"'`)).toBe("&amp;&lt;&gt;&quot;&#39;");
+  });
+});
+
+describe("renderContentJsonToHtml", () => {
+  test("renders a paragraph block, escaped", () => {
+    const html = renderContentJsonToHtml({
+      blocks: [{ type: "paragraph", text: "<script>alert(1)</script>" }]
+    });
+    expect(html).toBe("<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>");
+  });
+
+  test("renders a heading with a valid level", () => {
+    const html = renderContentJsonToHtml({
+      blocks: [{ type: "heading", level: 2, text: "Hello" }]
+    });
+    expect(html).toBe("<h2>Hello</h2>");
+  });
+
+  test("skips a heading with an out-of-range level", () => {
+    const html = renderContentJsonToHtml({
+      blocks: [{ type: "heading", level: 9, text: "Hello" }]
+    });
+    expect(html).toBe("");
+  });
+
+  test("renders an unordered and ordered list", () => {
+    const unordered = renderContentJsonToHtml({
+      blocks: [{ type: "list", items: ["a", "b"] }]
+    });
+    expect(unordered).toBe("<ul><li>a</li><li>b</li></ul>");
+
+    const ordered = renderContentJsonToHtml({
+      blocks: [{ type: "list", ordered: true, items: ["a"] }]
+    });
+    expect(ordered).toBe("<ol><li>a</li></ol>");
+  });
+
+  test("renders a quote block, escaped", () => {
+    const html = renderContentJsonToHtml({
+      blocks: [{ type: "quote", text: "To be & not to be" }]
+    });
+    expect(html).toBe("<blockquote>To be &amp; not to be</blockquote>");
+  });
+
+  test("silently skips an unknown block type", () => {
+    const html = renderContentJsonToHtml({
+      blocks: [{ type: "raw_html", html: "<script>evil()</script>" }]
+    });
+    expect(html).toBe("");
+  });
+
+  test("never emits a script/iframe/embed/object tag regardless of input", () => {
+    const html = renderContentJsonToHtml({
+      blocks: [
+        { type: "paragraph", text: "<iframe src=evil></iframe>" },
+        { type: "list", items: ["<embed src=evil>", "<object data=evil>"] },
+        { type: "quote", text: "<img src=x onerror=alert(1)>" }
+      ]
+    });
+    // Safety property: every "<" that came from user content is escaped to
+    // "&lt;" — so no *unescaped* opening tag can ever reach the browser's
+    // HTML parser, regardless of what tag/attribute name appears inside
+    // the now-inert escaped text (e.g. "&lt;img ... onerror=...&gt;" is
+    // literal text, not a parsed <img> element).
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("<iframe");
+    expect(html).not.toContain("<embed");
+    expect(html).not.toContain("<object");
+    expect(html).not.toContain("<img");
+    expect(html).toContain("&lt;iframe");
+    expect(html).toContain("&lt;img");
+  });
+
+  test("returns empty string when blocks is missing or not an array", () => {
+    expect(renderContentJsonToHtml({})).toBe("");
+    expect(renderContentJsonToHtml({ blocks: "not-an-array" })).toBe("");
+  });
+});
+
+describe("resolveSeoTitle", () => {
+  test("prefers seoTitle when present", () => {
+    expect(
+      resolveSeoTitle({ seoTitle: "SEO Title", title: "Post Title" })
+    ).toBe("SEO Title");
+  });
+
+  test("falls back to title when seoTitle is null/empty", () => {
+    expect(resolveSeoTitle({ seoTitle: null, title: "Post Title" })).toBe(
+      "Post Title"
+    );
+    expect(resolveSeoTitle({ seoTitle: "  ", title: "Post Title" })).toBe(
+      "Post Title"
+    );
+  });
+});
+
+describe("resolveMetaDescription", () => {
+  test("prefers metaDescription, then excerpt, then a generated summary", () => {
+    expect(
+      resolveMetaDescription({
+        metaDescription: "Meta desc",
+        excerpt: "Excerpt",
+        contentText: "Body text"
+      })
+    ).toBe("Meta desc");
+
+    expect(
+      resolveMetaDescription({
+        metaDescription: null,
+        excerpt: "Excerpt",
+        contentText: "Body text"
+      })
+    ).toBe("Excerpt");
+
+    expect(
+      resolveMetaDescription({
+        metaDescription: null,
+        excerpt: null,
+        contentText: "Body text here."
+      })
+    ).toBe("Body text here.");
+  });
+
+  test("truncates a long generated summary at a word boundary with an ellipsis", () => {
+    const longText = "word ".repeat(50).trim();
+    const description = resolveMetaDescription({
+      metaDescription: null,
+      excerpt: null,
+      contentText: longText
+    });
+    expect(description.length).toBeLessThanOrEqual(164);
+    expect(description.endsWith("...")).toBe(true);
+  });
+});
+
+describe("resolveCanonicalUrl", () => {
+  test("uses the post's canonicalUrl when it is a safe absolute URL", () => {
+    const url = resolveCanonicalUrl(
+      { canonicalUrl: "https://example.com/custom" },
+      "https://example.com/blog/acme/self"
+    );
+    expect(url).toBe("https://example.com/custom");
+  });
+
+  test("falls back to selfUrl when canonicalUrl is null", () => {
+    const url = resolveCanonicalUrl(
+      { canonicalUrl: null },
+      "https://example.com/blog/acme/self"
+    );
+    expect(url).toBe("https://example.com/blog/acme/self");
+  });
+
+  test("ignores an unsafe canonicalUrl (javascript:) and falls back to selfUrl", () => {
+    const url = resolveCanonicalUrl(
+      { canonicalUrl: "javascript:alert(1)" },
+      "https://example.com/blog/acme/self"
+    );
+    expect(url).toBe("https://example.com/blog/acme/self");
+  });
+
+  test("returns null when neither canonicalUrl nor selfUrl is safe", () => {
+    const url = resolveCanonicalUrl({ canonicalUrl: null }, "not-a-url");
+    expect(url).toBeNull();
+  });
+});
+
+describe("renderPublicPageShell", () => {
+  test("escapes title/description and includes a canonical link when present", () => {
+    const html = renderPublicPageShell({
+      title: "<script>alert(1)</script>",
+      description: "desc",
+      canonicalUrl: "https://example.com/post",
+      bodyHtml: "<p>body</p>",
+      locale: "en"
+    });
+    expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(html).not.toContain("<script>alert(1)</script>");
+    expect(html).toContain(
+      '<link rel="canonical" href="https://example.com/post" />'
+    );
+    expect(html).toContain('<html lang="en">');
+  });
+
+  test("omits the canonical link entirely when canonicalUrl is null", () => {
+    const html = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en"
+    });
+    expect(html).not.toContain('rel="canonical"');
+  });
+});
+
+describe("renderPostSummaryListHtml", () => {
+  test("renders an empty-state message when there are no posts", () => {
+    const html = renderPostSummaryListHtml("acme", [], "Nothing here.");
+    expect(html).toBe("<p>Nothing here.</p>");
+  });
+
+  test("renders a link per post, escaped", () => {
+    const html = renderPostSummaryListHtml(
+      "acme",
+      [{ title: "<b>Hi</b>", slug: "hi", excerpt: null }],
+      "empty"
+    );
+    expect(html).toContain('href="/blog/acme/hi"');
+    expect(html).toContain("&lt;b&gt;Hi&lt;/b&gt;");
+  });
+});
+
+describe("renderPaginationNavHtml", () => {
+  test("shows only Next on page 1 with more pages", () => {
+    const html = renderPaginationNavHtml(1, true, "/blog/acme");
+    expect(html).toContain("Next");
+    expect(html).not.toContain("Previous");
+  });
+
+  test("shows only Previous on the last page", () => {
+    const html = renderPaginationNavHtml(2, false, "/blog/acme");
+    expect(html).toContain("Previous");
+    expect(html).not.toContain("Next");
+  });
+});

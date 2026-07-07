@@ -1,6 +1,6 @@
 # Blog Content
 
-Implementasi Issue #537, #538, dan #539 (epic #536 — `blog_content`, `docs/adr/0009-public-tenant-scoped-routes.md`). **Modul domain pertama yang didaftarkan langsung di repo base ini** — sebelumnya `AGENTS.md` §Peta modul hanya mendaftarkan modul base generik; lihat catatan di sana untuk konteks.
+Implementasi Issue #537, #538, #539, dan #540 (epic #536 — `blog_content`, `docs/adr/0009-public-tenant-scoped-routes.md`). **Modul domain pertama yang didaftarkan langsung di repo base ini** — sebelumnya `AGENTS.md` §Peta modul hanya mendaftarkan modul base generik; lihat catatan di sana untuk konteks.
 
 ## Scope per issue
 
@@ -10,7 +10,9 @@ Issue #538: API admin CRUD + lifecycle untuk blog post di `/api/v1/blog/posts` (
 
 Issue #539: API admin CRUD untuk halaman statis (`/api/v1/blog/pages`, lihat §Admin API — Blog Pages), kategori/tag (`/api/v1/blog/terms`, lihat §Admin API — Blog Taxonomies), post-term relation assignment (lewat `termIds` di payload post, lihat §Post-term relation handling), dan PostgreSQL full-text search (`/api/v1/blog/search` admin + helper public-safe, lihat §Search). Migration `028` mengubah `search_vector` menjadi `GENERATED ALWAYS ... STORED`.
 
-Rute publik (#540), revisi/scheduled publishing (#541), presentation extensions (#542), dan admin UI (#543) masih backlog — lihat §Belum tersedia.
+Issue #540: rute publik anonim (tanpa sesi) di bawah `/blog/{tenantCode}/...` sesuai ADR-0009 — index, detail post, arsip kategori/tag, search, RSS feed, dan sitemap. Lihat §Public routes.
+
+Revisi/scheduled publishing (#541), presentation extensions (#542), dan admin UI (#543) masih backlog — lihat §Belum tersedia.
 
 ## Tabel (migration `026_awcms_mini_blog_content_schema.sql`)
 
@@ -143,12 +145,63 @@ Doc issue #539 §Scope menyebut "Post-term relation handling" tapi **tidak** men
 - **`GET /api/v1/blog/search`** (guard `blog_content.search.read`) — admin search, boleh mengembalikan status apa pun (`draft`/`review`/.../`archived`) selama caller punya `search.read`; tidak ada komposisi permission tambahan per-status. Keyset-paginated lewat `_shared/keyset-pagination.ts` (`cursor` base64 `(createdAt, id)`), pola sama persis `GET /api/v1/logs/audit`. Filter opsional `?type=post|page` dan `?status=`.
 - **`searchPublicBlogContent`** — helper murni, **tidak** dipasang ke route apa pun di issue ini (rendering rute publik = Issue #540, eksplisit Out of Scope di doc issue #539). Predikat persis dari doc issue #539 §Public Visibility Predicate: `status = 'published' AND visibility = 'public' AND deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= now()`. Issue #540 memanggil fungsi ini langsung, bukan menulis ulang predikatnya.
 
+## Public routes (Issue #540)
+
+`src/pages/blog/[tenantCode]/` — 7 rute publik, anonim (tanpa sesi/header tenant), per ADR-0009: resolusi tenant dari segmen path `tenantCode`, bukan subdomain/header.
+
+```txt
+GET /blog/{tenantCode}                         -> index (paginated, tanpa auth/permission — publik)
+GET /blog/{tenantCode}/{slug}                   -> detail post
+GET /blog/{tenantCode}/category/{slug}          -> arsip kategori
+GET /blog/{tenantCode}/tag/{slug}               -> arsip tag
+GET /blog/{tenantCode}/search?q=                -> search publik (memakai searchPublicBlogContent, Issue #539)
+GET /blog/{tenantCode}/feed.xml                 -> RSS 2.0
+GET /blog/{tenantCode}/sitemap-blog.xml         -> sitemap protocol 0.9
+```
+
+**Hanya blog post**, bukan pages (`awcms_mini_blog_pages`) — doc issue #540 §Scope hanya mendaftarkan "Public post detail page", tidak ada "Public page detail" sama sekali di antara bullet scope-nya (beda dari §Routes issue #539 yang eksplisit menyebut halaman statis). Rendering publik untuk `blog_content` pages tetap backlog terbuka.
+
+### Kenapa `.ts` API route, bukan `.astro` page
+
+Ketujuh rute ini adalah `APIRoute` (`.ts`, HTML/XML string dirender manual), **bukan** file `.astro` — keputusan disengaja. Repo ini tidak punya konvensi test untuk output `.astro` (semua integration test yang ada, termasuk seluruh suite `blog_content` sebelumnya, memanggil `APIRoute` handler langsung lewat `tests/integration/harness.ts`'s `invoke()`/`invokeRaw()`). Menulis rute ini sebagai `.astro` akan membuatnya untestable lewat pola yang sudah mapan di repo — sementara persyaratan issue ini sendiri eksplisit ("Tests cover public visibility leakage... SEO rendering... RSS and sitemap content filtering") menuntut test end-to-end yang nyata, bukan cuma unit test fungsi murni. `invokeRaw()` (baru, `tests/integration/harness.ts`) melengkapi `invoke()` untuk handler yang me-return body non-JSON — `invoke()` sendiri selalu `JSON.parse(text)` dan akan throw untuk HTML/XML.
+
+### Dua predikat visibilitas publik yang berbeda
+
+Doc issue #540 mendefinisikan satu "Public Visibility Rule" dasar (`status='published' AND visibility='public' AND deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= now()`) plus aturan tambahan "listing/search/feed/sitemap: `visibility != 'unlisted'`". Kedua kalimat itu redundan kalau predikat dasarnya SELALU `visibility='public'` — kecuali predikat dasar itu dimaksudkan untuk konteks LISTING saja, dan DETAIL punya predikat sendiri yang sedikit lebih longgar. Acceptance criteria issue ini mengonfirmasi baca-an itu: **"Unlisted content is excluded from listing/search/feed/sitemap"** (bukan dari SEMUA akses publik) — artinya unlisted memang harus tetap bisa diakses lewat link langsung, itulah gunanya tier "unlisted" ada terpisah dari "private" (yang tidak pernah publik sama sekali).
+
+`public-blog-directory.ts` karena itu punya **dua** predikat:
+
+- **Listing** (index/kategori/tag/search/feed/sitemap): `visibility = 'public'` ketat — sama persis predikat `searchPublicBlogContent` (Issue #539).
+- **Detail** (`fetchPublicBlogPostBySlug`): `visibility IN ('public', 'unlisted')` — private tetap selalu ditolak.
+
+Kalau interpretasi ini pernah dianggap salah oleh maintainer, ini satu-satunya tempat yang perlu diubah (bukan tersebar di 7 route handler).
+
+### Content block schema (baru, didefinisikan oleh issue ini)
+
+`content_json` sebelumnya "opaque to the API" (doc issue #537/#538). Issue #540 pertama kali mendefinisikan bentuk konkretnya karena rendering publik butuh sesuatu yang nyata untuk dirender: `{ blocks: ContentBlock[] }` dengan 4 tipe block — `paragraph`, `heading` (level 1-6), `list` (`ordered?: boolean`, `items: string[]`), `quote`. `domain/content-block-rendering.ts`'s `renderContentJsonToHtml` adalah **whitelist renderer** — setiap tipe block hanya pernah mengeluarkan teks lewat `escapeHtml`, tidak ada tipe block "raw html". Block dengan `type` tak dikenal atau field tidak valid di-skip diam-diam (tidak pernah throw — lihat §Error handling). Menambah tipe block baru (image, embed, table, ...) berarti menambah `case` baru di `switch` fungsi itu, bukan membuka raw-HTML escape hatch.
+
+### SEO rendering (`domain/seo-rendering.ts`)
+
+- `resolveSeoTitle`: `seoTitle || title`.
+- `resolveMetaDescription`: `metaDescription || excerpt || <ringkasan digenerate dari contentText, dipotong di batas kata, diberi "...">`.
+- `resolveCanonicalUrl`: pakai `canonicalUrl` penulis kalau itu URL http(s) absolut yang valid (re-validasi lewat `isAbsoluteHttpUrl` yang sama dengan write-time check di `seo-validation.ts` — defense in depth, "Do not render unsafe URLs"); kalau tidak, fallback ke URL halaman itu sendiri; kalau keduanya tidak valid, `null` (tag `<link rel="canonical">` tidak dirender sama sekali, bukan dirender dengan URL tidak aman).
+
+### Error handling — tidak pernah bocorkan stack trace
+
+Setiap route handler dibungkus `try/catch` di level teratas: error asli di-log lewat `log("error", ...)` (untuk operator), tapi respons ke klien SELALU string generik tetap (`src/lib/html/error-responses.ts`'s `notFoundHtmlResponse`/`serverErrorHtmlResponse`/`notFoundXmlResponse`/`serverErrorXmlResponse`) — tidak pernah pesan/`error.message` mentah. Tenant `tenantCode` tidak ditemukan ATAU tidak `active` menghasilkan `404` yang identik (ADR-0009: "jangan bocorkan keberadaan tenant").
+
+### Pagination
+
+Index dan arsip kategori/tag pakai `?page=` (1-indexed) + `LIMIT`/`OFFSET` sederhana, bukan keyset — ini halaman publik yang dibaca pengunjung manusia (ekspektasi UX "halaman 1, 2, 3", bukan cursor buram), beda dari admin search (Issue #539) yang keyset-paginated. `pageSize` diambil dari `awcms_mini_blog_settings.posts_per_page` (Issue #537, default 10) lewat `fetchPublicBlogSettings`. RSS/sitemap tidak dipaginasi sama sekali — flat, dibatasi 50 post terbaru (`FEED_ITEM_LIMIT`), karena konsumennya mesin (feed reader/crawler), bukan pengunjung yang mengklik "next".
+
 ## Belum tersedia (backlog eksplisit, bukan kelalaian)
 
-- Rute publik, RSS, sitemap, SEO rendering — Issue #540 (lihat ADR-0009 untuk resolusi tenant tanpa sesi via `/blog/{tenantCode}/...`); `searchPublicBlogContent` sudah siap dipakai ulang di sana.
+- Public page (halaman statis) rendering — hanya post yang punya rute publik di Issue #540, lihat §Public routes.
 - Endpoint restore revisi dan scheduled-publishing dispatcher — Issue #541.
 - Template, menu, widget, media/gallery, multilingual, theme mode, ads — Issue #542.
 - Admin UI, dokumentasi akhir, hardening — Issue #543.
 - Page lifecycle-action endpoints (`submit-review`/`publish`/`schedule`/`archive`/`restore`/`purge` untuk pages) — permission-nya sudah diseed (Issue #537) tapi tidak ada issue yang eksplisit membangun endpoint-nya; backlog terbuka, bukan bagian #539.
 - Optimistic-concurrency check yang membaca kolom `version` — kolom sudah di-increment tiap write, tapi belum ada endpoint yang menolak write berdasarkan `version` mismatch.
-- Search relevance ranking (`ts_rank`) dan text search config per-locale (`english`/`indonesian`) — `search_vector` sudah weighted (A/B/C) untuk kebutuhan ini di masa depan, tapi `GET /api/v1/blog/search` saat ini hanya mengurutkan `created_at DESC`.
+- Search relevance ranking (`ts_rank`) dan text search config per-locale (`english`/`indonesian`) — `search_vector` sudah weighted (A/B/C) untuk kebutuhan ini di masa depan, tapi `GET /api/v1/blog/search` (admin) dan search publik saat ini hanya mengurutkan `created_at DESC`.
+- Locale-aware negotiation untuk pengunjung publik (mis. header `Accept-Language`) — index/detail publik saat ini menampilkan semua post tanpa filter locale; `<html lang>` memakai locale post/tenant, bukan preferensi pengunjung.
+- `robots.txt` dan referensi sitemap dari `robots.txt` — hanya sitemap XML-nya sendiri yang ada, belum ada yang mereferensikannya secara otomatis.
