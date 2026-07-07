@@ -270,7 +270,48 @@ stack trace, or `DATABASE_URL`. Every `catch` logs the real error
 server-side via `log()` (which redacts defensively anyway) before
 returning the safe, generic `detail`.
 
-## Out of scope for this issue
+## Admin UI (Issue #521)
 
-Admin UI, and runtime plugin installation are explicitly out of scope —
-see Issue #521.
+`/admin/modules` (list — replaces #518's minimal stub) and
+`/admin/modules/{moduleKey}` (full detail) — the last issue in epic #510.
+
+- **List**: catalog table + client-side type/status/health filters (pure
+  `data-*` attribute show/hide — only 10 modules exist in this base, a
+  server round-trip per filter change would be pure overhead) + a health
+  status column (every module's `fetchModuleHealthReport`, #520, computed
+  in parallel — each check is individually cheap/bounded by design, and
+  this only runs on an explicit admin page load).
+- **Detail**: dependency panel, tenant enable/disable action, settings
+  panel, permission sync/status panel, navigation panel, jobs panel,
+  health/readiness panel (+ explicit `POST .../health/check` trigger
+  button), and a lifecycle/audit summary
+  (`application/module-audit-summary.ts` — a new, small, read-only query
+  over `awcms_mini_audit_events` scoped to the module-management actions
+  that target this specific module: `tenant_module_enabled`/`_disabled`
+  #515, `settings_updated` #516, `health_checked` #520).
+- **Every panel is permission-gated to its own endpoint's guard exactly**
+  (defense-in-depth — hiding a control here is a UX nicety, the real
+  enforcement is server-side): `module_management.navigation.read` gets
+  its first real consumer here (seeded since #512/#518's own doc note
+  flagged it as otherwise unused).
+- **All mutations go through the real API endpoints via client-side
+  `fetch`** (`POST .../enable`, `POST .../disable`, `PATCH .../settings`,
+  `POST .../health/check`) — this page has no privileged shortcut, same
+  as every other admin screen in this app (`admin/access-users.astro`,
+  `admin/sync.astro`). Anti double-submit via the shared
+  `lib/ui/admin-form-client.ts` helpers (`lockElement`); disable prompts
+  for a reason via `window.prompt` (same established pattern as
+  `admin/access-users.astro`'s role delete).
+- **Settings panel edits only the tenant override**, never `defaults`
+  (read-only, code-declared) — the same secret-shaped-key rejection
+  #516's `PATCH` endpoint already enforces applies here too, since this
+  form calls that exact endpoint.
+
+## Out of scope (epic #510)
+
+Marketplace, runtime plugin upload, running arbitrary jobs from the UI,
+editing raw secrets, and a complex graph visualization library are
+explicitly out of scope for the admin UI (Issue #521's own out-of-scope
+list) — and for the epic as a whole, per #510's own out-of-scope list:
+runtime upload/install of arbitrary third-party code, a marketplace, a
+remote module repository, and dynamic import from untrusted paths.

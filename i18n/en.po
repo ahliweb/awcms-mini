@@ -546,6 +546,172 @@ msgstr "Core"
 msgid "admin.modules.no_modules"
 msgstr "No modules registered."
 
+#. admin.modules — Issue #521 (full list + detail admin UI)
+msgid "admin.modules.filters_aria_label"
+msgstr "Module filters"
+
+msgid "admin.modules.filter_type_label"
+msgstr "Type"
+
+msgid "admin.modules.filter_status_label"
+msgstr "Status"
+
+msgid "admin.modules.filter_health_label"
+msgstr "Health"
+
+msgid "admin.modules.filter_all"
+msgstr "All"
+
+msgid "admin.modules.health_column"
+msgstr "Health"
+
+msgid "admin.modules.actions_column"
+msgstr "Actions"
+
+msgid "admin.modules.view_detail_link"
+msgstr "View"
+
+msgid "admin.modules.detail_not_found_title"
+msgstr "Module not found."
+
+msgid "admin.modules.detail_not_found_body"
+msgstr "This module key is not registered."
+
+msgid "admin.modules.back_to_list"
+msgstr "Back to module list"
+
+msgid "admin.modules.dependencies_legend"
+msgstr "Dependencies"
+
+msgid "admin.modules.no_dependencies"
+msgstr "No dependencies."
+
+msgid "admin.modules.tenant_enablement_legend"
+msgstr "Tenant Availability"
+
+msgid "admin.modules.enabled_label"
+msgstr "Enabled"
+
+msgid "admin.modules.disabled_label"
+msgstr "Disabled"
+
+msgid "admin.modules.enable_button"
+msgstr "Enable for this tenant"
+
+msgid "admin.modules.disable_button"
+msgstr "Disable for this tenant"
+
+msgid "admin.modules.disable_reason_prompt"
+msgstr "Reason for disabling this module"
+
+msgid "admin.modules.enable_success"
+msgstr "Module enabled for this tenant."
+
+msgid "admin.modules.disable_success"
+msgstr "Module disabled for this tenant."
+
+msgid "admin.modules.settings_legend"
+msgstr "Settings"
+
+msgid "admin.modules.settings_json_label"
+msgstr "Tenant override (JSON object)"
+
+msgid "admin.modules.settings_hint"
+msgstr "Only the keys you set here override the module's own defaults. Never enter a provider secret/token here — those belong in environment variables."
+
+msgid "admin.modules.invalid_settings"
+msgstr "Settings must be valid JSON."
+
+msgid "admin.modules.settings_save_button"
+msgstr "Save settings"
+
+msgid "admin.modules.settings_save_success"
+msgstr "Settings saved."
+
+msgid "admin.modules.permissions_legend"
+msgstr "Permission Sync Status"
+
+msgid "admin.modules.permission_activity_column"
+msgstr "Activity"
+
+msgid "admin.modules.permission_action_column"
+msgstr "Action"
+
+msgid "admin.modules.no_permissions"
+msgstr "No permissions declared or seeded."
+
+msgid "admin.modules.navigation_legend"
+msgstr "Admin Navigation"
+
+msgid "admin.modules.no_navigation"
+msgstr "This module declares no admin navigation entries."
+
+msgid "admin.modules.nav_label_column"
+msgstr "Label"
+
+msgid "admin.modules.nav_path_column"
+msgstr "Path"
+
+msgid "admin.modules.nav_order_column"
+msgstr "Order"
+
+msgid "admin.modules.nav_permission_column"
+msgstr "Required Permission"
+
+msgid "admin.modules.jobs_legend"
+msgstr "Operational Jobs"
+
+msgid "admin.modules.no_jobs"
+msgstr "This module declares no operational jobs."
+
+msgid "admin.modules.job_command_column"
+msgstr "Command"
+
+msgid "admin.modules.job_purpose_column"
+msgstr "Purpose"
+
+msgid "admin.modules.job_schedule_column"
+msgstr "Recommended Schedule"
+
+msgid "admin.modules.job_offline_lan_column"
+msgstr "Safe Offline/LAN"
+
+msgid "admin.modules.health_legend"
+msgstr "Health / Readiness"
+
+msgid "admin.modules.health_check_button"
+msgstr "Run health check"
+
+msgid "admin.modules.health_check_success"
+msgstr "Health check completed."
+
+msgid "admin.modules.signal_column"
+msgstr "Signal"
+
+msgid "admin.modules.signal_status_column"
+msgstr "Status"
+
+msgid "admin.modules.signal_detail_column"
+msgstr "Detail"
+
+msgid "admin.modules.audit_legend"
+msgstr "Recent Activity"
+
+msgid "admin.modules.audit_action_column"
+msgstr "Action"
+
+msgid "admin.modules.audit_severity_column"
+msgstr "Severity"
+
+msgid "admin.modules.audit_message_column"
+msgstr "Message"
+
+msgid "admin.modules.audit_time_column"
+msgstr "Time"
+
+msgid "admin.modules.no_audit_events"
+msgstr "No recent activity for this module."
+
 #. admin.examples.wizard — Issue #483, non-domain fixture page
 msgid "admin.examples.wizard.nav_title"
 msgstr "Wizard Example"

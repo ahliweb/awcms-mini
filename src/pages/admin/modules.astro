@@ -1,18 +1,18 @@
 ---
 /**
- * Module Management admin screen (Issue #518) — deliberately minimal: a
- * read-only module catalog list, reusing the exact same application-layer
- * function the JSON endpoint uses (`fetchModuleCatalog`, Issue #514), same
- * pattern as `admin/sync.astro` reusing `fetchSyncHealthReport`.
+ * Module Management admin screen (Issue #521 — full list; Issue #518 built
+ * the minimal first version this replaces). Reuses the same
+ * application-layer functions the JSON endpoints use — `fetchModuleCatalog`
+ * (#514), `fetchModuleHealthReport` (#520) — same pattern as
+ * `admin/sync.astro` reusing `fetchSyncHealthReport`.
  *
- * The full experience (filters, module detail, dependency/settings/
- * permission-sync/navigation/jobs/health panels, tenant enable/disable
- * action) is Issue #521's scope — this page exists now only so the nav
- * entry this issue adds (`module_management`'s own descriptor, Issue #518)
- * doesn't point at a 404. No mutation affordance here at all: this issue's
- * job is the navigation registry, not module lifecycle actions (already
- * covered by `POST /api/v1/tenant/modules/{moduleKey}/{enable,disable}`,
- * Issue #515 — this page just doesn't expose them yet).
+ * Filters (type/status/health) are pure client-side `data-*` attribute
+ * filtering over the already-rendered rows — only 10 modules exist in this
+ * base, so a server round-trip per filter change would be pure overhead.
+ *
+ * Health is computed for every module in parallel (`Promise.all`) — each
+ * check is individually cheap/bounded (#520's own design goal), and this
+ * list only renders on an explicit admin page load, never a hot path.
  */
 import AdminLayout from "../../layouts/AdminLayout.astro";
 import StateNotice from "../../components/ui/StateNotice.astro";
@@ -20,6 +20,7 @@ import { getDatabaseClient } from "../../lib/database/client";
 import { withTenant } from "../../lib/database/tenant-context";
 import { permissionKey } from "../../modules/identity-access/domain/access-control";
 import { fetchModuleCatalog } from "../../modules/module-management/application/module-catalog";
+import { fetchModuleHealthReport } from "../../modules/module-management/application/health-registry";
 import { createTranslator } from "../../lib/i18n/translate";
 
 const context = Astro.locals.ssrContext;
@@ -35,20 +36,55 @@ const t = await createTranslator(Astro.locals.locale);
 const CAN_READ_MODULES = context.permissions.has(
   permissionKey("module_management", "modules", "read")
 );
+const CAN_READ_HEALTH = context.permissions.has(
+  permissionKey("module_management", "health", "read")
+);
 
-let modules: Awaited<ReturnType<typeof fetchModuleCatalog>> = [];
+type Row = Awaited<ReturnType<typeof fetchModuleCatalog>>[number] & {
+  healthStatus: string | null;
+};
+
+let modules: Row[] = [];
 let loadError = false;
 
 if (CAN_READ_MODULES) {
   try {
-    modules = await withTenant(getDatabaseClient(), context.tenantId, (tx) =>
-      fetchModuleCatalog(tx)
+    modules = await withTenant(
+      getDatabaseClient(),
+      context.tenantId,
+      async (tx) => {
+        const catalog = await fetchModuleCatalog(tx);
+
+        if (!CAN_READ_HEALTH) {
+          return catalog.map((entry) => ({ ...entry, healthStatus: null }));
+        }
+
+        const withHealth = await Promise.all(
+          catalog.map(async (entry) => {
+            const report = await fetchModuleHealthReport(
+              tx,
+              context.tenantId,
+              entry.moduleKey,
+              Astro.locals.correlationId
+            );
+            return { ...entry, healthStatus: report?.status ?? null };
+          })
+        );
+
+        return withHealth;
+      }
     );
   } catch (error) {
     console.error("admin/modules.astro: failed to load module catalog", error);
     loadError = true;
   }
 }
+
+const types = [...new Set(modules.map((m) => m.type).filter(Boolean))];
+const statuses = [...new Set(modules.map((m) => m.status))];
+const healthStatuses = [
+  ...new Set(modules.map((m) => m.healthStatus).filter(Boolean))
+];
 ---
 
 <AdminLayout title={t("admin.layout.nav_modules")}>
@@ -74,48 +110,136 @@ if (CAN_READ_MODULES) {
   }
   {
     CAN_READ_MODULES && !loadError && (
-      <div class="table-scroll">
-        <table class="modules-table">
-          <thead>
-            <tr>
-              <th>{t("admin.modules.module_column")}</th>
-              <th>{t("admin.modules.version_column")}</th>
-              <th>{t("admin.modules.status_column")}</th>
-              <th>{t("admin.modules.type_column")}</th>
-              <th>{t("admin.modules.core_column")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {modules.length === 0 && (
+      <div class="modules-list">
+        <form
+          class="modules-filters"
+          aria-label={t("admin.modules.filters_aria_label")}
+        >
+          <label>
+            {t("admin.modules.filter_type_label")}
+            <select id="filter-type">
+              <option value="">{t("admin.modules.filter_all")}</option>
+              {types.map((type) => (
+                <option value={type ?? ""}>{type}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {t("admin.modules.filter_status_label")}
+            <select id="filter-status">
+              <option value="">{t("admin.modules.filter_all")}</option>
+              {statuses.map((status) => (
+                <option value={status}>{status}</option>
+              ))}
+            </select>
+          </label>
+          {CAN_READ_HEALTH && (
+            <label>
+              {t("admin.modules.filter_health_label")}
+              <select id="filter-health">
+                <option value="">{t("admin.modules.filter_all")}</option>
+                {healthStatuses.map((status) => (
+                  <option value={status ?? ""}>{status}</option>
+                ))}
+              </select>
+            </label>
+          )}
+        </form>
+
+        <div class="table-scroll">
+          <table class="modules-table">
+            <thead>
               <tr>
-                <td colspan={5}>{t("admin.modules.no_modules")}</td>
-              </tr>
-            )}
-            {modules.map((module) => (
-              <tr>
-                <td>
-                  <strong>{module.name}</strong>
-                  <br />
-                  <code>{module.moduleKey}</code>
-                </td>
-                <td>{module.version}</td>
-                <td>
-                  <span class="status-pill" data-status={module.status}>
-                    {module.status}
+                <th>{t("admin.modules.module_column")}</th>
+                <th>{t("admin.modules.version_column")}</th>
+                <th>{t("admin.modules.status_column")}</th>
+                <th>{t("admin.modules.type_column")}</th>
+                <th>{t("admin.modules.core_column")}</th>
+                {CAN_READ_HEALTH && <th>{t("admin.modules.health_column")}</th>}
+                <th>
+                  <span class="sr-only">
+                    {t("admin.modules.actions_column")}
                   </span>
-                </td>
-                <td>{module.type ?? "-"}</td>
-                <td>{module.isCore ? t("common.yes") : t("common.no")}</td>
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody id="modules-tbody">
+              {modules.length === 0 && (
+                <tr>
+                  <td colspan={CAN_READ_HEALTH ? 7 : 6}>
+                    {t("admin.modules.no_modules")}
+                  </td>
+                </tr>
+              )}
+              {modules.map((module) => (
+                <tr
+                  data-type={module.type ?? ""}
+                  data-status={module.status}
+                  data-health={module.healthStatus ?? ""}
+                >
+                  <td>
+                    <strong>{module.name}</strong>
+                    <br />
+                    <code>{module.moduleKey}</code>
+                  </td>
+                  <td>{module.version}</td>
+                  <td>
+                    <span class="status-pill" data-status={module.status}>
+                      {module.status}
+                    </span>
+                  </td>
+                  <td>{module.type ?? "-"}</td>
+                  <td>{module.isCore ? t("common.yes") : t("common.no")}</td>
+                  {CAN_READ_HEALTH && (
+                    <td>
+                      {module.healthStatus ? (
+                        <span
+                          class="health-pill"
+                          data-health={module.healthStatus}
+                        >
+                          {module.healthStatus}
+                        </span>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                  )}
+                  <td>
+                    <a href={`/admin/modules/${module.moduleKey}`}>
+                      {t("admin.modules.view_detail_link")}
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     )
   }
 </AdminLayout>
 
 <style>
+  .modules-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+
+  .modules-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-4);
+    align-items: end;
+  }
+
+  .modules-filters label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+
   .table-scroll {
     overflow-x: auto;
   }
@@ -134,7 +258,8 @@ if (CAN_READ_MODULES) {
     vertical-align: top;
   }
 
-  .status-pill {
+  .status-pill,
+  .health-pill {
     display: inline-block;
     padding: 0 var(--sp-2);
     border-radius: var(--radius-full);
@@ -142,4 +267,69 @@ if (CAN_READ_MODULES) {
     background: var(--color-surface-2);
     border: 1px solid var(--color-border);
   }
+
+  .health-pill[data-health="healthy"] {
+    background: var(--color-success-strong);
+    color: var(--color-primary-contrast);
+    border-color: var(--color-success-strong);
+  }
+
+  .health-pill[data-health="degraded"] {
+    background: var(--color-warning);
+    border-color: var(--color-warning);
+  }
+
+  .health-pill[data-health="failed"] {
+    background: var(--color-danger-strong);
+    color: var(--color-primary-contrast);
+    border-color: var(--color-danger-strong);
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
 </style>
+
+<script>
+  function applyFilters(): void {
+    const typeValue =
+      (document.getElementById("filter-type") as HTMLSelectElement | null)
+        ?.value ?? "";
+    const statusValue =
+      (document.getElementById("filter-status") as HTMLSelectElement | null)
+        ?.value ?? "";
+    const healthValue =
+      (document.getElementById("filter-health") as HTMLSelectElement | null)
+        ?.value ?? "";
+
+    document
+      .querySelectorAll<HTMLTableRowElement>("#modules-tbody tr[data-type]")
+      .forEach((row) => {
+        const matchesType = !typeValue || row.dataset.type === typeValue;
+        const matchesStatus =
+          !statusValue || row.dataset.status === statusValue;
+        const matchesHealth =
+          !healthValue || row.dataset.health === healthValue;
+
+        row.hidden = !(matchesType && matchesStatus && matchesHealth);
+      });
+  }
+
+  document
+    .getElementById("filter-type")
+    ?.addEventListener("change", applyFilters);
+  document
+    .getElementById("filter-status")
+    ?.addEventListener("change", applyFilters);
+  document
+    .getElementById("filter-health")
+    ?.addEventListener("change", applyFilters);
+</script>

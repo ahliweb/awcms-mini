@@ -546,6 +546,172 @@ msgstr "Inti"
 msgid "admin.modules.no_modules"
 msgstr "Belum ada modul yang terdaftar."
 
+#. admin.modules — Issue #521 (UI admin daftar + detail lengkap)
+msgid "admin.modules.filters_aria_label"
+msgstr "Filter modul"
+
+msgid "admin.modules.filter_type_label"
+msgstr "Tipe"
+
+msgid "admin.modules.filter_status_label"
+msgstr "Status"
+
+msgid "admin.modules.filter_health_label"
+msgstr "Kesehatan"
+
+msgid "admin.modules.filter_all"
+msgstr "Semua"
+
+msgid "admin.modules.health_column"
+msgstr "Kesehatan"
+
+msgid "admin.modules.actions_column"
+msgstr "Aksi"
+
+msgid "admin.modules.view_detail_link"
+msgstr "Lihat"
+
+msgid "admin.modules.detail_not_found_title"
+msgstr "Modul tidak ditemukan."
+
+msgid "admin.modules.detail_not_found_body"
+msgstr "Kunci modul ini tidak terdaftar."
+
+msgid "admin.modules.back_to_list"
+msgstr "Kembali ke daftar modul"
+
+msgid "admin.modules.dependencies_legend"
+msgstr "Dependensi"
+
+msgid "admin.modules.no_dependencies"
+msgstr "Tidak ada dependensi."
+
+msgid "admin.modules.tenant_enablement_legend"
+msgstr "Ketersediaan untuk Tenant"
+
+msgid "admin.modules.enabled_label"
+msgstr "Aktif"
+
+msgid "admin.modules.disabled_label"
+msgstr "Nonaktif"
+
+msgid "admin.modules.enable_button"
+msgstr "Aktifkan untuk tenant ini"
+
+msgid "admin.modules.disable_button"
+msgstr "Nonaktifkan untuk tenant ini"
+
+msgid "admin.modules.disable_reason_prompt"
+msgstr "Alasan menonaktifkan modul ini"
+
+msgid "admin.modules.enable_success"
+msgstr "Modul diaktifkan untuk tenant ini."
+
+msgid "admin.modules.disable_success"
+msgstr "Modul dinonaktifkan untuk tenant ini."
+
+msgid "admin.modules.settings_legend"
+msgstr "Pengaturan"
+
+msgid "admin.modules.settings_json_label"
+msgstr "Override tenant (JSON object)"
+
+msgid "admin.modules.settings_hint"
+msgstr "Hanya key yang Anda isi di sini yang menimpa default modul. Jangan pernah memasukkan secret/token provider di sini — itu harus di environment variable."
+
+msgid "admin.modules.invalid_settings"
+msgstr "Settings harus berupa JSON yang valid."
+
+msgid "admin.modules.settings_save_button"
+msgstr "Simpan pengaturan"
+
+msgid "admin.modules.settings_save_success"
+msgstr "Pengaturan tersimpan."
+
+msgid "admin.modules.permissions_legend"
+msgstr "Status Sinkronisasi Permission"
+
+msgid "admin.modules.permission_activity_column"
+msgstr "Aktivitas"
+
+msgid "admin.modules.permission_action_column"
+msgstr "Aksi"
+
+msgid "admin.modules.no_permissions"
+msgstr "Tidak ada permission yang dideklarasikan atau di-seed."
+
+msgid "admin.modules.navigation_legend"
+msgstr "Navigasi Admin"
+
+msgid "admin.modules.no_navigation"
+msgstr "Modul ini tidak mendeklarasikan entri navigasi admin."
+
+msgid "admin.modules.nav_label_column"
+msgstr "Label"
+
+msgid "admin.modules.nav_path_column"
+msgstr "Path"
+
+msgid "admin.modules.nav_order_column"
+msgstr "Urutan"
+
+msgid "admin.modules.nav_permission_column"
+msgstr "Permission Wajib"
+
+msgid "admin.modules.jobs_legend"
+msgstr "Job Operasional"
+
+msgid "admin.modules.no_jobs"
+msgstr "Modul ini tidak mendeklarasikan job operasional."
+
+msgid "admin.modules.job_command_column"
+msgstr "Command"
+
+msgid "admin.modules.job_purpose_column"
+msgstr "Tujuan"
+
+msgid "admin.modules.job_schedule_column"
+msgstr "Jadwal Disarankan"
+
+msgid "admin.modules.job_offline_lan_column"
+msgstr "Aman Offline/LAN"
+
+msgid "admin.modules.health_legend"
+msgstr "Kesehatan / Kesiapan"
+
+msgid "admin.modules.health_check_button"
+msgstr "Jalankan health check"
+
+msgid "admin.modules.health_check_success"
+msgstr "Health check selesai."
+
+msgid "admin.modules.signal_column"
+msgstr "Sinyal"
+
+msgid "admin.modules.signal_status_column"
+msgstr "Status"
+
+msgid "admin.modules.signal_detail_column"
+msgstr "Detail"
+
+msgid "admin.modules.audit_legend"
+msgstr "Aktivitas Terbaru"
+
+msgid "admin.modules.audit_action_column"
+msgstr "Aksi"
+
+msgid "admin.modules.audit_severity_column"
+msgstr "Tingkat"
+
+msgid "admin.modules.audit_message_column"
+msgstr "Pesan"
+
+msgid "admin.modules.audit_time_column"
+msgstr "Waktu"
+
+msgid "admin.modules.no_audit_events"
+msgstr "Belum ada aktivitas terbaru untuk modul ini."
+
 #. admin.examples.wizard — Issue #483, fixture non-domain
 msgid "admin.examples.wizard.nav_title"
 msgstr "Contoh Wizard"

@@ -1,0 +1,804 @@
+---
+/**
+ * Module Management detail screen (Issue #521, epic #510) — the full
+ * per-module experience: dependency panel, tenant enable/disable action,
+ * settings panel, permission sync/status panel, navigation panel, jobs
+ * panel, health/readiness panel (+ explicit check trigger), and a
+ * lifecycle/audit summary.
+ *
+ * SSR reads reuse the exact same application-layer functions the JSON
+ * endpoints call (#514/#515/#516/#517/#519/#520) — same pattern as every
+ * other admin page in this app (`admin/sync.astro`, `admin/access-users.astro`).
+ * All mutations (enable/disable, settings PATCH, health check) go through
+ * the real, already-guarded/audited API endpoints via client-side `fetch` —
+ * this page has no privileged shortcut (issue's own security note: "every
+ * mutation must be enforced by API guards").
+ *
+ * Permission-gated per-section, matching each endpoint's own guard exactly
+ * (defense-in-depth — hiding a control here is a UX nicety, the real
+ * enforcement is server-side):
+ *   - module_management.modules.read          -> base page access, detail, dependencies, audit summary
+ *   - module_management.tenant_modules.{read,enable,disable} -> tenant enablement panel
+ *   - module_management.settings.{read,update} -> settings panel
+ *   - module_management.permissions.read       -> permission sync panel
+ *   - module_management.navigation.read        -> navigation panel (Issue #518's seeded-but-unused permission, first real consumer)
+ *   - module_management.jobs.read               -> jobs panel
+ *   - module_management.health.{read,check}    -> health/readiness panel
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import { listModules } from "../../../modules";
+import { fetchModuleCatalogEntry } from "../../../modules/module-management/application/module-catalog";
+import { fetchTenantModuleEntries } from "../../../modules/module-management/application/tenant-module-lifecycle";
+import { fetchModuleSettingsView } from "../../../modules/module-management/application/module-settings";
+import { fetchModulePermissionSyncReport } from "../../../modules/module-management/application/permission-sync";
+import { fetchModuleJobs } from "../../../modules/module-management/application/job-registry";
+import { fetchModuleHealthReport } from "../../../modules/module-management/application/health-registry";
+import { fetchModuleAuditSummary } from "../../../modules/module-management/application/module-audit-summary";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+import { formatDateTime } from "../../../lib/i18n/format";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/modules/[moduleKey].astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const moduleKey = Astro.params.moduleKey!;
+const locale = Astro.locals.locale;
+const t = await createTranslator(locale);
+
+const clientStrings = {
+  enableSuccess: t("admin.modules.enable_success"),
+  disableSuccess: t("admin.modules.disable_success"),
+  disableReasonPrompt: t("admin.modules.disable_reason_prompt"),
+  settingsSaveSuccess: t("admin.modules.settings_save_success"),
+  invalidSettings: t("admin.modules.invalid_settings"),
+  healthCheckSuccess: t("admin.modules.health_check_success"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+const CAN_READ_MODULES = context.permissions.has(
+  permissionKey("module_management", "modules", "read")
+);
+const CAN_READ_TENANT_MODULES = context.permissions.has(
+  permissionKey("module_management", "tenant_modules", "read")
+);
+const CAN_ENABLE = context.permissions.has(
+  permissionKey("module_management", "tenant_modules", "enable")
+);
+const CAN_DISABLE = context.permissions.has(
+  permissionKey("module_management", "tenant_modules", "disable")
+);
+const CAN_READ_SETTINGS = context.permissions.has(
+  permissionKey("module_management", "settings", "read")
+);
+const CAN_UPDATE_SETTINGS = context.permissions.has(
+  permissionKey("module_management", "settings", "update")
+);
+const CAN_READ_PERMISSIONS = context.permissions.has(
+  permissionKey("module_management", "permissions", "read")
+);
+const CAN_READ_NAVIGATION = context.permissions.has(
+  permissionKey("module_management", "navigation", "read")
+);
+const CAN_READ_JOBS = context.permissions.has(
+  permissionKey("module_management", "jobs", "read")
+);
+const CAN_READ_HEALTH = context.permissions.has(
+  permissionKey("module_management", "health", "read")
+);
+const CAN_CHECK_HEALTH = context.permissions.has(
+  permissionKey("module_management", "health", "check")
+);
+
+type Data = {
+  catalogEntry: NonNullable<
+    Awaited<ReturnType<typeof fetchModuleCatalogEntry>>
+  >;
+  tenantModule:
+    Awaited<ReturnType<typeof fetchTenantModuleEntries>>[number] | null;
+  settings: Awaited<ReturnType<typeof fetchModuleSettingsView>> | null;
+  permissionReport: Awaited<
+    ReturnType<typeof fetchModulePermissionSyncReport>
+  > | null;
+  navigationEntries: NonNullable<
+    ReturnType<typeof listModules>[number]["navigation"]
+  >;
+  jobs: NonNullable<ReturnType<typeof fetchModuleJobs>>;
+  health: Awaited<ReturnType<typeof fetchModuleHealthReport>> | null;
+  auditSummary: Awaited<ReturnType<typeof fetchModuleAuditSummary>>;
+};
+
+let data: Data | null = null;
+let loadError = false;
+let notFound = false;
+
+if (CAN_READ_MODULES) {
+  try {
+    data = await withTenant(
+      getDatabaseClient(),
+      context.tenantId,
+      async (tx) => {
+        const catalogEntry = await fetchModuleCatalogEntry(tx, moduleKey);
+
+        if (!catalogEntry) {
+          return null;
+        }
+
+        const [
+          tenantModuleEntries,
+          settings,
+          permissionReport,
+          health,
+          auditSummary
+        ] = await Promise.all([
+          CAN_READ_TENANT_MODULES
+            ? fetchTenantModuleEntries(tx, context.tenantId)
+            : Promise.resolve([]),
+          CAN_READ_SETTINGS
+            ? fetchModuleSettingsView(tx, context.tenantId, moduleKey)
+            : Promise.resolve(null),
+          CAN_READ_PERMISSIONS
+            ? fetchModulePermissionSyncReport(tx, moduleKey)
+            : Promise.resolve(null),
+          CAN_READ_HEALTH
+            ? fetchModuleHealthReport(
+                tx,
+                context.tenantId,
+                moduleKey,
+                Astro.locals.correlationId
+              )
+            : Promise.resolve(null),
+          fetchModuleAuditSummary(tx, context.tenantId, moduleKey)
+        ]);
+
+        const descriptor = listModules().find((d) => d.key === moduleKey);
+
+        return {
+          catalogEntry,
+          tenantModule:
+            tenantModuleEntries.find((e) => e.moduleKey === moduleKey) ?? null,
+          settings,
+          permissionReport,
+          navigationEntries: CAN_READ_NAVIGATION
+            ? (descriptor?.navigation ?? [])
+            : [],
+          jobs: CAN_READ_JOBS ? (fetchModuleJobs(moduleKey) ?? []) : [],
+          health,
+          auditSummary
+        };
+      }
+    );
+
+    if (!data) {
+      notFound = true;
+    }
+  } catch (error) {
+    console.error(
+      "admin/modules/[moduleKey].astro: failed to load module detail",
+      error
+    );
+    loadError = true;
+  }
+}
+---
+
+<AdminLayout title={data?.catalogEntry.name ?? t("admin.layout.nav_modules")}>
+  {
+    !CAN_READ_MODULES && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.modules.access_denied_title")}
+        body={t("admin.modules.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ_MODULES && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ_MODULES && !loadError && notFound && (
+      <StateNotice
+        kind="error"
+        title={t("admin.modules.detail_not_found_title")}
+        body={t("admin.modules.detail_not_found_body")}
+        retryLabel={t("admin.modules.back_to_list")}
+        retryHref="/admin/modules"
+      />
+    )
+  }
+  {
+    data && (
+      <div class="module-detail" data-module-key={moduleKey}>
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        <section class="detail-section">
+          <p>{data.catalogEntry.description}</p>
+          <dl class="detail-meta">
+            <div>
+              <dt>{t("admin.modules.version_column")}</dt>
+              <dd>{data.catalogEntry.version}</dd>
+            </div>
+            <div>
+              <dt>{t("admin.modules.status_column")}</dt>
+              <dd>{data.catalogEntry.status}</dd>
+            </div>
+            <div>
+              <dt>{t("admin.modules.type_column")}</dt>
+              <dd>{data.catalogEntry.type ?? "-"}</dd>
+            </div>
+            <div>
+              <dt>{t("admin.modules.core_column")}</dt>
+              <dd>
+                {data.catalogEntry.isCore ? t("common.yes") : t("common.no")}
+              </dd>
+            </div>
+          </dl>
+
+          <h2>{t("admin.modules.dependencies_legend")}</h2>
+          {data.catalogEntry.dependencies.length === 0 ? (
+            <p>{t("admin.modules.no_dependencies")}</p>
+          ) : (
+            <ul>
+              {data.catalogEntry.dependencies.map((dep) => (
+                <li>
+                  <code>{dep}</code>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {CAN_READ_TENANT_MODULES && data.tenantModule && (
+          <section class="detail-section">
+            <h2>{t("admin.modules.tenant_enablement_legend")}</h2>
+            <p>
+              <span
+                class="status-pill"
+                data-status={
+                  data.tenantModule.tenantEnabled ? "active" : "inactive"
+                }
+              >
+                {data.tenantModule.tenantEnabled
+                  ? t("admin.modules.enabled_label")
+                  : t("admin.modules.disabled_label")}
+              </span>
+            </p>
+            {data.tenantModule.disableReason && (
+              <p class="field-hint">
+                {t("admin.modules.disable_reason_prompt")}:{" "}
+                {data.tenantModule.disableReason}
+              </p>
+            )}
+            {!data.tenantModule.tenantEnabled && CAN_ENABLE && (
+              <button type="button" id="enable-module-button">
+                {t("admin.modules.enable_button")}
+              </button>
+            )}
+            {data.tenantModule.tenantEnabled &&
+              CAN_DISABLE &&
+              !data.catalogEntry.isCore && (
+                <button type="button" id="disable-module-button">
+                  {t("admin.modules.disable_button")}
+                </button>
+              )}
+          </section>
+        )}
+
+        {CAN_READ_SETTINGS && data.settings && (
+          <section class="detail-section">
+            <h2>{t("admin.modules.settings_legend")}</h2>
+            <form id="settings-form">
+              <fieldset disabled={!CAN_UPDATE_SETTINGS}>
+                <label>
+                  {t("admin.modules.settings_json_label")}
+                  <textarea name="settings" rows="8" spellcheck="false">
+                    {JSON.stringify(data.settings.tenantOverride, null, 2)}
+                  </textarea>
+                </label>
+                <p class="field-hint">{t("admin.modules.settings_hint")}</p>
+              </fieldset>
+              {CAN_UPDATE_SETTINGS && (
+                <button type="submit">
+                  {t("admin.modules.settings_save_button")}
+                </button>
+              )}
+            </form>
+          </section>
+        )}
+
+        {CAN_READ_PERMISSIONS && data.permissionReport && (
+          <section class="detail-section">
+            <h2>{t("admin.modules.permissions_legend")}</h2>
+            <div class="table-scroll">
+              <table class="detail-table">
+                <thead>
+                  <tr>
+                    <th>{t("admin.modules.permission_activity_column")}</th>
+                    <th>{t("admin.modules.permission_action_column")}</th>
+                    <th>{t("admin.modules.status_column")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.permissionReport.entries.length === 0 && (
+                    <tr>
+                      <td colspan={3}>{t("admin.modules.no_permissions")}</td>
+                    </tr>
+                  )}
+                  {data.permissionReport.entries.map((entry) => (
+                    <tr>
+                      <td>{entry.activityCode}</td>
+                      <td>{entry.action}</td>
+                      <td>
+                        <span
+                          class="status-pill"
+                          data-permission-status={entry.status}
+                        >
+                          {entry.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {CAN_READ_NAVIGATION && (
+          <section class="detail-section">
+            <h2>{t("admin.modules.navigation_legend")}</h2>
+            {data.navigationEntries.length === 0 ? (
+              <p>{t("admin.modules.no_navigation")}</p>
+            ) : (
+              <div class="table-scroll">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>{t("admin.modules.nav_label_column")}</th>
+                      <th>{t("admin.modules.nav_path_column")}</th>
+                      <th>{t("admin.modules.nav_order_column")}</th>
+                      <th>{t("admin.modules.nav_permission_column")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.navigationEntries.map((entry) => (
+                      <tr>
+                        <td>{t(entry.labelKey)}</td>
+                        <td>
+                          <code>{entry.path}</code>
+                        </td>
+                        <td>{entry.order ?? 0}</td>
+                        <td>{entry.requiredPermission ?? "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
+        {CAN_READ_JOBS && (
+          <section class="detail-section">
+            <h2>{t("admin.modules.jobs_legend")}</h2>
+            {data.jobs.length === 0 ? (
+              <p>{t("admin.modules.no_jobs")}</p>
+            ) : (
+              <div class="table-scroll">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>{t("admin.modules.job_command_column")}</th>
+                      <th>{t("admin.modules.job_purpose_column")}</th>
+                      <th>{t("admin.modules.job_schedule_column")}</th>
+                      <th>{t("admin.modules.job_offline_lan_column")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.jobs.map((job) => (
+                      <tr>
+                        <td>
+                          <code>{job.command}</code>
+                        </td>
+                        <td>{job.purpose}</td>
+                        <td>{job.recommendedSchedule ?? "-"}</td>
+                        <td>
+                          {job.safeInOfflineLan
+                            ? t("common.yes")
+                            : t("common.no")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
+        {CAN_READ_HEALTH && data.health && (
+          <section class="detail-section">
+            <h2>{t("admin.modules.health_legend")}</h2>
+            <p>
+              <span class="health-pill" data-health={data.health.status}>
+                {data.health.status}
+              </span>
+            </p>
+            <div class="table-scroll">
+              <table class="detail-table">
+                <thead>
+                  <tr>
+                    <th>{t("admin.modules.signal_column")}</th>
+                    <th>{t("admin.modules.signal_status_column")}</th>
+                    <th>{t("admin.modules.signal_detail_column")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.health.signals.map((signal) => (
+                    <tr>
+                      <td>{signal.name}</td>
+                      <td>
+                        <span
+                          class="status-pill"
+                          data-signal-status={signal.status}
+                        >
+                          {signal.status}
+                        </span>
+                      </td>
+                      <td>{signal.detail ?? "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {CAN_CHECK_HEALTH && (
+              <button type="button" id="health-check-button">
+                {t("admin.modules.health_check_button")}
+              </button>
+            )}
+          </section>
+        )}
+
+        <section class="detail-section">
+          <h2>{t("admin.modules.audit_legend")}</h2>
+          {data.auditSummary.length === 0 ? (
+            <p>{t("admin.modules.no_audit_events")}</p>
+          ) : (
+            <div class="table-scroll">
+              <table class="detail-table">
+                <thead>
+                  <tr>
+                    <th>{t("admin.modules.audit_action_column")}</th>
+                    <th>{t("admin.modules.audit_severity_column")}</th>
+                    <th>{t("admin.modules.audit_message_column")}</th>
+                    <th>{t("admin.modules.audit_time_column")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.auditSummary.map((entry) => (
+                    <tr>
+                      <td>{entry.action}</td>
+                      <td>{entry.severity}</td>
+                      <td>{entry.message}</td>
+                      <td>
+                        {formatDateTime(new Date(entry.createdAt), locale)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .module-detail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-6);
+  }
+
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+  }
+
+  .action-banner[data-variant="success"] {
+    background: color-mix(
+      in srgb,
+      var(--color-success) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-success);
+  }
+
+  .action-banner[data-variant="error"] {
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-danger);
+  }
+
+  .detail-section h2 {
+    margin: 0 0 var(--sp-3);
+    font-size: var(--fs-md);
+  }
+
+  .detail-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--sp-3);
+    margin: var(--sp-3) 0;
+  }
+
+  .detail-meta dt {
+    color: var(--color-text-muted);
+    font-size: var(--fs-xs);
+    margin: 0 0 var(--sp-1);
+  }
+
+  .detail-meta dd {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+  }
+
+  .detail-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .detail-table th,
+  .detail-table td {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--fs-sm);
+    vertical-align: top;
+  }
+
+  .status-pill,
+  .health-pill {
+    display: inline-block;
+    padding: 0 var(--sp-2);
+    border-radius: var(--radius-full);
+    font-size: var(--fs-xs);
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+  }
+
+  .status-pill[data-status="active"],
+  .status-pill[data-permission-status="synced"],
+  .status-pill[data-signal-status="pass"],
+  .health-pill[data-health="healthy"] {
+    background: var(--color-success-strong);
+    color: var(--color-primary-contrast);
+    border-color: var(--color-success-strong);
+  }
+
+  .status-pill[data-status="inactive"],
+  .status-pill[data-permission-status="missing"],
+  .status-pill[data-permission-status="mismatched_description"],
+  .status-pill[data-signal-status="fail"],
+  .health-pill[data-health="failed"] {
+    background: var(--color-danger-strong);
+    color: var(--color-primary-contrast);
+    border-color: var(--color-danger-strong);
+  }
+
+  .status-pill[data-permission-status="orphaned"],
+  .health-pill[data-health="degraded"] {
+    background: var(--color-warning);
+    border-color: var(--color-warning);
+  }
+
+  .field-hint {
+    color: var(--color-text-muted);
+    font-size: var(--fs-xs);
+  }
+
+  #settings-form textarea {
+    width: 100%;
+    font-family: monospace;
+  }
+
+  #enable-module-button,
+  #disable-module-button,
+  #health-check-button,
+  #settings-form button {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-3);
+    cursor: pointer;
+    margin-top: var(--sp-2);
+  }
+
+  /* Touch target >= 44px on tablet/mobile (doc 14 §Aksesibilitas). */
+  @media (max-width: 768px) {
+    #enable-module-button,
+    #disable-module-button,
+    #health-check-button,
+    #settings-form button {
+      min-height: 44px;
+    }
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface ModuleDetailStrings {
+    enableSuccess: string;
+    disableSuccess: string;
+    disableReasonPrompt: string;
+    settingsSaveSuccess: string;
+    invalidSettings: string;
+    healthCheckSuccess: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<ModuleDetailStrings>();
+  const moduleKey =
+    document.querySelector<HTMLElement>(".module-detail")?.dataset.moduleKey;
+
+  document
+    .getElementById("enable-module-button")
+    ?.addEventListener("click", async (event) => {
+      const el = event.currentTarget as HTMLButtonElement;
+      if (el.disabled || !moduleKey) return;
+      const unlock = lockElement(el, strings.pleaseWait);
+
+      try {
+        const result = await submitJson(
+          `/api/v1/tenant/modules/${moduleKey}/enable`,
+          "POST",
+          {},
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.enableSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock();
+      }
+    });
+
+  document
+    .getElementById("disable-module-button")
+    ?.addEventListener("click", async (event) => {
+      const el = event.currentTarget as HTMLButtonElement;
+      if (el.disabled || !moduleKey) return;
+
+      const reason = window.prompt(strings.disableReasonPrompt);
+      if (!reason || reason.trim().length === 0) return;
+
+      const unlock = lockElement(el, strings.pleaseWait);
+      try {
+        const result = await submitJson(
+          `/api/v1/tenant/modules/${moduleKey}/disable`,
+          "POST",
+          { reason },
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.disableSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock();
+      }
+    });
+
+  document
+    .getElementById("settings-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!moduleKey) return;
+
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (button?.disabled) return;
+
+      const formData = new FormData(form);
+      const raw = String(formData.get("settings") ?? "{}");
+      let settings: unknown;
+      try {
+        settings = JSON.parse(raw);
+      } catch {
+        showBanner("action-banner", strings.invalidSettings, "error");
+        return;
+      }
+
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+      try {
+        const result = await submitJson(
+          `/api/v1/tenant/modules/${moduleKey}/settings`,
+          "PATCH",
+          settings,
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.settingsSaveSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
+    });
+
+  document
+    .getElementById("health-check-button")
+    ?.addEventListener("click", async (event) => {
+      const el = event.currentTarget as HTMLButtonElement;
+      if (el.disabled || !moduleKey) return;
+      const unlock = lockElement(el, strings.pleaseWait);
+
+      try {
+        const result = await submitJson(
+          `/api/v1/modules/${moduleKey}/health/check`,
+          "POST",
+          {},
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.healthCheckSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock();
+      }
+    });
+</script>
