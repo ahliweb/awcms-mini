@@ -205,6 +205,57 @@ menambahkan `scripts/validate-env.ts` (`bun run config:validate`):
 sebagai tahap pertama, sebelum `db:migrate` — konfigurasi harus valid
 sebelum ada percobaan koneksi/migrasi apa pun.
 
+## Dispatcher email terjadwal (`bun run email:dispatch`, Issue #499)
+
+`scripts/email-dispatch.ts` (`bun run email:dispatch`) adalah CLI
+terjadwal, **bukan** endpoint HTTP — sama persis pola
+`scripts/object-sync-dispatch.ts` yang sudah didokumentasikan di
+`src/modules/sync-storage/README.md`. Tidak melakukan apa pun (exit 0,
+tanpa efek) bila `EMAIL_ENABLED` bukan `"true"` — profil mana pun yang
+mematikan email (mis. offline/LAN) aman menjalankan perintah ini tanpa
+efek samping.
+
+| Profil                                       | Cara menjadwalkan                                                                                                                                                                                             |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **development**                              | Jalankan manual sesuai kebutuhan: `bun run email:dispatch`. `EMAIL_ENABLED` biasanya `false` di `.env` dev (lihat `.env.example`) — tidak perlu dijadwalkan sama sekali.                                      |
+| **offline/LAN**                              | Email biasanya off atau tertunda (doc 18 §Profil per-environment "sync/R2/WA/email off atau tertunda"). Bila diaktifkan (mis. mail relay lokal), jadwalkan seperti profil systemd di bawah.                   |
+| **staging/production (bare-metal, systemd)** | `cron` atau systemd timer terpisah dari service utama (`awcms-mini.service`) — lihat contoh crontab di bawah.                                                                                                 |
+| **container (`docker-compose.yml`)**         | Jalankan sebagai `docker compose exec app bun run email:dispatch` lewat cron host, atau tambahkan service terjadwal terpisah (lihat contoh compose exec di bawah).                                            |
+| **Coolify/VPS**                              | Scheduled Task Coolify (bila tersedia) atau cron di VPS yang menjalankan `docker exec <container-app> bun run email:dispatch` — lihat [`deploy-coolify.md`](deploy-coolify.md) §Dispatcher terjadwal (email). |
+
+Contoh crontab (bare-metal/systemd, setiap 2 menit):
+
+```cron
+*/2 * * * * cd /opt/awcms-mini && /usr/local/bin/bun run email:dispatch >> /var/log/awcms-mini/email-dispatch.log 2>&1
+```
+
+Contoh untuk topologi container (`docker-compose.yml`), dari cron host:
+
+```cron
+*/2 * * * * cd /opt/awcms-mini && docker compose exec -T app bun run email:dispatch >> /var/log/awcms-mini/email-dispatch.log 2>&1
+```
+
+Catatan operasional:
+
+- **Idempoten/aman dijalankan berulang** — pola claim-lease
+  (`FOR UPDATE SKIP LOCKED`, Issue #495) membuat pemanggilan bersamaan
+  atau tumpang tindih aman; tidak ada baris yang terkirim dua kali.
+- **Retry/backoff tidak menjadi spam-loop**: entri yang gagal masuk
+  `retry_wait` dengan `next_attempt_at` mundur eksponensial
+  (`../../src/modules/email/domain/email-retry.ts`) sebelum diklaim lagi —
+  interval jadwal cron (mis. 2 menit) jauh lebih sering daripada
+  `next_attempt_at` pada percobaan lanjut, jadi dispatcher hanya
+  benar-benar memanggil provider lagi setelah jendela backoff lewat, bukan
+  di setiap tick cron.
+- **Circuit breaker provider terbuka**: bila provider (mis. Mailketing)
+  sedang outage, `dispatchEmailQueue` berhenti mengklaim apa pun sampai
+  breaker pulih (`email.dispatch.breaker_open`, warning log) — cron tetap
+  jalan setiap tick tanpa efek, tidak menambah beban ke provider yang
+  sedang down.
+- **Multi-instance**: jadwalkan hanya dari **satu** instance/cron entry per
+  deployment (claim-lease aman terhadap tumpang tindih, tapi menjadwalkan
+  dari banyak host sekaligus tetap pemborosan resource tanpa manfaat).
+
 ## Backup lokal (semua profil)
 
 `deploy/backup/backup-postgres.sh` dan `deploy/backup/restore-postgres.sh`

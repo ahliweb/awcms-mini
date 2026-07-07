@@ -17,6 +17,7 @@ import {
 import { buildSyntheticSampleVariables } from "../domain/email-template-preview";
 import { renderEmailTemplate } from "../domain/email-template-render";
 import { fetchActiveEmailTemplateByKey } from "./email-template-directory";
+import { fetchSuppressedRecipientHashes } from "./suppression-directory";
 import type { AnnouncementTarget } from "../domain/announcement-validation";
 
 const MODULE_KEY = "email";
@@ -90,13 +91,7 @@ export async function resolveAnnouncementTargets(
     return [];
   }
 
-  const suppressedRows = (await tx`
-    SELECT recipient_hash FROM awcms_mini_email_suppression_list
-    WHERE tenant_id = ${tenantId}
-  `) as { recipient_hash: string }[];
-  const suppressedHashes = new Set(
-    suppressedRows.map((row) => row.recipient_hash)
-  );
+  const suppressedHashes = await fetchSuppressedRecipientHashes(tx, tenantId);
 
   return rows
     .filter((row) => {

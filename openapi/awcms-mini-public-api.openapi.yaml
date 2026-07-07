@@ -49,6 +49,24 @@ tags:
       wizard pattern (Issue #484) — create/update/read/submit/delete a
       tenant-scoped JSONB payload. No domain-specific meaning; a derived
       module decides what a draft's payload contains.
+  - name: Email Templates
+    description: >-
+      Tenant email template CRUD, soft-delete/restore, per-category variable
+      allowlists, i18n locale variants, and admin preview (Issue #498).
+  - name: Email Announcements
+    description: >-
+      Bulk announcement/notification enqueue and dry-run preview, targeting
+      an explicit user list, a role, or the whole tenant with two-tier ABAC
+      (Issue #497).
+  - name: Email Messages
+    description: >-
+      Admin queue diagnostics (queue health, failed messages, retry
+      backlog) and cancel-before-send for still-queued messages (Issue
+      #499).
+  - name: Email Suppressions
+    description: >-
+      Manual suppression list read/create/delete — recipients excluded from
+      future sends (bounce/complaint/manual/unsubscribed), Issue #499.
 paths:
   /api/v1/sync/push:
     post:
@@ -2535,6 +2553,243 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/email/messages:
+    get:
+      tags:
+        - Email Messages
+      summary: >-
+        List tenant-wide email queue diagnostics (queue health, failed
+        messages, retry backlog) — never the raw recipient address
+      operationId: emailMessagesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - queued
+              - sending
+              - sent
+              - failed
+              - retry_wait
+              - cancelled
+              - suppressed
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Email messages tenant-wide (limit 100), newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/EmailMessageListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/email/messages/{id}/cancel:
+    post:
+      tags:
+        - Email Messages
+      summary: Cancel a still-queued (queued/retry_wait) email message before it sends
+      description: >-
+        Technical mitigation for the "accidental bulk send" incident
+        scenario. Only queued/retry_wait messages are eligible; anything
+        already sending/sent/failed/cancelled/suppressed is rejected with
+        409.
+      operationId: emailMessagesCancel
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Message cancelled.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/EmailMessageEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Message can no longer be cancelled (not queued/retry_wait).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/email/suppressions:
+    get:
+      tags:
+        - Email Suppressions
+      summary: List the tenant's email suppression list (limit 100, newest first)
+      operationId: emailSuppressionsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Suppression list entries — recipient address is always masked.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SuppressionListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Email Suppressions
+      summary: Manually suppress a recipient address
+      operationId: emailSuppressionsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuppressionCreateRequest"
+      responses:
+        "200":
+          description: Suppression entry created (or already existed).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SuppressionCreateResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/email/suppressions/{id}:
+    delete:
+      tags:
+        - Email Suppressions
+      summary: Remove a manual suppression entry
+      operationId: emailSuppressionsDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Suppression entry removed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/email-health:
+    get:
+      tags:
+        - Management Reporting
+      summary: Email queue health summary (queued/retry/failed/suppressed counts, healthy flag)
+      operationId: reportsGetEmailHealth
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Email queue health summary for the caller's tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/EmailHealthReport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/health:
     get:
       tags:
@@ -4095,6 +4350,195 @@ components:
           type: string
           format: date-time
           nullable: true
+    EmailHealthReport:
+      type: object
+      required:
+        - queuedCount
+        - retryWaitCount
+        - failedCount
+        - suppressedCount
+        - sentLast24hCount
+        - hasFailedMessages
+        - hasRetryBacklog
+        - isHealthy
+        - emailEnabled
+      additionalProperties: false
+      properties:
+        queuedCount:
+          type: integer
+          minimum: 0
+        retryWaitCount:
+          type: integer
+          minimum: 0
+        failedCount:
+          type: integer
+          minimum: 0
+        suppressedCount:
+          type: integer
+          minimum: 0
+        sentLast24hCount:
+          type: integer
+          minimum: 0
+        hasFailedMessages:
+          type: boolean
+        hasRetryBacklog:
+          type: boolean
+        isHealthy:
+          type: boolean
+          description: No failed messages and no retry backlog.
+        oldestQueuedAt:
+          type: string
+          format: date-time
+          nullable: true
+        mostRecentSentAt:
+          type: string
+          format: date-time
+          nullable: true
+        emailEnabled:
+          type: boolean
+        provider:
+          type: string
+          nullable: true
+    EmailMessageEntry:
+      type: object
+      required:
+        - id
+        - category
+        - status
+        - priority
+        - toAddressMasked
+        - subject
+        - retryCount
+        - createdAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        correlationId:
+          type: string
+          nullable: true
+        category:
+          type: string
+        status:
+          type: string
+          enum:
+            - queued
+            - sending
+            - sent
+            - failed
+            - retry_wait
+            - cancelled
+            - suppressed
+        priority:
+          type: string
+          enum:
+            - low
+            - normal
+            - high
+        toAddressMasked:
+          type: string
+        subject:
+          type: string
+        retryCount:
+          type: integer
+          minimum: 0
+        lastError:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+    EmailMessageListResponse:
+      type: object
+      required:
+        - messages
+        - nextCursor
+      additionalProperties: false
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmailMessageEntry"
+        nextCursor:
+          type: string
+          nullable: true
+          description: >-
+            Opaque keyset pagination cursor; pass back as the `cursor` query
+            parameter to fetch the next page. `null` when this is the last
+            page.
+    SuppressionEntry:
+      type: object
+      required:
+        - id
+        - recipientMasked
+        - reason
+        - createdAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        recipientMasked:
+          type: string
+        reason:
+          type: string
+          enum:
+            - bounced
+            - complained
+            - manual
+            - unsubscribed
+        createdBy:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    SuppressionListResponse:
+      type: object
+      required:
+        - entries
+      additionalProperties: false
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/SuppressionEntry"
+    SuppressionCreateRequest:
+      type: object
+      required:
+        - recipient
+        - reason
+      additionalProperties: false
+      properties:
+        recipient:
+          type: string
+          format: email
+        reason:
+          type: string
+          enum:
+            - bounced
+            - complained
+            - manual
+            - unsubscribed
+    SuppressionCreateResponse:
+      description: >-
+        Either the created entry, or `{ "alreadySuppressed": true }` if the
+        recipient was already on the list (idempotent no-op).
+      oneOf:
+        - $ref: "#/components/schemas/SuppressionEntry"
+        - type: object
+          required:
+            - alreadySuppressed
+          additionalProperties: false
+          properties:
+            alreadySuppressed:
+              type: boolean
     ModuleUsageEntry:
       type: object
       required:

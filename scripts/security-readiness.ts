@@ -35,6 +35,7 @@ import { evaluateLoginAttempt } from "../src/modules/identity-access/domain/logi
 import { hashPassword } from "../src/lib/auth/password";
 import { resolveAppBaseUrl } from "./lib/app-url";
 import { checkRateLimit } from "../src/lib/security/rate-limit";
+import { checkEmailConfig } from "./validate-env";
 
 export type CheckSeverity = "critical" | "warning" | "info";
 export type CheckStatus = "pass" | "fail";
@@ -707,6 +708,60 @@ export function checkSyncHmacSecretNotDefault(
 }
 
 // ---------------------------------------------------------------------------
+// 9b. Email provider configuration is complete when enabled (critical —
+// Issue #499)
+// ---------------------------------------------------------------------------
+
+/**
+ * Reuses `checkEmailConfig` from `validate-env.ts` (Issue #493) verbatim —
+ * same "don't reimplement the same conditional check a second, divergent
+ * way" rule `checkSyncConfig` already follows for the sync HMAC secret.
+ * Unlike the sync HMAC check (`warning` — a stale placeholder is a security
+ * hygiene issue, not an outage), this is `critical`: the issue's own
+ * acceptance criterion is "Readiness command blocks go-live when email is
+ * enabled but provider config is incomplete." `production:preflight`
+ * already gets this for free as its very first stage
+ * (`bun run config:validate`) — this is the same signal surfaced a second
+ * time, inside `security:readiness`'s own report/gate, for an operator who
+ * runs `security:readiness` on its own rather than the full preflight.
+ */
+export function checkEmailProviderConfigReady(
+  env: NodeJS.ProcessEnv = process.env
+): SecurityCheckResult {
+  const name = "Email provider configuration is complete when enabled";
+  const severity: CheckSeverity = "critical";
+  const results = checkEmailConfig(env);
+  const failed = results.filter((result) => result.status === "fail");
+
+  if (failed.length > 0) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `EMAIL_ENABLED=true but config is incomplete: ${failed
+        .map((result) => result.detail)
+        .join(" ")}`
+    };
+  }
+
+  if (env.EMAIL_ENABLED !== "true") {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence: 'EMAIL_ENABLED is not "true" — email config not required.'
+    };
+  }
+
+  return {
+    name,
+    severity,
+    status: "pass",
+    evidence: `EMAIL_ENABLED=true and all ${results.length} conditional email config check(s) pass (provider=${env.EMAIL_PROVIDER}).`
+  };
+}
+
+// ---------------------------------------------------------------------------
 // 10. Errors don't leak stack traces (warning/info, best-effort)
 // ---------------------------------------------------------------------------
 
@@ -945,6 +1000,7 @@ export async function runSecurityReadinessChecks(): Promise<
     await checkAuditLogTableReachable(),
     await checkSoftDeletePermissionsSeededAndAudited(),
     checkSyncHmacSecretNotDefault(),
+    checkEmailProviderConfigReady(),
     await checkErrorsDontLeakStackTraces(),
     await checkSecurityHeadersPresent(),
     checkLoginRateLimitImplemented()

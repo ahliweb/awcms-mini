@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { permissionKey } from "../src/modules/identity-access/domain/access-control";
 import { shapeSyncHealth } from "../src/modules/reporting/domain/sync-health";
+import { shapeEmailHealth } from "../src/modules/reporting/domain/email-health";
 
 describe("permissionKey — reporting dashboard guard", () => {
   test("builds the single shared permission key used by all four GET /reports/* endpoints", () => {
@@ -84,5 +85,77 @@ describe("shapeSyncHealth", () => {
     expect(view.openConflictCount).toBe(2);
     expect(view.pendingObjectCount).toBe(7);
     expect(view.failedObjectCount).toBe(4);
+  });
+});
+
+describe("shapeEmailHealth", () => {
+  test("healthy: an idle queue with nothing failed/retrying", () => {
+    const view = shapeEmailHealth({
+      queuedCount: 0,
+      retryWaitCount: 0,
+      failedCount: 0,
+      suppressedCount: 0,
+      sentLast24hCount: 12
+    });
+
+    expect(view).toMatchObject({
+      hasFailedMessages: false,
+      hasRetryBacklog: false,
+      isHealthy: true
+    });
+  });
+
+  test("healthy: messages queued but none failed/retrying", () => {
+    const view = shapeEmailHealth({
+      queuedCount: 5,
+      retryWaitCount: 0,
+      failedCount: 0,
+      suppressedCount: 0,
+      sentLast24hCount: 0
+    });
+
+    expect(view.isHealthy).toBe(true);
+  });
+
+  test("unhealthy: a failed message flips isHealthy to false", () => {
+    const view = shapeEmailHealth({
+      queuedCount: 0,
+      retryWaitCount: 0,
+      failedCount: 1,
+      suppressedCount: 0,
+      sentLast24hCount: 0
+    });
+
+    expect(view.hasFailedMessages).toBe(true);
+    expect(view.isHealthy).toBe(false);
+  });
+
+  test("unhealthy: a retry-wait backlog flips isHealthy to false even with no failures", () => {
+    const view = shapeEmailHealth({
+      queuedCount: 0,
+      retryWaitCount: 3,
+      failedCount: 0,
+      suppressedCount: 0,
+      sentLast24hCount: 0
+    });
+
+    expect(view.hasRetryBacklog).toBe(true);
+    expect(view.isHealthy).toBe(false);
+  });
+
+  test("passes counts through unchanged", () => {
+    const view = shapeEmailHealth({
+      queuedCount: 1,
+      retryWaitCount: 2,
+      failedCount: 3,
+      suppressedCount: 4,
+      sentLast24hCount: 5
+    });
+
+    expect(view.queuedCount).toBe(1);
+    expect(view.retryWaitCount).toBe(2);
+    expect(view.failedCount).toBe(3);
+    expect(view.suppressedCount).toBe(4);
+    expect(view.sentLast24hCount).toBe(5);
   });
 });

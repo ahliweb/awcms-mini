@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   checkAbacDefaultDeny,
+  checkEmailProviderConfigReady,
   checkLoginLockoutImplemented,
   checkLoginRateLimitImplemented,
   checkSyncHmacSecretNotDefault,
@@ -165,6 +166,51 @@ describe("checkSyncHmacSecretNotDefault", () => {
     } as NodeJS.ProcessEnv);
 
     expect(result.severity).toBe("warning");
+    expect(result.status).toBe("pass");
+  });
+});
+
+describe("checkEmailProviderConfigReady", () => {
+  test("is critical/pass when email is not enabled", () => {
+    const result = checkEmailProviderConfigReady({
+      EMAIL_ENABLED: "false"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("pass");
+  });
+
+  test("fails when email is enabled but EMAIL_FROM_ADDRESS/EMAIL_PROVIDER are missing", () => {
+    const result = checkEmailProviderConfigReady({
+      EMAIL_ENABLED: "true"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("fail");
+  });
+
+  test("fails when EMAIL_PROVIDER=mailketing but its account/token/base-url vars are missing", () => {
+    const result = checkEmailProviderConfigReady({
+      EMAIL_ENABLED: "true",
+      EMAIL_FROM_ADDRESS: "no-reply@example.com",
+      EMAIL_PROVIDER: "mailketing"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("fail");
+    expect(result.evidence).toContain("EMAIL_MAILKETING");
+  });
+
+  test("passes when email is enabled and all conditional config is complete", () => {
+    const result = checkEmailProviderConfigReady({
+      EMAIL_ENABLED: "true",
+      EMAIL_FROM_ADDRESS: "no-reply@example.com",
+      EMAIL_PROVIDER: "mailketing",
+      EMAIL_MAILKETING_ACCOUNT_ID: "acc",
+      EMAIL_MAILKETING_API_TOKEN: "token",
+      EMAIL_MAILKETING_API_BASE_URL: "https://api.mailketing.co.id"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
     expect(result.status).toBe("pass");
   });
 });
