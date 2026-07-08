@@ -113,6 +113,15 @@ msgstr "Tidak dapat dihapus permanen selama masih direferensikan data lain."
 msgid "error.purge_requires_soft_delete"
 msgstr "Data ini harus diarsipkan dulu sebelum dapat dihapus permanen."
 
+msgid "error.hostname_conflict"
+msgstr "Hostname ini sudah dipetakan ke tenant lain."
+
+msgid "error.invalid_status_transition"
+msgstr "Aksi ini tidak diizinkan untuk status saat ini."
+
+msgid "error.concurrent_update"
+msgstr "Permintaan lain sudah mengubah data ini. Silakan coba lagi."
+
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"
 msgstr "Tanpa role"
@@ -134,6 +143,9 @@ msgstr "Sync"
 
 msgid "admin.layout.nav_settings"
 msgstr "Pengaturan"
+
+msgid "admin.layout.nav_tenant_domains"
+msgstr "Domain Tenant"
 
 msgid "admin.layout.nav_modules"
 msgstr "Modul"
@@ -1685,4 +1697,185 @@ msgstr "Hapus iklan ini?"
 
 msgid "admin.blog.ads.delete_success"
 msgstr "Iklan berhasil dihapus."
+
+#. admin.tenant_domain (Issue #563)
+msgid "admin.tenant_domain.title"
+msgstr "Domain Tenant"
+
+msgid "admin.tenant_domain.access_denied_title"
+msgstr "Akses ditolak."
+
+msgid "admin.tenant_domain.access_denied_body"
+msgstr "Akun Anda tidak memiliki izin untuk melihat domain tenant. Hubungi admin/pemilik tenant Anda untuk meminta akses."
+
+msgid "admin.tenant_domain.no_domains"
+msgstr "Belum ada domain. Tambahkan subdomain platform atau domain kustom untuk memulai."
+
+msgid "admin.tenant_domain.hostname_column"
+msgstr "Hostname"
+
+msgid "admin.tenant_domain.type_column"
+msgstr "Tipe"
+
+msgid "admin.tenant_domain.status_column"
+msgstr "Status"
+
+msgid "admin.tenant_domain.verification_column"
+msgstr "Verifikasi"
+
+msgid "admin.tenant_domain.actions_column"
+msgstr "Aksi"
+
+msgid "admin.tenant_domain.domain_type.subdomain"
+msgstr "Subdomain platform"
+
+msgid "admin.tenant_domain.domain_type.custom_domain"
+msgstr "Domain kustom"
+
+msgid "admin.tenant_domain.route_mode.canonical"
+msgstr "Canonical (/news)"
+
+msgid "admin.tenant_domain.route_mode.legacy_blog"
+msgstr "Legacy (/blog/{tenantCode})"
+
+msgid "admin.tenant_domain.status.pending_verification"
+msgstr "Menunggu verifikasi"
+
+msgid "admin.tenant_domain.status.active"
+msgstr "Aktif"
+
+msgid "admin.tenant_domain.status.suspended"
+msgstr "Ditangguhkan"
+
+msgid "admin.tenant_domain.status.failed"
+msgstr "Gagal"
+
+msgid "admin.tenant_domain.primary_badge_label"
+msgstr "Domain utama"
+
+msgid "admin.tenant_domain.verification_method.dns_txt"
+msgstr "Rekaman TXT"
+
+msgid "admin.tenant_domain.verification_method.dns_cname"
+msgstr "Rekaman CNAME"
+
+msgid "admin.tenant_domain.verification_method.file"
+msgstr "Unggah file"
+
+msgid "admin.tenant_domain.verification_method.manual"
+msgstr "Manual (atestasi operator)"
+
+msgid "admin.tenant_domain.verification_method_none"
+msgstr "Belum ada metode verifikasi"
+
+msgid "admin.tenant_domain.no_record_configured"
+msgstr "Belum ada rekaman DNS untuk metode verifikasi ini."
+
+msgid "admin.tenant_domain.record_name_label"
+msgstr "Nama/host rekaman"
+
+msgid "admin.tenant_domain.record_value_label"
+msgstr "Nilai rekaman"
+
+msgid "admin.tenant_domain.copy_button"
+msgstr "Salin"
+
+msgid "admin.tenant_domain.copy_success"
+msgstr "Berhasil disalin ke clipboard."
+
+msgid "admin.tenant_domain.copy_error"
+msgstr "Gagal menyalin otomatis — silakan salin secara manual."
+
+msgid "admin.tenant_domain.preview_link"
+msgstr "Buka situs publik /news"
+
+msgid "admin.tenant_domain.preview_hint"
+msgstr "Hanya bisa diakses publik jika routing publik berbasis host diaktifkan pada deployment ini."
+
+msgid "admin.tenant_domain.verify_button"
+msgstr "Verifikasi"
+
+msgid "admin.tenant_domain.verify_confirm"
+msgstr "Verifikasi domain ini sekarang? Ini akan menandainya aktif berdasarkan atestasi Anda bahwa DNS/kepemilikan sudah benar."
+
+msgid "admin.tenant_domain.verify_success"
+msgstr "Domain terverifikasi."
+
+msgid "admin.tenant_domain.set_primary_button"
+msgstr "Jadikan utama"
+
+msgid "admin.tenant_domain.set_primary_confirm"
+msgstr "Jadikan domain ini sebagai domain utama tenant?"
+
+msgid "admin.tenant_domain.set_primary_success"
+msgstr "Domain utama berhasil diperbarui."
+
+msgid "admin.tenant_domain.delete_button"
+msgstr "Hapus"
+
+msgid "admin.tenant_domain.delete_reason_prompt"
+msgstr "Alasan menghapus pemetaan domain ini:"
+
+msgid "admin.tenant_domain.delete_confirm"
+msgstr "Hapus pemetaan domain ini? Tindakan ini tidak dapat dibatalkan dari layar ini."
+
+msgid "admin.tenant_domain.delete_success"
+msgstr "Pemetaan domain berhasil dihapus."
+
+msgid "admin.tenant_domain.edit_summary"
+msgstr "Ubah"
+
+msgid "admin.tenant_domain.save_button"
+msgstr "Simpan"
+
+msgid "admin.tenant_domain.update_success"
+msgstr "Pemetaan domain berhasil diperbarui."
+
+msgid "admin.tenant_domain.field_status_no_change"
+msgstr "Biarkan tidak berubah"
+
+msgid "admin.tenant_domain.field_status_active_hint"
+msgstr "Domain ini sedang aktif. Memilih status di bawah (mis. Ditangguhkan) akan menonaktifkannya — perubahan berlaku langsung saat disimpan."
+
+msgid "admin.tenant_domain.field_verification_method_none_option"
+msgstr "Tidak diset"
+
+msgid "admin.tenant_domain.create_summary"
+msgstr "Tambah domain atau subdomain"
+
+msgid "admin.tenant_domain.create_submit"
+msgstr "Tambah domain"
+
+msgid "admin.tenant_domain.create_success"
+msgstr "Pemetaan domain berhasil ditambahkan."
+
+msgid "admin.tenant_domain.field_hostname"
+msgstr "Hostname"
+
+msgid "admin.tenant_domain.field_hostname_hint"
+msgstr "Masukkan hostname lengkap, mis. shop.example.com — tanpa skema (https://), tanpa port."
+
+msgid "admin.tenant_domain.field_domain_type"
+msgstr "Tipe domain"
+
+msgid "admin.tenant_domain.field_route_mode"
+msgstr "Mode rute"
+
+msgid "admin.tenant_domain.field_verification_method"
+msgstr "Metode verifikasi"
+
+msgid "admin.tenant_domain.field_record_name"
+msgstr "Nama/host rekaman verifikasi (opsional)"
+
+msgid "admin.tenant_domain.field_record_value"
+msgstr "Nilai rekaman verifikasi (opsional)"
+
+msgid "admin.tenant_domain.field_redirect_to_primary"
+msgstr "Alihkan ke domain utama"
+
+msgid "admin.tenant_domain.field_status"
+msgstr "Status"
+
+msgid "admin.tenant_domain.invalid_hostname"
+msgstr "Masukkan hostname yang valid (tanpa skema, tanpa port, mis. shop.example.com)."
 

@@ -35,7 +35,7 @@ menjembatani beberapa modul sekaligus (config, `tenant_domain` module baru,
 | #560  | Rute publik `/news` untuk `blog_content`                      | **Selesai** — lihat §Rute publik `/news` di bawah                                |
 | #561  | Dokumentasi legacy `/blog/{tenantCode}`                       | **Selesai** — lihat ADR-0010, `blog-content/README.md`, `deployment-profiles.md` |
 | #562  | Tenant domain management API                                  | **Selesai** — lihat §API di bawah                                                |
-| #563  | Admin UI domain/subdomain                                     | Belum                                                                            |
+| #563  | Admin UI domain/subdomain                                     | **Selesai** — lihat §Admin UI di bawah                                           |
 | #564  | Tenant settings untuk rute `/news` vs legacy (`blog_content`) | Belum                                                                            |
 | #565  | Tenant module presets (online/news/LAN/minimal)               | Belum                                                                            |
 | #566  | Tenant-module matrix admin UI                                 | Belum                                                                            |
@@ -501,6 +501,29 @@ lengkap acceptance criterion) ada di
 `src/modules/tenant-domain/README.md` §Tenant domain management API. Test:
 `tests/integration/tenant-domain-api.integration.test.ts`.
 
+### Admin UI (Issue #563, `src/pages/admin/tenant/domains.astro`)
+
+Path/permission gate persis descriptor Issue #558:
+`/admin/tenant/domains`, `tenant_domain.domains.read`. **Binding split**
+yang wajib diikuti issue turunan manapun yang menambah aksi baru di
+halaman ini: SSR initial render boleh baca langsung lewat
+`listTenantDomains`/`withTenant` (read-only, sama pola
+`admin/blog/categories.astro`), tapi **setiap mutasi** (create/update/
+delete/verify/set-primary) **wajib** lewat `fetch` client-side ke
+`/api/v1/tenant/domains/**` (#562) — tidak ada shortcut SSR privileged
+untuk mutasi apa pun, itu acceptance criterion mengikat issue #563.
+`verify`/`set-primary` mengirim `Idempotency-Key` baru
+(`newIdempotencyKey()`) per klik, pola sama
+`admin/blog/posts/[id].astro`'s tombol lifecycle. Validasi hostname
+client-side (`looksLikeValidHostname()` di halaman ini) murni UX —
+`normalizePublicHost()` lewat API tetap satu-satunya enforcement.
+Badge status pakai enum DB asli (`pending_verification | active |
+suspended | failed`) — bukan daftar shorthand issue #563 sendiri yang
+menyebut "verified" sebagai status kelima (tidak ada di schema). Link
+preview `/news` hanya muncul untuk domain yang `active` **dan**
+`isPrimary` sekaligus. Test:
+`tests/integration/tenant-domain-admin.integration.test.ts`.
+
 ## Aturan lintas-issue yang wajib diikuti
 
 1. **Backward compatibility non-negotiable**: setiap deployment offline/LAN existing yang tidak pernah set `PUBLIC_*` apa pun harus tetap `config:validate` PASS dan berperilaku persis seperti sebelum epic ini — jangan pernah membuat salah satu dari enam var config ini menjadi wajib secara default.
@@ -516,21 +539,19 @@ lengkap acceptance criterion) ada di
 
 ## Belum ada — jangan asumsikan sudah dikerjakan
 
-Isu #562-#567 (API tenant domain, admin UI domain, tenant settings rute
-`/news`/legacy di `blog_content`, module presets, matrix UI admin, dan
-adapter Cloudflare DNS) **belum ada** — lapisan config (#556), schema
-`awcms_mini_tenant_domains` (#557), module descriptor `tenant_domain`
-(#558), resolver host-based (#559), rute publik `/news` (#560), dan
-dokumentasi legacy/ADR-0010 (#561) sudah selesai (lihat §Rute publik
-`/news` dan aturan #3 di atas). Tabel
-`awcms_mini_tenant_domains` masih berisi schema + constraint + RLS +
-permission catalog seed + fungsi lookup `SECURITY DEFINER` saja — belum
-ada baris yang pernah ditulis lewat kode aplikasi (menunggu #562's API);
-resolver #559 hanya bisa MEMBACA baris yang di-seed manual/via test, bukan
-menulisnya — `/news` (#560) karena itu, sampai #562 ada, hanya bisa
-resolve tenant lewat fallback env/setup-state (langkah 2-4), tidak pernah
-lewat host/domain mapping asli (langkah 1) kecuali baris
-`awcms_mini_tenant_domains` di-seed manual.
+Isu #564-#567 (tenant settings rute `/news`/legacy di `blog_content`,
+module presets, matrix UI admin, dan adapter Cloudflare DNS) **belum
+ada**. Sudah selesai: config (#556), schema `awcms_mini_tenant_domains`
+(#557), module descriptor `tenant_domain` (#558), resolver host-based
+(#559), rute publik `/news` (#560), dokumentasi legacy/ADR-0010 (#561),
+API tenant domain management (#562, §API di atas), dan admin UI (#563,
+§Admin UI di atas). Tabel `awcms_mini_tenant_domains` sekarang bisa
+ditulis lewat kode aplikasi (API #562 + admin UI #563) — bukan lagi
+schema-only. Operator yang benar-benar mengisi baris nyata lewat
+UI/API dan mengaktifkan `PUBLIC_TENANT_RESOLUTION_MODE=host_default`
+membuat resolver #559 langkah 1 (host/domain mapping asli) benar-benar
+reachable di production untuk pertama kalinya — lihat konsekuensi
+keamanan di ADR-0010 §Konsekuensi sebelum mengaktifkan mode itu.
 
 **Follow-up keamanan wajib diselesaikan sebelum `PUBLIC_TENANT_RESOLUTION_MODE=host_default` diaktifkan di production** (ditemukan `awcms-mini-security-auditor` saat audit #560, verdict PASS tapi non-blocking karena `host_default` belum bisa resolve apa pun secara nyata hari ini — lihat alasan di atas):
 
