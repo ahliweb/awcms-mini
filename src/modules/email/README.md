@@ -1,13 +1,14 @@
 # Email
 
-Implementasi Issue #493-#498 (epic #492) — arsitektur modul email
+Implementasi Issue #493-#500 (epic #492) — arsitektur modul email
 reusable, skema/RLS/delivery queue (`sql/020`/`021`), adapter Mailketing
 nyata + dispatcher, template management (CRUD, i18n, allowlist, preview),
 flow forgot/reset password (`POST /api/v1/auth/password/forgot`/`reset`,
-`src/modules/identity-access/README.md` §Password reset), dan
-announcement/notification bulk workflow (`POST /api/v1/email/
-announcements[/preview]`, lihat §Announcement/notification workflows di
-bawah). Semua sub-issue epic #492 sudah selesai kecuali #499/#500 (lihat
+`src/modules/identity-access/README.md` §Password reset), announcement/
+notification bulk workflow (`POST /api/v1/email/announcements[/preview]`,
+lihat §Announcement/notification workflows di bawah), observability/
+security/production-readiness hardening (#499), dan sinkronisasi
+dokumentasi akhir (#500). **Epic #492 selesai seluruhnya** (lihat
 §Roadmap).
 
 ## Kenapa modul ini ada — hubungan dengan historical issue #390
@@ -392,4 +393,5 @@ email:provider:health` immediately after rotation to confirm the new
   didokumentasikan di doc 04 tapi belum diimplementasikan (di luar cakupan
   #499's acceptance criteria, bukan sebuah observability/security/readiness
   gap).
-- **#500** — sinkronisasi OpenAPI/AsyncAPI/ERD/SOP/threat model/changeset.
+- ~~**#500**~~ — sinkronisasi OpenAPI/AsyncAPI/ERD/SOP/threat model/changeset.
+  **Selesai** — PR #508. Epic #492 fully closed as of 2026-07-07.
