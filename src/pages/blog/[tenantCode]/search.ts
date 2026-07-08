@@ -10,6 +10,7 @@ import {
 } from "../../../lib/html/error-responses";
 import { log } from "../../../lib/logging/logger";
 import { searchPublicBlogContent } from "../../../modules/blog-content/application/blog-search";
+import { isLegacyTenantRouteEnabled } from "../../../modules/blog-content/application/public-route-settings";
 import {
   renderPostSummaryListHtml,
   renderPublicPageShell
@@ -22,7 +23,8 @@ import { decodeKeysetCursor } from "../../../modules/_shared/keyset-pagination";
  * predicate, `resourceType: "post"` since this issue has no public page
  * detail route to link to — see README §Public routes). An empty/missing
  * `q` renders the search form with no results rather than a 400 — this is
- * a browsable public page, not a JSON API.
+ * a browsable public page, not a JSON API. Issue #564: 404s (same generic
+ * shape) when `legacyTenantRouteEnabled` is `false`.
  */
 export const GET: APIRoute = async ({ params, url }) => {
   const tenantCode = params.tenantCode;
@@ -44,6 +46,10 @@ export const GET: APIRoute = async ({ params, url }) => {
     const cursor = cursorParam ? decodeKeysetCursor(cursorParam) : null;
 
     return await withTenant(sql, tenant.tenantId, async (tx) => {
+      if (!(await isLegacyTenantRouteEnabled(tx, tenant.tenantId))) {
+        return notFoundHtmlResponse();
+      }
+
       const result =
         query.length > 0
           ? await searchPublicBlogContent(tx, tenant.tenantId, {

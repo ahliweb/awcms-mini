@@ -35,42 +35,48 @@ export const GET: APIRoute = async ({ params, request, url }) => {
     const pageParam = url.searchParams.get("page");
     const page = pageParam ? Number(pageParam) : 1;
 
-    const result = await withNewsTenant(sql, request, async (tx, tenant) => {
-      const term = await fetchPublicTermBySlug(
-        tx,
-        tenant.tenantId,
-        "tag",
-        slug
-      );
+    const result = await withNewsTenant(
+      sql,
+      request,
+      async (tx, tenant, routeSettings) => {
+        const term = await fetchPublicTermBySlug(
+          tx,
+          tenant.tenantId,
+          "tag",
+          slug
+        );
 
-      if (!term) {
-        return null;
+        if (!term) {
+          return null;
+        }
+
+        const posts = await listPublicBlogPostsByTermId(
+          tx,
+          tenant.tenantId,
+          term.id,
+          { page }
+        );
+        const basePath = routeSettings.publicBasePath;
+        const tagPath = `${basePath}/tag/${term.slug}`;
+
+        const bodyHtml = `<h1>Tag: ${escapeHtml(term.name)}</h1>
+<div class="posts">${renderPostSummaryListHtmlAtBasePath(basePath, posts.items, "No posts with this tag yet.")}</div>
+${renderPaginationNavHtml(page, posts.hasNextPage, tagPath)}`;
+
+        const html = renderPublicPageShell({
+          title: `${term.name} — ${tenant.tenantName} ${routeSettings.publicLabel}`,
+          description: term.description ?? `Posts tagged ${term.name}.`,
+          canonicalUrl: `${url.origin}${tagPath}`,
+          bodyHtml,
+          locale: tenant.defaultLocale
+        });
+
+        return new Response(html, {
+          status: 200,
+          headers: { "content-type": "text/html; charset=utf-8" }
+        });
       }
-
-      const posts = await listPublicBlogPostsByTermId(
-        tx,
-        tenant.tenantId,
-        term.id,
-        { page }
-      );
-
-      const bodyHtml = `<h1>Tag: ${escapeHtml(term.name)}</h1>
-<div class="posts">${renderPostSummaryListHtmlAtBasePath("/news", posts.items, "No posts with this tag yet.")}</div>
-${renderPaginationNavHtml(page, posts.hasNextPage, `/news/tag/${term.slug}`)}`;
-
-      const html = renderPublicPageShell({
-        title: `${term.name} — ${tenant.tenantName} News`,
-        description: term.description ?? `Posts tagged ${term.name}.`,
-        canonicalUrl: `${url.origin}/news/tag/${term.slug}`,
-        bodyHtml,
-        locale: tenant.defaultLocale
-      });
-
-      return new Response(html, {
-        status: 200,
-        headers: { "content-type": "text/html; charset=utf-8" }
-      });
-    });
+    );
 
     return result ?? notFoundHtmlResponse();
   } catch (error) {

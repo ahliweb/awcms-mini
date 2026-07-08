@@ -13,6 +13,7 @@ import {
   fetchPublicBlogSettings,
   listPublicBlogPosts
 } from "../../../modules/blog-content/application/public-blog-directory";
+import { isLegacyTenantRouteEnabled } from "../../../modules/blog-content/application/public-route-settings";
 import {
   renderPaginationNavHtml,
   renderPostSummaryListHtml,
@@ -31,6 +32,13 @@ import {
  * (built for `APIRoute` handlers, no existing convention for testing
  * `.astro` output). See `src/modules/blog-content/README.md` §Public
  * routes for the full reasoning.
+ *
+ * Issue #564 (epic #555): gated by the tenant's effective
+ * `legacyTenantRouteEnabled` setting (default `true` — today's behavior
+ * unchanged). `false` 404s this route the same generic way as an unknown
+ * `tenantCode`, applied consistently across all 7 `/blog/{tenantCode}`
+ * routes — see `src/modules/blog-content/README.md` §Public route
+ * settings.
  */
 export const GET: APIRoute = async ({ params, url }) => {
   const tenantCode = params.tenantCode;
@@ -51,6 +59,10 @@ export const GET: APIRoute = async ({ params, url }) => {
     const page = pageParam ? Number(pageParam) : 1;
 
     return await withTenant(sql, tenant.tenantId, async (tx) => {
+      if (!(await isLegacyTenantRouteEnabled(tx, tenant.tenantId))) {
+        return notFoundHtmlResponse();
+      }
+
       const settings = await fetchPublicBlogSettings(tx, tenant.tenantId);
       const result = await listPublicBlogPosts(tx, tenant.tenantId, {
         page,

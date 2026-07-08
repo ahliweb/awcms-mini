@@ -36,32 +36,39 @@ export const GET: APIRoute = async ({ request, url }) => {
     const pageParam = url.searchParams.get("page");
     const page = pageParam ? Number(pageParam) : 1;
 
-    const result = await withNewsTenant(sql, request, async (tx, tenant) => {
-      const settings = await fetchPublicBlogSettings(tx, tenant.tenantId);
-      const posts = await listPublicBlogPosts(tx, tenant.tenantId, {
-        page,
-        pageSize: settings.postsPerPage
-      });
+    const result = await withNewsTenant(
+      sql,
+      request,
+      async (tx, tenant, routeSettings) => {
+        const settings = await fetchPublicBlogSettings(tx, tenant.tenantId);
+        const posts = await listPublicBlogPosts(tx, tenant.tenantId, {
+          page,
+          pageSize: settings.postsPerPage
+        });
+        const basePath = routeSettings.publicBasePath;
 
-      const bodyHtml = `<h1>${escapeHtml(tenant.tenantName)} News</h1>
-<div class="posts">${renderPostSummaryListHtmlAtBasePath("/news", posts.items, "No posts yet.")}</div>
-${renderPaginationNavHtml(page, posts.hasNextPage, "/news")}`;
+        const bodyHtml = `<h1>${escapeHtml(tenant.tenantName)} ${escapeHtml(routeSettings.publicLabel)}</h1>
+<div class="posts">${renderPostSummaryListHtmlAtBasePath(basePath, posts.items, "No posts yet.")}</div>
+${renderPaginationNavHtml(page, posts.hasNextPage, basePath)}`;
 
-      const html = renderPublicPageShell({
-        title: settings.seoDefaultTitle ?? `${tenant.tenantName} News`,
-        description:
-          settings.seoDefaultDescription ??
-          `Latest posts from ${tenant.tenantName}.`,
-        canonicalUrl: `${url.origin}/news`,
-        bodyHtml,
-        locale: tenant.defaultLocale
-      });
+        const html = renderPublicPageShell({
+          title:
+            settings.seoDefaultTitle ??
+            `${tenant.tenantName} ${routeSettings.publicLabel}`,
+          description:
+            settings.seoDefaultDescription ??
+            `Latest posts from ${tenant.tenantName}.`,
+          canonicalUrl: `${url.origin}${basePath}`,
+          bodyHtml,
+          locale: tenant.defaultLocale
+        });
 
-      return new Response(html, {
-        status: 200,
-        headers: { "content-type": "text/html; charset=utf-8" }
-      });
-    });
+        return new Response(html, {
+          status: 200,
+          headers: { "content-type": "text/html; charset=utf-8" }
+        });
+      }
+    );
 
     return result ?? notFoundHtmlResponse();
   } catch (error) {

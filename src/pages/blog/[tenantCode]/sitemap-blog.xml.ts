@@ -11,13 +11,16 @@ import {
 import { log } from "../../../lib/logging/logger";
 import { listPublicBlogPostsForFeed } from "../../../modules/blog-content/application/public-blog-directory";
 import { fetchBlogSettings } from "../../../modules/blog-content/application/blog-settings-directory";
+import { isLegacyTenantRouteEnabled } from "../../../modules/blog-content/application/public-route-settings";
 
 /**
  * `GET /blog/{tenantCode}/sitemap-blog.xml` (Issue #540) — sitemap
  * protocol 0.9, same public visibility predicate as the RSS feed/index
  * (doc issue #540 §Sitemap Requirements: same exclusion list as RSS).
  * Issue #543 §Settings Page adds `sitemapEnabled` — same disabled-looks-
- * like-404 behavior as the RSS feed above.
+ * like-404 behavior as the RSS feed above. Issue #564 adds the same
+ * generic 404 when the tenant's `legacyTenantRouteEnabled` setting is
+ * `false`.
  */
 export const GET: APIRoute = async ({ params, url }) => {
   const tenantCode = params.tenantCode;
@@ -35,6 +38,10 @@ export const GET: APIRoute = async ({ params, url }) => {
     }
 
     return await withTenant(sql, tenant.tenantId, async (tx) => {
+      if (!(await isLegacyTenantRouteEnabled(tx, tenant.tenantId))) {
+        return notFoundXmlResponse();
+      }
+
       const settings = await fetchBlogSettings(tx, tenant.tenantId);
 
       if (!settings.sitemapEnabled) {

@@ -3,10 +3,10 @@ import { defineModule } from "../_shared/module-contract";
 export const blogContentModule = defineModule({
   key: "blog_content",
   name: "Blog Content",
-  version: "0.7.0",
+  version: "0.8.0",
   status: "active",
   description:
-    "Tenant-scoped blog/content management (epic #536). Issue #537 laid the schema/permission foundation. Issue #538 added the blog post admin API (CRUD + lifecycle actions at /api/v1/blog/posts). Issue #539 added page/taxonomy CRUD, post-term relations, and PostgreSQL full-text search. Issue #540 added public (anonymous, no session) routes under /blog/{tenantCode}/... per ADR-0009: blog index, post detail, category/tag archives, search, RSS feed, and sitemap — every one enforcing the public visibility predicate (published + public, not deleted, published_at in the past) and safe content rendering (whitelist block renderer, no raw HTML). Issue #541 added append-only revision history for posts/pages (a significant title/contentJson/contentText change on PATCH snapshots one), revision list/detail/restore at /api/v1/blog/posts/{id}/revisions (restore requires explicit permission + Idempotency-Key, and itself appends a new revision — never overwrites one), the `bun run blog:publish:scheduled` job (idempotent, publishes due `status='scheduled'` posts per tenant), and the AsyncAPI domain-event contract for the module's full post/term/revision lifecycle (documented-contract-only, structured-logger-producer convention, same as every other module's events). Issue #542 added presentation/monetization extensions per its own Scope Control (does not rebuild the base media library, tenant system, RBAC/ABAC, audit, or theme engine): templates (/api/v1/blog/templates, whitelisted layout shape), hierarchical menus (/api/v1/blog/menus, one level of nesting, internal post/page or safe-URL items), position-based widgets (/api/v1/blog/widgets), advertisements with placement targeting and scheduling (/api/v1/blog/ads), a per-tenant blog theme override (/api/v1/blog/theme, falling back to `awcms_mini_tenants.default_theme`), an optional `translation_group_id` linking locale-variants of one post, and a new whitelisted `gallery` content_json block type for public image/video display (no new media table — reuses the existing safe-rendering convention). Issue #543 (final hardening) added the admin UI (dashboard, posts, pages, categories/tags, templates/widgets/menus/ads, settings — all under /admin/blog, reusing the existing AdminLayout shell and design tokens, no new UI framework), the blog settings API (/api/v1/blog/settings, backed by `awcms_mini_blog_settings` since migration 026 but unwired until now — blog title/description/RSS-enabled/sitemap-enabled live in that table's catch-all `settings` jsonb column, everything else in its own typed column), RSS/sitemap now respect the new enabled flags, and this descriptor's own `permissions`/`navigation` arrays (previously undeclared — every permission below already existed in the database via migrations 027/030, but the module catalog had no code-side declaration to sync/report against). No longer `experimental`: the full epic's acceptance criteria are met and it registers a working admin surface. First domain module registered directly in this base repo (see ADR-0009).",
+    "Tenant-scoped blog/content management (epic #536). Issue #537 laid the schema/permission foundation. Issue #538 added the blog post admin API (CRUD + lifecycle actions at /api/v1/blog/posts). Issue #539 added page/taxonomy CRUD, post-term relations, and PostgreSQL full-text search. Issue #540 added public (anonymous, no session) routes under /blog/{tenantCode}/... per ADR-0009: blog index, post detail, category/tag archives, search, RSS feed, and sitemap — every one enforcing the public visibility predicate (published + public, not deleted, published_at in the past) and safe content rendering (whitelist block renderer, no raw HTML). Issue #541 added append-only revision history for posts/pages (a significant title/contentJson/contentText change on PATCH snapshots one), revision list/detail/restore at /api/v1/blog/posts/{id}/revisions (restore requires explicit permission + Idempotency-Key, and itself appends a new revision — never overwrites one), the `bun run blog:publish:scheduled` job (idempotent, publishes due `status='scheduled'` posts per tenant), and the AsyncAPI domain-event contract for the module's full post/term/revision lifecycle (documented-contract-only, structured-logger-producer convention, same as every other module's events). Issue #542 added presentation/monetization extensions per its own Scope Control (does not rebuild the base media library, tenant system, RBAC/ABAC, audit, or theme engine): templates (/api/v1/blog/templates, whitelisted layout shape), hierarchical menus (/api/v1/blog/menus, one level of nesting, internal post/page or safe-URL items), position-based widgets (/api/v1/blog/widgets), advertisements with placement targeting and scheduling (/api/v1/blog/ads), a per-tenant blog theme override (/api/v1/blog/theme, falling back to `awcms_mini_tenants.default_theme`), an optional `translation_group_id` linking locale-variants of one post, and a new whitelisted `gallery` content_json block type for public image/video display (no new media table — reuses the existing safe-rendering convention). Issue #543 (final hardening) added the admin UI (dashboard, posts, pages, categories/tags, templates/widgets/menus/ads, settings — all under /admin/blog, reusing the existing AdminLayout shell and design tokens, no new UI framework), the blog settings API (/api/v1/blog/settings, backed by `awcms_mini_blog_settings` since migration 026 but unwired until now — blog title/description/RSS-enabled/sitemap-enabled live in that table's catch-all `settings` jsonb column, everything else in its own typed column), RSS/sitemap now respect the new enabled flags, and this descriptor's own `permissions`/`navigation` arrays (previously undeclared — every permission below already existed in the database via migrations 027/030, but the module catalog had no code-side declaration to sync/report against). No longer `experimental`: the full epic's acceptance criteria are met and it registers a working admin surface. First domain module registered directly in this base repo (see ADR-0009). Issue #564 (epic #555, not #536) added this descriptor's `settings.defaults` — see the `settings` field below for the four new keys and, importantly, why `rssEnabled`/`sitemapEnabled` are deliberately NOT among them despite appearing in the issue's own example JSON (`application/public-route-settings.ts`'s header comment has the full reasoning: they already live in, and stay in, `awcms_mini_blog_settings`).",
   dependencies: ["tenant_admin", "identity_access"],
   type: "domain",
   navigation: [
@@ -194,6 +194,67 @@ export const blogContentModule = defineModule({
   api: {
     openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
     basePath: "/api/v1/blog"
+  },
+  // Issue #564, epic #555. Non-secret public-route-behavior preferences
+  // only — read/written through Module Management's existing generic
+  // framework (GET/PATCH /api/v1/tenant/modules/blog_content/settings,
+  // Issue #516/epic #510), not a bespoke settings mechanism.
+  //
+  // DELIBERATELY DOES NOT INCLUDE `rssEnabled`/`sitemapEnabled`, even
+  // though the issue's own suggested example JSON lists them alongside
+  // the four keys below. Those two flags already exist, already work, and
+  // stay in `awcms_mini_blog_settings` (Issue #537/#543,
+  // `application/blog-settings-directory.ts`'s `fetchBlogSettings`,
+  // written via `PATCH /api/v1/blog/settings`, edited at
+  // `/admin/blog/settings`) — `/news/feed.xml`, `/news/sitemap-news.xml`,
+  // and their `/blog/{tenantCode}` counterparts already read and enforce
+  // them today. Duplicating them into this second store would create two
+  // disconnected, independently-writable sources of truth for the same
+  // concept: an admin could flip "RSS enabled" off in this module's
+  // generic `/admin/modules/blog_content` settings panel while the feed
+  // route keeps reading the OLD `awcms_mini_blog_settings` value and
+  // stays enabled — a real correctness bug, not a stylistic one. See
+  // `application/public-route-settings.ts`'s header comment (the function
+  // that merges both stores for route-handler reads) for the full
+  // reasoning, and `README.md` §Public route settings for the summary.
+  settings: {
+    schemaVersion: 1,
+    defaults: {
+      // "domain_default" = behave exactly as before this issue: /news
+      // resolves the tenant per PUBLIC_TENANT_RESOLUTION_MODE (doc 18).
+      // "disabled" is the one new value — every /news route then returns
+      // the same generic 404 an unresolved tenant or a disabled
+      // blog_content module already produces (see
+      // application/public-news-tenant-resolution.ts's withNewsTenant).
+      // Scoped to /news only; the legacy /blog/{tenantCode} family has
+      // its own independent switch, legacyTenantRouteEnabled below.
+      publicRouteMode: "domain_default",
+      // Used for SELF-REFERENTIAL link generation on /news only (canonical
+      // <link>, RSS/sitemap <loc>/<link>, internal cross-links) — NOT
+      // physical routing. /news/** are Astro file-based static routes;
+      // their actual served path cannot be retargeted per-tenant at
+      // runtime without a much larger catch-all-route restructuring,
+      // which is out of this issue's scope. Falls back to the
+      // PUBLIC_CANONICAL_BASE_PATH env var (Issue #556), then "/news",
+      // when unset or invalid. See README.md §Public route settings for
+      // the full writeup of this decision and its known limitation.
+      publicBasePath: "/news",
+      // Default true = today's behavior unchanged: /blog/{tenantCode}
+      // remains fully available (ADR-0010, skill
+      // awcms-mini-tenant-domain-routing's binding rule #3 — the legacy
+      // family is never removed by default). Setting this false disables
+      // all 7 /blog/{tenantCode} routes (index/detail/category/tag/
+      // search/feed/sitemap) with the same generic 404 shape as an
+      // unknown tenant code — a tenant-chosen opt-out, not a removal of
+      // the route family itself.
+      legacyTenantRouteEnabled: true,
+      // Human-readable label for the /news route family (e.g. "News" vs
+      // "Blog") — used in generated headings/titles/RSS channel title on
+      // /news only. Distinct from awcms_mini_blog_settings.blogTitle,
+      // which labels the CONTENT (an SEO-facing site title), not the
+      // route family itself.
+      publicLabel: "News"
+    }
   },
   events: {
     asyncApiPath: "asyncapi/awcms-mini-domain-events.asyncapi.yaml",

@@ -20,6 +20,8 @@ Issue #543 (final hardening): admin UI penuh di bawah `/admin/blog` (dashboard, 
 
 Issue #560 (epic #555, bukan #536): rute publik kedua `/news/...`, tenant-code-free counterpart `/blog/{tenantCode}`, resolusi tenant lewat `resolvePublicTenantFromRequest` (Issue #559) bukan segmen path. Lihat §Public routes `/news`.
 
+Issue #564 (epic #555, bukan #536): `settings.defaults` baru di descriptor (`publicRouteMode`, `publicBasePath`, `legacyTenantRouteEnabled`, `publicLabel`) lewat Module Management's generic tenant-settings framework (Issue #516/epic #510) — **bukan** `rssEnabled`/`sitemapEnabled`, yang tetap di `awcms_mini_blog_settings` yang sudah ada. `/news` menghormati `publicRouteMode`/`publicBasePath`/`publicLabel`; `/blog/{tenantCode}` (ketujuh rutenya) menghormati `legacyTenantRouteEnabled`. Lihat §Public route settings.
+
 ## Tabel (migration `026_awcms_mini_blog_content_schema.sql`)
 
 Tujuh tabel persis sesuai doc issue #537 §Database Tables, semuanya tenant-scoped (`ENABLE` + `FORCE ROW LEVEL SECURITY`, satu policy `tenant_isolation` per tabel):
@@ -266,7 +268,7 @@ header/domain-mapping lookup with an env/setup-state fallback chain (see
 the tenant-domain-routing skill for the full resolution order and the
 `tenant_code_legacy` mode decision made in this issue).
 
-### `withNewsTenant` — shared tenant resolution + module-disabled gate
+### `withNewsTenant` — shared tenant resolution + module-disabled + route-mode gate
 
 `src/modules/blog-content/application/public-news-tenant-resolution.ts`'s
 `withNewsTenant(sql, request, handler, env?)` centralizes what all seven
@@ -276,19 +278,28 @@ routes need before touching a single post row:
    `process.env.PUBLIC_TRUST_PROXY` (`buildPublicHostResolverConfigFromEnv`)
    and calls `resolvePublicTenantFromRequest`. `null` -> the whole helper
    returns `null`.
-2. **Module-disabled gate** (explicit Issue #560 acceptance criterion —
-   `blog_content` disabled for the resolved tenant must 404 exactly like an
-   unresolved tenant): inside the same `withTenant(...)` transaction,
+2. **Module-disabled + route-mode gate** (`checkBlogContentAndRouteGate`,
+   private): inside the same `withTenant(...)` transaction,
    `fetchTenantModuleEntries` (`module-management/application/tenant-module-lifecycle.ts`,
-   pre-existing) is called before `handler`. `tenantEnabled === false` for
-   `blog_content` -> the helper returns `null` too — indistinguishable from
-   every other non-resolving case from the caller's side.
+   pre-existing) confirms `blog_content` is enabled (explicit Issue #560
+   acceptance criterion), and `fetchEffectivePublicRouteSettings` (Issue
+   #564, `application/public-route-settings.ts`) confirms the tenant's
+   effective `publicRouteMode` is not `"disabled"`. Either failing -> the
+   helper returns `null` — indistinguishable from every other non-resolving
+   case from the caller's side.
+
+On success, `handler` also receives the tenant's `EffectivePublicRouteSettings`
+as a third argument (Issue #564) — `publicBasePath`/`publicLabel` for
+self-referential link generation, `rssEnabled`/`sitemapEnabled` so
+`feed.xml`/`sitemap-news.xml` don't need a second lookup (see §Public
+route settings below for where each field actually lives).
 
 Every route then does `const result = await withNewsTenant(sql, request,
-async (tx, tenant) => { ...; return new Response(...); }); return result ??
-notFoundHtmlResponse();` (or `notFoundXmlResponse()` for the two XML
-routes) — a `handler` that finds no matching post/term also just `return
-null`, collapsing into the identical generic 404 as the tenant/module gate.
+async (tx, tenant, routeSettings) => { ...; return new Response(...); });
+return result ?? notFoundHtmlResponse();` (or `notFoundXmlResponse()` for
+the two XML routes) — a `handler` that finds no matching post/term also
+just `return null`, collapsing into the identical generic 404 as the
+tenant/module/route-mode gate.
 
 **Timing side-channel fix (landed alongside Issue #562)**: "tenant not
 resolved" and "tenant resolved but `blog_content` disabled" both return the
@@ -305,7 +316,9 @@ rows. See `public-news-tenant-resolution.ts`'s own docblock and skill
 `awcms-mini-tenant-domain-routing` §Rute publik `/news` for the full
 writeup, including the deliberate trade-off this adds for
 `tenant_code_legacy` mode (a small, constant DB dependency it did not
-previously have).
+previously have). Issue #564 extended the gate (added the route-mode
+check above) without reopening this fix — see §Public route settings
+below, "Timing parity preserved", for how.
 
 **Known pre-existing gap, deliberately not retrofitted here**:
 `/blog/{tenantCode}` (Issue #540) has **no** module-disabled check at all —
@@ -370,6 +383,159 @@ retire `/blog/{tenantCode}` — see `docs/adr/0010-public-host-tenant-routing.md
 lintas-issue" #3. `/news` examples in this README never include a
 `tenantCode` segment — that is the whole point of the route (tenant is
 resolved from the request, not the path).
+
+## Public route settings (Issue #564, epic #555)
+
+`application/public-route-settings.ts`'s `fetchEffectivePublicRouteSettings(tx, tenantId, env?)`
+computes one merged, read-only DTO for `/news`/`/blog/{tenantCode}` route
+handlers, sourced from **two** existing, already-authoritative stores —
+deliberately not a third one:
+
+| Field                      | Store                                                                                                                                                         | Write path                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `publicRouteMode`          | `blog_content` module descriptor `settings.defaults` + `awcms_mini_module_settings` tenant override (generic tenant-settings framework, Issue #516/epic #510) | `PATCH /api/v1/tenant/modules/blog_content/settings` |
+| `publicBasePath`           | same as above                                                                                                                                                 | same as above                                        |
+| `legacyTenantRouteEnabled` | same as above                                                                                                                                                 | same as above                                        |
+| `publicLabel`              | same as above                                                                                                                                                 | same as above                                        |
+| `rssEnabled`               | `awcms_mini_blog_settings` (Issue #537, wired up Issue #543) — **unchanged**                                                                                  | `PATCH /api/v1/blog/settings`                        |
+| `sitemapEnabled`           | `awcms_mini_blog_settings` — **unchanged**                                                                                                                    | `PATCH /api/v1/blog/settings`                        |
+
+### Why `rssEnabled`/`sitemapEnabled` are NOT in the new descriptor defaults
+
+Issue #564's own suggested example JSON lists `rssEnabled`/`sitemapEnabled`
+alongside the four genuinely new keys. They are **deliberately excluded**
+from `module.ts`'s `settings.defaults` here. Those two flags already
+existed and already worked before this issue (Issue #537 defined the
+column, Issue #543 wired up `PATCH /api/v1/blog/settings`, Issue #540/#560
+made `/blog/{tenantCode}/feed.xml`/`sitemap-blog.xml` and
+`/news/feed.xml`/`sitemap-news.xml` enforce them). Adding a _second_,
+independently-writable copy of the same concept into
+`awcms_mini_module_settings` would create two disconnected sources of
+truth: an admin could flip "RSS enabled" off in the generic
+`/admin/modules/blog_content` settings panel while the feed route keeps
+reading the OLD `awcms_mini_blog_settings` value and stays enabled — a
+real correctness bug, not a stylistic preference. `fetchEffectivePublicRouteSettings`
+proves this is enforced, not just documented:
+`tests/integration/blog-content-settings.integration.test.ts`'s "writing
+those exact key names into the new module-settings store has NO effect on
+/news/feed.xml or /news/sitemap-news.xml" test PATCHes `rssEnabled: false`
+into the wrong store and confirms the feed stays enabled, then flips it
+through the correct store and confirms it actually disables.
+
+### `publicRouteMode` — `/news` only, `domain_default` = unchanged behavior
+
+`"domain_default"` (the default) means "behave exactly as before this
+issue" — `/news` resolves the tenant per `PUBLIC_TENANT_RESOLUTION_MODE`
+(doc 18) unchanged. `"disabled"` is the one new value: `withNewsTenant`
+(`application/public-news-tenant-resolution.ts`) now also checks this
+after confirming `blog_content` is enabled, and returns the same generic
+`null` (-> identical 404) an unresolved tenant or a disabled module already
+produce. Scoped to `/news` only — it does **not** gate `/blog/{tenantCode}`,
+which has its own, independent switch (`legacyTenantRouteEnabled`, below).
+This scoping is deliberate: the two route families are independent
+(§`/news` vs `/blog/{tenantCode}` above), so their kill switches are too.
+
+**Timing parity preserved.** `withNewsTenant`'s module-disabled gate
+already had a timing side-channel fix (Issue #562's
+`padUnresolvedTenantLatency`, closing the "does this hostname map to a
+real tenant" latency leak). Adding a second condition (`publicRouteMode`)
+to the same branch risked reopening it if the new check's query cost
+weren't paid on every outcome uniformly. Fixed by factoring the whole gate
+(`fetchTenantModuleEntries` + `fetchEffectivePublicRouteSettings`) into one
+private `checkBlogContentAndRouteGate` function that both the real
+resolved-tenant branch **and** `padUnresolvedTenantLatency` call — they can
+never drift apart because they're the same function call, not
+hand-duplicated query sequences. `tests/integration/blog-content-public-news.integration.test.ts`'s
+three round-trip-parity tests were updated accordingly (same equality
+assertions, now covering the extra query).
+
+### `publicBasePath` — self-referential link generation only, NOT physical routing
+
+Used everywhere `/news` route handlers previously hardcoded the literal
+string `/news` into a **generated URL**: canonical `<link>`, RSS
+`<link>`/item `<link>`/`<guid>`, sitemap `<loc>`, pagination hrefs,
+category/tag archive links, and the post-summary listing links
+(`renderPostSummaryListHtmlAtBasePath`). Falls back to the
+`PUBLIC_CANONICAL_BASE_PATH` env var (Issue #556 — validated since that
+issue but never consumed by any code until now, a pre-existing gap this
+issue closes) when unset/invalid, then to the hardcoded `/news`.
+
+**Known, deliberate limitation**: this does **not** retarget which Astro
+file route physically serves a request. `/news/**` are Astro file-based
+static routes (`src/pages/news/*`); Astro cannot repoint a static route's
+own served path per-tenant at runtime without a catch-all dynamic segment
+(`src/pages/[...basePath]/...`) — a much larger, riskier restructuring
+that is out of this issue's scope (the issue's own "Update `/news` route
+handlers ... where appropriate" wording reads as a soft/partial-application
+instruction, not a routing rebuild). Practical consequence: setting
+`publicBasePath` to anything other than `/news` produces self-referential
+links that point at a path Astro does not actually serve at that prefix —
+acceptable and documented, not silently broken; a tenant that customizes
+this value is expected to also configure their reverse proxy/CDN to route
+that prefix to this app if they want the generated links to actually
+resolve. `tests/integration/blog-content-settings.integration.test.ts`
+proves the acceptance criterion ("`/news` uses `publicBasePath` from
+effective settings") is satisfied exactly this way — generated links
+change, the route handler itself is still reached at `/news/*`.
+
+### `legacyTenantRouteEnabled` — disable (404), not redirect; all 7 routes, consistently
+
+Chosen: `false` makes all 7 `/blog/{tenantCode}` routes (index, detail,
+category, tag, search, feed, sitemap) return the exact same generic 404 an
+unknown `tenantCode` already produces — **not** a redirect to `/news`.
+Reasons: (1) consistency with every other "this feature is turned off"
+outcome in this module, which always collapses to the same generic 404
+(rssEnabled/sitemapEnabled since Issue #543, blog_content-disabled and
+publicRouteMode=disabled on `/news` above) — a redirect would be the only
+inconsistent case; (2) a redirect to `/news` would implicitly assert "this
+tenant is also reachable via host-based resolution," which is not
+necessarily true (the two route families resolve tenants through entirely
+independent mechanisms — §`/news` vs `/blog/{tenantCode}` above); (3) doc
+issue #564's security note ("do not expose disabled reason... to anonymous
+users") is trivially satisfied by reusing the established generic-404
+convention, whereas a redirect target itself could leak information. The
+default (`true`) keeps today's behavior unchanged — ADR-0010 and the
+`awcms-mini-tenant-domain-routing` skill's binding rule #3 both establish
+that the legacy family is never removed by default; this setting is a
+tenant-chosen opt-out, not a code-level deprecation. Implemented via
+`isLegacyTenantRouteEnabled(tx, tenantId)` (a thin wrapper around
+`fetchEffectivePublicRouteSettings`), called identically at the top of the
+`withTenant` callback in all 7 `/blog/{tenantCode}/*.ts` files — no shared
+resolver like `withNewsTenant` exists for the legacy family (each file
+independently calls `resolvePublicTenantByCode`), so the consistency
+guarantee here comes from every file calling the exact same one-line
+helper, not from a single centralized gate function. Deliberately does
+**not** get `withNewsTenant`'s timing-parity treatment — the `tenantCode`
+is already caller-supplied and visible in the URL path itself, so there is
+no "does this identifier map to a real tenant" existence question left to
+protect by response latency (contrast `/news`, which resolves the tenant
+from an opaque `Host` header). This module-disabled check is also still
+absent from `/blog/{tenantCode}` (see §Public routes `/news` above, "Known
+pre-existing gap") — unchanged, out of this issue's scope too.
+
+### `publicLabel` — route-family label, distinct from `blogTitle`
+
+A human-readable label for the `/news` route family (default `"News"`),
+used in generated headings/titles/RSS channel title on `/news` only (not
+`/blog/{tenantCode}`, which keeps its historical hardcoded "Blog" wording —
+`publicLabel` is scoped to the route family this settings group actually
+describes). Genuinely distinct from `awcms_mini_blog_settings.blogTitle`
+(Issue #543): `blogTitle` is SEO-facing content metadata (falls into
+`seoDefaultTitle`'s fallback chain), while `publicLabel` labels the route
+family itself ("News" vs "Blog" vs any other tenant-chosen word) —
+independent of what the tenant names their actual blog/site.
+
+### Secret-shaped key rejection still applies
+
+`PATCH /api/v1/tenant/modules/blog_content/settings` still runs through
+the same `validateModuleSettingsPatch` (`module-management/domain/module-settings.ts`)
+every other module's settings PATCH does — none of the four new key names
+(`publicRouteMode`, `publicBasePath`, `legacyTenantRouteEnabled`,
+`publicLabel`) or their values match any entry in `redaction.ts`'s
+`REDACTION_KEYS` list, confirmed by
+`tests/integration/blog-content-settings.integration.test.ts`'s existing
+secret-shaped-key test (unchanged assertion, now targeting `blog_content`
+instead of `form_drafts`).
 
 ## Revisions (Issue #541)
 
@@ -624,3 +790,5 @@ bun run production:preflight           # gate go-live penuh (lihat §Known limit
 - `robots.txt` dan referensi sitemap dari `robots.txt` — hanya sitemap XML-nya sendiri yang ada, belum ada yang mereferensikannya secara otomatis.
 - Rich block editor visual untuk `content_json` — admin UI (Issue #543) memakai textarea JSON berlabel untuk `contentJson`/menu items/ad placements, bukan editor visual/drag-drop; membangun itu tetap backlog terbuka kalau suatu saat dianggap perlu.
 - Layar admin murni untuk media/gallery — tidak ada (dan tidak akan ada tanpa base media library nyata); galeri dikelola lewat block `content_json` di editor post/page yang ada.
+- `publicBasePath` (Issue #564) hanya mengubah URL yang DIHASILKAN (canonical link, RSS/sitemap, cross-link internal) — path fisik yang benar-benar dilayani Astro untuk `/news/**` tetap tetap di `/news` (file-based static routing, lihat §Public route settings §`publicBasePath`). Membuat path fisik itu sendiri bisa dikonfigurasi per-tenant (catch-all dynamic route) tetap backlog terbuka, di luar scope issue ini.
+- Visual settings editor khusus untuk `publicRouteMode`/`publicBasePath`/`legacyTenantRouteEnabled`/`publicLabel` (Issue #564) — sengaja tidak dibangun; layar generik `/admin/modules/blog_content` (Module Management, sudah ada) cukup untuk mengedit keempat key ini lewat JSON textarea yang sudah ada.

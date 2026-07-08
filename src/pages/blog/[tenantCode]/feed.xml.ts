@@ -11,6 +11,7 @@ import {
 import { log } from "../../../lib/logging/logger";
 import { listPublicBlogPostsForFeed } from "../../../modules/blog-content/application/public-blog-directory";
 import { fetchBlogSettings } from "../../../modules/blog-content/application/blog-settings-directory";
+import { isLegacyTenantRouteEnabled } from "../../../modules/blog-content/application/public-route-settings";
 import { resolveMetaDescription } from "../../../modules/blog-content/domain/seo-rendering";
 
 /**
@@ -23,7 +24,8 @@ import { resolveMetaDescription } from "../../../modules/blog-content/domain/seo
  * entity escapes). Issue #543 §Settings Page adds `rssEnabled` — a tenant
  * that has turned the feed off gets the same 404 shape as an unknown
  * tenant/post (no distinguishable signal for a disabled vs. nonexistent
- * feed).
+ * feed). Issue #564 adds the same generic 404 when the tenant's
+ * `legacyTenantRouteEnabled` setting is `false`.
  */
 export const GET: APIRoute = async ({ params, url }) => {
   const tenantCode = params.tenantCode;
@@ -41,6 +43,10 @@ export const GET: APIRoute = async ({ params, url }) => {
     }
 
     return await withTenant(sql, tenant.tenantId, async (tx) => {
+      if (!(await isLegacyTenantRouteEnabled(tx, tenant.tenantId))) {
+        return notFoundXmlResponse();
+      }
+
       const settings = await fetchBlogSettings(tx, tenant.tenantId);
 
       if (!settings.rssEnabled) {
