@@ -329,6 +329,31 @@ statuses, unlisted-reachable-by-direct-link, canonical URL under `/news`,
 feed/sitemap links under `/news`, module-disabled 404, `tenant_code_legacy`
 404, cross-tenant isolation).
 
+## `/news` (default) vs `/blog/{tenantCode}` (legacy) — Issue #561
+
+Two public route families exist side by side, and neither is going away.
+Pick per-deployment via `PUBLIC_TENANT_RESOLUTION_MODE`
+(`docs/awcms-mini/18_configuration_env_reference.md` §Public routing,
+`docs/adr/0010-public-host-tenant-routing.md`) — this is a **config
+choice**, not a code choice; both route families always exist in every
+build.
+
+| Route                | Status                                             | Tenant resolution                                                                                                                                 | Use when                                                                                                                                                     |
+| -------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/news`              | **Default for online/public**                      | Request `Host`/domain mapping (Issue #559, mode `host_default`), with env/setup-state fallback — see §Resolver in the tenant-domain-routing skill | Online/public/SaaS deployment with a real domain: clean, SEO-friendly, tenant-implicit URLs (no tenant code in the path)                                     |
+| `/blog/{tenantCode}` | **Legacy, explicit-tenant, still fully supported** | `tenantCode` path segment (ADR-0009), resolved directly, independent of `PUBLIC_TENANT_RESOLUTION_MODE`                                           | Offline/LAN-first deployment (doc 18) with no public domain/DNS/TLS at all, or any deployment that wants an explicit, unambiguous tenant selector in the URL |
+
+Both route families reuse the exact same application/domain services
+(`public-blog-directory.ts`, `public-page-rendering.ts`, `seo-rendering.ts`,
+`content-block-rendering.ts`, `blog-search.ts`'s `searchPublicBlogContent`)
+— see §Public routes `/news` (Issue #560) above, "The only actual
+difference". Neither family redirects to the other and there is no plan to
+retire `/blog/{tenantCode}` — see `docs/adr/0010-public-host-tenant-routing.md`
+§Konsekuensi and the `awcms-mini-tenant-domain-routing` skill's "aturan
+lintas-issue" #3. `/news` examples in this README never include a
+`tenantCode` segment — that is the whole point of the route (tenant is
+resolved from the request, not the path).
+
 ## Revisions (Issue #541)
 
 `/api/v1/blog/posts/{id}/revisions` (`src/pages/api/v1/blog/posts/[id]/revisions/`).
