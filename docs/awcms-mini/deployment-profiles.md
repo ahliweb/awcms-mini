@@ -47,6 +47,27 @@ Issue #556 menambahkan env var (lihat
 `.claude/skills/awcms-mini-tenant-domain-routing/SKILL.md` untuk status
 lengkap per issue.
 
+### Rute publik per profil — `/news` vs `/blog/{tenantCode}` (Issue #561)
+
+Rute mana yang aktif secara *praktis* untuk pengunjung anonim mengikuti
+pilihan `PUBLIC_TENANT_RESOLUTION_MODE` di atas, bukan build/kode yang
+berbeda — kedua rute (`/news` dan `/blog/{tenantCode}`) selalu ada di
+setiap build (lihat `src/modules/blog-content/README.md` §`/news` (default)
+vs `/blog/{tenantCode}` (legacy) dan
+[ADR-0010](../adr/0010-public-host-tenant-routing.md)):
+
+| Profil                                                              | Rute publik yang dipakai                                     | Resolusi tenant                                                                                     |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| **offline/LAN & development**                                      | `/blog/{tenantCode}` — legacy, tetap eksplisit tenant di path | Segmen path `tenantCode` (ADR-0009); `/news` tetap bisa diakses tapi hanya resolve lewat fallback env/setup default (langkah 2-4 resolver #559), tidak pernah host-mapping |
+| **production (online)**, `PUBLIC_TENANT_RESOLUTION_MODE=host_default` | `/news` — default, tanpa `tenantCode` di path                | `Host`/domain mapping (`awcms_mini_tenant_domains`, Issue #559); `/blog/{tenantCode}` tetap berfungsi paralel, tidak dinonaktifkan |
+
+Tidak ada redirect otomatis di antara keduanya dan `/blog/{tenantCode}`
+**tidak** dihapus/dijadwalkan hapus pada profil mana pun — operator memilih
+lewat konfigurasi env saja (`PUBLIC_TENANT_RESOLUTION_MODE`), bukan lewat
+perubahan kode/build per profil. Deployment offline/LAN yang tidak pernah
+men-set `PUBLIC_*` apa pun tetap berperilaku identik dengan sebelum epic
+#555 ada.
+
 - **offline/LAN & development**: biarkan `PUBLIC_TENANT_RESOLUTION_MODE`
   tidak di-set (default). `config:validate` tetap lulus tanpa var
   tambahan apa pun — tidak ada perubahan pada topologi LAN-first yang

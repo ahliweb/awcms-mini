@@ -33,7 +33,7 @@ menjembatani beberapa modul sekaligus (config, `tenant_domain` module baru,
 | #558  | Register module descriptor `tenant_domain`                    | **Selesai** — lihat §Module descriptor di bawah   |
 | #559  | Public host tenant resolver (dengan fallback)                 | **Selesai** — lihat §Resolver di bawah            |
 | #560  | Rute publik `/news` untuk `blog_content`                      | **Selesai** — lihat §Rute publik `/news` di bawah |
-| #561  | Dokumentasi legacy `/blog/{tenantCode}`                       | Belum                                             |
+| #561  | Dokumentasi legacy `/blog/{tenantCode}`                       | **Selesai** — lihat ADR-0010, `blog-content/README.md`, `deployment-profiles.md` |
 | #562  | Tenant domain management API                                  | Belum                                             |
 | #563  | Admin UI domain/subdomain                                     | Belum                                             |
 | #564  | Tenant settings untuk rute `/news` vs legacy (`blog_content`) | Belum                                             |
@@ -428,7 +428,7 @@ base, module-disabled 404, `tenant_code_legacy` 404, isolasi lintas tenant).
 
 1. **Backward compatibility non-negotiable**: setiap deployment offline/LAN existing yang tidak pernah set `PUBLIC_*` apa pun harus tetap `config:validate` PASS dan berperilaku persis seperti sebelum epic ini — jangan pernah membuat salah satu dari enam var config ini menjadi wajib secara default.
 2. **`PUBLIC_TRUST_PROXY=false` harus tetap default aman** di setiap lapisan baru — jangan baca `X-Forwarded-Host`/`X-Forwarded-Proto` kecuali `PUBLIC_TRUST_PROXY=true` eksplisit diset. Resolver #559 sudah menegakkan ini (`resolvePublicTenantFromRequest`'s `config.trustProxy`, default `false`); API domain #562 manapun yang membaca header host langsung (bukan lewat resolver ini) wajib pola yang sama.
-3. **`/blog/{tenantCode}` (ADR-0009, skill `awcms-mini-blog-content`) TIDAK dihapus** — epic #555 secara eksplisit out-of-scope untuk "removing legacy `/blog/{tenantCode}` routes in the MVP". `/news` (#560) adalah rute **tambahan**, bukan pengganti. Issue #561 mendokumentasikan `/blog/{tenantCode}` sebagai legacy, bukan menghapusnya.
+3. **`/blog/{tenantCode}` (ADR-0009, skill `awcms-mini-blog-content`) TIDAK dihapus** — epic #555 secara eksplisit out-of-scope untuk "removing legacy `/blog/{tenantCode}` routes in the MVP". `/news` (#560) adalah rute **tambahan**, bukan pengganti. Issue #561 (selesai — `docs/adr/0010-public-host-tenant-routing.md`) mendokumentasikan `/blog/{tenantCode}` sebagai legacy, bukan menghapusnya.
 4. **Jangan trust `X-Forwarded-Host` tanpa proxy tepercaya** — ulangi dari epic #555 §Security notes. Berlaku juga untuk API domain #562 manapun yang membaca header host secara independen dari resolver #559.
 5. **Tenant existence tidak boleh bocor**: domain/tenant yang unknown, failed, suspended, atau inactive harus menghasilkan respons yang identik/tidak bisa dibedakan (pola sama seperti ADR-0009's 404 identik untuk `tenantCode` tak dikenal vs tenant tidak aktif) — resolver #559 sudah menegakkan ini (`resolvePublicTenantByHost`/`resolveDefaultPublicTenantFromEnv`/`resolveDefaultPublicTenantFromSetupState`/`resolvePublicTenantFromRequest` semua return `null` identik). Rute publik `/news` #560 **wajib** memetakan `null` resolver ini ke 404 generic yang sama, tidak menambah pesan/status yang membedakan kasus.
 6. **Module disabled tetap diblokir server-side** — kalau tenant module presets (#565) atau tenant-module matrix (#566) menonaktifkan sebuah modul, endpoint modul itu wajib tetap menolak di server (guard ABAC/tenant-module lifecycle yang sudah ada dari `module_management`), bukan hanya disembunyikan di UI.
@@ -439,12 +439,13 @@ base, module-disabled 404, `tenant_code_legacy` 404, isolasi lintas tenant).
 
 ## Belum ada — jangan asumsikan sudah dikerjakan
 
-Isu #561-#567 (dokumentasi legacy, API tenant domain, admin UI domain,
-tenant settings rute `/news`/legacy di `blog_content`, module presets,
-matrix UI admin, dan adapter Cloudflare DNS) **belum ada** — lapisan config
-(#556), schema `awcms_mini_tenant_domains` (#557), module descriptor
-`tenant_domain` (#558), resolver host-based (#559), dan rute publik
-`/news` (#560) sudah selesai (lihat §Rute publik `/news` di atas). Tabel
+Isu #562-#567 (API tenant domain, admin UI domain, tenant settings rute
+`/news`/legacy di `blog_content`, module presets, matrix UI admin, dan
+adapter Cloudflare DNS) **belum ada** — lapisan config (#556), schema
+`awcms_mini_tenant_domains` (#557), module descriptor `tenant_domain`
+(#558), resolver host-based (#559), rute publik `/news` (#560), dan
+dokumentasi legacy/ADR-0010 (#561) sudah selesai (lihat §Rute publik
+`/news` dan aturan #3 di atas). Tabel
 `awcms_mini_tenant_domains` masih berisi schema + constraint + RLS +
 permission catalog seed + fungsi lookup `SECURITY DEFINER` saja — belum
 ada baris yang pernah ditulis lewat kode aplikasi (menunggu #562's API);

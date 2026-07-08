@@ -33,5 +33,6 @@ flowchart LR
 | [0007](0007-openapi-asyncapi-contracts.md)                 | OpenAPI & AsyncAPI sebagai kontrak wajib                                   | Accepted |
 | [0008](0008-independent-contract-and-module-versioning.md) | Versioning independen: package, kontrak API/event, module descriptor       | Accepted |
 | [0009](0009-public-tenant-scoped-routes.md)                | Resolusi tenant untuk rute publik lewat path `tenantCode`, bukan subdomain | Proposed |
+| [0010](0010-public-host-tenant-routing.md)                 | Routing tenant publik berbasis host/domain — ekstensi online-public di atas ADR-0009 | Proposed |
 
 Detail rinci tiap keputusan tetap berada di paket dokumen `docs/awcms-mini/`; ADR merangkum **keputusan + alasan + konsekuensi**, bukan menggantikan dokumen teknis.
