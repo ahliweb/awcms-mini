@@ -34,6 +34,37 @@ proxy sama sekali. PgBouncer (`deploy/pgbouncer/`) hanya untuk skenario
 koneksi pendek bervolume tinggi (lihat
 [`database-pooling.md`](database-pooling.md) §7) — bukan kebutuhan default.
 
+## Profil online (public tenant routing) — config-only, Issue #556
+
+Epic #555 menambahkan mode routing publik online-first di atas empat
+profil di atas (bukan profil kelima yang terpisah — `production (online)`
+tetap profil yang sama, sekarang bisa dikonfigurasi lebih eksplisit).
+Issue #556 **hanya** menambahkan env var (lihat
+[`18_configuration_env_reference.md`](18_configuration_env_reference.md#public-routing-opsional-online-first--issue-556-epic-555)
+§Public routing) — schema tenant-domain, rute publik `/news`, dan resolver
+host-based menyusul di issue #557-#567.
+
+- **offline/LAN & development**: biarkan `PUBLIC_TENANT_RESOLUTION_MODE`
+  tidak di-set (default). `config:validate` tetap lulus tanpa var
+  tambahan apa pun — tidak ada perubahan pada topologi LAN-first yang
+  sudah didokumentasikan di atas.
+- **production (online)**, saat resolver host-based (Issue #559) sudah
+  siap dipakai: set `PUBLIC_TENANT_RESOLUTION_MODE=host_default` dan
+  `PUBLIC_PLATFORM_ROOT_DOMAIN=<root-domain-platform>` di environment
+  systemd/compose/registry image (lihat pola secret injection di
+  `production (online) — image registry` di bawah — env var, bukan
+  hardcode ke image).
+- **`PUBLIC_TRUST_PROXY`**: default aman **wajib** `false`. Set `true`
+  **hanya** bila deployment ini benar-benar berjalan di belakang reverse
+  proxy tepercaya yang mengisi ulang `X-Forwarded-Host` secara aman —
+  yaitu tepat topologi `deploy/nginx/awcms-mini.conf.example` (TLS
+  termination) di baris "production (online)" pada tabel di atas. Jangan
+  set `true` pada topologi offline/LAN yang melewati nginx sepenuhnya
+  (baris "offline/LAN" di atas: "nginx dapat dilewati sepenuhnya") — tanpa
+  proxy tepercaya di depan, header `X-Forwarded-Host` bisa dipalsukan
+  klien mana pun, dan resolver host-based yang akan dibangun di Issue
+  #559 akan memakainya untuk menentukan tenant.
+
 ## Cara menjalankan tiap profil
 
 ### development
@@ -198,6 +229,16 @@ menambahkan `scripts/validate-env.ts` (`bun run config:validate`):
   (Issue 10.3), bukan logika terpisah yang bisa menyimpang.
 - Kondisional: bila `R2_ENABLED=true`, maka `R2_ACCOUNT_ID`,
   `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` wajib diisi.
+- Kondisional (Issue #556, epic #555 — config-only, lihat §Profil online
+  di bawah): bila `PUBLIC_TENANT_RESOLUTION_MODE` diisi, nilainya harus
+  salah satu dari `host_default`/`env_default`/`setup_default`/
+  `tenant_code_legacy`; `host_default` mewajibkan
+  `PUBLIC_PLATFORM_ROOT_DOMAIN`, `env_default` mewajibkan minimal salah
+  satu dari `PUBLIC_DEFAULT_TENANT_ID`/`PUBLIC_DEFAULT_TENANT_CODE`.
+  `PUBLIC_CANONICAL_BASE_PATH`, bila diisi, harus absolute path (diawali
+  `/`). Var ini semua **tidak wajib** untuk profil offline/LAN —
+  meninggalkannya kosong tetap lulus `config:validate` (perilaku default
+  legacy `/blog/{tenantCode}` tidak berubah).
 - Tidak pernah mencetak nilai secret asli — hanya nama variabel yang
   hilang/tidak valid. Exit code bukan nol bila ada kegagalan.
 

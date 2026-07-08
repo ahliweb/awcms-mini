@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   checkEmailConfig,
+  checkPublicRoutingConfig,
   checkR2Config,
   checkRequiredVars,
   checkSyncConfig,
@@ -200,6 +201,138 @@ describe("checkEmailConfig", () => {
   });
 });
 
+describe("checkPublicRoutingConfig", () => {
+  test("passes (mode + base path) when PUBLIC_TENANT_RESOLUTION_MODE is not set", () => {
+    const results = checkPublicRoutingConfig({} as NodeJS.ProcessEnv);
+
+    expect(results).toHaveLength(2);
+    expect(results.every((result) => result.status === "pass")).toBe(true);
+  });
+
+  test("fails when PUBLIC_TENANT_RESOLUTION_MODE is not one of the documented values", () => {
+    const results = checkPublicRoutingConfig({
+      PUBLIC_TENANT_RESOLUTION_MODE: "made_up_mode"
+    } as NodeJS.ProcessEnv);
+
+    const failed = results.find(
+      (result) => result.name === "PUBLIC_TENANT_RESOLUTION_MODE"
+    );
+    expect(failed?.status).toBe("fail");
+  });
+
+  test("host_default fails without PUBLIC_PLATFORM_ROOT_DOMAIN", () => {
+    const results = checkPublicRoutingConfig({
+      PUBLIC_TENANT_RESOLUTION_MODE: "host_default"
+    } as NodeJS.ProcessEnv);
+
+    const failed = results.find(
+      (result) => result.name === "PUBLIC_PLATFORM_ROOT_DOMAIN"
+    );
+    expect(failed?.status).toBe("fail");
+  });
+
+  test("host_default passes with PUBLIC_PLATFORM_ROOT_DOMAIN set", () => {
+    const results = checkPublicRoutingConfig({
+      PUBLIC_TENANT_RESOLUTION_MODE: "host_default",
+      PUBLIC_PLATFORM_ROOT_DOMAIN: "example.test"
+    } as NodeJS.ProcessEnv);
+
+    expect(results.every((result) => result.status === "pass")).toBe(true);
+  });
+
+  test("env_default fails without PUBLIC_DEFAULT_TENANT_ID or PUBLIC_DEFAULT_TENANT_CODE", () => {
+    const results = checkPublicRoutingConfig({
+      PUBLIC_TENANT_RESOLUTION_MODE: "env_default"
+    } as NodeJS.ProcessEnv);
+
+    const failed = results.find(
+      (result) =>
+        result.name === "PUBLIC_DEFAULT_TENANT_ID or PUBLIC_DEFAULT_TENANT_CODE"
+    );
+    expect(failed?.status).toBe("fail");
+  });
+
+  test("env_default passes with only PUBLIC_DEFAULT_TENANT_ID set", () => {
+    const results = checkPublicRoutingConfig({
+      PUBLIC_TENANT_RESOLUTION_MODE: "env_default",
+      PUBLIC_DEFAULT_TENANT_ID: "11111111-1111-1111-1111-111111111111"
+    } as NodeJS.ProcessEnv);
+
+    expect(results.every((result) => result.status === "pass")).toBe(true);
+  });
+
+  test("env_default passes with only PUBLIC_DEFAULT_TENANT_CODE set", () => {
+    const results = checkPublicRoutingConfig({
+      PUBLIC_TENANT_RESOLUTION_MODE: "env_default",
+      PUBLIC_DEFAULT_TENANT_CODE: "demo"
+    } as NodeJS.ProcessEnv);
+
+    expect(results.every((result) => result.status === "pass")).toBe(true);
+  });
+
+  test("setup_default passes without any extra public routing var", () => {
+    const results = checkPublicRoutingConfig({
+      PUBLIC_TENANT_RESOLUTION_MODE: "setup_default"
+    } as NodeJS.ProcessEnv);
+
+    expect(results.every((result) => result.status === "pass")).toBe(true);
+  });
+
+  test("tenant_code_legacy passes without any extra public routing var", () => {
+    const results = checkPublicRoutingConfig({
+      PUBLIC_TENANT_RESOLUTION_MODE: "tenant_code_legacy"
+    } as NodeJS.ProcessEnv);
+
+    expect(results.every((result) => result.status === "pass")).toBe(true);
+  });
+
+  test("PUBLIC_CANONICAL_BASE_PATH passes when unset (defaults to /news)", () => {
+    const results = checkPublicRoutingConfig({} as NodeJS.ProcessEnv);
+    const check = results.find(
+      (result) => result.name === "PUBLIC_CANONICAL_BASE_PATH"
+    );
+
+    expect(check?.status).toBe("pass");
+  });
+
+  test("PUBLIC_CANONICAL_BASE_PATH passes for a valid absolute path", () => {
+    const results = checkPublicRoutingConfig({
+      PUBLIC_CANONICAL_BASE_PATH: "/news"
+    } as NodeJS.ProcessEnv);
+    const check = results.find(
+      (result) => result.name === "PUBLIC_CANONICAL_BASE_PATH"
+    );
+
+    expect(check?.status).toBe("pass");
+  });
+
+  test.each([
+    ["missing leading slash", "news"],
+    ["trailing slash", "/news/"],
+    ["whitespace", "/news blog"],
+    ["double slash", "/news//latest"]
+  ])("PUBLIC_CANONICAL_BASE_PATH fails for %s (%p)", (_label, value) => {
+    const results = checkPublicRoutingConfig({
+      PUBLIC_CANONICAL_BASE_PATH: value
+    } as NodeJS.ProcessEnv);
+    const check = results.find(
+      (result) => result.name === "PUBLIC_CANONICAL_BASE_PATH"
+    );
+
+    expect(check?.status).toBe("fail");
+  });
+
+  test("never includes PUBLIC_DEFAULT_TENANT_ID/CODE values in failure details", () => {
+    const results = checkPublicRoutingConfig({
+      PUBLIC_TENANT_RESOLUTION_MODE: "env_default"
+    } as NodeJS.ProcessEnv);
+
+    for (const result of results) {
+      expect(result.detail).not.toContain("11111111-1111-1111-1111");
+    }
+  });
+});
+
 describe("runEnvValidation", () => {
   test("passes end-to-end for a minimal valid env (sync/R2/email all off)", () => {
     const env = {
@@ -224,6 +357,31 @@ describe("runEnvValidation", () => {
     const env = {
       ...VALID_ENV,
       EMAIL_ENABLED: "true"
+    } as NodeJS.ProcessEnv;
+
+    const results = runEnvValidation(env);
+    expect(results.some((result) => result.status === "fail")).toBe(true);
+  });
+
+  test("passes end-to-end when PUBLIC_TENANT_RESOLUTION_MODE is left unset (offline/LAN default, Issue #556)", () => {
+    const env = {
+      ...VALID_ENV,
+      AWCMS_MINI_SYNC_ENABLED: "false",
+      R2_ENABLED: "false",
+      EMAIL_ENABLED: "false"
+    } as NodeJS.ProcessEnv;
+
+    const results = runEnvValidation(env);
+    expect(results.every((result) => result.status === "pass")).toBe(true);
+  });
+
+  test("fails end-to-end when PUBLIC_TENANT_RESOLUTION_MODE=host_default is missing PUBLIC_PLATFORM_ROOT_DOMAIN", () => {
+    const env = {
+      ...VALID_ENV,
+      AWCMS_MINI_SYNC_ENABLED: "false",
+      R2_ENABLED: "false",
+      EMAIL_ENABLED: "false",
+      PUBLIC_TENANT_RESOLUTION_MODE: "host_default"
     } as NodeJS.ProcessEnv;
 
     const results = runEnvValidation(env);
