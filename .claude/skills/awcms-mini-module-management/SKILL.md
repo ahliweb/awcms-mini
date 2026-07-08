@@ -62,6 +62,23 @@ Modul `isCore: true` (saat ini hanya `module_management` sendiri) tidak
 bisa dinonaktifkan — ini pencegah _admin lockout_ utama: kemampuan
 mengelola modul lain tidak pernah hilang.
 
+## Tenant module presets (Issue #565, epic #555)
+
+`domain/module-presets.ts` + `application/module-presets.ts`
+(`applyModulePreset`) — set state modul tenant sekaligus ke sebuah
+"profil" (`online_website`, `news_portal`, `saas_online`, `pos_lan`,
+`minimal`), 100% reuse `evaluateModuleEnable`/`evaluateModuleDisable`/
+`enableTenantModule`/`disableTenantModule` di atas — **tidak pernah**
+menulis `awcms_mini_tenant_modules` langsung. Preset menerapkan enable
+DAN disable (bukan cuma enable) — modul yang tidak ada di daftar preset
+dan bukan "protected" (`isCore` + closure transitif dependency-nya,
+dihitung dinamis lewat `resolveProtectedModuleKeys`) akan di-disable,
+leaves-first, skip (bukan force) untuk modul yang masih dibutuhkan modul
+lain yang tetap enabled. Idempotent (re-apply = plan kosong). **Baru
+service layer** — belum ada endpoint API/UI (scope Issue #566). Detail
+lengkap: `module-management/README.md` §Tenant module presets, skill
+`awcms-mini-tenant-domain-routing` §Tenant module presets (Issue #565).
+
 ## Settings — merge dangkal, bukan replace
 
 `PATCH .../settings` men-**merge dangkal** body ke `tenantOverride` yang

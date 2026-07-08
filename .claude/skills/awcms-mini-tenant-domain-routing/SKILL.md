@@ -37,7 +37,7 @@ menjembatani beberapa modul sekaligus (config, `tenant_domain` module baru,
 | #562  | Tenant domain management API                                  | **Selesai** — lihat §API di bawah                                                |
 | #563  | Admin UI domain/subdomain                                     | **Selesai** — lihat §Admin UI di bawah                                           |
 | #564  | Tenant settings untuk rute `/news` vs legacy (`blog_content`) | **Selesai** — lihat §Tenant settings public route di bawah                       |
-| #565  | Tenant module presets (online/news/LAN/minimal)               | Belum                                                                            |
+| #565  | Tenant module presets (online/news/LAN/minimal)               | **Selesai** — lihat §Tenant module presets di bawah                              |
 | #566  | Tenant-module matrix admin UI                                 | Belum                                                                            |
 | #567  | Cloudflare DNS adapter (opsional)                             | Belum                                                                            |
 
@@ -602,6 +602,53 @@ test) dan 3 test paritas round-trip di
 lengkap kelima keputusan di atas: `blog-content/README.md` §Public route
 settings.
 
+### Tenant module presets (Issue #565, `module_management`)
+
+Domain+application service layer saja (`src/modules/module-management/domain/module-presets.ts` +
+`application/module-presets.ts`) — **belum ada endpoint API/UI** (itu
+scope #566's matrix UI dan/atau setup wizard yang belum ada). Lima preset
+(`online_website`, `news_portal`, `saas_online`, `pos_lan`, `minimal`),
+`applyModulePreset()` bisa dipanggil issue lanjutan mana pun yang butuh
+"set tenant module state ke profil X" — jangan re-derive dependency-graph
+logic-nya, itu sudah 100% reuse `evaluateModuleEnable`/
+`evaluateModuleDisable`/`enableTenantModule`/`disableTenantModule` yang
+ada sejak Issue #515.
+
+**Koreksi kunci key modul** yang wajib diikuti issue lanjutan manapun yang
+menyebut modul workflow: key registry sungguhan adalah `workflow`
+(`src/modules/workflow-approval/module.ts`), **bukan**
+`workflow_approval` — issue #565 sendiri salah menyebutnya di contoh
+JSON-nya. Grep `key: "` di `src/modules/*/module.ts` sebelum menulis key
+modul apa pun secara manual, jangan asumsikan nama direktori = key.
+
+**Preset menerapkan enable DAN disable** (bukan cuma enable) — modul yang
+sedang enabled, tidak ada di daftar preset, dan bukan "protected"
+(`isCore: true` ditambah closure transitif dependency-nya — dihitung
+dinamis lewat `resolveProtectedModuleKeys`, bukan hardcoded; hari ini
+resolve ke `{module_management, tenant_admin, identity_access,
+profile_identity}`) akan di-disable. Disable leaves-first, skip (bukan
+force) untuk modul yang masih dibutuhkan modul lain yang tetap enabled —
+termasuk modul yang plan yang SAMA baru saja mau enable (bug post-review:
+versi awal cuma menghitung status enabled SEBELUM plan, bukan union
+dengan modul yang baru mau di-enable plan itu sendiri — sudah diperbaiki,
+lihat komentar `planDisableOrder` di `domain/module-presets.ts`).
+Idempotent: re-apply preset yang sama menghasilkan plan kosong (tidak ada
+audit event baru). Setiap perubahan modul (bukan satu event "preset
+applied" agregat) tetap diaudit lewat `recordAuditEvent` pola sama
+`enable.ts`/`disable.ts`.
+
+`applyModulePreset` **tidak** melakukan ABAC check sendiri (sama seperti
+`enableTenantModule`/`disableTenantModule` yang dibungkusnya) — pemanggil
+masa depan (API #566 atau setup wizard) wajib `authorizeInTransaction`
+sendiri sebelum memanggilnya, guard permission yang sesuai (pola sama
+`ENABLE_GUARD`/`DISABLE_GUARD` di `enable.ts`/`disable.ts`).
+
+Test: `tests/unit/module-presets.test.ts` (18 test, pure domain logic
+lewat synthetic registry) dan
+`tests/integration/module-presets.integration.test.ts` (7 test, real
+Postgres). Detail lengkap tiga keputusan desain di atas:
+`module-management/README.md` §Tenant module presets.
+
 ## Aturan lintas-issue yang wajib diikuti
 
 1. **Backward compatibility non-negotiable**: setiap deployment offline/LAN existing yang tidak pernah set `PUBLIC_*` apa pun harus tetap `config:validate` PASS dan berperilaku persis seperti sebelum epic ini — jangan pernah membuat salah satu dari enam var config ini menjadi wajib secara default.
@@ -609,7 +656,7 @@ settings.
 3. **`/blog/{tenantCode}` (ADR-0009, skill `awcms-mini-blog-content`) TIDAK dihapus** — epic #555 secara eksplisit out-of-scope untuk "removing legacy `/blog/{tenantCode}` routes in the MVP". `/news` (#560) adalah rute **tambahan**, bukan pengganti. Issue #561 (selesai — `docs/adr/0010-public-host-tenant-routing.md`) mendokumentasikan `/blog/{tenantCode}` sebagai legacy, bukan menghapusnya.
 4. **Jangan trust `X-Forwarded-Host` tanpa proxy tepercaya** — ulangi dari epic #555 §Security notes. Berlaku juga untuk API domain #562 manapun yang membaca header host secara independen dari resolver #559.
 5. **Tenant existence tidak boleh bocor**: domain/tenant yang unknown, failed, suspended, atau inactive harus menghasilkan respons yang identik/tidak bisa dibedakan (pola sama seperti ADR-0009's 404 identik untuk `tenantCode` tak dikenal vs tenant tidak aktif) — resolver #559 sudah menegakkan ini (`resolvePublicTenantByHost`/`resolveDefaultPublicTenantFromEnv`/`resolveDefaultPublicTenantFromSetupState`/`resolvePublicTenantFromRequest` semua return `null` identik). Rute publik `/news` #560 **wajib** memetakan `null` resolver ini ke 404 generic yang sama, tidak menambah pesan/status yang membedakan kasus.
-6. **Module disabled tetap diblokir server-side** — kalau tenant module presets (#565) atau tenant-module matrix (#566) menonaktifkan sebuah modul, endpoint modul itu wajib tetap menolak di server (guard ABAC/tenant-module lifecycle yang sudah ada dari `module_management`), bukan hanya disembunyikan di UI.
+6. **Module disabled tetap diblokir server-side** — kalau tenant module presets (#565, selesai) atau tenant-module matrix (#566) menonaktifkan sebuah modul, endpoint modul itu wajib tetap menolak di server (guard ABAC/tenant-module lifecycle yang sudah ada dari `module_management`), bukan hanya disembunyikan di UI. Ditegakkan otomatis untuk #565 — `applyModulePreset` selalu lewat `disableTenantModule` yang sudah ada (tidak pernah menulis `awcms_mini_tenant_modules` langsung), jadi enforcement server-side yang sudah ada sejak Issue #515 tidak pernah dilewati.
 7. **Provider secret (mis. Cloudflare API token, #567) tidak pernah disimpan di module descriptor atau kolom DB biasa** — pakai environment variable seperti provider lain (Mailketing, R2), dan `configure`-only permission gate seperti pola `email`/`sync-storage` provider config.
 8. **Semua mutasi domain/module (create/update/delete domain mapping, enable/disable module preset) wajib diaudit** — pola `recordAuditEvent` yang sama dipakai modul lain, action literal sesuai konvensi modul (`tenant_domain.<resource>.<verb>` mengikuti pola `blog.<resource>.<verb>` dari blog_content). Resolver #559 sendiri **bukan** mutasi (read-only, anonymous) — tidak diaudit, sama seperti `resolvePublicTenantByCode` (ADR-0009) tidak diaudit.
 9. **Cloudflare DNS adapter (#567) adalah opsional/enhancement**, bukan hard dependency — epic #555 §Out of scope eksplisit menyebut "making Cloudflare DNS automation a hard dependency" di luar scope. Tenant domain mapping (#557/#562) harus tetap berfungsi tanpa Cloudflare sama sekali (manual DNS setup oleh operator).
@@ -617,14 +664,15 @@ settings.
 
 ## Belum ada — jangan asumsikan sudah dikerjakan
 
-Isu #565-#567 (module presets, matrix UI admin, dan adapter Cloudflare
-DNS) **belum ada**. Sudah selesai: config (#556), schema
-`awcms_mini_tenant_domains` (#557), module descriptor `tenant_domain`
-(#558), resolver host-based (#559), rute publik `/news` (#560),
-dokumentasi legacy/ADR-0010 (#561), API tenant domain management (#562,
-§API di atas), admin UI (#563, §Admin UI di atas), dan tenant settings
-public route `blog_content` (#564, §Tenant settings public route di
-atas). Tabel `awcms_mini_tenant_domains` sekarang bisa
+Isu #566-#567 (matrix UI admin dan adapter Cloudflare DNS) **belum ada**.
+Sudah selesai: config (#556), schema `awcms_mini_tenant_domains` (#557),
+module descriptor `tenant_domain` (#558), resolver host-based (#559),
+rute publik `/news` (#560), dokumentasi legacy/ADR-0010 (#561), API
+tenant domain management (#562, §API di atas), admin UI (#563, §Admin UI
+di atas), tenant settings public route `blog_content` (#564, §Tenant
+settings public route di atas), dan tenant module presets (#565, §Tenant
+module presets di atas — **service layer saja, belum ada API/UI**, itu
+scope #566). Tabel `awcms_mini_tenant_domains` sekarang bisa
 ditulis lewat kode aplikasi (API #562 + admin UI #563) — bukan lagi
 schema-only. Operator yang benar-benar mengisi baris nyata lewat
 UI/API dan mengaktifkan `PUBLIC_TENANT_RESOLUTION_MODE=host_default`

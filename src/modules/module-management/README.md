@@ -324,6 +324,112 @@ also syncs the registry first (same reasoning as
   #516's `PATCH` endpoint already enforces applies here too, since this
   form calls that exact endpoint.
 
+## Tenant module presets — `domain/module-presets.ts` + `application/module-presets.ts` (Issue #565, epic #555)
+
+Reusable named sets of modules matching an intended deployment profile
+(`online_website`, `news_portal`, `saas_online`, `pos_lan`, `minimal`), so
+a new tenant can be initialized with module availability that matches its
+profile without an operator clicking through enable/disable one module at
+a time. Domain + application service layer only in this issue — no new API
+route or UI (`applyModulePreset(tx, tenantId, actorTenantUserId,
+presetName)` is a plain callable function, meant to be called by a future
+setup wizard step or tenant-admin flow, and by #566's tenant-module matrix
+UI).
+
+**Corrected module key**: the issue's own illustrative preset table used
+`workflow_approval`, but the actually registered module key (the directory
+is `workflow-approval`, the descriptor's `key` is `workflow`) is
+`workflow`. Every preset definition here uses the real key, verified
+against `listModules()` by `tests/unit/module-presets.test.ts`'s own
+cross-check test — a wrong key would otherwise silently no-op (the
+descriptor lookup returns nothing to act on) rather than fail loud.
+
+**A preset both enables AND disables.** Applying a preset enables every
+module it lists, and disables every currently-enabled module that isn't
+listed and isn't "protected" (below). Only-ever-enabling would make
+presets useless for reaching a coherent profile — a tenant that had
+`blog_content` enabled before applying `minimal` would stay non-minimal
+forever if presets never disabled anything. This makes preset application
+a best-effort "make tenant module state match this profile" operation.
+
+**"Protected" (core, for preset purposes) is computed, not hardcoded.**
+Only `module_management` sets `isCore: true` in this registry today —
+`tenant_admin`/`identity_access`/`profile_identity` don't, even though
+they're just as foundational; their protection today comes purely from the
+dependency graph's reverse-dependency check (nothing can disable
+`identity_access` while `module_management`, which depends on it
+transitively, remains enabled — and `module_management` itself can never
+be disabled). `resolveProtectedModuleKeys` makes this explicit: `isCore`
+keys unioned with the full transitive dependency closure of every `isCore`
+key. In this repo that evaluates to `{module_management, tenant_admin,
+identity_access, profile_identity}`. This is what lets `minimal` concretely
+mean "enable nothing beyond this protected set, disable everything else
+this tenant can safely give up" instead of an empty enable list that would
+leave every previously-enabled module untouched.
+
+**A preset-listed module's own missing dependency is never auto-enabled.**
+If a preset lists a module whose dependency isn't itself in the preset (or
+otherwise already enabled), this code does not invent resolution logic to
+silently add it — the real `evaluateModuleEnable` semantics
+(`MODULE_DEPENDENCY_MISSING`/`MODULE_DEPENDENCY_DISABLED`) are reused
+as-is, and that failure is a real, reportable per-module outcome. In
+practice this only matters cross-preset: e.g. `reporting` (listed by
+`online_website`/`news_portal`/`saas_online`/`pos_lan`) depends on
+`sync_storage` and `email`, neither of which every one of those presets
+lists explicitly — a fresh tenant has every module enabled by default so
+this never triggers on first apply, but if a _previous_ preset already
+disabled one of those dependencies, the disable-planning below (leaves-first,
+skip-not-force) actually prevents this from ever biting in practice: a
+still-enabled `reporting` blocks its own dependencies from being
+candidates for disabling in the first place (see next paragraph) — the
+`MODULE_DEPENDENCY_DISABLED` path exists as a defensive fallback for the
+general case, not because the five built-in presets are expected to hit it.
+
+**Disabling is leaves-first and skip-not-force.** A module is only
+disabled once nothing that stays enabled still depends on it (mirrors
+exactly what the real, sequential `disableTenantModule` calls see as each
+one lands). A module that can never become disableable — something that
+stays enabled (core/protected, or another preset-listed module) still
+depends on it — is reported in the result's `skipped` array with reason
+`reverse_dependency_active`, never force-disabled and never silently
+dropped. Concretely: applying `online_website` (lists `reporting` but not
+`sync_storage`) leaves `sync_storage` enabled and reports it `skipped`,
+because `reporting` — which stays enabled — depends on it.
+
+**Idempotency**: `enableTenantModule`/`disableTenantModule` return a
+`MODULE_ALREADY_ENABLED`/`MODULE_ALREADY_DISABLED` rejection when a module
+is already in the target state — the domain plan (`computeModulePresetPlan`)
+already excludes such modules from `toEnable`/`toDisable` in the first
+place (nothing to attempt), so a clean re-application of the same preset
+produces an empty plan and writes zero audit events. Any other rejection
+code the real lifecycle validation returns (`MODULE_DEPENDENCY_MISSING`,
+`MODULE_DEPENDENCY_DISABLED`, `CORE_MODULE_CANNOT_BE_DISABLED`,
+`MODULE_REVERSE_DEPENDENCY_ACTIVE`) is surfaced as a genuine `rejected`
+entry in the result's `changes` array — never silently swallowed.
+
+**Audit**: one `tenant_module_enabled`/`tenant_module_disabled` event per
+module actually changed (same action/resourceType as the manual
+enable/disable endpoints), each tagged with `attributes.presetName` — never
+one aggregate "preset applied" event, so an operator/auditor can see the
+exact per-module state transitions a preset produced.
+
+**Security**: never writes `awcms_mini_tenant_modules` directly — every
+change goes through the real `enableTenantModule`/`disableTenantModule`.
+Never touches `awcms_mini_roles`/`awcms_mini_role_permissions`/
+`awcms_mini_access_assignments` — a preset changes module _availability_
+only, never grants permissions (permission seeding is `bun run
+modules:sync`'s job, already called internally by `enableTenantModule`).
+`applyModulePreset` itself performs no auth/ABAC check — same division of
+responsibility as `enableTenantModule`/`disableTenantModule` — the caller
+(a future API route/setup wizard step) is responsible for
+`authorizeInTransaction` before calling it.
+
+Covered by `tests/unit/module-presets.test.ts` (pure domain planning
+against both a synthetic registry and the real one) and
+`tests/integration/module-presets.integration.test.ts` (real Postgres:
+real row states, real audit events, idempotent re-application, and
+switching between two different presets).
+
 ## Out of scope (epic #510)
 
 Marketplace, runtime plugin upload, running arbitrary jobs from the UI,
