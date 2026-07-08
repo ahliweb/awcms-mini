@@ -5,20 +5,20 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-06T17:17:45.853Z        |
-| Total issue  | 58                              |
-| Open issue   | 1                               |
-| Closed issue | 57                              |
-| Labels       | 98 (25 doc 06 + 73 peninggalan) |
+| Snapshot     | 2026-07-08T01:11:10.873Z        |
+| Total issue  | 94                              |
+| Open issue   | 0                               |
+| Closed issue | 94                              |
+| Labels       | 99 (25 doc 06 + 74 peninggalan) |
 | Milestones   | 25 (6 doc 06 + 19 peninggalan)  |
 
 ## File snapshot
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    1 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   57 |
-| LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             98 labels, 25 milestones |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    0 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   94 |
+| LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             99 labels, 25 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
 ## Aturan pencatatan
@@ -65,10 +65,39 @@ Update juga metadata di `docs/awcms-mini/README.md`, `06_github_issues_detail.md
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                                                                                                                                                                                                   |
-| ------ | -----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |      1 | #472 — refresh snapshot ini sendiri (docs-only); akan `completed` begitu PR-nya merge. Bukan bagian backlog doc06 (18 issue itu sudah `completed` seluruhnya).                                                                                                                                                            |
-| CLOSED |     57 | 20 issue domain ditutup `not planned`; 18 issue backlog doc06 (#371-#373, #376-#379, #391-#393, #398, #401, #403-#408) ditutup `completed`; epic M9 (#433-#438, #447, 7 issue) dan 12 issue pasca-analisis lanjutan (#450-#454, #461-#465, #473, #475) ditutup `completed` di luar backlog doc06 — lihat bagian di bawah. |
+| State  | Jumlah | Catatan                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------ | -----: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |      0 | Tidak ada issue open — seluruh backlog (doc06 dan pasca-doc06) sudah `completed`/`not planned`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| CLOSED |     94 | 20 issue domain ditutup `not planned`; 18 issue backlog doc06 (#371-#373, #376-#379, #391-#393, #398, #401, #403-#408) ditutup `completed`; epic M9 (#433-#438, #447), 12 issue pasca-analisis lanjutan (#450-#454, #461-#465, #473, #475), epic reusable wizard form (#479, #481-#485), epic reusable email module (#492-#500), epic Module Management (#510-#522), dan epic blog_content (#536-#543) ditutup `completed` di luar backlog doc06 — lihat bagian di bawah. Narasi detail untuk epic wizard/email/module-management (#476-#535) belum ditulis di bawah ini — lihat catatan follow-up di bagian blog_content. |
+
+### Epic blog_content #536-#543 completed (2026-07-07 s.d. 2026-07-08)
+
+Epic pertama yang mendaftarkan modul domain **langsung** di repo base ini
+(bukan di aplikasi turunan — lihat `AGENTS.md` §Peta modul dan
+`docs/adr/0009-public-tenant-scoped-routes.md`), tujuh issue seluruhnya
+ditutup `completed`:
+
+- **[#537](https://github.com/ahliweb/awcms-mini/issues/537)** — scaffold module, schema, dan permission seed (migration 026/027). PR [#545](https://github.com/ahliweb/awcms-mini/pull/545).
+- **[#538](https://github.com/ahliweb/awcms-mini/issues/538)** — admin API + lifecycle actions untuk blog post (`/api/v1/blog/posts`). PR [#546](https://github.com/ahliweb/awcms-mini/pull/546).
+- **[#539](https://github.com/ahliweb/awcms-mini/issues/539)** — pages, taksonomi, relasi post-term, dan PostgreSQL full-text search. PR [#547](https://github.com/ahliweb/awcms-mini/pull/547).
+- **[#540](https://github.com/ahliweb/awcms-mini/issues/540)** — rute publik anonim (`/blog/{tenantCode}/...`), RSS, sitemap, SEO. PR [#548](https://github.com/ahliweb/awcms-mini/pull/548).
+- **[#541](https://github.com/ahliweb/awcms-mini/issues/541)** — revision history append-only, scheduled publishing (`bun run blog:publish:scheduled`), dan kontrak AsyncAPI penuh. PR [#549](https://github.com/ahliweb/awcms-mini/pull/549).
+- **[#542](https://github.com/ahliweb/awcms-mini/issues/542)** — template, menu hierarkis, widget, iklan, tema per-tenant, multilingual (`translation_group_id`), block `gallery`. PR [#550](https://github.com/ahliweb/awcms-mini/pull/550).
+- **[#543](https://github.com/ahliweb/awcms-mini/issues/543)** — admin UI (14 layar `/admin/blog/...`), blog settings API (`/api/v1/blog/settings`), dan hardening akhir. PR [#551](https://github.com/ahliweb/awcms-mini/pull/551).
+
+Modul `blog_content` kini `status: "active"` (sebelumnya `experimental`),
+v0.7.0 — didokumentasikan penuh di `src/modules/blog-content/README.md`
+dan skill `awcms-mini-blog-content`. #537-#540 sempat tertinggal `open` di
+GitHub selama ~1 hari meski PR-nya sudah merge (badan PR tidak menyertakan
+kata kunci `Closes #NNN`) — ditutup manual saat refresh snapshot ini.
+
+**Follow-up yang belum dikerjakan** (di luar scope refresh ini): narasi
+"### ... completed" untuk epic reusable wizard form (#479-#485), epic
+reusable email module (#492-#500), dan epic Module Management (#510-#522)
+belum ditulis di dokumen ini meski issue-nya sudah lama `completed` —
+gap pre-existing, bukan berasal dari epic blog_content. Tabel ringkasan di
+atas sudah menghitungnya dengan benar; hanya narasi detail per-epic yang
+menyusul.
 
 ### Issue pasca-analisis #461-#465, #473, #475 completed (2026-07-06 s.d. 2026-07-07)
 
@@ -213,7 +242,7 @@ Repository awcms-mini adalah **contoh repo pengembangan umum** (base modular mon
 - **4 milestone dihapus** (jadi kosong setelah issue domain ditutup): `M1 — Legacy Migration & Data Model`, `M3 — POS MVP`, `M4 — Inventory & Warehouse`, `M6 — Tax/Coretax Readiness`.
 - **2 milestone di-rename**: `M5 — CRM, Receipt, Sync` → `M5 — Sync Storage` (drop CRM); `M7 — Reporting, AI, UI/UX` → `M7 — UI/UX & Reporting` (drop AI).
 - **Docs diperbaiki** agar konsisten dengan base generik: `docs/awcms-mini/06_github_issues_detail.md` ditulis ulang (backlog 18 issue), `docs/awcms-mini/01_canvas_induk.md` ditulis ulang (hapus modul/fase domain), `AGENTS.md` §Peta modul dan `docs/awcms-mini/09_roadmap_repository_commit.md` §Struktur source diperbaiki (hapus daftar modul domain).
-- **Label/milestone peninggalan** SIKESRA/governance-overlay era (73 label, 19 milestone) **tidak disentuh** — bukan buatan sesi ini, di luar wewenang untuk dihapus.
+- **Label/milestone peninggalan** SIKESRA/governance-overlay era (74 label, 19 milestone) **tidak disentuh** — bukan buatan sesi ini, di luar wewenang untuk dihapus.
 
 ## Hubungan dengan dokumen utama
 
