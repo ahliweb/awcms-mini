@@ -3,8 +3,8 @@
 | Metadata         | Nilai                    |
 | ---------------- | ------------------------ |
 | Repository       | `ahliweb/awcms-mini`     |
-| Snapshot         | 2026-07-06T17:17:45.853Z |
-| Total labels     | 98                       |
+| Snapshot         | 2026-07-08T01:11:10.873Z |
+| Total labels     | 99                       |
 | Total milestones | 25                       |
 
 Label diurutkan menjadi dua kelompok: **taksonomi doc 06** (dipakai backlog issue atomic base generik) dan **peninggalan proyek sebelumnya** (SIKESRA/governance-overlay, dibiarkan apa adanya, tidak dihapus/diubah).
@@ -39,7 +39,7 @@ Label diurutkan menjadi dua kelompok: **taksonomi doc 06** (dipakai backlog issu
 | `type:task`           | Atomic implementation task                        | `#0e8a16` |
 | `type:test`           | Perubahan/penambahan test sesuai doc 06           | `#1D76DB` |
 
-## Label peninggalan proyek sebelumnya (73)
+## Label peninggalan proyek sebelumnya (74)
 
 Dibuat sebelum refaktor standar base sebagai label/milestone peninggalan proyek lama. Tidak dipakai backlog doc 06; dibiarkan tanpa perubahan.
 
@@ -73,6 +73,7 @@ Dibuat sebelum refaktor standar base sebagai label/milestone peninggalan proyek 
 | `documentation`             | Improvements or additions to documentation           | `#0075ca` |
 | `documents`                 | Document upload and management                       | `#006b75` |
 | `duplicate`                 | This issue or pull request already exists            | `#cfd3d7` |
+| `email`                     |                                                      | `#ededed` |
 | `enhancement`               | New feature or request                               | `#a2eeef` |
 | `environment`               | Environment variable and runtime configuration       | `#c2e0c6` |
 | `export-report`             | Reports and export                                   | `#d4c5f9` |
