@@ -123,6 +123,54 @@ planned_), tidak diubah oleh epic ini.
 | `EMAIL_MAILKETING_API_TOKEN`    | bila mailketing | –            | Ya       | Token/secret API Mailketing                           |
 | `EMAIL_MAILKETING_API_BASE_URL` | bila mailketing | –            | –        | Base URL endpoint API Mailketing                      |
 
+### Public routing (opsional, online-first — Issue #556, epic #555)
+
+**Config-only.** Menyiapkan environment variable untuk mode public tenant
+routing online, tanpa mengimplementasikan schema tenant-domain, rute publik
+`/news`, atau resolver host-based — itu issue lanjutan #557-#567 di epic
+yang sama. Default (semua var di bawah tidak di-set) tetap kompatibel
+dengan deployment offline/LAN yang sudah ada: rute publik hanya lewat
+`/blog/{tenantCode}` legacy, tanpa resolusi tenant dari host — **offline/LAN
+tetap default, bukan online-first**. `scripts/validate-env.ts`
+(`checkPublicRoutingConfig`) menegakkan tabel ini.
+
+| Var                             | Wajib                                     | Default             | Sensitif | Fungsi                                                                                                   |
+| ------------------------------- | ----------------------------------------- | ------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
+| `PUBLIC_TENANT_RESOLUTION_MODE` | –                                         | – (legacy behavior) | –        | `host_default`/`env_default`/`setup_default`/`tenant_code_legacy` — nilai lain gagal validasi            |
+| `PUBLIC_DEFAULT_TENANT_ID`      | bila env_default (salah satu dengan CODE) | –                   | –        | UUID tenant default dipakai mode `env_default`                                                           |
+| `PUBLIC_DEFAULT_TENANT_CODE`    | bila env_default (salah satu dengan ID)   | –                   | –        | Kode tenant default dipakai mode `env_default`                                                           |
+| `PUBLIC_CANONICAL_BASE_PATH`    | –                                         | `/news`             | –        | Base path publik `/news`; wajib absolute path diawali `/` bila diisi                                     |
+| `PUBLIC_TRUST_PROXY`            | –                                         | `false`             | –        | Percaya header proxy (`X-Forwarded-Host` dkk.) — **hanya** `true` di belakang reverse proxy tepercaya    |
+| `PUBLIC_PLATFORM_ROOT_DOMAIN`   | bila host_default                         | –                   | –        | Root domain platform dipakai resolver host-based (Issue #559) membedakan subdomain tenant dari host lain |
+
+Aturan validasi cross-field (keputusan desain Issue #556, didokumentasikan
+di sini karena issue tidak merincinya secara eksplisit):
+
+- `PUBLIC_TENANT_RESOLUTION_MODE` tidak di-set → **bukan error**; setara
+  perilaku `tenant_code_legacy` hari ini, tidak ada var lain yang wajib.
+- `host_default` → `PUBLIC_PLATFORM_ROOT_DOMAIN` **wajib**. Resolver
+  host-based (Issue #559) mencocokkan `Host`/subdomain masuk terhadap root
+  domain ini untuk membedakan subdomain tenant yang valid dari host asing —
+  tanpa root domain, mode ini tidak punya cara aman menentukan tenant mana
+  pun dari host.
+- `env_default` → minimal salah satu dari `PUBLIC_DEFAULT_TENANT_ID` atau
+  `PUBLIC_DEFAULT_TENANT_CODE` **wajib**.
+- `setup_default`/`tenant_code_legacy` → tidak ada var tambahan wajib pada
+  lapisan config ini (`setup_default` menentukan tenant default lewat data
+  Setup Wizard di database, bukan env — di luar scope issue ini).
+- `PUBLIC_CANONICAL_BASE_PATH` bila diisi harus absolute path: diawali `/`,
+  tanpa spasi, tanpa `//`, tanpa trailing slash kecuali persis `/`.
+
+**Catatan keamanan `PUBLIC_TRUST_PROXY`**: defaultnya **wajib** `false`.
+Set `true` **hanya** bila aplikasi berjalan di belakang reverse proxy
+tepercaya (mis. `deploy/nginx/awcms-mini.conf.example` dengan TLS
+termination) yang benar-benar memvalidasi/mengisi ulang header
+`X-Forwarded-Host` dari klien luar — jangan pernah mempercayai header ini
+langsung dari klien tanpa proxy tepercaya di depan, karena resolver
+host-based yang akan dibangun di Issue #559 memakainya untuk menentukan
+tenant, dan spoofing header bisa mengarahkan request ke tenant yang salah
+tanpa membocorkan keberadaan tenant lain (lihat epic #555 §Security notes).
+
 ### Provider CRM (opsional) — contoh domain retail/POS
 
 | Var                    | Wajib      | Default | Sensitif | Fungsi             |
@@ -152,6 +200,7 @@ flowchart LR
   Flags -->|Mailketing off| Q2[Email masuk queue - tak terkirim]
   Flags -->|AI off| NoAi[Endpoint AI nonaktif]
   Flags -->|Sync off| LanOnly[LAN-only]
+  Flags -->|PUBLIC_TENANT_RESOLUTION_MODE unset| LegacyBlog[Legacy blog per-tenantCode route]
 ```
 
 Aturan: fitur off tidak menghentikan POS; pesan/objek tetap masuk queue dan menunggu fitur diaktifkan. `EMAIL_ENABLED off` (base, Issue #493) dan `Mailketing off` (contoh domain retail/POS §Provider CRM) sama-sama "queue menunggu", tapi keduanya jalur terpisah — base tidak mengasumsikan use case "email receipt".
@@ -203,6 +252,12 @@ EMAIL_FROM_NAME=AWCMS-Mini
 EMAIL_SEND_TIMEOUT_MS=10000
 EMAIL_SEND_MAX_RETRIES=5
 
+# Public tenant routing (opsional, online-first, config-only — Issue #556,
+# epic #555). PUBLIC_TENANT_RESOLUTION_MODE tidak di-set = legacy
+# /blog/{tenantCode}, offline/LAN tetap default.
+PUBLIC_CANONICAL_BASE_PATH=/news
+PUBLIC_TRUST_PROXY=false
+
 # Provider opsional (default off) — contoh domain retail/POS
 STARSENDER_ENABLED=false
 MAILKETING_ENABLED=false
@@ -246,6 +301,12 @@ flowchart TB
 
 - Var wajib hilang → gagal start dengan pesan jelas (tanpa membocorkan nilai).
 - Flag aktif tanpa kredensial (mis. `R2_ENABLED=true` tanpa key) → gagal start.
+- `PUBLIC_TENANT_RESOLUTION_MODE` diisi nilai selain 4 mode terdokumentasi,
+  `host_default` tanpa `PUBLIC_PLATFORM_ROOT_DOMAIN`, `env_default` tanpa
+  `PUBLIC_DEFAULT_TENANT_ID`/`PUBLIC_DEFAULT_TENANT_CODE`, atau
+  `PUBLIC_CANONICAL_BASE_PATH` bukan absolute path → gagal start (Issue #556;
+  lihat §Public routing di atas). Var ini tidak di-set sama sekali tetap
+  lulus (perilaku legacy offline/LAN tidak berubah).
 - Secret tidak pernah masuk log (redaction, doc 10).
 
 ## Acceptance criteria

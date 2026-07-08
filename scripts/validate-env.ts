@@ -34,10 +34,40 @@
  *     `src/modules/email/README.md` for why these vars are namespaced
  *     `EMAIL_*`/`EMAIL_MAILKETING_*` rather than the illustrative
  *     `MAILKETING_*` rows in doc 18 §Provider CRM (opsional).
+ *  5. Public tenant routing (Issue #556, epic #555, config-only — no
+ *     tenant-domain schema/resolver/routes here yet):
+ *       - PUBLIC_TENANT_RESOLUTION_MODE, if set, must be one of
+ *         `PUBLIC_TENANT_RESOLUTION_MODES`. Left unset it is *not* an
+ *         error — that is the backward-compatible default every existing
+ *         offline/LAN deployment already runs (today's only public route
+ *         is the legacy `/blog/{tenantCode}` path; see doc 18 §Public
+ *         routing and `deployment-profiles.md`).
+ *       - mode === "host_default" requires PUBLIC_PLATFORM_ROOT_DOMAIN:
+ *         the host-based resolver landing in Issue #559 needs a root
+ *         domain to tell a tenant subdomain apart from an unrelated host.
+ *       - mode === "env_default" requires at least one of
+ *         PUBLIC_DEFAULT_TENANT_ID / PUBLIC_DEFAULT_TENANT_CODE.
+ *       - mode === "setup_default" / "tenant_code_legacy" need no extra
+ *         var here (setup_default's default tenant lives in DB via the
+ *         Setup Wizard; tenant_code_legacy is today's behavior).
+ *       - PUBLIC_CANONICAL_BASE_PATH, if set, must be an absolute path
+ *         (leading "/", no whitespace, no trailing slash unless it is
+ *         exactly "/", no "//"). Left unset it defaults to `/news`
+ *         at the code level (not enforced here, same convention as other
+ *         defaulted vars like AUDIT_LOG_RETENTION_DAYS).
+ *       - PUBLIC_TRUST_PROXY is intentionally not validated here (no
+ *         format/conditional requirement, same as other boolean flags in
+ *         this file) — its safe default is `false` in `.env.example`.
+ *         Docs (doc 18, deployment-profiles.md) spell out that
+ *         `PUBLIC_TRUST_PROXY=true` must only be used behind a trusted
+ *         reverse proxy, since a future host-based resolver (#559) would
+ *         otherwise trust a spoofable `X-Forwarded-Host` header.
  *
  * Never prints actual secret values — only which variable name is
  * missing/invalid (doc 18: "Var wajib hilang → gagal start dengan pesan
- * jelas (tanpa membocorkan nilai)"). Exits non-zero on any failure.
+ * jelas (tanpa membocorkan nilai)"). Exits non-zero on any failure. None of
+ * the public-routing vars above are secrets, but they follow the same
+ * name-only reporting style for consistency.
  */
 import { checkSyncHmacSecretNotDefault } from "./security-readiness";
 import {
@@ -67,8 +97,70 @@ const R2_REQUIRED_WHEN_ENABLED = [
   "R2_BUCKET"
 ] as const;
 
+/**
+ * The four documented public tenant resolution modes (Issue #556, epic
+ * #555). See the file header comment §5 for what each mode requires.
+ */
+const PUBLIC_TENANT_RESOLUTION_MODES = [
+  "host_default",
+  "env_default",
+  "setup_default",
+  "tenant_code_legacy"
+] as const;
+
+type PublicTenantResolutionMode =
+  (typeof PUBLIC_TENANT_RESOLUTION_MODES)[number];
+
+function isKnownPublicTenantResolutionMode(
+  value: string
+): value is PublicTenantResolutionMode {
+  return (PUBLIC_TENANT_RESOLUTION_MODES as readonly string[]).includes(value);
+}
+
 function isSet(value: string | undefined): boolean {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+/**
+ * Absolute-path check for PUBLIC_CANONICAL_BASE_PATH: leading "/", no
+ * whitespace, no "//" collapse, and no trailing slash unless the whole
+ * value is the root "/" itself.
+ */
+function isValidCanonicalBasePath(value: string): boolean {
+  if (!value.startsWith("/")) return false;
+  if (/\s/.test(value)) return false;
+  if (value.includes("//")) return false;
+  if (value.length > 1 && value.endsWith("/")) return false;
+  return true;
+}
+
+function checkPublicCanonicalBasePath(env: NodeJS.ProcessEnv): EnvCheckResult {
+  const name = "PUBLIC_CANONICAL_BASE_PATH";
+  const raw = env.PUBLIC_CANONICAL_BASE_PATH;
+
+  if (!isSet(raw)) {
+    return {
+      name,
+      status: "pass",
+      detail: `${name} is not set — defaults to /news.`
+    };
+  }
+
+  const value = (raw as string).trim();
+
+  if (isValidCanonicalBasePath(value)) {
+    return {
+      name,
+      status: "pass",
+      detail: `${name} is a valid absolute path.`
+    };
+  }
+
+  return {
+    name,
+    status: "fail",
+    detail: `${name} must be an absolute path starting with "/" (no whitespace, no "//", no trailing slash unless it is exactly "/").`
+  };
 }
 
 export function checkRequiredVars(
@@ -209,6 +301,87 @@ export function checkEmailConfig(
   return results;
 }
 
+export function checkPublicRoutingConfig(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult[] {
+  const results: EnvCheckResult[] = [];
+  const rawMode = env.PUBLIC_TENANT_RESOLUTION_MODE;
+
+  if (!isSet(rawMode)) {
+    results.push({
+      name: "PUBLIC_TENANT_RESOLUTION_MODE",
+      status: "pass",
+      detail:
+        "PUBLIC_TENANT_RESOLUTION_MODE is not set — offline/LAN deployments keep today's legacy /blog/{tenantCode} behavior; no public-host config is required."
+    });
+    results.push(checkPublicCanonicalBasePath(env));
+    return results;
+  }
+
+  const mode = (rawMode as string).trim();
+
+  if (!isKnownPublicTenantResolutionMode(mode)) {
+    results.push({
+      name: "PUBLIC_TENANT_RESOLUTION_MODE",
+      status: "fail",
+      detail: `PUBLIC_TENANT_RESOLUTION_MODE must be one of ${PUBLIC_TENANT_RESOLUTION_MODES.join(", ")}; got "${mode}".`
+    });
+    // Unknown mode — cross-field rules below are meaningless for it.
+    results.push(checkPublicCanonicalBasePath(env));
+    return results;
+  }
+
+  results.push({
+    name: "PUBLIC_TENANT_RESOLUTION_MODE",
+    status: "pass",
+    detail: `PUBLIC_TENANT_RESOLUTION_MODE is a known mode (${mode}).`
+  });
+
+  if (mode === "host_default") {
+    if (isSet(env.PUBLIC_PLATFORM_ROOT_DOMAIN)) {
+      results.push({
+        name: "PUBLIC_PLATFORM_ROOT_DOMAIN",
+        status: "pass",
+        detail: "PUBLIC_PLATFORM_ROOT_DOMAIN is set."
+      });
+    } else {
+      results.push({
+        name: "PUBLIC_PLATFORM_ROOT_DOMAIN",
+        status: "fail",
+        detail:
+          "PUBLIC_TENANT_RESOLUTION_MODE=host_default but PUBLIC_PLATFORM_ROOT_DOMAIN is missing or empty — the host-based resolver (Issue #559) needs a root domain to tell tenant subdomains apart from unrelated hosts."
+      });
+    }
+  }
+
+  if (mode === "env_default") {
+    const hasId = isSet(env.PUBLIC_DEFAULT_TENANT_ID);
+    const hasCode = isSet(env.PUBLIC_DEFAULT_TENANT_CODE);
+
+    if (hasId || hasCode) {
+      results.push({
+        name: "PUBLIC_DEFAULT_TENANT_ID or PUBLIC_DEFAULT_TENANT_CODE",
+        status: "pass",
+        detail:
+          "At least one of PUBLIC_DEFAULT_TENANT_ID/PUBLIC_DEFAULT_TENANT_CODE is set."
+      });
+    } else {
+      results.push({
+        name: "PUBLIC_DEFAULT_TENANT_ID or PUBLIC_DEFAULT_TENANT_CODE",
+        status: "fail",
+        detail:
+          "PUBLIC_TENANT_RESOLUTION_MODE=env_default requires at least one of PUBLIC_DEFAULT_TENANT_ID or PUBLIC_DEFAULT_TENANT_CODE to be set."
+      });
+    }
+  }
+
+  // mode === "setup_default" | "tenant_code_legacy": no extra required var.
+
+  results.push(checkPublicCanonicalBasePath(env));
+
+  return results;
+}
+
 export function runEnvValidation(
   env: NodeJS.ProcessEnv = process.env
 ): EnvCheckResult[] {
@@ -216,7 +389,8 @@ export function runEnvValidation(
     ...checkRequiredVars(env),
     checkSyncConfig(env),
     ...checkR2Config(env),
-    ...checkEmailConfig(env)
+    ...checkEmailConfig(env),
+    ...checkPublicRoutingConfig(env)
   ];
 }
 
