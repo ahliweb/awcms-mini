@@ -217,7 +217,7 @@ Kontribusi baru masuk salah satu dari dua jalur:
 5. Endpoint REST + OpenAPI — skill `awcms-mini-new-endpoint`; domain event + AsyncAPI — skill `awcms-mini-new-event`.
 6. UI/admin screen sesuai design system (doc 14/15) — skill `awcms-mini-ui-screen`; string via i18n — skill `awcms-mini-i18n`; form multi-step — skill `awcms-mini-wizard-form`.
 7. Audit/logging aksi high-risk — skill `awcms-mini-audit-log`; idempotency mutation high-risk — skill `awcms-mini-idempotency`.
-8. Test berlapis — skill `awcms-mini-testing`; review keamanan — skill `awcms-mini-security-review`.
+8. Test berlapis — skill `awcms-mini-testing`; E2E browser sungguhan (Playwright + Bun) — skill `awcms-mini-browser-test`; review keamanan — skill `awcms-mini-security-review`.
 9. Deployment & go-live — skill `awcms-mini-production-preflight`; pilih & jalankan profil deployment — skill `awcms-mini-deploy` (`deployment-profiles.md`, atau `deploy-coolify.md` bila Coolify).
 
 Orkestrasi penuh satu unit kerja: skill `awcms-mini-implement-issue`. Pertahankan lapisan reusable (tabel §AWCMS-Mini sebagai standar pengembangan di atas), ganti hanya lapisan spesifik domain.
