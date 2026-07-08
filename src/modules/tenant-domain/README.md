@@ -50,19 +50,20 @@ belongs to exactly one tenant); `awcms_mini_tenant_domains_primary_dedup`
 for reuse.
 
 RLS: `ENABLE` + `FORCE` with the standard `tenant_isolation` policy — same
-as every other tenant-scoped table. This creates a documented bootstrap
-gap for the future host-based resolver (#559): resolving `hostname ->
-tenant_id` has to happen _before_ a tenant context exists, but FORCE RLS
-plus the fail-closed GUC default (migration 013) means an
-un-tenant-scoped query returns zero rows. `awcms_mini_tenants` solves the
-equivalent bootstrap problem for `tenantCode -> tenant_id` lookups by
-being deliberately RLS-free (migration 013); `tenant_domains` cannot use
-that same trick because it holds tenant-manageable fields
-(`verification_token_hash` etc.). Migration 031's own comments spell out
-the resolution #559 is expected to build (e.g. a narrowly-scoped
-`SECURITY DEFINER` function or a dedicated least-privilege read role for
-that one lookup) — `FORCE ROW LEVEL SECURITY` must not be dropped from
-this table to work around it.
+as every other tenant-scoped table. This created a documented bootstrap
+gap for the host-based resolver (#559): resolving `hostname -> tenant_id`
+has to happen _before_ a tenant context exists, but FORCE RLS plus the
+fail-closed GUC default (migration 013) means an un-tenant-scoped query
+returns zero rows. `awcms_mini_tenants` solves the equivalent bootstrap
+problem for `tenantCode -> tenant_id` lookups by being deliberately
+RLS-free (migration 013); `tenant_domains` cannot use that same trick
+because it holds tenant-manageable fields (`verification_token_hash`
+etc.). Issue #559 closed this gap with a narrowly-scoped `SECURITY
+DEFINER` function, `awcms_mini_resolve_tenant_domain_lookup` (migration
+`033_awcms_mini_tenant_domain_lookup_function.sql`) — see
+`.claude/skills/awcms-mini-tenant-domain-routing/SKILL.md` §Resolver for
+the full mechanism/security writeup. `FORCE ROW LEVEL SECURITY` was **not**
+dropped from this table to build it.
 
 ## Permission seed (migration `032_awcms_mini_tenant_domain_permissions.sql`, Issue #557)
 
@@ -122,11 +123,36 @@ ever will be, a runtime secret/token/credential — a hard rule from
 `module-contract.ts`'s header comment, checked by
 `tests/modules/tenant-domain-module.test.ts`.
 
+## Resolver (`src/lib/tenant/public-host-tenant-resolver.ts`, Issue #559)
+
+Public host-based tenant resolution with offline/LAN-safe fallback.
+**Library only** — not yet consumed by any route/endpoint (that is #560's
+`/news` routes). Five functions: `normalizePublicHost` (strip port,
+lowercase, validate DNS hostname shape — throws only on an empty input,
+never on a merely-malformed one), `resolvePublicTenantByHost` (queries
+`awcms_mini_resolve_tenant_domain_lookup`, the migration-033 `SECURITY
+DEFINER` bootstrap function, then confirms the tenant itself is `active`),
+`resolveDefaultPublicTenantFromEnv` (`PUBLIC_DEFAULT_TENANT_ID` then
+`PUBLIC_DEFAULT_TENANT_CODE`), `resolveDefaultPublicTenantFromSetupState`
+(`awcms_mini_setup_state.tenant_id`, also RLS-free by design), and the
+orchestrator `resolvePublicTenantFromRequest`. Resolution order: host
+lookup (only when `PUBLIC_TENANT_RESOLUTION_MODE=host_default`) -> env ID
+-> env CODE -> setup state -> `null`. The env/setup fallback chain always
+runs regardless of mode — every non-`host_default` mode (including unset,
+today's offline/LAN default) skips straight to it, so the
+`awcms_mini_tenant_domains` bootstrap function is never even reached by a
+deployment that hasn't opted into online routing. Every failure path —
+unknown host, non-`active` domain status, soft-deleted domain, inactive
+tenant — returns the same `null`, never a distinguishable error. Full
+mechanism/security writeup (including why the `SECURITY DEFINER` function
+is safe, verified empirically, not assumed) is in
+`.claude/skills/awcms-mini-tenant-domain-routing/SKILL.md` §Resolver.
+Tests: `tests/unit/public-host-tenant-resolver.test.ts` (pure, mocked
+deps) and `tests/integration/public-tenant-resolution.integration.test.ts`
+(real Postgres, including RLS/bypass proof).
+
 ## Not yet available
 
-- Public host-based tenant resolver with offline/LAN fallback (Issue
-  #559) — including the RLS bootstrap-gap resolution described in
-  §Tables.
 - Tenant domain management API, `/api/v1/tenant/domains` (Issue #562).
 - Admin UI, `/admin/tenant/domains` (Issue #563).
 - `/news` public routes for `blog_content` (Issue #560) and the tenant

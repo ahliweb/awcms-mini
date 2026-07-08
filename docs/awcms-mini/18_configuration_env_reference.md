@@ -167,9 +167,26 @@ tepercaya (mis. `deploy/nginx/awcms-mini.conf.example` dengan TLS
 termination) yang benar-benar memvalidasi/mengisi ulang header
 `X-Forwarded-Host` dari klien luar — jangan pernah mempercayai header ini
 langsung dari klien tanpa proxy tepercaya di depan, karena resolver
-host-based yang akan dibangun di Issue #559 memakainya untuk menentukan
-tenant, dan spoofing header bisa mengarahkan request ke tenant yang salah
-tanpa membocorkan keberadaan tenant lain (lihat epic #555 §Security notes).
+host-based Issue #559 (`src/lib/tenant/public-host-tenant-resolver.ts`)
+memakainya untuk menentukan tenant, dan spoofing header bisa mengarahkan
+request ke tenant yang salah tanpa membocorkan keberadaan tenant lain
+(lihat epic #555 §Security notes).
+
+**Persyaratan operasional mengikat**: proxy tepercaya di depan **wajib**
+satu hop yang langsung bersebelahan (directly-adjacent) dan **wajib
+menimpa (overwrite)** header `X-Forwarded-Host` secara penuh di setiap
+request — tidak pernah append/forward nilai yang datang dari klien.
+Topologi yang didukung repo ini tidak pernah menghasilkan lebih dari satu
+nilai `X-Forwarded-Host` yang sah. Resolver Issue #559 secara sengaja
+**tidak** menebak-nebak mana yang tepercaya kalau header itu ternyata
+berisi beberapa nilai comma-separated saat runtime (tidak ada konfigurasi
+"N trusted hop" di repo ini untuk menghitung dari kanan) — kalau itu
+terjadi, resolver mencatatnya sebagai anomali dan fallback ke header
+`Host` biasa, persis seperti `PUBLIC_TRUST_PROXY=false` untuk request itu.
+Proxy yang salah konfigurasi (append, bukan overwrite) tetap dianggap
+tidak tepercaya oleh aplikasi meski operator sudah set `PUBLIC_TRUST_PROXY=true` —
+perbaiki konfigurasi proxy-nya, jangan andalkan aplikasi menebak nilai
+mana yang benar.
 
 ### Provider CRM (opsional) — contoh domain retail/POS
 

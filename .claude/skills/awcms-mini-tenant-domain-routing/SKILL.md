@@ -31,7 +31,7 @@ menjembatani beberapa modul sekaligus (config, `tenant_domain` module baru,
 | #556  | Online public mode config (`PUBLIC_*` env vars)               | **Selesai** — lihat §Config di bawah            |
 | #557  | Tenant domain/subdomain mapping schema                        | **Selesai** — lihat §Schema di bawah            |
 | #558  | Register module descriptor `tenant_domain`                    | **Selesai** — lihat §Module descriptor di bawah |
-| #559  | Public host tenant resolver (dengan fallback)                 | Belum                                           |
+| #559  | Public host tenant resolver (dengan fallback)                 | **Selesai** — lihat §Resolver di bawah          |
 | #560  | Rute publik `/news` untuk `blog_content`                      | Belum                                           |
 | #561  | Dokumentasi legacy `/blog/{tenantCode}`                       | Belum                                           |
 | #562  | Tenant domain management API                                  | Belum                                           |
@@ -103,19 +103,12 @@ tenant. **Schema saja**, belum ada module descriptor (#558), resolver
   (`deleted_at`/`deleted_by`/`delete_reason`) membebaskan
   `normalized_hostname` untuk dipakai ulang.
 - RLS: `ENABLE` + `FORCE` + policy `tenant_isolation` standar (sama pola
-  semua tabel tenant-scoped lain) — **tapi ini menciptakan bootstrap gap
-  yang wajib diselesaikan #559**: query hostname→tenant_id butuh
-  dijalankan SEBELUM tenant context ada, sementara FORCE RLS + fail-closed
-  GUC (migration 013) membuat query tanpa `withTenant` selalu 0 baris.
-  `awcms_mini_tenants` (migration 013) sengaja RLS-free untuk masalah
-  bootstrap yang sama persis (lookup `tenantCode → tenant_id`, ADR-0009),
-  tapi `tenant_domains` TIDAK BOLEH ikut jadi RLS-free (kolom
-  `verification_token_hash` dkk. tenant-manageable). Resolusi yang
-  didokumentasikan di migration 031's komentar untuk #559: buat jalur baca
-  khusus (mis. fungsi `SECURITY DEFINER` yang cuma return `(tenant_id,
-status, is_primary)`, atau role baca least-privilege terpisah) untuk
-  satu query bootstrap ini — jangan lepas `FORCE ROW LEVEL SECURITY` dari
-  tabel ini untuk mengakalinya.
+  semua tabel tenant-scoped lain) — ini menciptakan bootstrap gap
+  (query hostname→tenant_id butuh dijalankan SEBELUM tenant context ada,
+  sementara FORCE RLS + fail-closed GUC dari migration 013 membuat query
+  tanpa `withTenant` selalu 0 baris), yang **sudah diselesaikan Issue #559**
+  lewat fungsi `SECURITY DEFINER` — lihat §Resolver di bawah untuk mekanisme
+  lengkap. `FORCE ROW LEVEL SECURITY` **tidak** dilepas dari tabel ini.
 - Permission seed: `module_key` `tenant_domain`, `activity_code` `domains`
   — `read`/`create`/`update`/`delete`/`verify`/`set_primary` (persis
   §Seed permissions issue #557). Belum ada role/access assignment yang
@@ -167,31 +160,175 @@ path: "/admin/tenant/domains", requiredPermission:
   issue yang benar-benar butuh (#559/#562/#563). Hanya `module.ts` +
   `README.md`.
 
+### Resolver (Issue #559, `src/lib/tenant/public-host-tenant-resolver.ts`)
+
+**Library saja** — belum dikonsumsi endpoint/route apa pun (itu #560). Lima
+fungsi: `normalizePublicHost`, `resolvePublicTenantByHost`,
+`resolveDefaultPublicTenantFromEnv`, `resolveDefaultPublicTenantFromSetupState`,
+`resolvePublicTenantFromRequest` (orkestrator).
+
+**Urutan resolusi**: (1) host/domain mapping — HANYA jalan kalau
+`config.mode === "host_default"` — → (2) `PUBLIC_DEFAULT_TENANT_ID` → (3)
+`PUBLIC_DEFAULT_TENANT_CODE` (2-3 satu fungsi,
+`resolveDefaultPublicTenantFromEnv`, coba ID dulu lalu CODE) → (4)
+`awcms_mini_setup_state.tenant_id` → (5) `null` (404 generic). **Langkah
+2-4 SELALU jalan, terlepas dari mode** — itu "safe fallback" di judul
+issue; hanya langkah 1 (host lookup) yang digerbangi mode. Konsekuensi
+keamanan yang disengaja: deployment yang tidak pernah set
+`PUBLIC_TENANT_RESOLUTION_MODE=host_default` (termasuk semua deployment
+offline/LAN existing yang tidak set `PUBLIC_*` sama sekali) TIDAK PERNAH
+menyentuh fungsi bootstrap `awcms_mini_tenant_domains` — permukaan lebih
+kecil, bukan cuma code path lebih pendek.
+
+**Fungsi `SECURITY DEFINER` bootstrap** — `sql/033_awcms_mini_tenant_domain_lookup_function.sql`
+(pakai checklist umum `SECURITY DEFINER` di
+`docs/adr/0003-postgresql-rls-multi-tenant.md` §Checklist untuk fungsi baru
+lain di masa depan):
+
+```sql
+CREATE OR REPLACE FUNCTION awcms_mini_resolve_tenant_domain_lookup(p_normalized_hostname text)
+RETURNS TABLE (
+  tenant_id uuid, domain_status text, is_primary boolean, route_mode text,
+  tenant_status text, tenant_code text, tenant_name text, default_locale text
+)
+LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public, pg_temp
+AS $function$
+  SELECT d.tenant_id, d.status AS domain_status, d.is_primary, d.route_mode,
+         t.status AS tenant_status, t.tenant_code, t.tenant_name, t.default_locale
+  FROM awcms_mini_tenant_domains AS d
+  JOIN awcms_mini_tenants AS t ON t.id = d.tenant_id
+  WHERE d.normalized_hostname = p_normalized_hostname AND d.deleted_at IS NULL;
+$function$;
+
+REVOKE ALL ON FUNCTION awcms_mini_resolve_tenant_domain_lookup(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION awcms_mini_resolve_tenant_domain_lookup(text) TO awcms_mini_app;
+```
+
+**Post-review fix (timing side-channel, Medium finding):** the first
+version of this function returned only `(tenant_id, status, is_primary,
+route_mode)`, and `resolvePublicTenantByHost()` issued a SECOND,
+conditional query against `awcms_mini_tenants` only when the domain row
+was found `active` — an unknown/unmapped host returned after exactly one
+round trip, a host mapped to an active domain but an inactive tenant
+always cost two. That is an observable timing side-channel distinguishing
+"no such mapping" from "mapping exists, tenant just isn't active" purely
+by response latency. Fixed by joining `awcms_mini_tenants` into this same
+function (safe — that table is already RLS-free/publicly `SELECT`-able,
+so the join exposes nothing not already unconditionally public; it only
+removes a round trip) so `resolvePublicTenantByHost()` now issues **exactly
+one query for every outcome**, proven by
+`tests/integration/public-tenant-resolution.integration.test.ts`'s
+round-trip-counting test (wraps the same `sql` client in a `Proxy` and
+asserts the call count is 1 for an unmapped host, a mapped-but-inactive-
+tenant host, and a fully active host alike).
+
+Kenapa ini aman — **diverifikasi empiris** (bukan diasumsikan dari
+dokumentasi PostgreSQL) terhadap DB yang jalan sebelum migration ini
+ditulis, lihat percobaan di riwayat implementasi Issue #559:
+
+- Migration jalan sebagai role pemilik schema (`POSTGRES_USER`,
+  `awcms-mini` di `docker-compose.yml`), dan role itu adalah **Postgres
+  SUPERUSER sungguhan** (`SELECT rolsuper FROM pg_roles` → `true`).
+  Superuser bypass RLS **unconditional**, terlepas dari `FORCE ROW LEVEL
+SECURITY` — `FORCE` hanya menghapus exemption RLS milik _table owner_
+  ketika owner itu BUKAN superuser; tidak berefek pada owner yang memang
+  superuser. Jadi fungsi `SECURITY DEFINER` yang dimiliki role ini bypass
+  RLS dengan cara yang sama seperti DDL/DML migration lain di schema ini
+  — bukan mekanisme RLS-vs-FORCE yang berbeda.
+- Karena keamanan TIDAK datang dari RLS/FORCE di level fungsi ini, dua hal
+  lain yang justru jadi pagar sebenarnya: (1) badan fungsi adalah SQL
+  statis tetap (bukan dynamic SQL), hanya me-return 4 kolom non-sensitif
+  (`tenant_id`/`status`/`is_primary`/`route_mode`) untuk satu
+  `normalized_hostname` yang diparameterkan + `deleted_at IS NULL` — tidak
+  mungkin dipakai membaca `verification_token_hash`/
+  `verification_record_value`/`hostname` mentah/tabel lain; (2) `EXECUTE`
+  di-revoke dari `PUBLIC` lalu di-grant eksplisit hanya ke `awcms_mini_app`
+  — tidak ada role non-superuser lain yang bisa memanggil fungsi ini, dan
+  `awcms_mini_app` sendiri tetap tidak bisa `SELECT` langsung dari
+  `awcms_mini_tenant_domains` tanpa `withTenant(...)` (dibuktikan di
+  integration test).
+- `SET search_path = public, pg_temp` mengunci resolusi nama di dalam
+  fungsi (defense-in-depth standar untuk `SECURITY DEFINER`, terlepas dari
+  fakta ownernya sudah superuser).
+- Diverifikasi di
+  `tests/integration/public-tenant-resolution.integration.test.ts`: fungsi
+  ini resolve rows lewat `awcms_mini_app` TANPA `app.current_tenant_id`
+  GUC di-set; `SELECT` langsung ke tabel dari koneksi yang sama (tanpa
+  fungsi) tetap 0 baris; kolom yang dikembalikan fungsi tidak pernah
+  memuat `verification_token_hash`/`hostname`/`verification_record_value`.
+
+`resolvePublicTenantByHost()` sendiri masih menambah filter
+`domain_status === 'active' && tenant_status === 'active'` di sisi
+TypeScript (fungsi SQL sengaja tidak memfilter status — hanya
+`deleted_at IS NULL` — supaya keputusan "kombinasi status mana yang boleh
+resolve traffic publik" tetap satu tempat, di kode aplikasi yang lebih
+mudah diaudit/diubah daripada re-migrate SQL). Fungsi ini juga
+me-revalidasi _shape_ `normalizedHost` sendiri (`isValidHostnameShape`,
+Low finding — fungsi ini exported dan didokumentasikan bisa dipanggil
+langsung oleh #560, jadi tidak boleh hanya mengandalkan "caller sudah
+normalize duluan") sebelum query apa pun dijalankan — dibuktikan di
+`tests/unit/public-host-tenant-resolver.test.ts` dengan `sql` palsu yang
+throw kalau dipanggil sama sekali.
+
+Semua kegagalan — host tidak dikenal, domain non-`active`, domain
+soft-deleted, tenant inactive — return `null` yang identik, dalam **satu**
+round-trip DB (lihat perbaikan timing side-channel di atas); satu-satunya
+yang boleh throw adalah `normalizePublicHost()` dipanggil dengan string
+kosong (pelanggaran kontrak pemanggil, bukan hasil resolusi runtime).
+`resolvePublicTenantFromRequest()` tidak pernah memanggil
+`normalizePublicHost` dengan string kosong — request tanpa `Host` header
+cukup melewati langkah 1 seluruhnya.
+
+`X-Forwarded-Host` hanya dibaca kalau `config.trustProxy === true`
+(caller yang menentukan, bukan modul ini yang membaca `PUBLIC_TRUST_PROXY`
+langsung dari `process.env` — pemanggil bertanggung jawab membangun
+`config` dari env; lihat `resolveDefaultPublicTenantFromEnv`'s parameter
+`env` untuk satu-satunya fungsi di modul ini yang punya default
+`process.env` bawaan). **Aturan operasional mengikat (Medium finding,
+post-review):** deployment yang set `PUBLIC_TRUST_PROXY=true` WAJIB
+berada di belakang satu trusted edge proxy yang langsung bersebelahan
+(directly-adjacent) dan yang MENIMPA (overwrite) `X-Forwarded-Host` secara
+penuh di setiap request — tidak pernah append/forward nilai dari client.
+Topologi yang didokumentasikan repo ini tidak pernah menghasilkan lebih
+dari satu nilai `X-Forwarded-Host` secara sah. Kalau header tetap berisi
+lebih dari satu nilai comma-separated saat runtime, `extractHostHeader()`
+TIDAK menebak mana yang trustworthy (leftmost = persis yang bisa
+di-pre-seed penuh oleh attacker kalau proxy-nya append, bukan overwrite) —
+ia log anomali (`public_host_resolver.x_forwarded_host_multi_value`) dan
+fallback ke `Host` biasa, persis seperti `trustProxy: false`. Perilaku ini
+diuji di `tests/unit/public-host-tenant-resolver.test.ts`.
+
+Test: `tests/unit/public-host-tenant-resolver.test.ts` (murni,
+`normalizePublicHost` + percabangan `resolvePublicTenantFromRequest` lewat
+mocked `deps`, tanpa DB) dan
+`tests/integration/public-tenant-resolution.integration.test.ts` (Postgres
+nyata — setiap acceptance criterion issue #559, termasuk bukti RLS/bypass
+di atas).
+
 ## Aturan lintas-issue yang wajib diikuti
 
 1. **Backward compatibility non-negotiable**: setiap deployment offline/LAN existing yang tidak pernah set `PUBLIC_*` apa pun harus tetap `config:validate` PASS dan berperilaku persis seperti sebelum epic ini — jangan pernah membuat salah satu dari enam var config ini menjadi wajib secara default.
-2. **`PUBLIC_TRUST_PROXY=false` harus tetap default aman** di setiap lapisan baru (resolver #559, dst.) — jangan baca `X-Forwarded-Host`/`X-Forwarded-Proto` kecuali `PUBLIC_TRUST_PROXY=true` eksplisit diset.
+2. **`PUBLIC_TRUST_PROXY=false` harus tetap default aman** di setiap lapisan baru — jangan baca `X-Forwarded-Host`/`X-Forwarded-Proto` kecuali `PUBLIC_TRUST_PROXY=true` eksplisit diset. Resolver #559 sudah menegakkan ini (`resolvePublicTenantFromRequest`'s `config.trustProxy`, default `false`); API domain #562 manapun yang membaca header host langsung (bukan lewat resolver ini) wajib pola yang sama.
 3. **`/blog/{tenantCode}` (ADR-0009, skill `awcms-mini-blog-content`) TIDAK dihapus** — epic #555 secara eksplisit out-of-scope untuk "removing legacy `/blog/{tenantCode}` routes in the MVP". `/news` (#560) adalah rute **tambahan**, bukan pengganti. Issue #561 mendokumentasikan `/blog/{tenantCode}` sebagai legacy, bukan menghapusnya.
-4. **Jangan trust `X-Forwarded-Host` tanpa proxy tepercaya** — ulangi dari epic #555 §Security notes, berlaku untuk resolver #559 dan API domain #562 manapun yang membaca header host.
-5. **Tenant existence tidak boleh bocor**: domain/tenant yang unknown, failed, suspended, atau inactive harus menghasilkan respons yang identik/tidak bisa dibedakan (pola sama seperti ADR-0009's 404 identik untuk `tenantCode` tak dikenal vs tenant tidak aktif) — berlaku untuk resolver #559 dan rute publik `/news` #560.
+4. **Jangan trust `X-Forwarded-Host` tanpa proxy tepercaya** — ulangi dari epic #555 §Security notes. Berlaku juga untuk API domain #562 manapun yang membaca header host secara independen dari resolver #559.
+5. **Tenant existence tidak boleh bocor**: domain/tenant yang unknown, failed, suspended, atau inactive harus menghasilkan respons yang identik/tidak bisa dibedakan (pola sama seperti ADR-0009's 404 identik untuk `tenantCode` tak dikenal vs tenant tidak aktif) — resolver #559 sudah menegakkan ini (`resolvePublicTenantByHost`/`resolveDefaultPublicTenantFromEnv`/`resolveDefaultPublicTenantFromSetupState`/`resolvePublicTenantFromRequest` semua return `null` identik). Rute publik `/news` #560 **wajib** memetakan `null` resolver ini ke 404 generic yang sama, tidak menambah pesan/status yang membedakan kasus.
 6. **Module disabled tetap diblokir server-side** — kalau tenant module presets (#565) atau tenant-module matrix (#566) menonaktifkan sebuah modul, endpoint modul itu wajib tetap menolak di server (guard ABAC/tenant-module lifecycle yang sudah ada dari `module_management`), bukan hanya disembunyikan di UI.
 7. **Provider secret (mis. Cloudflare API token, #567) tidak pernah disimpan di module descriptor atau kolom DB biasa** — pakai environment variable seperti provider lain (Mailketing, R2), dan `configure`-only permission gate seperti pola `email`/`sync-storage` provider config.
-8. **Semua mutasi domain/module (create/update/delete domain mapping, enable/disable module preset) wajib diaudit** — pola `recordAuditEvent` yang sama dipakai modul lain, action literal sesuai konvensi modul (`tenant_domain.<resource>.<verb>` mengikuti pola `blog.<resource>.<verb>` dari blog_content).
+8. **Semua mutasi domain/module (create/update/delete domain mapping, enable/disable module preset) wajib diaudit** — pola `recordAuditEvent` yang sama dipakai modul lain, action literal sesuai konvensi modul (`tenant_domain.<resource>.<verb>` mengikuti pola `blog.<resource>.<verb>` dari blog_content). Resolver #559 sendiri **bukan** mutasi (read-only, anonymous) — tidak diaudit, sama seperti `resolvePublicTenantByCode` (ADR-0009) tidak diaudit.
 9. **Cloudflare DNS adapter (#567) adalah opsional/enhancement**, bukan hard dependency — epic #555 §Out of scope eksplisit menyebut "making Cloudflare DNS automation a hard dependency" di luar scope. Tenant domain mapping (#557/#562) harus tetap berfungsi tanpa Cloudflare sama sekali (manual DNS setup oleh operator).
+10. **#560's `/news` routes harus reuse `resolvePublicTenantFromRequest()` (Issue #559) langsung** — jangan re-derive hostname→tenant lookup logic lain. `config.mode` untuk panggilan itu dibangun dari `PUBLIC_TENANT_RESOLUTION_MODE`/`PUBLIC_TRUST_PROXY` di `process.env` (resolver sendiri tidak membaca `process.env` untuk keduanya — sengaja, untuk testability; lihat §Resolver). `#562`'s admin API (mutasi domain, tenant-scoped, authenticated) **TIDAK** boleh reuse resolver #559 (yang anonymous/pre-tenant-context) — API #562 memakai `withTenant(...)` biasa seperti endpoint tenant-scoped lain, RLS `awcms_mini_tenant_domains` yang menjaga isolasinya, bukan fungsi `SECURITY DEFINER` (fungsi itu murni untuk bootstrap publik tanpa tenant context).
 
 ## Belum ada — jangan asumsikan sudah dikerjakan
 
-Isu #559-#567 (resolver host-based, rute publik `/news`, dokumentasi
-legacy, API tenant domain, admin UI domain, tenant settings rute
-`/news`/legacy di `blog_content`, module presets, matrix UI admin, dan
-adapter Cloudflare DNS) **belum ada** — hanya lapisan config (#556),
-schema `awcms_mini_tenant_domains` (#557), dan module descriptor
-`tenant_domain` (#558) yang selesai. Jangan asumsikan resolver host-based
-sudah bisa dipakai; env var `PUBLIC_PLATFORM_ROOT_DOMAIN`/`PUBLIC_TRUST_PROXY`
-baru **divalidasi dan didokumentasikan**, belum **dikonsumsi** oleh kode
-resolver apa pun. Tabel `awcms_mini_tenant_domains` baru berisi schema +
-constraint + RLS + permission catalog seed — belum ada baris yang pernah
-ditulis lewat kode aplikasi (menunggu #562's API), dan belum ada resolver
-yang membacanya (menunggu #559, yang juga harus menyelesaikan RLS
-bootstrap gap yang didokumentasikan di §Schema di atas dan di migration
-031's komentar sebelum bisa query tabel ini tanpa tenant context).
+Isu #560-#567 (rute publik `/news`, dokumentasi legacy, API tenant domain,
+admin UI domain, tenant settings rute `/news`/legacy di `blog_content`,
+module presets, matrix UI admin, dan adapter Cloudflare DNS) **belum ada**
+— hanya lapisan config (#556), schema `awcms_mini_tenant_domains` (#557),
+module descriptor `tenant_domain` (#558), dan resolver host-based (#559)
+yang selesai. Resolver #559 adalah **library murni** — belum dikonsumsi
+endpoint/route apa pun (menunggu #560). Tabel `awcms_mini_tenant_domains`
+masih berisi schema + constraint + RLS + permission catalog seed + fungsi
+lookup `SECURITY DEFINER` saja — belum ada baris yang pernah ditulis lewat
+kode aplikasi (menunggu #562's API); resolver #559 hanya bisa MEMBACA baris
+yang di-seed manual/via test, bukan menulisnya.

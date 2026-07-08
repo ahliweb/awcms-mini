@@ -235,7 +235,8 @@ describe("database migration runner helpers", () => {
       "029_awcms_mini_blog_content_presentation_schema.sql",
       "030_awcms_mini_blog_content_presentation_permissions.sql",
       "031_awcms_mini_tenant_domain_schema.sql",
-      "032_awcms_mini_tenant_domain_permissions.sql"
+      "032_awcms_mini_tenant_domain_permissions.sql",
+      "033_awcms_mini_tenant_domain_lookup_function.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
