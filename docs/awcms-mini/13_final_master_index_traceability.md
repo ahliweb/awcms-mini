@@ -162,6 +162,7 @@ flowchart LR
 | Setup Wizard          | `025_awcms_mini_setup_wizard_extension.sql`                                    |
 | Dashboard Views       | `026_awcms_mini_dashboard_materialized_views.sql`                              |
 | Module Management     | `sql/025_awcms_mini_module_management_schema.sql` (epic #510, Issue #511-#521) |
+| Blog Content          | `sql/026`-`030_awcms_mini_blog_content_*.sql` (epic #536, Issue #537-#543)     |
 
 ## Matrix Modul vs Security Control
 
@@ -189,31 +190,32 @@ flowchart LR
 
 ## Matrix Security Control vs Skill
 
-| Control                               | Skill penegak                                                                                          |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Tenant isolation + RBAC/ABAC + RLS    | `awcms-mini-abac-guard`                                                                                |
-| Idempotency high-risk                 | `awcms-mini-idempotency`                                                                               |
-| Audit log high-risk                   | `awcms-mini-audit-log`                                                                                 |
-| Sensitive masking                     | `awcms-mini-sensitive-data`                                                                            |
-| Sync HMAC + file checksum             | `awcms-mini-sync-hmac`                                                                                 |
-| Migration aman (RLS/index)            | `awcms-mini-new-migration`                                                                             |
-| Soft delete policy                    | `awcms-mini-new-migration`, `awcms-mini-new-endpoint`, `awcms-mini-abac-guard`, `awcms-mini-audit-log` |
-| API/event contract                    | `awcms-mini-new-endpoint`, `awcms-mini-new-event`                                                      |
-| Testing berlapis                      | `awcms-mini-testing`                                                                                   |
-| Review keamanan                       | `awcms-mini-security-review` + agent `awcms-mini-security-auditor`                                     |
-| Triase CodeQL code scanning           | `awcms-mini-codeql-triage`                                                                             |
-| Review PR / DoD                       | `awcms-mini-pr-review` + agent `awcms-mini-reviewer`                                                   |
-| Go-live gate                          | `awcms-mini-production-preflight`                                                                      |
-| Profil deployment (LAN-first/Coolify) | `awcms-mini-deploy`                                                                                    |
-| UI/design system/a11y                 | `awcms-mini-ui-screen`                                                                                 |
-| Form multi-step (wizard)              | `awcms-mini-wizard-form`                                                                               |
-| Server-side draft persistence         | `awcms-mini-form-drafts`                                                                               |
-| Kirim email transaksional             | `awcms-mini-email`                                                                                     |
-| Kelola sistem Module Management       | `awcms-mini-module-management` (+ `awcms-mini-new-module` untuk scaffold field descriptor)             |
-| Rilis/CHANGELOG                       | `awcms-mini-release`                                                                                   |
-| Legacy migration                      | `awcms-mini-legacy-migration`                                                                          |
-| Implementasi issue                    | skill `awcms-mini-implement-issue` + agent `awcms-mini-coder`                                          |
-| Snapshot docs GitHub                  | `awcms-mini-github-snapshot`                                                                           |
+| Control                                      | Skill penegak                                                                                          |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Tenant isolation + RBAC/ABAC + RLS           | `awcms-mini-abac-guard`                                                                                |
+| Idempotency high-risk                        | `awcms-mini-idempotency`                                                                               |
+| Audit log high-risk                          | `awcms-mini-audit-log`                                                                                 |
+| Sensitive masking                            | `awcms-mini-sensitive-data`                                                                            |
+| Sync HMAC + file checksum                    | `awcms-mini-sync-hmac`                                                                                 |
+| Migration aman (RLS/index)                   | `awcms-mini-new-migration`                                                                             |
+| Soft delete policy                           | `awcms-mini-new-migration`, `awcms-mini-new-endpoint`, `awcms-mini-abac-guard`, `awcms-mini-audit-log` |
+| API/event contract                           | `awcms-mini-new-endpoint`, `awcms-mini-new-event`                                                      |
+| Testing berlapis                             | `awcms-mini-testing`                                                                                   |
+| Review keamanan                              | `awcms-mini-security-review` + agent `awcms-mini-security-auditor`                                     |
+| Triase CodeQL code scanning                  | `awcms-mini-codeql-triage`                                                                             |
+| Review PR / DoD                              | `awcms-mini-pr-review` + agent `awcms-mini-reviewer`                                                   |
+| Go-live gate                                 | `awcms-mini-production-preflight`                                                                      |
+| Profil deployment (LAN-first/Coolify)        | `awcms-mini-deploy`                                                                                    |
+| UI/design system/a11y                        | `awcms-mini-ui-screen`                                                                                 |
+| Form multi-step (wizard)                     | `awcms-mini-wizard-form`                                                                               |
+| Server-side draft persistence                | `awcms-mini-form-drafts`                                                                               |
+| Kirim email transaksional                    | `awcms-mini-email`                                                                                     |
+| Kelola sistem Module Management              | `awcms-mini-module-management` (+ `awcms-mini-new-module` untuk scaffold field descriptor)             |
+| Kerjakan epic blog_content (Issue #537-#543) | `awcms-mini-blog-content`                                                                              |
+| Rilis/CHANGELOG                              | `awcms-mini-release`                                                                                   |
+| Legacy migration                             | `awcms-mini-legacy-migration`                                                                          |
+| Implementasi issue                           | skill `awcms-mini-implement-issue` + agent `awcms-mini-coder`                                          |
+| Snapshot docs GitHub                         | `awcms-mini-github-snapshot`                                                                           |
 
 ## Matrix Modul vs SOP
 
@@ -238,6 +240,7 @@ flowchart LR
 | Backup/restore        | Deployment/Database            |
 | Troubleshooting       | Observability/DB               |
 | Manajemen modul       | Module Management (epic #510)  |
+| Blog/konten           | Blog Content (epic #536)       |
 | Handover              | Semua                          |
 
 ## Matrix kesiapan implementasi

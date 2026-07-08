@@ -117,6 +117,17 @@ tags:
       rebuilds the base media library, tenant system, RBAC/ABAC, audit, or
       theme engine — the blog theme endpoint overrides
       `awcms_mini_tenants.default_theme`, it does not replace it.
+  - name: Blog Settings
+    description: >-
+      Tenant-scoped blog settings admin API (epic #536, Issue #543) — one
+      row per tenant (`awcms_mini_blog_settings`, schema present since
+      Issue #537 but unwired until this issue). Blog title/description and
+      RSS/sitemap enabled flags live in the row's catch-all `settings`
+      jsonb column; default locale/visibility and SEO title/description
+      defaults have their own typed columns. `rssEnabled`/`sitemapEnabled`
+      also gate `GET /blog/{tenantCode}/feed.xml` and
+      `.../sitemap-blog.xml` (Issue #540) — disabled looks identical to an
+      unknown tenant (404), no distinguishing signal leaked.
 paths:
   /api/v1/sync/push:
     post:
@@ -5713,6 +5724,79 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/blog/settings:
+    get:
+      tags:
+        - Blog Settings
+      summary: Read this tenant's blog settings
+      operationId: blogSettingsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Blog settings, falling back to schema/domain defaults when never configured.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogSettingsView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Blog Settings
+      summary: Update this tenant's blog settings
+      operationId: blogSettingsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBlogSettingsInput"
+      responses:
+        "200":
+          description: Blog settings updated (partial update — only fields present in the request body are changed).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogSettingsView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
 x-awcms-mini-soft-delete-pattern:
   delete:
     method: DELETE
@@ -8849,6 +8933,86 @@ components:
         isOverride:
           type: boolean
           description: false means this is the tenant's inherited default_theme, not a blog-specific override.
+    BlogSettingsView:
+      type: object
+      required:
+        - tenantId
+        - blogTitle
+        - blogDescription
+        - postsPerPage
+        - rssEnabled
+        - sitemapEnabled
+        - defaultLocale
+        - defaultVisibility
+        - seoDefaultTitle
+        - seoDefaultDescription
+        - updatedAt
+      additionalProperties: false
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        blogTitle:
+          type: string
+        blogDescription:
+          type: string
+          nullable: true
+        postsPerPage:
+          type: integer
+          minimum: 1
+          maximum: 100
+        rssEnabled:
+          type: boolean
+        sitemapEnabled:
+          type: boolean
+        defaultLocale:
+          type: string
+        defaultVisibility:
+          type: string
+          enum: [public, private, unlisted]
+        seoDefaultTitle:
+          type: string
+          nullable: true
+        seoDefaultDescription:
+          type: string
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    UpdateBlogSettingsInput:
+      type: object
+      description: Partial update — only fields present are validated/changed. blogTitle/blogDescription/rssEnabled/sitemapEnabled live in the row's catch-all `settings` jsonb column; the rest have their own typed columns.
+      additionalProperties: false
+      properties:
+        blogTitle:
+          type: string
+          maxLength: 200
+        blogDescription:
+          type: string
+          maxLength: 500
+          nullable: true
+        postsPerPage:
+          type: integer
+          minimum: 1
+          maximum: 100
+        rssEnabled:
+          type: boolean
+        sitemapEnabled:
+          type: boolean
+        defaultLocale:
+          type: string
+        defaultVisibility:
+          type: string
+          enum: [public, private, unlisted]
+        seoDefaultTitle:
+          type: string
+          maxLength: 200
+          nullable: true
+        seoDefaultDescription:
+          type: string
+          maxLength: 300
+          nullable: true
     BlogPostListItem:
       type: object
       required:

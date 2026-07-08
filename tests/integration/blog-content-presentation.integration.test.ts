@@ -1,12 +1,14 @@
 /**
  * Integration tests for presentation/monetization extensions (Issue #542,
- * epic #536). Exercises the real handlers against a real PostgreSQL —
- * templates, menus (with hierarchical items), widgets, ads (with
- * placements), and the per-tenant theme override. RBAC (single `configure`
- * permission gates create/update/delete, same as taxonomies), RLS tenant
+ * epic #536) plus blog settings (Issue #543). Exercises the real handlers
+ * against a real PostgreSQL — templates, menus (with hierarchical items),
+ * widgets, ads (with placements), the per-tenant theme override, and
+ * `/api/v1/blog/settings` (GET default fallback, PATCH merge-patch
+ * semantics, guard, validation, audit). RBAC (single `configure`/`update`
+ * permission gates the relevant mutation, same as taxonomies), RLS tenant
  * isolation, and audit are covered per resource rather than exhaustively
  * for every resource (the underlying guard/audit wiring is identical
- * across all five, proven once by the taxonomy/post suites already in this
+ * across all six, proven once by the taxonomy/post suites already in this
  * epic).
  *
  * Skipped unless DATABASE_URL is set (see tests/integration/harness.ts).
@@ -55,6 +57,10 @@ import {
   GET as getTheme,
   PATCH as updateTheme
 } from "../../src/pages/api/v1/blog/theme/index";
+import {
+  GET as getSettings,
+  PATCH as updateSettings
+} from "../../src/pages/api/v1/blog/settings/index";
 
 const OWNER_LOGIN = "owner@example.com";
 const OWNER_PASSWORD = "integration-test-owner-password";
@@ -665,6 +671,129 @@ suite("blog presentation extensions", () => {
       body: { mode: "blue" }
     });
     expect(updated.status).toBe(400);
+  });
+
+  test("settings: GET returns schema/domain defaults when never configured", async () => {
+    const owner = await bootstrap();
+
+    const before = await invoke<{
+      data: {
+        blogTitle: string;
+        postsPerPage: number;
+        rssEnabled: boolean;
+        sitemapEnabled: boolean;
+        defaultLocale: string;
+        defaultVisibility: string;
+      };
+    }>(getSettings, {
+      method: "GET",
+      path: "/api/v1/blog/settings",
+      headers: authHeaders(owner)
+    });
+
+    expect(before.status).toBe(200);
+    expect(before.body.data.blogTitle).toBe("Blog");
+    expect(before.body.data.postsPerPage).toBe(10);
+    expect(before.body.data.rssEnabled).toBe(true);
+    expect(before.body.data.sitemapEnabled).toBe(true);
+  });
+
+  test("settings: PATCH is a merge-patch — only fields sent are changed, audit event recorded", async () => {
+    const owner = await bootstrap();
+
+    const first = await invoke<{
+      data: { blogTitle: string; postsPerPage: number };
+    }>(updateSettings, {
+      method: "PATCH",
+      path: "/api/v1/blog/settings",
+      headers: authHeaders(owner),
+      body: { blogTitle: "Acme Blog", postsPerPage: 25 }
+    });
+    expect(first.status).toBe(200);
+    expect(first.body.data.blogTitle).toBe("Acme Blog");
+    expect(first.body.data.postsPerPage).toBe(25);
+
+    // Second PATCH only touches rssEnabled — blogTitle/postsPerPage from the
+    // first PATCH must survive untouched (merge-patch, not replace).
+    const second = await invoke<{
+      data: {
+        blogTitle: string;
+        postsPerPage: number;
+        rssEnabled: boolean;
+      };
+    }>(updateSettings, {
+      method: "PATCH",
+      path: "/api/v1/blog/settings",
+      headers: authHeaders(owner),
+      body: { rssEnabled: false }
+    });
+    expect(second.status).toBe(200);
+    expect(second.body.data.rssEnabled).toBe(false);
+    expect(second.body.data.blogTitle).toBe("Acme Blog");
+    expect(second.body.data.postsPerPage).toBe(25);
+
+    const after = await invoke<{ data: { blogTitle: string } }>(getSettings, {
+      method: "GET",
+      path: "/api/v1/blog/settings",
+      headers: authHeaders(owner)
+    });
+    expect(after.body.data.blogTitle).toBe("Acme Blog");
+
+    const admin = getAdminSql();
+    const auditRows = (await admin`
+      SELECT action FROM awcms_mini_audit_events
+      WHERE tenant_id = ${owner.tenantId} AND resource_type = 'blog_settings'
+      ORDER BY created_at ASC
+    `) as { action: string }[];
+    expect(auditRows.map((row) => row.action)).toEqual([
+      "blog.settings.updated",
+      "blog.settings.updated"
+    ]);
+  });
+
+  test("settings: rejects an out-of-range postsPerPage (400)", async () => {
+    const owner = await bootstrap();
+
+    const updated = await invoke(updateSettings, {
+      method: "PATCH",
+      path: "/api/v1/blog/settings",
+      headers: authHeaders(owner),
+      body: { postsPerPage: 0 }
+    });
+    expect(updated.status).toBe(400);
+  });
+
+  test("settings: reading requires blog_content.settings.read", async () => {
+    const owner = await bootstrap();
+    const noPermUser = await provisionScopedTenantUser(
+      owner.tenantId,
+      "noperm-settings@example.com",
+      []
+    );
+
+    const get = await invoke(getSettings, {
+      method: "GET",
+      path: "/api/v1/blog/settings",
+      headers: authHeaders(noPermUser)
+    });
+    expect(get.status).toBe(403);
+  });
+
+  test("settings: reader without settings.configure cannot PATCH", async () => {
+    const owner = await bootstrap();
+    const reader = await provisionScopedTenantUser(
+      owner.tenantId,
+      "settings-reader@example.com",
+      [{ activityCode: "settings", action: "read" }]
+    );
+
+    const patch = await invoke(updateSettings, {
+      method: "PATCH",
+      path: "/api/v1/blog/settings",
+      headers: authHeaders(reader),
+      body: { blogTitle: "Hijacked" }
+    });
+    expect(patch.status).toBe(403);
   });
 
   test("tenant B cannot read tenant A's templates (RLS FORCE)", async () => {

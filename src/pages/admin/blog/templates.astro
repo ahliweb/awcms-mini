@@ -1,0 +1,518 @@
+---
+/**
+ * Presentation template manager (Issue #543 §Optional advanced screens,
+ * included since Issue #542 is merged). `layoutJson` is the whitelisted
+ * `{ columns: 1|2|3, sidebarPosition: 'left'|'right'|'none' }` shape
+ * (`domain/template-policy.ts`) — rendered as two plain `<select>`s, never
+ * a free-form JSON textarea, since the whole point of that whitelist is
+ * that no client (including this admin UI) can express anything outside
+ * it.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import { listTemplates } from "../../../modules/blog-content/application/template-directory";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/blog/templates.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ_TEMPLATES = context.permissions.has(
+  permissionKey("blog_content", "templates", "read")
+);
+const CAN_CONFIGURE_TEMPLATES = context.permissions.has(
+  permissionKey("blog_content", "templates", "configure")
+);
+
+const clientStrings = {
+  createSuccess: t("admin.blog.templates.create_success"),
+  updateSuccess: t("admin.blog.templates.update_success"),
+  deleteSuccess: t("admin.blog.templates.delete_success"),
+  deleteReasonPrompt: t("admin.blog.templates.delete_reason_prompt"),
+  deleteConfirm: t("admin.blog.templates.delete_confirm"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+let templates: Awaited<ReturnType<typeof listTemplates>> = [];
+let loadError = false;
+
+if (CAN_READ_TEMPLATES) {
+  try {
+    templates = await withTenant(getDatabaseClient(), context.tenantId, (tx) =>
+      listTemplates(tx, context.tenantId)
+    );
+  } catch (error) {
+    console.error(
+      "admin/blog/templates.astro: failed to load templates",
+      error
+    );
+    loadError = true;
+  }
+}
+---
+
+<AdminLayout title={t("admin.blog.templates.title")}>
+  {
+    !CAN_READ_TEMPLATES && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.blog.access_denied_title")}
+        body={t("admin.blog.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ_TEMPLATES && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ_TEMPLATES && !loadError && (
+      <div class="config-manager">
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        {templates.length === 0 ? (
+          <p class="empty-state">{t("admin.blog.templates.no_templates")}</p>
+        ) : (
+          <div class="table-scroll">
+            <table class="blog-table">
+              <thead>
+                <tr>
+                  <th>{t("admin.blog.templates.key_column")}</th>
+                  <th>{t("admin.blog.templates.name_column")}</th>
+                  <th>{t("admin.blog.templates.columns_column")}</th>
+                  <th>{t("admin.blog.templates.sidebar_column")}</th>
+                  <th>{t("admin.blog.templates.active_column")}</th>
+                  {CAN_CONFIGURE_TEMPLATES && (
+                    <th>{t("admin.blog.templates.actions_column")}</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {templates.map((template) => (
+                  <tr>
+                    <td>
+                      <code>{template.key}</code>
+                    </td>
+                    <td>{template.name}</td>
+                    <td>{template.layoutJson.columns}</td>
+                    <td>{template.layoutJson.sidebarPosition}</td>
+                    <td>
+                      {template.isActive ? t("common.yes") : t("common.no")}
+                    </td>
+                    {CAN_CONFIGURE_TEMPLATES && (
+                      <td>
+                        <details>
+                          <summary>
+                            {t("admin.blog.templates.edit_summary")}
+                          </summary>
+                          <form class="edit-config-form" data-id={template.id}>
+                            <label>
+                              {t("admin.blog.templates.field_name")}
+                              <input
+                                type="text"
+                                name="name"
+                                required
+                                value={template.name}
+                              />
+                            </label>
+                            <label>
+                              {t("admin.blog.templates.field_columns")}
+                              <select name="columns">
+                                {[1, 2, 3].map((value) => (
+                                  <option
+                                    value={value}
+                                    selected={
+                                      template.layoutJson.columns === value
+                                    }
+                                  >
+                                    {value}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              {t("admin.blog.templates.field_sidebar")}
+                              <select name="sidebarPosition">
+                                {["left", "right", "none"].map((value) => (
+                                  <option
+                                    value={value}
+                                    selected={
+                                      template.layoutJson.sidebarPosition ===
+                                      value
+                                    }
+                                  >
+                                    {t(`admin.blog.templates.sidebar_${value}`)}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label class="checkbox-label">
+                              <input
+                                type="checkbox"
+                                name="isActive"
+                                checked={template.isActive}
+                              />
+                              {t("admin.blog.templates.field_active")}
+                            </label>
+                            <button type="submit">
+                              {t("admin.blog.templates.save_button")}
+                            </button>
+                          </form>
+                        </details>
+                        <button
+                          type="button"
+                          class="delete-config-button"
+                          data-id={template.id}
+                        >
+                          {t("admin.blog.templates.delete_button")}
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {CAN_CONFIGURE_TEMPLATES && (
+          <details class="create-config">
+            <summary>{t("admin.blog.templates.create_summary")}</summary>
+            <form id="create-config-form" class="create-config-form">
+              <label>
+                {t("admin.blog.templates.field_key")}
+                <input
+                  type="text"
+                  name="key"
+                  required
+                  pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                />
+              </label>
+              <label>
+                {t("admin.blog.templates.field_name")}
+                <input type="text" name="name" required />
+              </label>
+              <label>
+                {t("admin.blog.templates.field_columns")}
+                <select name="columns">
+                  <option value="1">1</option>
+                  <option value="2" selected>
+                    2
+                  </option>
+                  <option value="3">3</option>
+                </select>
+              </label>
+              <label>
+                {t("admin.blog.templates.field_sidebar")}
+                <select name="sidebarPosition">
+                  <option value="left">
+                    {t("admin.blog.templates.sidebar_left")}
+                  </option>
+                  <option value="right" selected>
+                    {t("admin.blog.templates.sidebar_right")}
+                  </option>
+                  <option value="none">
+                    {t("admin.blog.templates.sidebar_none")}
+                  </option>
+                </select>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" name="isActive" checked />
+                {t("admin.blog.templates.field_active")}
+              </label>
+              <button type="submit">
+                {t("admin.blog.templates.create_submit")}
+              </button>
+            </form>
+          </details>
+        )}
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .config-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+  }
+
+  .action-banner[data-variant="success"] {
+    background: color-mix(
+      in srgb,
+      var(--color-success) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-success);
+  }
+
+  .action-banner[data-variant="error"] {
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-danger);
+  }
+
+  .empty-state {
+    color: var(--color-text-muted);
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+  }
+
+  .blog-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .blog-table th,
+  .blog-table td {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--fs-sm);
+    vertical-align: top;
+  }
+
+  .edit-config-form,
+  .create-config-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    margin-top: var(--sp-2);
+    max-width: 420px;
+  }
+
+  .edit-config-form label,
+  .create-config-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+
+  .checkbox-label {
+    flex-direction: row !important;
+    align-items: center;
+    gap: var(--sp-2) !important;
+  }
+
+  .edit-config-form input,
+  .edit-config-form select,
+  .create-config-form input,
+  .create-config-form select {
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .edit-config-form button,
+  .create-config-form button {
+    align-self: flex-start;
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-3);
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  .delete-config-button {
+    margin-top: var(--sp-2);
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-danger-strong);
+    color: var(--color-danger-strong);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-2);
+    min-height: 44px;
+    cursor: pointer;
+    font-size: var(--fs-xs);
+  }
+
+  .create-config {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+  }
+
+  .create-config summary,
+  details summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  input:focus-visible,
+  select:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface TemplateManagerStrings {
+    createSuccess: string;
+    updateSuccess: string;
+    deleteSuccess: string;
+    deleteReasonPrompt: string;
+    deleteConfirm: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<TemplateManagerStrings>();
+
+  function submitButtonOf(form: HTMLFormElement): HTMLButtonElement | null {
+    return form.querySelector('button[type="submit"]');
+  }
+
+  document
+    .getElementById("create-config-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = submitButtonOf(form);
+      if (button?.disabled) return;
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+
+      try {
+        const formData = new FormData(form);
+        const result = await submitJson(
+          "/api/v1/blog/templates",
+          "POST",
+          {
+            key: formData.get("key"),
+            name: formData.get("name"),
+            layoutJson: {
+              columns: Number(formData.get("columns")),
+              sidebarPosition: formData.get("sidebarPosition")
+            },
+            isActive: formData.get("isActive") === "on"
+          },
+          strings
+        );
+
+        showBanner(
+          "action-banner",
+          result.ok ? strings.createSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
+    });
+
+  document.querySelectorAll(".edit-config-form").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const el = event.target as HTMLFormElement;
+      const button = submitButtonOf(el);
+      if (button?.disabled) return;
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+
+      try {
+        const id = el.dataset.id!;
+        const formData = new FormData(el);
+        const result = await submitJson(
+          `/api/v1/blog/templates/${id}`,
+          "PATCH",
+          {
+            name: formData.get("name"),
+            layoutJson: {
+              columns: Number(formData.get("columns")),
+              sidebarPosition: formData.get("sidebarPosition")
+            },
+            isActive: formData.get("isActive") === "on"
+          },
+          strings
+        );
+
+        showBanner(
+          "action-banner",
+          result.ok ? strings.updateSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
+    });
+  });
+
+  document.querySelectorAll(".delete-config-button").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const el = button as HTMLButtonElement;
+      if (el.disabled) return;
+
+      const reason = window.prompt(strings.deleteReasonPrompt);
+      if (!reason || reason.trim().length === 0) return;
+      if (!window.confirm(strings.deleteConfirm)) return;
+
+      const unlock = lockElement(el, strings.pleaseWait);
+      try {
+        const id = el.dataset.id!;
+        const result = await submitJson(
+          `/api/v1/blog/templates/${id}`,
+          "DELETE",
+          { reason },
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.deleteSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock();
+      }
+    });
+  });
+</script>

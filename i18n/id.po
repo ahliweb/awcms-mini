@@ -784,3 +784,905 @@ msgstr "Progres tidak bisa disimpan. Isian Anda masih ada — coba lagi."
 
 msgid "admin.examples.wizard.draft_resumed_notice"
 msgstr "Draft tersimpan Anda dilanjutkan."
+
+#. admin.blog — Issue #543 (admin UI)
+msgid "admin.layout.nav_blog"
+msgstr "Blog"
+
+msgid "common.filter_all"
+msgstr "Semua"
+
+msgid "common.previous_page"
+msgstr "Halaman sebelumnya"
+
+msgid "common.next_page"
+msgstr "Halaman berikutnya"
+
+msgid "admin.blog.access_denied_title"
+msgstr "Akses ditolak."
+
+msgid "admin.blog.access_denied_body"
+msgstr "Akun Anda tidak memiliki izin untuk melihat layar blog ini. Hubungi admin/pemilik tenant Anda untuk meminta akses."
+
+msgid "admin.blog.dashboard.title"
+msgstr "Dasbor blog"
+
+msgid "admin.blog.dashboard.posts_title"
+msgstr "Post"
+
+msgid "admin.blog.dashboard.total_posts_label"
+msgstr "Total post"
+
+msgid "admin.blog.dashboard.draft_posts_label"
+msgstr "Draf"
+
+msgid "admin.blog.dashboard.scheduled_posts_label"
+msgstr "Terjadwal"
+
+msgid "admin.blog.dashboard.pages_title"
+msgstr "Halaman"
+
+msgid "admin.blog.dashboard.total_pages_label"
+msgstr "Total halaman"
+
+msgid "admin.blog.dashboard.quick_links_title"
+msgstr "Tautan cepat"
+
+msgid "admin.blog.dashboard.new_post_link"
+msgstr "Post baru"
+
+msgid "admin.blog.dashboard.new_page_link"
+msgstr "Halaman baru"
+
+msgid "admin.blog.dashboard.manage_posts_link"
+msgstr "Kelola post"
+
+msgid "admin.blog.dashboard.manage_pages_link"
+msgstr "Kelola halaman"
+
+msgid "admin.blog.dashboard.manage_categories_link"
+msgstr "Kelola kategori"
+
+msgid "admin.blog.dashboard.manage_tags_link"
+msgstr "Kelola tag"
+
+msgid "admin.blog.dashboard.manage_settings_link"
+msgstr "Pengaturan blog"
+
+msgid "admin.blog.dashboard.recent_updates_title"
+msgstr "Baru diperbarui"
+
+msgid "admin.blog.dashboard.no_recent_updates"
+msgstr "Belum ada post."
+
+msgid "admin.blog.status.draft"
+msgstr "Draf"
+
+msgid "admin.blog.status.review"
+msgstr "Dalam peninjauan"
+
+msgid "admin.blog.status.scheduled"
+msgstr "Terjadwal"
+
+msgid "admin.blog.status.published"
+msgstr "Diterbitkan"
+
+msgid "admin.blog.status.archived"
+msgstr "Diarsipkan"
+
+msgid "admin.blog.visibility.public"
+msgstr "Publik"
+
+msgid "admin.blog.visibility.private"
+msgstr "Privat"
+
+msgid "admin.blog.visibility.unlisted"
+msgstr "Tidak terdaftar"
+
+msgid "admin.blog.page_type.standard"
+msgstr "Standar"
+
+msgid "admin.blog.page_type.landing"
+msgstr "Landing"
+
+msgid "admin.blog.page_type.legal"
+msgstr "Legal"
+
+msgid "admin.blog.page_type.system"
+msgstr "Sistem"
+
+msgid "admin.blog.posts.title"
+msgstr "Post blog"
+
+msgid "admin.blog.posts.new_title"
+msgstr "Post baru"
+
+msgid "admin.blog.posts.new_button"
+msgstr "Post baru"
+
+msgid "admin.blog.posts.filters_aria_label"
+msgstr "Filter post"
+
+msgid "admin.blog.posts.search_label"
+msgstr "Cari"
+
+msgid "admin.blog.posts.status_filter_label"
+msgstr "Status"
+
+msgid "admin.blog.posts.term_filter_label"
+msgstr "Kategori/tag"
+
+msgid "admin.blog.posts.apply_filters_button"
+msgstr "Terapkan filter"
+
+msgid "admin.blog.posts.reset_filters_link"
+msgstr "Atur ulang filter"
+
+msgid "admin.blog.posts.no_posts"
+msgstr "Tidak ada post yang cocok dengan filter ini."
+
+msgid "admin.blog.posts.title_column"
+msgstr "Judul"
+
+msgid "admin.blog.posts.status_column"
+msgstr "Status"
+
+msgid "admin.blog.posts.author_column"
+msgstr "Penulis"
+
+msgid "admin.blog.posts.locale_column"
+msgstr "Locale"
+
+msgid "admin.blog.posts.published_column"
+msgstr "Diterbitkan"
+
+msgid "admin.blog.posts.updated_column"
+msgstr "Diperbarui"
+
+msgid "admin.blog.posts.unknown_author"
+msgstr "Tidak diketahui"
+
+msgid "admin.blog.posts.pagination_aria_label"
+msgstr "Navigasi halaman post"
+
+msgid "admin.blog.posts.page_indicator"
+msgstr "Halaman {page} dari {totalPages}"
+
+msgid "admin.blog.posts.not_found_title"
+msgstr "Post tidak ditemukan."
+
+msgid "admin.blog.posts.not_found_body"
+msgstr "Id post ini tidak ada atau Anda tidak memiliki izin untuk melihatnya."
+
+msgid "admin.blog.posts.back_to_list"
+msgstr "Kembali ke daftar post"
+
+msgid "admin.blog.posts.field_title"
+msgstr "Judul"
+
+msgid "admin.blog.posts.field_slug"
+msgstr "Slug"
+
+msgid "admin.blog.posts.slug_hint"
+msgstr "Hanya huruf kecil, angka, dan tanda hubung tunggal."
+
+msgid "admin.blog.posts.field_excerpt"
+msgstr "Ringkasan"
+
+msgid "admin.blog.posts.field_content_text"
+msgstr "Konten (teks polos)"
+
+msgid "admin.blog.posts.field_content_json"
+msgstr "Blok konten (JSON)"
+
+msgid "admin.blog.posts.content_json_hint"
+msgstr "Konten terstruktur berbentuk { \"blocks\": [...] } — hanya blok paragraph, heading, list, quote, dan gallery. Biarkan array blocks kosong bila ragu."
+
+msgid "admin.blog.posts.field_visibility"
+msgstr "Visibilitas"
+
+msgid "admin.blog.posts.field_locale"
+msgstr "Locale"
+
+msgid "admin.blog.posts.field_featured_media_id"
+msgstr "Referensi media unggulan (UUID)"
+
+msgid "admin.blog.posts.featured_media_hint"
+msgstr "Opsional. Belum ada pustaka media — cukup masukkan referensi UUID."
+
+msgid "admin.blog.posts.field_categories"
+msgstr "Kategori"
+
+msgid "admin.blog.posts.no_categories"
+msgstr "Belum ada kategori."
+
+msgid "admin.blog.posts.field_tags"
+msgstr "Tag"
+
+msgid "admin.blog.posts.no_tags"
+msgstr "Belum ada tag."
+
+msgid "admin.blog.posts.seo_legend"
+msgstr "SEO"
+
+msgid "admin.blog.posts.field_seo_title"
+msgstr "Judul SEO"
+
+msgid "admin.blog.posts.field_meta_description"
+msgstr "Meta deskripsi"
+
+msgid "admin.blog.posts.field_canonical_url"
+msgstr "URL kanonis"
+
+msgid "admin.blog.posts.create_submit"
+msgstr "Buat post"
+
+msgid "admin.blog.posts.create_success"
+msgstr "Post berhasil dibuat."
+
+msgid "admin.blog.posts.invalid_content_json"
+msgstr "Blok konten harus berupa JSON yang valid."
+
+msgid "admin.blog.posts.save_button"
+msgstr "Simpan perubahan"
+
+msgid "admin.blog.posts.save_success"
+msgstr "Post berhasil disimpan."
+
+msgid "admin.blog.posts.author_label"
+msgstr "Penulis"
+
+msgid "admin.blog.posts.deleted_label"
+msgstr "Dihapus"
+
+msgid "admin.blog.posts.submit_review_button"
+msgstr "Ajukan untuk ditinjau"
+
+msgid "admin.blog.posts.submit_review_success"
+msgstr "Post diajukan untuk ditinjau."
+
+msgid "admin.blog.posts.publish_button"
+msgstr "Terbitkan"
+
+msgid "admin.blog.posts.publish_confirm"
+msgstr "Terbitkan post ini sekarang? Post akan tampil di blog publik jika visibilitasnya publik."
+
+msgid "admin.blog.posts.publish_success"
+msgstr "Post berhasil diterbitkan."
+
+msgid "admin.blog.posts.schedule_button"
+msgstr "Jadwalkan"
+
+msgid "admin.blog.posts.scheduled_at_prompt"
+msgstr "Terbitkan pada (mis. 2026-08-01T09:00):"
+
+msgid "admin.blog.posts.schedule_confirm"
+msgstr "Jadwalkan post ini untuk diterbitkan otomatis pada waktu yang Anda masukkan?"
+
+msgid "admin.blog.posts.schedule_success"
+msgstr "Post berhasil dijadwalkan."
+
+msgid "admin.blog.posts.archive_button"
+msgstr "Arsipkan"
+
+msgid "admin.blog.posts.archive_confirm"
+msgstr "Arsipkan post ini? Post tidak akan lagi tampil di publik."
+
+msgid "admin.blog.posts.archive_success"
+msgstr "Post berhasil diarsipkan."
+
+msgid "admin.blog.posts.delete_button"
+msgstr "Hapus"
+
+msgid "admin.blog.posts.delete_reason_prompt"
+msgstr "Alasan menghapus post ini:"
+
+msgid "admin.blog.posts.delete_success"
+msgstr "Post berhasil dihapus."
+
+msgid "admin.blog.posts.restore_button"
+msgstr "Pulihkan"
+
+msgid "admin.blog.posts.restore_confirm"
+msgstr "Pulihkan post yang dihapus ini?"
+
+msgid "admin.blog.posts.restore_success"
+msgstr "Post berhasil dipulihkan."
+
+msgid "admin.blog.posts.purge_button"
+msgstr "Hapus permanen"
+
+msgid "admin.blog.posts.purge_confirm"
+msgstr "Hapus post ini secara permanen? Tindakan ini tidak dapat dibatalkan."
+
+msgid "admin.blog.posts.purge_success"
+msgstr "Post berhasil dihapus permanen."
+
+msgid "admin.blog.posts.revisions_title"
+msgstr "Riwayat revisi"
+
+msgid "admin.blog.posts.no_revisions"
+msgstr "Belum ada revisi."
+
+msgid "admin.blog.posts.revision_number_column"
+msgstr "#"
+
+msgid "admin.blog.posts.revision_title_column"
+msgstr "Judul"
+
+msgid "admin.blog.posts.revision_status_column"
+msgstr "Status"
+
+msgid "admin.blog.posts.revision_note_column"
+msgstr "Catatan"
+
+msgid "admin.blog.posts.revision_created_column"
+msgstr "Dibuat"
+
+msgid "admin.blog.posts.revision_actions_column"
+msgstr "Aksi"
+
+msgid "admin.blog.posts.revision_restore_button"
+msgstr "Pulihkan revisi ini"
+
+msgid "admin.blog.posts.revision_restore_confirm"
+msgstr "Pulihkan konten post ke revisi ini? Revisi baru yang mencatat pemulihan ini akan ditambahkan — tidak ada riwayat yang hilang."
+
+msgid "admin.blog.posts.revision_restore_success"
+msgstr "Post berhasil dipulihkan dari revisi."
+
+msgid "admin.blog.pages.title"
+msgstr "Halaman blog"
+
+msgid "admin.blog.pages.new_title"
+msgstr "Halaman baru"
+
+msgid "admin.blog.pages.new_button"
+msgstr "Halaman baru"
+
+msgid "admin.blog.pages.filters_aria_label"
+msgstr "Filter halaman"
+
+msgid "admin.blog.pages.search_label"
+msgstr "Cari"
+
+msgid "admin.blog.pages.status_filter_label"
+msgstr "Status"
+
+msgid "admin.blog.pages.type_filter_label"
+msgstr "Jenis halaman"
+
+msgid "admin.blog.pages.apply_filters_button"
+msgstr "Terapkan filter"
+
+msgid "admin.blog.pages.reset_filters_link"
+msgstr "Atur ulang filter"
+
+msgid "admin.blog.pages.no_pages"
+msgstr "Tidak ada halaman yang cocok dengan filter ini."
+
+msgid "admin.blog.pages.title_column"
+msgstr "Judul"
+
+msgid "admin.blog.pages.status_column"
+msgstr "Status"
+
+msgid "admin.blog.pages.type_column"
+msgstr "Jenis"
+
+msgid "admin.blog.pages.menu_order_column"
+msgstr "Urutan menu"
+
+msgid "admin.blog.pages.locale_column"
+msgstr "Locale"
+
+msgid "admin.blog.pages.updated_column"
+msgstr "Diperbarui"
+
+msgid "admin.blog.pages.pagination_aria_label"
+msgstr "Navigasi halaman"
+
+msgid "admin.blog.pages.not_found_title"
+msgstr "Halaman tidak ditemukan."
+
+msgid "admin.blog.pages.not_found_body"
+msgstr "Id halaman ini tidak ada atau Anda tidak memiliki izin untuk melihatnya."
+
+msgid "admin.blog.pages.back_to_list"
+msgstr "Kembali ke daftar halaman"
+
+msgid "admin.blog.pages.field_title"
+msgstr "Judul"
+
+msgid "admin.blog.pages.field_slug"
+msgstr "Slug"
+
+msgid "admin.blog.pages.field_page_type"
+msgstr "Jenis halaman"
+
+msgid "admin.blog.pages.field_parent_page"
+msgstr "Halaman induk"
+
+msgid "admin.blog.pages.no_parent_option"
+msgstr "Tanpa induk"
+
+msgid "admin.blog.pages.field_menu_order"
+msgstr "Urutan menu"
+
+msgid "admin.blog.pages.create_submit"
+msgstr "Buat halaman"
+
+msgid "admin.blog.pages.create_success"
+msgstr "Halaman berhasil dibuat."
+
+msgid "admin.blog.pages.save_button"
+msgstr "Simpan perubahan"
+
+msgid "admin.blog.pages.save_success"
+msgstr "Halaman berhasil disimpan."
+
+msgid "admin.blog.pages.delete_button"
+msgstr "Hapus"
+
+msgid "admin.blog.pages.delete_reason_prompt"
+msgstr "Alasan menghapus halaman ini:"
+
+msgid "admin.blog.pages.delete_success"
+msgstr "Halaman berhasil dihapus."
+
+msgid "admin.blog.categories.title"
+msgstr "Kategori"
+
+msgid "admin.blog.categories.no_categories"
+msgstr "Belum ada kategori."
+
+msgid "admin.blog.categories.name_column"
+msgstr "Nama"
+
+msgid "admin.blog.categories.slug_column"
+msgstr "Slug"
+
+msgid "admin.blog.categories.parent_column"
+msgstr "Induk"
+
+msgid "admin.blog.categories.actions_column"
+msgstr "Aksi"
+
+msgid "admin.blog.categories.edit_summary"
+msgstr "Edit"
+
+msgid "admin.blog.categories.field_name"
+msgstr "Nama"
+
+msgid "admin.blog.categories.field_slug"
+msgstr "Slug"
+
+msgid "admin.blog.categories.field_description"
+msgstr "Deskripsi"
+
+msgid "admin.blog.categories.field_parent"
+msgstr "Kategori induk"
+
+msgid "admin.blog.categories.no_parent_option"
+msgstr "Tanpa induk"
+
+msgid "admin.blog.categories.save_button"
+msgstr "Simpan"
+
+msgid "admin.blog.categories.delete_button"
+msgstr "Hapus"
+
+msgid "admin.blog.categories.create_summary"
+msgstr "Tambah kategori"
+
+msgid "admin.blog.categories.create_submit"
+msgstr "Buat kategori"
+
+msgid "admin.blog.categories.create_success"
+msgstr "Kategori berhasil dibuat."
+
+msgid "admin.blog.categories.update_success"
+msgstr "Kategori berhasil diperbarui."
+
+msgid "admin.blog.categories.delete_reason_prompt"
+msgstr "Alasan menghapus kategori ini:"
+
+msgid "admin.blog.categories.delete_confirm"
+msgstr "Hapus kategori ini? Post yang menggunakannya akan tetap mempertahankan term lainnya."
+
+msgid "admin.blog.categories.delete_success"
+msgstr "Kategori berhasil dihapus."
+
+msgid "admin.blog.tags.title"
+msgstr "Tag"
+
+msgid "admin.blog.tags.no_tags"
+msgstr "Belum ada tag."
+
+msgid "admin.blog.tags.name_column"
+msgstr "Nama"
+
+msgid "admin.blog.tags.slug_column"
+msgstr "Slug"
+
+msgid "admin.blog.tags.actions_column"
+msgstr "Aksi"
+
+msgid "admin.blog.tags.edit_summary"
+msgstr "Edit"
+
+msgid "admin.blog.tags.field_name"
+msgstr "Nama"
+
+msgid "admin.blog.tags.field_slug"
+msgstr "Slug"
+
+msgid "admin.blog.tags.field_description"
+msgstr "Deskripsi"
+
+msgid "admin.blog.tags.save_button"
+msgstr "Simpan"
+
+msgid "admin.blog.tags.delete_button"
+msgstr "Hapus"
+
+msgid "admin.blog.tags.create_summary"
+msgstr "Tambah tag"
+
+msgid "admin.blog.tags.create_submit"
+msgstr "Buat tag"
+
+msgid "admin.blog.tags.create_success"
+msgstr "Tag berhasil dibuat."
+
+msgid "admin.blog.tags.update_success"
+msgstr "Tag berhasil diperbarui."
+
+msgid "admin.blog.tags.delete_reason_prompt"
+msgstr "Alasan menghapus tag ini:"
+
+msgid "admin.blog.tags.delete_confirm"
+msgstr "Hapus tag ini? Post yang menggunakannya akan tetap mempertahankan term lainnya."
+
+msgid "admin.blog.tags.delete_success"
+msgstr "Tag berhasil dihapus."
+
+msgid "admin.blog.taxonomy.category_prefix"
+msgstr "Kategori: {name}"
+
+msgid "admin.blog.taxonomy.tag_prefix"
+msgstr "Tag: {name}"
+
+msgid "admin.blog.settings.title"
+msgstr "Pengaturan blog"
+
+msgid "admin.blog.settings.general_legend"
+msgstr "Umum"
+
+msgid "admin.blog.settings.field_blog_title"
+msgstr "Judul blog"
+
+msgid "admin.blog.settings.field_blog_description"
+msgstr "Deskripsi blog"
+
+msgid "admin.blog.settings.field_posts_per_page"
+msgstr "Post per halaman"
+
+msgid "admin.blog.settings.field_rss_enabled"
+msgstr "Aktifkan feed RSS"
+
+msgid "admin.blog.settings.field_sitemap_enabled"
+msgstr "Aktifkan sitemap"
+
+msgid "admin.blog.settings.field_default_locale"
+msgstr "Locale default"
+
+msgid "admin.blog.settings.field_default_visibility"
+msgstr "Visibilitas default"
+
+msgid "admin.blog.settings.field_seo_default_title"
+msgstr "Template judul SEO default"
+
+msgid "admin.blog.settings.field_seo_default_description"
+msgstr "Meta deskripsi default"
+
+msgid "admin.blog.settings.save_button"
+msgstr "Simpan"
+
+msgid "admin.blog.settings.save_success"
+msgstr "Pengaturan blog berhasil disimpan."
+
+msgid "admin.blog.settings.theme_legend"
+msgstr "Mode tema"
+
+msgid "admin.blog.settings.theme_override_note"
+msgstr "Tenant ini memiliki override tema khusus blog yang sedang aktif."
+
+msgid "admin.blog.settings.theme_inherited_note"
+msgstr "Belum ada override khusus blog — tema default tenant yang digunakan."
+
+msgid "admin.blog.settings.field_theme_mode"
+msgstr "Mode tema"
+
+msgid "admin.blog.settings.theme_mode_light"
+msgstr "Terang"
+
+msgid "admin.blog.settings.theme_mode_dark"
+msgstr "Gelap"
+
+msgid "admin.blog.settings.theme_mode_system"
+msgstr "Sistem"
+
+msgid "admin.blog.settings.theme_save_success"
+msgstr "Mode tema berhasil disimpan."
+
+msgid "admin.blog.templates.title"
+msgstr "Templat"
+
+msgid "admin.blog.templates.no_templates"
+msgstr "Belum ada templat."
+
+msgid "admin.blog.templates.key_column"
+msgstr "Key"
+
+msgid "admin.blog.templates.name_column"
+msgstr "Nama"
+
+msgid "admin.blog.templates.columns_column"
+msgstr "Kolom"
+
+msgid "admin.blog.templates.sidebar_column"
+msgstr "Sidebar"
+
+msgid "admin.blog.templates.active_column"
+msgstr "Aktif"
+
+msgid "admin.blog.templates.actions_column"
+msgstr "Aksi"
+
+msgid "admin.blog.templates.edit_summary"
+msgstr "Edit"
+
+msgid "admin.blog.templates.field_key"
+msgstr "Key"
+
+msgid "admin.blog.templates.field_name"
+msgstr "Nama"
+
+msgid "admin.blog.templates.field_columns"
+msgstr "Kolom"
+
+msgid "admin.blog.templates.field_sidebar"
+msgstr "Posisi sidebar"
+
+msgid "admin.blog.templates.sidebar_left"
+msgstr "Kiri"
+
+msgid "admin.blog.templates.sidebar_right"
+msgstr "Kanan"
+
+msgid "admin.blog.templates.sidebar_none"
+msgstr "Tidak ada"
+
+msgid "admin.blog.templates.field_active"
+msgstr "Aktif"
+
+msgid "admin.blog.templates.save_button"
+msgstr "Simpan"
+
+msgid "admin.blog.templates.delete_button"
+msgstr "Hapus"
+
+msgid "admin.blog.templates.create_summary"
+msgstr "Tambah templat"
+
+msgid "admin.blog.templates.create_submit"
+msgstr "Buat templat"
+
+msgid "admin.blog.templates.create_success"
+msgstr "Templat berhasil dibuat."
+
+msgid "admin.blog.templates.update_success"
+msgstr "Templat berhasil diperbarui."
+
+msgid "admin.blog.templates.delete_reason_prompt"
+msgstr "Alasan menghapus templat ini:"
+
+msgid "admin.blog.templates.delete_confirm"
+msgstr "Hapus templat ini?"
+
+msgid "admin.blog.templates.delete_success"
+msgstr "Templat berhasil dihapus."
+
+msgid "admin.blog.widgets.title"
+msgstr "Widget"
+
+msgid "admin.blog.widgets.no_widgets"
+msgstr "Belum ada widget."
+
+msgid "admin.blog.widgets.title_column"
+msgstr "Judul"
+
+msgid "admin.blog.widgets.position_column"
+msgstr "Posisi"
+
+msgid "admin.blog.widgets.sort_order_column"
+msgstr "Urutan"
+
+msgid "admin.blog.widgets.active_column"
+msgstr "Aktif"
+
+msgid "admin.blog.widgets.actions_column"
+msgstr "Aksi"
+
+msgid "admin.blog.widgets.edit_summary"
+msgstr "Edit"
+
+msgid "admin.blog.widgets.field_title"
+msgstr "Judul"
+
+msgid "admin.blog.widgets.field_position"
+msgstr "Posisi"
+
+msgid "admin.blog.widgets.position_header"
+msgstr "Header"
+
+msgid "admin.blog.widgets.position_sidebar"
+msgstr "Sidebar"
+
+msgid "admin.blog.widgets.position_footer"
+msgstr "Footer"
+
+msgid "admin.blog.widgets.position_content_before"
+msgstr "Sebelum konten"
+
+msgid "admin.blog.widgets.position_content_after"
+msgstr "Setelah konten"
+
+msgid "admin.blog.widgets.field_body_text"
+msgstr "Isi teks"
+
+msgid "admin.blog.widgets.field_sort_order"
+msgstr "Urutan"
+
+msgid "admin.blog.widgets.field_active"
+msgstr "Aktif"
+
+msgid "admin.blog.widgets.save_button"
+msgstr "Simpan"
+
+msgid "admin.blog.widgets.delete_button"
+msgstr "Hapus"
+
+msgid "admin.blog.widgets.create_summary"
+msgstr "Tambah widget"
+
+msgid "admin.blog.widgets.create_submit"
+msgstr "Buat widget"
+
+msgid "admin.blog.widgets.create_success"
+msgstr "Widget berhasil dibuat."
+
+msgid "admin.blog.widgets.update_success"
+msgstr "Widget berhasil diperbarui."
+
+msgid "admin.blog.widgets.delete_reason_prompt"
+msgstr "Alasan menghapus widget ini:"
+
+msgid "admin.blog.widgets.delete_confirm"
+msgstr "Hapus widget ini?"
+
+msgid "admin.blog.widgets.delete_success"
+msgstr "Widget berhasil dihapus."
+
+msgid "admin.blog.menus.title"
+msgstr "Menu"
+
+msgid "admin.blog.menus.no_menus"
+msgstr "Belum ada menu."
+
+msgid "admin.blog.menus.field_key"
+msgstr "Key"
+
+msgid "admin.blog.menus.field_name"
+msgstr "Nama"
+
+msgid "admin.blog.menus.field_items"
+msgstr "Item menu (JSON)"
+
+msgid "admin.blog.menus.items_hint"
+msgstr "Array berisi { id, parentItemId, label, linkType, targetId, url, sortOrder }. Id setiap item harus UUID yang Anda tentukan sendiri (gunakan \"Salin id baru\" di bawah) — menyimpan akan mengganti seluruh daftar item. Hanya satu tingkat nesting."
+
+msgid "admin.blog.menus.generate_id_button"
+msgstr "Salin id baru"
+
+msgid "admin.blog.menus.invalid_items_json"
+msgstr "Item menu harus berupa JSON yang valid."
+
+msgid "admin.blog.menus.save_button"
+msgstr "Simpan"
+
+msgid "admin.blog.menus.delete_button"
+msgstr "Hapus menu"
+
+msgid "admin.blog.menus.create_summary"
+msgstr "Tambah menu"
+
+msgid "admin.blog.menus.create_submit"
+msgstr "Buat menu"
+
+msgid "admin.blog.menus.create_success"
+msgstr "Menu berhasil dibuat."
+
+msgid "admin.blog.menus.update_success"
+msgstr "Menu berhasil diperbarui."
+
+msgid "admin.blog.menus.delete_reason_prompt"
+msgstr "Alasan menghapus menu ini:"
+
+msgid "admin.blog.menus.delete_confirm"
+msgstr "Hapus menu ini beserta seluruh itemnya?"
+
+msgid "admin.blog.menus.delete_success"
+msgstr "Menu berhasil dihapus."
+
+msgid "admin.blog.ads.title"
+msgstr "Iklan"
+
+msgid "admin.blog.ads.no_ads"
+msgstr "Belum ada iklan."
+
+msgid "admin.blog.ads.field_name"
+msgstr "Nama"
+
+msgid "admin.blog.ads.field_image_url"
+msgstr "URL gambar"
+
+msgid "admin.blog.ads.field_link_url"
+msgstr "URL tautan"
+
+msgid "admin.blog.ads.field_starts_at"
+msgstr "Mulai pada"
+
+msgid "admin.blog.ads.field_ends_at"
+msgstr "Berakhir pada"
+
+msgid "admin.blog.ads.field_active"
+msgstr "Aktif"
+
+msgid "admin.blog.ads.field_placements"
+msgstr "Penempatan (JSON)"
+
+msgid "admin.blog.ads.placements_hint"
+msgstr "Array berisi { placementType, targetId }. placementType salah satu dari global, widget, post, page — targetId wajib diisi kecuali untuk global. Menyimpan akan mengganti seluruh daftar penempatan."
+
+msgid "admin.blog.ads.invalid_placements_json"
+msgstr "Penempatan harus berupa JSON yang valid."
+
+msgid "admin.blog.ads.save_button"
+msgstr "Simpan"
+
+msgid "admin.blog.ads.delete_button"
+msgstr "Hapus iklan"
+
+msgid "admin.blog.ads.create_summary"
+msgstr "Tambah iklan"
+
+msgid "admin.blog.ads.create_submit"
+msgstr "Buat iklan"
+
+msgid "admin.blog.ads.create_success"
+msgstr "Iklan berhasil dibuat."
+
+msgid "admin.blog.ads.update_success"
+msgstr "Iklan berhasil diperbarui."
+
+msgid "admin.blog.ads.delete_reason_prompt"
+msgstr "Alasan menghapus iklan ini:"
+
+msgid "admin.blog.ads.delete_confirm"
+msgstr "Hapus iklan ini?"
+
+msgid "admin.blog.ads.delete_success"
+msgstr "Iklan berhasil dihapus."
+

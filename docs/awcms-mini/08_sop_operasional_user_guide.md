@@ -571,6 +571,39 @@ Kode error dari `POST .../enable` atau `.../disable` (semua `409` kecuali disebu
 4. **Curiga ada secret ter-input ke settings**: request akan **ditolak** di request time (`SETTINGS_SENSITIVE_KEY_REJECTED`) untuk key bernama secret — bila ada kebocoran nilai lewat jalur lain, audit `settings_updated` hanya berisi nama key (bukan nilai), jadi cek langsung baris `awcms_mini_module_settings` (admin DB) sebagai langkah forensik, lalu rotasi kredensial yang bersangkutan di environment variable/secret manager.
 5. **Modul core ter-disable secara tidak sengaja**: tidak mungkin — enforced server-side (`CORE_MODULE_CANNOT_BE_DISABLED`), bukan cuma UI hint.
 
+## SOP Modul Blog Content (epic #536, Issue #537-#543)
+
+Modul domain pertama yang didaftarkan langsung di repo base ini, bukan aplikasi turunan (ADR-0009, `src/modules/blog-content/README.md`). Admin UI penuh di `/admin/blog` (Issue #543), API admin di `/api/v1/blog/*` (Issue #538-#542), rute publik anonim di `/blog/{tenantCode}/*` (Issue #540).
+
+### Mengelola konten lewat admin UI
+
+1. Buka `/admin/blog` — dasbor menampilkan ringkasan post/draft/scheduled/pages dan tautan cepat. Menu ini hanya tampil di sidebar untuk role yang punya `blog_content.posts.read`.
+2. **Post baru**: `/admin/blog/posts/new` — isi title/slug/excerpt/content/visibility/SEO/kategori/tag/locale, simpan (status awal selalu `draft`). Slug bentrok (`409 SLUG_CONFLICT`) ditampilkan langsung di banner aksi.
+3. **Menerbitkan post**: dari `/admin/blog/posts/{id}`, tombol "Publish"/"Schedule"/"Archive" hanya muncul kalau transisi status itu valid dari status saat ini **dan** role pemanggil punya permission aksi tsb (`blog_content.posts.publish`/`.schedule`/`.archive`) — semuanya minta konfirmasi dulu lalu mengirim `Idempotency-Key` baru, aman dari klik ganda.
+4. **Riwayat revisi**: panel "Revision history" di editor post (bukan page — lihat §Keterbatasan di bawah) menampilkan setiap perubahan konten signifikan; tombol "Restore" (butuh `blog_content.revisions.restore` eksplisit — kepemilikan post tidak otomatis memberi izin ini) menulis kembali konten revisi lama **dan** menambah satu revisi baru mencatat pemulihan itu — riwayat tidak pernah hilang.
+5. **Kategori vs tag**: `/admin/blog/categories` (boleh hierarki satu level) dan `/admin/blog/tags` (dua layar terpisah — layar tag secara struktural tidak punya field parent sama sekali, bukan disembunyikan).
+6. **Pengaturan blog**: `/admin/blog/settings` — judul/deskripsi blog, jumlah post per halaman, aktif/nonaktifkan RSS dan sitemap, locale/visibility default, template judul SEO default, dan mode tema (override tenant, `light`/`dark`/`system`).
+7. **Halaman statis**: `/admin/blog/pages` — CRUD saja, **tidak ada** tombol publish/schedule/archive (lihat §Keterbatasan). Visibilitas/status halaman diatur manual lewat field `visibility` yang ada, bukan lifecycle action.
+8. **Layar lanjutan (opsional, aktif karena Issue #542 sudah masuk)**: `/admin/blog/templates`/`/widgets`/`/menus`/`/ads` — CRUD master data presentasi/monetisasi. `items` menu dan `placements` iklan diedit lewat textarea JSON berlabel (bukan editor visual) — baca teks bantuan di bawah tiap field sebelum menyimpan.
+
+### Menonaktifkan RSS/sitemap per tenant
+
+1. `/admin/blog/settings` — matikan centang "Enable RSS feed"/"Enable sitemap", simpan.
+2. Verifikasi: `GET /blog/{tenantCode}/feed.xml` atau `.../sitemap-blog.xml` mengembalikan `404` yang identik dengan tenant tidak dikenal — tidak ada sinyal "fitur ada tapi dimatikan" yang bocor ke pengunjung publik.
+
+### Menjadwalkan publikasi terjadwal (scheduled publishing)
+
+1. `bun run blog:publish:scheduled` (`scripts/blog-scheduled-publish.ts`) — worker internal, **bukan** endpoint HTTP dan **bukan** dipicu dari tombol UI mana pun. Publikasikan setiap post `status='scheduled'` yang `scheduled_at` sudah lewat, per tenant aktif.
+2. Jadwalkan lewat cron/systemd timer setiap 1-5 menit (lihat `docs/awcms-mini/deployment-profiles.md` §Job registry lainnya, sama pola `sync:objects:dispatch`/`logs:audit:purge`) — job ini juga muncul di `GET /api/v1/modules/blog_content/jobs` (Module Management job registry, dokumentasi murni, Issue #519) untuk operator yang memeriksa lewat API.
+3. Idempoten by construction — run berulang di waktu yang sama adalah no-op murni (post yang sudah `published` atau `scheduled_at` masih di masa depan tidak match kondisi job).
+
+### Keterbatasan yang perlu diketahui operator/editor
+
+1. **Halaman statis (pages) tidak punya lifecycle action** — tidak ada tombol publish/schedule/archive/restore/purge untuk page, berbeda dari post. Permission-nya sudah diseed di database tapi belum ada endpoint yang memakainya (backlog terbuka, bukan bug).
+2. **Tidak ada rute publik untuk halaman statis** — hanya post yang tampil di `/blog/{tenantCode}/...`; page yang sudah dibuat lewat admin UI belum bisa diakses lewat URL publik.
+3. **Tidak ada rute publik untuk widget/iklan** — CRUD-nya sudah berfungsi penuh di admin UI, tapi belum ada placement nyata di halaman publik manapun yang menampilkannya.
+4. **Editor konten memakai textarea JSON berlabel**, bukan editor visual/WYSIWYG — field "Content blocks (JSON)" mengharuskan format `{ "blocks": [...] }` valid (paragraph/heading/list/quote/gallery). Salah format ditolak sebelum submit (validasi klien) maupun di server.
+
 ## SOP Backup/Restore
 
 Backup:

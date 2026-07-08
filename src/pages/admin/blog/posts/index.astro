@@ -1,0 +1,407 @@
+---
+/**
+ * Blog post list (Issue #543 §Post List). Filters (`q` search, `status`,
+ * `termId` category/tag) and pagination (`page`) are plain GET query-string
+ * params — the filter form uses `method="get"` so the browser itself
+ * navigates to a new URL and Astro re-renders server-side; no client-side
+ * JS is needed for filtering/paging (doc 14 §Progressive enhancement: a
+ * GET form works with JS disabled too). SSR read is the same
+ * `listBlogPostsForAdmin` function a JSON endpoint could call (Issue #543
+ * addition to `blog-post-directory.ts`) — no such JSON endpoint exists yet
+ * since nothing outside this admin screen currently needs search/category
+ * filter/paged listing (`GET /api/v1/blog/posts` keeps its simpler
+ * status+limit shape).
+ *
+ * Permission-gated:
+ *   - blog_content.posts.read   -> the whole screen
+ *   - blog_content.posts.create -> "New post" link
+ *   - blog_content.taxonomies.read -> category/tag filter dropdown
+ */
+import AdminLayout from "../../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../../lib/database/client";
+import { withTenant } from "../../../../lib/database/tenant-context";
+import { permissionKey } from "../../../../modules/identity-access/domain/access-control";
+import {
+  listBlogPostsForAdmin,
+  type ListBlogPostsForAdminResult
+} from "../../../../modules/blog-content/application/blog-post-directory";
+import { listBlogTerms } from "../../../../modules/blog-content/application/blog-taxonomy-directory";
+import { fetchAuthorDisplayNames } from "../../../../modules/blog-content/application/author-lookup";
+import {
+  BLOG_CONTENT_STATUSES,
+  isBlogContentStatus
+} from "../../../../modules/blog-content/domain/post-status";
+import { createTranslator } from "../../../../lib/i18n/translate";
+import { formatDateTime } from "../../../../lib/i18n/format";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/blog/posts/index.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const locale = Astro.locals.locale;
+const t = await createTranslator(locale);
+
+const CAN_READ_POSTS = context.permissions.has(
+  permissionKey("blog_content", "posts", "read")
+);
+const CAN_CREATE_POSTS = context.permissions.has(
+  permissionKey("blog_content", "posts", "create")
+);
+const CAN_READ_TAXONOMIES = context.permissions.has(
+  permissionKey("blog_content", "taxonomies", "read")
+);
+
+const searchParams = Astro.url.searchParams;
+const q = searchParams.get("q")?.trim() || undefined;
+const statusParam = searchParams.get("status");
+const status = isBlogContentStatus(statusParam) ? statusParam : undefined;
+const termId = searchParams.get("termId") || undefined;
+const pageParam = Number(searchParams.get("page") ?? "1");
+const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
+
+let data: {
+  result: ListBlogPostsForAdminResult;
+  authorNames: Map<string, string>;
+  terms: Awaited<ReturnType<typeof listBlogTerms>>;
+} | null = null;
+let loadError = false;
+
+if (CAN_READ_POSTS) {
+  try {
+    data = await withTenant(
+      getDatabaseClient(),
+      context.tenantId,
+      async (tx) => {
+        const result = await listBlogPostsForAdmin(tx, context.tenantId, {
+          search: q,
+          status,
+          termId,
+          page
+        });
+        const authorNames = await fetchAuthorDisplayNames(
+          tx,
+          context.tenantId,
+          result.items.map((item) => item.authorTenantUserId)
+        );
+        const terms = CAN_READ_TAXONOMIES
+          ? await listBlogTerms(tx, context.tenantId)
+          : [];
+
+        return { result, authorNames, terms };
+      }
+    );
+  } catch (error) {
+    console.error("admin/blog/posts/index.astro: failed to load posts", error);
+    loadError = true;
+  }
+}
+
+const totalPages = data
+  ? Math.max(Math.ceil(data.result.total / data.result.pageSize), 1)
+  : 1;
+
+function pageHref(targetPage: number): string {
+  const params = new URLSearchParams(searchParams);
+  params.set("page", String(targetPage));
+  return `${Astro.url.pathname}?${params.toString()}`;
+}
+---
+
+<AdminLayout title={t("admin.blog.posts.title")}>
+  {
+    !CAN_READ_POSTS && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.blog.access_denied_title")}
+        body={t("admin.blog.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ_POSTS && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    data && (
+      <div class="blog-posts-list">
+        <div class="list-header">
+          <h1 class="visually-hidden">{t("admin.blog.posts.title")}</h1>
+          {CAN_CREATE_POSTS && (
+            <a class="primary-link" href="/admin/blog/posts/new">
+              {t("admin.blog.posts.new_button")}
+            </a>
+          )}
+        </div>
+
+        <form
+          method="get"
+          class="filter-form"
+          aria-label={t("admin.blog.posts.filters_aria_label")}
+        >
+          <label>
+            {t("admin.blog.posts.search_label")}
+            <input type="search" name="q" value={q ?? ""} />
+          </label>
+          <label>
+            {t("admin.blog.posts.status_filter_label")}
+            <select name="status">
+              <option value="">{t("common.filter_all")}</option>
+              {BLOG_CONTENT_STATUSES.map((value) => (
+                <option value={value} selected={status === value}>
+                  {t(`admin.blog.status.${value}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+          {CAN_READ_TAXONOMIES && (
+            <label>
+              {t("admin.blog.posts.term_filter_label")}
+              <select name="termId">
+                <option value="">{t("common.filter_all")}</option>
+                {data.terms.map((term) => (
+                  <option value={term.id} selected={termId === term.id}>
+                    {term.taxonomyType === "category"
+                      ? t("admin.blog.taxonomy.category_prefix", {
+                          name: term.name
+                        })
+                      : t("admin.blog.taxonomy.tag_prefix", {
+                          name: term.name
+                        })}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <button type="submit">
+            {t("admin.blog.posts.apply_filters_button")}
+          </button>
+          <a class="reset-link" href="/admin/blog/posts">
+            {t("admin.blog.posts.reset_filters_link")}
+          </a>
+        </form>
+
+        {data.result.items.length === 0 ? (
+          <p class="empty-state">{t("admin.blog.posts.no_posts")}</p>
+        ) : (
+          <div class="table-scroll">
+            <table class="blog-table">
+              <thead>
+                <tr>
+                  <th>{t("admin.blog.posts.title_column")}</th>
+                  <th>{t("admin.blog.posts.status_column")}</th>
+                  <th>{t("admin.blog.posts.author_column")}</th>
+                  <th>{t("admin.blog.posts.locale_column")}</th>
+                  <th>{t("admin.blog.posts.published_column")}</th>
+                  <th>{t("admin.blog.posts.updated_column")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.result.items.map((post) => (
+                  <tr>
+                    <td>
+                      <a href={`/admin/blog/posts/${post.id}`}>{post.title}</a>
+                    </td>
+                    <td>
+                      <span class="status-pill" data-status={post.status}>
+                        {t(`admin.blog.status.${post.status}`)}
+                      </span>
+                    </td>
+                    <td>
+                      {data!.authorNames.get(post.authorTenantUserId) ??
+                        t("admin.blog.posts.unknown_author")}
+                    </td>
+                    <td>{post.locale}</td>
+                    <td>
+                      {post.publishedAt
+                        ? formatDateTime(post.publishedAt, locale)
+                        : "-"}
+                    </td>
+                    <td>{formatDateTime(post.updatedAt, locale)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {totalPages > 1 && (
+          <nav
+            class="pagination"
+            aria-label={t("admin.blog.posts.pagination_aria_label")}
+          >
+            {page > 1 && (
+              <a href={pageHref(page - 1)}>{t("common.previous_page")}</a>
+            )}
+            <span>
+              {t("admin.blog.posts.page_indicator", {
+                page,
+                totalPages
+              })}
+            </span>
+            {page < totalPages && (
+              <a href={pageHref(page + 1)}>{t("common.next_page")}</a>
+            )}
+          </nav>
+        )}
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .blog-posts-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .list-header {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .primary-link {
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-2) var(--sp-4);
+    text-decoration: none;
+    font-weight: 600;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .filter-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: var(--sp-3);
+    padding: var(--sp-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-2);
+  }
+
+  .filter-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+
+  .filter-form input,
+  .filter-form select {
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    min-height: 40px;
+  }
+
+  .filter-form button {
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-2) var(--sp-4);
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  .reset-link {
+    font-size: var(--fs-sm);
+    color: var(--color-text-muted);
+  }
+
+  .empty-state {
+    color: var(--color-text-muted);
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+  }
+
+  .blog-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .blog-table th,
+  .blog-table td {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--fs-sm);
+    vertical-align: top;
+  }
+
+  .status-pill {
+    display: inline-block;
+    padding: 0 var(--sp-2);
+    border-radius: var(--radius-full);
+    font-size: var(--fs-xs);
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+  }
+
+  .status-pill[data-status="published"] {
+    background: var(--color-success-strong);
+    color: var(--color-primary-contrast);
+    border-color: var(--color-success-strong);
+  }
+
+  .status-pill[data-status="archived"] {
+    background: var(--color-danger-strong);
+    color: var(--color-primary-contrast);
+    border-color: var(--color-danger-strong);
+  }
+
+  .status-pill[data-status="scheduled"],
+  .status-pill[data-status="review"] {
+    background: var(--color-warning);
+    border-color: var(--color-warning);
+  }
+
+  .pagination {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    font-size: var(--fs-sm);
+  }
+
+  .pagination a {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  /* Touch target >= 44px on tablet/mobile (doc 14 §Aksesibilitas). */
+  @media (max-width: 768px) {
+    .filter-form select,
+    .filter-form input {
+      min-height: 44px;
+    }
+  }
+</style>

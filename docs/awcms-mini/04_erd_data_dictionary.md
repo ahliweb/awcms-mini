@@ -233,6 +233,23 @@ Mengubah registry modul dari code-only (`src/modules/index.ts`) jadi database-ba
 
 Tidak ada tabel `awcms_mini_module_lifecycle_events` terpisah (sempat diusulkan draft issue awal) — aksi lifecycle/config modul tetap tercatat lewat `awcms_mini_audit_events` generik yang sudah ada (`module_key = 'module_management'`, `resource_type` = `tenant_module`/`module_settings`/`module_health`), menghindari sumber kebenaran kedua yang divergen untuk fakta yang sama.
 
+### Blog Content (Issue #537–#543, epic #536, `sql/026`–`030`)
+
+Modul domain pertama yang didaftarkan langsung di repo base ini (ADR-0009), bukan di aplikasi turunan — lihat `src/modules/blog-content/README.md` untuk detail lengkap kolom/query/endpoint per tabel; ringkasan ERD di sini hanya nama tabel, tujuan, dan tenant-scoping.
+
+Skema inti (`026_awcms_mini_blog_content_schema.sql`, semua tenant-scoped `ENABLE`+`FORCE ROW LEVEL SECURITY`):
+
+- **`awcms_mini_blog_posts`** / **`awcms_mini_blog_pages`** — konten utama. `status` (`draft→review→scheduled→published→archived`), `visibility` (`public|private|unlisted`), `search_vector tsvector` **`GENERATED ALWAYS ... STORED`** (migration `028`, weighted title/excerpt/content_text) — bukan trigger, PostgreSQL sendiri yang menjaganya sinkron. Slug unik per `(tenant_id, locale)` selama aktif. Pages tambah `page_type`/`parent_page_id`/`menu_order`.
+- **`awcms_mini_blog_terms`** — kategori (`taxonomy_type='category'`, boleh `parent_id`) dan tag (`taxonomy_type='tag'`, `CHECK` menolak `parent_id`). Slug unik per `(tenant_id, taxonomy_type)`.
+- **`awcms_mini_blog_post_terms`** — relasi many-to-many post↔term, membawa `tenant_id` sendiri untuk RLS.
+- **`awcms_mini_blog_revisions`** — **append-only** (tidak pernah `UPDATE`/`DELETE`, pola sama `awcms_mini_audit_events`), revision history post/page.
+- **`awcms_mini_blog_redirects`** — soft-deletable, unik per `(tenant_id, from_path)` selama aktif.
+- **`awcms_mini_blog_settings`** — satu baris per tenant (`tenant_id` = PK, pola sama `awcms_mini_tenant_settings`), bukan soft-deletable. Diaktifkan lewat `GET`/`PATCH /api/v1/blog/settings` sejak Issue #543 (kolom sudah ada sejak migration 026).
+
+Skema presentasi (`029_awcms_mini_blog_content_presentation_schema.sql`, Issue #542, RLS FORCE juga): `awcms_mini_blog_templates` (`layout_json` whitelisted), `awcms_mini_blog_menus`+`_menu_items` (hierarki satu level), `awcms_mini_blog_widgets` (posisi tetap, body plain text), `awcms_mini_blog_ads`+`_ad_placements` (placement targeting + jadwal), `awcms_mini_blog_theme_settings` (override `awcms_mini_tenants.default_theme`, satu baris per tenant). Plus kolom `translation_group_id uuid` (nullable) di posts/pages untuk menautkan varian-locale.
+
+Permission seed: 26 permission (`027_awcms_mini_blog_content_permissions.sql`) + 10 permission presentasi (`030_awcms_mini_blog_content_presentation_permissions.sql`) = 36 total, dideklarasikan penuh di `module.ts`'s `permissions` array sejak Issue #543 (sebelumnya array kosong meski permission-nya sudah di DB).
+
 ## Konten multi-bahasa (translatable content)
 
 Berbeda dari **string UI statis** (label/tombol/pesan error) yang memakai katalog `.po` gettext di sisi aplikasi (doc 14 §i18n), **data input pengguna** yang perlu tampil multi-bahasa disimpan **di database, satu nilai per bahasa aktif**. Base generik sudah punya satu contoh nyata (`awcms_mini_email_templates.subject_template`/`text_body_template`/`html_body_template`, `sql/021`, Issue #498 — lihat §Email di atas) — bukan lagi sekadar konvensi belum-terpakai; ini **standar** yang wajib diikuti aplikasi turunan (mis. modul domain seperti `blog_content`, epic #536) saat menambah field konten translatable baru.
@@ -241,6 +258,7 @@ Pola yang diizinkan (pilih per kebutuhan, konsisten dalam satu modul):
 
 - **JSONB per-locale** — kolom `<field>_i18n jsonb` berisi `{ "en": "...", "id": "..." }` untuk semua **bahasa aktif** tenant. Cocok untuk field bebas yang jarang di-query per-bahasa. Fallback ke `default_locale` bila key locale aktif kosong.
 - **Tabel translasi terpisah** — `<entity>_translations (entity_id, locale, field, value)` dengan unique `(entity_id, locale, field)`. Cocok bila konten di-query/urut/cari per-bahasa (perlu index). Tetap tenant-scoped + RLS.
+- **Baris-per-locale + link group** (`blog_content`, Issue #542/#537) — untuk entitas yang keseluruhannya (bukan satu field) berbeda per bahasa dan tetap perlu jadi baris independen dengan slug/status/lifecycle sendiri (mis. blog post): satu kolom `locale` di baris utama (bukan field terpisah), slug unik per `(tenant_id, locale, slug)`, dan kolom penaut opsional (`translation_group_id uuid`, nullable, tanpa FK/trigger) untuk mengelompokkan beberapa baris locale-variant sebagai satu entitas logis. Dipilih ketimbang dua pola di atas karena field individual (title/content/excerpt) tidak perlu tampil serentak lintas bahasa dalam satu render — cukup satu locale per request, sama seperti halaman web pada umumnya.
 
 Aturan:
 

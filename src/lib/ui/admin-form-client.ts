@@ -18,6 +18,15 @@
  * Astro bundles non-`is:inline` `<script>` blocks through Vite, so a plain
  * `import` from a page's `<script>` works the same as anywhere else in the
  * app — this file is not itself an Astro component.
+ *
+ * `extraHeaders` (Issue #543, `admin/blog/*`) — additive optional parameter
+ * on `submitJson`: the blog post/page lifecycle-action endpoints
+ * (`publish`/`schedule`/`archive`/`restore`/`purge`, revision restore) are
+ * the first admin-UI mutations that require a caller-supplied
+ * `Idempotency-Key` header (doc issue #541/#538 — same replay/conflict
+ * semantics `workflows/tasks/{id}/decisions.ts` established). Every
+ * existing call site omits the third-turned-fourth argument and is
+ * unaffected.
  */
 
 export interface SubmitResult {
@@ -55,12 +64,13 @@ export async function submitJson(
   url: string,
   method: string,
   body: unknown,
-  strings: ClientErrorStrings
+  strings: ClientErrorStrings,
+  extraHeaders?: Record<string, string>
 ): Promise<SubmitResult> {
   try {
     const res = await fetch(url, {
       method,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...extraHeaders },
       credentials: "same-origin",
       body: JSON.stringify(body)
     });
@@ -131,4 +141,9 @@ export function lockElement(
       el.textContent = originalText;
     }
   };
+}
+
+/** One fresh `Idempotency-Key` per mutation attempt (`crypto.randomUUID()` — available in every browser this app targets, same primitive `menu-policy.ts`'s client-supplied item ids assume). A retry after a failed request must call this again, not reuse the previous value, so a genuinely new attempt is never rejected as a stale replay. */
+export function newIdempotencyKey(): string {
+  return crypto.randomUUID();
 }
