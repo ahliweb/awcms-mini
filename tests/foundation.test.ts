@@ -113,8 +113,8 @@ describe("module registry", () => {
     });
     expect(getModuleByKey("blog_content")).toMatchObject({
       key: "blog_content",
-      version: "0.6.0",
-      status: "experimental",
+      version: "0.7.0",
+      status: "active",
       type: "domain",
       dependencies: ["tenant_admin", "identity_access"]
     });

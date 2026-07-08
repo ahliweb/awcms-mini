@@ -371,6 +371,101 @@ export async function restoreBlogPost(
   return rows[0] ? toView(rows[0]) : null;
 }
 
+export type ListBlogPostsForAdminFilter = {
+  search?: string;
+  status?: BlogContentStatus;
+  /** Matches posts assigned this category/tag term id (via `awcms_mini_blog_post_terms`). */
+  termId?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+export type ListBlogPostsForAdminResult = {
+  items: (BlogPostSummary & { authorTenantUserId: string })[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+type BlogPostAdminListRow = BlogPostSummaryRow & {
+  author_tenant_user_id: string;
+};
+
+const DEFAULT_ADMIN_LIST_PAGE_SIZE = 20;
+const MAX_ADMIN_LIST_PAGE_SIZE = 100;
+
+/**
+ * Admin post list (Issue #543 §Post List — search, status filter,
+ * category/tag filter, pagination) — additive to this file, does not touch
+ * `listBlogPosts` (still used by `GET /api/v1/blog/posts` as-is). `search`
+ * is a plain `ILIKE` on `title` (not `search_vector`/`websearch_to_tsquery`
+ * — those reject an empty query, which the default "no filter" list view
+ * needs to tolerate). `termId` matches via `EXISTS` against
+ * `awcms_mini_blog_post_terms` rather than a `JOIN`, so a post with several
+ * terms is never returned more than once. Page-number/`LIMIT`/`OFFSET`
+ * pagination (not keyset) — this is a human-browsed admin table with
+ * "page 1, 2, 3" controls, same UX category `public-blog-directory.ts`'s
+ * index/archive pagination already chose over keyset for the same reason.
+ */
+export async function listBlogPostsForAdmin(
+  tx: Bun.SQL,
+  tenantId: string,
+  filter: ListBlogPostsForAdminFilter = {}
+): Promise<ListBlogPostsForAdminResult> {
+  const pageSize = Math.min(
+    Math.max(filter.pageSize ?? DEFAULT_ADMIN_LIST_PAGE_SIZE, 1),
+    MAX_ADMIN_LIST_PAGE_SIZE
+  );
+  const page = Math.max(filter.page ?? 1, 1);
+  const offset = (page - 1) * pageSize;
+  const search = filter.search?.trim() || null;
+  const status = filter.status ?? null;
+  const termId = filter.termId ?? null;
+
+  const rows = (await tx`
+    SELECT p.id, p.tenant_id, p.title, p.slug, p.status, p.visibility, p.locale,
+           p.author_tenant_user_id, p.published_at, p.updated_at
+    FROM awcms_mini_blog_posts p
+    WHERE p.tenant_id = ${tenantId} AND p.deleted_at IS NULL
+      AND (${status}::text IS NULL OR p.status = ${status})
+      AND (${search}::text IS NULL OR p.title ILIKE '%' || ${search} || '%')
+      AND (
+        ${termId}::uuid IS NULL
+        OR EXISTS (
+          SELECT 1 FROM awcms_mini_blog_post_terms pt
+          WHERE pt.tenant_id = p.tenant_id AND pt.post_id = p.id AND pt.term_id = ${termId}
+        )
+      )
+    ORDER BY p.updated_at DESC
+    LIMIT ${pageSize} OFFSET ${offset}
+  `) as BlogPostAdminListRow[];
+
+  const countRows = (await tx`
+    SELECT count(*)::int AS count
+    FROM awcms_mini_blog_posts p
+    WHERE p.tenant_id = ${tenantId} AND p.deleted_at IS NULL
+      AND (${status}::text IS NULL OR p.status = ${status})
+      AND (${search}::text IS NULL OR p.title ILIKE '%' || ${search} || '%')
+      AND (
+        ${termId}::uuid IS NULL
+        OR EXISTS (
+          SELECT 1 FROM awcms_mini_blog_post_terms pt
+          WHERE pt.tenant_id = p.tenant_id AND pt.post_id = p.id AND pt.term_id = ${termId}
+        )
+      )
+  `) as { count: number }[];
+
+  return {
+    items: rows.map((row) => ({
+      ...toBlogPostSummary(row),
+      authorTenantUserId: row.author_tenant_user_id
+    })),
+    total: countRows[0]?.count ?? 0,
+    page,
+    pageSize
+  };
+}
+
 /**
  * Hard delete. `awcms_mini_blog_post_terms` rows for this post are deleted
  * first — they are pure join metadata with no independent meaning once the

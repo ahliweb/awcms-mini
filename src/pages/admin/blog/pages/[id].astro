@@ -1,0 +1,565 @@
+---
+/**
+ * Blog static page editor — edit existing page (Issue #543 §Page Editor).
+ * No lifecycle actions (no publish/schedule/archive/restore/purge endpoint
+ * for pages, README §Admin API — Blog Pages) and no revision list/restore
+ * UI (README §Belum tersedia: "Page revision list/detail/restore
+ * endpoints" — `createBlogRevision` is called on significant PATCH but
+ * there is no route to read/restore a page revision). Only edit + soft
+ * delete, same `evaluateContentUpdateAccess` ownership override as posts
+ * (`page-access-policy.ts`'s `evaluatePageUpdateAccess`, same rule).
+ */
+import AdminLayout from "../../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../../lib/database/client";
+import { withTenant } from "../../../../lib/database/tenant-context";
+import { permissionKey } from "../../../../modules/identity-access/domain/access-control";
+import {
+  fetchBlogPageById,
+  listBlogPages
+} from "../../../../modules/blog-content/application/blog-page-directory";
+import { BLOG_CONTENT_VISIBILITIES } from "../../../../modules/blog-content/domain/post-status";
+import { PAGE_TYPES } from "../../../../modules/blog-content/domain/page-type";
+import { createTranslator } from "../../../../lib/i18n/translate";
+import { buildClientErrorMessages } from "../../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/blog/pages/[id].astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+const pageId = Astro.params.id!;
+
+const CAN_READ_PAGES = context.permissions.has(
+  permissionKey("blog_content", "pages", "read")
+);
+const CAN_UPDATE_PAGES = context.permissions.has(
+  permissionKey("blog_content", "pages", "update")
+);
+const CAN_DELETE_PAGES = context.permissions.has(
+  permissionKey("blog_content", "pages", "delete")
+);
+
+const clientStrings = {
+  saveSuccess: t("admin.blog.pages.save_success"),
+  invalidContentJson: t("admin.blog.posts.invalid_content_json"),
+  deleteSuccess: t("admin.blog.pages.delete_success"),
+  deleteReasonPrompt: t("admin.blog.pages.delete_reason_prompt"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+type Data = {
+  page: NonNullable<Awaited<ReturnType<typeof fetchBlogPageById>>>;
+  otherPages: Awaited<ReturnType<typeof listBlogPages>>;
+};
+
+let data: Data | null = null;
+let loadError = false;
+let notFound = false;
+
+if (CAN_READ_PAGES) {
+  try {
+    data = await withTenant(
+      getDatabaseClient(),
+      context.tenantId,
+      async (tx) => {
+        const page = await fetchBlogPageById(tx, context.tenantId, pageId, {
+          includeDeleted: true
+        });
+
+        if (!page) {
+          return null;
+        }
+
+        const otherPages = (
+          await listBlogPages(tx, context.tenantId, { limit: 100 })
+        ).filter((candidate) => candidate.id !== pageId);
+
+        return { page, otherPages };
+      }
+    );
+
+    if (!data) {
+      notFound = true;
+    }
+  } catch (error) {
+    console.error("admin/blog/pages/[id].astro: failed to load page", error);
+    loadError = true;
+  }
+}
+
+const canEditFields =
+  data !== null &&
+  (CAN_UPDATE_PAGES ||
+    (data.page.authorTenantUserId === context.tenantUserId &&
+      data.page.status !== "published"));
+const canSoftDelete = data !== null && !data.page.deletedAt && CAN_DELETE_PAGES;
+---
+
+<AdminLayout title={data ? data.page.title : t("admin.blog.pages.title")}>
+  {
+    !CAN_READ_PAGES && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.blog.access_denied_title")}
+        body={t("admin.blog.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ_PAGES && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ_PAGES && !loadError && notFound && (
+      <StateNotice
+        kind="error"
+        title={t("admin.blog.pages.not_found_title")}
+        body={t("admin.blog.pages.not_found_body")}
+        retryLabel={t("admin.blog.pages.back_to_list")}
+        retryHref="/admin/blog/pages"
+      />
+    )
+  }
+  {
+    data && (
+      <div class="page-editor" data-page-id={data.page.id}>
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        <div class="editor-meta">
+          <span class="status-pill" data-status={data.page.status}>
+            {t(`admin.blog.status.${data.page.status}`)}
+          </span>
+          {data.page.deletedAt && (
+            <span class="status-pill" data-status="deleted">
+              {t("admin.blog.posts.deleted_label")}
+            </span>
+          )}
+        </div>
+
+        {canSoftDelete && (
+          <div class="lifecycle-actions">
+            <button type="button" id="delete-button" class="danger-button">
+              {t("admin.blog.pages.delete_button")}
+            </button>
+          </div>
+        )}
+
+        <form id="page-form" class="editor-form">
+          <fieldset disabled={!canEditFields}>
+            <label>
+              {t("admin.blog.pages.field_title")}
+              <input
+                type="text"
+                name="title"
+                required
+                maxlength="200"
+                value={data.page.title}
+              />
+            </label>
+            <label>
+              {t("admin.blog.pages.field_slug")}
+              <input
+                type="text"
+                name="slug"
+                required
+                pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                value={data.page.slug}
+              />
+            </label>
+            <label>
+              {t("admin.blog.posts.field_content_text")}
+              <textarea name="contentText" rows="8" required>
+                {data.page.contentText}
+              </textarea>
+            </label>
+            <label>
+              {t("admin.blog.posts.field_content_json")}
+              <textarea name="contentJson" rows="6" spellcheck="false">
+                {JSON.stringify(data.page.contentJson, null, 2)}
+              </textarea>
+              <span class="field-hint">
+                {t("admin.blog.posts.content_json_hint")}
+              </span>
+            </label>
+            <label>
+              {t("admin.blog.pages.field_page_type")}
+              <select name="pageType">
+                {PAGE_TYPES.map((value) => (
+                  <option
+                    value={value}
+                    selected={data!.page.pageType === value}
+                  >
+                    {t(`admin.blog.page_type.${value}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {t("admin.blog.pages.field_parent_page")}
+              <select name="parentPageId">
+                <option value="">
+                  {t("admin.blog.pages.no_parent_option")}
+                </option>
+                {data.otherPages.map((candidate) => (
+                  <option
+                    value={candidate.id}
+                    selected={data!.page.parentPageId === candidate.id}
+                  >
+                    {candidate.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {t("admin.blog.pages.field_menu_order")}
+              <input
+                type="number"
+                name="menuOrder"
+                min="0"
+                step="1"
+                value={data.page.menuOrder}
+              />
+            </label>
+            <label>
+              {t("admin.blog.posts.field_visibility")}
+              <select name="visibility">
+                {BLOG_CONTENT_VISIBILITIES.map((value) => (
+                  <option
+                    value={value}
+                    selected={data!.page.visibility === value}
+                  >
+                    {t(`admin.blog.visibility.${value}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {t("admin.blog.posts.field_locale")}
+              <input
+                type="text"
+                name="locale"
+                required
+                value={data.page.locale}
+              />
+            </label>
+
+            <fieldset class="seo-fieldset">
+              <legend>{t("admin.blog.posts.seo_legend")}</legend>
+              <label>
+                {t("admin.blog.posts.field_seo_title")}
+                <input
+                  type="text"
+                  name="seoTitle"
+                  maxlength="70"
+                  value={data.page.seoTitle ?? ""}
+                />
+              </label>
+              <label>
+                {t("admin.blog.posts.field_meta_description")}
+                <textarea name="metaDescription" rows="2" maxlength="160">
+                  {data.page.metaDescription ?? ""}
+                </textarea>
+              </label>
+              <label>
+                {t("admin.blog.posts.field_canonical_url")}
+                <input
+                  type="url"
+                  name="canonicalUrl"
+                  value={data.page.canonicalUrl ?? ""}
+                />
+              </label>
+            </fieldset>
+
+            {canEditFields && (
+              <button type="submit">{t("admin.blog.pages.save_button")}</button>
+            )}
+          </fieldset>
+        </form>
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .page-editor {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+  }
+
+  .action-banner[data-variant="success"] {
+    background: color-mix(
+      in srgb,
+      var(--color-success) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-success);
+  }
+
+  .action-banner[data-variant="error"] {
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-danger);
+  }
+
+  .editor-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+  }
+
+  .status-pill {
+    display: inline-block;
+    padding: 0 var(--sp-2);
+    border-radius: var(--radius-full);
+    font-size: var(--fs-xs);
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+  }
+
+  .status-pill[data-status="published"] {
+    background: var(--color-success-strong);
+    color: var(--color-primary-contrast);
+    border-color: var(--color-success-strong);
+  }
+
+  .status-pill[data-status="archived"],
+  .status-pill[data-status="deleted"] {
+    background: var(--color-danger-strong);
+    color: var(--color-primary-contrast);
+    border-color: var(--color-danger-strong);
+  }
+
+  .lifecycle-actions button {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-3);
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  .lifecycle-actions button.danger-button {
+    color: var(--color-danger-strong);
+    border-color: var(--color-danger-strong);
+  }
+
+  .editor-form fieldset {
+    border: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    max-width: 720px;
+  }
+
+  .editor-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+
+  .editor-form input,
+  .editor-form select,
+  .editor-form textarea {
+    padding: var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: inherit;
+  }
+
+  .editor-form textarea[name="contentJson"] {
+    font-family: var(--font-mono);
+    font-size: var(--fs-sm);
+  }
+
+  .field-hint {
+    color: var(--color-text-muted);
+    font-size: var(--fs-xs);
+    margin: 0;
+  }
+
+  .seo-fieldset {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+
+  .seo-fieldset legend {
+    font-weight: 600;
+    font-size: var(--fs-sm);
+    padding: 0 var(--sp-1);
+  }
+
+  .editor-form button[type="submit"] {
+    align-self: flex-start;
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-2) var(--sp-5);
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  .editor-form button:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  .editor-form input:focus-visible,
+  .editor-form select:focus-visible,
+  .editor-form textarea:focus-visible,
+  .editor-form button:focus-visible,
+  .lifecycle-actions button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../../lib/ui/admin-form-client";
+
+  interface PageEditorStrings {
+    saveSuccess: string;
+    invalidContentJson: string;
+    deleteSuccess: string;
+    deleteReasonPrompt: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<PageEditorStrings>();
+  const pageId =
+    document.querySelector<HTMLElement>(".page-editor")?.dataset.pageId;
+
+  document
+    .getElementById("page-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!pageId) return;
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (button?.disabled) return;
+
+      const formData = new FormData(form);
+      let contentJson: unknown;
+      try {
+        contentJson = JSON.parse(String(formData.get("contentJson") ?? "{}"));
+      } catch {
+        showBanner("action-banner", strings.invalidContentJson, "error");
+        return;
+      }
+
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+      try {
+        const result = await submitJson(
+          `/api/v1/blog/pages/${pageId}`,
+          "PATCH",
+          {
+            title: formData.get("title"),
+            slug: formData.get("slug"),
+            contentJson,
+            contentText: formData.get("contentText"),
+            locale: formData.get("locale"),
+            visibility: formData.get("visibility"),
+            pageType: formData.get("pageType"),
+            parentPageId:
+              String(formData.get("parentPageId") ?? "").trim() || null,
+            menuOrder: Number(formData.get("menuOrder") ?? 0),
+            seoTitle: String(formData.get("seoTitle") ?? "").trim() || null,
+            metaDescription:
+              String(formData.get("metaDescription") ?? "").trim() || null,
+            canonicalUrl:
+              String(formData.get("canonicalUrl") ?? "").trim() || null
+          },
+          strings
+        );
+
+        showBanner(
+          "action-banner",
+          result.ok ? strings.saveSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
+    });
+
+  document
+    .getElementById("delete-button")
+    ?.addEventListener("click", async (event) => {
+      const el = event.currentTarget as HTMLButtonElement;
+      if (el.disabled || !pageId) return;
+
+      const reason = window.prompt(strings.deleteReasonPrompt);
+      if (!reason || reason.trim().length === 0) return;
+
+      const unlock = lockElement(el, strings.pleaseWait);
+      try {
+        const result = await submitJson(
+          `/api/v1/blog/pages/${pageId}`,
+          "DELETE",
+          { reason },
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.deleteSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) {
+          window.setTimeout(() => {
+            window.location.href = "/admin/blog/pages";
+          }, 400);
+        }
+      } finally {
+        unlock();
+      }
+    });
+</script>

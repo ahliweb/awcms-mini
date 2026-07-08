@@ -4,8 +4,10 @@
  * visibility leakage (draft/review/scheduled-future/archived/private/
  * unlisted/soft-deleted must never appear where the issue says they
  * shouldn't), SEO rendering fallbacks, canonical URL safety, category/tag
- * archive filtering, RSS/sitemap content filtering, and tenant-code
- * resolution 404s (unknown tenant, inactive tenant).
+ * archive filtering, RSS/sitemap content filtering, tenant-code resolution
+ * 404s (unknown tenant, inactive tenant), and the `rssEnabled`/
+ * `sitemapEnabled` settings gate (Issue #543) — disabled must 404
+ * identically to an unknown tenant, no distinguishable signal leaked.
  *
  * Skipped unless DATABASE_URL is set (see tests/integration/harness.ts).
  */
@@ -31,6 +33,7 @@ import { POST as scheduleBlogPost } from "../../src/pages/api/v1/blog/posts/[id]
 import { POST as archivePost } from "../../src/pages/api/v1/blog/posts/[id]/archive";
 import { DELETE as deletePost } from "../../src/pages/api/v1/blog/posts/[id]";
 import { POST as createTerm } from "../../src/pages/api/v1/blog/terms/index";
+import { PATCH as updateSettings } from "../../src/pages/api/v1/blog/settings/index";
 
 import { GET as publicIndex } from "../../src/pages/blog/[tenantCode]/index";
 import { GET as publicDetail } from "../../src/pages/blog/[tenantCode]/[slug]";
@@ -591,6 +594,78 @@ suite("public blog routes", () => {
     expect(sitemap.text).toContain(publicPost.slug);
     expect(sitemap.text).not.toContain("sitemap-unlisted");
     expect(sitemap.text).toContain("<urlset");
+  });
+
+  test("feed.xml 404s the same as an unknown tenant when rssEnabled is false", async () => {
+    const owner = await bootstrap();
+    await createAndPublishPost(owner, { slug: "rss-disabled-post" });
+
+    const enabled = await invokeRaw(publicFeed, {
+      method: "GET",
+      path: `/blog/${owner.tenantCode}/feed.xml`,
+      params: { tenantCode: owner.tenantCode }
+    });
+    expect(enabled.status).toBe(200);
+
+    const disable = await invoke(updateSettings, {
+      method: "PATCH",
+      path: "/api/v1/blog/settings",
+      headers: authHeaders(owner),
+      body: { rssEnabled: false }
+    });
+    expect(disable.status).toBe(200);
+
+    const disabled = await invokeRaw(publicFeed, {
+      method: "GET",
+      path: `/blog/${owner.tenantCode}/feed.xml`,
+      params: { tenantCode: owner.tenantCode }
+    });
+    expect(disabled.status).toBe(404);
+
+    // Same shape as the unknown-tenant 404 — no distinguishable signal that
+    // the feed exists but was turned off.
+    const unknown = await invokeRaw(publicFeed, {
+      method: "GET",
+      path: "/blog/does-not-exist/feed.xml",
+      params: { tenantCode: "does-not-exist" }
+    });
+    expect(unknown.status).toBe(404);
+    expect(disabled.text).toBe(unknown.text);
+  });
+
+  test("sitemap-blog.xml 404s the same as an unknown tenant when sitemapEnabled is false", async () => {
+    const owner = await bootstrap();
+    await createAndPublishPost(owner, { slug: "sitemap-disabled-post" });
+
+    const enabled = await invokeRaw(publicSitemap, {
+      method: "GET",
+      path: `/blog/${owner.tenantCode}/sitemap-blog.xml`,
+      params: { tenantCode: owner.tenantCode }
+    });
+    expect(enabled.status).toBe(200);
+
+    const disable = await invoke(updateSettings, {
+      method: "PATCH",
+      path: "/api/v1/blog/settings",
+      headers: authHeaders(owner),
+      body: { sitemapEnabled: false }
+    });
+    expect(disable.status).toBe(200);
+
+    const disabled = await invokeRaw(publicSitemap, {
+      method: "GET",
+      path: `/blog/${owner.tenantCode}/sitemap-blog.xml`,
+      params: { tenantCode: owner.tenantCode }
+    });
+    expect(disabled.status).toBe(404);
+
+    const unknown = await invokeRaw(publicSitemap, {
+      method: "GET",
+      path: "/blog/does-not-exist/sitemap-blog.xml",
+      params: { tenantCode: "does-not-exist" }
+    });
+    expect(unknown.status).toBe(404);
+    expect(disabled.text).toBe(unknown.text);
   });
 
   test("tenant A's posts never leak into tenant B's public routes", async () => {

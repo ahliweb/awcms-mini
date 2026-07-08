@@ -1,6 +1,6 @@
 # Blog Content
 
-Implementasi Issue #537, #538, #539, #540, #541, dan #542 (epic #536 — `blog_content`, `docs/adr/0009-public-tenant-scoped-routes.md`). **Modul domain pertama yang didaftarkan langsung di repo base ini** — sebelumnya `AGENTS.md` §Peta modul hanya mendaftarkan modul base generik; lihat catatan di sana untuk konteks.
+Implementasi Issue #537, #538, #539, #540, #541, #542, dan #543 (epic #536 — `blog_content`, `docs/adr/0009-public-tenant-scoped-routes.md`). **Modul domain pertama yang didaftarkan langsung di repo base ini** — sebelumnya `AGENTS.md` §Peta modul hanya mendaftarkan modul base generik; lihat catatan di sana untuk konteks. Epic ini **selesai** — semua acceptance criteria issue #537-#543 terpenuhi; `module.ts`'s `status` sudah `active` (bukan lagi `experimental`).
 
 ## Scope per issue
 
@@ -16,7 +16,7 @@ Issue #541: revision history append-only untuk post/page, restore revisi (permis
 
 Issue #542: presentation/monetization extensions — template, menu hierarkis, widget, iklan (ads) dengan placement/scheduling, override tema per-tenant, `translation_group_id` untuk multilingual, dan block `gallery` baru di `content_json` untuk gambar/video publik. Migration `029`/`030`. Lihat §Presentation extensions.
 
-Admin UI (#543) masih backlog — lihat §Belum tersedia.
+Issue #543 (final hardening): admin UI penuh di bawah `/admin/blog` (dashboard, posts, pages, categories, tags, settings, dan optional advanced screens templates/widgets/menus/ads — semuanya menggunakan `AdminLayout`/design token yang sudah ada, Astro + vanilla JS saja, tanpa framework baru), endpoint `blog_content.settings.*` (`/api/v1/blog/settings`, akhirnya mengaktifkan `awcms_mini_blog_settings` yang sejak migration 026 sudah ada tapi belum punya route), `module.ts`'s `permissions`/`navigation` array (sebelumnya kosong meski 36 permission-nya sudah ada di DB sejak migration 027/030), dan dokumentasi/testing/hardening akhir. Lihat §Admin UI dan §Settings API.
 
 ## Tabel (migration `026_awcms_mini_blog_content_schema.sql`)
 
@@ -49,6 +49,8 @@ Tidak ada tabel baru untuk galeri media — lihat §Presentation extensions §Me
 
 26 permission dari migration 027 persis sesuai doc issue #537 §Permission Seed (`blog_content.posts.*`, `.pages.*`, `.taxonomies.*`, `.revisions.*`, `.settings.*`, `.seo.configure`, `.search.read`). Migration 030 (Issue #542) menambah 10 permission lagi: `templates.{read,configure}`, `menus.{read,configure}`, `widgets.{read,configure}`, `ads.{read,configure}`, `theme.{read,configure}` — satu `read` + satu `configure` per resource, pola granularitas yang sama seperti `taxonomies.{read,configure}` (master/config data admin, bukan konten dengan lifecycle). Tidak ada role grant implisit — hanya assignable lewat Access & Users yang sudah ada.
 
+Sampai Issue #543, ke-36 permission ini ada di database tapi `module.ts`'s `permissions` array kosong — Module Management's permission-sync report (`fetchModulePermissionSyncReport`, dipakai `admin/modules/[moduleKey].astro`'s panel Permissions) karena itu tidak punya apa pun untuk dibandingkan terhadap DB. Issue #543 mendeklarasikan seluruh 36 permission di `module.ts` (persis mencerminkan migration 027+030, bukan menambah permission baru) supaya sync report itu akhirnya berfungsi untuk modul ini, dan menambahkan `navigation: [{ path: "/admin/blog", ... }]` supaya `/admin/blog` muncul di sidebar admin (lihat §Admin UI).
+
 ## Domain validation (`domain/`)
 
 - `content-validation.ts` — `validateBlogContentCore`: field inti yang dipakai bersama post & page (`title`, `slug`, `excerpt`, `contentJson`, `contentText`, `locale`), plus field-level validator individual (`validateTitleField`, dst.) yang dipakai ulang oleh partial-update page/post, dan `validateDeleteReasonInput` (`{ reason: string }`) dipakai ulang oleh soft-delete post/page/term.
@@ -69,8 +71,10 @@ Tidak ada tabel baru untuk galeri media — lihat §Presentation extensions §Me
 
 ## Application (`application/`)
 
-- `blog-post-directory.ts` — dulu (Issue #537) hanya placeholder read-only; Issue #538 melengkapinya dengan seluruh mutation post (`createBlogPost`, `updateBlogPost`, `softDeleteBlogPost`, `transitionBlogPostStatus`, `restoreBlogPost`, `purgeBlogPost`) di file yang sama — konvensi "satu directory, baca+tulis" yang sama seperti `email/application/email-template-directory.ts`, bukan dipecah jadi file service terpisah. `version` (kolom integer di schema #537) di-increment tiap `updateBlogPost`/`transitionBlogPostStatus` sukses — penanda perubahan monoton saja, **belum** ada optimistic-concurrency check (If-Match/expected-version) yang membacanya.
-- `blog-page-directory.ts` (Issue #539) — struktur identik `blog-post-directory.ts` (`createBlogPage`, `fetchBlogPageById`, `listBlogPages`, `updateBlogPage`, `softDeleteBlogPage`), **tanpa** `transitionBlogPostStatus`/`restoreBlogPage`/`purgeBlogPage` — pages tidak punya lifecycle-action endpoint di issue ini (lihat §Admin API — Blog Pages).
+- `blog-post-directory.ts` — dulu (Issue #537) hanya placeholder read-only; Issue #538 melengkapinya dengan seluruh mutation post (`createBlogPost`, `updateBlogPost`, `softDeleteBlogPost`, `transitionBlogPostStatus`, `restoreBlogPost`, `purgeBlogPost`) di file yang sama — konvensi "satu directory, baca+tulis" yang sama seperti `email/application/email-template-directory.ts`, bukan dipecah jadi file service terpisah. `version` (kolom integer di schema #537) di-increment tiap `updateBlogPost`/`transitionBlogPostStatus` sukses — penanda perubahan monoton saja, **belum** ada optimistic-concurrency check (If-Match/expected-version) yang membacanya. Issue #543 menambah `listBlogPostsForAdmin` (tambahan murni, tidak mengubah fungsi lain di file ini) — `search` (`ILIKE` judul, bukan `search_vector`, supaya query kosong tetap menampilkan semua post), `status`, `termId` (via `EXISTS` terhadap `awcms_mini_blog_post_terms`, bukan `JOIN`, supaya post dengan banyak term tidak pernah muncul dobel), dan pagination bernomor halaman (`page`/`pageSize` + `total`) — dipakai `/admin/blog/posts` untuk search/filter/pagination yang `listBlogPosts`/`GET /api/v1/blog/posts` tidak sediakan. Tidak ada endpoint JSON baru untuk fungsi ini (tidak ada perubahan OpenAPI) — hanya dipanggil langsung dari SSR frontmatter `admin/blog/posts/index.astro`, pola yang sama seperti `admin/index.astro` memanggil fungsi reporting langsung.
+- `blog-page-directory.ts` (Issue #539) — struktur identik `blog-post-directory.ts` (`createBlogPage`, `fetchBlogPageById`, `listBlogPages`, `updateBlogPage`, `softDeleteBlogPage`), **tanpa** `transitionBlogPostStatus`/`restoreBlogPage`/`purgeBlogPage` — pages tidak punya lifecycle-action endpoint di issue ini (lihat §Admin API — Blog Pages). Issue #543 menambah `listBlogPagesForAdmin` — sama konvensinya seperti `listBlogPostsForAdmin` (search+status+pageType filter, pagination bernomor halaman), tanpa filter term (pages tidak punya relasi taksonomi).
+- `author-lookup.ts` (Issue #543) — `fetchAuthorDisplayNames(tx, tenantId, tenantUserIds)`, resolusi `author_tenant_user_id` -> nama tampilan untuk kolom "author" di `/admin/blog/posts` dan `/admin/blog/posts/{id}`. Join sempit `awcms_mini_tenant_users` -> `awcms_mini_identities` -> `awcms_mini_profiles` yang dipersempit dari `identity-access/application/user-directory.ts`'s `fetchTenantUsersWithRoles` (fungsi itu juga memuat role assignment dan digerbangi `identity_access.user_management.read`, permission yang tidak seharusnya jadi syarat seorang editor blog melihat nama penulis kontennya sendiri). Id yang tidak ditemukan (mis. user sudah dihapus) sengaja absen dari `Map` hasil, bukan dilempar error — pemanggil UI fallback ke placeholder "Unknown".
+- `blog-settings-directory.ts` (Issue #543) — `fetchBlogSettings`/`upsertBlogSettings` untuk `awcms_mini_blog_settings` (migration 026, satu baris per tenant), akhirnya diaktifkan lewat `GET`/`PATCH /api/v1/blog/settings` — lihat §Settings API.
 - `blog-taxonomy-directory.ts` — dulu (Issue #537) hanya `fetchBlogTermsByTaxonomyType` placeholder; Issue #539 melengkapinya dengan CRUD term penuh (`createBlogTerm`, `fetchBlogTermById`, `listBlogTerms`, `updateBlogTerm`, `softDeleteBlogTerm`) plus fungsi relasi post-term (`syncPostTermAssignments`, `fetchPostTermIds`, `countExistingTerms`) — lihat §Post-term relation handling.
 - `blog-search.ts` (Issue #539) — `searchBlogContentAdmin` (semua status, guard `search.read`) dan `searchPublicBlogContent` (predikat publik, helper murni — lihat §Search).
 - `blog-revision-directory.ts` (Issue #541) — `createBlogRevision` (INSERT-only, `revision_number` = `MAX(...)+1` scoped ke `(tenant_id, resource_type, resource_id)`), `listBlogRevisions`, `fetchBlogRevisionById` (di-scope ke `resource_id` juga, bukan cuma `id` — revisionId dari post lain tidak bisa dibaca lewat URL post ini). Tidak ada fungsi update/delete di file ini sama sekali — lihat §Revisions.
@@ -270,7 +274,7 @@ Tidak ada pemanggilan provider eksternal sama sekali di job ini (ADR-0006 tidak 
 
 `asyncapi/awcms-mini-domain-events.asyncapi.yaml` — 26 channel untuk `blog_content` (13 dari Issue #541 + 13 dari Issue #542), terdaftar juga di `module.ts`'s `events.publishes` (divalidasi `scripts/api-spec-check.ts`'s `checkModuleEventChannels`: tiap entry `publishes` module manapun wajib punya channel AsyncAPI yang cocok). Sama seperti setiap event lain di kontrak ini sejak Issue 0.3: **dokumentasi kontrak saja** — tidak ada dispatcher pub/sub nyata di repo ini; produser sebenarnya adalah structured JSON logger (`src/lib/logging/logger.ts`'s `log()`), bukan event bus. Konvensi penamaan log line: buang prefix `awcms-mini.` dari event type (`awcms-mini.blog-content.post.published` -> log message `blog-content.post.published`) — pola sama persis `email.message.queued` dkk.
 
-25 dari 26 event punya produser nyata di kode saat ini:
+Ke-26 event punya produser nyata di kode saat ini (Issue #543 menutup satu-satunya celah yang tersisa, `settings.updated`):
 
 | Event (AsyncAPI channel, tanpa prefix `awcms-mini.`)  | Log line diemisikan dari                                                                                                                                                                                         |
 | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -291,8 +295,9 @@ Tidak ada pemanggilan provider eksternal sama sekali di job ini (ADR-0006 tidak 
 | `blog-content.widget.created`/`.updated`/`.deleted`   | `pages/api/v1/blog/widgets/index.ts` (`POST`), `[id].ts` (`PATCH`/`DELETE`)                                                                                                                                      |
 | `blog-content.ad.created`/`.updated`/`.deleted`       | `pages/api/v1/blog/ads/index.ts` (`POST`), `[id].ts` (`PATCH`/`DELETE`)                                                                                                                                          |
 | `blog-content.theme.updated`                          | `pages/api/v1/blog/theme/index.ts` (`PATCH`) — **beda** dari `settings.updated` di bawah, ini tegas tentang `awcms_mini_blog_theme_settings`, bukan `awcms_mini_blog_settings`                                   |
+| `blog-content.settings.updated`                       | `pages/api/v1/blog/settings/index.ts` (`PATCH`, Issue #543) — tentang `awcms_mini_blog_settings`                                                                                                                 |
 
-Satu-satunya event **tanpa** produser saat ini: `blog-content.settings.updated` — didaftarkan sesuai daftar literal doc issue #541, tapi belum ada endpoint yang menulis `awcms_mini_blog_settings` (`blog_content.settings.configure` sudah diseed sejak Issue #537, menunggu endpoint-nya). `checkModuleEventChannels` hanya memvalidasi arah module.ts→AsyncAPI (setiap `publishes` wajib ada channel), bukan sebaliknya, jadi channel tanpa produser tidak membuat `api:spec:check` gagal.
+`checkModuleEventChannels` hanya memvalidasi arah module.ts→AsyncAPI (setiap `publishes` wajib ada channel), bukan sebaliknya — jadi sebelum Issue #543, channel `settings.updated` tanpa produser tidak sempat membuat `api:spec:check` gagal.
 
 ## Presentation extensions (Issue #542)
 
@@ -354,16 +359,122 @@ Persyaratan inti ("locale-based storage/retrieval", "slug uniqueness tenant+loca
 
 Doc issue #542 eksplisit: "Do not rebuild the base media library... Integrate with existing media/file capability where available." Base repo ini **tidak punya** media library nyata — `featuredMediaId` di posts/pages (Issue #538) cuma UUID longgar tanpa FK, tervalidasi bentuknya saja. Karena tidak ada yang nyata untuk diintegrasikan, galeri diimplementasikan sebagai tipe block baru di whitelist renderer yang sudah ada (`content-block-rendering.ts`, lihat §Content block schema di §Public routes): `{ type: "gallery", items: GalleryItem[] }`, tiap item `{ mediaType: "image"|"video", url, caption? }`. `url` divalidasi `isAbsoluteHttpUrl` saat render (defense-in-depth yang sama seperti `canonicalUrl`); item gagal validasi di-skip diam-diam (bukan throw). Render hanya `<img>`/`<video controls>` — tidak ada `<iframe>`/embed. Tidak ada endpoint/tabel gallery terpisah — galeri adalah bagian dari `content_json` post/page yang sudah ada, ditulis lewat `PATCH` yang sudah ada juga.
 
+## Settings API (Issue #543)
+
+`GET`/`PATCH /api/v1/blog/settings` (`src/pages/api/v1/blog/settings/index.ts`) — akhirnya mengaktifkan `awcms_mini_blog_settings` (migration 026, satu baris per tenant, `tenant_id` = PK) yang sejak Issue #537 sudah ada di schema tapi tidak punya route. Tidak ada `{id}` di path — sama seperti `PATCH /api/v1/blog/theme`, satu baris per tenant.
+
+```txt
+GET   /api/v1/blog/settings   -> blog_content.settings.read
+PATCH /api/v1/blog/settings   -> blog_content.settings.configure
+```
+
+Field: `defaultLocale`/`defaultVisibility`/`postsPerPage`/`seoDefaultTitle`/`seoDefaultDescription` sudah punya kolom typed sendiri sejak migration 026 (dipakai juga oleh `fetchPublicBlogSettings`, Issue #540, untuk `posts_per_page` pagination publik). `blogTitle`/`blogDescription`/`rssEnabled`/`sitemapEnabled` **tidak** punya kolom sendiri — di luar scope issue ini menambah kolom baru — jadi disimpan di kolom catch-all `settings jsonb` yang tabel itu sudah punya (shallow-merge, bukan replace, sama semantik `updateModuleSettings`). `PATCH` partial-update (hanya field yang dikirim yang divalidasi/ditulis, `domain/blog-settings-policy.ts`'s `validateUpdateBlogSettingsInput`), publish `blog-content.settings.updated` (menutup celah yang README §Domain events sebelumnya catat: channel-nya sudah terdaftar sejak Issue #541 tapi belum ada produsen sampai sekarang) dan audit `blog.settings.updated`.
+
+### RSS/sitemap sekarang menghormati `rssEnabled`/`sitemapEnabled`
+
+`GET /blog/{tenantCode}/feed.xml` dan `.../sitemap-blog.xml` (Issue #540) memanggil `fetchBlogSettings` di awal handler dan mengembalikan `404` yang identik dengan tenant-tidak-ditemukan kalau flag terkait `false` — tenant yang mematikan RSS/sitemap tidak membocorkan sinyal "fitur ini ada tapi dimatikan" vs "tenant ini tidak ada", konsisten dengan ADR-0009's "jangan bocorkan keberadaan tenant" yang sudah diterapkan §Public routes.
+
+## Admin UI (Issue #543)
+
+Seluruh layar di bawah `/admin/blog` (`src/pages/admin/blog/`), memakai `AdminLayout`/design token yang sudah ada (`docs/awcms-mini/14_ui_ux_design_system.md`), Astro + vanilla JS saja — tidak ada framework UI baru. Pola tiap layar identik `admin/modules/[moduleKey].astro`/`admin/access-users.astro` (referensi yang sudah ada sebelum issue ini): SSR read lewat fungsi application-layer yang sama yang dipakai (atau bisa dipakai) endpoint JSON, seluruh mutasi lewat `fetch()` client-side ke endpoint `/api/v1/blog/...` yang sudah ter-guard/audit/idempotency sejak Issue #538-#542 — halaman admin **tidak pernah** menulis ke database langsung atau melewati guard ABAC endpoint. Permission-gated per-section, mengikuti persis guard endpoint yang mendasarinya (defense-in-depth; enforcement sebenarnya tetap di server).
+
+```txt
+/admin/blog                    -> dashboard (ringkasan post/draft/scheduled/pages, quick link)
+/admin/blog/posts              -> daftar post (search, filter status, filter kategori/tag, pagination)
+/admin/blog/posts/new          -> editor post baru
+/admin/blog/posts/[id]         -> editor post (edit, lifecycle action, revision history)
+/admin/blog/pages              -> daftar halaman statis (search, filter status/type, pagination)
+/admin/blog/pages/new          -> editor halaman baru
+/admin/blog/pages/[id]         -> editor halaman (edit saja — tidak ada lifecycle action/revision UI)
+/admin/blog/categories         -> manajer kategori (hierarki, slug conflict terlihat)
+/admin/blog/tags               -> manajer tag (TIDAK ada field parent sama sekali)
+/admin/blog/settings           -> form pengaturan blog + mode tema
+/admin/blog/templates          -> manajer template (opsional, Issue #542)
+/admin/blog/widgets            -> manajer widget (opsional, Issue #542)
+/admin/blog/menus              -> manajer menu (opsional, Issue #542)
+/admin/blog/ads                -> manajer iklan (opsional, Issue #542)
+```
+
+Navigasi sidebar: satu entry `/admin/blog` di `module.ts`'s `navigation` array (label `admin.layout.nav_blog`, guard `blog_content.posts.read`), dirender otomatis oleh `AdminLayout.astro` lewat `fetchVisibleModuleNavigationEntries` (Issue #518) yang sudah ada — bukan ditambahkan hardcode ke `AdminLayout.astro`. Sub-navigasi antar layar `/admin/blog/*` memakai quick-link biasa di dashboard/tiap layar (repo ini tidak punya konvensi sidebar bertingkat).
+
+### Post editor — pemetaan field ke API
+
+`content` dipecah jadi dua field terpisah, sama seperti bentuk data `awcms_mini_blog_posts` sendiri: `contentText` (textarea polos, wajib) dan `contentJson` (textarea JSON berlabel, default `{"blocks":[]}`, divalidasi `JSON.parse` di klien sebelum submit + `validateContentJsonField` di server) — bukan rich-text/block editor baru (`content_json`'s schema sejak Issue #540 hanya 4+1 tipe block, `paragraph`/`heading`/`list`/`quote`/`gallery`; membangun editor visual untuk itu di luar proporsi issue ini). "Category" dan "Tags" dirender sebagai dua `<select multiple>` terpisah (difilter dari term list yang sama by `taxonomyType`) tapi digabung jadi satu array `termIds` saat submit — API sendiri tidak membedakan kategori vs tag di dalam `termIds`.
+
+Lifecycle action (`submit-review`/`publish`/`schedule`/`archive`/`restore`/`purge`) masing-masing dirender hanya kalau `isValidStatusTransition`/`canRestorePost`/`canPurgePost` (fungsi murni yang sama yang dipakai endpoint) mengizinkan transisi itu dari status post saat ini **dan** caller memegang permission aksi itu — cek ini UI-nicety saja, endpoint tetap re-validasi identik. Publish/schedule/archive/restore/purge semuanya: `window.confirm` dulu, lalu `Idempotency-Key` baru (`crypto.randomUUID()`, `lib/ui/admin-form-client.ts`'s `newIdempotencyKey`) per percobaan. Revision history (`blog_content.revisions.read`) menampilkan tabel revisi + tombol "Restore" per baris (`blog_content.revisions.restore`, guard eksplisit terpisah — TIDAK ada ownership override, sama seperti endpoint-nya), juga confirm dulu.
+
+Field "author" (post list + editor) diresolusi lewat `author-lookup.ts`'s `fetchAuthorDisplayNames`, bukan `identity-access`'s user-directory penuh (lihat §Application untuk alasannya).
+
+### Page editor — tanpa lifecycle, tanpa revision UI
+
+Sengaja tidak ada tombol status/publish sama sekali — `UpdateBlogPageInput` tidak punya field `status` (README §Admin API — Blog Pages: page selalu `draft` sejak dibuat, tidak ada endpoint yang mengubahnya). Tidak ada panel revision history untuk page juga — `createBlogRevision` tetap terpanggil dari `PATCH /api/v1/blog/pages/{id}` (baris tersimpan di `awcms_mini_blog_revisions`), tapi tidak ada rute `GET .../revisions` untuk `resource_type='page'` yang bisa dipanggil UI ini (lihat §Belum tersedia — backlog issue lain, bukan sesuatu yang bisa "ditambahkan" cukup dari sisi UI).
+
+### Category/Tag manager — pemisahan file yang disengaja
+
+`admin/blog/categories.astro` dan `admin/blog/tags.astro` adalah dua file terpisah (bukan satu layar param `?type=`) justru supaya larangan "tag tidak boleh punya parent" bisa ditegakkan secara struktural di level markup — `tags.astro` tidak pernah merender elemen form `parentId` sama sekali (bukan field yang disembunyikan lewat kondisi), jadi tidak ada jalur UI yang bisa mengirim `parentId` untuk tag. Keduanya memanggil `/api/v1/blog/terms` yang sama, hanya body `taxonomyType` yang beda. Slug conflict (`409 SLUG_CONFLICT`, tidak ada entry i18n khusus) tampil apa adanya dari pesan server via action banner — sama seperti setiap kode error tak-terpetakan lain di admin UI.
+
+### Templates/Widgets/Ads/Menus — sub-array kompleks via JSON textarea berlabel
+
+`layoutJson` template cukup sederhana (`{columns, sidebarPosition}`) untuk dua `<select>` biasa. `items` menu dan `placements` ads jauh lebih kompleks (array objek, dan `menu items` butuh id ber-UUID client-supplied yang saling mereferensi dalam satu payload, lihat README §Menus) — membangun editor tree/drag-drop khusus untuk itu di luar proporsi anggaran issue ini dan tetap harus menghasilkan bentuk JSON yang sama persis. Kedua form itu memakai textarea JSON berlabel + teks bantuan, pola yang sama seperti `admin/modules/[moduleKey].astro`'s settings panel sudah pakai untuk config terstruktur — tombol "Copy new id" di layar menu menyalin `crypto.randomUUID()` baru ke clipboard (bukan menyisipkannya ke textarea, supaya tidak pernah merusak JSON yang sedang diedit).
+
+### Theme mode masuk ke Settings, bukan layar sendiri
+
+`GET`/`PATCH /api/v1/blog/theme` (Issue #542) digabung ke `/admin/blog/settings` sebagai section tambahan, bukan `/admin/blog/theme` terpisah — ini konfigurasi tenant-wide sekelas field lain di layar itu, dan daftar layar issue #543 sendiri tidak menyebut layar theme terpisah.
+
+### Yang sengaja di-skip: layar Media/Gallery murni
+
+Issue #543's daftar layar opsional menyebut "Media/Gallery" — di-skip sebagai layar tersendiri karena tidak ada media library nyata untuk dikelola (README §Media/Gallery — Issue #542: galeri adalah bagian dari block `content_json`, bukan tabel/endpoint media terpisah). Mengelola galeri berarti mengedit array block `gallery` di dalam `contentJson` post/page — sudah bisa dilakukan lewat textarea `contentJson` yang ada di post/page editor, tidak butuh layar terpisah.
+
+### Aksesibilitas dan UX (doc 14)
+
+Setiap layar admin punya empat state eksplisit — loading (SSR, bukan spinner klien), empty (`p.empty-state`/pesan "belum ada ..."), error (`StateNotice kind="error"` dengan retry-link, dipisah dari `kind="denied"` untuk permission), dan ready (konten). Setiap aksi mutasi men-disable tombol submit-nya sendiri selama request in-flight (`lib/ui/admin-form-client.ts`'s `lockElement`, `aria-busy="true"`) supaya klik ganda/double-Enter tidak pernah mengirim dua request — bukan pengganti idempotency server-side, keduanya berlapis. Aksi high-risk (publish/schedule/archive/restore/purge/delete/purge-config/revision-restore) selalu `window.confirm` dulu. Semua `<label>` terasosiasi eksplisit dengan input-nya (markup `<label>teks<input/></label>`, bukan `aria-label` terpisah, kecuali untuk kontrol icon-only yang memang tidak punya teks visual). Fokus keyboard terlihat lewat `:focus-visible` (bukan `:focus` polos, supaya klik mouse tidak memicu outline yang tidak perlu) di setiap file `<style>` layar. Semua string tampil lewat `t()` (katalog `.po` gettext, `en`+`id`, lihat §Internationalization).
+
+### Internationalization
+
+Seluruh string UI (~300 key baru, namespace `admin.blog.*`) ditambahkan ke `i18n/en.po` **dan** `i18n/id.po` (skill `awcms-mini-i18n`, katalog gettext flat `namespace.key` di root `i18n/`, bukan per-modul) — tidak ada string hardcoded di file `.astro`. Client `<script>` tidak bisa membaca katalog `.po` langsung (server-only, `Bun.file`), jadi tiap layar menyuntikkan string yang sudah diterjemahkan lewat blob `<script type="application/json" id="i18n-strings">` (`readClientStrings()`), pola yang sama seperti `admin/access-users.astro`/`admin/modules/[moduleKey].astro` sudah pakai. `admin.layout.nav_blog` (label sidebar) dan beberapa `common.*` (`filter_all`/`previous_page`/`next_page`) baru — sisanya (`common.error_title`, `common.network_error`, dst.) memakai ulang key yang sudah ada.
+
+### Security notes (ringkasan Issue #543)
+
+- Tidak ada secret hardcoded ditambahkan — layar admin ini murni UI + panggilan ke endpoint yang sudah ada; tidak ada koneksi database langsung dari klien, tidak ada token/API key baru.
+- Tidak ada eksposur PostgreSQL publik — semua akses data tetap lewat `withTenant`/aplikasi backend yang sudah ada, SSR read di frontmatter Astro berjalan server-side (sama seperti `admin/index.astro`/`admin/sync.astro` yang sudah ada sebelum issue ini).
+- Least-privilege runtime DB access — tidak berubah; halaman admin tetap terikat koneksi role `awcms_mini_app` yang sama yang dipakai seluruh app (lihat `docs/awcms-mini/18_configuration_env_reference.md`).
+- RLS isolation — diuji ulang eksplisit di `tests/integration/blog-content-admin-ui.integration.test.ts` untuk dua fungsi baru (`listBlogPostsForAdmin` tenant-isolation test); fungsi lain yang dipanggil layar admin (`listBlogPages`, `listBlogTerms`, dst.) sudah punya cakupan RLS dari test suite Issue #538-#542.
+- Aksi admin high-risk wajib confirm + audit — lifecycle action posts sudah audit sejak Issue #538/#541 (`recordAuditEvent`, action `blog.post.<verb>`); layar admin menambah lapisan `window.confirm` di atasnya, tidak menggantikannya.
+- Rendering publik tetap aman dari XSS — tidak diubah oleh issue ini; `content_json`/`content_text`/widget `bodyText`/ad `imageUrl`/`linkUrl` tetap lewat whitelist renderer yang sama (`content-block-rendering.ts`, `ads-directory.ts`'s `renderAdHtml`). Editor admin (`contentJson` textarea) mengizinkan penulis mengetik apa pun, tapi validasi server (`validateContentJsonField`'s `containsUnsafeHtml`) tetap menolak `<script>`/`<iframe>`/`<embed>`/`<object>`/inline handler/`javascript:` sebelum tersimpan — editor tidak melonggarkan aturan itu.
+- Pesan error tidak membocorkan stack trace — action banner admin selalu menampilkan `error.message` dari respons API (yang sendiri sudah aman, doc 10) atau string generik `common.network_error`, tidak pernah `error.stack`/exception mentah dari `console.error` (yang hanya dicatat server-side).
+
+### Testing commands
+
+```bash
+bun run db:migrate                     # skema tidak berubah di issue ini (0 applied, 30 skipped)
+bun run api:spec:check                 # OpenAPI/AsyncAPI baseline (26 channel blog-content, semua terpakai)
+bun run typecheck                      # tsc --noEmit, termasuk seluruh .astro admin/blog/*
+bun test                               # unit + integration; DATABASE_URL wajib untuk suite integration
+bun test tests/integration/blog-content-admin-ui.integration.test.ts  # test baru khusus Issue #543
+bun run build                          # Astro build, termasuk seluruh layar admin/blog/*
+bun run check                          # lint + check:docs + api:spec:check + typecheck + test + build
+bun run production:preflight           # gate go-live penuh (lihat §Known limitations soal env sandbox)
+```
+
+### Operational checklist (Issue #543)
+
+- [ ] Sebelum deploy: `bun run db:migrate` (idempoten, aman dijalankan berkali-kali).
+- [ ] `bun run check` hijau di CI sebelum merge.
+- [ ] Setelah deploy, verifikasi manual: login sebagai role dengan `blog_content.posts.read` -> `/admin/blog` tampil di sidebar -> buat post draft -> publish -> cek muncul di `/blog/{tenantCode}` (kalau visibility `public`).
+- [ ] Verifikasi `rssEnabled`/`sitemapEnabled` di `/admin/blog/settings`: matikan salah satu -> `feed.xml`/`sitemap-blog.xml` tenant itu mengembalikan 404.
+- [ ] `bun run blog:publish:scheduled` tetap dijadwalkan cron/systemd timer terpisah (Issue #541, tidak berubah oleh issue ini) — bukan dipicu dari UI mana pun.
+- [ ] Audit log (`/admin` -> module audit summary atau `GET /api/v1/logs/audit`) menunjukkan `blog.post.*`/`blog.settings.updated` setelah aksi lifecycle/settings dari UI baru ini.
+
 ## Belum tersedia (backlog eksplisit, bukan kelalaian)
 
 - Public page (halaman statis) rendering — hanya post yang punya rute publik di Issue #540, lihat §Public routes.
-- Page revision list/detail/restore endpoints — `createBlogRevision` sudah dipanggil dari `PATCH /api/v1/blog/pages/{id}` (baris tersimpan), tapi tidak ada rute baca/restore untuk `resource_type = 'page'`, hanya post (lihat §Revisions).
-- `POST /api/v1/blog/settings` (atau setara) — `blog-content.settings.updated` sudah didaftarkan di kontrak AsyncAPI (Issue #541) tapi belum ada endpoint yang menulis `awcms_mini_blog_settings`.
+- Page revision list/detail/restore endpoints — `createBlogRevision` sudah dipanggil dari `PATCH /api/v1/blog/pages/{id}` (baris tersimpan), tapi tidak ada rute baca/restore untuk `resource_type = 'page'`, hanya post (lihat §Revisions). Admin UI (§Admin UI di atas) karena itu juga tidak punya panel revision untuk page.
 - Rute publik untuk widget/ads rendering (header/sidebar/footer placement nyata di halaman publik) — `listActiveAdsForPlacement`/`renderAdHtml`/`listWidgets({ activeOnly: true })` sudah ada dan teruji, belum dipasang ke rute publik manapun.
 - Rute revisi/`translationGroupId` untuk pages — `setPostTranslationGroup` hanya untuk posts di issue ini.
-- Admin UI, dokumentasi akhir, hardening — Issue #543.
-- Page lifecycle-action endpoints (`submit-review`/`publish`/`schedule`/`archive`/`restore`/`purge` untuk pages) — permission-nya sudah diseed (Issue #537) tapi tidak ada issue yang eksplisit membangun endpoint-nya; backlog terbuka, bukan bagian #539.
+- Page lifecycle-action endpoints (`submit-review`/`publish`/`schedule`/`archive`/`restore`/`purge` untuk pages) — permission-nya sudah diseed (Issue #537) tapi tidak ada issue yang eksplisit membangun endpoint-nya; backlog terbuka, bukan bagian #539. Konsekuensinya, editor page (§Admin UI) juga tidak punya tombol status apa pun.
 - Optimistic-concurrency check yang membaca kolom `version` — kolom sudah di-increment tiap write, tapi belum ada endpoint yang menolak write berdasarkan `version` mismatch.
 - Search relevance ranking (`ts_rank`) dan text search config per-locale (`english`/`indonesian`) — `search_vector` sudah weighted (A/B/C) untuk kebutuhan ini di masa depan, tapi `GET /api/v1/blog/search` (admin) dan search publik saat ini hanya mengurutkan `created_at DESC`.
 - Locale-aware negotiation untuk pengunjung publik (mis. header `Accept-Language`) — index/detail publik saat ini menampilkan semua post tanpa filter locale; `<html lang>` memakai locale post/tenant, bukan preferensi pengunjung.
 - `robots.txt` dan referensi sitemap dari `robots.txt` — hanya sitemap XML-nya sendiri yang ada, belum ada yang mereferensikannya secara otomatis.
+- Rich block editor visual untuk `content_json` — admin UI (Issue #543) memakai textarea JSON berlabel untuk `contentJson`/menu items/ad placements, bukan editor visual/drag-drop; membangun itu tetap backlog terbuka kalau suatu saat dianggap perlu.
+- Layar admin murni untuk media/gallery — tidak ada (dan tidak akan ada tanpa base media library nyata); galeri dikelola lewat block `content_json` di editor post/page yang ada.

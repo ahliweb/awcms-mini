@@ -10,11 +10,14 @@ import {
 } from "../../../lib/html/error-responses";
 import { log } from "../../../lib/logging/logger";
 import { listPublicBlogPostsForFeed } from "../../../modules/blog-content/application/public-blog-directory";
+import { fetchBlogSettings } from "../../../modules/blog-content/application/blog-settings-directory";
 
 /**
  * `GET /blog/{tenantCode}/sitemap-blog.xml` (Issue #540) — sitemap
  * protocol 0.9, same public visibility predicate as the RSS feed/index
  * (doc issue #540 §Sitemap Requirements: same exclusion list as RSS).
+ * Issue #543 §Settings Page adds `sitemapEnabled` — same disabled-looks-
+ * like-404 behavior as the RSS feed above.
  */
 export const GET: APIRoute = async ({ params, url }) => {
   const tenantCode = params.tenantCode;
@@ -32,6 +35,12 @@ export const GET: APIRoute = async ({ params, url }) => {
     }
 
     return await withTenant(sql, tenant.tenantId, async (tx) => {
+      const settings = await fetchBlogSettings(tx, tenant.tenantId);
+
+      if (!settings.sitemapEnabled) {
+        return notFoundXmlResponse();
+      }
+
       const posts = await listPublicBlogPostsForFeed(tx, tenant.tenantId);
       const channelLink = `${url.origin}/blog/${tenantCode}`;
 

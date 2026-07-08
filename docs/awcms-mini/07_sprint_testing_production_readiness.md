@@ -169,6 +169,8 @@ Piramida: banyak unit test di dasar, sedikit end-to-end di puncak; security & pe
 
 > **Base sudah punya test.** Runner = **`bun test`** (`bun:test`), berkas di `tests/`. Tooling repositori saat ini (`scripts/`) sudah mengikuti pola ini: logika murni `scripts/lib/docs-checks.mjs` diuji unit (`tests/docs-checks.test.mjs`), dan pemeriksa penuh diuji integration (`tests/check-docs-integration.test.mjs`). Daftar target di bawah bersifat **contoh domain** — aplikasi turunan menggantinya dengan target domainnya sendiri.
 
+> **`blog_content` (epic #536) sebagai contoh nyata, bukan lagi ilustratif.** Berbeda dari target POS/warehouse di bawah (yang murni contoh untuk aplikasi turunan), `blog_content` adalah modul domain yang benar-benar berjalan di repo base ini (ADR-0009) dan sudah punya test lengkap di `tests/integration/blog-content-*.integration.test.ts` (schema/RLS, admin API posts/pages/taxonomies/search, public routes, revisions, presentation extensions, dan admin-UI list/lookup functions — Issue #543). Jalankan `bun test tests/integration/blog-content-*.integration.test.ts` (butuh `DATABASE_URL`, lihat §Migration checklist) untuk suite khusus modul ini, atau `bun test` untuk seluruh suite termasuk yang lain.
+
 ### Unit test target
 
 - ABAC evaluator.

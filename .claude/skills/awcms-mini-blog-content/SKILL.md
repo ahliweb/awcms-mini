@@ -1,6 +1,6 @@
 ---
 name: awcms-mini-blog-content
-description: Kerjakan bagian mana pun dari epic blog_content AWCMS-Mini (Issue #537-#543, epic #536) — posts, pages, taxonomi, search, rute publik, revisi/scheduled publishing, template/menu/widget/ads/theme/multilingual/gallery, atau UI admin blog. Gunakan saat menambah endpoint/logic ke src/modules/blog-content atau src/pages/blog, mengubah schema blog, atau melanjutkan issue lanjutan epic ini. Merangkum keputusan yang sudah dibuat di Issue #537-#542 supaya tidak diulang/dikontradiksi.
+description: Kerjakan bagian mana pun dari epic blog_content AWCMS-Mini (Issue #537-#543, epic #536 — SELESAI) — posts, pages, taxonomi, search, rute publik, revisi/scheduled publishing, template/menu/widget/ads/theme/multilingual/gallery, admin UI blog, atau blog settings API. Gunakan saat menambah endpoint/logic ke src/modules/blog-content, src/pages/blog, atau src/pages/admin/blog, mengubah schema blog, atau mengerjakan issue susulan di luar epic ini. Merangkum keputusan yang sudah dibuat di Issue #537-#543 supaya tidak diulang/dikontradiksi.
 ---
 
 # AWCMS-Mini — Blog Content Module
@@ -8,11 +8,12 @@ description: Kerjakan bagian mana pun dari epic blog_content AWCMS-Mini (Issue #
 `blog_content` (`src/modules/blog-content`) adalah **modul domain pertama
 yang didaftarkan langsung di repo base ini** (epic #536, bukan di aplikasi
 turunan terpisah — lihat `AGENTS.md` §Peta modul dan
-`docs/adr/0009-public-tenant-scoped-routes.md`). Skill ini merangkum
-keputusan Issue #537-#542 (semuanya sudah selesai) yang **wajib** dipakai
-ulang oleh Issue #543, bukan didesain ulang — baca
-`src/modules/blog-content/README.md` untuk detail lengkap tiap tabel dan
-endpoint.
+`docs/adr/0009-public-tenant-scoped-routes.md`). Epic #536 (Issue #537-#543)
+**sudah selesai** — modul terdaftar `status: "active"` (bukan lagi
+`experimental`). Skill ini merangkum keputusan yang sudah dibuat supaya
+issue susulan (di luar epic ini) **wajib** memakai ulang, bukan
+mendesain ulang — baca `src/modules/blog-content/README.md` untuk detail
+lengkap tiap tabel dan endpoint.
 
 ## Kapan pakai skill ini vs skill generik
 
@@ -24,15 +25,15 @@ membaca satu file migration.
 
 ## Status per issue (jangan bangun ulang yang sudah ada)
 
-| Issue | Scope                                       | Status                                                                           |
-| ----- | ------------------------------------------- | -------------------------------------------------------------------------------- |
-| #537  | Schema, domain validation, permission seed  | **Selesai** (migration 026/027)                                                  |
-| #538  | Admin API + lifecycle actions (posts)       | **Selesai** (`/api/v1/blog/posts`, lihat README)                                 |
-| #539  | Pages, taxonomi, post-term relation, search | **Selesai** (`/api/v1/blog/pages`, `/terms`, `/search`)                          |
-| #540  | Rute publik, RSS, sitemap, SEO              | **Selesai** (`/blog/{tenantCode}/...`, lihat README)                             |
-| #541  | Revisions + scheduled publishing + AsyncAPI | **Selesai** (`/posts/{id}/revisions`, `blog:publish:scheduled`, lihat README)    |
-| #542  | Template/menu/widget/media/multilingual/ads | **Selesai** (`/templates`, `/menus`, `/widgets`, `/ads`, `/theme`, lihat README) |
-| #543  | Admin UI, dokumentasi akhir, hardening      | Belum                                                                            |
+| Issue | Scope                                                     | Status                                                                           |
+| ----- | --------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| #537  | Schema, domain validation, permission seed                | **Selesai** (migration 026/027)                                                  |
+| #538  | Admin API + lifecycle actions (posts)                     | **Selesai** (`/api/v1/blog/posts`, lihat README)                                 |
+| #539  | Pages, taxonomi, post-term relation, search               | **Selesai** (`/api/v1/blog/pages`, `/terms`, `/search`)                          |
+| #540  | Rute publik, RSS, sitemap, SEO                            | **Selesai** (`/blog/{tenantCode}/...`, lihat README)                             |
+| #541  | Revisions + scheduled publishing + AsyncAPI               | **Selesai** (`/posts/{id}/revisions`, `blog:publish:scheduled`, lihat README)    |
+| #542  | Template/menu/widget/media/multilingual/ads               | **Selesai** (`/templates`, `/menus`, `/widgets`, `/ads`, `/theme`, lihat README) |
+| #543  | Admin UI, blog settings API, dokumentasi akhir, hardening | **Selesai** (14 layar `/admin/blog/...`, `/api/v1/blog/settings`, lihat README)  |
 
 ## Yang sudah ada — pakai ulang, jangan re-derive
 
@@ -46,7 +47,9 @@ membaca satu file migration.
 - **Rute publik** (`src/pages/blog/[tenantCode]/`, Issue #540): index, detail post, arsip kategori/tag, search, `feed.xml`, `sitemap-blog.xml` — 7 `APIRoute` (`.ts`, bukan `.astro`, lihat §Aturan #10). Semua anonim, resolusi tenant lewat `src/lib/tenant/public-tenant-resolver.ts`'s `resolvePublicTenantByCode` (ADR-0009). Query publik ada di `public-blog-directory.ts` (**bukan** `blog-post-directory.ts` yang admin-only), rendering aman di `content-block-rendering.ts`/`seo-rendering.ts`/`public-page-rendering.ts`. **Hanya post**, tidak ada rute publik untuk pages, widget, atau ads (helper-nya `listActiveAdsForPlacement`/`renderAdHtml`/`listWidgets({activeOnly:true})` sudah ada dan teruji, belum ada rute yang memasangnya).
 - **API presentasi** (Issue #542): `src/pages/api/v1/blog/{templates,menus,widgets,ads}/` (CRUD, satu permission `configure` menggerbangi create/update/delete, pola sama taxonomies) dan `src/pages/api/v1/blog/theme/` (`GET`/`PATCH`, satu baris per tenant, fallback ke `awcms_mini_tenants.default_theme`). Menu items dan ad placements full-replace via sub-array di payload (`items`/`placements`), sama seperti `termIds`.
 - **Gallery block** (Issue #542, `content-block-rendering.ts`): tipe block baru `{ type: "gallery", items: GalleryItem[] }` (image/video, whitelist render, `<img>`/`<video controls>` saja) — **bukan** tabel/endpoint media terpisah, karena tidak ada base media library nyata untuk diintegrasikan (`featuredMediaId` cuma UUID longgar tanpa FK).
-- **AsyncAPI domain events** (`asyncapi/awcms-mini-domain-events.asyncapi.yaml`): 26 channel `awcms-mini.blog-content.*` (13 dari #541 + 13 dari #542), terdaftar juga di `module.ts`'s `events.publishes`. **Dokumentasi kontrak saja** — produser nyatanya structured JSON logger (`log()`), bukan event bus, konvensi sama sejak Issue 0.3 (lihat pola `email.*` sebagai precedent). 25 dari 26 punya log line nyata; `settings.updated` belum (belum ada endpoint `awcms_mini_blog_settings`, beda dari `theme.updated` yang sudah punya produser sejak #542).
+- **API settings** (Issue #543, `src/pages/api/v1/blog/settings/`): `GET`/`PATCH`, satu baris per tenant (`awcms_mini_blog_settings`, migration 026 — kolom typed `default_locale`/`default_visibility`/`posts_per_page`/`seo_default_title`/`seo_default_description` ditulis/dibaca lewat route untuk pertama kali di #543; `blogTitle`/`blogDescription`/`rssEnabled`/`sitemapEnabled` di kolom jsonb `settings` catch-all). Directory `blog-settings-directory.ts` (`fetchBlogSettings`/`upsertBlogSettings`, merge-patch upsert), policy `blog-settings-policy.ts` (`validateUpdateBlogSettingsInput`). Guard `blog_content.settings.{read,configure}`, audit `blog.settings.updated`, terdaftar di OpenAPI (`paths./api/v1/blog/settings`) dan closing gap AsyncAPI `settings.updated` (lihat di bawah). `feed.xml.ts`/`sitemap-blog.xml.ts` (#540) sekarang membaca `rssEnabled`/`sitemapEnabled` dari sini — tenant yang mematikannya dapat `404` identik dengan tenant tak dikenal (sama seperti aturan #5, tidak ada sinyal pembeda).
+- **Admin UI** (Issue #543, `src/pages/admin/blog/`): 14 layar Astro (`+ vanilla JS`, tanpa framework baru), reuse `AdminLayout` + design token existing, pola SSR-read-lewat-application-layer + mutasi-lewat-fetch-ke-endpoint-terguard **identik** dengan `src/pages/admin/modules/[moduleKey].astro` (referensi utama) — dashboard (`index.astro`), posts (`posts/index.astro`, `/new`, `/[id]` — termasuk lifecycle action + revision history), pages (`pages/index.astro`, `/new`, `/[id]` — **tanpa** lifecycle action, sesuai README §Belum tersedia), `categories.astro`, `tags.astro` (tag structural tidak punya field `parentId` sama sekali, bukan cuma disembunyikan), `settings.astro`, dan layar opsional `templates.astro`/`widgets.astro`/`menus.astro`/`ads.astro` (disertakan karena #542 sudah merged). Semua aksi high-risk (publish/schedule/archive/restore/purge/revision-restore/delete) wajib `window.confirm` + `Idempotency-Key` baru per attempt (`newIdempotencyKey()` di `src/lib/ui/admin-form-client.ts`) + tombol submit terkunci selama in-flight. `module.ts`'s `navigation` array (satu entry `/admin/blog`, guard `blog_content.posts.read`) dan `permissions` array (36 entry, persis mirror migration 027+030) baru dideklarasikan di #543 — sebelumnya kosong meski permission-nya sudah lama ada di DB.
+- **AsyncAPI domain events** (`asyncapi/awcms-mini-domain-events.asyncapi.yaml`): 26 channel `awcms-mini.blog-content.*` (13 dari #541 + 13 dari #542), terdaftar juga di `module.ts`'s `events.publishes`. **Dokumentasi kontrak saja** — produser nyatanya structured JSON logger (`log()`), bukan event bus, konvensi sama sejak Issue 0.3 (lihat pola `email.*` sebagai precedent). Sejak #543 **semua 26 channel punya produser nyata** — `settings.updated` (yang sebelumnya reserved-tanpa-produser) sekarang di-log dari `PATCH /api/v1/blog/settings`.
 
 ## Aturan lintas-issue yang wajib diikuti
 
@@ -71,4 +74,16 @@ membaca satu file migration.
 
 ## Belum ada — jangan asumsikan sudah dikerjakan
 
-Belum ada rute publik untuk pages (hanya post yang punya rute publik di #540), rute baca/restore revisi untuk pages (hanya post punya rute revisi di #541, meski page tetap mengumpulkan revisi lewat `PATCH`), endpoint `blog_content.settings.*` (AsyncAPI `settings.updated` sudah didaftarkan tapi belum ada produsernya, beda dari `theme.updated` yang sudah punya produser sejak #542), atau admin UI (#543). `src/modules/blog-content/README.md` §Belum tersedia berisi daftar lengkap per issue. Page lifecycle-action endpoints (`publish`/`schedule`/`archive`/`restore`/`purge` untuk pages) juga **belum ada** meski permission-nya sudah diseed sejak #537 — jangan asumsikan itu selesai hanya karena posts sudah punya lifecycle lengkap. Locale-aware negotiation untuk pengunjung publik (mis. `Accept-Language`) juga belum ada — rute publik saat ini tidak memfilter berdasarkan preferensi bahasa pengunjung. Optimistic-concurrency check yang membaca kolom `version` juga masih belum ada. Rute publik untuk widget/ads rendering (header/sidebar/footer nyata di halaman publik) juga **belum ada** meski #542 sudah menyediakan helper teruji (`listActiveAdsForPlacement`/`renderAdHtml`/`listWidgets({activeOnly:true})`) — jangan asumsikan iklan/widget sudah tampil di halaman publik manapun.
+Epic #536 (Issue #537-#543) sudah selesai seluruhnya, tapi beberapa hal
+tetap **di luar scope epic ini secara sengaja** — jangan asumsikan sudah
+dikerjakan hanya karena epic-nya "selesai":
+
+- Rute publik untuk pages (hanya post yang punya rute publik, #540), dan rute baca/restore revisi untuk pages (hanya post punya rute revisi, #541 — page tetap mengumpulkan revisi lewat `PATCH`, hanya tidak ada endpoint baca/restore-nya).
+- Page lifecycle-action endpoints (`publish`/`schedule`/`archive`/`restore`/`purge` untuk pages) — permission-nya sudah diseed sejak #537, tapi endpoint-nya tidak pernah dibangun di issue manapun (#538-#543). Jangan asumsikan itu selesai hanya karena posts sudah punya lifecycle lengkap dan admin UI post editor punya panel lifecycle.
+- Locale-aware negotiation untuk pengunjung publik (mis. `Accept-Language`) — rute publik tidak memfilter berdasarkan preferensi bahasa pengunjung.
+- Optimistic-concurrency check yang membaca kolom `version`.
+- Rute publik untuk widget/ads rendering (header/sidebar/footer nyata di halaman publik) — helper-nya (`listActiveAdsForPlacement`/`renderAdHtml`/`listWidgets({activeOnly:true})`) sudah ada dan teruji sejak #542, admin CRUD-nya (`/admin/blog/widgets`, `/admin/blog/ads`) sudah ada sejak #543, tapi belum ada satu rute publik pun yang memasangnya di halaman blog.
+- Layar admin dedicated untuk media/gallery — tidak ada base media library (lihat aturan #17), jadi gallery block tetap diedit lewat textarea `content_json` di post/page editor, bukan picker visual.
+- Visual/WYSIWYG editor untuk `content_json`, dan editor visual (tree/drag-drop) untuk menu items/ad placements — admin UI #543 memakai textarea JSON berlabel untuk semuanya, keputusan scope yang disengaja (lihat README §Known limitations).
+
+`src/modules/blog-content/README.md` §Belum tersedia berisi daftar lengkap dan detail per item.

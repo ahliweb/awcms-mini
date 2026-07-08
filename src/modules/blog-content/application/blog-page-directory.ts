@@ -254,6 +254,73 @@ export async function listBlogPages(
   return rows.map(toBlogPageSummary);
 }
 
+export type ListBlogPagesForAdminFilter = {
+  search?: string;
+  status?: BlogContentStatus;
+  pageType?: PageType;
+  page?: number;
+  pageSize?: number;
+};
+
+export type ListBlogPagesForAdminResult = {
+  items: BlogPageSummary[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+const DEFAULT_ADMIN_LIST_PAGE_SIZE = 20;
+const MAX_ADMIN_LIST_PAGE_SIZE = 100;
+
+/**
+ * Admin page list (Issue #543 §Page List) — additive, mirrors
+ * `blog-post-directory.ts`'s `listBlogPostsForAdmin` (`ILIKE` title search,
+ * page-number pagination with a total count) minus the term filter (pages
+ * have no taxonomy relation).
+ */
+export async function listBlogPagesForAdmin(
+  tx: Bun.SQL,
+  tenantId: string,
+  filter: ListBlogPagesForAdminFilter = {}
+): Promise<ListBlogPagesForAdminResult> {
+  const pageSize = Math.min(
+    Math.max(filter.pageSize ?? DEFAULT_ADMIN_LIST_PAGE_SIZE, 1),
+    MAX_ADMIN_LIST_PAGE_SIZE
+  );
+  const page = Math.max(filter.page ?? 1, 1);
+  const offset = (page - 1) * pageSize;
+  const search = filter.search?.trim() || null;
+  const status = filter.status ?? null;
+  const pageType = filter.pageType ?? null;
+
+  const rows = (await tx`
+    SELECT id, tenant_id, title, slug, status, visibility, page_type, parent_page_id, menu_order, locale, updated_at
+    FROM awcms_mini_blog_pages
+    WHERE tenant_id = ${tenantId} AND deleted_at IS NULL
+      AND (${status}::text IS NULL OR status = ${status})
+      AND (${pageType}::text IS NULL OR page_type = ${pageType})
+      AND (${search}::text IS NULL OR title ILIKE '%' || ${search} || '%')
+    ORDER BY updated_at DESC
+    LIMIT ${pageSize} OFFSET ${offset}
+  `) as BlogPageSummaryRow[];
+
+  const countRows = (await tx`
+    SELECT count(*)::int AS count
+    FROM awcms_mini_blog_pages
+    WHERE tenant_id = ${tenantId} AND deleted_at IS NULL
+      AND (${status}::text IS NULL OR status = ${status})
+      AND (${pageType}::text IS NULL OR page_type = ${pageType})
+      AND (${search}::text IS NULL OR title ILIKE '%' || ${search} || '%')
+  `) as { count: number }[];
+
+  return {
+    items: rows.map(toBlogPageSummary),
+    total: countRows[0]?.count ?? 0,
+    page,
+    pageSize
+  };
+}
+
 /** Partial update; `version` bumped on every successful write (same monotonic-counter convention as `updateBlogPost`, no optimistic-concurrency check yet). */
 export async function updateBlogPage(
   tx: Bun.SQL,

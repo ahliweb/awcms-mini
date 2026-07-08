@@ -261,6 +261,52 @@ Database-backed, tenant-aware module registry — generic infrastructure for man
 
 Tidak ada event AsyncAPI baru — perubahan lifecycle/config modul tercatat lewat `awcms_mini_audit_events` generik yang sudah ada, bukan domain event terpisah.
 
+### Blog Content (Issue #537–#543, epic #536)
+
+Modul domain pertama yang didaftarkan langsung di repo base ini (ADR-0009), bukan di aplikasi turunan. Full detail (guard/idempotency/audit per endpoint): `src/modules/blog-content/README.md`. Base path `/api/v1/blog`.
+
+| Method                    | Endpoint                                          | Fungsi                                                                  |
+| ------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------- |
+| GET                       | `/blog/posts`                                     | List post tenant (`?status=`/`?limit=`)                                 |
+| POST                      | `/blog/posts`                                     | Buat post draft                                                         |
+| GET                       | `/blog/posts/{id}`                                | Detail post                                                             |
+| PATCH                     | `/blog/posts/{id}`                                | Update post (ABAC ownership override untuk author konten belum publish) |
+| DELETE                    | `/blog/posts/{id}`                                | Soft delete (`reason` wajib)                                            |
+| POST                      | `/blog/posts/{id}/submit-review`                  | draft/review → review                                                   |
+| POST                      | `/blog/posts/{id}/publish`                        | → published (Idempotency-Key wajib)                                     |
+| POST                      | `/blog/posts/{id}/schedule`                       | → scheduled (Idempotency-Key wajib, body `scheduledAt`)                 |
+| POST                      | `/blog/posts/{id}/archive`                        | → archived (Idempotency-Key wajib)                                      |
+| POST                      | `/blog/posts/{id}/restore`                        | Pulihkan soft-delete (Idempotency-Key wajib)                            |
+| POST                      | `/blog/posts/{id}/purge`                          | Hard delete, hanya archived/soft-deleted (Idempotency-Key wajib)        |
+| GET                       | `/blog/posts/{id}/revisions`                      | List revision history                                                   |
+| GET                       | `/blog/posts/{id}/revisions/{revisionId}`         | Detail satu revisi                                                      |
+| POST                      | `/blog/posts/{id}/revisions/{revisionId}/restore` | Restore konten dari revisi lama (append-only, Idempotency-Key wajib)    |
+| GET/POST/GET/PATCH/DELETE | `/blog/pages(/{id})`                              | CRUD halaman statis — **tanpa** lifecycle-action endpoint               |
+| GET/POST/PATCH/DELETE     | `/blog/terms(/{id})`                              | CRUD kategori/tag (tanpa `GET /{id}`)                                   |
+| GET                       | `/blog/search`                                    | Full-text search admin, keyset-paginated (`?type=`/`?status=`)          |
+| GET/PATCH                 | `/blog/settings`                                  | Pengaturan blog per tenant (Issue #543)                                 |
+| GET/POST/PATCH/DELETE     | `/blog/templates(/{id})`                          | Template layout whitelisted (Issue #542)                                |
+| GET/POST/PATCH/DELETE     | `/blog/menus(/{id})`                              | Menu hierarkis satu level (Issue #542)                                  |
+| GET/POST/PATCH/DELETE     | `/blog/widgets(/{id})`                            | Widget posisi tetap (Issue #542)                                        |
+| GET/POST/PATCH/DELETE     | `/blog/ads(/{id})`                                | Iklan + placement/jadwal (Issue #542)                                   |
+| GET/PATCH                 | `/blog/theme`                                     | Override mode tema blog per tenant (Issue #542)                         |
+
+Rute publik anonim (ADR-0009, resolusi tenant lewat path `tenantCode`, bukan subdomain/header), semua `APIRoute` `.ts` (bukan `.astro`, supaya testable lewat `tests/integration/harness.ts`):
+
+| Method | Endpoint                              | Fungsi                                                  |
+| ------ | ------------------------------------- | ------------------------------------------------------- |
+| GET    | `/blog/{tenantCode}`                  | Index post publik (paginated)                           |
+| GET    | `/blog/{tenantCode}/{slug}`           | Detail post                                             |
+| GET    | `/blog/{tenantCode}/category/{slug}`  | Arsip kategori                                          |
+| GET    | `/blog/{tenantCode}/tag/{slug}`       | Arsip tag                                               |
+| GET    | `/blog/{tenantCode}/search`           | Search publik                                           |
+| GET    | `/blog/{tenantCode}/feed.xml`         | RSS 2.0 (404 kalau `rssEnabled=false`)                  |
+| GET    | `/blog/{tenantCode}/sitemap-blog.xml` | Sitemap protocol 0.9 (404 kalau `sitemapEnabled=false`) |
+
+Admin UI (Issue #543): `/admin/blog/*` — Astro + vanilla JS, tidak menambah endpoint API baru (semua mutasi lewat endpoint di atas). Lihat README modul §Admin UI.
+
+26 domain event AsyncAPI (`awcms-mini.blog-content.*`, §Event utama tidak mendaftarkan semuanya karena volumenya — lihat `asyncapi/awcms-mini-domain-events.asyncapi.yaml` dan README modul §Domain events untuk daftar lengkap + tabel produser). Sejak Issue #543 seluruh 26 channel punya produser nyata (celah terakhir, `settings.updated`, ditutup oleh `PATCH /api/v1/blog/settings`).
+
 ### AI, Reports, Logs, Workflow, Security
 
 | Modul    | Endpoint utama                                                 |

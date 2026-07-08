@@ -10,6 +10,7 @@ import {
 } from "../../../lib/html/error-responses";
 import { log } from "../../../lib/logging/logger";
 import { listPublicBlogPostsForFeed } from "../../../modules/blog-content/application/public-blog-directory";
+import { fetchBlogSettings } from "../../../modules/blog-content/application/blog-settings-directory";
 import { resolveMetaDescription } from "../../../modules/blog-content/domain/seo-rendering";
 
 /**
@@ -19,7 +20,10 @@ import { resolveMetaDescription } from "../../../modules/blog-content/domain/seo
  * scheduled-future/draft/review/deleted). Hand-built XML string (no RSS
  * library dependency — Bun-only, AGENTS.md rule 14), escaped through the
  * same `escapeHtml` used for HTML (XML and HTML share the same five
- * entity escapes).
+ * entity escapes). Issue #543 §Settings Page adds `rssEnabled` — a tenant
+ * that has turned the feed off gets the same 404 shape as an unknown
+ * tenant/post (no distinguishable signal for a disabled vs. nonexistent
+ * feed).
  */
 export const GET: APIRoute = async ({ params, url }) => {
   const tenantCode = params.tenantCode;
@@ -37,6 +41,12 @@ export const GET: APIRoute = async ({ params, url }) => {
     }
 
     return await withTenant(sql, tenant.tenantId, async (tx) => {
+      const settings = await fetchBlogSettings(tx, tenant.tenantId);
+
+      if (!settings.rssEnabled) {
+        return notFoundXmlResponse();
+      }
+
       const posts = await listPublicBlogPostsForFeed(tx, tenant.tenantId);
       const channelLink = `${url.origin}/blog/${tenantCode}`;
 

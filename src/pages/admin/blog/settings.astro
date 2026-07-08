@@ -1,0 +1,441 @@
+---
+/**
+ * Blog settings (Issue #543 §Settings Page). `GET`/`PATCH
+ * /api/v1/blog/settings` (also new in this issue, `blog-settings-directory.ts`
+ * + `blog-settings-policy.ts`) backs every field the issue lists: blog
+ * title, blog description, posts per page, RSS enabled, sitemap enabled,
+ * default locale, default SEO title template (`seoDefaultTitle`), default
+ * meta description (`seoDefaultDescription`). `defaultVisibility` is not in
+ * the issue's explicit field list but exists on the backend (migration 026)
+ * and is exposed here too, since leaving a real, already-guarded field
+ * completely unreachable from any UI would be a worse outcome than one
+ * extra select.
+ *
+ * Theme mode (`GET`/`PATCH /api/v1/blog/theme`, Issue #542) is folded into
+ * this same screen rather than getting its own route — it is tenant-wide
+ * presentation configuration exactly like the rest of this page, and the
+ * issue's screen list does not call for a dedicated `/admin/blog/theme`.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import { fetchBlogSettings } from "../../../modules/blog-content/application/blog-settings-directory";
+import { fetchBlogThemeSettings } from "../../../modules/blog-content/application/theme-settings-directory";
+import { BLOG_CONTENT_VISIBILITIES } from "../../../modules/blog-content/domain/post-status";
+import { BLOG_THEME_MODES } from "../../../modules/blog-content/domain/theme-policy";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/blog/settings.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ_SETTINGS = context.permissions.has(
+  permissionKey("blog_content", "settings", "read")
+);
+const CAN_CONFIGURE_SETTINGS = context.permissions.has(
+  permissionKey("blog_content", "settings", "configure")
+);
+const CAN_READ_THEME = context.permissions.has(
+  permissionKey("blog_content", "theme", "read")
+);
+const CAN_CONFIGURE_THEME = context.permissions.has(
+  permissionKey("blog_content", "theme", "configure")
+);
+
+const clientStrings = {
+  settingsSaveSuccess: t("admin.blog.settings.save_success"),
+  themeSaveSuccess: t("admin.blog.settings.theme_save_success"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+let settings: Awaited<ReturnType<typeof fetchBlogSettings>> | null = null;
+let theme: Awaited<ReturnType<typeof fetchBlogThemeSettings>> | null = null;
+let loadError = false;
+
+if (CAN_READ_SETTINGS || CAN_READ_THEME) {
+  try {
+    await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
+      if (CAN_READ_SETTINGS) {
+        settings = await fetchBlogSettings(tx, context.tenantId);
+      }
+      if (CAN_READ_THEME) {
+        theme = await fetchBlogThemeSettings(tx, context.tenantId);
+      }
+    });
+  } catch (error) {
+    console.error("admin/blog/settings.astro: failed to load settings", error);
+    loadError = true;
+  }
+}
+---
+
+<AdminLayout title={t("admin.blog.settings.title")}>
+  {
+    !CAN_READ_SETTINGS && !CAN_READ_THEME && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.blog.access_denied_title")}
+        body={t("admin.blog.access_denied_body")}
+      />
+    )
+  }
+  {
+    (CAN_READ_SETTINGS || CAN_READ_THEME) && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    !loadError && (CAN_READ_SETTINGS || CAN_READ_THEME) && (
+      <div class="blog-settings">
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        {CAN_READ_SETTINGS && settings && (
+          <section class="settings-section">
+            <h2>{t("admin.blog.settings.general_legend")}</h2>
+            <form id="settings-form" class="settings-form">
+              <fieldset disabled={!CAN_CONFIGURE_SETTINGS}>
+                <label>
+                  {t("admin.blog.settings.field_blog_title")}
+                  <input
+                    type="text"
+                    name="blogTitle"
+                    required
+                    maxlength="200"
+                    value={settings.blogTitle}
+                  />
+                </label>
+                <label>
+                  {t("admin.blog.settings.field_blog_description")}
+                  <textarea name="blogDescription" rows="3" maxlength="500">
+                    {settings.blogDescription ?? ""}
+                  </textarea>
+                </label>
+                <label>
+                  {t("admin.blog.settings.field_posts_per_page")}
+                  <input
+                    type="number"
+                    name="postsPerPage"
+                    min="1"
+                    max="100"
+                    step="1"
+                    value={settings.postsPerPage}
+                  />
+                </label>
+                <label class="checkbox-label">
+                  <input
+                    type="checkbox"
+                    name="rssEnabled"
+                    checked={settings.rssEnabled}
+                  />
+                  {t("admin.blog.settings.field_rss_enabled")}
+                </label>
+                <label class="checkbox-label">
+                  <input
+                    type="checkbox"
+                    name="sitemapEnabled"
+                    checked={settings.sitemapEnabled}
+                  />
+                  {t("admin.blog.settings.field_sitemap_enabled")}
+                </label>
+                <label>
+                  {t("admin.blog.settings.field_default_locale")}
+                  <input
+                    type="text"
+                    name="defaultLocale"
+                    required
+                    value={settings.defaultLocale}
+                  />
+                </label>
+                <label>
+                  {t("admin.blog.settings.field_default_visibility")}
+                  <select name="defaultVisibility">
+                    {BLOG_CONTENT_VISIBILITIES.map((value) => (
+                      <option
+                        value={value}
+                        selected={settings!.defaultVisibility === value}
+                      >
+                        {t(`admin.blog.visibility.${value}`)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  {t("admin.blog.settings.field_seo_default_title")}
+                  <input
+                    type="text"
+                    name="seoDefaultTitle"
+                    maxlength="200"
+                    value={settings.seoDefaultTitle ?? ""}
+                  />
+                </label>
+                <label>
+                  {t("admin.blog.settings.field_seo_default_description")}
+                  <textarea
+                    name="seoDefaultDescription"
+                    rows="2"
+                    maxlength="300"
+                  >
+                    {settings.seoDefaultDescription ?? ""}
+                  </textarea>
+                </label>
+              </fieldset>
+              {CAN_CONFIGURE_SETTINGS && (
+                <button type="submit">
+                  {t("admin.blog.settings.save_button")}
+                </button>
+              )}
+            </form>
+          </section>
+        )}
+
+        {CAN_READ_THEME && theme && (
+          <section class="settings-section">
+            <h2>{t("admin.blog.settings.theme_legend")}</h2>
+            <p class="field-hint">
+              {theme.isOverride
+                ? t("admin.blog.settings.theme_override_note")
+                : t("admin.blog.settings.theme_inherited_note")}
+            </p>
+            <form id="theme-form" class="settings-form">
+              <fieldset disabled={!CAN_CONFIGURE_THEME}>
+                <label>
+                  {t("admin.blog.settings.field_theme_mode")}
+                  <select name="mode">
+                    {BLOG_THEME_MODES.map((value) => (
+                      <option value={value} selected={theme!.mode === value}>
+                        {t(`admin.blog.settings.theme_mode_${value}`)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </fieldset>
+              {CAN_CONFIGURE_THEME && (
+                <button type="submit">
+                  {t("admin.blog.settings.save_button")}
+                </button>
+              )}
+            </form>
+          </section>
+        )}
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .blog-settings {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-6);
+  }
+
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+  }
+
+  .action-banner[data-variant="success"] {
+    background: color-mix(
+      in srgb,
+      var(--color-success) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-success);
+  }
+
+  .action-banner[data-variant="error"] {
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-danger);
+  }
+
+  .settings-section h2 {
+    margin: 0 0 var(--sp-3);
+    font-size: var(--fs-md);
+  }
+
+  .field-hint {
+    color: var(--color-text-muted);
+    font-size: var(--fs-xs);
+  }
+
+  .settings-form fieldset {
+    border: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    max-width: 560px;
+  }
+
+  .settings-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+
+  .settings-form .checkbox-label {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--sp-2);
+  }
+
+  .settings-form input,
+  .settings-form select,
+  .settings-form textarea {
+    padding: var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: inherit;
+  }
+
+  .settings-form button[type="submit"] {
+    align-self: flex-start;
+    margin-top: var(--sp-3);
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-2) var(--sp-5);
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  .settings-form button:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface SettingsStrings {
+    settingsSaveSuccess: string;
+    themeSaveSuccess: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<SettingsStrings>();
+
+  document
+    .getElementById("settings-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (button?.disabled) return;
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+
+      try {
+        const formData = new FormData(form);
+        const result = await submitJson(
+          "/api/v1/blog/settings",
+          "PATCH",
+          {
+            blogTitle: formData.get("blogTitle"),
+            blogDescription:
+              String(formData.get("blogDescription") ?? "").trim() || null,
+            postsPerPage: Number(formData.get("postsPerPage") ?? 10),
+            rssEnabled: formData.get("rssEnabled") === "on",
+            sitemapEnabled: formData.get("sitemapEnabled") === "on",
+            defaultLocale: formData.get("defaultLocale"),
+            defaultVisibility: formData.get("defaultVisibility"),
+            seoDefaultTitle:
+              String(formData.get("seoDefaultTitle") ?? "").trim() || null,
+            seoDefaultDescription:
+              String(formData.get("seoDefaultDescription") ?? "").trim() || null
+          },
+          strings
+        );
+
+        showBanner(
+          "action-banner",
+          result.ok ? strings.settingsSaveSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
+    });
+
+  document
+    .getElementById("theme-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (button?.disabled) return;
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+
+      try {
+        const formData = new FormData(form);
+        const result = await submitJson(
+          "/api/v1/blog/theme",
+          "PATCH",
+          { mode: formData.get("mode") },
+          strings
+        );
+
+        showBanner(
+          "action-banner",
+          result.ok ? strings.themeSaveSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
+    });
+</script>

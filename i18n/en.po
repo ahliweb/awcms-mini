@@ -784,3 +784,905 @@ msgstr "Could not save your progress. Your entries are still here — try again.
 
 msgid "admin.examples.wizard.draft_resumed_notice"
 msgstr "Resumed your saved draft."
+
+#. admin.blog — Issue #543 (admin UI)
+msgid "admin.layout.nav_blog"
+msgstr "Blog"
+
+msgid "common.filter_all"
+msgstr "All"
+
+msgid "common.previous_page"
+msgstr "Previous page"
+
+msgid "common.next_page"
+msgstr "Next page"
+
+msgid "admin.blog.access_denied_title"
+msgstr "Access denied."
+
+msgid "admin.blog.access_denied_body"
+msgstr "Your account does not have permission to view this blog screen. Contact your tenant admin/owner to request access."
+
+msgid "admin.blog.dashboard.title"
+msgstr "Blog dashboard"
+
+msgid "admin.blog.dashboard.posts_title"
+msgstr "Posts"
+
+msgid "admin.blog.dashboard.total_posts_label"
+msgstr "Total posts"
+
+msgid "admin.blog.dashboard.draft_posts_label"
+msgstr "Drafts"
+
+msgid "admin.blog.dashboard.scheduled_posts_label"
+msgstr "Scheduled"
+
+msgid "admin.blog.dashboard.pages_title"
+msgstr "Pages"
+
+msgid "admin.blog.dashboard.total_pages_label"
+msgstr "Total pages"
+
+msgid "admin.blog.dashboard.quick_links_title"
+msgstr "Quick links"
+
+msgid "admin.blog.dashboard.new_post_link"
+msgstr "New post"
+
+msgid "admin.blog.dashboard.new_page_link"
+msgstr "New page"
+
+msgid "admin.blog.dashboard.manage_posts_link"
+msgstr "Manage posts"
+
+msgid "admin.blog.dashboard.manage_pages_link"
+msgstr "Manage pages"
+
+msgid "admin.blog.dashboard.manage_categories_link"
+msgstr "Manage categories"
+
+msgid "admin.blog.dashboard.manage_tags_link"
+msgstr "Manage tags"
+
+msgid "admin.blog.dashboard.manage_settings_link"
+msgstr "Blog settings"
+
+msgid "admin.blog.dashboard.recent_updates_title"
+msgstr "Recently updated"
+
+msgid "admin.blog.dashboard.no_recent_updates"
+msgstr "No posts yet."
+
+msgid "admin.blog.status.draft"
+msgstr "Draft"
+
+msgid "admin.blog.status.review"
+msgstr "In review"
+
+msgid "admin.blog.status.scheduled"
+msgstr "Scheduled"
+
+msgid "admin.blog.status.published"
+msgstr "Published"
+
+msgid "admin.blog.status.archived"
+msgstr "Archived"
+
+msgid "admin.blog.visibility.public"
+msgstr "Public"
+
+msgid "admin.blog.visibility.private"
+msgstr "Private"
+
+msgid "admin.blog.visibility.unlisted"
+msgstr "Unlisted"
+
+msgid "admin.blog.page_type.standard"
+msgstr "Standard"
+
+msgid "admin.blog.page_type.landing"
+msgstr "Landing"
+
+msgid "admin.blog.page_type.legal"
+msgstr "Legal"
+
+msgid "admin.blog.page_type.system"
+msgstr "System"
+
+msgid "admin.blog.posts.title"
+msgstr "Blog posts"
+
+msgid "admin.blog.posts.new_title"
+msgstr "New post"
+
+msgid "admin.blog.posts.new_button"
+msgstr "New post"
+
+msgid "admin.blog.posts.filters_aria_label"
+msgstr "Post filters"
+
+msgid "admin.blog.posts.search_label"
+msgstr "Search"
+
+msgid "admin.blog.posts.status_filter_label"
+msgstr "Status"
+
+msgid "admin.blog.posts.term_filter_label"
+msgstr "Category/tag"
+
+msgid "admin.blog.posts.apply_filters_button"
+msgstr "Apply filters"
+
+msgid "admin.blog.posts.reset_filters_link"
+msgstr "Reset filters"
+
+msgid "admin.blog.posts.no_posts"
+msgstr "No posts match these filters."
+
+msgid "admin.blog.posts.title_column"
+msgstr "Title"
+
+msgid "admin.blog.posts.status_column"
+msgstr "Status"
+
+msgid "admin.blog.posts.author_column"
+msgstr "Author"
+
+msgid "admin.blog.posts.locale_column"
+msgstr "Locale"
+
+msgid "admin.blog.posts.published_column"
+msgstr "Published"
+
+msgid "admin.blog.posts.updated_column"
+msgstr "Updated"
+
+msgid "admin.blog.posts.unknown_author"
+msgstr "Unknown"
+
+msgid "admin.blog.posts.pagination_aria_label"
+msgstr "Post pagination"
+
+msgid "admin.blog.posts.page_indicator"
+msgstr "Page {page} of {totalPages}"
+
+msgid "admin.blog.posts.not_found_title"
+msgstr "Post not found."
+
+msgid "admin.blog.posts.not_found_body"
+msgstr "This post id does not exist or you do not have permission to view it."
+
+msgid "admin.blog.posts.back_to_list"
+msgstr "Back to post list"
+
+msgid "admin.blog.posts.field_title"
+msgstr "Title"
+
+msgid "admin.blog.posts.field_slug"
+msgstr "Slug"
+
+msgid "admin.blog.posts.slug_hint"
+msgstr "Lowercase letters, numbers, and single hyphens only."
+
+msgid "admin.blog.posts.field_excerpt"
+msgstr "Excerpt"
+
+msgid "admin.blog.posts.field_content_text"
+msgstr "Content (plain text)"
+
+msgid "admin.blog.posts.field_content_json"
+msgstr "Content blocks (JSON)"
+
+msgid "admin.blog.posts.content_json_hint"
+msgstr "Structured content as { \"blocks\": [...] } — paragraph, heading, list, quote, and gallery blocks only. Leave as an empty blocks array if unsure."
+
+msgid "admin.blog.posts.field_visibility"
+msgstr "Visibility"
+
+msgid "admin.blog.posts.field_locale"
+msgstr "Locale"
+
+msgid "admin.blog.posts.field_featured_media_id"
+msgstr "Featured media reference (UUID)"
+
+msgid "admin.blog.posts.featured_media_hint"
+msgstr "Optional. There is no media library yet — enter a UUID reference only."
+
+msgid "admin.blog.posts.field_categories"
+msgstr "Categories"
+
+msgid "admin.blog.posts.no_categories"
+msgstr "No categories yet."
+
+msgid "admin.blog.posts.field_tags"
+msgstr "Tags"
+
+msgid "admin.blog.posts.no_tags"
+msgstr "No tags yet."
+
+msgid "admin.blog.posts.seo_legend"
+msgstr "SEO"
+
+msgid "admin.blog.posts.field_seo_title"
+msgstr "SEO title"
+
+msgid "admin.blog.posts.field_meta_description"
+msgstr "Meta description"
+
+msgid "admin.blog.posts.field_canonical_url"
+msgstr "Canonical URL"
+
+msgid "admin.blog.posts.create_submit"
+msgstr "Create post"
+
+msgid "admin.blog.posts.create_success"
+msgstr "Post created."
+
+msgid "admin.blog.posts.invalid_content_json"
+msgstr "Content blocks must be valid JSON."
+
+msgid "admin.blog.posts.save_button"
+msgstr "Save changes"
+
+msgid "admin.blog.posts.save_success"
+msgstr "Post saved."
+
+msgid "admin.blog.posts.author_label"
+msgstr "Author"
+
+msgid "admin.blog.posts.deleted_label"
+msgstr "Deleted"
+
+msgid "admin.blog.posts.submit_review_button"
+msgstr "Submit for review"
+
+msgid "admin.blog.posts.submit_review_success"
+msgstr "Post submitted for review."
+
+msgid "admin.blog.posts.publish_button"
+msgstr "Publish"
+
+msgid "admin.blog.posts.publish_confirm"
+msgstr "Publish this post now? It will become visible on the public blog if visibility is public."
+
+msgid "admin.blog.posts.publish_success"
+msgstr "Post published."
+
+msgid "admin.blog.posts.schedule_button"
+msgstr "Schedule"
+
+msgid "admin.blog.posts.scheduled_at_prompt"
+msgstr "Publish at (e.g. 2026-08-01T09:00):"
+
+msgid "admin.blog.posts.schedule_confirm"
+msgstr "Schedule this post for automatic publishing at the time you entered?"
+
+msgid "admin.blog.posts.schedule_success"
+msgstr "Post scheduled."
+
+msgid "admin.blog.posts.archive_button"
+msgstr "Archive"
+
+msgid "admin.blog.posts.archive_confirm"
+msgstr "Archive this post? It will no longer be publicly visible."
+
+msgid "admin.blog.posts.archive_success"
+msgstr "Post archived."
+
+msgid "admin.blog.posts.delete_button"
+msgstr "Delete"
+
+msgid "admin.blog.posts.delete_reason_prompt"
+msgstr "Reason for deleting this post:"
+
+msgid "admin.blog.posts.delete_success"
+msgstr "Post deleted."
+
+msgid "admin.blog.posts.restore_button"
+msgstr "Restore"
+
+msgid "admin.blog.posts.restore_confirm"
+msgstr "Restore this deleted post?"
+
+msgid "admin.blog.posts.restore_success"
+msgstr "Post restored."
+
+msgid "admin.blog.posts.purge_button"
+msgstr "Purge permanently"
+
+msgid "admin.blog.posts.purge_confirm"
+msgstr "Permanently delete this post? This cannot be undone."
+
+msgid "admin.blog.posts.purge_success"
+msgstr "Post permanently deleted."
+
+msgid "admin.blog.posts.revisions_title"
+msgstr "Revision history"
+
+msgid "admin.blog.posts.no_revisions"
+msgstr "No revisions yet."
+
+msgid "admin.blog.posts.revision_number_column"
+msgstr "#"
+
+msgid "admin.blog.posts.revision_title_column"
+msgstr "Title"
+
+msgid "admin.blog.posts.revision_status_column"
+msgstr "Status"
+
+msgid "admin.blog.posts.revision_note_column"
+msgstr "Note"
+
+msgid "admin.blog.posts.revision_created_column"
+msgstr "Created"
+
+msgid "admin.blog.posts.revision_actions_column"
+msgstr "Actions"
+
+msgid "admin.blog.posts.revision_restore_button"
+msgstr "Restore this revision"
+
+msgid "admin.blog.posts.revision_restore_confirm"
+msgstr "Restore the post's content to this revision? A new revision recording this restore will be added — no history is lost."
+
+msgid "admin.blog.posts.revision_restore_success"
+msgstr "Post restored from revision."
+
+msgid "admin.blog.pages.title"
+msgstr "Blog pages"
+
+msgid "admin.blog.pages.new_title"
+msgstr "New page"
+
+msgid "admin.blog.pages.new_button"
+msgstr "New page"
+
+msgid "admin.blog.pages.filters_aria_label"
+msgstr "Page filters"
+
+msgid "admin.blog.pages.search_label"
+msgstr "Search"
+
+msgid "admin.blog.pages.status_filter_label"
+msgstr "Status"
+
+msgid "admin.blog.pages.type_filter_label"
+msgstr "Page type"
+
+msgid "admin.blog.pages.apply_filters_button"
+msgstr "Apply filters"
+
+msgid "admin.blog.pages.reset_filters_link"
+msgstr "Reset filters"
+
+msgid "admin.blog.pages.no_pages"
+msgstr "No pages match these filters."
+
+msgid "admin.blog.pages.title_column"
+msgstr "Title"
+
+msgid "admin.blog.pages.status_column"
+msgstr "Status"
+
+msgid "admin.blog.pages.type_column"
+msgstr "Type"
+
+msgid "admin.blog.pages.menu_order_column"
+msgstr "Menu order"
+
+msgid "admin.blog.pages.locale_column"
+msgstr "Locale"
+
+msgid "admin.blog.pages.updated_column"
+msgstr "Updated"
+
+msgid "admin.blog.pages.pagination_aria_label"
+msgstr "Page pagination"
+
+msgid "admin.blog.pages.not_found_title"
+msgstr "Page not found."
+
+msgid "admin.blog.pages.not_found_body"
+msgstr "This page id does not exist or you do not have permission to view it."
+
+msgid "admin.blog.pages.back_to_list"
+msgstr "Back to page list"
+
+msgid "admin.blog.pages.field_title"
+msgstr "Title"
+
+msgid "admin.blog.pages.field_slug"
+msgstr "Slug"
+
+msgid "admin.blog.pages.field_page_type"
+msgstr "Page type"
+
+msgid "admin.blog.pages.field_parent_page"
+msgstr "Parent page"
+
+msgid "admin.blog.pages.no_parent_option"
+msgstr "No parent"
+
+msgid "admin.blog.pages.field_menu_order"
+msgstr "Menu order"
+
+msgid "admin.blog.pages.create_submit"
+msgstr "Create page"
+
+msgid "admin.blog.pages.create_success"
+msgstr "Page created."
+
+msgid "admin.blog.pages.save_button"
+msgstr "Save changes"
+
+msgid "admin.blog.pages.save_success"
+msgstr "Page saved."
+
+msgid "admin.blog.pages.delete_button"
+msgstr "Delete"
+
+msgid "admin.blog.pages.delete_reason_prompt"
+msgstr "Reason for deleting this page:"
+
+msgid "admin.blog.pages.delete_success"
+msgstr "Page deleted."
+
+msgid "admin.blog.categories.title"
+msgstr "Categories"
+
+msgid "admin.blog.categories.no_categories"
+msgstr "No categories yet."
+
+msgid "admin.blog.categories.name_column"
+msgstr "Name"
+
+msgid "admin.blog.categories.slug_column"
+msgstr "Slug"
+
+msgid "admin.blog.categories.parent_column"
+msgstr "Parent"
+
+msgid "admin.blog.categories.actions_column"
+msgstr "Actions"
+
+msgid "admin.blog.categories.edit_summary"
+msgstr "Edit"
+
+msgid "admin.blog.categories.field_name"
+msgstr "Name"
+
+msgid "admin.blog.categories.field_slug"
+msgstr "Slug"
+
+msgid "admin.blog.categories.field_description"
+msgstr "Description"
+
+msgid "admin.blog.categories.field_parent"
+msgstr "Parent category"
+
+msgid "admin.blog.categories.no_parent_option"
+msgstr "No parent"
+
+msgid "admin.blog.categories.save_button"
+msgstr "Save"
+
+msgid "admin.blog.categories.delete_button"
+msgstr "Delete"
+
+msgid "admin.blog.categories.create_summary"
+msgstr "Add category"
+
+msgid "admin.blog.categories.create_submit"
+msgstr "Create category"
+
+msgid "admin.blog.categories.create_success"
+msgstr "Category created."
+
+msgid "admin.blog.categories.update_success"
+msgstr "Category updated."
+
+msgid "admin.blog.categories.delete_reason_prompt"
+msgstr "Reason for deleting this category:"
+
+msgid "admin.blog.categories.delete_confirm"
+msgstr "Delete this category? Posts using it will keep their other terms."
+
+msgid "admin.blog.categories.delete_success"
+msgstr "Category deleted."
+
+msgid "admin.blog.tags.title"
+msgstr "Tags"
+
+msgid "admin.blog.tags.no_tags"
+msgstr "No tags yet."
+
+msgid "admin.blog.tags.name_column"
+msgstr "Name"
+
+msgid "admin.blog.tags.slug_column"
+msgstr "Slug"
+
+msgid "admin.blog.tags.actions_column"
+msgstr "Actions"
+
+msgid "admin.blog.tags.edit_summary"
+msgstr "Edit"
+
+msgid "admin.blog.tags.field_name"
+msgstr "Name"
+
+msgid "admin.blog.tags.field_slug"
+msgstr "Slug"
+
+msgid "admin.blog.tags.field_description"
+msgstr "Description"
+
+msgid "admin.blog.tags.save_button"
+msgstr "Save"
+
+msgid "admin.blog.tags.delete_button"
+msgstr "Delete"
+
+msgid "admin.blog.tags.create_summary"
+msgstr "Add tag"
+
+msgid "admin.blog.tags.create_submit"
+msgstr "Create tag"
+
+msgid "admin.blog.tags.create_success"
+msgstr "Tag created."
+
+msgid "admin.blog.tags.update_success"
+msgstr "Tag updated."
+
+msgid "admin.blog.tags.delete_reason_prompt"
+msgstr "Reason for deleting this tag:"
+
+msgid "admin.blog.tags.delete_confirm"
+msgstr "Delete this tag? Posts using it will keep their other terms."
+
+msgid "admin.blog.tags.delete_success"
+msgstr "Tag deleted."
+
+msgid "admin.blog.taxonomy.category_prefix"
+msgstr "Category: {name}"
+
+msgid "admin.blog.taxonomy.tag_prefix"
+msgstr "Tag: {name}"
+
+msgid "admin.blog.settings.title"
+msgstr "Blog settings"
+
+msgid "admin.blog.settings.general_legend"
+msgstr "General"
+
+msgid "admin.blog.settings.field_blog_title"
+msgstr "Blog title"
+
+msgid "admin.blog.settings.field_blog_description"
+msgstr "Blog description"
+
+msgid "admin.blog.settings.field_posts_per_page"
+msgstr "Posts per page"
+
+msgid "admin.blog.settings.field_rss_enabled"
+msgstr "Enable RSS feed"
+
+msgid "admin.blog.settings.field_sitemap_enabled"
+msgstr "Enable sitemap"
+
+msgid "admin.blog.settings.field_default_locale"
+msgstr "Default locale"
+
+msgid "admin.blog.settings.field_default_visibility"
+msgstr "Default visibility"
+
+msgid "admin.blog.settings.field_seo_default_title"
+msgstr "Default SEO title template"
+
+msgid "admin.blog.settings.field_seo_default_description"
+msgstr "Default meta description"
+
+msgid "admin.blog.settings.save_button"
+msgstr "Save"
+
+msgid "admin.blog.settings.save_success"
+msgstr "Blog settings saved."
+
+msgid "admin.blog.settings.theme_legend"
+msgstr "Theme mode"
+
+msgid "admin.blog.settings.theme_override_note"
+msgstr "This tenant has a blog-specific theme override in effect."
+
+msgid "admin.blog.settings.theme_inherited_note"
+msgstr "No blog-specific override — the tenant's default theme is used."
+
+msgid "admin.blog.settings.field_theme_mode"
+msgstr "Theme mode"
+
+msgid "admin.blog.settings.theme_mode_light"
+msgstr "Light"
+
+msgid "admin.blog.settings.theme_mode_dark"
+msgstr "Dark"
+
+msgid "admin.blog.settings.theme_mode_system"
+msgstr "System"
+
+msgid "admin.blog.settings.theme_save_success"
+msgstr "Theme mode saved."
+
+msgid "admin.blog.templates.title"
+msgstr "Templates"
+
+msgid "admin.blog.templates.no_templates"
+msgstr "No templates yet."
+
+msgid "admin.blog.templates.key_column"
+msgstr "Key"
+
+msgid "admin.blog.templates.name_column"
+msgstr "Name"
+
+msgid "admin.blog.templates.columns_column"
+msgstr "Columns"
+
+msgid "admin.blog.templates.sidebar_column"
+msgstr "Sidebar"
+
+msgid "admin.blog.templates.active_column"
+msgstr "Active"
+
+msgid "admin.blog.templates.actions_column"
+msgstr "Actions"
+
+msgid "admin.blog.templates.edit_summary"
+msgstr "Edit"
+
+msgid "admin.blog.templates.field_key"
+msgstr "Key"
+
+msgid "admin.blog.templates.field_name"
+msgstr "Name"
+
+msgid "admin.blog.templates.field_columns"
+msgstr "Columns"
+
+msgid "admin.blog.templates.field_sidebar"
+msgstr "Sidebar position"
+
+msgid "admin.blog.templates.sidebar_left"
+msgstr "Left"
+
+msgid "admin.blog.templates.sidebar_right"
+msgstr "Right"
+
+msgid "admin.blog.templates.sidebar_none"
+msgstr "None"
+
+msgid "admin.blog.templates.field_active"
+msgstr "Active"
+
+msgid "admin.blog.templates.save_button"
+msgstr "Save"
+
+msgid "admin.blog.templates.delete_button"
+msgstr "Delete"
+
+msgid "admin.blog.templates.create_summary"
+msgstr "Add template"
+
+msgid "admin.blog.templates.create_submit"
+msgstr "Create template"
+
+msgid "admin.blog.templates.create_success"
+msgstr "Template created."
+
+msgid "admin.blog.templates.update_success"
+msgstr "Template updated."
+
+msgid "admin.blog.templates.delete_reason_prompt"
+msgstr "Reason for deleting this template:"
+
+msgid "admin.blog.templates.delete_confirm"
+msgstr "Delete this template?"
+
+msgid "admin.blog.templates.delete_success"
+msgstr "Template deleted."
+
+msgid "admin.blog.widgets.title"
+msgstr "Widgets"
+
+msgid "admin.blog.widgets.no_widgets"
+msgstr "No widgets yet."
+
+msgid "admin.blog.widgets.title_column"
+msgstr "Title"
+
+msgid "admin.blog.widgets.position_column"
+msgstr "Position"
+
+msgid "admin.blog.widgets.sort_order_column"
+msgstr "Sort order"
+
+msgid "admin.blog.widgets.active_column"
+msgstr "Active"
+
+msgid "admin.blog.widgets.actions_column"
+msgstr "Actions"
+
+msgid "admin.blog.widgets.edit_summary"
+msgstr "Edit"
+
+msgid "admin.blog.widgets.field_title"
+msgstr "Title"
+
+msgid "admin.blog.widgets.field_position"
+msgstr "Position"
+
+msgid "admin.blog.widgets.position_header"
+msgstr "Header"
+
+msgid "admin.blog.widgets.position_sidebar"
+msgstr "Sidebar"
+
+msgid "admin.blog.widgets.position_footer"
+msgstr "Footer"
+
+msgid "admin.blog.widgets.position_content_before"
+msgstr "Before content"
+
+msgid "admin.blog.widgets.position_content_after"
+msgstr "After content"
+
+msgid "admin.blog.widgets.field_body_text"
+msgstr "Body text"
+
+msgid "admin.blog.widgets.field_sort_order"
+msgstr "Sort order"
+
+msgid "admin.blog.widgets.field_active"
+msgstr "Active"
+
+msgid "admin.blog.widgets.save_button"
+msgstr "Save"
+
+msgid "admin.blog.widgets.delete_button"
+msgstr "Delete"
+
+msgid "admin.blog.widgets.create_summary"
+msgstr "Add widget"
+
+msgid "admin.blog.widgets.create_submit"
+msgstr "Create widget"
+
+msgid "admin.blog.widgets.create_success"
+msgstr "Widget created."
+
+msgid "admin.blog.widgets.update_success"
+msgstr "Widget updated."
+
+msgid "admin.blog.widgets.delete_reason_prompt"
+msgstr "Reason for deleting this widget:"
+
+msgid "admin.blog.widgets.delete_confirm"
+msgstr "Delete this widget?"
+
+msgid "admin.blog.widgets.delete_success"
+msgstr "Widget deleted."
+
+msgid "admin.blog.menus.title"
+msgstr "Menus"
+
+msgid "admin.blog.menus.no_menus"
+msgstr "No menus yet."
+
+msgid "admin.blog.menus.field_key"
+msgstr "Key"
+
+msgid "admin.blog.menus.field_name"
+msgstr "Name"
+
+msgid "admin.blog.menus.field_items"
+msgstr "Menu items (JSON)"
+
+msgid "admin.blog.menus.items_hint"
+msgstr "Array of { id, parentItemId, label, linkType, targetId, url, sortOrder }. Each item's id must be a UUID you supply yourself (use \"Copy new id\" below) — saving replaces the whole item list. One level of nesting only."
+
+msgid "admin.blog.menus.generate_id_button"
+msgstr "Copy new id"
+
+msgid "admin.blog.menus.invalid_items_json"
+msgstr "Menu items must be valid JSON."
+
+msgid "admin.blog.menus.save_button"
+msgstr "Save"
+
+msgid "admin.blog.menus.delete_button"
+msgstr "Delete menu"
+
+msgid "admin.blog.menus.create_summary"
+msgstr "Add menu"
+
+msgid "admin.blog.menus.create_submit"
+msgstr "Create menu"
+
+msgid "admin.blog.menus.create_success"
+msgstr "Menu created."
+
+msgid "admin.blog.menus.update_success"
+msgstr "Menu updated."
+
+msgid "admin.blog.menus.delete_reason_prompt"
+msgstr "Reason for deleting this menu:"
+
+msgid "admin.blog.menus.delete_confirm"
+msgstr "Delete this menu and all its items?"
+
+msgid "admin.blog.menus.delete_success"
+msgstr "Menu deleted."
+
+msgid "admin.blog.ads.title"
+msgstr "Advertisements"
+
+msgid "admin.blog.ads.no_ads"
+msgstr "No advertisements yet."
+
+msgid "admin.blog.ads.field_name"
+msgstr "Name"
+
+msgid "admin.blog.ads.field_image_url"
+msgstr "Image URL"
+
+msgid "admin.blog.ads.field_link_url"
+msgstr "Link URL"
+
+msgid "admin.blog.ads.field_starts_at"
+msgstr "Starts at"
+
+msgid "admin.blog.ads.field_ends_at"
+msgstr "Ends at"
+
+msgid "admin.blog.ads.field_active"
+msgstr "Active"
+
+msgid "admin.blog.ads.field_placements"
+msgstr "Placements (JSON)"
+
+msgid "admin.blog.ads.placements_hint"
+msgstr "Array of { placementType, targetId }. placementType is one of global, widget, post, page — targetId is required for all except global. Saving replaces the whole placement list."
+
+msgid "admin.blog.ads.invalid_placements_json"
+msgstr "Placements must be valid JSON."
+
+msgid "admin.blog.ads.save_button"
+msgstr "Save"
+
+msgid "admin.blog.ads.delete_button"
+msgstr "Delete ad"
+
+msgid "admin.blog.ads.create_summary"
+msgstr "Add advertisement"
+
+msgid "admin.blog.ads.create_submit"
+msgstr "Create advertisement"
+
+msgid "admin.blog.ads.create_success"
+msgstr "Advertisement created."
+
+msgid "admin.blog.ads.update_success"
+msgstr "Advertisement updated."
+
+msgid "admin.blog.ads.delete_reason_prompt"
+msgstr "Reason for deleting this advertisement:"
+
+msgid "admin.blog.ads.delete_confirm"
+msgstr "Delete this advertisement?"
+
+msgid "admin.blog.ads.delete_success"
+msgstr "Advertisement deleted."
+
