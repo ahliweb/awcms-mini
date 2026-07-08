@@ -26,20 +26,20 @@ menjembatani beberapa modul sekaligus (config, `tenant_domain` module baru,
 
 ## Status per issue (jangan bangun ulang yang sudah ada)
 
-| Issue | Scope                                                         | Status                                            |
-| ----- | ------------------------------------------------------------- | ------------------------------------------------- |
-| #556  | Online public mode config (`PUBLIC_*` env vars)               | **Selesai** — lihat §Config di bawah              |
-| #557  | Tenant domain/subdomain mapping schema                        | **Selesai** — lihat §Schema di bawah              |
-| #558  | Register module descriptor `tenant_domain`                    | **Selesai** — lihat §Module descriptor di bawah   |
-| #559  | Public host tenant resolver (dengan fallback)                 | **Selesai** — lihat §Resolver di bawah            |
-| #560  | Rute publik `/news` untuk `blog_content`                      | **Selesai** — lihat §Rute publik `/news` di bawah |
+| Issue | Scope                                                         | Status                                                                           |
+| ----- | ------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| #556  | Online public mode config (`PUBLIC_*` env vars)               | **Selesai** — lihat §Config di bawah                                             |
+| #557  | Tenant domain/subdomain mapping schema                        | **Selesai** — lihat §Schema di bawah                                             |
+| #558  | Register module descriptor `tenant_domain`                    | **Selesai** — lihat §Module descriptor di bawah                                  |
+| #559  | Public host tenant resolver (dengan fallback)                 | **Selesai** — lihat §Resolver di bawah                                           |
+| #560  | Rute publik `/news` untuk `blog_content`                      | **Selesai** — lihat §Rute publik `/news` di bawah                                |
 | #561  | Dokumentasi legacy `/blog/{tenantCode}`                       | **Selesai** — lihat ADR-0010, `blog-content/README.md`, `deployment-profiles.md` |
-| #562  | Tenant domain management API                                  | Belum                                             |
-| #563  | Admin UI domain/subdomain                                     | Belum                                             |
-| #564  | Tenant settings untuk rute `/news` vs legacy (`blog_content`) | Belum                                             |
-| #565  | Tenant module presets (online/news/LAN/minimal)               | Belum                                             |
-| #566  | Tenant-module matrix admin UI                                 | Belum                                             |
-| #567  | Cloudflare DNS adapter (opsional)                             | Belum                                             |
+| #562  | Tenant domain management API                                  | Belum                                                                            |
+| #563  | Admin UI domain/subdomain                                     | Belum                                                                            |
+| #564  | Tenant settings untuk rute `/news` vs legacy (`blog_content`) | Belum                                                                            |
+| #565  | Tenant module presets (online/news/LAN/minimal)               | Belum                                                                            |
+| #566  | Tenant-module matrix admin UI                                 | Belum                                                                            |
+| #567  | Cloudflare DNS adapter (opsional)                             | Belum                                                                            |
 
 ## Yang sudah ada — pakai ulang, jangan re-derive
 

@@ -10,7 +10,7 @@
 ADR-0009 memutuskan rute publik tenant-scoped (`/blog/{tenantCode}/...`,
 Issue #540) me-resolve tenant lewat **segmen path eksplisit** yang membawa
 `tenant_code`, dan secara eksplisit menolak subdomain/custom-domain per
-tenant sebagai *default* base — karena butuh wildcard DNS/TLS dan
+tenant sebagai _default_ base — karena butuh wildcard DNS/TLS dan
 bertentangan dengan topologi LAN-first/offline default AWCMS-Mini (doc 18).
 ADR-0009 §Alternatif yang dipertimbangkan sudah mencatat kedua alternatif
 itu ("subdomain per tenant", "domain custom per tenant") sebagai **valid
@@ -30,7 +30,7 @@ itu, dan menegaskan hubungannya dengan ADR-0009.
 ## Keputusan
 
 Kami memutuskan untuk menambahkan **mode resolusi tenant berbasis
-host/domain** sebagai kapabilitas *tambahan* untuk rute publik anonim, di
+host/domain** sebagai kapabilitas _tambahan_ untuk rute publik anonim, di
 atas (bukan menggantikan) resolusi berbasis path segment yang sudah
 diputuskan ADR-0009:
 
@@ -104,7 +104,7 @@ tenant-scoped, GUC `app.current_tenant_id` fail-closed, dan peran aplikasi
 yang dipakai resolver host-based (`awcms_mini_resolve_tenant_domain_lookup`,
 `sql/033`) tidak melonggarkan RLS di jalur query manapun setelahnya — ia
 hanya melakukan satu lookup sempit (`hostname → tenant_id`) yang secara
-desain terjadi *sebelum* tenant context ada, persis simetris dengan
+desain terjadi _sebelum_ tenant context ada, persis simetris dengan
 lookup `tenant_code → tenant_id` (juga RLS-free, tabel akar) yang sudah
 dipakai `/blog/{tenantCode}` sejak ADR-0009. Menambah mode resolusi baru
 tidak pernah berarti menambah cara baru untuk melewati RLS pada data
