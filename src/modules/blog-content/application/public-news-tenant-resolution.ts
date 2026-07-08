@@ -5,6 +5,10 @@ import {
   type PublicTenantResolution
 } from "../../../lib/tenant/public-host-tenant-resolver";
 import { fetchTenantModuleEntries } from "../../module-management/application/tenant-module-lifecycle";
+import {
+  fetchEffectivePublicRouteSettings,
+  type EffectivePublicRouteSettings
+} from "./public-route-settings";
 
 /**
  * Tenant resolution + module-enablement gate shared by all seven `/news`
@@ -24,18 +28,20 @@ import { fetchTenantModuleEntries } from "../../module-management/application/te
  *
  * Centralizing both steps here (rather than repeating them across seven
  * route files) means there is exactly one place that can leak the
- * distinction between "tenant not found/inactive" and "tenant found but
- * blog_content disabled" — both must produce the exact same generic `null`
- * (which every caller maps to the same 404 response), per the epic's
- * binding security note (never expose *why* a public route 404s). Since
- * Issue #562, that identical response is also cost-normalized: see
- * `padUnresolvedTenantLatency` below for the timing side-channel fix that
- * keeps these two outcomes indistinguishable by response latency, not just
- * by response body.
+ * distinction between "tenant not found/inactive", "tenant found but
+ * blog_content disabled", and (since Issue #564) "tenant found but
+ * publicRouteMode=disabled" — all three must produce the exact same
+ * generic `null` (which every caller maps to the same 404 response), per
+ * the epic's binding security note (never expose *why* a public route
+ * 404s). Since Issue #562, that identical response is also
+ * cost-normalized: see `padUnresolvedTenantLatency` below for the timing
+ * side-channel fix that keeps these outcomes indistinguishable by response
+ * latency, not just by response body.
  */
 export type NewsTenantHandler<T> = (
   tx: Bun.TransactionSQL,
-  tenant: PublicTenantResolution
+  tenant: PublicTenantResolution,
+  routeSettings: EffectivePublicRouteSettings
 ) => Promise<T>;
 
 const BLOG_CONTENT_MODULE_KEY = "blog_content";
@@ -66,17 +72,56 @@ const BLOG_CONTENT_MODULE_KEY = "blog_content";
 const TIMING_PAD_TENANT_ID = "00000000-0000-0000-0000-000000000000";
 
 /**
+ * The module-enabled check plus (since Issue #564) the effective public
+ * route settings fetch, factored out of `withNewsTenant` so
+ * `padUnresolvedTenantLatency` can call the exact same function instead of
+ * hand-duplicating its query sequence — the two can never drift apart,
+ * which matters because a drift here is exactly the kind of thing that
+ * would silently reopen the timing side-channel this file exists to close.
+ * Runs unconditionally (module disabled or not, route mode disabled or
+ * not) so every outcome that collapses to the same generic 404 —
+ * module-disabled, route-mode-disabled, or (via `padUnresolvedTenantLatency`)
+ * tenant-not-resolved — pays the identical round-trip shape.
+ */
+async function checkBlogContentAndRouteGate(
+  tx: Bun.TransactionSQL,
+  tenantId: string,
+  env: NodeJS.ProcessEnv
+): Promise<{
+  blogContentEnabled: boolean;
+  routeSettings: EffectivePublicRouteSettings;
+}> {
+  const moduleEntries = await fetchTenantModuleEntries(tx, tenantId);
+  const blogContentEntry = moduleEntries.find(
+    (entry) => entry.moduleKey === BLOG_CONTENT_MODULE_KEY
+  );
+  const routeSettings = await fetchEffectivePublicRouteSettings(
+    tx,
+    tenantId,
+    env
+  );
+
+  return {
+    // Fail-closed: a missing entry (module descriptor not registered, in
+    // practice unreachable since blog_content is always in listModules())
+    // is treated as disabled, not enabled by omission.
+    blogContentEnabled: blogContentEntry?.tenantEnabled ?? false,
+    routeSettings
+  };
+}
+
+/**
  * Pads the "tenant did not resolve" path (including `tenant_code_legacy`
  * mode, which returns `null` from `resolvePublicTenantFromRequest` without
  * touching the DB at all) with the same round-trip *shape* the "tenant
- * resolved but module disabled" path already pays for real via
- * `fetchTenantModuleEntries` — open a transaction, `SET LOCAL` a tenant GUC,
- * issue one `SELECT` against `awcms_mini_tenant_modules` — so the two
- * outcomes that both produce an identical generic 404 also cost the same
- * number of DB round trips. Uses the exact same `withTenant` helper every
- * real tenant-scoped query in this codebase uses, not a lighter/raw query,
- * so pool acquisition and circuit-breaker behavior are identical too, not
- * just the query count.
+ * resolved but module disabled or route mode disabled" path already pays
+ * for real via `checkBlogContentAndRouteGate` — open a transaction, `SET
+ * LOCAL` a tenant GUC, run that exact same check — so every outcome that
+ * produces an identical generic 404 also costs the same number of DB round
+ * trips. Uses the exact same `withTenant` helper every real tenant-scoped
+ * query in this codebase uses, not a lighter/raw query, so pool
+ * acquisition and circuit-breaker behavior are identical too, not just the
+ * query count.
  *
  * Trade-off, documented rather than hidden: every `/news` request that
  * fails to resolve a tenant now depends on DB availability for this padding
@@ -93,7 +138,7 @@ const TIMING_PAD_TENANT_ID = "00000000-0000-0000-0000-000000000000";
  * Exported (not just used internally) so
  * `tests/integration/blog-content-public-news.integration.test.ts` can
  * prove its round-trip cost directly matches
- * `fetchTenantModuleEntries`'s real cost, independent of
+ * `checkBlogContentAndRouteGate`'s real cost, independent of
  * `resolvePublicTenantFromRequest`'s own — separately variable, pre-existing,
  * out-of-scope-for-this-fix — resolution cost (that resolver already has its
  * own timing-parity guarantee from migration 033/#559 for the one step this
@@ -102,12 +147,12 @@ const TIMING_PAD_TENANT_ID = "00000000-0000-0000-0000-000000000000";
  * equality across every `PUBLIC_TENANT_RESOLUTION_MODE`/env/setup-state
  * permutation, which is not this fix's target.
  */
-export async function padUnresolvedTenantLatency(sql: Bun.SQL): Promise<void> {
+export async function padUnresolvedTenantLatency(
+  sql: Bun.SQL,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<void> {
   await withTenant(sql, TIMING_PAD_TENANT_ID, async (tx) => {
-    await tx`
-      SELECT module_key FROM awcms_mini_tenant_modules
-      WHERE tenant_id = ${TIMING_PAD_TENANT_ID}
-    `;
+    await checkBlogContentAndRouteGate(tx, TIMING_PAD_TENANT_ID, env);
   });
 }
 
@@ -130,13 +175,18 @@ export function buildPublicHostResolverConfigFromEnv(
 
 /**
  * Resolves the public tenant for a `/news` request and, only if resolved,
- * opens a tenant-scoped transaction (`withTenant`) and confirms
- * `blog_content` is enabled before invoking `handler`. Returns `null` for
- * every non-resolving case — unknown/inactive tenant, unknown/unmapped
- * host, `tenant_code_legacy` mode (Issue #560's decision, see
- * `public-host-tenant-resolver.ts`), or `blog_content` disabled for the
- * resolved tenant — so every route can map `null` straight to its own
- * generic 404 response without ever branching on which case occurred.
+ * opens a tenant-scoped transaction (`withTenant`) and confirms both
+ * `blog_content` is enabled AND the tenant's effective `publicRouteMode`
+ * (Issue #564) is not `"disabled"` before invoking `handler`. Returns
+ * `null` for every non-resolving case — unknown/inactive tenant,
+ * unknown/unmapped host, `tenant_code_legacy` mode (Issue #560's decision,
+ * see `public-host-tenant-resolver.ts`), `blog_content` disabled, or
+ * `publicRouteMode=disabled` for the resolved tenant — so every route can
+ * map `null` straight to its own generic 404 response without ever
+ * branching on which case occurred. On success, `handler` also receives
+ * the tenant's effective public route settings (`publicBasePath`,
+ * `publicLabel`, `rssEnabled`, `sitemapEnabled`) so routes don't need a
+ * second lookup for self-referential link generation.
  */
 export async function withNewsTenant<T>(
   sql: Bun.SQL,
@@ -150,25 +200,20 @@ export async function withNewsTenant<T>(
   if (!tenant) {
     // Timing side-channel fix — see `padUnresolvedTenantLatency`'s own
     // docblock. Deliberately awaited and its result discarded: this call
-    // exists only to pay the same round-trip cost the module-disabled
-    // branch below already pays, never to produce a value.
-    await padUnresolvedTenantLatency(sql);
+    // exists only to pay the same round-trip cost the gate branch below
+    // already pays, never to produce a value.
+    await padUnresolvedTenantLatency(sql, env);
     return null;
   }
 
   return withTenant(sql, tenant.tenantId, async (tx) => {
-    const moduleEntries = await fetchTenantModuleEntries(tx, tenant.tenantId);
-    const blogContentEntry = moduleEntries.find(
-      (entry) => entry.moduleKey === BLOG_CONTENT_MODULE_KEY
-    );
+    const { blogContentEnabled, routeSettings } =
+      await checkBlogContentAndRouteGate(tx, tenant.tenantId, env);
 
-    // Fail-closed: a missing entry (module descriptor not registered, in
-    // practice unreachable since blog_content is always in listModules())
-    // is treated as disabled, not enabled by omission.
-    if (!blogContentEntry?.tenantEnabled) {
+    if (!blogContentEnabled || routeSettings.publicRouteMode === "disabled") {
       return null;
     }
 
-    return handler(tx, tenant);
+    return handler(tx, tenant, routeSettings);
   });
 }

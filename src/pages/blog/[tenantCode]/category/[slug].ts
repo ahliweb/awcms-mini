@@ -13,13 +13,14 @@ import {
   fetchPublicTermBySlug,
   listPublicBlogPostsByTermId
 } from "../../../../modules/blog-content/application/public-blog-directory";
+import { isLegacyTenantRouteEnabled } from "../../../../modules/blog-content/application/public-route-settings";
 import {
   renderPaginationNavHtml,
   renderPostSummaryListHtml,
   renderPublicPageShell
 } from "../../../../modules/blog-content/domain/public-page-rendering";
 
-/** `GET /blog/{tenantCode}/category/{slug}` (Issue #540) — same listing predicate as the index, scoped to posts assigned this category. 404 for an unknown or soft-deleted category. */
+/** `GET /blog/{tenantCode}/category/{slug}` (Issue #540) — same listing predicate as the index, scoped to posts assigned this category. 404 for an unknown or soft-deleted category, or (Issue #564) when `legacyTenantRouteEnabled` is `false`. */
 export const GET: APIRoute = async ({ params, url }) => {
   const tenantCode = params.tenantCode;
   const slug = params.slug;
@@ -40,6 +41,10 @@ export const GET: APIRoute = async ({ params, url }) => {
     const page = pageParam ? Number(pageParam) : 1;
 
     return await withTenant(sql, tenant.tenantId, async (tx) => {
+      if (!(await isLegacyTenantRouteEnabled(tx, tenant.tenantId))) {
+        return notFoundHtmlResponse();
+      }
+
       const term = await fetchPublicTermBySlug(
         tx,
         tenant.tenantId,

@@ -35,39 +35,44 @@ export const GET: APIRoute = async ({ params, request, url }) => {
   try {
     const sql = getDatabaseClient();
 
-    const result = await withNewsTenant(sql, request, async (tx, tenant) => {
-      const post = await fetchPublicBlogPostBySlug(tx, tenant.tenantId, slug);
+    const result = await withNewsTenant(
+      sql,
+      request,
+      async (tx, tenant, routeSettings) => {
+        const post = await fetchPublicBlogPostBySlug(tx, tenant.tenantId, slug);
 
-      if (!post) {
-        return null;
-      }
+        if (!post) {
+          return null;
+        }
 
-      const selfUrl = `${url.origin}/news/${post.slug}`;
-      const seoTitle = resolveSeoTitle(post);
-      const metaDescription = resolveMetaDescription(post);
-      const canonicalUrl = resolveCanonicalUrl(post, selfUrl);
-      const contentHtml = renderContentJsonToHtml(post.contentJson);
+        const basePath = routeSettings.publicBasePath;
+        const selfUrl = `${url.origin}${basePath}/${post.slug}`;
+        const seoTitle = resolveSeoTitle(post);
+        const metaDescription = resolveMetaDescription(post);
+        const canonicalUrl = resolveCanonicalUrl(post, selfUrl);
+        const contentHtml = renderContentJsonToHtml(post.contentJson);
 
-      const bodyHtml = `<article>
+        const bodyHtml = `<article>
   <h1>${escapeHtml(post.title)}</h1>
   <p><time datetime="${post.publishedAt.toISOString()}">${escapeHtml(post.publishedAt.toDateString())}</time></p>
   ${contentHtml}
 </article>
-<p><a href="/news">Back to news</a></p>`;
+<p><a href="${escapeHtml(basePath)}">Back to ${escapeHtml(routeSettings.publicLabel)}</a></p>`;
 
-      const html = renderPublicPageShell({
-        title: seoTitle,
-        description: metaDescription,
-        canonicalUrl,
-        bodyHtml,
-        locale: post.locale
-      });
+        const html = renderPublicPageShell({
+          title: seoTitle,
+          description: metaDescription,
+          canonicalUrl,
+          bodyHtml,
+          locale: post.locale
+        });
 
-      return new Response(html, {
-        status: 200,
-        headers: { "content-type": "text/html; charset=utf-8" }
-      });
-    });
+        return new Response(html, {
+          status: 200,
+          headers: { "content-type": "text/html; charset=utf-8" }
+        });
+      }
+    );
 
     return result ?? notFoundHtmlResponse();
   } catch (error) {

@@ -51,6 +51,7 @@ import {
 } from "../../src/pages/api/v1/blog/posts/[id]";
 import { POST as createTerm } from "../../src/pages/api/v1/blog/terms/index";
 import { POST as disableModule } from "../../src/pages/api/v1/tenant/modules/[moduleKey]/disable";
+import { PATCH as patchModuleSettings } from "../../src/pages/api/v1/tenant/modules/[moduleKey]/settings";
 
 import {
   padUnresolvedTenantLatency,
@@ -58,6 +59,7 @@ import {
 } from "../../src/modules/blog-content/application/public-news-tenant-resolution";
 import { withTenant } from "../../src/lib/database/tenant-context";
 import { fetchTenantModuleEntries } from "../../src/modules/module-management/application/tenant-module-lifecycle";
+import { fetchEffectivePublicRouteSettings } from "../../src/modules/blog-content/application/public-route-settings";
 
 import { GET as newsIndex } from "../../src/pages/news/index";
 import { GET as newsDetail } from "../../src/pages/news/[slug]";
@@ -816,7 +818,7 @@ suite("public /news routes (Issue #560)", () => {
   // correct, not a shortcut).
   // -------------------------------------------------------------------
 
-  test("padUnresolvedTenantLatency costs exactly the same DB round trips as the real module-enabled check it stands in for", async () => {
+  test("padUnresolvedTenantLatency costs exactly the same DB round trips as the real module-enabled + route-settings check it stands in for", async () => {
     const owner = await bootstrap();
     const baseSql = getTestSql();
 
@@ -825,7 +827,12 @@ suite("public /news routes (Issue #560)", () => {
       wrapCountingSql(baseSql, realCounter),
       owner.tenantId,
       async (tx) => {
+        // Same sequence `checkBlogContentAndRouteGate` (private to
+        // `public-news-tenant-resolution.ts`) runs internally — Issue #564
+        // added the `fetchEffectivePublicRouteSettings` call alongside the
+        // pre-existing `fetchTenantModuleEntries` one.
         await fetchTenantModuleEntries(tx, owner.tenantId);
+        await fetchEffectivePublicRouteSettings(tx, owner.tenantId);
       }
     );
 
@@ -849,6 +856,7 @@ suite("public /news routes (Issue #560)", () => {
       owner.tenantId,
       async (tx) => {
         await fetchTenantModuleEntries(tx, owner.tenantId);
+        await fetchEffectivePublicRouteSettings(tx, owner.tenantId);
       }
     );
 
@@ -946,5 +954,77 @@ suite("public /news routes (Issue #560)", () => {
     // handler is a no-op that adds none.
     expect(disabledRun.count).toBeGreaterThan(0);
     expect(enabledRun.count).toBe(disabledRun.count);
+  });
+
+  test("withNewsTenant's fourth outcome (publicRouteMode=disabled, Issue #564) costs the same number of round trips as the enabled path — explicit parity check, not just structural inference", async () => {
+    const owner = await bootstrap();
+    const admin = getAdminSql();
+
+    const patched = await invoke(patchModuleSettings, {
+      method: "PATCH",
+      path: "/api/v1/tenant/modules/blog_content/settings",
+      headers: authHeaders(owner),
+      params: { moduleKey: "blog_content" },
+      body: { publicRouteMode: "disabled" }
+    });
+    expect(patched.status).toBe(200);
+
+    await admin`
+      INSERT INTO awcms_mini_tenant_domains
+        (tenant_id, hostname, normalized_hostname, domain_type, status)
+      VALUES (${owner.tenantId}, 'route-mode-disabled.round-trip.test', 'route-mode-disabled.round-trip.test', 'custom_domain', 'active')
+    `;
+
+    const enabledTenantId = crypto.randomUUID();
+    await admin`
+      INSERT INTO awcms_mini_tenants (id, tenant_code, tenant_name, status)
+      VALUES (${enabledTenantId}, 'round-trip-mode-enabled', 'Round Trip Mode Enabled', 'active')
+    `;
+    await admin`
+      INSERT INTO awcms_mini_tenant_domains
+        (tenant_id, hostname, normalized_hostname, domain_type, status)
+      VALUES (${enabledTenantId}, 'route-mode-enabled.round-trip.test', 'route-mode-enabled.round-trip.test', 'custom_domain', 'active')
+    `;
+
+    const baseSql = getTestSql();
+
+    async function countRoundTrips(
+      host: string
+    ): Promise<{ count: number; result: unknown }> {
+      const counter = { count: 0 };
+      const countingSql = wrapCountingSql(baseSql, counter);
+      const request = new Request("http://ignored.test/", {
+        headers: { host }
+      });
+
+      const result = await withEnvOverride(
+        { PUBLIC_TENANT_RESOLUTION_MODE: "host_default" },
+        () =>
+          withNewsTenant(countingSql, request, async () => "handled" as const)
+      );
+
+      return { count: counter.count, result };
+    }
+
+    const modeDisabledRun = await countRoundTrips(
+      "route-mode-disabled.round-trip.test"
+    );
+    const modeEnabledRun = await countRoundTrips(
+      "route-mode-enabled.round-trip.test"
+    );
+
+    // publicRouteMode=disabled -> withNewsTenant's gate returns null before
+    // handler ever runs, same as the module-disabled case above.
+    expect(modeDisabledRun.result).toBeNull();
+    expect(modeEnabledRun.result).toBe("handled");
+
+    // checkBlogContentAndRouteGate() is one shared function called from
+    // both the resolved-tenant branch and padUnresolvedTenantLatency() —
+    // this asserts that structural guarantee actually holds for this
+    // fourth outcome specifically, not just for module-disabled (tested
+    // above). A future change that special-cased publicRouteMode before
+    // fetchEffectivePublicRouteSettings ran would break this.
+    expect(modeDisabledRun.count).toBeGreaterThan(0);
+    expect(modeEnabledRun.count).toBe(modeDisabledRun.count);
   });
 });

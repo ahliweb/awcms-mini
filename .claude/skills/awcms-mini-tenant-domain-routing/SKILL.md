@@ -36,7 +36,7 @@ menjembatani beberapa modul sekaligus (config, `tenant_domain` module baru,
 | #561  | Dokumentasi legacy `/blog/{tenantCode}`                       | **Selesai** — lihat ADR-0010, `blog-content/README.md`, `deployment-profiles.md` |
 | #562  | Tenant domain management API                                  | **Selesai** — lihat §API di bawah                                                |
 | #563  | Admin UI domain/subdomain                                     | **Selesai** — lihat §Admin UI di bawah                                           |
-| #564  | Tenant settings untuk rute `/news` vs legacy (`blog_content`) | Belum                                                                            |
+| #564  | Tenant settings untuk rute `/news` vs legacy (`blog_content`) | **Selesai** — lihat §Tenant settings public route di bawah                       |
 | #565  | Tenant module presets (online/news/LAN/minimal)               | Belum                                                                            |
 | #566  | Tenant-module matrix admin UI                                 | Belum                                                                            |
 | #567  | Cloudflare DNS adapter (opsional)                             | Belum                                                                            |
@@ -524,6 +524,84 @@ preview `/news` hanya muncul untuk domain yang `active` **dan**
 `isPrimary` sekaligus. Test:
 `tests/integration/tenant-domain-admin.integration.test.ts`.
 
+### Tenant settings public route (Issue #564, `blog_content`)
+
+Empat key baru di descriptor `blog_content`'s `settings.defaults`
+(`src/modules/blog-content/module.ts`, dibaca lewat
+`fetchEffectivePublicRouteSettings`/`isLegacyTenantRouteEnabled`,
+`src/modules/blog-content/application/public-route-settings.ts`):
+`publicRouteMode` (`domain_default` default, atau `disabled`),
+`publicBasePath` (default `/news`), `legacyTenantRouteEnabled` (default
+`true`), `publicLabel` (default `"News"`).
+
+**Keputusan mengikat yang wajib diikuti issue lanjutan** (jangan
+diulang/dikontradiksi):
+
+1. **`rssEnabled`/`sitemapEnabled` SENGAJA TIDAK** ada di store baru ini
+   meski muncul di contoh JSON issue #564 sendiri — keduanya sudah punya
+   rumah di `awcms_mini_blog_settings`/`fetchBlogSettings()` sejak Issue
+   #543, sudah ditegakkan `/news/feed.xml`/`sitemap-news.xml` sejak Issue
+   #560. Menambahkannya ke store generik (`awcms_mini_module_settings`,
+   framework Issue #516) akan membuat dua sumber kebenaran independen
+   untuk konsep yang sama — bug nyata, bukan kosmetik (admin toggle di
+   satu tempat, rute baca dari tempat lain). Test regresi eksplisit
+   membuktikan ini: `tests/integration/blog-content-settings.integration.test.ts`
+   PATCH `rssEnabled` ke store yang SALAH (baru) → tidak berpengaruh ke
+   `/news/feed.xml`; PATCH ke store yang BENAR (lama) → baru berpengaruh.
+2. **`publicBasePath` hanya memengaruhi link-generation (canonical
+   `<link>`, RSS `<link>`/`<guid>`, sitemap `<loc>`, pagination href,
+   cross-link)** — BUKAN routing fisik. `/news/**` tetap file-based route
+   Astro yang secara fisik hanya bisa diakses di `/news/*`; mengubah
+   `publicBasePath` tidak memindahkan endpoint yang benar-benar merespons.
+   Ini keterbatasan yang disengaja (retargeting routing fisik per-tenant
+   butuh dynamic catch-all route, jauh di luar scope #564), didokumentasikan
+   eksplisit di `blog-content/README.md` §Public route settings — jangan
+   "perbaiki" jadi routing dinamis tanpa issue baru yang eksplisit
+   membahasnya.
+3. **`publicRouteMode=disabled` adalah outcome ke-4 pada gate timing-parity
+   `withNewsTenant`** (menambah dari 3 outcome sebelumnya — lihat
+   "Timing side-channel" di §Belum ada di bawah). Ditegakkan struktural
+   lewat satu fungsi bersama `checkBlogContentAndRouteGate()`
+   (`public-news-tenant-resolution.ts`) yang dipanggil baik dari jalur
+   tenant resolve sungguhan maupun dari `padUnresolvedTenantLatency()` —
+   secara konstruksi tak bisa drift, bukan dua implementasi kebetulan
+   sama. **Follow-up non-blocking** (dicatat security audit #564): belum
+   ada test `wrapCountingSql`-based yang secara eksplisit membandingkan
+   round-trip count outcome `publicRouteMode=disabled` vs 3 outcome
+   lainnya (paritas berlaku by construction, tapi belum diuji langsung
+   seperti paritas module-disabled vs enabled) — tambahkan bila menyentuh
+   area ini lagi.
+4. **`legacyTenantRouteEnabled=false` → 404 identik di SEMUA 7 rute
+   `/blog/{tenantCode}/**`** (bukan redirect — pilihan eksplisit #564),
+   lewat `isLegacyTenantRouteEnabled()` dipanggil tepat setelah
+   `withTenant(...)` di ketujuh file, sebelum query lain apa pun. Default
+   `true` mempertahankan perilaku hari ini tanpa perubahan (menegakkan
+   aturan #3 di bawah — legacy route tidak pernah hilang secara default).
+5. **`publicLabel` hanya memengaruhi output `/news`** (heading, `<title>`,
+   RSS channel title) — `/blog/{tenantCode}` tetap pakai teks "Blog"
+   historis, tidak disentuh. Di-escape lewat `escapeHtml()` yang sudah
+   ada — **follow-up non-blocking** (security audit #564): belum ada test
+   regresi eksplisit yang mengirim payload `<script>` via `publicLabel`/
+   `publicBasePath` lalu assert output ter-escape (mitigasi sudah
+   diverifikasi lewat code review manual — `escapeHtml()` dipanggil di
+   setiap titik render — tapi belum jadi regression test otomatis).
+
+Validasi nilai: `isPublicRouteMode`/`isValidBasePath`
+(`public-route-settings.ts`) — enum-checked untuk mode, absolute-path +
+no-whitespace + no-`//` + no-trailing-slash untuk base path; nilai tak
+valid jatuh ke default aman, tidak pernah dipakai mentah. `publicLabel`
+tidak divalidasi bentuknya (bebas string, sama seperti `blogTitle` di
+`awcms_mini_blog_settings`) tapi tetap lolos `validateModuleSettingsPatch`
+(cek nama-key sensitif, bukan bentuk nilai — celah pre-existing di
+framework generik Issue #516, bukan spesifik #564, lihat catatan di
+`module-management` README bila menyentuh area itu).
+
+Test: `tests/integration/blog-content-settings.integration.test.ts` (12
+test) dan 3 test paritas round-trip di
+`tests/integration/blog-content-public-news.integration.test.ts`. Detail
+lengkap kelima keputusan di atas: `blog-content/README.md` §Public route
+settings.
+
 ## Aturan lintas-issue yang wajib diikuti
 
 1. **Backward compatibility non-negotiable**: setiap deployment offline/LAN existing yang tidak pernah set `PUBLIC_*` apa pun harus tetap `config:validate` PASS dan berperilaku persis seperti sebelum epic ini — jangan pernah membuat salah satu dari enam var config ini menjadi wajib secara default.
@@ -539,13 +617,14 @@ preview `/news` hanya muncul untuk domain yang `active` **dan**
 
 ## Belum ada — jangan asumsikan sudah dikerjakan
 
-Isu #564-#567 (tenant settings rute `/news`/legacy di `blog_content`,
-module presets, matrix UI admin, dan adapter Cloudflare DNS) **belum
-ada**. Sudah selesai: config (#556), schema `awcms_mini_tenant_domains`
-(#557), module descriptor `tenant_domain` (#558), resolver host-based
-(#559), rute publik `/news` (#560), dokumentasi legacy/ADR-0010 (#561),
-API tenant domain management (#562, §API di atas), dan admin UI (#563,
-§Admin UI di atas). Tabel `awcms_mini_tenant_domains` sekarang bisa
+Isu #565-#567 (module presets, matrix UI admin, dan adapter Cloudflare
+DNS) **belum ada**. Sudah selesai: config (#556), schema
+`awcms_mini_tenant_domains` (#557), module descriptor `tenant_domain`
+(#558), resolver host-based (#559), rute publik `/news` (#560),
+dokumentasi legacy/ADR-0010 (#561), API tenant domain management (#562,
+§API di atas), admin UI (#563, §Admin UI di atas), dan tenant settings
+public route `blog_content` (#564, §Tenant settings public route di
+atas). Tabel `awcms_mini_tenant_domains` sekarang bisa
 ditulis lewat kode aplikasi (API #562 + admin UI #563) — bukan lagi
 schema-only. Operator yang benar-benar mengisi baris nyata lewat
 UI/API dan mengaktifkan `PUBLIC_TENANT_RESOLUTION_MODE=host_default`
@@ -568,3 +647,9 @@ Sudah diperbaiki bersamaan dengan #562 (bukan follow-up lagi): **timing side-cha
 `public-news-tenant-resolution.ts`) membebankan biaya round-trip yang SAMA pada jalur "tenant tidak resolve" — buka transaksi lewat `withTenant` yang sama, `SET LOCAL` GUC tenant ke UUID nol (sentinel fail-closed migration 013, tidak pernah cocok dengan tenant nyata), lalu satu `SELECT` ke `awcms_mini_tenant_modules` — persis bentuk round-trip yang sudah dibayar jalur module-disabled lewat `fetchTenantModuleEntries`. Pola "tambahkan cost tetap di jalur tidak-resolve" (bukan "gabungkan jadi satu query" seperti migration 033/#559, karena jalur tidak-resolve secara struktural tidak punya `tenant_id` nyata untuk digabung ke query yang sama). Test:
 `tests/integration/blog-content-public-news.integration.test.ts`'s round-trip-counting test (pola Proxy yang sama seperti
 `tests/integration/public-tenant-resolution.integration.test.ts`, diperluas untuk mengintersep `sql.begin(...)`/method call pada `tx` juga, bukan cuma pemanggilan `sql` langsung).
+
+**Diperluas jadi EMPAT outcome bersamaan dengan #564** (bukan follow-up baru, perluasan mekanisme yang sudah ada): `publicRouteMode=disabled` (§Tenant settings public route di atas) adalah outcome ke-4 pada gate yang sama. Paritas ditegakkan struktural lewat `checkBlogContentAndRouteGate()` — dipanggil identik dari jalur resolve sungguhan maupun `padUnresolvedTenantLatency()`, jadi tak bisa drift secara desain. **Follow-up non-blocking dari security audit #564** (verdict PASS, tidak ada Critical/High):
+
+4. Belum ada test `wrapCountingSql`-based yang secara eksplisit membandingkan round-trip count outcome `publicRouteMode=disabled` vs 3 outcome lainnya — paritas berlaku by construction (diverifikasi manual saat audit #564) tapi belum diuji langsung seperti paritas module-disabled vs enabled sudah diuji. Tambahkan test pembanding eksplisit bila menyentuh `checkBlogContentAndRouteGate`/`padUnresolvedTenantLatency` lagi.
+5. Belum ada test regresi XSS eksplisit untuk `publicLabel`/`publicBasePath` di output `/news` (mitigasi sudah diverifikasi manual — `escapeHtml()` dipanggil di setiap titik render, tidak ada `set:html`/raw string concatenation — tapi belum jadi regression test otomatis yang mengirim payload `<script>` lalu assert output ter-escape). Tambahkan bila menyentuh rendering `/news` lagi.
+6. `validateModuleSettingsPatch` (framework generik Issue #516, `module-management/domain/module-settings.ts`) hanya memeriksa **nama key** sensitif (`REDACTION_KEYS`), bukan **bentuk nilai** — admin tenant (atau siapa pun dengan sesi admin) bisa menulis nilai credential-shaped ke field non-sensitif-namanya seperti `publicLabel` dan itu tersimpan mentah, terbaca lewat GET yang sama. Bukan regresi #564 (identik untuk semua modul yang pakai framework ini), tidak spesifik `blog_content` — perbaikannya idealnya value-shape heuristic sekali di `domain/module-settings.ts` untuk semua konsumen, bukan tambalan per-modul.

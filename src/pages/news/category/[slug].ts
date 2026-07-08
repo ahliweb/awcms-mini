@@ -36,43 +36,49 @@ export const GET: APIRoute = async ({ params, request, url }) => {
     const pageParam = url.searchParams.get("page");
     const page = pageParam ? Number(pageParam) : 1;
 
-    const result = await withNewsTenant(sql, request, async (tx, tenant) => {
-      const term = await fetchPublicTermBySlug(
-        tx,
-        tenant.tenantId,
-        "category",
-        slug
-      );
+    const result = await withNewsTenant(
+      sql,
+      request,
+      async (tx, tenant, routeSettings) => {
+        const term = await fetchPublicTermBySlug(
+          tx,
+          tenant.tenantId,
+          "category",
+          slug
+        );
 
-      if (!term) {
-        return null;
+        if (!term) {
+          return null;
+        }
+
+        const posts = await listPublicBlogPostsByTermId(
+          tx,
+          tenant.tenantId,
+          term.id,
+          { page }
+        );
+        const basePath = routeSettings.publicBasePath;
+        const categoryPath = `${basePath}/category/${term.slug}`;
+
+        const bodyHtml = `<h1>Category: ${escapeHtml(term.name)}</h1>
+<div class="posts">${renderPostSummaryListHtmlAtBasePath(basePath, posts.items, "No posts in this category yet.")}</div>
+${renderPaginationNavHtml(page, posts.hasNextPage, categoryPath)}`;
+
+        const html = renderPublicPageShell({
+          title: `${term.name} — ${tenant.tenantName} ${routeSettings.publicLabel}`,
+          description:
+            term.description ?? `Posts categorized under ${term.name}.`,
+          canonicalUrl: `${url.origin}${categoryPath}`,
+          bodyHtml,
+          locale: tenant.defaultLocale
+        });
+
+        return new Response(html, {
+          status: 200,
+          headers: { "content-type": "text/html; charset=utf-8" }
+        });
       }
-
-      const posts = await listPublicBlogPostsByTermId(
-        tx,
-        tenant.tenantId,
-        term.id,
-        { page }
-      );
-
-      const bodyHtml = `<h1>Category: ${escapeHtml(term.name)}</h1>
-<div class="posts">${renderPostSummaryListHtmlAtBasePath("/news", posts.items, "No posts in this category yet.")}</div>
-${renderPaginationNavHtml(page, posts.hasNextPage, `/news/category/${term.slug}`)}`;
-
-      const html = renderPublicPageShell({
-        title: `${term.name} — ${tenant.tenantName} News`,
-        description:
-          term.description ?? `Posts categorized under ${term.name}.`,
-        canonicalUrl: `${url.origin}/news/category/${term.slug}`,
-        bodyHtml,
-        locale: tenant.defaultLocale
-      });
-
-      return new Response(html, {
-        status: 200,
-        headers: { "content-type": "text/html; charset=utf-8" }
-      });
-    });
+    );
 
     return result ?? notFoundHtmlResponse();
   } catch (error) {
