@@ -9,6 +9,7 @@ import { profileIdentityModule } from "./profile-identity/module";
 import { reportingModule } from "./reporting/module";
 import { syncStorageModule } from "./sync-storage/module";
 import { tenantAdminModule } from "./tenant-admin/module";
+import { tenantDomainModule } from "./tenant-domain/module";
 import { workflowApprovalModule } from "./workflow-approval/module";
 
 export const modules: ModuleDescriptor[] = [
@@ -22,7 +23,8 @@ export const modules: ModuleDescriptor[] = [
   formDraftsModule,
   emailModule,
   moduleManagementModule,
-  blogContentModule
+  blogContentModule,
+  tenantDomainModule
 ];
 
 export function getModuleByKey(
