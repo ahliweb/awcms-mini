@@ -21,5 +21,10 @@ storage/
 .DS_Store
 Thumbs.db
 
+# Playwright E2E artifacts
+playwright-report/
+test-results/
+blob-report/
+
 # Claude Code user-local settings (jangan commit)
 .claude/settings.local.json

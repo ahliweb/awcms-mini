@@ -25,6 +25,7 @@ Skill Claude Code tingkat-proyek untuk AWCMS-Mini. Setiap skill meng-encode stan
 | `awcms-mini-codeql-triage`                             | Triase & perbaiki temuan CodeQL code scanning (termasuk katalog false-positive)       | 20                             |
 | `awcms-mini-pr-review`                                 | Review pull request terhadap DoD                                                      | 09, 10, 12                     |
 | `awcms-mini-testing`                                   | Tulis test berlapis (unit→security)                                                   | 07                             |
+| `awcms-mini-browser-test`                              | E2E browser sungguhan (Playwright + Bun) — puncak piramida testing                    | 07, browser-test/SKILL.md      |
 | `awcms-mini-production-preflight`                      | Preflight & go-live readiness                                                         | 07, 12                         |
 | `awcms-mini-deploy`                                    | Pilih & jalankan profil deployment (LAN-first vs registry/Coolify)                    | 18, deploy-coolify.md          |
 | `awcms-mini-ui-screen`                                 | Implementasi layar/komponen UI sesuai design system                                   | 14, 15                         |
@@ -68,6 +69,7 @@ flowchart TD
   II --> EP[awcms-mini-new-endpoint]
   II --> EV[awcms-mini-new-event]
   II --> TST[awcms-mini-testing]
+  TST --> BRT[awcms-mini-browser-test]
   EP --> ABAC[awcms-mini-abac-guard]
   EP --> IDEM[awcms-mini-idempotency]
   ABAC --> AUD[awcms-mini-audit-log]
