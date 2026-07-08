@@ -29,7 +29,7 @@ menjembatani beberapa modul sekaligus (config, `tenant_domain` module baru,
 | Issue | Scope                                                         | Status                               |
 | ----- | ------------------------------------------------------------- | ------------------------------------ |
 | #556  | Online public mode config (`PUBLIC_*` env vars)               | **Selesai** — lihat §Config di bawah |
-| #557  | Tenant domain/subdomain mapping schema                        | Belum                                |
+| #557  | Tenant domain/subdomain mapping schema                        | **Selesai** — lihat §Schema di bawah |
 | #558  | Register module descriptor `tenant_domain`                    | Belum                                |
 | #559  | Public host tenant resolver (dengan fallback)                 | Belum                                |
 | #560  | Rute publik `/news` untuk `blog_content`                      | Belum                                |
@@ -66,6 +66,65 @@ Didokumentasikan di `docs/awcms-mini/18_configuration_env_reference.md`
 online. Test: `tests/validate-env.test.ts`'s
 `describe("checkPublicRoutingConfig", ...)`.
 
+### Schema (Issue #557, `sql/031`/`sql/032`)
+
+Tabel `awcms_mini_tenant_domains` — pemetaan hostname/domain/subdomain →
+tenant. **Schema saja**, belum ada module descriptor (#558), resolver
+(#559), atau API (#562) yang mengonsumsinya.
+
+- Migration di-split dua file mengikuti pola `blog_content` (026 schema /
+  027 permission, diulang lagi di 029/030): `sql/031_awcms_mini_tenant_domain_schema.sql`
+  (tabel) dan `sql/032_awcms_mini_tenant_domain_permissions.sql`
+  (permission seed).
+- Kolom kunci: `hostname` (raw, case asli) + `normalized_hostname` (kolom
+  terpisah, bukan functional index — `lower(btrim(hostname))`, dijaga
+  konsisten oleh CHECK constraint
+  `awcms_mini_tenant_domains_normalized_hostname_matches_check`);
+  `domain_type` (`subdomain` | `custom_domain`); `route_mode`
+  (`canonical` → rute `/news` #560, | `legacy_blog` → rute
+  `/blog/{tenantCode}` ADR-0009 — kolom disiapkan, belum dikonsumsi
+  resolver manapun); `status` (`pending_verification` | `active` |
+  `suspended` | `failed` — soft delete via `deleted_at` adalah state
+  kelima "tidak resolve traffic", tidak digabung ke enum ini);
+  `verification_method` (`dns_txt` | `dns_cname` | `file` | `manual`,
+  nullable); `verification_token_hash` (sha256 hex, prefix `sha256:`,
+  konstruksi sama seperti `lib/auth/password-reset-token.ts`'s
+  `hashResetToken` — token CSPRNG high-entropy jadi fast hash sudah benar,
+  bukan bcrypt/argon2; raw token tidak pernah disimpan);
+  `verification_record_name`/`verification_record_value` (nilai DNS
+  publik yang dipublish tenant, BUKAN secret provider); `is_primary` +
+  `redirect_to_primary`.
+- Constraint kunci: `awcms_mini_tenant_domains_normalized_hostname_dedup`
+  (unique index global — LINTAS tenant, bukan per-tenant — pada
+  `normalized_hostname` `WHERE deleted_at IS NULL`, karena satu hostname
+  cuma boleh milik satu tenant); `awcms_mini_tenant_domains_primary_dedup`
+  (unique index pada `tenant_id` `WHERE is_primary = true AND deleted_at IS NULL`
+  — satu primary aktif per tenant); soft delete standar
+  (`deleted_at`/`deleted_by`/`delete_reason`) membebaskan
+  `normalized_hostname` untuk dipakai ulang.
+- RLS: `ENABLE` + `FORCE` + policy `tenant_isolation` standar (sama pola
+  semua tabel tenant-scoped lain) — **tapi ini menciptakan bootstrap gap
+  yang wajib diselesaikan #559**: query hostname→tenant_id butuh
+  dijalankan SEBELUM tenant context ada, sementara FORCE RLS + fail-closed
+  GUC (migration 013) membuat query tanpa `withTenant` selalu 0 baris.
+  `awcms_mini_tenants` (migration 013) sengaja RLS-free untuk masalah
+  bootstrap yang sama persis (lookup `tenantCode → tenant_id`, ADR-0009),
+  tapi `tenant_domains` TIDAK BOLEH ikut jadi RLS-free (kolom
+  `verification_token_hash` dkk. tenant-manageable). Resolusi yang
+  didokumentasikan di migration 031's komentar untuk #559: buat jalur baca
+  khusus (mis. fungsi `SECURITY DEFINER` yang cuma return `(tenant_id,
+status, is_primary)`, atau role baca least-privilege terpisah) untuk
+  satu query bootstrap ini — jangan lepas `FORCE ROW LEVEL SECURITY` dari
+  tabel ini untuk mengakalinya.
+- Permission seed: `module_key` `tenant_domain`, `activity_code` `domains`
+  — `read`/`create`/`update`/`delete`/`verify`/`set_primary` (persis
+  §Seed permissions issue #557). Belum ada role/access assignment yang
+  memakainya (menunggu #562 dkk.).
+- Test: `tests/integration/tenant-domain-schema.integration.test.ts`
+  (idempotency, unique constraint case-insensitive, primary-per-tenant,
+  soft-delete-frees-hostname, RLS isolation, fail-closed tanpa GUC, tidak
+  ada kolom secret provider).
+
 ## Aturan lintas-issue yang wajib diikuti
 
 1. **Backward compatibility non-negotiable**: setiap deployment offline/LAN existing yang tidak pernah set `PUBLIC_*` apa pun harus tetap `config:validate` PASS dan berperilaku persis seperti sebelum epic ini — jangan pernah membuat salah satu dari enam var config ini menjadi wajib secara default.
@@ -80,11 +139,17 @@ online. Test: `tests/validate-env.test.ts`'s
 
 ## Belum ada — jangan asumsikan sudah dikerjakan
 
-Semua isu #557-#567 (schema tenant domain, module descriptor
-`tenant_domain`, resolver host-based, rute publik `/news`, dokumentasi
-legacy, API tenant domain, admin UI domain, tenant settings rute
-`/news`/legacy di `blog_content`, module presets, matrix UI admin, dan
-adapter Cloudflare DNS) **belum ada** — hanya lapisan config (#556) yang
-selesai. Jangan asumsikan resolver host-based sudah bisa dipakai; env var
-`PUBLIC_PLATFORM_ROOT_DOMAIN`/`PUBLIC_TRUST_PROXY` baru **divalidasi dan
-didokumentasikan**, belum **dikonsumsi** oleh kode resolver apa pun.
+Semua isu #558-#567 (module descriptor `tenant_domain`, resolver
+host-based, rute publik `/news`, dokumentasi legacy, API tenant domain,
+admin UI domain, tenant settings rute `/news`/legacy di `blog_content`,
+module presets, matrix UI admin, dan adapter Cloudflare DNS) **belum ada**
+— hanya lapisan config (#556) dan schema `awcms_mini_tenant_domains`
+(#557) yang selesai. Jangan asumsikan resolver host-based sudah bisa
+dipakai; env var `PUBLIC_PLATFORM_ROOT_DOMAIN`/`PUBLIC_TRUST_PROXY` baru
+**divalidasi dan didokumentasikan**, belum **dikonsumsi** oleh kode
+resolver apa pun. Tabel `awcms_mini_tenant_domains` baru berisi schema +
+constraint + RLS + permission catalog seed — belum ada baris yang pernah
+ditulis lewat kode aplikasi (menunggu #562's API), dan belum ada resolver
+yang membacanya (menunggu #559, yang juga harus menyelesaikan RLS
+bootstrap gap yang didokumentasikan di §Schema di atas dan di migration
+031's komentar sebelum bisa query tabel ini tanpa tenant context).
