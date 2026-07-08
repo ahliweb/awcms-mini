@@ -26,20 +26,20 @@ menjembatani beberapa modul sekaligus (config, `tenant_domain` module baru,
 
 ## Status per issue (jangan bangun ulang yang sudah ada)
 
-| Issue | Scope                                                         | Status                               |
-| ----- | ------------------------------------------------------------- | ------------------------------------ |
-| #556  | Online public mode config (`PUBLIC_*` env vars)               | **Selesai** — lihat §Config di bawah |
-| #557  | Tenant domain/subdomain mapping schema                        | **Selesai** — lihat §Schema di bawah |
-| #558  | Register module descriptor `tenant_domain`                    | Belum                                |
-| #559  | Public host tenant resolver (dengan fallback)                 | Belum                                |
-| #560  | Rute publik `/news` untuk `blog_content`                      | Belum                                |
-| #561  | Dokumentasi legacy `/blog/{tenantCode}`                       | Belum                                |
-| #562  | Tenant domain management API                                  | Belum                                |
-| #563  | Admin UI domain/subdomain                                     | Belum                                |
-| #564  | Tenant settings untuk rute `/news` vs legacy (`blog_content`) | Belum                                |
-| #565  | Tenant module presets (online/news/LAN/minimal)               | Belum                                |
-| #566  | Tenant-module matrix admin UI                                 | Belum                                |
-| #567  | Cloudflare DNS adapter (opsional)                             | Belum                                |
+| Issue | Scope                                                         | Status                                          |
+| ----- | ------------------------------------------------------------- | ----------------------------------------------- |
+| #556  | Online public mode config (`PUBLIC_*` env vars)               | **Selesai** — lihat §Config di bawah            |
+| #557  | Tenant domain/subdomain mapping schema                        | **Selesai** — lihat §Schema di bawah            |
+| #558  | Register module descriptor `tenant_domain`                    | **Selesai** — lihat §Module descriptor di bawah |
+| #559  | Public host tenant resolver (dengan fallback)                 | Belum                                           |
+| #560  | Rute publik `/news` untuk `blog_content`                      | Belum                                           |
+| #561  | Dokumentasi legacy `/blog/{tenantCode}`                       | Belum                                           |
+| #562  | Tenant domain management API                                  | Belum                                           |
+| #563  | Admin UI domain/subdomain                                     | Belum                                           |
+| #564  | Tenant settings untuk rute `/news` vs legacy (`blog_content`) | Belum                                           |
+| #565  | Tenant module presets (online/news/LAN/minimal)               | Belum                                           |
+| #566  | Tenant-module matrix admin UI                                 | Belum                                           |
+| #567  | Cloudflare DNS adapter (opsional)                             | Belum                                           |
 
 ## Yang sudah ada — pakai ulang, jangan re-derive
 
@@ -125,6 +125,48 @@ status, is_primary)`, atau role baca least-privilege terpisah) untuk
   soft-delete-frees-hostname, RLS isolation, fail-closed tanpa GUC, tidak
   ada kolom secret provider).
 
+### Module descriptor (Issue #558, `src/modules/tenant-domain/module.ts`)
+
+Modul `tenant_domain` terdaftar di `src/modules/index.ts`'s `listModules()`
+(12 modul total sekarang). **Hanya descriptor** — tidak ada API/UI/resolver
+di sini, itu semua issue lanjutan.
+
+- `key: "tenant_domain"`, `type: "system"` (bukan `"domain"`/`"integration"`)
+  — modul ini mengelola routing infrastructure yang dipakai bersama SEMUA
+  tenant (resolusi hostname→tenant), bukan fitur bisnis tenant-facing, dan
+  bukan didefinisikan oleh integrasi provider eksternal (Cloudflare adapter
+  #567 opsional/enhancement, bukan sifat inti modul). Alasan sama seperti
+  `module_management`'s `type: "system"`.
+- `dependencies: ["tenant_admin", "identity_access"]`. `isCore` **tidak**
+  di-set (beda dari `module_management`) — tidak ada yang wajib memakai
+  modul ini; tenant yang cuma pakai `/blog/{tenantCode}` legacy tidak
+  pernah butuh domain mapping.
+- `api: { basePath: "/api/v1/tenant/domains", openApiPath:
+"openapi/awcms-mini-public-api.openapi.yaml" }` dan `navigation: [{
+path: "/admin/tenant/domains", requiredPermission:
+"tenant_domain.domains.read", ... }]` **dideklarasikan sekarang**
+  meski API (#562)/UI (#563) belum ada — permintaan eksplisit issue
+  #558's descriptor requirements. Konsekuensi: Module Management's
+  `openApiDocumentedSignal` (readiness check) akan melaporkan `fail`
+  untuk `tenant_domain` sampai #562 menambah path OpenAPI nyata di bawah
+  basePath itu — ini diharapkan, bukan regresi. Nav entry hanya muncul di
+  sidebar untuk pemegang `tenant_domain.domains.read` (belum ada role yang
+  punya izin ini sampai ada assignment eksplisit).
+- `permissions`: 6 entry `tenant_domain.domains.*` (`read`/`create`/
+  `update`/`delete`/`verify`/`set_primary`), match persis dengan seed
+  migration 032 (`activityCode`/`action`/`description` identik) — divalidasi
+  `tests/modules/tenant-domain-module.test.ts`.
+- `settings: { schemaVersion: 1, defaults: { defaultVerificationMethod:
+"manual" } }` — satu-satunya preferensi non-secret yang dideklarasikan;
+  **bukan** default ke `dns_txt`/`dns_cname`/provider otomatis apa pun.
+  Tidak ada field `jobs`/`health` (belum ada command/health-check nyata
+  untuk didokumentasikan, konsisten dengan konvensi
+  `module_management/README.md`).
+- Tidak ada folder `domain/`/`application/` yang dibuat untuk modul ini di
+  Issue #558 — belum ada logic apa pun untuk ditempatkan di sana sampai
+  issue yang benar-benar butuh (#559/#562/#563). Hanya `module.ts` +
+  `README.md`.
+
 ## Aturan lintas-issue yang wajib diikuti
 
 1. **Backward compatibility non-negotiable**: setiap deployment offline/LAN existing yang tidak pernah set `PUBLIC_*` apa pun harus tetap `config:validate` PASS dan berperilaku persis seperti sebelum epic ini — jangan pernah membuat salah satu dari enam var config ini menjadi wajib secara default.
@@ -139,14 +181,14 @@ status, is_primary)`, atau role baca least-privilege terpisah) untuk
 
 ## Belum ada — jangan asumsikan sudah dikerjakan
 
-Semua isu #558-#567 (module descriptor `tenant_domain`, resolver
-host-based, rute publik `/news`, dokumentasi legacy, API tenant domain,
-admin UI domain, tenant settings rute `/news`/legacy di `blog_content`,
-module presets, matrix UI admin, dan adapter Cloudflare DNS) **belum ada**
-— hanya lapisan config (#556) dan schema `awcms_mini_tenant_domains`
-(#557) yang selesai. Jangan asumsikan resolver host-based sudah bisa
-dipakai; env var `PUBLIC_PLATFORM_ROOT_DOMAIN`/`PUBLIC_TRUST_PROXY` baru
-**divalidasi dan didokumentasikan**, belum **dikonsumsi** oleh kode
+Isu #559-#567 (resolver host-based, rute publik `/news`, dokumentasi
+legacy, API tenant domain, admin UI domain, tenant settings rute
+`/news`/legacy di `blog_content`, module presets, matrix UI admin, dan
+adapter Cloudflare DNS) **belum ada** — hanya lapisan config (#556),
+schema `awcms_mini_tenant_domains` (#557), dan module descriptor
+`tenant_domain` (#558) yang selesai. Jangan asumsikan resolver host-based
+sudah bisa dipakai; env var `PUBLIC_PLATFORM_ROOT_DOMAIN`/`PUBLIC_TRUST_PROXY`
+baru **divalidasi dan didokumentasikan**, belum **dikonsumsi** oleh kode
 resolver apa pun. Tabel `awcms_mini_tenant_domains` baru berisi schema +
 constraint + RLS + permission catalog seed — belum ada baris yang pernah
 ditulis lewat kode aplikasi (menunggu #562's API), dan belum ada resolver
