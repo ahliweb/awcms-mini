@@ -84,6 +84,14 @@ awcms-mini/
 
 Semua script di atas wajib dijalankan dengan Bun. Bin Astro/Vite dipanggil lewat **`bun --bun`** agar Bun yang mengeksekusi, bukan binary `node` yang kebetulan terpasang (shebang bin-nya `#!/usr/bin/env node`). Server SSR hasil build dijalankan `bun ./dist/server/entry.mjs` (lihat doc 10 §Standar platform backend & doc 15). Jangan menambahkan `node`, `npm`, `npx`, `pnpm`, atau `yarn` sebagai jalur eksekusi. Bila ada tooling yang belum didukung Bun, ikuti protokol pengecualian di `AGENTS.md` dan doc 16 sebelum menambahkannya.
 
+**Catatan:** blok JSON di atas adalah **contoh minimal ilustratif** dari
+sprint awal, bukan cermin `package.json` aktual — `package.json` yang
+sebenarnya sudah jauh lebih lengkap (base generik selesai, v0.23.5).
+`api:contract:test` khususnya **belum diimplementasikan** di repo ini
+(tidak ada `scripts/api-contract-test.ts` maupun entry `package.json`
+yang cocok) — lihat `AGENTS.md` §Perintah yang sudah tersedia sekarang
+untuk daftar skrip nyata yang bisa dijalankan hari ini.
+
 ## Minimal `.env.example`
 
 ```env

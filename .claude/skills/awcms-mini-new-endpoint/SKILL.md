@@ -31,7 +31,7 @@ flowchart LR
 
 ## Response helper
 
-Sukses `{ success:true, data, meta }`; error `{ success:false, error:{ code, message, details }, meta }`. Gunakan `ok()`, `created()`, `fail()`. `meta.correlationId` **otomatis** terisi oleh middleware sejak Issue #447 untuk setiap response JSON `/api/*` — jangan set `correlationId` di dalam `error`, dan jangan wiring manual `meta.correlationId` kecuali butuh nilai eksplisit lebih awal (baca `context.locals.correlationId`, jangan generate UUID baru), lihat `awcms-mini-observability`.
+Sukses `{ success:true, data, meta }`; error `{ success:false, error:{ code, message, details }, meta }`. Gunakan `ok()` dan `fail()` (`src/modules/_shared/api-response.ts`) — tidak ada helper `created()` terpisah untuk 201; endpoint create yang sudah ada (mis. `POST /api/v1/blog/posts`) memakai `ok()` yang sama dengan implicit 200, jangan asumsikan/panggil `created()`. `meta.correlationId` **otomatis** terisi oleh middleware sejak Issue #447 untuk setiap response JSON `/api/*` — jangan set `correlationId` di dalam `error`, dan jangan wiring manual `meta.correlationId` kecuali butuh nilai eksplisit lebih awal (baca `context.locals.correlationId`, jangan generate UUID baru), lihat `awcms-mini-observability`.
 
 ## Error code standar
 

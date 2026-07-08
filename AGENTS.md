@@ -193,45 +193,53 @@ Aturan: reviewer & auditor **read-only** (temuan dikembalikan ke coder); auditor
 
 ## Perintah yang sudah tersedia sekarang
 
+Base generik selesai (v0.23.5) — semua skrip di bawah ini nyata dan
+berjalan, bukan target/rencana:
+
 ```bash
 bun install
-bun run check                # gate lengkap: lint + check:docs + typecheck + test + build
-bun run dev                  # bun --bun astro dev
-bun run build                # bun --bun astro build
-bun run preview              # bun --bun astro preview
-bun run db:migrate           # Bun.SQL PostgreSQL migration runner
-bun run api:spec:check       # validasi OpenAPI/AsyncAPI baseline
-bun run lint                 # prettier --check
-bun run check:docs           # validasi mermaid, tautan internal, penamaan
-bun run typecheck            # tsc --noEmit
-bun test                     # unit + integration test (bun:test) di tests/
-bun run test:coverage        # bun test --coverage
-bun run changeset            # tambah changeset (versioning)
-bun run changeset:version    # konsumsi changeset -> bump versi + CHANGELOG
+bun run check                    # gate lengkap: lint + check:docs + api:spec:check + typecheck + test + build
+bun run dev                      # bun --bun astro dev
+bun run build                    # bun --bun astro build
+bun run preview                  # bun --bun astro preview
+bun run start                    # bun ./dist/server/entry.mjs (SSR di atas Bun)
+bun run db:migrate               # Bun.SQL PostgreSQL migration runner
+bun run api:spec:check           # validasi OpenAPI/AsyncAPI baseline
+bun run lint                     # prettier --check
+bun run format                   # prettier --write
+bun run check:docs               # validasi mermaid, tautan internal, penamaan
+bun run typecheck                # tsc --noEmit
+bun test                         # unit + integration test (bun:test) di tests/
+bun run test:coverage            # bun test --coverage
+bun run changeset                # tambah changeset (versioning)
+bun run changeset:version        # konsumsi changeset -> bump versi + CHANGELOG
+bun run changeset:status         # cek changeset pending
+bun run changeset:tag            # tag rilis dari changeset
+bun run db:pool:health           # cek kesehatan pool DB
+bun run security:readiness       # cek security readiness
+bun run config:validate          # validasi env/config sebelum apapun jalan
+bun run production:preflight     # preflight sebelum go-live (config -> migrate -> spec -> test -> build -> pool -> security)
+bun run email:provider:health    # cek kesehatan provider email (Mailketing)
+bun run sync:objects:dispatch    # job terjadwal: dispatch antrian sync object R2
+bun run logs:audit:purge         # job terjadwal: purge audit log kedaluwarsa
+bun run email:dispatch           # job terjadwal: dispatch outbox email
+bun run email:templates:seed-defaults # seed template email default
+bun run form-drafts:purge        # job terjadwal: purge form draft kedaluwarsa
+bun run blog:publish:scheduled   # job terjadwal: publish blog post scheduled yang sudah due
+bun run modules:sync             # sinkronisasi descriptor modul ke awcms_mini_modules
+bun run github:snapshot:refresh  # refresh docs/awcms-mini/github/ dari state GitHub live
 ```
 
 Tooling saat ini (`scripts/`) sudah punya unit test di `tests/`; tambahkan test
 untuk setiap kode baru sesuai doc 07 §Testing Strategy dan doc 10.
 
-## Perintah standar (target)
-
-Skrip berikut menjadi target repository (lihat doc 11). Seluruhnya kini **sudah tersedia** (base generik selesai, v0.23.5): dev/build/preview/check, `db:migrate`, `api:spec:check`, `changeset`/`changeset:version`, tooling readiness (`db:pool:health`, `security:readiness`, `production:preflight`, `config:validate`, `email:provider:health`), serta job terjadwal (`sync:objects:dispatch`, `logs:audit:purge`, `email:dispatch`).
-
-```bash
-bun install
-bun run dev                 # bun --bun astro dev
-bun run build               # bun --bun astro build
-bun run start               # bun ./dist/server/entry.mjs (SSR di atas Bun)
-bun run db:migrate          # jalankan migration berurutan
-bun run api:spec:check      # validasi OpenAPI/AsyncAPI
-bun run api:contract:test   # contract test API
-bun test                    # unit + integration test
-bun run db:pool:health      # cek kesehatan pool DB
-bun run security:readiness  # cek security readiness
-bun run production:preflight # preflight sebelum go-live
-bun run changeset           # tambah changeset (versioning)
-bun run changeset:version   # konsumsi changeset -> bump versi + CHANGELOG
-```
+**Belum diimplementasikan** (bukan di `package.json`/`scripts/`, jangan
+jalankan/sarankan sebagai perintah nyata): `api:contract:test` (live
+contract test terhadap server berjalan, dibedakan dari `api:spec:check`
+yang hanya memvalidasi bentuk file spec OpenAPI/AsyncAPI itu sendiri).
+Kalau issue butuh ini, buat `scripts/api-contract-test.ts` + entry
+`package.json` baru sebagai bagian dari issue itu, jangan berasumsi sudah
+ada.
 
 ## Struktur repository (target)
 
@@ -240,7 +248,7 @@ awcms-mini/
 ├── AGENTS.md                # file ini
 ├── CHANGELOG.md             # versioning (Changesets)
 ├── .changeset/              # config + changeset entries
-├── .claude/skills/          # 29 skill proyek (implement-issue, new-migration, dst.)
+├── .claude/skills/          # 31 skill proyek (implement-issue, new-migration, dst.)
 ├── .claude/agents/          # subagents (coder, reviewer, security-auditor)
 ├── README.md
 ├── package.json

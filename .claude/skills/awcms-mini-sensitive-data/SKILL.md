@@ -22,7 +22,13 @@ flowchart LR
 1. Simpan `normalized_value`, `value_hash`, `masked_value`. Unik `(tenant_id, identifier_type, value_hash)`.
 2. Response umum hanya tampilkan `masked_value`; nilai penuh hanya untuk role berwenang lewat `awcms-mini-abac-guard`.
 3. **Jangan** kirim raw value ke response/log/audit/event.
-4. Gunakan mapper (`infrastructure/mappers.ts`) untuk mengubah row → safe DTO.
+4. Gunakan `normalizeIdentifier`/`hashIdentifier`/`maskIdentifier`
+   (`src/modules/profile-identity/domain/identifier.ts`) untuk mengubah
+   raw value → safe DTO — dipanggil langsung dari caller (mis.
+   `identity-access/application/password-reset.ts`,
+   `email/application/suppression-directory.ts`), **tidak** ada layer
+   mapper terpisah (`infrastructure/mappers.ts` tidak pernah dibangun;
+   sebagian besar modul bahkan tidak punya folder `infrastructure/`).
 5. Receipt token: non-sequential, tidak mudah ditebak.
 6. Password hanya hash modern; `password_hash` tidak pernah keluar.
 

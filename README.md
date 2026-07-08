@@ -133,7 +133,7 @@ flowchart LR
 2. Baca [`CONTRIBUTING.md`](CONTRIBUTING.md) — alur kontribusi, setup, konvensi commit, Definition of Done.
 3. Gunakan **skill proyek** di [`.claude/skills/`](.claude/skills/README.md) agar standar diterapkan konsisten.
 4. Kerjakan **atomic** per issue; migration bila schema berubah, OpenAPI bila API berubah, AsyncAPI bila event berubah.
-5. Validasi (`bun run check` = lint + docs-check + typecheck + `bun test` + Astro build) sebelum PR.
+5. Validasi (`bun run check` = lint + docs-check + `api:spec:check` + typecheck + `bun test` + Astro build) sebelum PR.
 
 ### Mulai dari
 
