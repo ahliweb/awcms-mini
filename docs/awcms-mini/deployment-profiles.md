@@ -62,8 +62,16 @@ host-based menyusul di issue #557-#567.
   set `true` pada topologi offline/LAN yang melewati nginx sepenuhnya
   (baris "offline/LAN" di atas: "nginx dapat dilewati sepenuhnya") — tanpa
   proxy tepercaya di depan, header `X-Forwarded-Host` bisa dipalsukan
-  klien mana pun, dan resolver host-based yang akan dibangun di Issue
-  #559 akan memakainya untuk menentukan tenant.
+  klien mana pun, dan resolver host-based Issue #559
+  (`src/lib/tenant/public-host-tenant-resolver.ts`) memakainya untuk
+  menentukan tenant. **Wajib**: nginx (atau proxy tepercaya apa pun di
+  posisi ini) harus dikonfigurasi untuk **menimpa (overwrite)**
+  `X-Forwarded-Host` sepenuhnya, bukan meneruskan/append nilai dari klien
+  — kalau nginx-nya salah konfigurasi (append), resolver mendeteksi lebih
+  dari satu nilai comma-separated pada header dan sengaja fallback ke
+  `Host` biasa (tidak menebak nilai kiri/kanan mana yang tepercaya),
+  dicatat sebagai anomali di log; ini bukan pengganti memperbaiki
+  konfigurasi proxy yang salah.
 
 ## Cara menjalankan tiap profil
 

@@ -68,6 +68,36 @@ CREATE POLICY awcms_mini_<name>_tenant_isolation ON awcms_mini_<name>
 COMMIT;
 ```
 
+## Menggunakan `SECURITY DEFINER` (bootstrap read sebelum tenant context ada)
+
+Kadang sebuah query harus jalan **sebelum** tenant context ada sama sekali
+(mis. resolusi publik `hostname`/`tenantCode` -> `tenant_id`), padahal
+tabelnya `FORCE ROW LEVEL SECURITY`. Jangan lepas `FORCE ROW LEVEL
+SECURITY` untuk mengakalinya — buat fungsi `SECURITY DEFINER` yang sempit.
+Checklist wajib (detail lengkap + alasan tiap butir:
+`docs/adr/0003-postgresql-rls-multi-tenant.md` §Checklist; contoh kanonik:
+`sql/033_awcms_mini_tenant_domain_lookup_function.sql`, Issue #559):
+
+1. Konfirmasi role pemilik migration benar-benar superuser (`SELECT
+rolsuper FROM pg_roles`) — keamanan mekanisme ini datang dari situ, bukan
+   dari RLS/`FORCE`.
+2. Body fungsi SQL statis/tetap, parameter selalu argumen fungsi
+   diparameterkan — tidak ada dynamic SQL/string concatenation.
+3. Minimalkan kolom yang di-return — tidak ada kolom sensitif kecuali
+   benar-benar dibutuhkan.
+4. `REVOKE ALL ... FROM PUBLIC` lalu `GRANT EXECUTE` eksplisit ke role
+   spesifik (mis. `awcms_mini_app`) — ini **tidak** otomatis tercakup
+   `ALTER DEFAULT PRIVILEGES` migration 013 (itu hanya tabel/sequence).
+5. `SET search_path = public, pg_temp` di definisi fungsi.
+6. `STABLE`/`IMMUTABLE` untuk fungsi read-only, bukan `VOLATILE` default.
+7. Verifikasi empiris terhadap DB yang berjalan (bukan asumsi dari
+   dokumentasi PostgreSQL semata) sebelum melaporkan mekanisme ini aman.
+8. Kalau ada query kedua yang kondisional setelah fungsi ini (mis. "kalau
+   baris ditemukan, query lagi ke tabel lain"), pertimbangkan apakah beda
+   jumlah round-trip antar outcome jadi timing side-channel — gabungkan
+   jadi satu query via `JOIN` kalau tabel kedua sudah RLS-free/publicly
+   readable.
+
 ## Append-only & immutable
 
 - Posted sales document & stock movement: **append-only**, tidak di-update/delete. Koreksi lewat reversal/return/adjustment.
