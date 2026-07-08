@@ -65,10 +65,10 @@ Update juga metadata di `docs/awcms-mini/README.md`, `06_github_issues_detail.md
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ------ | -----: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |      0 | Tidak ada issue open — seluruh backlog (doc06 dan pasca-doc06) sudah `completed`/`not planned`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| CLOSED |     94 | 20 issue domain ditutup `not planned`; 18 issue backlog doc06 (#371-#373, #376-#379, #391-#393, #398, #401, #403-#408) ditutup `completed`; epic M9 (#433-#438, #447), 12 issue pasca-analisis lanjutan (#450-#454, #461-#465, #473, #475), epic reusable wizard form (#479, #481-#485), epic reusable email module (#492-#500), epic Module Management (#510-#522), dan epic blog_content (#536-#543) ditutup `completed` di luar backlog doc06 — lihat bagian di bawah. Narasi detail untuk epic wizard/email/module-management (#476-#535) belum ditulis di bawah ini — lihat catatan follow-up di bagian blog_content. |
+| State  | Jumlah | Catatan                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | -----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |      0 | Tidak ada issue open — seluruh backlog (doc06 dan pasca-doc06) sudah `completed`/`not planned`.                                                                                                                                                                                                                                                                                                                                                                           |
+| CLOSED |     94 | 20 issue domain ditutup `not planned`; 18 issue backlog doc06 (#371-#373, #376-#379, #391-#393, #398, #401, #403-#408) ditutup `completed`; epic M9 (#433-#438, #447), 12 issue pasca-analisis lanjutan (#450-#454, #461-#465, #473, #475), epic reusable wizard form (#479, #481-#485), epic reusable email module (#492-#500), epic Module Management (#510-#522), dan epic blog_content (#536-#543) ditutup `completed` di luar backlog doc06 — lihat bagian di bawah. |
 
 ### Epic blog_content #536-#543 completed (2026-07-07 s.d. 2026-07-08)
 
@@ -91,13 +91,68 @@ dan skill `awcms-mini-blog-content`. #537-#540 sempat tertinggal `open` di
 GitHub selama ~1 hari meski PR-nya sudah merge (badan PR tidak menyertakan
 kata kunci `Closes #NNN`) — ditutup manual saat refresh snapshot ini.
 
-**Follow-up yang belum dikerjakan** (di luar scope refresh ini): narasi
-"### ... completed" untuk epic reusable wizard form (#479-#485), epic
-reusable email module (#492-#500), dan epic Module Management (#510-#522)
-belum ditulis di dokumen ini meski issue-nya sudah lama `completed` —
-gap pre-existing, bukan berasal dari epic blog_content. Tabel ringkasan di
-atas sudah menghitungnya dengan benar; hanya narasi detail per-epic yang
-menyusul.
+### Epic Module Management #510-#522 completed (2026-07-07)
+
+Mengubah code registry statis (`src/modules/index.ts`) jadi kapabilitas
+database-backed, tenant-aware — `awcms_mini_modules` (migration 001) ada
+sejak migration pertama tapi tidak pernah ditulis aplikasi mana pun
+sampai epic ini. Dua belas issue, seluruhnya `completed`:
+
+- **[#511](https://github.com/ahliweb/awcms-mini/issues/511)** — perluasan module descriptor contract (`permissions`/`navigation`/`settings`/`jobs`/`health` fields). PR [#523](https://github.com/ahliweb/awcms-mini/pull/523).
+- **[#512](https://github.com/ahliweb/awcms-mini/issues/512)** — schema (`awcms_mini_modules` sudah ada; tabel baru untuk tenant-module lifecycle) + permission seed. PR [#524](https://github.com/ahliweb/awcms-mini/pull/524).
+- **[#513](https://github.com/ahliweb/awcms-mini/issues/513)** — scaffold modul `module_management` + `descriptor-sync.ts` (`syncModuleDescriptors`, plan `create`/`update`/`unchanged` lalu upsert). PR [#525](https://github.com/ahliweb/awcms-mini/pull/525).
+- **[#514](https://github.com/ahliweb/awcms-mini/issues/514)** — module catalog API (list/detail modul terdaftar). PR [#526](https://github.com/ahliweb/awcms-mini/pull/526).
+- **[#515](https://github.com/ahliweb/awcms-mini/issues/515)** — tenant module lifecycle (enable/disable per tenant) dengan validasi dependency. PR [#527](https://github.com/ahliweb/awcms-mini/pull/527).
+- **[#516](https://github.com/ahliweb/awcms-mini/issues/516)** — tenant-aware module settings management. PR [#528](https://github.com/ahliweb/awcms-mini/pull/528).
+- **[#517](https://github.com/ahliweb/awcms-mini/issues/517)** — permission sync + status inspection (deteksi permission modul yang drift dari descriptor). PR [#529](https://github.com/ahliweb/awcms-mini/pull/529).
+- **[#518](https://github.com/ahliweb/awcms-mini/issues/518)** — navigation registry + integrasi admin layout (sidebar dinamis per modul aktif). PR [#530](https://github.com/ahliweb/awcms-mini/pull/530).
+- **[#519](https://github.com/ahliweb/awcms-mini/issues/519)** — job registry untuk operational command per modul. PR [#531](https://github.com/ahliweb/awcms-mini/pull/531).
+- **[#520](https://github.com/ahliweb/awcms-mini/issues/520)** — module health/readiness checks. PR [#532](https://github.com/ahliweb/awcms-mini/pull/532).
+- **[#521](https://github.com/ahliweb/awcms-mini/issues/521)** — admin UI Module Management (referensi pola SSR-read + fetch-ke-endpoint-terguard yang dipakai ulang oleh admin UI blog_content #543). PR [#533](https://github.com/ahliweb/awcms-mini/pull/533).
+- **[#522](https://github.com/ahliweb/awcms-mini/issues/522)** — sinkronisasi contracts/SOP/threat model dokumentasi akhir. PR [#534](https://github.com/ahliweb/awcms-mini/pull/534).
+
+Didokumentasikan penuh di `src/modules/module-management/README.md` dan
+skill `awcms-mini-module-management`.
+
+### Epic reusable email module #492-#500 completed (2026-07-06 s.d. 2026-07-07)
+
+Modul email provider-neutral (adapter Mailketing nyata, bukan hardcode ke
+satu domain) menggantikan flag `MAILKETING_ENABLED`/`STARSENDER_ENABLED`/
+`AI_ANALYST_ENABLED` yang dihapus saat genericization karena terikat kasus
+domain sempit "kirim struk via email/WA" (historical issue #390, closed
+`not planned`). Delapan issue, seluruhnya `completed`:
+
+- **[#493](https://github.com/ahliweb/awcms-mini/issues/493)** — arsitektur modul provider-neutral + batas konfigurasi Mailketing. PR [#501](https://github.com/ahliweb/awcms-mini/pull/501).
+- **[#494](https://github.com/ahliweb/awcms-mini/issues/494)** — schema tenant-safe, RLS FORCE, delivery queue migration (`sql/020`/`021`). PR [#502](https://github.com/ahliweb/awcms-mini/pull/502).
+- **[#495](https://github.com/ahliweb/awcms-mini/issues/495)** — adapter Mailketing nyata + dispatcher outbox Bun. PR [#503](https://github.com/ahliweb/awcms-mini/pull/503).
+- **[#496](https://github.com/ahliweb/awcms-mini/issues/496)** — flow forgot/reset password (`POST /api/v1/auth/password/forgot`/`reset`) — caller pertama yang benar-benar meng-enqueue baris `email_messages`. PR [#505](https://github.com/ahliweb/awcms-mini/pull/505).
+- **[#497](https://github.com/ahliweb/awcms-mini/issues/497)** — bulk announcement/notification workflow (`POST /api/v1/email/announcements[/preview]`). PR [#506](https://github.com/ahliweb/awcms-mini/pull/506).
+- **[#498](https://github.com/ahliweb/awcms-mini/issues/498)** — template management (CRUD, i18n rendering, safe variable allowlisting). PR [#504](https://github.com/ahliweb/awcms-mini/pull/504).
+- **[#499](https://github.com/ahliweb/awcms-mini/issues/499)** — observability, security test, production readiness gate. PR [#507](https://github.com/ahliweb/awcms-mini/pull/507).
+- **[#500](https://github.com/ahliweb/awcms-mini/issues/500)** — sinkronisasi OpenAPI/AsyncAPI/ERD/SOP/threat model/changeset akhir. PR [#508](https://github.com/ahliweb/awcms-mini/pull/508).
+
+Didokumentasikan penuh di `src/modules/email/README.md` — README modul
+ini sempat menyatakan "#499/#500 belum selesai" walau keduanya sudah
+`completed`/merged sejak 2026-07-07; diperbaiki bersamaan dengan
+penulisan narasi ini.
+
+### Epic reusable wizard form pattern #479-#485 completed (2026-07-06)
+
+Pola multi-step wizard form reusable (Astro + vanilla JS, dipakai modul
+domain turunan mana pun yang butuh input bertahap) plus server-side draft
+persistence sebagai follow-up yang sengaja ditunda sampai ada bukti nyata
+kebutuhannya. Enam issue, seluruhnya `completed`:
+
+- **[#479](https://github.com/ahliweb/awcms-mini/issues/479)** — reusable multi-step wizard form pattern. PR [#480](https://github.com/ahliweb/awcms-mini/pull/480).
+- **[#481](https://github.com/ahliweb/awcms-mini/issues/481)** — changeset untuk pola wizard form. PR [#486](https://github.com/ahliweb/awcms-mini/pull/486).
+- **[#482](https://github.com/ahliweb/awcms-mini/issues/482)** — contoh pemakaian di modul domain turunan (`docs/awcms-mini/examples/wizard-form-pattern.md`). PR [#487](https://github.com/ahliweb/awcms-mini/pull/487).
+- **[#483](https://github.com/ahliweb/awcms-mini/issues/483)** — fixture admin wizard minimal (bukti nyata pola bisa dipakai di admin shell). PR [#488](https://github.com/ahliweb/awcms-mini/pull/488).
+- **[#484](https://github.com/ahliweb/awcms-mini/issues/484)** — server-side form draft persistence (`awcms_mini_form_drafts`, `sql/019`) — di-unblock setelah #482/#483 landed sebagai bukti kebutuhan konkret. PR [#491](https://github.com/ahliweb/awcms-mini/pull/491).
+- **[#485](https://github.com/ahliweb/awcms-mini/issues/485)** — accessibility coverage untuk komponen wizard reusable. PR [#489](https://github.com/ahliweb/awcms-mini/pull/489).
+
+Didokumentasikan penuh di `docs/awcms-mini/examples/wizard-form-pattern.md`,
+`src/modules/form-drafts/README.md`, dan skill `awcms-mini-wizard-form`/
+`awcms-mini-form-drafts`.
 
 ### Issue pasca-analisis #461-#465, #473, #475 completed (2026-07-06 s.d. 2026-07-07)
 
