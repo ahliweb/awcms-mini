@@ -203,11 +203,121 @@ describe("resolvePublicTenantFromRequest — mode gating and fallback order", ()
     expect(deps.resolvePublicTenantByHost).not.toHaveBeenCalled();
   });
 
-  for (const otherMode of [
-    "env_default",
-    "setup_default",
-    "tenant_code_legacy"
-  ]) {
+  describe("mode=tenant_code_legacy (Issue #560 decision)", () => {
+    test("returns null unconditionally, without attempting the host lookup step", async () => {
+      const deps = makeDeps({
+        resolvePublicTenantByHost: mock(async () => SAMPLE_TENANT)
+      });
+
+      const request = new Request("http://ignored.test/", {
+        headers: { host: "tenant-one.example.com" }
+      });
+
+      const result = await resolvePublicTenantFromRequest(
+        FAKE_SQL,
+        request,
+        { mode: "tenant_code_legacy" },
+        deps
+      );
+
+      expect(result).toBeNull();
+      expect(deps.resolvePublicTenantByHost).not.toHaveBeenCalled();
+    });
+
+    test("returns null even when PUBLIC_DEFAULT_TENANT_ID/CODE fallback would otherwise resolve — the whole fallback chain is skipped, not just host lookup", async () => {
+      const deps = makeDeps({
+        resolveDefaultPublicTenantFromEnv: mock(async () => SAMPLE_TENANT)
+      });
+
+      const request = new Request("http://ignored.test/", {
+        headers: { host: "tenant-one.example.com" }
+      });
+
+      const result = await resolvePublicTenantFromRequest(
+        FAKE_SQL,
+        request,
+        { mode: "tenant_code_legacy" },
+        deps
+      );
+
+      expect(result).toBeNull();
+      expect(deps.resolveDefaultPublicTenantFromEnv).not.toHaveBeenCalled();
+    });
+
+    test("returns null even when setup_state fallback would otherwise resolve", async () => {
+      const deps = makeDeps({
+        resolveDefaultPublicTenantFromSetupState: mock(
+          async () => SAMPLE_TENANT
+        )
+      });
+
+      const request = new Request("http://ignored.test/", {
+        headers: { host: "tenant-one.example.com" }
+      });
+
+      const result = await resolvePublicTenantFromRequest(
+        FAKE_SQL,
+        request,
+        { mode: "tenant_code_legacy" },
+        deps
+      );
+
+      expect(result).toBeNull();
+      expect(
+        deps.resolveDefaultPublicTenantFromSetupState
+      ).not.toHaveBeenCalled();
+    });
+
+    test("returns null for a bare host string input too (not only Request)", async () => {
+      const deps = makeDeps({
+        resolvePublicTenantByHost: mock(async () => SAMPLE_TENANT),
+        resolveDefaultPublicTenantFromEnv: mock(async () => SAMPLE_TENANT),
+        resolveDefaultPublicTenantFromSetupState: mock(
+          async () => SAMPLE_TENANT
+        )
+      });
+
+      const result = await resolvePublicTenantFromRequest(
+        FAKE_SQL,
+        "direct-host.example.com",
+        { mode: "tenant_code_legacy" },
+        deps
+      );
+
+      expect(result).toBeNull();
+      expect(deps.resolvePublicTenantByHost).not.toHaveBeenCalled();
+      expect(deps.resolveDefaultPublicTenantFromEnv).not.toHaveBeenCalled();
+      expect(
+        deps.resolveDefaultPublicTenantFromSetupState
+      ).not.toHaveBeenCalled();
+    });
+
+    test("is distinct from mode=undefined: unset mode still resolves via the fallback chain", async () => {
+      const deps = makeDeps({
+        resolveDefaultPublicTenantFromEnv: mock(async () => SAMPLE_TENANT)
+      });
+
+      const request = new Request("http://ignored.test/");
+
+      const unsetResult = await resolvePublicTenantFromRequest(
+        FAKE_SQL,
+        request,
+        {},
+        deps
+      );
+      expect(unsetResult).toEqual(SAMPLE_TENANT);
+
+      const legacyResult = await resolvePublicTenantFromRequest(
+        FAKE_SQL,
+        request,
+        { mode: "tenant_code_legacy" },
+        deps
+      );
+      expect(legacyResult).toBeNull();
+    });
+  });
+
+  for (const otherMode of ["env_default", "setup_default"]) {
     test(`mode=${otherMode}: host lookup step is never attempted (only host_default enables it)`, async () => {
       const deps = makeDeps({
         resolveDefaultPublicTenantFromSetupState: mock(

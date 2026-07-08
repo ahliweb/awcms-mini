@@ -26,20 +26,20 @@ menjembatani beberapa modul sekaligus (config, `tenant_domain` module baru,
 
 ## Status per issue (jangan bangun ulang yang sudah ada)
 
-| Issue | Scope                                                         | Status                                          |
-| ----- | ------------------------------------------------------------- | ----------------------------------------------- |
-| #556  | Online public mode config (`PUBLIC_*` env vars)               | **Selesai** — lihat §Config di bawah            |
-| #557  | Tenant domain/subdomain mapping schema                        | **Selesai** — lihat §Schema di bawah            |
-| #558  | Register module descriptor `tenant_domain`                    | **Selesai** — lihat §Module descriptor di bawah |
-| #559  | Public host tenant resolver (dengan fallback)                 | **Selesai** — lihat §Resolver di bawah          |
-| #560  | Rute publik `/news` untuk `blog_content`                      | Belum                                           |
-| #561  | Dokumentasi legacy `/blog/{tenantCode}`                       | Belum                                           |
-| #562  | Tenant domain management API                                  | Belum                                           |
-| #563  | Admin UI domain/subdomain                                     | Belum                                           |
-| #564  | Tenant settings untuk rute `/news` vs legacy (`blog_content`) | Belum                                           |
-| #565  | Tenant module presets (online/news/LAN/minimal)               | Belum                                           |
-| #566  | Tenant-module matrix admin UI                                 | Belum                                           |
-| #567  | Cloudflare DNS adapter (opsional)                             | Belum                                           |
+| Issue | Scope                                                         | Status                                            |
+| ----- | ------------------------------------------------------------- | ------------------------------------------------- |
+| #556  | Online public mode config (`PUBLIC_*` env vars)               | **Selesai** — lihat §Config di bawah              |
+| #557  | Tenant domain/subdomain mapping schema                        | **Selesai** — lihat §Schema di bawah              |
+| #558  | Register module descriptor `tenant_domain`                    | **Selesai** — lihat §Module descriptor di bawah   |
+| #559  | Public host tenant resolver (dengan fallback)                 | **Selesai** — lihat §Resolver di bawah            |
+| #560  | Rute publik `/news` untuk `blog_content`                      | **Selesai** — lihat §Rute publik `/news` di bawah |
+| #561  | Dokumentasi legacy `/blog/{tenantCode}`                       | Belum                                             |
+| #562  | Tenant domain management API                                  | Belum                                             |
+| #563  | Admin UI domain/subdomain                                     | Belum                                             |
+| #564  | Tenant settings untuk rute `/news` vs legacy (`blog_content`) | Belum                                             |
+| #565  | Tenant module presets (online/news/LAN/minimal)               | Belum                                             |
+| #566  | Tenant-module matrix admin UI                                 | Belum                                             |
+| #567  | Cloudflare DNS adapter (opsional)                             | Belum                                             |
 
 ## Yang sudah ada — pakai ulang, jangan re-derive
 
@@ -162,23 +162,58 @@ path: "/admin/tenant/domains", requiredPermission:
 
 ### Resolver (Issue #559, `src/lib/tenant/public-host-tenant-resolver.ts`)
 
-**Library saja** — belum dikonsumsi endpoint/route apa pun (itu #560). Lima
-fungsi: `normalizePublicHost`, `resolvePublicTenantByHost`,
+**Dikonsumsi oleh `/news` sejak Issue #560** (lihat §Rute publik `/news` di
+bawah) lewat `withNewsTenant()`
+(`src/modules/blog-content/application/public-news-tenant-resolution.ts`).
+Lima fungsi: `normalizePublicHost`, `resolvePublicTenantByHost`,
 `resolveDefaultPublicTenantFromEnv`, `resolveDefaultPublicTenantFromSetupState`,
 `resolvePublicTenantFromRequest` (orkestrator).
 
-**Urutan resolusi**: (1) host/domain mapping — HANYA jalan kalau
+**Urutan resolusi**: (0) `config.mode === "tenant_code_legacy"` → langsung
+`null`, skip langkah 1-4 seluruhnya — lihat §Keputusan `tenant_code_legacy`
+di bawah — → (1) host/domain mapping — HANYA jalan kalau
 `config.mode === "host_default"` — → (2) `PUBLIC_DEFAULT_TENANT_ID` → (3)
 `PUBLIC_DEFAULT_TENANT_CODE` (2-3 satu fungsi,
 `resolveDefaultPublicTenantFromEnv`, coba ID dulu lalu CODE) → (4)
 `awcms_mini_setup_state.tenant_id` → (5) `null` (404 generic). **Langkah
-2-4 SELALU jalan, terlepas dari mode** — itu "safe fallback" di judul
-issue; hanya langkah 1 (host lookup) yang digerbangi mode. Konsekuensi
-keamanan yang disengaja: deployment yang tidak pernah set
+2-4 SELALU jalan untuk setiap mode KECUALI `tenant_code_legacy` (langkah 0)** — itu "safe fallback" di judul issue #559; untuk mode lain (termasuk
+`undefined`/tidak diset), hanya langkah 1 (host lookup) yang digerbangi
+mode. Konsekuensi keamanan yang disengaja: deployment yang tidak pernah set
 `PUBLIC_TENANT_RESOLUTION_MODE=host_default` (termasuk semua deployment
 offline/LAN existing yang tidak set `PUBLIC_*` sama sekali) TIDAK PERNAH
 menyentuh fungsi bootstrap `awcms_mini_tenant_domains` — permukaan lebih
 kecil, bukan cuma code path lebih pendek.
+
+#### Keputusan `tenant_code_legacy` (diputuskan Issue #560)
+
+Dua reviewer Issue #559 (awcms-mini-reviewer dan awcms-mini-security-auditor)
+menandai satu ambiguitas produk yang wajib diputuskan eksplisit sebelum
+`/news` dibangun: versi awal `resolvePublicTenantFromRequest()` menjalankan
+langkah 2-4 (fallback env→setup) untuk **SEMUA** mode, termasuk
+`tenant_code_legacy` — padahal mode itu secara semantik berarti "tidak ada
+tebakan tenant default, wajib `tenantCode` eksplisit di path", dan `/news`
+sama sekali tidak punya segmen `tenantCode` di path.
+
+**Keputusan final, diimplementasikan Issue #560**: ketika
+`config.mode === "tenant_code_legacy"`, `resolvePublicTenantFromRequest()`
+langsung `return null` — skip seluruh langkah 1-4, bukan cuma langkah 1
+seperti mode lain. Mode `undefined` (default offline/LAN hari ini, operator
+tidak pernah men-set var ini sama sekali) **TIDAK** diperlakukan sama
+dengan `tenant_code_legacy` eksplisit — `undefined` tetap menjalankan
+seluruh fallback chain 2-4, karena operator yang tidak pernah menyentuh
+`PUBLIC_TENANT_RESOLUTION_MODE` belum membuat pilihan eksplisit "tidak ada
+tebakan tenant default". Hanya operator yang benar-benar men-set
+`PUBLIC_TENANT_RESOLUTION_MODE=tenant_code_legacy` yang membuat pilihan itu
+secara sadar, dan `/news` menghormatinya dengan tidak pernah resolve tenant
+apa pun untuk mode tersebut.
+
+Test: `tests/unit/public-host-tenant-resolver.test.ts`'s
+`describe("mode=tenant_code_legacy (Issue #560 decision)", ...)` (termasuk
+bukti bahwa `undefined` mode tetap resolve lewat fallback chain, sementara
+`tenant_code_legacy` eksplisit tidak, bahkan saat `PUBLIC_DEFAULT_TENANT_ID`/
+`_CODE`/setup-state semuanya valid) dan
+`tests/integration/blog-content-public-news.integration.test.ts`'s dua test
+`mode=tenant_code_legacy`.
 
 **Fungsi `SECURITY DEFINER` bootstrap** — `sql/033_awcms_mini_tenant_domain_lookup_function.sql`
 (pakai checklist umum `SECURITY DEFINER` di
@@ -306,6 +341,89 @@ mocked `deps`, tanpa DB) dan
 nyata — setiap acceptance criterion issue #559, termasuk bukti RLS/bypass
 di atas).
 
+### Rute publik `/news` (Issue #560)
+
+Tujuh rute publik anonim di bawah `src/pages/news/` — persis analog rute
+`/blog/{tenantCode}/...` (Issue #540, skill `awcms-mini-blog-content`),
+me-reuse SEMUA application/domain service yang sama
+(`public-blog-directory.ts`, `public-page-rendering.ts`, `seo-rendering.ts`,
+`content-block-rendering.ts`, `blog-search.ts`'s `searchPublicBlogContent`,
+`error-responses.ts`). **Satu-satunya perbedaan**: resolusi tenant.
+`/blog/{tenantCode}/...` memakai `resolvePublicTenantByCode(sql,
+tenantCode)` dari path segment (ADR-0009); `/news/...` memakai
+`resolvePublicTenantFromRequest(sql, request, config)` (Issue #559) — tanpa
+segmen `tenantCode` di path sama sekali.
+
+```txt
+GET /news                         -> index (paginated)
+GET /news/{slug}                  -> detail post
+GET /news/category/{slug}         -> arsip kategori
+GET /news/tag/{slug}              -> arsip tag
+GET /news/search?q=               -> search publik
+GET /news/feed.xml                -> RSS 2.0
+GET /news/sitemap-news.xml        -> sitemap protocol 0.9
+```
+
+Semua `.ts` `APIRoute` (bukan `.astro`), pola sama persis rute
+`/blog/{tenantCode}` — testable lewat `tests/integration/harness.ts`'s
+`invoke()`/`invokeRaw()`.
+
+**Helper bersama**:
+`src/modules/blog-content/application/public-news-tenant-resolution.ts`'s
+`withNewsTenant(sql, request, handler, env?)` — dipakai ketujuh rute,
+memusatkan dua langkah wajib sebelum query post apa pun:
+
+1. `buildPublicHostResolverConfigFromEnv(env)` membangun
+   `PublicHostResolverConfig` dari `process.env.PUBLIC_TENANT_RESOLUTION_MODE`/
+   `process.env.PUBLIC_TRUST_PROXY` (dua env var Issue #556 — resolver #559
+   sendiri sengaja tidak membaca `process.env` untuk keduanya, lihat
+   §Resolver), lalu memanggil `resolvePublicTenantFromRequest`. `null` →
+   seluruh helper return `null`.
+2. **Module-disabled gate (acceptance criterion eksplisit Issue #560, DAN
+   gap yang belum ada bahkan di `/blog/{tenantCode}` existing)**: setelah
+   tenant resolve, `fetchTenantModuleEntries(tx, tenantId)`
+   (`module-management/application/tenant-module-lifecycle.ts`, sudah ada)
+   dipanggil **di dalam** `withTenant(...)` yang sama, **sebelum** `handler`
+   (yang query post) dijalankan. Kalau entry `blog_content`'s
+   `tenantEnabled === false`, helper return `null` — rute memetakannya ke
+   404 generic yang identik dengan tenant tidak resolve, tidak pernah
+   membedakan "module disabled" vs "tenant tidak ada" vs "host tidak
+   dikenal" dari luar.
+
+Setiap rute lalu: `const result = await withNewsTenant(sql, request, async
+(tx, tenant) => { ...; return new Response(...); }); return result ??
+notFoundHtmlResponse();` (atau `notFoundXmlResponse()` untuk feed/sitemap).
+Post-not-found di dalam `handler` juga cukup `return null` — collapse ke
+404 generic yang sama, tidak perlu dibedakan dari kasus tenant/module.
+
+**Catatan pre-existing gap, TIDAK diperbaiki di Issue #560 (di luar
+scope)**: rute `/blog/{tenantCode}` existing (Issue #540) **tidak** punya
+cek module-disabled sama sekali — tenant yang menonaktifkan `blog_content`
+lewat `/api/v1/tenant/modules/blog_content/disable` tetap bisa diakses
+publik lewat `/blog/{tenantCode}`. Follow-up yang disarankan: issue
+terpisah untuk retrofit cek yang sama ke `/blog/{tenantCode}` (reuse
+`withNewsTenant`'s pola module-disabled check, atau ekstrak helper yang
+lebih generik kalau retrofit itu dikerjakan).
+
+**Helper rendering yang diperluas** (refactor murni, tanpa perubahan
+behavior untuk `/blog/{tenantCode}`):
+`public-page-rendering.ts`'s `renderPostSummaryListHtml(tenantCode, ...)`
+sekarang delegasi ke `renderPostSummaryListHtmlAtBasePath(basePath, ...)`
+generik baru (`basePath` = `/blog/{tenantCode}` untuk wrapper lama, `/news`
+untuk rute baru) — byte-for-byte identik untuk pemanggil lama.
+`renderPaginationNavHtml` sudah generik sejak awal (parameter `basePath`),
+tidak perlu diubah.
+
+Canonical URL/feed/sitemap semua literal `/news` (bukan konsumsi
+`PUBLIC_CANONICAL_BASE_PATH` — var itu divalidasi sejak Issue #556 tapi
+belum dikonsumsi kode manapun; `/news` di issue ini adalah path file tetap,
+bukan basePath yang dikonfigurasi via env).
+
+Test: `tests/integration/blog-content-public-news.integration.test.ts` —
+setiap acceptance criterion (listing/detail/draft-review-scheduled-archived-
+private-unlisted-soft-deleted visibility, canonical URL, feed/sitemap link
+base, module-disabled 404, `tenant_code_legacy` 404, isolasi lintas tenant).
+
 ## Aturan lintas-issue yang wajib diikuti
 
 1. **Backward compatibility non-negotiable**: setiap deployment offline/LAN existing yang tidak pernah set `PUBLIC_*` apa pun harus tetap `config:validate` PASS dan berperilaku persis seperti sebelum epic ini — jangan pernah membuat salah satu dari enam var config ini menjadi wajib secara default.
@@ -317,18 +435,28 @@ di atas).
 7. **Provider secret (mis. Cloudflare API token, #567) tidak pernah disimpan di module descriptor atau kolom DB biasa** — pakai environment variable seperti provider lain (Mailketing, R2), dan `configure`-only permission gate seperti pola `email`/`sync-storage` provider config.
 8. **Semua mutasi domain/module (create/update/delete domain mapping, enable/disable module preset) wajib diaudit** — pola `recordAuditEvent` yang sama dipakai modul lain, action literal sesuai konvensi modul (`tenant_domain.<resource>.<verb>` mengikuti pola `blog.<resource>.<verb>` dari blog_content). Resolver #559 sendiri **bukan** mutasi (read-only, anonymous) — tidak diaudit, sama seperti `resolvePublicTenantByCode` (ADR-0009) tidak diaudit.
 9. **Cloudflare DNS adapter (#567) adalah opsional/enhancement**, bukan hard dependency — epic #555 §Out of scope eksplisit menyebut "making Cloudflare DNS automation a hard dependency" di luar scope. Tenant domain mapping (#557/#562) harus tetap berfungsi tanpa Cloudflare sama sekali (manual DNS setup oleh operator).
-10. **#560's `/news` routes harus reuse `resolvePublicTenantFromRequest()` (Issue #559) langsung** — jangan re-derive hostname→tenant lookup logic lain. `config.mode` untuk panggilan itu dibangun dari `PUBLIC_TENANT_RESOLUTION_MODE`/`PUBLIC_TRUST_PROXY` di `process.env` (resolver sendiri tidak membaca `process.env` untuk keduanya — sengaja, untuk testability; lihat §Resolver). `#562`'s admin API (mutasi domain, tenant-scoped, authenticated) **TIDAK** boleh reuse resolver #559 (yang anonymous/pre-tenant-context) — API #562 memakai `withTenant(...)` biasa seperti endpoint tenant-scoped lain, RLS `awcms_mini_tenant_domains` yang menjaga isolasinya, bukan fungsi `SECURITY DEFINER` (fungsi itu murni untuk bootstrap publik tanpa tenant context).
+10. **`/news` routes (Issue #560, selesai) reuse `resolvePublicTenantFromRequest()` (Issue #559) langsung** lewat `withNewsTenant()` helper — tidak re-derive hostname→tenant lookup logic lain. `config.mode` untuk panggilan itu dibangun dari `PUBLIC_TENANT_RESOLUTION_MODE`/`PUBLIC_TRUST_PROXY` di `process.env` (resolver sendiri tidak membaca `process.env` untuk keduanya — sengaja, untuk testability; lihat §Resolver). `#562`'s admin API (mutasi domain, tenant-scoped, authenticated) **TIDAK** boleh reuse resolver #559 (yang anonymous/pre-tenant-context) — API #562 memakai `withTenant(...)` biasa seperti endpoint tenant-scoped lain, RLS `awcms_mini_tenant_domains` yang menjaga isolasinya, bukan fungsi `SECURITY DEFINER` (fungsi itu murni untuk bootstrap publik tanpa tenant context).
 
 ## Belum ada — jangan asumsikan sudah dikerjakan
 
-Isu #560-#567 (rute publik `/news`, dokumentasi legacy, API tenant domain,
-admin UI domain, tenant settings rute `/news`/legacy di `blog_content`,
-module presets, matrix UI admin, dan adapter Cloudflare DNS) **belum ada**
-— hanya lapisan config (#556), schema `awcms_mini_tenant_domains` (#557),
-module descriptor `tenant_domain` (#558), dan resolver host-based (#559)
-yang selesai. Resolver #559 adalah **library murni** — belum dikonsumsi
-endpoint/route apa pun (menunggu #560). Tabel `awcms_mini_tenant_domains`
-masih berisi schema + constraint + RLS + permission catalog seed + fungsi
-lookup `SECURITY DEFINER` saja — belum ada baris yang pernah ditulis lewat
-kode aplikasi (menunggu #562's API); resolver #559 hanya bisa MEMBACA baris
-yang di-seed manual/via test, bukan menulisnya.
+Isu #561-#567 (dokumentasi legacy, API tenant domain, admin UI domain,
+tenant settings rute `/news`/legacy di `blog_content`, module presets,
+matrix UI admin, dan adapter Cloudflare DNS) **belum ada** — lapisan config
+(#556), schema `awcms_mini_tenant_domains` (#557), module descriptor
+`tenant_domain` (#558), resolver host-based (#559), dan rute publik
+`/news` (#560) sudah selesai (lihat §Rute publik `/news` di atas). Tabel
+`awcms_mini_tenant_domains` masih berisi schema + constraint + RLS +
+permission catalog seed + fungsi lookup `SECURITY DEFINER` saja — belum
+ada baris yang pernah ditulis lewat kode aplikasi (menunggu #562's API);
+resolver #559 hanya bisa MEMBACA baris yang di-seed manual/via test, bukan
+menulisnya — `/news` (#560) karena itu, sampai #562 ada, hanya bisa
+resolve tenant lewat fallback env/setup-state (langkah 2-4), tidak pernah
+lewat host/domain mapping asli (langkah 1) kecuali baris
+`awcms_mini_tenant_domains` di-seed manual.
+
+**Follow-up keamanan wajib diselesaikan sebelum `PUBLIC_TENANT_RESOLUTION_MODE=host_default` diaktifkan di production** (ditemukan `awcms-mini-security-auditor` saat audit #560, verdict PASS tapi non-blocking karena `host_default` belum bisa resolve apa pun secara nyata hari ini — lihat alasan di atas):
+
+1. **Timing side-channel di `withNewsTenant`** (`public-news-tenant-resolution.ts`): tiga outcome yang seharusnya identik (tenant tidak resolve / `tenant_code_legacy` / module `blog_content` disabled untuk tenant) punya biaya latency berbeda — tenant tidak resolve = tidak buka transaksi sama sekali (tercepat); tenant resolve tapi module disabled = buka `withTenant` + 1 query `fetchTenantModuleEntries` (medium); tenant resolve + module enabled = ditambah query bisnis (paling lambat). Prober eksternal dengan `Host` header berbeda-beda bisa membedakan "hostname termapping ke tenant aktif" dari "hostname tidak dikenal" murni lewat waktu respons, begitu #562 mengisi `awcms_mini_tenant_domains` dengan mapping nyata. **Fix sebelum #562 go-live**: satukan jadi satu query (pola sama seperti fix timing side-channel di migration 033/#559 — gabungkan cek module-enabled ke query resolusi tenant yang sama, atau tambahkan cost tetap di jalur tidak-resolve).
+2. **`fetchTenantModuleEntries` membaca status SEMUA modul terdaftar**, bukan cuma `blog_content` (`public-news-tenant-resolution.ts`) — bukan risiko DoS nyata (satu query indexed murah, filtering di memori), tapi melanggar prinsip "read surface publik seminimal mungkin" resolver #559. Pertimbangkan helper single-module lookup sebagai penyempitan opsional sebelum #562.
+
+Sudah diperbaiki di #560 (bukan follow-up lagi): guard module-disabled sekarang fail-closed (`!blogContentEntry?.tenantEnabled`, bukan `blogContentEntry && !blogContentEntry.tenantEnabled`) — entry yang hilang dianggap disabled, bukan enabled by default.

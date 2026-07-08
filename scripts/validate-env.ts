@@ -49,7 +49,24 @@
  *         PUBLIC_DEFAULT_TENANT_ID / PUBLIC_DEFAULT_TENANT_CODE.
  *       - mode === "setup_default" / "tenant_code_legacy" need no extra
  *         var here (setup_default's default tenant lives in DB via the
- *         Setup Wizard; tenant_code_legacy is today's behavior).
+ *         Setup Wizard; tenant_code_legacy needs nothing because it
+ *         explicitly disables default-tenant guessing altogether — see
+ *         below). This is a config-shape statement only (no *extra*
+ *         required var for either mode); it does not claim the two modes
+ *         behave the same at runtime.
+ *       - `tenant_code_legacy` is NOT simply "leave PUBLIC_TENANT_RESOLUTION_MODE
+ *         unset" under a different name, despite both needing no extra var
+ *         here. Decided explicitly in Issue #560 (an ambiguity two Issue
+ *         #559 reviewers flagged): `resolvePublicTenantFromRequest()`
+ *         (`src/lib/tenant/public-host-tenant-resolver.ts`) returns `null`
+ *         unconditionally for `tenant_code_legacy` — it never falls back to
+ *         `PUBLIC_DEFAULT_TENANT_ID`/`_CODE`/the setup-wizard tenant either
+ *         — because this mode means the operator explicitly opted OUT of
+ *         any default-tenant guess (every route must carry its own
+ *         `tenantCode`, which `/blog/{tenantCode}` does and `/news`, Issue
+ *         #560, structurally cannot). Leaving the var unset, by contrast,
+ *         still runs the full safe-fallback chain for `/news` — that
+ *         deployment never made an explicit "no default tenant" choice.
  *       - PUBLIC_CANONICAL_BASE_PATH, if set, must be an absolute path
  *         (leading "/", no whitespace, no trailing slash unless it is
  *         exactly "/", no "//"). Left unset it defaults to `/news`

@@ -125,14 +125,16 @@ planned_), tidak diubah oleh epic ini.
 
 ### Public routing (opsional, online-first — Issue #556, epic #555)
 
-**Config-only.** Menyiapkan environment variable untuk mode public tenant
-routing online, tanpa mengimplementasikan schema tenant-domain, rute publik
-`/news`, atau resolver host-based — itu issue lanjutan #557-#567 di epic
-yang sama. Default (semua var di bawah tidak di-set) tetap kompatibel
-dengan deployment offline/LAN yang sudah ada: rute publik hanya lewat
-`/blog/{tenantCode}` legacy, tanpa resolusi tenant dari host — **offline/LAN
-tetap default, bukan online-first**. `scripts/validate-env.ts`
-(`checkPublicRoutingConfig`) menegakkan tabel ini.
+**Config-only saat Issue #556 ditulis** — tabel var di bawah masih berlaku
+identik, tapi konsumennya sudah bertambah sejak saat itu: schema
+tenant-domain (#557), module descriptor `tenant_domain` (#558), resolver
+host-based `resolvePublicTenantFromRequest` (#559), dan rute publik `/news`
+(#560, lihat `src/modules/blog-content/README.md` §Rute publik `/news`)
+semuanya sudah ada dan membaca var-var ini. Default (semua var di bawah
+tidak di-set) tetap kompatibel dengan deployment offline/LAN yang sudah
+ada: rute publik hanya lewat `/blog/{tenantCode}` legacy, tanpa resolusi
+tenant dari host — **offline/LAN tetap default, bukan online-first**.
+`scripts/validate-env.ts` (`checkPublicRoutingConfig`) menegakkan tabel ini.
 
 | Var                             | Wajib                                     | Default             | Sensitif | Fungsi                                                                                                   |
 | ------------------------------- | ----------------------------------------- | ------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
@@ -146,8 +148,16 @@ tetap default, bukan online-first**. `scripts/validate-env.ts`
 Aturan validasi cross-field (keputusan desain Issue #556, didokumentasikan
 di sini karena issue tidak merincinya secara eksplisit):
 
-- `PUBLIC_TENANT_RESOLUTION_MODE` tidak di-set → **bukan error**; setara
-  perilaku `tenant_code_legacy` hari ini, tidak ada var lain yang wajib.
+- `PUBLIC_TENANT_RESOLUTION_MODE` tidak di-set → **bukan error**, tidak ada
+  var lain yang wajib — sama seperti `tenant_code_legacy` di lapisan
+  _validasi config_ ini (keduanya tidak mewajibkan var tambahan apa pun).
+  **Tapi keduanya BUKAN perilaku yang sama di resolver runtime** (keputusan
+  eksplisit Issue #560, `src/lib/tenant/public-host-tenant-resolver.ts`'s
+  `resolvePublicTenantFromRequest`): mode tidak di-set (`undefined`) tetap
+  menjalankan seluruh fallback chain env→setup untuk rute tanpa `tenantCode`
+  (`/news`), sedangkan `tenant_code_legacy` eksplisit selalu me-return
+  `null` tanpa mencoba fallback apa pun — mode itu berarti operator secara
+  eksplisit memilih "tidak ada tebakan tenant default sama sekali".
 - `host_default` → `PUBLIC_PLATFORM_ROOT_DOMAIN` **wajib**. Resolver
   host-based (Issue #559) mencocokkan `Host`/subdomain masuk terhadap root
   domain ini untuk membedakan subdomain tenant yang valid dari host asing —

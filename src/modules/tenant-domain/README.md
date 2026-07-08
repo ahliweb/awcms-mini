@@ -126,38 +126,56 @@ ever will be, a runtime secret/token/credential — a hard rule from
 ## Resolver (`src/lib/tenant/public-host-tenant-resolver.ts`, Issue #559)
 
 Public host-based tenant resolution with offline/LAN-safe fallback.
-**Library only** — not yet consumed by any route/endpoint (that is #560's
-`/news` routes). Five functions: `normalizePublicHost` (strip port,
-lowercase, validate DNS hostname shape — throws only on an empty input,
-never on a merely-malformed one), `resolvePublicTenantByHost` (queries
+**Consumed by `/news` (Issue #560)** since that issue landed — via
+`withNewsTenant()` (`src/modules/blog-content/application/public-news-tenant-resolution.ts`).
+Five functions: `normalizePublicHost` (strip port, lowercase, validate DNS
+hostname shape — throws only on an empty input, never on a
+merely-malformed one), `resolvePublicTenantByHost` (queries
 `awcms_mini_resolve_tenant_domain_lookup`, the migration-033 `SECURITY
 DEFINER` bootstrap function, then confirms the tenant itself is `active`),
 `resolveDefaultPublicTenantFromEnv` (`PUBLIC_DEFAULT_TENANT_ID` then
 `PUBLIC_DEFAULT_TENANT_CODE`), `resolveDefaultPublicTenantFromSetupState`
 (`awcms_mini_setup_state.tenant_id`, also RLS-free by design), and the
-orchestrator `resolvePublicTenantFromRequest`. Resolution order: host
+orchestrator `resolvePublicTenantFromRequest`. Resolution order:
+`config.mode === "tenant_code_legacy"` short-circuits straight to `null`
+(no fallback at all — decided in Issue #560, see below) -> otherwise host
 lookup (only when `PUBLIC_TENANT_RESOLUTION_MODE=host_default`) -> env ID
--> env CODE -> setup state -> `null`. The env/setup fallback chain always
-runs regardless of mode — every non-`host_default` mode (including unset,
-today's offline/LAN default) skips straight to it, so the
+-> env CODE -> setup state -> `null`. The env/setup fallback chain runs
+for every mode except `tenant_code_legacy` — every other mode (including
+unset, today's offline/LAN default) skips straight to it, so the
 `awcms_mini_tenant_domains` bootstrap function is never even reached by a
 deployment that hasn't opted into online routing. Every failure path —
 unknown host, non-`active` domain status, soft-deleted domain, inactive
-tenant — returns the same `null`, never a distinguishable error. Full
-mechanism/security writeup (including why the `SECURITY DEFINER` function
-is safe, verified empirically, not assumed) is in
+tenant, `tenant_code_legacy` mode — returns the same `null`, never a
+distinguishable error. Full mechanism/security writeup (including why the
+`SECURITY DEFINER` function is safe, verified empirically, not assumed,
+and the full `tenant_code_legacy` decision writeup) is in
 `.claude/skills/awcms-mini-tenant-domain-routing/SKILL.md` §Resolver.
 Tests: `tests/unit/public-host-tenant-resolver.test.ts` (pure, mocked
 deps) and `tests/integration/public-tenant-resolution.integration.test.ts`
 (real Postgres, including RLS/bypass proof).
 
+## `/news` public routes (Issue #560)
+
+`src/pages/news/` (in the `blog_content` module, not this one) now
+consumes the resolver above — see
+`src/modules/blog-content/README.md` §Public routes `/news` and
+`.claude/skills/awcms-mini-tenant-domain-routing/SKILL.md` §Rute publik
+`/news` for the full writeup. This module (`tenant_domain`) is unchanged by
+that issue — it still only owns the `awcms_mini_tenant_domains` schema,
+the `SECURITY DEFINER` lookup function, and this descriptor.
+
 ## Not yet available
 
-- Tenant domain management API, `/api/v1/tenant/domains` (Issue #562).
+- Tenant domain management API, `/api/v1/tenant/domains` (Issue #562) —
+  until this lands, `awcms_mini_tenant_domains` has no application code
+  writing rows to it at all (only the resolver's read path exists), so
+  `/news`'s host-based lookup (resolution step 1, `host_default` mode) has
+  nothing to match against in a real deployment yet; `/news` still works
+  today via the env/setup-state fallback (steps 2-4).
 - Admin UI, `/admin/tenant/domains` (Issue #563).
-- `/news` public routes for `blog_content` (Issue #560) and the tenant
-  setting that chooses between `/news` and legacy `/blog/{tenantCode}`
-  (Issue #564).
+- The tenant setting that chooses between `/news` and legacy
+  `/blog/{tenantCode}` (Issue #564).
 - Optional Cloudflare DNS adapter (Issue #567) — explicitly out of scope
   for the whole epic as a hard dependency; manual DNS setup by the
   operator must keep working without it.

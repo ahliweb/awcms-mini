@@ -49,11 +49,18 @@ ${options.bodyHtml}
 /**
  * A list of post summaries + prev/next pagination links — shared by the
  * index, category archive, tag archive, and search result pages (Issue
- * #540) so the four route files don't each hand-roll the same list markup
- * independently.
+ * #540, extended to `/news` in Issue #560) so route files don't each
+ * hand-roll the same list markup independently. `basePath` is the public
+ * listing root each post detail link is built under (`/blog/{tenantCode}`
+ * for the legacy per-tenant-code routes, `/news` for Issue #560's routes) —
+ * `renderPostSummaryListHtml` below is the pre-existing `/blog/{tenantCode}`
+ * convenience wrapper, kept byte-for-byte behavior-identical (same
+ * `escapeHtml` semantics apply whether the tenant code is escaped on its
+ * own or as part of the whole base path string) so no existing call site
+ * needed to change.
  */
-export function renderPostSummaryListHtml(
-  tenantCode: string,
+export function renderPostSummaryListHtmlAtBasePath(
+  basePath: string,
   posts: readonly PublicPostLinkSummary[],
   emptyMessage: string
 ): string {
@@ -64,11 +71,24 @@ export function renderPostSummaryListHtml(
   return posts
     .map(
       (post) => `<article>
-  <h2><a href="/blog/${escapeHtml(tenantCode)}/${escapeHtml(post.slug)}">${escapeHtml(post.title)}</a></h2>
+  <h2><a href="${escapeHtml(basePath)}/${escapeHtml(post.slug)}">${escapeHtml(post.title)}</a></h2>
   ${post.excerpt ? `<p>${escapeHtml(post.excerpt)}</p>` : ""}
 </article>`
     )
     .join("\n");
+}
+
+/** `/blog/{tenantCode}` convenience wrapper — see `renderPostSummaryListHtmlAtBasePath` above. */
+export function renderPostSummaryListHtml(
+  tenantCode: string,
+  posts: readonly PublicPostLinkSummary[],
+  emptyMessage: string
+): string {
+  return renderPostSummaryListHtmlAtBasePath(
+    `/blog/${tenantCode}`,
+    posts,
+    emptyMessage
+  );
 }
 
 export function renderPaginationNavHtml(
