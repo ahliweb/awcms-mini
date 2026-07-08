@@ -34,7 +34,7 @@ menjembatani beberapa modul sekaligus (config, `tenant_domain` module baru,
 | #559  | Public host tenant resolver (dengan fallback)                 | **Selesai** — lihat §Resolver di bawah                                           |
 | #560  | Rute publik `/news` untuk `blog_content`                      | **Selesai** — lihat §Rute publik `/news` di bawah                                |
 | #561  | Dokumentasi legacy `/blog/{tenantCode}`                       | **Selesai** — lihat ADR-0010, `blog-content/README.md`, `deployment-profiles.md` |
-| #562  | Tenant domain management API                                  | Belum                                                                            |
+| #562  | Tenant domain management API                                  | **Selesai** — lihat §API di bawah                                                |
 | #563  | Admin UI domain/subdomain                                     | Belum                                                                            |
 | #564  | Tenant settings untuk rute `/news` vs legacy (`blog_content`) | Belum                                                                            |
 | #565  | Tenant module presets (online/news/LAN/minimal)               | Belum                                                                            |
@@ -424,6 +424,83 @@ setiap acceptance criterion (listing/detail/draft-review-scheduled-archived-
 private-unlisted-soft-deleted visibility, canonical URL, feed/sitemap link
 base, module-disabled 404, `tenant_code_legacy` 404, isolasi lintas tenant).
 
+### API tenant domain management (Issue #562, `src/pages/api/v1/tenant/domains/**`)
+
+Authenticated, tenant-scoped CRUD + lifecycle di atas
+`awcms_mini_tenant_domains` — kode aplikasi PERTAMA yang pernah menulis baris
+ke tabel ini (resolver #559 hanya pernah membacanya). Tidak ada admin UI
+(#563), tidak ada panggilan Cloudflare DNS (#567) — API-only, persis scope
+issue.
+
+```txt
+GET    /api/v1/tenant/domains              list, keyset-paginated
+POST   /api/v1/tenant/domains              create
+GET    /api/v1/tenant/domains/{id}         read one
+PATCH  /api/v1/tenant/domains/{id}         partial update
+DELETE /api/v1/tenant/domains/{id}         soft delete
+POST   /api/v1/tenant/domains/{id}/verify        manual-first verify
+POST   /api/v1/tenant/domains/{id}/set-primary   atomic primary swap
+```
+
+Pola akses data mengikuti aturan #10 di bawah dengan ketat: setiap query di
+`tenant-domain/application/tenant-domain-directory.ts` jalan di dalam
+`withTenant(...)` biasa (RLS `FORCE` sebagai defense-in-depth di atas filter
+`tenant_id` eksplisit) — **tidak pernah** lewat fungsi `SECURITY DEFINER`
+migration 033 (fungsi itu tetap eksklusif untuk resolver publik anonim
+#559). Validasi hostname (`tenant-domain/domain/tenant-domain-validation.ts`)
+me-reuse `normalizePublicHost()` (#559) langsung, bukan opini shape kedua.
+
+Union `AccessAction` (`identity-access/domain/access-control.ts`) diperluas
+dengan `verify`/`set_primary` di issue ini — migrasi 032 sudah menyeed kedua
+permission itu sejak #557, tapi tidak ada konsumen sampai sekarang. Keduanya
+**tidak** masuk `HIGH_RISK_ACTIONS` (pola sama seperti `retry`/`sync`/
+`enable`/`disable`/`check`/`publish` — lihat `identity-access/README.md`),
+tapi keduanya tetap **wajib** `Idempotency-Key` (skill
+`awcms-mini-idempotency`, scope `tenant_domain_verify`/
+`tenant_domain_set_primary`) dan tetap diaudit eksplisit
+(`tenant_domain.domain.verified`/`.set_primary`) terlepas dari klasifikasi
+itu.
+
+Constraint global `awcms_mini_tenant_domains_normalized_hostname_dedup`
+(migration 031, LINTAS tenant) di-catch di `POST /api/v1/tenant/domains` dan
+selalu dipetakan ke `409 HOSTNAME_CONFLICT` generik — tidak pernah
+membedakan "hostname ini sudah milikmu sendiri" vs "hostname ini sudah
+dipakai tenant lain" (binding rule §Security notes issue #562, sejalan
+dengan aturan #5 di bawah). Unknown/cross-tenant/soft-deleted id semuanya
+jatuh ke 404 generik yang sama lewat filter `tenant_id`/`deleted_at IS NULL`
+eksplisit plus RLS `FORCE` di baliknya.
+
+`set-primary` atomic karena `withTenant` sudah membuka satu transaksi
+`sql.begin(...)` per request, dan `setPrimaryTenantDomain` menjalankan dua
+UPDATE di transaksi yang sama dengan urutan tetap (unset primary lama
+DULU, baru set primary baru) — index unique parsial
+`awcms_mini_tenant_domains_primary_dedup` tidak pernah dilanggar
+mid-transaction untuk swap sekuensial (tenant yang sudah punya primary).
+**Post-review fix (Medium finding, security audit #562):** untuk tenant
+yang belum PERNAH punya primary, dua request `set-primary` konkuren untuk
+dua domain berbeda sama-sama match nol baris di UPDATE "unset" (tidak ada
+yang perlu di-unset), jadi keduanya lolos ke UPDATE "set" tanpa saling
+memblokir — satu di antaranya kalah ke index unique saat commit.
+`setPrimaryTenantDomain` sekarang membungkus UPDATE kedua dengan
+`try/catch` yang menangkap pelanggaran `awcms_mini_tenant_domains_primary_dedup`
+dan mengembalikan `{ outcome: "conflict" }` (pola sama seperti
+`createTenantDomain`'s catch untuk hostname-dedup), dipetakan rute ke
+`409 CONCURRENT_UPDATE` generik — bukan 500 dengan raw constraint error.
+Diuji `tests/integration/tenant-domain-api.integration.test.ts`'s
+"set-primary under concurrent first-time race" (dua request paralel via
+`Promise.all`, assert satu 200 + satu 409, dan DB akhirnya cuma satu baris
+`is_primary = true`). `verify` manual-first murni (tidak ada panggilan
+DNS/HTTP keluar di issue ini), hanya membalik `status` berdasarkan
+`verification_method` yang sudah ada di baris. `verification_token_hash`
+tidak pernah di-`SELECT` oleh `tenant-domain-directory.ts` sama sekali,
+apalagi dikembalikan di response manapun.
+
+Detail lengkap (termasuk kenapa `hostname` immutable setelah create, kenapa
+`is_primary` tidak pernah settable lewat `PATCH` generik, dan daftar
+lengkap acceptance criterion) ada di
+`src/modules/tenant-domain/README.md` §Tenant domain management API. Test:
+`tests/integration/tenant-domain-api.integration.test.ts`.
+
 ## Aturan lintas-issue yang wajib diikuti
 
 1. **Backward compatibility non-negotiable**: setiap deployment offline/LAN existing yang tidak pernah set `PUBLIC_*` apa pun harus tetap `config:validate` PASS dan berperilaku persis seperti sebelum epic ini — jangan pernah membuat salah satu dari enam var config ini menjadi wajib secara default.
@@ -457,7 +534,16 @@ lewat host/domain mapping asli (langkah 1) kecuali baris
 
 **Follow-up keamanan wajib diselesaikan sebelum `PUBLIC_TENANT_RESOLUTION_MODE=host_default` diaktifkan di production** (ditemukan `awcms-mini-security-auditor` saat audit #560, verdict PASS tapi non-blocking karena `host_default` belum bisa resolve apa pun secara nyata hari ini — lihat alasan di atas):
 
-1. **Timing side-channel di `withNewsTenant`** (`public-news-tenant-resolution.ts`): tiga outcome yang seharusnya identik (tenant tidak resolve / `tenant_code_legacy` / module `blog_content` disabled untuk tenant) punya biaya latency berbeda — tenant tidak resolve = tidak buka transaksi sama sekali (tercepat); tenant resolve tapi module disabled = buka `withTenant` + 1 query `fetchTenantModuleEntries` (medium); tenant resolve + module enabled = ditambah query bisnis (paling lambat). Prober eksternal dengan `Host` header berbeda-beda bisa membedakan "hostname termapping ke tenant aktif" dari "hostname tidak dikenal" murni lewat waktu respons, begitu #562 mengisi `awcms_mini_tenant_domains` dengan mapping nyata. **Fix sebelum #562 go-live**: satukan jadi satu query (pola sama seperti fix timing side-channel di migration 033/#559 — gabungkan cek module-enabled ke query resolusi tenant yang sama, atau tambahkan cost tetap di jalur tidak-resolve).
-2. **`fetchTenantModuleEntries` membaca status SEMUA modul terdaftar**, bukan cuma `blog_content` (`public-news-tenant-resolution.ts`) — bukan risiko DoS nyata (satu query indexed murah, filtering di memori), tapi melanggar prinsip "read surface publik seminimal mungkin" resolver #559. Pertimbangkan helper single-module lookup sebagai penyempitan opsional sebelum #562.
+1. **`fetchTenantModuleEntries` membaca status SEMUA modul terdaftar**, bukan cuma `blog_content` (`public-news-tenant-resolution.ts`) — bukan risiko DoS nyata (satu query indexed murah, filtering di memori), tapi melanggar prinsip "read surface publik seminimal mungkin" resolver #559. Pertimbangkan helper single-module lookup sebagai penyempitan opsional di masa depan (tidak diblokir go-live).
+
+**Follow-up non-blocking dari security audit #562** (verdict PASS, tidak ada Critical/High — kedua item ini dicatat sebagai perbaikan lanjutan, bukan gate merge):
+
+2. **Race idempotency-store lintas-modul** (`src/modules/_shared/idempotency.ts`, dipakai `verify`/`set-primary` #562 dan setiap endpoint idempotent lain di repo): dua request paralel dengan `Idempotency-Key` yang SAMA bisa sama-sama lolos `findIdempotencyRecord` di bawah READ COMMITTED sebelum salah satu commit, lalu `saveIdempotencyRecord`-nya yang kalah gagal pada unique index `awcms_mini_idempotency_keys_scope_key` (migration 012) tanpa ditangkap. Ini gap pre-existing pada helper bersama, bukan regresi khusus #562 — diwariskan tanpa perubahan oleh `verify`/`set-primary`. Track sebagai isu terpisah (bukan spesifik `tenant_domain`), perbaikannya idealnya di `_shared/idempotency.ts` sekali untuk semua konsumen.
+3. **Klasifikasi `set_primary` di luar `HIGH_RISK_ACTIONS`** (`identity-access/domain/access-control.ts`) layak ditinjau ulang untuk konsistensi jangka panjang — `isHighRiskAction()` tidak dikonsumsi di mana pun hari ini (murni metadata, audit dan `Idempotency-Key` tetap ditegakkan eksplisit per-endpoint terlepas dari klasifikasi ini), tapi blast radius `set_primary` (mengubah tenant mana yang jadi canonical redirect target untuk traffic publik anonim) berpotensi lebih besar daripada `delete` (yang sudah masuk `HIGH_RISK_ACTIONS`). Tidak berdampak fungsional sekarang; pertimbangkan saat `isHighRiskAction()` mulai dikonsumsi (mis. rate limiting tambahan, step-up auth).
 
 Sudah diperbaiki di #560 (bukan follow-up lagi): guard module-disabled sekarang fail-closed (`!blogContentEntry?.tenantEnabled`, bukan `blogContentEntry && !blogContentEntry.tenantEnabled`) — entry yang hilang dianggap disabled, bukan enabled by default.
+
+Sudah diperbaiki bersamaan dengan #562 (bukan follow-up lagi): **timing side-channel di `withNewsTenant`** (`public-news-tenant-resolution.ts`) — tiga outcome yang seharusnya identik (tenant tidak resolve / `tenant_code_legacy` / module `blog_content` disabled untuk tenant) dulu punya biaya latency berbeda (tenant tidak resolve = tidak buka transaksi sama sekali; tenant resolve tapi module disabled = buka `withTenant` + 1 query `fetchTenantModuleEntries`), sehingga prober eksternal dengan `Host` header berbeda-beda bisa membedakan "hostname termapping ke tenant aktif" dari "hostname tidak dikenal" murni lewat waktu respons begitu #562 mengisi `awcms_mini_tenant_domains` dengan mapping nyata. Fix: `padUnresolvedTenantLatency()` (baru,
+`public-news-tenant-resolution.ts`) membebankan biaya round-trip yang SAMA pada jalur "tenant tidak resolve" — buka transaksi lewat `withTenant` yang sama, `SET LOCAL` GUC tenant ke UUID nol (sentinel fail-closed migration 013, tidak pernah cocok dengan tenant nyata), lalu satu `SELECT` ke `awcms_mini_tenant_modules` — persis bentuk round-trip yang sudah dibayar jalur module-disabled lewat `fetchTenantModuleEntries`. Pola "tambahkan cost tetap di jalur tidak-resolve" (bukan "gabungkan jadi satu query" seperti migration 033/#559, karena jalur tidak-resolve secara struktural tidak punya `tenant_id` nyata untuk digabung ke query yang sama). Test:
+`tests/integration/blog-content-public-news.integration.test.ts`'s round-trip-counting test (pola Proxy yang sama seperti
+`tests/integration/public-tenant-resolution.integration.test.ts`, diperluas untuk mengintersep `sql.begin(...)`/method call pada `tx` juga, bukan cuma pemanggilan `sql` langsung).

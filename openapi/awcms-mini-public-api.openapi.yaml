@@ -3417,6 +3417,386 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/tenant/domains:
+    get:
+      tags:
+        - Tenant Domains
+      summary: List this tenant's domain/subdomain mappings (keyset-paginated, newest first)
+      operationId: tenantDomainsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Tenant domain mappings (limit 100), newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantDomainListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Tenant Domains
+      summary: Add a tenant domain/subdomain mapping
+      description: >-
+        Hostname must be a valid DNS hostname shape (reuses the same
+        normalization the public host resolver applies to an inbound `Host`
+        header — Issue #559) and must not already be mapped to any tenant
+        (the underlying unique index is global, not per-tenant): a
+        duplicate hostname always returns a generic `409
+        HOSTNAME_CONFLICT`, whether the existing mapping belongs to this
+        tenant or another one. `status` always starts `pending_verification`
+        — only `POST .../verify` can move it to `active`.
+      operationId: tenantDomainsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTenantDomainRequest"
+      responses:
+        "200":
+          description: Tenant domain mapping created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantDomainItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: >-
+            HOSTNAME_CONFLICT — this hostname is already mapped to a
+            tenant (never reveals whether it is this tenant's own mapping
+            or another tenant's).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant/domains/{id}:
+    get:
+      tags:
+        - Tenant Domains
+      summary: Read one tenant domain mapping
+      description: >-
+        An unknown id, a soft-deleted id, and another tenant's id all
+        return the exact same generic `404` — RLS makes a cross-tenant id
+        invisible before it can ever be distinguished from "doesn't exist".
+      operationId: tenantDomainsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The requested tenant domain mapping.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantDomainItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Tenant Domains
+      summary: Update a tenant domain/subdomain mapping
+      description: >-
+        Partial update. `hostname` is immutable after create; `is_primary`
+        is never settable here (only `POST .../set-primary` can change it);
+        `status` cannot be set to `"active"` here (only `POST .../verify`
+        can) — attempting either is rejected with `400 VALIDATION_ERROR`.
+        Idempotent by construction (same body -> same end state), no
+        `Idempotency-Key` needed.
+      operationId: tenantDomainsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTenantDomainRequest"
+      responses:
+        "200":
+          description: Tenant domain mapping updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantDomainItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Tenant Domains
+      summary: Soft-delete a tenant domain/subdomain mapping
+      description: >-
+        Soft delete only — never hard-deletes. Frees the normalized
+        hostname for reuse (the underlying unique index only applies to
+        non-deleted rows). `reason` is required.
+      operationId: tenantDomainsDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+      responses:
+        "200":
+          description: Tenant domain mapping deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - id
+                          - deleted
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant/domains/{id}/verify:
+    post:
+      tags:
+        - Tenant Domains
+      summary: Manually verify a tenant domain/subdomain mapping
+      description: >-
+        Manual-first verification (Issue #562 §Security notes) — flips
+        `status` from `pending_verification`/`failed` to `active` based
+        purely on fields already on the row (`verification_method` must be
+        configured first). No outbound DNS/HTTP call happens here.
+        Verifying an already-`active` domain is an idempotent no-op
+        (returns the current row). A `suspended` domain cannot be verified.
+      operationId: tenantDomainsVerify
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Tenant domain mapping verified (status "active").
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantDomainItem"
+        "400":
+          description: >-
+            Missing `Idempotency-Key`, or the domain has no
+            `verification_method` configured.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: >-
+            Idempotency-Key reused with a different request, or the
+            domain's current status (e.g. `suspended`) cannot be verified.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant/domains/{id}/set-primary:
+    post:
+      tags:
+        - Tenant Domains
+      summary: Atomically set a tenant domain as the active primary domain
+      description: >-
+        Atomic within a single transaction: unsets any previous primary
+        domain for this tenant, then sets this one, so at most one row is
+        ever the primary at a time. Only a verified (`active`) domain can
+        become primary.
+      operationId: tenantDomainsSetPrimary
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Tenant domain mapping set as primary.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantDomainItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: >-
+            Idempotency-Key reused with a different request, or the
+            domain is not currently `active` (must be verified first).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/health:
     get:
       tags:
@@ -7692,6 +8072,199 @@ components:
           type: string
           format: date-time
           nullable: true
+    TenantDomainItem:
+      type: object
+      description: >-
+        Never includes verification_token_hash (an internal bearer-token
+        hash) or any DNS provider secret — neither is ever returned by this
+        API (Issue #562 acceptance criteria).
+      required:
+        - id
+        - tenantId
+        - hostname
+        - normalizedHostname
+        - domainType
+        - routeMode
+        - status
+        - isPrimary
+        - redirectToPrimary
+        - verificationMethod
+        - verificationRecordName
+        - verificationRecordValue
+        - verifiedAt
+        - lastCheckedAt
+        - createdAt
+        - updatedAt
+        - createdBy
+        - updatedBy
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        hostname:
+          type: string
+        normalizedHostname:
+          type: string
+        domainType:
+          type: string
+          enum:
+            - subdomain
+            - custom_domain
+        routeMode:
+          type: string
+          enum:
+            - canonical
+            - legacy_blog
+        status:
+          type: string
+          enum:
+            - pending_verification
+            - active
+            - suspended
+            - failed
+        isPrimary:
+          type: boolean
+        redirectToPrimary:
+          type: boolean
+        verificationMethod:
+          type: string
+          nullable: true
+          enum:
+            - dns_txt
+            - dns_cname
+            - file
+            - manual
+        verificationRecordName:
+          type: string
+          nullable: true
+        verificationRecordValue:
+          type: string
+          nullable: true
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastCheckedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+          format: uuid
+          nullable: true
+        updatedBy:
+          type: string
+          format: uuid
+          nullable: true
+    TenantDomainListResponse:
+      type: object
+      required:
+        - domains
+        - nextCursor
+      additionalProperties: false
+      properties:
+        domains:
+          type: array
+          items:
+            $ref: "#/components/schemas/TenantDomainItem"
+        nextCursor:
+          type: string
+          nullable: true
+          description: >-
+            Opaque keyset pagination cursor; pass back as the `cursor` query
+            parameter to fetch the next page. `null` when this is the last
+            page.
+    CreateTenantDomainRequest:
+      type: object
+      required:
+        - hostname
+      additionalProperties: false
+      properties:
+        hostname:
+          type: string
+          description: >-
+            A valid DNS hostname (no port, no IPv6 literal) — reuses the
+            same shape check the public host resolver applies to an
+            inbound Host header.
+        domainType:
+          type: string
+          enum:
+            - subdomain
+            - custom_domain
+          description: Defaults to custom_domain.
+        routeMode:
+          type: string
+          enum:
+            - canonical
+            - legacy_blog
+          description: Defaults to canonical.
+        verificationMethod:
+          type: string
+          nullable: true
+          enum:
+            - dns_txt
+            - dns_cname
+            - file
+            - manual
+        verificationRecordName:
+          type: string
+          nullable: true
+        verificationRecordValue:
+          type: string
+          nullable: true
+        redirectToPrimary:
+          type: boolean
+          description: Defaults to false.
+    UpdateTenantDomainRequest:
+      type: object
+      description: >-
+        At least one field required. hostname/is_primary are not
+        updatable here; status cannot be set to "active" here.
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        domainType:
+          type: string
+          enum:
+            - subdomain
+            - custom_domain
+        routeMode:
+          type: string
+          enum:
+            - canonical
+            - legacy_blog
+        status:
+          type: string
+          enum:
+            - pending_verification
+            - suspended
+            - failed
+        verificationMethod:
+          type: string
+          nullable: true
+          enum:
+            - dns_txt
+            - dns_cname
+            - file
+            - manual
+        verificationRecordName:
+          type: string
+          nullable: true
+        verificationRecordValue:
+          type: string
+          nullable: true
+        redirectToPrimary:
+          type: boolean
     PermissionSyncEntry:
       type: object
       required:

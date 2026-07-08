@@ -27,7 +27,11 @@ import { fetchTenantModuleEntries } from "../../module-management/application/te
  * distinction between "tenant not found/inactive" and "tenant found but
  * blog_content disabled" — both must produce the exact same generic `null`
  * (which every caller maps to the same 404 response), per the epic's
- * binding security note (never expose *why* a public route 404s).
+ * binding security note (never expose *why* a public route 404s). Since
+ * Issue #562, that identical response is also cost-normalized: see
+ * `padUnresolvedTenantLatency` below for the timing side-channel fix that
+ * keeps these two outcomes indistinguishable by response latency, not just
+ * by response body.
  */
 export type NewsTenantHandler<T> = (
   tx: Bun.TransactionSQL,
@@ -35,6 +39,77 @@ export type NewsTenantHandler<T> = (
 ) => Promise<T>;
 
 const BLOG_CONTENT_MODULE_KEY = "blog_content";
+
+/**
+ * Timing side-channel fix (skill `awcms-mini-tenant-domain-routing` §Belum
+ * ada — Follow-up keamanan, item 1, flagged non-blocking during Issue #560
+ * review and required to close before Issue #562's API can populate
+ * `awcms_mini_tenant_domains` with real mappings in production). Before this
+ * fix, `withNewsTenant` had three outcomes with different latency: tenant
+ * not resolved (fastest — no DB transaction at all), tenant resolved but
+ * `blog_content` disabled (medium — opens `withTenant` + one
+ * `fetchTenantModuleEntries` query), tenant resolved and enabled (slowest —
+ * adds the actual content query). The first two both produce the exact same
+ * generic 404, so a prober varying the `Host` header could learn "this
+ * hostname maps to a real, active tenant" purely from response latency,
+ * without the response body ever differing — the same class of leak
+ * migration 033's fix closed for the host-lookup step itself (see that
+ * migration's comment for the precedent this mirrors).
+ *
+ * This all-zero UUID is the same fail-closed sentinel `app.current_tenant_id`
+ * defaults to when no tenant context is set (migration 013) — no real
+ * tenant is ever created with this id (`awcms_mini_tenants.id` always comes
+ * from `gen_random_uuid()`), so a query scoped to it is guaranteed to match
+ * zero rows and never touches another tenant's data. It exists purely as a
+ * round-trip-shape placeholder.
+ */
+const TIMING_PAD_TENANT_ID = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * Pads the "tenant did not resolve" path (including `tenant_code_legacy`
+ * mode, which returns `null` from `resolvePublicTenantFromRequest` without
+ * touching the DB at all) with the same round-trip *shape* the "tenant
+ * resolved but module disabled" path already pays for real via
+ * `fetchTenantModuleEntries` — open a transaction, `SET LOCAL` a tenant GUC,
+ * issue one `SELECT` against `awcms_mini_tenant_modules` — so the two
+ * outcomes that both produce an identical generic 404 also cost the same
+ * number of DB round trips. Uses the exact same `withTenant` helper every
+ * real tenant-scoped query in this codebase uses, not a lighter/raw query,
+ * so pool acquisition and circuit-breaker behavior are identical too, not
+ * just the query count.
+ *
+ * Trade-off, documented rather than hidden: every `/news` request that
+ * fails to resolve a tenant now depends on DB availability for this padding
+ * query, even under `PUBLIC_TENANT_RESOLUTION_MODE=tenant_code_legacy`
+ * (previously a guaranteed zero-DB-touch path). Every other mode already
+ * depends on the DB for the resolver's own env/setup fallback chain
+ * (`resolvePublicTenantFromRequest`'s steps 2-4 run unconditionally except
+ * under `tenant_code_legacy`), so this only changes behavior for
+ * deployments that explicitly opted into `tenant_code_legacy` — an
+ * acceptable, deliberate cost for closing an otherwise-observable
+ * side-channel on a route (`/news`) those deployments have chosen to never
+ * resolve anyway.
+ *
+ * Exported (not just used internally) so
+ * `tests/integration/blog-content-public-news.integration.test.ts` can
+ * prove its round-trip cost directly matches
+ * `fetchTenantModuleEntries`'s real cost, independent of
+ * `resolvePublicTenantFromRequest`'s own — separately variable, pre-existing,
+ * out-of-scope-for-this-fix — resolution cost (that resolver already has its
+ * own timing-parity guarantee from migration 033/#559 for the one step this
+ * fix does not touch). Scoping the proof to exactly what this fix changes
+ * keeps the test meaningful instead of chasing full end-to-end round-trip
+ * equality across every `PUBLIC_TENANT_RESOLUTION_MODE`/env/setup-state
+ * permutation, which is not this fix's target.
+ */
+export async function padUnresolvedTenantLatency(sql: Bun.SQL): Promise<void> {
+  await withTenant(sql, TIMING_PAD_TENANT_ID, async (tx) => {
+    await tx`
+      SELECT module_key FROM awcms_mini_tenant_modules
+      WHERE tenant_id = ${TIMING_PAD_TENANT_ID}
+    `;
+  });
+}
 
 /**
  * Builds `PublicHostResolverConfig` from the two env vars Issue #556
@@ -73,6 +148,11 @@ export async function withNewsTenant<T>(
   const tenant = await resolvePublicTenantFromRequest(sql, request, config);
 
   if (!tenant) {
+    // Timing side-channel fix — see `padUnresolvedTenantLatency`'s own
+    // docblock. Deliberately awaited and its result discarded: this call
+    // exists only to pay the same round-trip cost the module-disabled
+    // branch below already pays, never to produce a value.
+    await padUnresolvedTenantLatency(sql);
     return null;
   }
 

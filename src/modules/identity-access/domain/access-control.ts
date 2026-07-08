@@ -31,7 +31,23 @@ export type AccessAction =
   | "check"
   | "publish"
   | "schedule"
-  | "archive";
+  | "archive"
+  // Issue #562 (tenant_domain): migration 032 seeded
+  // `tenant_domain.domains.verify`/`.set_primary` back in Issue #557, but
+  // no consumer added the actions to this union until the API landed —
+  // same "seed permission first, add the action when a real endpoint
+  // needs it" pattern `restore`/`purge`/`retry` already established (see
+  // `identity-access/README.md`). Neither is added to
+  // `HIGH_RISK_ACTIONS` below: `verify` only flips status based on fields
+  // already on the row (no destructive/irreversible effect, same
+  // reasoning as `retry`), and `set_primary` reassigns a routing flag
+  // that can always be reassigned again — not destructive like
+  // delete/purge. Both endpoints still require `Idempotency-Key` and are
+  // explicitly audited regardless of this classification, matching
+  // `retry`'s documented precedent (`isHighRiskAction` is metadata, not a
+  // gate on idempotency/audit requirements).
+  | "verify"
+  | "set_primary";
 
 export type AccessRequest = {
   moduleKey: string;
