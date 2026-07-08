@@ -18,6 +18,8 @@ Issue #542: presentation/monetization extensions — template, menu hierarkis, w
 
 Issue #543 (final hardening): admin UI penuh di bawah `/admin/blog` (dashboard, posts, pages, categories, tags, settings, dan optional advanced screens templates/widgets/menus/ads — semuanya menggunakan `AdminLayout`/design token yang sudah ada, Astro + vanilla JS saja, tanpa framework baru), endpoint `blog_content.settings.*` (`/api/v1/blog/settings`, akhirnya mengaktifkan `awcms_mini_blog_settings` yang sejak migration 026 sudah ada tapi belum punya route), `module.ts`'s `permissions`/`navigation` array (sebelumnya kosong meski 36 permission-nya sudah ada di DB sejak migration 027/030), dan dokumentasi/testing/hardening akhir. Lihat §Admin UI dan §Settings API.
 
+Issue #560 (epic #555, bukan #536): rute publik kedua `/news/...`, tenant-code-free counterpart `/blog/{tenantCode}`, resolusi tenant lewat `resolvePublicTenantFromRequest` (Issue #559) bukan segmen path. Lihat §Public routes `/news`.
+
 ## Tabel (migration `026_awcms_mini_blog_content_schema.sql`)
 
 Tujuh tabel persis sesuai doc issue #537 §Database Tables, semuanya tenant-scoped (`ENABLE` + `FORCE ROW LEVEL SECURITY`, satu policy `tenant_isolation` per tabel):
@@ -224,6 +226,108 @@ Setiap route handler dibungkus `try/catch` di level teratas: error asli di-log l
 ### Pagination
 
 Index dan arsip kategori/tag pakai `?page=` (1-indexed) + `LIMIT`/`OFFSET` sederhana, bukan keyset — ini halaman publik yang dibaca pengunjung manusia (ekspektasi UX "halaman 1, 2, 3", bukan cursor buram), beda dari admin search (Issue #539) yang keyset-paginated. `pageSize` diambil dari `awcms_mini_blog_settings.posts_per_page` (Issue #537, default 10) lewat `fetchPublicBlogSettings`. RSS/sitemap tidak dipaginasi sama sekali — flat, dibatasi 50 post terbaru (`FEED_ITEM_LIMIT`), karena konsumennya mesin (feed reader/crawler), bukan pengunjung yang mengklik "next".
+
+## Public routes `/news` (Issue #560, epic #555)
+
+`src/pages/news/` — tenant-code-free counterpart of `/blog/{tenantCode}`
+above, added by epic #555 ("online public tenant routing, news routes, and
+tenant domain management"), **not** epic #536. See
+`.claude/skills/awcms-mini-tenant-domain-routing/SKILL.md` §Rute publik
+`/news` for the full cross-issue writeup (config, resolver, module-disabled
+gate); this section only covers what's specific to this module.
+
+```txt
+GET /news                         -> index (paginated, same as /blog/{tenantCode})
+GET /news/{slug}                  -> detail post
+GET /news/category/{slug}         -> category archive
+GET /news/tag/{slug}              -> tag archive
+GET /news/search?q=               -> public search (same searchPublicBlogContent, Issue #539)
+GET /news/feed.xml                -> RSS 2.0
+GET /news/sitemap-news.xml        -> sitemap protocol 0.9
+```
+
+Same 7 routes as `/blog/{tenantCode}` (same `.ts` `APIRoute` decision — see
+§Kenapa `.ts` API route above, same reasoning applies unchanged), reusing
+every application/domain service unchanged: `public-blog-directory.ts`
+(same two visibility predicates, §Dua predikat visibilitas publik above,
+unmodified), `public-page-rendering.ts`, `seo-rendering.ts`,
+`content-block-rendering.ts`, `blog-search.ts`'s `searchPublicBlogContent`,
+`src/lib/html/error-responses.ts`. **Only post, still no public route for
+pages** — same scope boundary as `/blog/{tenantCode}` (§Public routes
+above), unchanged by this issue.
+
+**The only actual difference**: tenant resolution.
+`/blog/{tenantCode}/...` resolves the tenant from the `tenantCode` path
+segment via `resolvePublicTenantByCode` (ADR-0009); `/news/...` has no
+`tenantCode` segment at all and instead resolves via
+`resolvePublicTenantFromRequest` (Issue #559,
+`src/lib/tenant/public-host-tenant-resolver.ts`) — a request `Host`
+header/domain-mapping lookup with an env/setup-state fallback chain (see
+the tenant-domain-routing skill for the full resolution order and the
+`tenant_code_legacy` mode decision made in this issue).
+
+### `withNewsTenant` — shared tenant resolution + module-disabled gate
+
+`src/modules/blog-content/application/public-news-tenant-resolution.ts`'s
+`withNewsTenant(sql, request, handler, env?)` centralizes what all seven
+routes need before touching a single post row:
+
+1. Builds `PublicHostResolverConfig` from `process.env.PUBLIC_TENANT_RESOLUTION_MODE`/
+   `process.env.PUBLIC_TRUST_PROXY` (`buildPublicHostResolverConfigFromEnv`)
+   and calls `resolvePublicTenantFromRequest`. `null` -> the whole helper
+   returns `null`.
+2. **Module-disabled gate** (explicit Issue #560 acceptance criterion —
+   `blog_content` disabled for the resolved tenant must 404 exactly like an
+   unresolved tenant): inside the same `withTenant(...)` transaction,
+   `fetchTenantModuleEntries` (`module-management/application/tenant-module-lifecycle.ts`,
+   pre-existing) is called before `handler`. `tenantEnabled === false` for
+   `blog_content` -> the helper returns `null` too — indistinguishable from
+   every other non-resolving case from the caller's side.
+
+Every route then does `const result = await withNewsTenant(sql, request,
+async (tx, tenant) => { ...; return new Response(...); }); return result ??
+notFoundHtmlResponse();` (or `notFoundXmlResponse()` for the two XML
+routes) — a `handler` that finds no matching post/term also just `return
+null`, collapsing into the identical generic 404 as the tenant/module gate.
+
+**Known pre-existing gap, deliberately not retrofitted here**:
+`/blog/{tenantCode}` (Issue #540) has **no** module-disabled check at all —
+a tenant that disables `blog_content` via
+`POST /api/v1/tenant/modules/blog_content/disable` can still be browsed
+publicly through `/blog/{tenantCode}`. Out of this issue's explicit scope
+("Rebuilding blog-content internals" is listed as out of scope); flagged
+here as a good candidate for a small follow-up issue instead (reuse
+`withNewsTenant`'s module-disabled pattern, or extract a shared
+`withTenantModuleGate` if that retrofit is ever done for more than one
+legacy route).
+
+### Rendering helper extended, not duplicated
+
+`public-page-rendering.ts`'s `renderPostSummaryListHtml(tenantCode, ...)`
+now delegates to a new, more general
+`renderPostSummaryListHtmlAtBasePath(basePath, ...)` (`basePath =
+/blog/{tenantCode}` for the old wrapper, `/news` for these routes) — a pure
+extraction, byte-for-byte identical output for every existing
+`/blog/{tenantCode}` call site (verified: `escapeHtml` applied to the whole
+base-path string produces the same escaped characters as escaping the
+tenant code alone, regardless of the literal `/blog/` slashes around it).
+`renderPaginationNavHtml` was already generic (takes `basePath` directly) —
+no change needed there.
+
+### Canonical URL / feed / sitemap base path
+
+All literal `/news` (not a consumer of `PUBLIC_CANONICAL_BASE_PATH` —
+that var has been validated since Issue #556 but is not consumed by any
+code yet; `/news` here is a fixed file-routing path, not an
+env-configurable base path). `seo-rendering.ts`'s `resolveCanonicalUrl` is
+unchanged — only the `selfUrl` each route passes in differs
+(`${url.origin}/news/{slug}` instead of `${url.origin}/blog/{tenantCode}/{slug}`).
+
+Test: `tests/integration/blog-content-public-news.integration.test.ts` —
+every acceptance criterion (listing/detail visibility across all
+statuses, unlisted-reachable-by-direct-link, canonical URL under `/news`,
+feed/sitemap links under `/news`, module-disabled 404, `tenant_code_legacy`
+404, cross-tenant isolation).
 
 ## Revisions (Issue #541)
 

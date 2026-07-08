@@ -8,8 +8,8 @@ import {
 /**
  * Public host-based tenant resolution — Issue #559 (epic #555, online
  * public tenant routing). Resolves the tenant for anonymous public routes
- * (future `/news`, Issue #560) from the request `Host`/domain/subdomain
- * first, then falls back safely to the same env/setup defaults offline/LAN
+ * (`/news`, Issue #560) from the request `Host`/domain/subdomain first,
+ * then falls back safely to the same env/setup defaults offline/LAN
  * deployments already rely on for `/blog/{tenantCode}` (ADR-0009). This
  * module never touches tenant content — only `awcms_mini_tenant_domains`
  * (via the `SECURITY DEFINER` bootstrap function, migration 033),
@@ -25,6 +25,14 @@ import {
  * throws is `normalizePublicHost()`, and only for a genuinely-empty input
  * (a caller contract violation, not a runtime resolution outcome); a
  * non-empty but malformed host still returns `null`, never throws.
+ *
+ * **`tenant_code_legacy` mode is a fifth, standalone `null` case, decided in
+ * Issue #560**: `resolvePublicTenantFromRequest()` returns `null`
+ * unconditionally for this mode, without even attempting the env/setup
+ * fallback chain — see that function's own docblock and
+ * `PublicHostResolverConfig.mode`'s docblock for the full reasoning (this
+ * was an open ambiguity two Issue #559 reviewers flagged, resolved here
+ * rather than inherited silently into `/news`).
  */
 
 export type { PublicTenantResolution };
@@ -72,6 +80,23 @@ export type PublicHostResolverConfig = {
    * the acceptance criterion that an unset/other mode still tries
    * `PUBLIC_DEFAULT_TENANT_ID` -> `PUBLIC_DEFAULT_TENANT_CODE` ->
    * `awcms_mini_setup_state.tenant_id` before giving up.
+   *
+   * **Explicit exception, decided in Issue #560** (flagged as an unresolved
+   * ambiguity by two Issue #559 reviewers, resolved here rather than
+   * inherited silently): `mode === "tenant_code_legacy"` skips the *entire*
+   * chain, steps 1-4 alike, and resolution always returns `null`. This mode
+   * means "no default tenant guess — every route must carry an explicit
+   * `tenantCode` in its own path", which is exactly what
+   * `/blog/{tenantCode}` (ADR-0009) does and what `/news` (Issue #560,
+   * epic #555) structurally cannot: `/news` has no `tenantCode` path
+   * segment at all. Resolving *any* tenant for a `/news` request under this
+   * mode would silently defeat the operator's explicit choice to disable
+   * default-tenant guessing. This is the ONE case where `mode` gates more
+   * than step 1 — `undefined` (not set at all, today's offline/LAN
+   * default) is deliberately NOT folded into this case and keeps running
+   * the full safe-fallback chain, because an operator who never touched
+   * `PUBLIC_TENANT_RESOLUTION_MODE` has not made any explicit "no default
+   * tenant" choice.
    */
   mode?: string;
   /**
@@ -391,6 +416,14 @@ function extractHostHeader(
 /**
  * Orchestrates the full resolution order for a public request:
  *
+ * 0. `config.mode === "tenant_code_legacy"` — short-circuits to `null`
+ *    immediately, before any of steps 1-4 run. **Decided in Issue #560**
+ *    (this was an explicit open ambiguity flagged by two Issue #559
+ *    reviewers — see `PublicHostResolverConfig.mode`'s docblock for the
+ *    full reasoning): this mode means the operator explicitly opted OUT of
+ *    any default-tenant guess, so a route with no `tenantCode` path segment
+ *    (`/news`) must never resolve a tenant under it, not even via the
+ *    env/setup fallback.
  * 1. Host/domain mapping (`resolvePublicTenantByHost`) — only attempted
  *    when `config.mode === "host_default"`.
  * 2. `PUBLIC_DEFAULT_TENANT_ID`
@@ -399,11 +432,14 @@ function extractHostHeader(
  * 4. `awcms_mini_setup_state.tenant_id`
  * 5. `null` (caller responds with a generic 404)
  *
- * Steps 2-4 always run, regardless of `config.mode` — they are the "safe
- * fallback" this issue's title promises, so an offline/LAN deployment that
- * never sets `PUBLIC_TENANT_RESOLUTION_MODE` still gets a usable default
- * tenant for routes that don't carry an explicit `tenantCode` (future
- * `/news`, Issue #560), exactly like today's `tenant_code_legacy` default.
+ * Steps 2-4 always run for every mode EXCEPT `tenant_code_legacy` (step 0
+ * above) — they are the "safe fallback" this issue's title promises, so an
+ * offline/LAN deployment that never sets `PUBLIC_TENANT_RESOLUTION_MODE`
+ * (`config.mode === undefined`) still gets a usable default tenant for
+ * routes that don't carry an explicit `tenantCode` (`/news`, Issue #560).
+ * `undefined` is deliberately NOT treated the same as explicit
+ * `tenant_code_legacy` — only an operator who has actually set that value
+ * has made the "no default tenant" choice this step 0 enforces.
  *
  * `requestOrHost` accepts either a `Request` (host header extracted per
  * `config.trustProxy`) or an already-known host string (bypasses header
@@ -419,6 +455,10 @@ export async function resolvePublicTenantFromRequest(
   config: PublicHostResolverConfig = {},
   deps: PublicHostResolverDeps = defaultDeps
 ): Promise<PublicTenantResolution | null> {
+  if (config.mode === "tenant_code_legacy") {
+    return null;
+  }
+
   const trustProxy = config.trustProxy ?? false;
 
   if (config.mode === "host_default") {

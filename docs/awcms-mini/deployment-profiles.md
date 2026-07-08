@@ -39,15 +39,24 @@ koneksi pendek bervolume tinggi (lihat
 Epic #555 menambahkan mode routing publik online-first di atas empat
 profil di atas (bukan profil kelima yang terpisah — `production (online)`
 tetap profil yang sama, sekarang bisa dikonfigurasi lebih eksplisit).
-Issue #556 **hanya** menambahkan env var (lihat
+Issue #556 menambahkan env var (lihat
 [`18_configuration_env_reference.md`](18_configuration_env_reference.md#public-routing-opsional-online-first--issue-556-epic-555)
-§Public routing) — schema tenant-domain, rute publik `/news`, dan resolver
-host-based menyusul di issue #557-#567.
+§Public routing); schema tenant-domain (#557), module descriptor
+`tenant_domain` (#558), resolver host-based (#559), dan rute publik
+`/news` (#560) sudah menyusul dan sudah selesai — lihat
+`.claude/skills/awcms-mini-tenant-domain-routing/SKILL.md` untuk status
+lengkap per issue.
 
 - **offline/LAN & development**: biarkan `PUBLIC_TENANT_RESOLUTION_MODE`
   tidak di-set (default). `config:validate` tetap lulus tanpa var
   tambahan apa pun — tidak ada perubahan pada topologi LAN-first yang
-  sudah didokumentasikan di atas.
+  sudah didokumentasikan di atas. Ini **bukan** hal yang sama dengan
+  men-set `PUBLIC_TENANT_RESOLUTION_MODE=tenant_code_legacy` secara
+  eksplisit: unset tetap memakai fallback env/setup default untuk `/news`,
+  sedangkan `tenant_code_legacy` eksplisit membuat `/news` tidak pernah
+  resolve tenant apa pun (operator secara sadar memilih "wajib
+  `tenantCode` eksplisit di path, tidak ada tebakan default" — keputusan
+  Issue #560, lihat `src/lib/tenant/public-host-tenant-resolver.ts`).
 - **production (online)**, saat resolver host-based (Issue #559) sudah
   siap dipakai: set `PUBLIC_TENANT_RESOLUTION_MODE=host_default` dan
   `PUBLIC_PLATFORM_ROOT_DOMAIN=<root-domain-platform>` di environment
