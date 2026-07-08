@@ -79,12 +79,14 @@ saat dibaca.
 `GET /api/v1/modules/{moduleKey}/permissions` (Issue #517) melaporkan
 `synced`/`missing`/`orphaned`/`mismatched_description` — **read-only**,
 tidak pernah menulis ke `awcms_mini_permissions`. Hanya `module_management`
-sendiri yang sudah mendeklarasikan `permissions` di descriptornya; 9
-modul lain punya permission seed nyata (dari migration masing-masing)
-tapi belum ditambahkan ke descriptor — jadi permission mereka
-**legitimately** muncul `orphaned` hari ini, bukan insiden. Jangan hapus
-baris `awcms_mini_permissions` berdasarkan laporan ini tanpa keputusan
-admin eksplisit.
+dan `blog_content` (sejak Issue #543, 36-entry array) yang sudah
+mendeklarasikan `permissions` di descriptornya; 9 modul lain (email,
+form-drafts, identity-access, logging, profile-identity, reporting,
+sync-storage, tenant-admin, workflow-approval) punya permission seed
+nyata (dari migration masing-masing) tapi belum ditambahkan ke
+descriptor — jadi permission mereka **legitimately** muncul `orphaned`
+hari ini, bukan insiden. Jangan hapus baris `awcms_mini_permissions`
+berdasarkan laporan ini tanpa keputusan admin eksplisit.
 
 ## Health check — GET pasif, POST eksplisit
 

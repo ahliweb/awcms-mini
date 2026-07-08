@@ -41,7 +41,10 @@ type AccessRequest = {
     | "sync"
     | "enable"
     | "disable"
-    | "check";
+    | "check"
+    | "publish"
+    | "schedule"
+    | "archive";
   resourceType?: string;
   resourceId?: string;
   resourceAttributes?: Record<string, unknown>;

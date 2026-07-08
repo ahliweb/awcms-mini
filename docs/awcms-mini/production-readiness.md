@@ -9,7 +9,8 @@ RBAC/ABAC default-deny, ADR-0005 soft delete/immutability, dan skill
 
 ```mermaid
 flowchart LR
-  Pre[bun run production:preflight] --> Mig[db:migrate]
+  Pre[bun run production:preflight] --> Cfg[config:validate]
+  Cfg --> Mig[db:migrate]
   Mig --> Spec[api:spec:check]
   Spec --> Test[bun test]
   Test --> Build[build]
@@ -22,6 +23,10 @@ flowchart LR
   Gate -->|ya| Block[GO-LIVE DIBLOKIR]
   Gate -->|tidak| Ready[GO-LIVE DIIZINKAN]
 ```
+
+`config:validate` (Issue 12.2) jalan **paling pertama** — config harus
+valid sebelum tahap manapun mencoba konek database atau menjalankan
+migration (`scripts/production-preflight.ts`'s `STAGES` array).
 
 Tiga skrip baru menjadi deliverable inti issue ini:
 
@@ -119,17 +124,20 @@ check palsu:
 Mengorkestrasi tahap berikut sebagai child process (`Bun.spawn`), berurutan,
 mencatat pass/fail per tahap, lalu mencetak verdict akhir:
 
-1. `bun run db:migrate`
-2. `bun run api:spec:check`
-3. `bun test`
-4. `bun run build`
-5. `bun run db:pool:health` — **hanya bila** probe `GET /api/v1/health`
+1. `bun run config:validate` — **paling pertama** (Issue 12.2): config
+   harus valid sebelum tahap manapun mencoba konek database atau
+   menjalankan migration.
+2. `bun run db:migrate`
+3. `bun run api:spec:check`
+4. `bun test`
+5. `bun run build`
+6. `bun run db:pool:health` — **hanya bila** probe `GET /api/v1/health`
    menunjukkan ada server yang menjawab; bila tidak, tahap ini dicatat
    `skipped` (bukan `failed`) dengan alasan eksplisit di laporan. Ini
    keputusan desain yang disengaja: `production:preflight` bisa dijalankan
    di CI/lingkungan tanpa server berjalan tanpa memblokir seluruh preflight
    pada satu tahap yang memang butuh server hidup.
-6. `bun run security:readiness`
+7. `bun run security:readiness`
 
 `bun install` **sengaja tidak** dijalankan oleh skrip ini — itu langkah
 setup environment (mengambil dependency), bukan readiness check, dan di luar
@@ -147,6 +155,7 @@ Verdict akhir: `GO-LIVE DIIZINKAN` (exit 0) jika tidak ada tahap `fail`,
 
 ```bash
 bun install
+bun run config:validate
 bun run db:migrate
 bun run api:spec:check
 bun test

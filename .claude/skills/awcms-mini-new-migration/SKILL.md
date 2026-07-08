@@ -61,6 +61,7 @@ CREATE INDEX IF NOT EXISTS idx_awcms_mini_<name>_active
   WHERE deleted_at IS NULL;
 
 ALTER TABLE awcms_mini_<name> ENABLE ROW LEVEL SECURITY;
+ALTER TABLE awcms_mini_<name> FORCE ROW LEVEL SECURITY;
 CREATE POLICY awcms_mini_<name>_tenant_isolation ON awcms_mini_<name>
   USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
 

@@ -40,6 +40,21 @@ msgstr ""
 msgid "common.please_wait"
 msgstr ""
 
+msgid "common.back"
+msgstr ""
+
+msgid "common.next"
+msgstr ""
+
+msgid "common.submit"
+msgstr ""
+
+msgid "common.yes"
+msgstr ""
+
+msgid "common.no"
+msgstr ""
+
 #. error codes (doc 05 §Error code standard)
 msgid "error.validation_error"
 msgstr ""
@@ -118,6 +133,9 @@ msgid "admin.layout.nav_sync"
 msgstr ""
 
 msgid "admin.layout.nav_settings"
+msgstr ""
+
+msgid "admin.layout.nav_modules"
 msgstr ""
 
 msgid "admin.layout.breadcrumb_aria_label"
@@ -502,3 +520,1169 @@ msgstr ""
 
 msgid "admin.settings.save_success"
 msgstr ""
+
+#. admin.modules — Issue #518 (minimal read-only list; full UI is #521)
+msgid "admin.modules.access_denied_title"
+msgstr ""
+
+msgid "admin.modules.access_denied_body"
+msgstr ""
+
+msgid "admin.modules.module_column"
+msgstr ""
+
+msgid "admin.modules.version_column"
+msgstr ""
+
+msgid "admin.modules.status_column"
+msgstr ""
+
+msgid "admin.modules.type_column"
+msgstr ""
+
+msgid "admin.modules.core_column"
+msgstr ""
+
+msgid "admin.modules.no_modules"
+msgstr ""
+
+#. admin.modules — Issue #521 (full list + detail admin UI)
+msgid "admin.modules.filters_aria_label"
+msgstr ""
+
+msgid "admin.modules.filter_type_label"
+msgstr ""
+
+msgid "admin.modules.filter_status_label"
+msgstr ""
+
+msgid "admin.modules.filter_health_label"
+msgstr ""
+
+msgid "admin.modules.filter_all"
+msgstr ""
+
+msgid "admin.modules.health_column"
+msgstr ""
+
+msgid "admin.modules.actions_column"
+msgstr ""
+
+msgid "admin.modules.view_detail_link"
+msgstr ""
+
+msgid "admin.modules.detail_not_found_title"
+msgstr ""
+
+msgid "admin.modules.detail_not_found_body"
+msgstr ""
+
+msgid "admin.modules.back_to_list"
+msgstr ""
+
+msgid "admin.modules.dependencies_legend"
+msgstr ""
+
+msgid "admin.modules.no_dependencies"
+msgstr ""
+
+msgid "admin.modules.tenant_enablement_legend"
+msgstr ""
+
+msgid "admin.modules.enabled_label"
+msgstr ""
+
+msgid "admin.modules.disabled_label"
+msgstr ""
+
+msgid "admin.modules.enable_button"
+msgstr ""
+
+msgid "admin.modules.disable_button"
+msgstr ""
+
+msgid "admin.modules.disable_reason_prompt"
+msgstr ""
+
+msgid "admin.modules.enable_success"
+msgstr ""
+
+msgid "admin.modules.disable_success"
+msgstr ""
+
+msgid "admin.modules.settings_legend"
+msgstr ""
+
+msgid "admin.modules.settings_json_label"
+msgstr ""
+
+msgid "admin.modules.settings_hint"
+msgstr ""
+
+msgid "admin.modules.invalid_settings"
+msgstr ""
+
+msgid "admin.modules.settings_save_button"
+msgstr ""
+
+msgid "admin.modules.settings_save_success"
+msgstr ""
+
+msgid "admin.modules.permissions_legend"
+msgstr ""
+
+msgid "admin.modules.permission_activity_column"
+msgstr ""
+
+msgid "admin.modules.permission_action_column"
+msgstr ""
+
+msgid "admin.modules.no_permissions"
+msgstr ""
+
+msgid "admin.modules.navigation_legend"
+msgstr ""
+
+msgid "admin.modules.no_navigation"
+msgstr ""
+
+msgid "admin.modules.nav_label_column"
+msgstr ""
+
+msgid "admin.modules.nav_path_column"
+msgstr ""
+
+msgid "admin.modules.nav_order_column"
+msgstr ""
+
+msgid "admin.modules.nav_permission_column"
+msgstr ""
+
+msgid "admin.modules.jobs_legend"
+msgstr ""
+
+msgid "admin.modules.no_jobs"
+msgstr ""
+
+msgid "admin.modules.job_command_column"
+msgstr ""
+
+msgid "admin.modules.job_purpose_column"
+msgstr ""
+
+msgid "admin.modules.job_schedule_column"
+msgstr ""
+
+msgid "admin.modules.job_offline_lan_column"
+msgstr ""
+
+msgid "admin.modules.health_legend"
+msgstr ""
+
+msgid "admin.modules.health_check_button"
+msgstr ""
+
+msgid "admin.modules.health_check_success"
+msgstr ""
+
+msgid "admin.modules.signal_column"
+msgstr ""
+
+msgid "admin.modules.signal_status_column"
+msgstr ""
+
+msgid "admin.modules.signal_detail_column"
+msgstr ""
+
+msgid "admin.modules.audit_legend"
+msgstr ""
+
+msgid "admin.modules.audit_action_column"
+msgstr ""
+
+msgid "admin.modules.audit_severity_column"
+msgstr ""
+
+msgid "admin.modules.audit_message_column"
+msgstr ""
+
+msgid "admin.modules.audit_time_column"
+msgstr ""
+
+msgid "admin.modules.no_audit_events"
+msgstr ""
+
+#. admin.examples.wizard — Issue #483, non-domain fixture page
+msgid "admin.examples.wizard.nav_title"
+msgstr ""
+
+msgid "admin.examples.wizard.intro"
+msgstr ""
+
+msgid "admin.examples.wizard.stepper_label"
+msgstr ""
+
+msgid "admin.examples.wizard.step_current"
+msgstr ""
+
+msgid "admin.examples.wizard.step_completed"
+msgstr ""
+
+msgid "admin.examples.wizard.step_pending"
+msgstr ""
+
+msgid "admin.examples.wizard.error_summary_heading"
+msgstr ""
+
+msgid "admin.examples.wizard.step_basic_title"
+msgstr ""
+
+msgid "admin.examples.wizard.step_basic_description"
+msgstr ""
+
+msgid "admin.examples.wizard.step_details_title"
+msgstr ""
+
+msgid "admin.examples.wizard.step_details_description"
+msgstr ""
+
+msgid "admin.examples.wizard.step_review_title"
+msgstr ""
+
+msgid "admin.examples.wizard.step_review_description"
+msgstr ""
+
+msgid "admin.examples.wizard.field_title_label"
+msgstr ""
+
+msgid "admin.examples.wizard.field_category_label"
+msgstr ""
+
+msgid "admin.examples.wizard.field_category_option_general"
+msgstr ""
+
+msgid "admin.examples.wizard.field_category_option_reference"
+msgstr ""
+
+msgid "admin.examples.wizard.field_category_option_misc"
+msgstr ""
+
+msgid "admin.examples.wizard.field_notes_label"
+msgstr ""
+
+msgid "admin.examples.wizard.validation_title_required"
+msgstr ""
+
+msgid "admin.examples.wizard.validation_category_required"
+msgstr ""
+
+msgid "admin.examples.wizard.submit_success_message"
+msgstr ""
+
+msgid "admin.examples.wizard.draft_save_error"
+msgstr ""
+
+msgid "admin.examples.wizard.draft_resumed_notice"
+msgstr ""
+
+#. admin.blog — Issue #543 (admin UI)
+msgid "admin.layout.nav_blog"
+msgstr ""
+
+msgid "common.filter_all"
+msgstr ""
+
+msgid "common.previous_page"
+msgstr ""
+
+msgid "common.next_page"
+msgstr ""
+
+msgid "admin.blog.access_denied_title"
+msgstr ""
+
+msgid "admin.blog.access_denied_body"
+msgstr ""
+
+msgid "admin.blog.dashboard.title"
+msgstr ""
+
+msgid "admin.blog.dashboard.posts_title"
+msgstr ""
+
+msgid "admin.blog.dashboard.total_posts_label"
+msgstr ""
+
+msgid "admin.blog.dashboard.draft_posts_label"
+msgstr ""
+
+msgid "admin.blog.dashboard.scheduled_posts_label"
+msgstr ""
+
+msgid "admin.blog.dashboard.pages_title"
+msgstr ""
+
+msgid "admin.blog.dashboard.total_pages_label"
+msgstr ""
+
+msgid "admin.blog.dashboard.quick_links_title"
+msgstr ""
+
+msgid "admin.blog.dashboard.new_post_link"
+msgstr ""
+
+msgid "admin.blog.dashboard.new_page_link"
+msgstr ""
+
+msgid "admin.blog.dashboard.manage_posts_link"
+msgstr ""
+
+msgid "admin.blog.dashboard.manage_pages_link"
+msgstr ""
+
+msgid "admin.blog.dashboard.manage_categories_link"
+msgstr ""
+
+msgid "admin.blog.dashboard.manage_tags_link"
+msgstr ""
+
+msgid "admin.blog.dashboard.manage_settings_link"
+msgstr ""
+
+msgid "admin.blog.dashboard.recent_updates_title"
+msgstr ""
+
+msgid "admin.blog.dashboard.no_recent_updates"
+msgstr ""
+
+msgid "admin.blog.status.draft"
+msgstr ""
+
+msgid "admin.blog.status.review"
+msgstr ""
+
+msgid "admin.blog.status.scheduled"
+msgstr ""
+
+msgid "admin.blog.status.published"
+msgstr ""
+
+msgid "admin.blog.status.archived"
+msgstr ""
+
+msgid "admin.blog.visibility.public"
+msgstr ""
+
+msgid "admin.blog.visibility.private"
+msgstr ""
+
+msgid "admin.blog.visibility.unlisted"
+msgstr ""
+
+msgid "admin.blog.page_type.standard"
+msgstr ""
+
+msgid "admin.blog.page_type.landing"
+msgstr ""
+
+msgid "admin.blog.page_type.legal"
+msgstr ""
+
+msgid "admin.blog.page_type.system"
+msgstr ""
+
+msgid "admin.blog.posts.title"
+msgstr ""
+
+msgid "admin.blog.posts.new_title"
+msgstr ""
+
+msgid "admin.blog.posts.new_button"
+msgstr ""
+
+msgid "admin.blog.posts.filters_aria_label"
+msgstr ""
+
+msgid "admin.blog.posts.search_label"
+msgstr ""
+
+msgid "admin.blog.posts.status_filter_label"
+msgstr ""
+
+msgid "admin.blog.posts.term_filter_label"
+msgstr ""
+
+msgid "admin.blog.posts.apply_filters_button"
+msgstr ""
+
+msgid "admin.blog.posts.reset_filters_link"
+msgstr ""
+
+msgid "admin.blog.posts.no_posts"
+msgstr ""
+
+msgid "admin.blog.posts.title_column"
+msgstr ""
+
+msgid "admin.blog.posts.status_column"
+msgstr ""
+
+msgid "admin.blog.posts.author_column"
+msgstr ""
+
+msgid "admin.blog.posts.locale_column"
+msgstr ""
+
+msgid "admin.blog.posts.published_column"
+msgstr ""
+
+msgid "admin.blog.posts.updated_column"
+msgstr ""
+
+msgid "admin.blog.posts.unknown_author"
+msgstr ""
+
+msgid "admin.blog.posts.pagination_aria_label"
+msgstr ""
+
+msgid "admin.blog.posts.page_indicator"
+msgstr ""
+
+msgid "admin.blog.posts.not_found_title"
+msgstr ""
+
+msgid "admin.blog.posts.not_found_body"
+msgstr ""
+
+msgid "admin.blog.posts.back_to_list"
+msgstr ""
+
+msgid "admin.blog.posts.field_title"
+msgstr ""
+
+msgid "admin.blog.posts.field_slug"
+msgstr ""
+
+msgid "admin.blog.posts.slug_hint"
+msgstr ""
+
+msgid "admin.blog.posts.field_excerpt"
+msgstr ""
+
+msgid "admin.blog.posts.field_content_text"
+msgstr ""
+
+msgid "admin.blog.posts.field_content_json"
+msgstr ""
+
+msgid "admin.blog.posts.content_json_hint"
+msgstr ""
+
+msgid "admin.blog.posts.field_visibility"
+msgstr ""
+
+msgid "admin.blog.posts.field_locale"
+msgstr ""
+
+msgid "admin.blog.posts.field_featured_media_id"
+msgstr ""
+
+msgid "admin.blog.posts.featured_media_hint"
+msgstr ""
+
+msgid "admin.blog.posts.field_categories"
+msgstr ""
+
+msgid "admin.blog.posts.no_categories"
+msgstr ""
+
+msgid "admin.blog.posts.field_tags"
+msgstr ""
+
+msgid "admin.blog.posts.no_tags"
+msgstr ""
+
+msgid "admin.blog.posts.seo_legend"
+msgstr ""
+
+msgid "admin.blog.posts.field_seo_title"
+msgstr ""
+
+msgid "admin.blog.posts.field_meta_description"
+msgstr ""
+
+msgid "admin.blog.posts.field_canonical_url"
+msgstr ""
+
+msgid "admin.blog.posts.create_submit"
+msgstr ""
+
+msgid "admin.blog.posts.create_success"
+msgstr ""
+
+msgid "admin.blog.posts.invalid_content_json"
+msgstr ""
+
+msgid "admin.blog.posts.save_button"
+msgstr ""
+
+msgid "admin.blog.posts.save_success"
+msgstr ""
+
+msgid "admin.blog.posts.author_label"
+msgstr ""
+
+msgid "admin.blog.posts.deleted_label"
+msgstr ""
+
+msgid "admin.blog.posts.submit_review_button"
+msgstr ""
+
+msgid "admin.blog.posts.submit_review_success"
+msgstr ""
+
+msgid "admin.blog.posts.publish_button"
+msgstr ""
+
+msgid "admin.blog.posts.publish_confirm"
+msgstr ""
+
+msgid "admin.blog.posts.publish_success"
+msgstr ""
+
+msgid "admin.blog.posts.schedule_button"
+msgstr ""
+
+msgid "admin.blog.posts.scheduled_at_prompt"
+msgstr ""
+
+msgid "admin.blog.posts.schedule_confirm"
+msgstr ""
+
+msgid "admin.blog.posts.schedule_success"
+msgstr ""
+
+msgid "admin.blog.posts.archive_button"
+msgstr ""
+
+msgid "admin.blog.posts.archive_confirm"
+msgstr ""
+
+msgid "admin.blog.posts.archive_success"
+msgstr ""
+
+msgid "admin.blog.posts.delete_button"
+msgstr ""
+
+msgid "admin.blog.posts.delete_reason_prompt"
+msgstr ""
+
+msgid "admin.blog.posts.delete_success"
+msgstr ""
+
+msgid "admin.blog.posts.restore_button"
+msgstr ""
+
+msgid "admin.blog.posts.restore_confirm"
+msgstr ""
+
+msgid "admin.blog.posts.restore_success"
+msgstr ""
+
+msgid "admin.blog.posts.purge_button"
+msgstr ""
+
+msgid "admin.blog.posts.purge_confirm"
+msgstr ""
+
+msgid "admin.blog.posts.purge_success"
+msgstr ""
+
+msgid "admin.blog.posts.revisions_title"
+msgstr ""
+
+msgid "admin.blog.posts.no_revisions"
+msgstr ""
+
+msgid "admin.blog.posts.revision_number_column"
+msgstr ""
+
+msgid "admin.blog.posts.revision_title_column"
+msgstr ""
+
+msgid "admin.blog.posts.revision_status_column"
+msgstr ""
+
+msgid "admin.blog.posts.revision_note_column"
+msgstr ""
+
+msgid "admin.blog.posts.revision_created_column"
+msgstr ""
+
+msgid "admin.blog.posts.revision_actions_column"
+msgstr ""
+
+msgid "admin.blog.posts.revision_restore_button"
+msgstr ""
+
+msgid "admin.blog.posts.revision_restore_confirm"
+msgstr ""
+
+msgid "admin.blog.posts.revision_restore_success"
+msgstr ""
+
+msgid "admin.blog.pages.title"
+msgstr ""
+
+msgid "admin.blog.pages.new_title"
+msgstr ""
+
+msgid "admin.blog.pages.new_button"
+msgstr ""
+
+msgid "admin.blog.pages.filters_aria_label"
+msgstr ""
+
+msgid "admin.blog.pages.search_label"
+msgstr ""
+
+msgid "admin.blog.pages.status_filter_label"
+msgstr ""
+
+msgid "admin.blog.pages.type_filter_label"
+msgstr ""
+
+msgid "admin.blog.pages.apply_filters_button"
+msgstr ""
+
+msgid "admin.blog.pages.reset_filters_link"
+msgstr ""
+
+msgid "admin.blog.pages.no_pages"
+msgstr ""
+
+msgid "admin.blog.pages.title_column"
+msgstr ""
+
+msgid "admin.blog.pages.status_column"
+msgstr ""
+
+msgid "admin.blog.pages.type_column"
+msgstr ""
+
+msgid "admin.blog.pages.menu_order_column"
+msgstr ""
+
+msgid "admin.blog.pages.locale_column"
+msgstr ""
+
+msgid "admin.blog.pages.updated_column"
+msgstr ""
+
+msgid "admin.blog.pages.pagination_aria_label"
+msgstr ""
+
+msgid "admin.blog.pages.not_found_title"
+msgstr ""
+
+msgid "admin.blog.pages.not_found_body"
+msgstr ""
+
+msgid "admin.blog.pages.back_to_list"
+msgstr ""
+
+msgid "admin.blog.pages.field_title"
+msgstr ""
+
+msgid "admin.blog.pages.field_slug"
+msgstr ""
+
+msgid "admin.blog.pages.field_page_type"
+msgstr ""
+
+msgid "admin.blog.pages.field_parent_page"
+msgstr ""
+
+msgid "admin.blog.pages.no_parent_option"
+msgstr ""
+
+msgid "admin.blog.pages.field_menu_order"
+msgstr ""
+
+msgid "admin.blog.pages.create_submit"
+msgstr ""
+
+msgid "admin.blog.pages.create_success"
+msgstr ""
+
+msgid "admin.blog.pages.save_button"
+msgstr ""
+
+msgid "admin.blog.pages.save_success"
+msgstr ""
+
+msgid "admin.blog.pages.delete_button"
+msgstr ""
+
+msgid "admin.blog.pages.delete_reason_prompt"
+msgstr ""
+
+msgid "admin.blog.pages.delete_success"
+msgstr ""
+
+msgid "admin.blog.categories.title"
+msgstr ""
+
+msgid "admin.blog.categories.no_categories"
+msgstr ""
+
+msgid "admin.blog.categories.name_column"
+msgstr ""
+
+msgid "admin.blog.categories.slug_column"
+msgstr ""
+
+msgid "admin.blog.categories.parent_column"
+msgstr ""
+
+msgid "admin.blog.categories.actions_column"
+msgstr ""
+
+msgid "admin.blog.categories.edit_summary"
+msgstr ""
+
+msgid "admin.blog.categories.field_name"
+msgstr ""
+
+msgid "admin.blog.categories.field_slug"
+msgstr ""
+
+msgid "admin.blog.categories.field_description"
+msgstr ""
+
+msgid "admin.blog.categories.field_parent"
+msgstr ""
+
+msgid "admin.blog.categories.no_parent_option"
+msgstr ""
+
+msgid "admin.blog.categories.save_button"
+msgstr ""
+
+msgid "admin.blog.categories.delete_button"
+msgstr ""
+
+msgid "admin.blog.categories.create_summary"
+msgstr ""
+
+msgid "admin.blog.categories.create_submit"
+msgstr ""
+
+msgid "admin.blog.categories.create_success"
+msgstr ""
+
+msgid "admin.blog.categories.update_success"
+msgstr ""
+
+msgid "admin.blog.categories.delete_reason_prompt"
+msgstr ""
+
+msgid "admin.blog.categories.delete_confirm"
+msgstr ""
+
+msgid "admin.blog.categories.delete_success"
+msgstr ""
+
+msgid "admin.blog.tags.title"
+msgstr ""
+
+msgid "admin.blog.tags.no_tags"
+msgstr ""
+
+msgid "admin.blog.tags.name_column"
+msgstr ""
+
+msgid "admin.blog.tags.slug_column"
+msgstr ""
+
+msgid "admin.blog.tags.actions_column"
+msgstr ""
+
+msgid "admin.blog.tags.edit_summary"
+msgstr ""
+
+msgid "admin.blog.tags.field_name"
+msgstr ""
+
+msgid "admin.blog.tags.field_slug"
+msgstr ""
+
+msgid "admin.blog.tags.field_description"
+msgstr ""
+
+msgid "admin.blog.tags.save_button"
+msgstr ""
+
+msgid "admin.blog.tags.delete_button"
+msgstr ""
+
+msgid "admin.blog.tags.create_summary"
+msgstr ""
+
+msgid "admin.blog.tags.create_submit"
+msgstr ""
+
+msgid "admin.blog.tags.create_success"
+msgstr ""
+
+msgid "admin.blog.tags.update_success"
+msgstr ""
+
+msgid "admin.blog.tags.delete_reason_prompt"
+msgstr ""
+
+msgid "admin.blog.tags.delete_confirm"
+msgstr ""
+
+msgid "admin.blog.tags.delete_success"
+msgstr ""
+
+msgid "admin.blog.taxonomy.category_prefix"
+msgstr ""
+
+msgid "admin.blog.taxonomy.tag_prefix"
+msgstr ""
+
+msgid "admin.blog.settings.title"
+msgstr ""
+
+msgid "admin.blog.settings.general_legend"
+msgstr ""
+
+msgid "admin.blog.settings.field_blog_title"
+msgstr ""
+
+msgid "admin.blog.settings.field_blog_description"
+msgstr ""
+
+msgid "admin.blog.settings.field_posts_per_page"
+msgstr ""
+
+msgid "admin.blog.settings.field_rss_enabled"
+msgstr ""
+
+msgid "admin.blog.settings.field_sitemap_enabled"
+msgstr ""
+
+msgid "admin.blog.settings.field_default_locale"
+msgstr ""
+
+msgid "admin.blog.settings.field_default_visibility"
+msgstr ""
+
+msgid "admin.blog.settings.field_seo_default_title"
+msgstr ""
+
+msgid "admin.blog.settings.field_seo_default_description"
+msgstr ""
+
+msgid "admin.blog.settings.save_button"
+msgstr ""
+
+msgid "admin.blog.settings.save_success"
+msgstr ""
+
+msgid "admin.blog.settings.theme_legend"
+msgstr ""
+
+msgid "admin.blog.settings.theme_override_note"
+msgstr ""
+
+msgid "admin.blog.settings.theme_inherited_note"
+msgstr ""
+
+msgid "admin.blog.settings.field_theme_mode"
+msgstr ""
+
+msgid "admin.blog.settings.theme_mode_light"
+msgstr ""
+
+msgid "admin.blog.settings.theme_mode_dark"
+msgstr ""
+
+msgid "admin.blog.settings.theme_mode_system"
+msgstr ""
+
+msgid "admin.blog.settings.theme_save_success"
+msgstr ""
+
+msgid "admin.blog.templates.title"
+msgstr ""
+
+msgid "admin.blog.templates.no_templates"
+msgstr ""
+
+msgid "admin.blog.templates.key_column"
+msgstr ""
+
+msgid "admin.blog.templates.name_column"
+msgstr ""
+
+msgid "admin.blog.templates.columns_column"
+msgstr ""
+
+msgid "admin.blog.templates.sidebar_column"
+msgstr ""
+
+msgid "admin.blog.templates.active_column"
+msgstr ""
+
+msgid "admin.blog.templates.actions_column"
+msgstr ""
+
+msgid "admin.blog.templates.edit_summary"
+msgstr ""
+
+msgid "admin.blog.templates.field_key"
+msgstr ""
+
+msgid "admin.blog.templates.field_name"
+msgstr ""
+
+msgid "admin.blog.templates.field_columns"
+msgstr ""
+
+msgid "admin.blog.templates.field_sidebar"
+msgstr ""
+
+msgid "admin.blog.templates.sidebar_left"
+msgstr ""
+
+msgid "admin.blog.templates.sidebar_right"
+msgstr ""
+
+msgid "admin.blog.templates.sidebar_none"
+msgstr ""
+
+msgid "admin.blog.templates.field_active"
+msgstr ""
+
+msgid "admin.blog.templates.save_button"
+msgstr ""
+
+msgid "admin.blog.templates.delete_button"
+msgstr ""
+
+msgid "admin.blog.templates.create_summary"
+msgstr ""
+
+msgid "admin.blog.templates.create_submit"
+msgstr ""
+
+msgid "admin.blog.templates.create_success"
+msgstr ""
+
+msgid "admin.blog.templates.update_success"
+msgstr ""
+
+msgid "admin.blog.templates.delete_reason_prompt"
+msgstr ""
+
+msgid "admin.blog.templates.delete_confirm"
+msgstr ""
+
+msgid "admin.blog.templates.delete_success"
+msgstr ""
+
+msgid "admin.blog.widgets.title"
+msgstr ""
+
+msgid "admin.blog.widgets.no_widgets"
+msgstr ""
+
+msgid "admin.blog.widgets.title_column"
+msgstr ""
+
+msgid "admin.blog.widgets.position_column"
+msgstr ""
+
+msgid "admin.blog.widgets.sort_order_column"
+msgstr ""
+
+msgid "admin.blog.widgets.active_column"
+msgstr ""
+
+msgid "admin.blog.widgets.actions_column"
+msgstr ""
+
+msgid "admin.blog.widgets.edit_summary"
+msgstr ""
+
+msgid "admin.blog.widgets.field_title"
+msgstr ""
+
+msgid "admin.blog.widgets.field_position"
+msgstr ""
+
+msgid "admin.blog.widgets.position_header"
+msgstr ""
+
+msgid "admin.blog.widgets.position_sidebar"
+msgstr ""
+
+msgid "admin.blog.widgets.position_footer"
+msgstr ""
+
+msgid "admin.blog.widgets.position_content_before"
+msgstr ""
+
+msgid "admin.blog.widgets.position_content_after"
+msgstr ""
+
+msgid "admin.blog.widgets.field_body_text"
+msgstr ""
+
+msgid "admin.blog.widgets.field_sort_order"
+msgstr ""
+
+msgid "admin.blog.widgets.field_active"
+msgstr ""
+
+msgid "admin.blog.widgets.save_button"
+msgstr ""
+
+msgid "admin.blog.widgets.delete_button"
+msgstr ""
+
+msgid "admin.blog.widgets.create_summary"
+msgstr ""
+
+msgid "admin.blog.widgets.create_submit"
+msgstr ""
+
+msgid "admin.blog.widgets.create_success"
+msgstr ""
+
+msgid "admin.blog.widgets.update_success"
+msgstr ""
+
+msgid "admin.blog.widgets.delete_reason_prompt"
+msgstr ""
+
+msgid "admin.blog.widgets.delete_confirm"
+msgstr ""
+
+msgid "admin.blog.widgets.delete_success"
+msgstr ""
+
+msgid "admin.blog.menus.title"
+msgstr ""
+
+msgid "admin.blog.menus.no_menus"
+msgstr ""
+
+msgid "admin.blog.menus.field_key"
+msgstr ""
+
+msgid "admin.blog.menus.field_name"
+msgstr ""
+
+msgid "admin.blog.menus.field_items"
+msgstr ""
+
+msgid "admin.blog.menus.items_hint"
+msgstr ""
+
+msgid "admin.blog.menus.generate_id_button"
+msgstr ""
+
+msgid "admin.blog.menus.invalid_items_json"
+msgstr ""
+
+msgid "admin.blog.menus.save_button"
+msgstr ""
+
+msgid "admin.blog.menus.delete_button"
+msgstr ""
+
+msgid "admin.blog.menus.create_summary"
+msgstr ""
+
+msgid "admin.blog.menus.create_submit"
+msgstr ""
+
+msgid "admin.blog.menus.create_success"
+msgstr ""
+
+msgid "admin.blog.menus.update_success"
+msgstr ""
+
+msgid "admin.blog.menus.delete_reason_prompt"
+msgstr ""
+
+msgid "admin.blog.menus.delete_confirm"
+msgstr ""
+
+msgid "admin.blog.menus.delete_success"
+msgstr ""
+
+msgid "admin.blog.ads.title"
+msgstr ""
+
+msgid "admin.blog.ads.no_ads"
+msgstr ""
+
+msgid "admin.blog.ads.field_name"
+msgstr ""
+
+msgid "admin.blog.ads.field_image_url"
+msgstr ""
+
+msgid "admin.blog.ads.field_link_url"
+msgstr ""
+
+msgid "admin.blog.ads.field_starts_at"
+msgstr ""
+
+msgid "admin.blog.ads.field_ends_at"
+msgstr ""
+
+msgid "admin.blog.ads.field_active"
+msgstr ""
+
+msgid "admin.blog.ads.field_placements"
+msgstr ""
+
+msgid "admin.blog.ads.placements_hint"
+msgstr ""
+
+msgid "admin.blog.ads.invalid_placements_json"
+msgstr ""
+
+msgid "admin.blog.ads.save_button"
+msgstr ""
+
+msgid "admin.blog.ads.delete_button"
+msgstr ""
+
+msgid "admin.blog.ads.create_summary"
+msgstr ""
+
+msgid "admin.blog.ads.create_submit"
+msgstr ""
+
+msgid "admin.blog.ads.create_success"
+msgstr ""
+
+msgid "admin.blog.ads.update_success"
+msgstr ""
+
+msgid "admin.blog.ads.delete_reason_prompt"
+msgstr ""
+
+msgid "admin.blog.ads.delete_confirm"
+msgstr ""
+
+msgid "admin.blog.ads.delete_success"
+msgstr ""
+

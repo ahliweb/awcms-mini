@@ -125,17 +125,21 @@ metadata, `ModuleDescriptor.permissions`) and the actual
   it to write permissions too is a real, separate capability the
   acceptance criteria for this issue doesn't actually require (only the
   read-side report does), so it's left out rather than half-built.
-- **Only `module_management`'s own descriptor currently declares
-  `permissions`** (the other 9 registered modules' permissions were seeded
-  directly by their own migrations, e.g. migration 005/010/014, without
-  ever being added to their `module.ts`). This means every one of those
-  modules' catalog permissions legitimately shows as `orphaned` today —
-  an honest reflection of incomplete descriptor metadata, not a real
-  drift/incident. Backfilling every other module's `permissions` array is
-  out of scope here (the issue itself says this metadata is "optional...
-  if not completed in Issue 1" — #511 didn't do it for the pre-existing
-  modules, and this issue's job is the comparison service, not that
-  backfill).
+- **Only `module_management` and `blog_content`'s descriptors currently
+  declare `permissions`** (`blog_content` added its full 36-entry array in
+  Issue #543, closing epic #536 — grep `permissions:` across
+  `src/modules/*/module.ts` to confirm which modules declare it as code
+  evolves). The other 9 registered modules' permissions (email,
+  form-drafts, identity-access, logging, profile-identity, reporting,
+  sync-storage, tenant-admin, workflow-approval) were seeded directly by
+  their own migrations, e.g. migration 005/010/014, without ever being
+  added to their `module.ts`. This means every one of those 9 modules'
+  catalog permissions legitimately shows as `orphaned` today — an honest
+  reflection of incomplete descriptor metadata, not a real drift/incident.
+  Backfilling every other module's `permissions` array is out of scope
+  here (the issue itself says this metadata is "optional... if not
+  completed in Issue 1" — #511 didn't do it for the pre-existing modules,
+  and this issue's job is the comparison service, not that backfill).
 - A `moduleKey` that is neither a registered descriptor nor present in the
   permission catalog at all is `404` — distinct from a registered module
   with zero declared permissions (still `200`, an empty or
