@@ -3,8 +3,8 @@ import { defineModule } from "../_shared/module-contract";
 /**
  * `tenant_domain` (Issue #558, epic #555 — online public tenant routing &
  * tenant domain management). This issue registers the **module descriptor
- * only** — the management API (#562) and host-based resolver (#559) have
- * since landed; no admin UI (#563) or Cloudflare DNS adapter (#567) yet.
+ * only** — the management API (#562), host-based resolver (#559), and
+ * admin UI (#563) have since landed; no Cloudflare DNS adapter (#567) yet.
  * The descriptor exists now so
  * the database-backed module registry (Module Management, epic #510) can
  * track this module's lifecycle/permissions/settings from day one, the
@@ -31,7 +31,7 @@ export const tenantDomainModule = defineModule({
   version: "0.1.0",
   status: "active",
   description:
-    "Tenant domain/subdomain mapping for online-primary public routing (epic #555). Issue #557 added the `awcms_mini_tenant_domains` schema (migration 031: hostname/normalized_hostname, domain_type subdomain|custom_domain, route_mode canonical|legacy_blog, status pending_verification|active|suspended|failed, verification_method dns_txt|dns_cname|file|manual, is_primary/redirect_to_primary, tenant-scoped RLS with FORCE) and its permission catalog seed (migration 032: tenant_domain.domains.{read,create,update,delete,verify,set_primary}). Issue #558 (this descriptor) registers the module in the trusted code catalog so it syncs into `awcms_mini_modules` and its six permissions sync/report cleanly against the migration 032 seed. The public host-based tenant resolver with offline/LAN fallback (#559) and the tenant domain management API (#562) have since landed. Still to come: the admin UI (#563) and an optional Cloudflare DNS adapter (#567). This module never stores a DNS provider API token/credential; `verification_token_hash` (migration 031) is an internal bearer-token hash, and `verification_record_value` is the public DNS record value the tenant publishes, not a secret.",
+    "Tenant domain/subdomain mapping for online-primary public routing (epic #555). Issue #557 added the `awcms_mini_tenant_domains` schema (migration 031: hostname/normalized_hostname, domain_type subdomain|custom_domain, route_mode canonical|legacy_blog, status pending_verification|active|suspended|failed, verification_method dns_txt|dns_cname|file|manual, is_primary/redirect_to_primary, tenant-scoped RLS with FORCE) and its permission catalog seed (migration 032: tenant_domain.domains.{read,create,update,delete,verify,set_primary}). Issue #558 (this descriptor) registers the module in the trusted code catalog so it syncs into `awcms_mini_modules` and its six permissions sync/report cleanly against the migration 032 seed. The public host-based tenant resolver with offline/LAN fallback (#559), the tenant domain management API (#562), and the admin UI (#563) have since landed. Still to come: an optional Cloudflare DNS adapter (#567). This module never stores a DNS provider API token/credential; `verification_token_hash` (migration 031) is an internal bearer-token hash, and `verification_record_value` is the public DNS record value the tenant publishes, not a secret.",
   dependencies: ["tenant_admin", "identity_access"],
   type: "system",
   api: {

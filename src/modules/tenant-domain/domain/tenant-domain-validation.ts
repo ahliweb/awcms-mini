@@ -41,25 +41,28 @@ export type TenantDomainVerificationMethod =
 export type UpdatableTenantDomainStatus =
   "pending_verification" | "suspended" | "failed";
 
-const DOMAIN_TYPES: readonly TenantDomainType[] = [
+// Exported (Issue #563, admin UI): the create/edit forms on
+// `/admin/tenant/domains` build their `<select>` option lists from these
+// same arrays rather than re-declaring a second opinion of the enum
+// vocabulary — a value the UI can select is guaranteed to be a value this
+// validator accepts.
+export const TENANT_DOMAIN_TYPES: readonly TenantDomainType[] = [
   "subdomain",
   "custom_domain"
 ];
-const ROUTE_MODES: readonly TenantDomainRouteMode[] = [
+export const TENANT_DOMAIN_ROUTE_MODES: readonly TenantDomainRouteMode[] = [
   "canonical",
   "legacy_blog"
 ];
-const VERIFICATION_METHODS: readonly TenantDomainVerificationMethod[] = [
-  "dns_txt",
-  "dns_cname",
-  "file",
-  "manual"
-];
-const UPDATABLE_STATUSES: readonly UpdatableTenantDomainStatus[] = [
-  "pending_verification",
-  "suspended",
-  "failed"
-];
+export const TENANT_DOMAIN_VERIFICATION_METHODS: readonly TenantDomainVerificationMethod[] =
+  ["dns_txt", "dns_cname", "file", "manual"];
+export const TENANT_DOMAIN_UPDATABLE_STATUSES: readonly UpdatableTenantDomainStatus[] =
+  ["pending_verification", "suspended", "failed"];
+
+const DOMAIN_TYPES = TENANT_DOMAIN_TYPES;
+const ROUTE_MODES = TENANT_DOMAIN_ROUTE_MODES;
+const VERIFICATION_METHODS = TENANT_DOMAIN_VERIFICATION_METHODS;
+const UPDATABLE_STATUSES = TENANT_DOMAIN_UPDATABLE_STATUSES;
 
 // DNS TXT record values can legitimately run long (concatenated
 // multi-string records); this is a generous defense-in-depth cap, not a

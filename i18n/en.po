@@ -113,6 +113,15 @@ msgstr "This cannot be permanently deleted while other records depend on it."
 msgid "error.purge_requires_soft_delete"
 msgstr "This must be archived before it can be permanently deleted."
 
+msgid "error.hostname_conflict"
+msgstr "This hostname is already mapped to a tenant."
+
+msgid "error.invalid_status_transition"
+msgstr "This action is not allowed for the current status."
+
+msgid "error.concurrent_update"
+msgstr "Another request already changed this. Please try again."
+
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"
 msgstr "No role"
@@ -134,6 +143,9 @@ msgstr "Sync"
 
 msgid "admin.layout.nav_settings"
 msgstr "Settings"
+
+msgid "admin.layout.nav_tenant_domains"
+msgstr "Tenant Domains"
 
 msgid "admin.layout.nav_modules"
 msgstr "Modules"
@@ -1685,4 +1697,185 @@ msgstr "Delete this advertisement?"
 
 msgid "admin.blog.ads.delete_success"
 msgstr "Advertisement deleted."
+
+#. admin.tenant_domain (Issue #563)
+msgid "admin.tenant_domain.title"
+msgstr "Tenant Domains"
+
+msgid "admin.tenant_domain.access_denied_title"
+msgstr "Access denied."
+
+msgid "admin.tenant_domain.access_denied_body"
+msgstr "Your account does not have permission to view tenant domains. Contact your tenant admin/owner to request access."
+
+msgid "admin.tenant_domain.no_domains"
+msgstr "No domains yet. Add a platform subdomain or a custom domain to get started."
+
+msgid "admin.tenant_domain.hostname_column"
+msgstr "Hostname"
+
+msgid "admin.tenant_domain.type_column"
+msgstr "Type"
+
+msgid "admin.tenant_domain.status_column"
+msgstr "Status"
+
+msgid "admin.tenant_domain.verification_column"
+msgstr "Verification"
+
+msgid "admin.tenant_domain.actions_column"
+msgstr "Actions"
+
+msgid "admin.tenant_domain.domain_type.subdomain"
+msgstr "Platform subdomain"
+
+msgid "admin.tenant_domain.domain_type.custom_domain"
+msgstr "Custom domain"
+
+msgid "admin.tenant_domain.route_mode.canonical"
+msgstr "Canonical (/news)"
+
+msgid "admin.tenant_domain.route_mode.legacy_blog"
+msgstr "Legacy (/blog/{tenantCode})"
+
+msgid "admin.tenant_domain.status.pending_verification"
+msgstr "Pending verification"
+
+msgid "admin.tenant_domain.status.active"
+msgstr "Active"
+
+msgid "admin.tenant_domain.status.suspended"
+msgstr "Suspended"
+
+msgid "admin.tenant_domain.status.failed"
+msgstr "Failed"
+
+msgid "admin.tenant_domain.primary_badge_label"
+msgstr "Primary domain"
+
+msgid "admin.tenant_domain.verification_method.dns_txt"
+msgstr "TXT record"
+
+msgid "admin.tenant_domain.verification_method.dns_cname"
+msgstr "CNAME record"
+
+msgid "admin.tenant_domain.verification_method.file"
+msgstr "File upload"
+
+msgid "admin.tenant_domain.verification_method.manual"
+msgstr "Manual (operator-attested)"
+
+msgid "admin.tenant_domain.verification_method_none"
+msgstr "No verification method set"
+
+msgid "admin.tenant_domain.no_record_configured"
+msgstr "No DNS record configured for this verification method yet."
+
+msgid "admin.tenant_domain.record_name_label"
+msgstr "Record name/host"
+
+msgid "admin.tenant_domain.record_value_label"
+msgstr "Record value"
+
+msgid "admin.tenant_domain.copy_button"
+msgstr "Copy"
+
+msgid "admin.tenant_domain.copy_success"
+msgstr "Copied to clipboard."
+
+msgid "admin.tenant_domain.copy_error"
+msgstr "Could not copy automatically — please copy it manually."
+
+msgid "admin.tenant_domain.preview_link"
+msgstr "Open public /news site"
+
+msgid "admin.tenant_domain.preview_hint"
+msgstr "Only resolves publicly if host-based public routing is enabled for this deployment."
+
+msgid "admin.tenant_domain.verify_button"
+msgstr "Verify"
+
+msgid "admin.tenant_domain.verify_confirm"
+msgstr "Verify this domain now? This marks it active based on your attestation that DNS/ownership is correct."
+
+msgid "admin.tenant_domain.verify_success"
+msgstr "Domain verified."
+
+msgid "admin.tenant_domain.set_primary_button"
+msgstr "Set as primary"
+
+msgid "admin.tenant_domain.set_primary_confirm"
+msgstr "Set this domain as the tenant's primary domain?"
+
+msgid "admin.tenant_domain.set_primary_success"
+msgstr "Primary domain updated."
+
+msgid "admin.tenant_domain.delete_button"
+msgstr "Delete"
+
+msgid "admin.tenant_domain.delete_reason_prompt"
+msgstr "Reason for deleting this domain mapping:"
+
+msgid "admin.tenant_domain.delete_confirm"
+msgstr "Delete this domain mapping? This cannot be undone from this screen."
+
+msgid "admin.tenant_domain.delete_success"
+msgstr "Domain mapping deleted."
+
+msgid "admin.tenant_domain.edit_summary"
+msgstr "Edit"
+
+msgid "admin.tenant_domain.save_button"
+msgstr "Save"
+
+msgid "admin.tenant_domain.update_success"
+msgstr "Domain mapping updated."
+
+msgid "admin.tenant_domain.field_status_no_change"
+msgstr "Leave unchanged"
+
+msgid "admin.tenant_domain.field_status_active_hint"
+msgstr "This domain is currently active. Choosing a status below (e.g. Suspended) will take it out of service — the change applies immediately when you save."
+
+msgid "admin.tenant_domain.field_verification_method_none_option"
+msgstr "Not set"
+
+msgid "admin.tenant_domain.create_summary"
+msgstr "Add a domain or subdomain"
+
+msgid "admin.tenant_domain.create_submit"
+msgstr "Add domain"
+
+msgid "admin.tenant_domain.create_success"
+msgstr "Domain mapping added."
+
+msgid "admin.tenant_domain.field_hostname"
+msgstr "Hostname"
+
+msgid "admin.tenant_domain.field_hostname_hint"
+msgstr "Enter the full hostname, e.g. shop.example.com — no scheme (https://), no port."
+
+msgid "admin.tenant_domain.field_domain_type"
+msgstr "Domain type"
+
+msgid "admin.tenant_domain.field_route_mode"
+msgstr "Route mode"
+
+msgid "admin.tenant_domain.field_verification_method"
+msgstr "Verification method"
+
+msgid "admin.tenant_domain.field_record_name"
+msgstr "Verification record name/host (optional)"
+
+msgid "admin.tenant_domain.field_record_value"
+msgstr "Verification record value (optional)"
+
+msgid "admin.tenant_domain.field_redirect_to_primary"
+msgstr "Redirect to primary domain"
+
+msgid "admin.tenant_domain.field_status"
+msgstr "Status"
+
+msgid "admin.tenant_domain.invalid_hostname"
+msgstr "Enter a valid hostname (no scheme, no port, e.g. shop.example.com)."
 
