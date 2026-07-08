@@ -165,14 +165,123 @@ consumes the resolver above — see
 that issue — it still only owns the `awcms_mini_tenant_domains` schema,
 the `SECURITY DEFINER` lookup function, and this descriptor.
 
+## Tenant domain management API (`/api/v1/tenant/domains`, Issue #562)
+
+Authenticated, tenant-scoped, audited CRUD + lifecycle actions over
+`awcms_mini_tenant_domains` — the first application code that ever writes
+rows to this table (the resolver, #559, only ever reads them). No admin UI
+(#563) and no Cloudflare DNS provider calls (#567) — API only, exactly the
+issue's own scope.
+
+```txt
+GET    /api/v1/tenant/domains              list, keyset-paginated
+POST   /api/v1/tenant/domains              create
+GET    /api/v1/tenant/domains/{id}         read one
+PATCH  /api/v1/tenant/domains/{id}         partial update
+DELETE /api/v1/tenant/domains/{id}         soft delete
+POST   /api/v1/tenant/domains/{id}/verify        manual-first verify
+POST   /api/v1/tenant/domains/{id}/set-primary   atomic primary swap
+```
+
+Files: `domain/tenant-domain-validation.ts` (pure input validation),
+`application/tenant-domain-directory.ts` (DB access — every query runs
+inside the caller's `withTenant` transaction, **never** the migration-033
+`SECURITY DEFINER` bootstrap function, per the epic's binding rule that
+#562's admin API and #559's anonymous public resolver never share a data
+access path — skill `awcms-mini-tenant-domain-routing` §Aturan lintas-issue
+#10), and `src/pages/api/v1/tenant/domains/**` (routes — thin orchestration
+only, same shape as `blog_content`'s `src/pages/api/v1/blog/posts/**`).
+
+**Auth/ABAC**: every route calls `authorizeInTransaction` with
+`moduleKey: "tenant_domain"`, `activityCode: "domains"`, and one of
+`read`/`create`/`update`/`delete`/`verify`/`set_primary` — the exact six
+permissions migration 032 seeded. `verify` and `set_primary` did not exist
+in `identity-access/domain/access-control.ts`'s `AccessAction` union before
+this issue; both were added here (not added to `HIGH_RISK_ACTIONS` — see
+that file's own docblock and `identity-access/README.md`'s "Vocabulary
+`AccessAction` diperluas" section for the full reasoning, same
+`retry`/`sync`/`enable`/`disable`/`check`/`publish` precedent). RLS `FORCE`d
+on the table (migration 031) is defense in depth underneath every explicit
+`tenant_id` filter in `tenant-domain-directory.ts` — a cross-tenant id is
+invisible before the route can even distinguish it from "doesn't exist",
+which is what makes `GET/PATCH/DELETE/verify/set-primary .../{id}` return
+an identical generic 404 for an unknown id, a soft-deleted id, and another
+tenant's id alike.
+
+**Hostname validation** does not invent a second hostname-shape opinion: it
+reuses `lib/tenant/public-host-tenant-resolver.ts`'s `normalizePublicHost()`
+(Issue #559) directly — the same lowercase/trim/RFC-1035-shape check the
+public resolver applies to an inbound `Host` header. A hostname containing
+a port (`example.com:8443`) is rejected outright before normalization would
+silently strip it, keeping `hostname`/`normalized_hostname` in sync with
+migration 031's CHECK constraint. `hostname` is immutable after create (no
+field for it in `UpdateTenantDomainInput`) — re-pointing a hostname to a
+different tenant means delete-then-recreate, not an in-place rename.
+
+**Duplicate hostname handling**: `awcms_mini_tenant_domains_normalized_hostname_dedup`
+(migration 031) is a **global**, not per-tenant, unique index — one
+hostname belongs to exactly one tenant. `POST /api/v1/tenant/domains`
+catches that constraint violation and always returns a generic
+`409 HOSTNAME_CONFLICT`, regardless of whether the colliding row belongs to
+the caller's own tenant or a different one — Issue #562 §Security notes
+binding rule: never leak whether a hostname belongs to another tenant. The
+route never queries `awcms_mini_tenant_domains` across tenants to decide
+which message to show; it only inspects the driver error message for the
+constraint name.
+
+**`verify`** (manual-first, Issue #562 §Security notes — no outbound
+DNS/HTTP call in this issue): flips `status` from
+`pending_verification`/`failed` to `active` purely from fields already on
+the row (`verification_method` must be set; nothing else is checked — the
+tenant/operator's claim is trusted). Verifying an already-`active` domain
+is an idempotent no-op (returns the current row, not an error) — same
+`from === to` transition-allowed convention `blog_content`'s
+`isValidStatusTransition` already established. `suspended` domains refuse
+verification (an explicit pause, not something an attestation should
+silently override). Requires `Idempotency-Key`
+(`modules/_shared/idempotency.ts`, scope `tenant_domain_verify`) — same
+replay/conflict semantics as `POST /api/v1/blog/posts/{id}/publish`.
+
+**`set-primary`** is atomic: `withTenant` already opens one
+`sql.begin(...)` transaction per request, and `setPrimaryTenantDomain`
+performs two UPDATEs against that same transaction in a fixed order — unset
+any previous primary FIRST, set the new primary SECOND — so
+`awcms_mini_tenant_domains_primary_dedup` (migration 031's partial unique
+index, one active primary per tenant) is never violated mid-transaction.
+Only a verified (`active`) domain can become primary. Also requires
+`Idempotency-Key` (scope `tenant_domain_set_primary`).
+
+**Never exposed in any response**: `verification_token_hash` — an internal
+bearer-token hash (migration 031) — is never selected by
+`tenant-domain-directory.ts`'s queries at all, let alone returned; nothing
+in this issue writes it either (no verification-token-generation endpoint
+exists yet). There is still no DNS provider secret column on this table
+(Issue #567's concern, out of scope here) — the API surface adds none.
+
+**Audit**: every mutation (`create`/`update`/`delete`/`verify`/
+`set_primary`) writes exactly one `recordAuditEvent` call inside the same
+transaction, action literal `tenant_domain.domain.<verb>` (`created`/
+`updated`/`deleted`/`verified`/`set_primary`) — the
+`tenant_domain.<resource>.<verb>` convention documented in skill
+`awcms-mini-tenant-domain-routing`'s §Aturan lintas-issue #8, mirroring
+`blog.<resource>.<verb>` from `blog_content`. `delete` uses
+`severity: "warning"` with `attributes: { reason }`; the rest use
+`severity: "info"`.
+
+**Pagination**: `GET /api/v1/tenant/domains` uses the same opaque
+`(created_at, id) DESC` keyset cursor shape as `GET /api/v1/email/messages`
+(`modules/_shared/keyset-pagination.ts`) — `?cursor=` from a previous page's
+`nextCursor`, bounded to 100 rows per page
+(`TENANT_DOMAIN_LIST_LIMIT`), no `OFFSET`.
+
+Test: `tests/integration/tenant-domain-api.integration.test.ts` — every
+acceptance criterion above (CRUD, cross-tenant RLS/generic-404, duplicate
+hostname 409, soft-delete-only, verify idempotency + status gating,
+set-primary atomicity + idempotency, no `verification_token_hash` in any
+response).
+
 ## Not yet available
 
-- Tenant domain management API, `/api/v1/tenant/domains` (Issue #562) —
-  until this lands, `awcms_mini_tenant_domains` has no application code
-  writing rows to it at all (only the resolver's read path exists), so
-  `/news`'s host-based lookup (resolution step 1, `host_default` mode) has
-  nothing to match against in a real deployment yet; `/news` still works
-  today via the env/setup-state fallback (steps 2-4).
 - Admin UI, `/admin/tenant/domains` (Issue #563).
 - The tenant setting that chooses between `/news` and legacy
   `/blog/{tenantCode}` (Issue #564).

@@ -1,0 +1,178 @@
+import type { APIRoute } from "astro";
+
+import { fail, ok } from "../../../../../modules/_shared/api-response";
+import { getDatabaseClient } from "../../../../../lib/database/client";
+import { withTenant } from "../../../../../lib/database/tenant-context";
+import { hashSessionToken } from "../../../../../lib/auth/session-token";
+import {
+  authorizeInTransaction,
+  resolveAuthInputs
+} from "../../../../../modules/identity-access/application/access-guard";
+import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
+import {
+  createTenantDomain,
+  listTenantDomains,
+  TENANT_DOMAIN_LIST_LIMIT
+} from "../../../../../modules/tenant-domain/application/tenant-domain-directory";
+import { validateCreateTenantDomainInput } from "../../../../../modules/tenant-domain/domain/tenant-domain-validation";
+import {
+  decodeKeysetCursor,
+  encodeKeysetCursor
+} from "../../../../../modules/_shared/keyset-pagination";
+
+const READ_GUARD = {
+  moduleKey: "tenant_domain",
+  activityCode: "domains",
+  action: "read" as const
+};
+
+const CREATE_GUARD = {
+  moduleKey: "tenant_domain",
+  activityCode: "domains",
+  action: "create" as const
+};
+
+/** `GET /api/v1/tenant/domains` (Issue #562) — this tenant's non-deleted domain/subdomain mappings, keyset-paginated newest first (limit 100, mirrors `GET /api/v1/email/messages`). */
+export const GET: APIRoute = async ({ request, cookies, url }) => {
+  const { tenantId, token } = resolveAuthInputs(request, cookies);
+
+  if (!tenantId) {
+    return fail(400, "TENANT_REQUIRED", "Tenant header is required.");
+  }
+
+  if (!token) {
+    return fail(401, "AUTH_REQUIRED", "Authentication required.");
+  }
+
+  const cursorParam = url.searchParams.get("cursor");
+  const cursor = cursorParam ? decodeKeysetCursor(cursorParam) : null;
+
+  if (cursorParam && !cursor) {
+    return fail(400, "VALIDATION_ERROR", "cursor is malformed.");
+  }
+
+  const sql = getDatabaseClient();
+  const tokenHash = hashSessionToken(token);
+  const now = new Date();
+
+  return withTenant(sql, tenantId, async (tx) => {
+    const auth = await authorizeInTransaction(
+      tx,
+      tenantId,
+      tokenHash,
+      now,
+      READ_GUARD
+    );
+
+    if (!auth.allowed) {
+      return auth.denied;
+    }
+
+    const domains = await listTenantDomains(tx, tenantId, cursor ?? undefined);
+
+    const nextCursor =
+      domains.length === TENANT_DOMAIN_LIST_LIMIT
+        ? encodeKeysetCursor(
+            new Date(domains[domains.length - 1]!.createdAt),
+            domains[domains.length - 1]!.id
+          )
+        : null;
+
+    return ok({ domains, nextCursor });
+  });
+};
+
+/**
+ * `POST /api/v1/tenant/domains` (Issue #562) — add a domain/subdomain
+ * mapping. Hostname shape reuses `normalizePublicHost()` (Issue #559, see
+ * `tenant-domain-validation.ts`'s own docblock). A duplicate normalized
+ * hostname is caught here and mapped to a generic 409 — never distinguishes
+ * "you already have this hostname" from "another tenant already has this
+ * hostname" (Issue #562 §Security notes: do not leak whether a hostname
+ * belongs to another tenant), because the unique index is global, not
+ * tenant-scoped (migration 031).
+ */
+export const POST: APIRoute = async ({ request, cookies, locals }) => {
+  const { tenantId, token } = resolveAuthInputs(request, cookies);
+
+  if (!tenantId) {
+    return fail(400, "TENANT_REQUIRED", "Tenant header is required.");
+  }
+
+  if (!token) {
+    return fail(401, "AUTH_REQUIRED", "Authentication required.");
+  }
+
+  const validation = validateCreateTenantDomainInput(
+    await request.json().catch(() => null)
+  );
+
+  if (!validation.valid) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      "Tenant domain is invalid.",
+      {},
+      validation.errors
+    );
+  }
+
+  const input = validation.value;
+  const sql = getDatabaseClient();
+  const tokenHash = hashSessionToken(token);
+  const now = new Date();
+  const correlationId = locals.correlationId;
+
+  return withTenant(sql, tenantId, async (tx) => {
+    const auth = await authorizeInTransaction(
+      tx,
+      tenantId,
+      tokenHash,
+      now,
+      CREATE_GUARD
+    );
+
+    if (!auth.allowed) {
+      return auth.denied;
+    }
+
+    let domain;
+
+    try {
+      domain = await createTenantDomain(
+        tx,
+        tenantId,
+        auth.context.tenantUserId,
+        input
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (
+        message.includes("awcms_mini_tenant_domains_normalized_hostname_dedup")
+      ) {
+        return fail(
+          409,
+          "HOSTNAME_CONFLICT",
+          "This hostname is already mapped to a tenant."
+        );
+      }
+
+      throw error;
+    }
+
+    await recordAuditEvent(tx, {
+      tenantId,
+      actorTenantUserId: auth.context.tenantUserId,
+      moduleKey: "tenant_domain",
+      action: "tenant_domain.domain.created",
+      resourceType: "tenant_domain",
+      resourceId: domain.id,
+      severity: "info",
+      message: `Tenant domain mapping created: ${domain.normalizedHostname}.`,
+      correlationId
+    });
+
+    return ok(domain);
+  });
+};

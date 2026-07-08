@@ -290,6 +290,23 @@ notFoundHtmlResponse();` (or `notFoundXmlResponse()` for the two XML
 routes) — a `handler` that finds no matching post/term also just `return
 null`, collapsing into the identical generic 404 as the tenant/module gate.
 
+**Timing side-channel fix (landed alongside Issue #562)**: "tenant not
+resolved" and "tenant resolved but `blog_content` disabled" both return the
+identical `null`/404, but used to cost a different number of DB round trips
+(the first touched no transaction at all, the second opened `withTenant` +
+one `fetchTenantModuleEntries` query) — an external prober varying the
+`Host` header could have learned "this hostname maps to a real, active
+tenant" purely from response latency once Issue #562's API let
+`awcms_mini_tenant_domains` hold real mappings. Fixed by
+`padUnresolvedTenantLatency()`: the "not resolved" branch now pays the same
+round-trip shape via a harmless padding query scoped to the all-zero
+fail-closed sentinel tenant id (migration 013), which always matches zero
+rows. See `public-news-tenant-resolution.ts`'s own docblock and skill
+`awcms-mini-tenant-domain-routing` §Rute publik `/news` for the full
+writeup, including the deliberate trade-off this adds for
+`tenant_code_legacy` mode (a small, constant DB dependency it did not
+previously have).
+
 **Known pre-existing gap, deliberately not retrofitted here**:
 `/blog/{tenantCode}` (Issue #540) has **no** module-disabled check at all —
 a tenant that disables `blog_content` via

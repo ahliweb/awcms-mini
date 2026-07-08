@@ -30,6 +30,7 @@ import {
   applyMigrations,
   createCookieJar,
   getAdminSql,
+  getTestSql,
   integrationEnabled,
   invoke,
   invokeRaw,
@@ -50,6 +51,13 @@ import {
 } from "../../src/pages/api/v1/blog/posts/[id]";
 import { POST as createTerm } from "../../src/pages/api/v1/blog/terms/index";
 import { POST as disableModule } from "../../src/pages/api/v1/tenant/modules/[moduleKey]/disable";
+
+import {
+  padUnresolvedTenantLatency,
+  withNewsTenant
+} from "../../src/modules/blog-content/application/public-news-tenant-resolution";
+import { withTenant } from "../../src/lib/database/tenant-context";
+import { fetchTenantModuleEntries } from "../../src/modules/module-management/application/tenant-module-lifecycle";
 
 import { GET as newsIndex } from "../../src/pages/news/index";
 import { GET as newsDetail } from "../../src/pages/news/[slug]";
@@ -185,6 +193,53 @@ async function withEnvOverride<T>(
       }
     }
   }
+}
+
+/**
+ * Round-trip counting wrapper (Issue #562 follow-up — timing side-channel
+ * fix verification, see the tests using it near the end of this file). Same
+ * technique as `public-tenant-resolution.integration.test.ts`'s Proxy-based
+ * counter, extended to also intercept `sql.begin(...)`: every method call
+ * made against the `tx` a transaction callback receives (`tx.unsafe(...)`
+ * for `SET LOCAL`, tagged-template queries via `` tx`...` ``) is counted
+ * too, not just calls made directly against the top-level `sql` client —
+ * `withNewsTenant`'s cost, unlike `resolvePublicTenantByHost`'s, spans a
+ * real `withTenant` transaction. Verified empirically against a real
+ * `Bun.SQL` connection that wrapping `.begin()`'s callback argument this way
+ * does not break internal `this` binding, as long as every intercepted
+ * method call is re-applied with the *real* target as `this`, never the
+ * Proxy itself (see the `get` trap below).
+ */
+function wrapCountingSql(target: Bun.SQL, counter: { count: number }): Bun.SQL {
+  return new Proxy(target, {
+    apply(t, thisArg, args) {
+      counter.count += 1;
+      return Reflect.apply(
+        t as unknown as (...a: unknown[]) => unknown,
+        thisArg,
+        args
+      );
+    },
+    get(t, prop, receiver) {
+      if (prop === "begin") {
+        const original = Reflect.get(t, prop, receiver) as (
+          fn: (tx: unknown) => unknown
+        ) => unknown;
+        return (fn: (tx: unknown) => unknown) =>
+          original.call(t, (tx: unknown) =>
+            fn(wrapCountingSql(tx as Bun.SQL, counter))
+          );
+      }
+      const value = Reflect.get(t, prop, receiver);
+      if (typeof value === "function") {
+        return (...args: unknown[]) => {
+          counter.count += 1;
+          return (value as (...a: unknown[]) => unknown).apply(t, args);
+        };
+      }
+      return value;
+    }
+  }) as unknown as Bun.SQL;
 }
 
 const suite = integrationEnabled ? describe : describe.skip;
@@ -741,5 +796,155 @@ suite("public /news routes (Issue #560)", () => {
         expect(detailFromB.status).toBe(404);
       }
     );
+  });
+
+  // -------------------------------------------------------------------
+  // Timing side-channel fix (Issue #562 follow-up, skill
+  // awcms-mini-tenant-domain-routing §Rute publik /news §Follow-up
+  // keamanan). `withNewsTenant`'s "tenant not resolved" and "tenant
+  // resolved but blog_content disabled" outcomes both produce the
+  // identical generic 404 — before this fix they cost a different number
+  // of DB round trips (no transaction at all vs one `withTenant`
+  // transaction + one `fetchTenantModuleEntries` query), letting a prober
+  // vary the `Host` header to learn "this hostname maps to a real active
+  // tenant" purely from response latency once #562 lets
+  // `awcms_mini_tenant_domains` hold real mappings. The three tests below
+  // together prove the fix, deliberately scoped to what `withNewsTenant`
+  // itself controls (not `resolvePublicTenantFromRequest`'s own
+  // separately-variable env/setup-state fallback cost — see
+  // `padUnresolvedTenantLatency`'s own docblock for why that scoping is
+  // correct, not a shortcut).
+  // -------------------------------------------------------------------
+
+  test("padUnresolvedTenantLatency costs exactly the same DB round trips as the real module-enabled check it stands in for", async () => {
+    const owner = await bootstrap();
+    const baseSql = getTestSql();
+
+    const realCounter = { count: 0 };
+    await withTenant(
+      wrapCountingSql(baseSql, realCounter),
+      owner.tenantId,
+      async (tx) => {
+        await fetchTenantModuleEntries(tx, owner.tenantId);
+      }
+    );
+
+    const padCounter = { count: 0 };
+    await padUnresolvedTenantLatency(wrapCountingSql(baseSql, padCounter));
+
+    // Not trivially zero — proves both branches actually touched the DB,
+    // so the equality below is not a vacuous 0 === 0.
+    expect(realCounter.count).toBeGreaterThan(0);
+    expect(padCounter.count).toBe(realCounter.count);
+  });
+
+  test("withNewsTenant now performs a DB round trip even when the tenant does not resolve at all, matching the resolved-but-disabled path's cost (previously zero round trips — the timing side-channel itself)", async () => {
+    const owner = await bootstrap();
+    const baseSql = getTestSql();
+
+    // Expected count, established the same way the previous test did.
+    const expectedCounter = { count: 0 };
+    await withTenant(
+      wrapCountingSql(baseSql, expectedCounter),
+      owner.tenantId,
+      async (tx) => {
+        await fetchTenantModuleEntries(tx, owner.tenantId);
+      }
+    );
+
+    // mode=tenant_code_legacy is the one mode with a DETERMINISTIC,
+    // always-zero resolver cost — resolvePublicTenantFromRequest
+    // short-circuits to null before touching the DB at all (Issue #560's
+    // decision) — chosen specifically so this test isolates
+    // withNewsTenant's OWN added cost from resolvePublicTenantFromRequest's
+    // separately-variable one.
+    const counter = { count: 0 };
+    const countingSql = wrapCountingSql(baseSql, counter);
+    const request = new Request("http://ignored.test/", {
+      headers: { host: "does-not-matter-under-tenant-code-legacy.test" }
+    });
+
+    const result = await withEnvOverride(
+      { PUBLIC_TENANT_RESOLUTION_MODE: "tenant_code_legacy" },
+      () => withNewsTenant(countingSql, request, async () => "handled" as const)
+    );
+
+    expect(result).toBeNull();
+    expect(counter.count).toBe(expectedCounter.count);
+  });
+
+  test("withNewsTenant's resolved-but-disabled and resolved-and-enabled branches cost the same number of round trips up to the point handler() runs", async () => {
+    const owner = await bootstrap();
+    const admin = getAdminSql();
+
+    await admin`
+      INSERT INTO awcms_mini_tenant_domains
+        (tenant_id, hostname, normalized_hostname, domain_type, status)
+      VALUES (${owner.tenantId}, 'disabled.round-trip.test', 'disabled.round-trip.test', 'custom_domain', 'active')
+    `;
+    const disable = await invoke(disableModule, {
+      method: "POST",
+      path: "/api/v1/tenant/modules/blog_content/disable",
+      headers: authHeaders(owner),
+      params: { moduleKey: "blog_content" },
+      body: { reason: "round-trip parity test setup" }
+    });
+    expect(disable.status).toBe(200);
+
+    // A second, raw-inserted active tenant (no owner/identity needed for an
+    // anonymous public route — same `provisionSecondActiveTenant`-style
+    // pattern the cross-tenant isolation test above uses) with
+    // blog_content left enabled by default (no awcms_mini_tenant_modules
+    // row at all -> tenantEnabled defaults to true, see
+    // fetchTenantModuleEntries).
+    const enabledTenantId = crypto.randomUUID();
+    await admin`
+      INSERT INTO awcms_mini_tenants (id, tenant_code, tenant_name, status)
+      VALUES (${enabledTenantId}, 'round-trip-enabled', 'Round Trip Enabled', 'active')
+    `;
+    await admin`
+      INSERT INTO awcms_mini_tenant_domains
+        (tenant_id, hostname, normalized_hostname, domain_type, status)
+      VALUES (${enabledTenantId}, 'enabled.round-trip.test', 'enabled.round-trip.test', 'custom_domain', 'active')
+    `;
+
+    const baseSql = getTestSql();
+
+    async function countRoundTrips(
+      host: string
+    ): Promise<{ count: number; result: unknown }> {
+      const counter = { count: 0 };
+      const countingSql = wrapCountingSql(baseSql, counter);
+      const request = new Request("http://ignored.test/", {
+        headers: { host }
+      });
+
+      const result = await withEnvOverride(
+        { PUBLIC_TENANT_RESOLUTION_MODE: "host_default" },
+        () =>
+          withNewsTenant(countingSql, request, async () => "handled" as const)
+      );
+
+      return { count: counter.count, result };
+    }
+
+    const disabledRun = await countRoundTrips("disabled.round-trip.test");
+    const enabledRun = await countRoundTrips("enabled.round-trip.test");
+
+    // blog_content disabled -> withNewsTenant's own gate returns null
+    // *before* handler ever runs.
+    expect(disabledRun.result).toBeNull();
+    // blog_content enabled -> handler ran and its return value passed
+    // through untouched.
+    expect(enabledRun.result).toBe("handled");
+
+    // A mapped-active-domain host lookup costs exactly one round trip
+    // regardless of outcome (Issue #559's own guarantee, migration 033),
+    // and the module-enabled check that follows it costs the same whether
+    // or not blog_content turns out to be enabled — the two counts here
+    // differ only by whatever handler() itself would add, and this
+    // handler is a no-op that adds none.
+    expect(disabledRun.count).toBeGreaterThan(0);
+    expect(enabledRun.count).toBe(disabledRun.count);
   });
 });
