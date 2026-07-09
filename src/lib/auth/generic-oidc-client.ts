@@ -18,6 +18,19 @@
  * — a slow/unhealthy tenant-configured provider must never affect any
  * other tenant's or provider's login, unlike the single application-wide
  * database circuit breaker.
+ *
+ * SSRF note (Issue #603, decided — not an oversight): `issuer_url` (and
+ * whatever `token_endpoint`/`jwks_uri` its discovery document points to)
+ * is the one outbound URL in this codebase that comes from tenant-admin
+ * data rather than server env config, unlike every other provider adapter
+ * (R2, Mailketing, Cloudflare). Deliberately NOT IP-range-blocked: AWCMS-Mini
+ * supports LAN-first/offline deployments where a tenant's OIDC provider
+ * (on-prem Keycloak/ADFS) legitimately runs on a private IP — blocking
+ * private ranges would break that deployment model, not just attackers.
+ * Mitigated by ABAC on provider CRUD + audit logging, matching how Okta/
+ * Auth0/Azure AD themselves handle admin-configured issuer URLs. See skill
+ * `awcms-mini-auth-online-hardening` §SSRF/`issuer_url` for the full
+ * rationale before reopening this as a "gap."
  */
 import { getProviderCircuitBreaker } from "../database/circuit-breaker";
 import { withTimeout } from "../integration/timeout";

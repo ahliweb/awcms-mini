@@ -653,11 +653,44 @@ dihasilkan:
   `src/modules/identity-access/README.md` sudah akurat sejak #587-#591
   masing-masing — dikonfirmasi ulang oleh #593, tidak diubah.
 
-Issue #601 (SQLSTATE class 22 circuit-breaker exclusion) dan #605
-(break-glass picker/data-hygiene UX admin) sudah **selesai** sebagai
-follow-up terpisah setelah #593 (lihat §Break-glass picker/data-hygiene di
-bawah untuk #605). Issue #603 (SSRF hardening untuk `issuer_url` OIDC
-tenant-configured) tetap terbuka.
+Issue #601 (SQLSTATE class 22 circuit-breaker exclusion), #605 (break-glass
+picker/data-hygiene UX admin), dan #603 (SSRF hardening untuk `issuer_url`
+OIDC tenant-configured) sudah **selesai** sebagai follow-up terpisah setelah
+#593 (lihat §Break-glass picker/data-hygiene di bawah untuk #605, dan
+§SSRF/`issuer_url` — keputusan accepted risk untuk #603).
+
+### SSRF/`issuer_url` — keputusan accepted risk (Issue #603, selesai)
+
+**Diputuskan TIDAK menambah IP-range denylist** (resolve hostname, tolak
+private/loopback/link-local/metadata-endpoint) untuk `issuer_url` OIDC
+tenant-configured (#591). Ini SATU-SATUNYA outbound URL di base ini yang
+berasal dari data tenant-configured, bukan env server tepercaya (beda dari
+setiap provider lain — R2, Mailketing, Cloudflare DNS/Turnstile — yang
+semuanya SSRF-safe by convention: URL selalu dari `process.env`).
+
+**Kenapa TIDAK diblok** (bukan oversight — keputusan eksplisit): AWCMS-Mini
+secara sengaja mendukung deployment LAN-first/offline (doc 18) di mana
+provider OIDC tenant SAH beroperasi di IP privat (mis. Keycloak/ADFS
+on-prem hanya reachable lewat LAN, `10.x`/`192.168.x`). Blanket private-IP
+block akan mematahkan skenario deployment SAH ini — bukan cuma mencegah
+serangan, seperti yang biasanya jadi concern SaaS-only. Ini beda dari
+kebanyakan aplikasi SaaS murni yang boleh asumsikan semua backend
+tenant-configured selalu di internet publik.
+
+**Mitigasi yang tetap jadi kontrol utama**: gate ABAC
+(`identity_access.sso_providers.create`/`update`, sudah ada sejak #591),
+audit log setiap create/update provider (`sso_provider_created`/
+`sso_provider_updated`, sudah ada), dan segmentasi jaringan level operator
+untuk service internal yang sungguh sensitif — sama seperti model Okta/
+Auth0/Azure AD sendiri (semuanya mengizinkan admin-configured issuer URL
+tanpa pembatasan IP-range).
+
+**Kalau butuh SSRF hardening di masa depan** (mis. untuk profil deployment
+full-online/multi-tenant-SaaS murni yang TIDAK butuh dukungan on-prem
+LAN): jangan blanket-block — tambahkan sebagai opt-in per-deployment (env
+var terpisah, default off) supaya deployment LAN-first tidak pernah
+terkena regresi diam-diam. Jangan reimplementasi keputusan ini tanpa
+membaca rasional di atas dulu.
 
 ### Break-glass picker/data-hygiene (Issue #605, selesai)
 
