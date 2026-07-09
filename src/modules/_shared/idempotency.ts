@@ -57,11 +57,19 @@ export type IdempotencyRecord = {
  * instead of leaking a raw unique-violation error to ~25 route files.
  */
 export class IdempotencyRaceLostError extends Error {
+  /** Never the raw key (doc 10 masking discipline) — safe to include in logs. */
+  readonly idempotencyKeyHash: string;
+  readonly requestScope: string;
+
   constructor(requestScope: string, idempotencyKey: string) {
     super(
-      `Idempotency key "${idempotencyKey}" for scope "${requestScope}" was already claimed by a concurrent request.`
+      `Idempotency key for scope "${requestScope}" was already claimed by a concurrent request.`
     );
     this.name = "IdempotencyRaceLostError";
+    this.requestScope = requestScope;
+    this.idempotencyKeyHash = createHash("sha256")
+      .update(idempotencyKey)
+      .digest("hex");
   }
 }
 

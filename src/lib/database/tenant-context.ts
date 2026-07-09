@@ -95,6 +95,13 @@ export async function withTenant<T>(
     if (error instanceof IdempotencyRaceLostError) {
       // Benign concurrency outcome, not a database/infra failure — skip the
       // circuit breaker so bursty duplicate-submit traffic can't false-trip it.
+      log("info", "idempotency.race_lost", {
+        moduleKey: "database-connectivity",
+        tenantId: safeTenantId,
+        requestScope: error.requestScope,
+        idempotencyKeyHash: error.idempotencyKeyHash
+      });
+
       return fail(
         409,
         "IDEMPOTENCY_CONFLICT",
