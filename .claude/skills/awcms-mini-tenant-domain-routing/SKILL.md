@@ -39,7 +39,7 @@ menjembatani beberapa modul sekaligus (config, `tenant_domain` module baru,
 | #564  | Tenant settings untuk rute `/news` vs legacy (`blog_content`) | **Selesai** — lihat §Tenant settings public route di bawah                       |
 | #565  | Tenant module presets (online/news/LAN/minimal)               | **Selesai** — lihat §Tenant module presets di bawah                              |
 | #566  | Tenant-module matrix admin UI                                 | **Selesai** — lihat §Tenant-module matrix admin UI di bawah                      |
-| #567  | Cloudflare DNS adapter (opsional)                             | Belum                                                                            |
+| #567  | Cloudflare DNS adapter (opsional)                             | **Selesai** — lihat §Cloudflare DNS adapter di bawah                             |
 
 ## Yang sudah ada — pakai ulang, jangan re-derive
 
@@ -705,6 +705,93 @@ dikirim di sini — beda dari `verify`/`set-primary` #563 yang butuh.
 Test: `tests/integration/module-tenant-matrix.integration.test.ts`. Detail
 lengkap: `module-management/README.md` §Tenant-module matrix admin UI.
 
+### Cloudflare DNS adapter (Issue #567, `tenant_domain`)
+
+Provider boundary saja — **belum ada rute apa pun** di repo ini yang
+memanggilnya (menyelesaikan `.../verify` dengan panggilan DNS nyata, atau
+"provision platform subdomain", tetap follow-up terbuka). Manual domain
+management (`POST /api/v1/tenant/domains/{id}/verify`, #562) tetap default
+MVP tanpa perubahan — tidak ada var baru yang wajib.
+
+**Env baru** (`domain/tenant-domain-dns-config.ts`,
+`scripts/validate-env.ts`'s `checkTenantDomainDnsConfig`), semuanya
+opsional/backward-compatible:
+
+- `TENANT_DOMAIN_DNS_PROVIDER` — `manual` (default) | `cloudflare`.
+- `TENANT_DOMAIN_PLATFORM_ROOT_DOMAIN` — wajib bila `cloudflare`. **Var
+  terpisah** dari `PUBLIC_PLATFORM_ROOT_DOMAIN` (#556) meski keduanya
+  biasanya bernilai sama secara operasional: `PUBLIC_PLATFORM_ROOT_DOMAIN`
+  menggerbangi resolver host-based publik (#559, siapa yang boleh
+  di-_resolve_ jadi tenant); var ini menggerbangi hostname mana yang
+  boleh disentuh adapter Cloudflare (siapa yang boleh dibuatkan/dicek
+  record DNS-nya) — juga mencerminkan batasan nyata API Cloudflare (satu
+  zone id/token hanya bisa mengelola record di dalam zone-nya sendiri).
+  Jangan gabungkan kedua var ini di issue lanjutan mana pun.
+- `TENANT_DOMAIN_CLOUDFLARE_ZONE_ID` — wajib bila `cloudflare`.
+- `TENANT_DOMAIN_CLOUDFLARE_API_TOKEN` — wajib bila `cloudflare`, secret
+  sungguhan. Hanya dari env/secret manager — **tidak pernah** disimpan di
+  `awcms_mini_tenant_domains`/`awcms_mini_module_settings`/tabel lain, tidak
+  pernah dirender di admin UI mana pun (menegakkan §Aturan lintas-issue #7
+  di bawah).
+
+**Adapter** (`infrastructure/cloudflare-dns-adapter.ts`) — port
+`TenantDomainDnsProvider` dengan dua method, keduanya timeout-bounded
+(`withTimeout`, default 8 detik) dan digerbangi circuit breaker bersama
+(`getProviderCircuitBreaker("tenant-domain-cloudflare-dns")`), pola persis
+`email/infrastructure/mailketing-provider.ts` dan
+`sync-storage/infrastructure/object-storage-uploader.ts`. Keduanya dipanggil
+di luar transaksi DB mana pun (ADR-0006) — file ini tidak pernah membuka
+`sql.begin(...)`:
+
+- `createVerificationRecord({recordType, recordName, recordValue})` —
+  **idempotent by construction**: list dulu record yang match
+  type/name/content persis, return `{ok:true, alreadyExists:true}` tanpa
+  write kedua kalau sudah ada, bukan mengandalkan kode error duplicate
+  Cloudflare tertentu.
+- `checkVerificationStatus({recordType, recordName, expectedValue})` — list
+  record pada name/type itu, bandingkan content (CNAME dinormalisasi:
+  strip trailing dot + lowercase sebelum dibandingkan).
+
+**Validasi input mengikat** (`validateDnsRecordInput`, exported, pure):
+`recordName` wajib persis `TENANT_DOMAIN_PLATFORM_ROOT_DOMAIN` atau
+subdomain-nya — ditolak SEBELUM panggilan network apa pun. Shape check
+`recordName` **sengaja bukan** reuse `normalizePublicHost()` (#559): nama
+record verifikasi DNS lazim berlabel underscore-prefix (mis.
+`_acme-challenge.example.com`, `_awcms-verify.tenant1.platform.example`)
+yang shape-check `Host` header (`normalizePublicHost`) menolaknya, padahal
+konvensi ini valid dan lazim untuk TXT record verifikasi — lihat
+`isValidDnsRecordNameShape` (fungsi baru, dedicated) di file adapter.
+`normalizePublicHost()` tetap dipakai ulang, tidak berubah, untuk
+memvalidasi _target_ CNAME (hostname sungguhan yang dituju, bukan label
+record).
+
+**Redaksi error mengikat**: error HTTP dari Cloudflare tidak pernah
+menyertakan `errors[].message` mentah — hanya kode numerik
+`errors[].code` yang disurfacekan (aman, tidak identifiable). Teks error
+apa pun yang di-throw (network failure, timeout) juga melewati `redact()`
+yang menghapus nilai `apiToken`/`zoneId` yang dikonfigurasi sebagai defense
+in depth (mis. error jaringan yang pesannya kebetulan menyertakan URL
+request, yang menyertakan zone id) sebelum dipotong ke 300 karakter. Tidak
+pernah stack trace.
+
+`resolveTenantDomainDnsProvider(env)` — resolver produksi (mirror
+`resolveEmailProvider`/`resolveObjectUploader`): membangun provider
+Cloudflare sungguhan kalau lengkap terkonfigurasi, atau stub aman yang
+selalu `{ok:false}` dengan pesan jelas (tidak pernah throw) untuk mode
+`manual`, provider tak dikenal, atau `cloudflare` yang kurang salah satu
+dari tiga var wajib. **Belum dipanggil dari mana pun** di issue ini — tidak
+ada route yang wire ke sini.
+
+Test: `tests/unit/cloudflare-dns-adapter.test.ts` (`validateDnsRecordInput`
+pure cases; lalu terhadap `Bun.serve` fake server lokal — sukses,
+idempotent re-create, provider error dengan bukti redaksi terhadap server
+yang sengaja meng-echo token/zone id di `errors[].message`, timeout,
+circuit breaker trip, dan `resolveTenantDomainDnsProvider`'s perilaku
+env hilang/tidak-dikenal/`cloudflare` tidak lengkap).
+`tests/validate-env.test.ts`'s `describe("checkTenantDomainDnsConfig", ...)`
+menguji aturan gating env di atas. Detail lengkap:
+`src/modules/tenant-domain/README.md` §Cloudflare DNS adapter.
+
 ## Aturan lintas-issue yang wajib diikuti
 
 1. **Backward compatibility non-negotiable**: setiap deployment offline/LAN existing yang tidak pernah set `PUBLIC_*` apa pun harus tetap `config:validate` PASS dan berperilaku persis seperti sebelum epic ini — jangan pernah membuat salah satu dari enam var config ini menjadi wajib secara default.
@@ -720,15 +807,19 @@ lengkap: `module-management/README.md` §Tenant-module matrix admin UI.
 
 ## Belum ada — jangan asumsikan sudah dikerjakan
 
-Isu #567 (adapter Cloudflare DNS) **belum ada**. Sudah selesai: config
-(#556), schema `awcms_mini_tenant_domains` (#557), module descriptor
-`tenant_domain` (#558), resolver host-based (#559), rute publik `/news`
-(#560), dokumentasi legacy/ADR-0010 (#561), API tenant domain management
-(#562, §API di atas), admin UI (#563, §Admin UI di atas), tenant settings
-public route `blog_content` (#564, §Tenant settings public route di atas),
-tenant module presets (#565, §Tenant module presets di atas — service layer
-saja), dan tenant-module matrix admin UI (#566, §Tenant-module matrix admin
-UI di atas — single-tenant scope, lihat keputusan mengikat di bagian itu).
+**Epic #555 (#556-#567) sekarang 100% selesai** — semua 12 issue sudah
+merge: config (#556), schema `awcms_mini_tenant_domains` (#557), module
+descriptor `tenant_domain` (#558), resolver host-based (#559), rute publik
+`/news` (#560), dokumentasi legacy/ADR-0010 (#561), API tenant domain
+management (#562, §API di atas), admin UI (#563, §Admin UI di atas), tenant
+settings public route `blog_content` (#564, §Tenant settings public route di
+atas), tenant module presets (#565, §Tenant module presets di atas —
+service layer saja), tenant-module matrix admin UI (#566, §Tenant-module
+matrix admin UI di atas — single-tenant scope, lihat keputusan mengikat di
+bagian itu), dan adapter Cloudflare DNS opsional (#567, §Cloudflare DNS
+adapter di atas — provider boundary saja, **belum ada route yang
+memanggilnya**, lihat follow-up #4 di bawah).
+
 Tabel `awcms_mini_tenant_domains` sekarang bisa ditulis lewat kode aplikasi
 (API #562 + admin UI #563) — bukan lagi schema-only. Operator yang
 benar-benar mengisi baris nyata lewat UI/API dan mengaktifkan
@@ -736,6 +827,22 @@ benar-benar mengisi baris nyata lewat UI/API dan mengaktifkan
 (host/domain mapping asli) benar-benar reachable di production untuk
 pertama kalinya — lihat konsekuensi keamanan di ADR-0010 §Konsekuensi
 sebelum mengaktifkan mode itu.
+
+**Follow-up non-blocking untuk issue lanjutan mana pun yang menyentuh area
+ini** (bukan gate merge #567, dicatat di sini supaya tidak di-re-derive):
+
+4. `infrastructure/cloudflare-dns-adapter.ts` (#567) belum di-wire ke rute
+   apa pun — `POST /api/v1/tenant/domains/{id}/verify` (#562) tetap
+   manual-first murni (tidak ada panggilan DNS/HTTP keluar). Issue lanjutan
+   yang ingin menambah verifikasi Cloudflare otomatis harus: (a) memanggil
+   `resolveTenantDomainDnsProvider(env)`/`createCloudflareDnsProvider` di
+   luar transaksi DB `withTenant` mana pun (ADR-0006 — adapter ini sendiri
+   tidak pernah membuka transaksi, tapi endpoint pemanggilnya wajib tetap
+   menjaga aturan itu), (b) tetap treat hasil provider sebagai _input_ ke
+   `verifyTenantDomain` yang sudah ada, bukan menggantikannya, dan (c) tetap
+   audit `tenant_domain.domain.verified` seperti sekarang — jangan tambah
+   audit event kedua khusus "cloudflare check" kecuali ada kebutuhan produk
+   eksplisit.
 
 **Follow-up keamanan wajib diselesaikan sebelum `PUBLIC_TENANT_RESOLUTION_MODE=host_default` diaktifkan di production** (ditemukan `awcms-mini-security-auditor` saat audit #560, verdict PASS tapi non-blocking karena `host_default` belum bisa resolve apa pun secara nyata hari ini — lihat alasan di atas):
 

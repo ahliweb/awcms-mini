@@ -6,6 +6,7 @@ import {
   checkR2Config,
   checkRequiredVars,
   checkSyncConfig,
+  checkTenantDomainDnsConfig,
   runEnvValidation
 } from "../scripts/validate-env";
 
@@ -333,6 +334,76 @@ describe("checkPublicRoutingConfig", () => {
   });
 });
 
+describe("checkTenantDomainDnsConfig", () => {
+  test("passes (single check) when TENANT_DOMAIN_DNS_PROVIDER is not set", () => {
+    const results = checkTenantDomainDnsConfig({} as NodeJS.ProcessEnv);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe("pass");
+  });
+
+  test("passes (single check) when TENANT_DOMAIN_DNS_PROVIDER=manual", () => {
+    const results = checkTenantDomainDnsConfig({
+      TENANT_DOMAIN_DNS_PROVIDER: "manual"
+    } as NodeJS.ProcessEnv);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe("pass");
+  });
+
+  test("fails when TENANT_DOMAIN_DNS_PROVIDER is not a known provider", () => {
+    const results = checkTenantDomainDnsConfig({
+      TENANT_DOMAIN_DNS_PROVIDER: "route53"
+    } as NodeJS.ProcessEnv);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe("fail");
+  });
+
+  test("fails and names each missing Cloudflare var when TENANT_DOMAIN_DNS_PROVIDER=cloudflare", () => {
+    const results = checkTenantDomainDnsConfig({
+      TENANT_DOMAIN_DNS_PROVIDER: "cloudflare"
+    } as NodeJS.ProcessEnv);
+
+    const failedNames = results
+      .filter((result) => result.status === "fail")
+      .map((result) => result.name)
+      .sort();
+
+    expect(failedNames).toEqual(
+      [
+        "TENANT_DOMAIN_PLATFORM_ROOT_DOMAIN",
+        "TENANT_DOMAIN_CLOUDFLARE_ZONE_ID",
+        "TENANT_DOMAIN_CLOUDFLARE_API_TOKEN"
+      ].sort()
+    );
+  });
+
+  test("all pass when TENANT_DOMAIN_DNS_PROVIDER=cloudflare and every var is set", () => {
+    const results = checkTenantDomainDnsConfig({
+      TENANT_DOMAIN_DNS_PROVIDER: "cloudflare",
+      TENANT_DOMAIN_PLATFORM_ROOT_DOMAIN: "platform.example",
+      TENANT_DOMAIN_CLOUDFLARE_ZONE_ID: "zone-abc",
+      TENANT_DOMAIN_CLOUDFLARE_API_TOKEN: "a-real-token"
+    } as NodeJS.ProcessEnv);
+
+    expect(results.every((result) => result.status === "pass")).toBe(true);
+  });
+
+  test("never includes the configured API token in any result detail", () => {
+    const results = checkTenantDomainDnsConfig({
+      TENANT_DOMAIN_DNS_PROVIDER: "cloudflare",
+      TENANT_DOMAIN_PLATFORM_ROOT_DOMAIN: "platform.example",
+      TENANT_DOMAIN_CLOUDFLARE_ZONE_ID: "zone-abc",
+      TENANT_DOMAIN_CLOUDFLARE_API_TOKEN: "super-secret-token-value"
+    } as NodeJS.ProcessEnv);
+
+    for (const result of results) {
+      expect(result.detail).not.toContain("super-secret-token-value");
+    }
+  });
+});
+
 describe("runEnvValidation", () => {
   test("passes end-to-end for a minimal valid env (sync/R2/email all off)", () => {
     const env = {
@@ -382,6 +453,31 @@ describe("runEnvValidation", () => {
       R2_ENABLED: "false",
       EMAIL_ENABLED: "false",
       PUBLIC_TENANT_RESOLUTION_MODE: "host_default"
+    } as NodeJS.ProcessEnv;
+
+    const results = runEnvValidation(env);
+    expect(results.some((result) => result.status === "fail")).toBe(true);
+  });
+
+  test("passes end-to-end when TENANT_DOMAIN_DNS_PROVIDER is left unset (manual default, Issue #567)", () => {
+    const env = {
+      ...VALID_ENV,
+      AWCMS_MINI_SYNC_ENABLED: "false",
+      R2_ENABLED: "false",
+      EMAIL_ENABLED: "false"
+    } as NodeJS.ProcessEnv;
+
+    const results = runEnvValidation(env);
+    expect(results.every((result) => result.status === "pass")).toBe(true);
+  });
+
+  test("fails end-to-end when TENANT_DOMAIN_DNS_PROVIDER=cloudflare is missing its required vars", () => {
+    const env = {
+      ...VALID_ENV,
+      AWCMS_MINI_SYNC_ENABLED: "false",
+      R2_ENABLED: "false",
+      EMAIL_ENABLED: "false",
+      TENANT_DOMAIN_DNS_PROVIDER: "cloudflare"
     } as NodeJS.ProcessEnv;
 
     const results = runEnvValidation(env);
