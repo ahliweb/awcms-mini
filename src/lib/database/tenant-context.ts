@@ -1,4 +1,5 @@
-import { fail } from "../../modules/_shared/api-response";
+import { fail, jsonResponse } from "../../modules/_shared/api-response";
+import { IdempotencyRaceLostError } from "../../modules/_shared/idempotency";
 import { log } from "../logging/logger";
 import { getDatabaseCircuitBreaker } from "./circuit-breaker";
 import {
@@ -91,6 +92,34 @@ export async function withTenant<T>(
 
     return result;
   } catch (error) {
+    if (error instanceof IdempotencyRaceLostError) {
+      // Benign concurrency outcome, not a database/infra failure — skip the
+      // circuit breaker so bursty duplicate-submit traffic can't false-trip it.
+      log("info", "idempotency.race_lost", {
+        moduleKey: "database-connectivity",
+        tenantId: safeTenantId,
+        requestScope: error.requestScope,
+        idempotencyKeyHash: error.idempotencyKeyHash,
+        replayed: error.replay !== null
+      });
+
+      if (error.replay) {
+        // Same key + same request hash as the winner — honor the ordinary
+        // "hash sama -> replay" rule even under the race, instead of forcing
+        // a same-payload retry into a 409 it wouldn't have gotten had it lost
+        // the race by a few milliseconds less.
+        return jsonResponse(error.replay.responseBody, {
+          status: error.replay.responseStatus
+        }) as T;
+      }
+
+      return fail(
+        409,
+        "IDEMPOTENCY_CONFLICT",
+        "Idempotency-Key was already used with a different request."
+      ) as T;
+    }
+
     breaker.recordFailure(new Date());
     throw error;
   } finally {
