@@ -122,6 +122,12 @@ msgstr "This action is not allowed for the current status."
 msgid "error.concurrent_update"
 msgstr "Another request already changed this. Please try again."
 
+msgid "error.turnstile_required"
+msgstr "Please complete the verification challenge."
+
+msgid "error.turnstile_invalid"
+msgstr "Verification failed. Please try again."
+
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"
 msgstr "No role"

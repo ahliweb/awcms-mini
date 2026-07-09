@@ -702,6 +702,12 @@ paths:
       tags:
         - Tenant Admin
       summary: Bootstrap the first tenant, owner, office, and access assignment
+      description: >-
+        When full-online auth security hardening AND
+        `TURNSTILE_ENABLED=true` are both active (Issue #588),
+        `turnstileToken` is verified before creating the tenant/owner:
+        missing -> `400 TURNSTILE_REQUIRED`, invalid ->
+        `400 TURNSTILE_INVALID`.
       operationId: setupInitialize
       security: []
       parameters:
@@ -742,6 +748,14 @@ paths:
       tags:
         - Identity & Access
       summary: Authenticate an identity and issue a session token
+      description: >-
+        When full-online auth security hardening is active
+        (`AUTH_ONLINE_SECURITY_ENABLED=true` and
+        `AUTH_ONLINE_SECURITY_PROFILE=full_online`) AND
+        `TURNSTILE_ENABLED=true` (Issue #588), `turnstileToken` is verified
+        before any password check: missing -> `400 TURNSTILE_REQUIRED`,
+        invalid -> `400 TURNSTILE_INVALID`. Absent entirely for every
+        local/offline/LAN deployment.
       operationId: authLogin
       security:
         - tenantHeader: []
@@ -844,6 +858,12 @@ paths:
       summary: >-
         Request a password reset email; always returns a generic response
         regardless of whether the identifier matches an account
+      description: >-
+        When full-online auth security hardening AND
+        `TURNSTILE_ENABLED=true` are both active (Issue #588),
+        `turnstileToken` is verified before the reset-token DB write/email
+        enqueue: missing -> `400 TURNSTILE_REQUIRED`, invalid ->
+        `400 TURNSTILE_INVALID`.
       operationId: authPasswordForgot
       security:
         - tenantHeader: []
@@ -887,6 +907,12 @@ paths:
       tags:
         - Identity & Access
       summary: Complete a password reset with a valid one-time token
+      description: >-
+        When full-online auth security hardening AND
+        `TURNSTILE_ENABLED=true` are both active (Issue #588),
+        `turnstileToken` is verified before the token lookup/password
+        update: missing -> `400 TURNSTILE_REQUIRED`, invalid ->
+        `400 TURNSTILE_INVALID`.
       operationId: authPasswordReset
       security:
         - tenantHeader: []
@@ -6492,6 +6518,16 @@ components:
           type: string
           minLength: 1
           writeOnly: true
+        turnstileToken:
+          type: string
+          description: >-
+            Cloudflare Turnstile response token (Issue #588). Required only
+            when full-online auth security hardening is active
+            (`AUTH_ONLINE_SECURITY_ENABLED=true` and
+            `AUTH_ONLINE_SECURITY_PROFILE=full_online`) AND
+            `TURNSTILE_ENABLED=true` — absent entirely for every
+            local/offline/LAN deployment. Missing when required ->
+            `400 TURNSTILE_REQUIRED`; invalid -> `400 TURNSTILE_INVALID`.
     LoginResponse:
       type: object
       required:
@@ -6522,6 +6558,13 @@ components:
         loginIdentifier:
           type: string
           minLength: 1
+        turnstileToken:
+          type: string
+          description: >-
+            Cloudflare Turnstile response token (Issue #588). Required only
+            when full-online auth security hardening AND
+            `TURNSTILE_ENABLED=true` are both active — see `LoginRequest`'s
+            `turnstileToken` for the full gating rule.
     ForgotPasswordResponse:
       type: object
       required:
@@ -6551,6 +6594,13 @@ components:
           type: string
           minLength: 8
           writeOnly: true
+        turnstileToken:
+          type: string
+          description: >-
+            Cloudflare Turnstile response token (Issue #588). Required only
+            when full-online auth security hardening AND
+            `TURNSTILE_ENABLED=true` are both active — see `LoginRequest`'s
+            `turnstileToken` for the full gating rule.
     ResetPasswordResponse:
       type: object
       required:
@@ -7113,6 +7163,13 @@ components:
         ownerDisplayName:
           type: string
           minLength: 1
+        turnstileToken:
+          type: string
+          description: >-
+            Cloudflare Turnstile response token (Issue #588). Required only
+            when full-online auth security hardening AND
+            `TURNSTILE_ENABLED=true` are both active — see `LoginRequest`'s
+            `turnstileToken` for the full gating rule.
     SetupInitializeResponse:
       type: object
       required:

@@ -122,6 +122,12 @@ msgstr "Aksi ini tidak diizinkan untuk status saat ini."
 msgid "error.concurrent_update"
 msgstr "Permintaan lain sudah mengubah data ini. Silakan coba lagi."
 
+msgid "error.turnstile_required"
+msgstr "Mohon selesaikan verifikasi terlebih dahulu."
+
+msgid "error.turnstile_invalid"
+msgstr "Verifikasi gagal. Silakan coba lagi."
+
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"
 msgstr "Tanpa role"

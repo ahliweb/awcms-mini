@@ -37,7 +37,8 @@ import { resolveAppBaseUrl } from "./lib/app-url";
 import { checkRateLimit } from "../src/lib/security/rate-limit";
 import {
   checkEmailConfig,
-  checkOnlineAuthSecurityConfig
+  checkOnlineAuthSecurityConfig,
+  checkTurnstileConfig
 } from "./validate-env";
 
 export type CheckSeverity = "critical" | "warning" | "info";
@@ -787,9 +788,10 @@ export function checkEmailProviderConfigReady(
  * pattern): the value describes how bad a genuine misconfiguration would
  * be, not this run's outcome — `status` alone is what "disabled ->
  * informational pass, not a failure" (the issue's own acceptance criterion)
- * actually means here. None of #588-#592 (Turnstile/MFA/Google
- * login/generic SSO/admin policy UI) exist yet in this repo, so there is
- * nothing else for this check to verify beyond the shared gate itself.
+ * actually means here. #588 (Turnstile) now exists and has its own
+ * `checkTurnstileReady` check below; #589-#592 (MFA/Google login/generic
+ * SSO/admin policy UI) still don't, so there is nothing else for this
+ * particular check to verify beyond the shared gate itself.
  */
 export function checkOnlineAuthSecurityReady(
   env: NodeJS.ProcessEnv = process.env
@@ -827,6 +829,60 @@ export function checkOnlineAuthSecurityReady(
     status: "pass",
     evidence:
       "AUTH_ONLINE_SECURITY_ENABLED=true and AUTH_ONLINE_SECURITY_PROFILE=full_online — full-online auth hardening gate is active."
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 9d. Cloudflare Turnstile configuration is complete when enabled (critical
+// when misconfigured, informational when disabled — Issue #588)
+// ---------------------------------------------------------------------------
+
+/**
+ * Reuses `checkTurnstileConfig` from `validate-env.ts` verbatim — same
+ * pattern as `checkEmailProviderConfigReady`/`checkOnlineAuthSecurityReady`
+ * above. Deliberately does NOT check whether the #587 gate
+ * (`isFullOnlineSecurityActive`) is also active: `TURNSTILE_ENABLED=true`
+ * with incomplete `TURNSTILE_SITE_KEY`/`_SECRET_KEY` is a real
+ * misconfiguration worth flagging even if the outer gate happens to be off
+ * right now (an operator plausibly enables Turnstile credentials before
+ * flipping the outer gate on) — `checkOnlineAuthSecurityReady` above
+ * already covers the outer gate's own correctness independently.
+ */
+export function checkTurnstileReady(
+  env: NodeJS.ProcessEnv = process.env
+): SecurityCheckResult {
+  const name = "Turnstile configuration is complete when enabled";
+  const severity: CheckSeverity = "critical";
+  const results = checkTurnstileConfig(env);
+  const failed = results.filter((result) => result.status === "fail");
+
+  if (failed.length > 0) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `TURNSTILE_ENABLED=true but config is incomplete: ${failed
+        .map((result) => result.detail)
+        .join(" ")}`
+    };
+  }
+
+  if (env.TURNSTILE_ENABLED !== "true") {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        'TURNSTILE_ENABLED is not "true" — Turnstile config not required.'
+    };
+  }
+
+  return {
+    name,
+    severity,
+    status: "pass",
+    evidence:
+      "TURNSTILE_ENABLED=true and all conditional Turnstile config check(s) pass."
   };
 }
 
@@ -1071,6 +1127,7 @@ export async function runSecurityReadinessChecks(): Promise<
     checkSyncHmacSecretNotDefault(),
     checkEmailProviderConfigReady(),
     checkOnlineAuthSecurityReady(),
+    checkTurnstileReady(),
     await checkErrorsDontLeakStackTraces(),
     await checkSecurityHeadersPresent(),
     checkLoginRateLimitImplemented()

@@ -7,6 +7,7 @@ import {
   checkRateLimit,
   resolveClientIp
 } from "../../../../../lib/security/rate-limit";
+import { enforceTurnstileIfRequired } from "../../../../../lib/security/turnstile";
 import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
 import { requestPasswordReset } from "../../../../../modules/identity-access/application/password-reset";
 import { validateForgotIdentifierInput } from "../../../../../modules/identity-access/domain/password-reset-validation";
@@ -62,9 +63,8 @@ export const POST: APIRoute = async ({ request, clientAddress, locals }) => {
     );
   }
 
-  const validation = validateForgotIdentifierInput(
-    await request.json().catch(() => null)
-  );
+  const rawBody = await request.json().catch(() => null);
+  const validation = validateForgotIdentifierInput(rawBody);
 
   if (!validation.valid) {
     return fail(
@@ -73,6 +73,24 @@ export const POST: APIRoute = async ({ request, clientAddress, locals }) => {
       "loginIdentifier is required.",
       {},
       validation.errors
+    );
+  }
+
+  // Full-online-only (Issue #587/#588): a no-op on every local/offline/LAN
+  // deployment, and cheaper than the DB write + email enqueue below when it
+  // does apply — verify before either.
+  const turnstileResult = await enforceTurnstileIfRequired(
+    (rawBody as Record<string, unknown> | null)?.turnstileToken,
+    clientIp
+  );
+
+  if (!turnstileResult.ok) {
+    return fail(
+      400,
+      turnstileResult.code,
+      turnstileResult.code === "TURNSTILE_REQUIRED"
+        ? "Turnstile verification token is required."
+        : "Turnstile verification failed."
     );
   }
 

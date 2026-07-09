@@ -11,13 +11,27 @@
  * via `Bun.file`), so the strings/error-code map it needs are injected as a
  * `<script type="application/json">` blob — the same pattern the admin
  * pages' action banners use.
+ *
+ * Cloudflare Turnstile (Issue #588, epic: full-online auth hardening) —
+ * the widget only renders when `isTurnstileRequired()` (Issue #587's
+ * full-online gate AND `TURNSTILE_ENABLED=true`) is true; every local/
+ * offline/LAN deployment (the default) renders this page identically to
+ * before this issue. `TURNSTILE_SITE_KEY` is not a secret (Cloudflare's own
+ * docs: embedded in every public Turnstile widget) — only
+ * `TURNSTILE_SECRET_KEY` (server-side verification only, never sent here)
+ * needs the redaction discipline `src/lib/security/turnstile.ts` applies.
  */
 import "../styles/tokens.css";
 import { createTranslator } from "../lib/i18n/translate";
 import { buildClientErrorMessages } from "../lib/i18n/error-messages";
+import { isTurnstileRequired } from "../lib/security/turnstile";
 
 const locale = Astro.locals.locale;
 const t = await createTranslator(locale);
+const turnstileActive = isTurnstileRequired();
+const turnstileSiteKey = turnstileActive
+  ? process.env.TURNSTILE_SITE_KEY
+  : null;
 
 const clientStrings = {
   genericError: t("auth.login.generic_error"),
@@ -74,11 +88,27 @@ const clientStrings = {
           autocomplete="current-password"
         />
 
+        {
+          turnstileActive && turnstileSiteKey && (
+            <div class="cf-turnstile" data-sitekey={turnstileSiteKey} />
+          )
+        }
+
         <button type="submit" id="login-submit">
           {t("auth.login.submit")}
         </button>
       </form>
     </main>
+
+    {
+      turnstileActive && turnstileSiteKey && (
+        <script
+          src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+          async
+          defer
+        />
+      )
+    }
 
     <script
       type="application/json"
@@ -136,6 +166,11 @@ const clientStrings = {
           formData.get("loginIdentifier") ?? ""
         ).trim();
         const password = String(formData.get("password") ?? "");
+        // Cloudflare Turnstile (Issue #588) auto-injects a hidden
+        // `cf-turnstile-response` field into this form once solved — absent
+        // entirely when the widget isn't rendered (Turnstile not required
+        // for this deployment), matching the server's own optional field.
+        const turnstileToken = formData.get("cf-turnstile-response");
 
         try {
           const response = await fetch("/api/v1/auth/login", {
@@ -145,7 +180,11 @@ const clientStrings = {
               "X-AWCMS-Mini-Tenant-ID": tenantId
             },
             credentials: "same-origin",
-            body: JSON.stringify({ loginIdentifier, password })
+            body: JSON.stringify({
+              loginIdentifier,
+              password,
+              ...(turnstileToken ? { turnstileToken } : {})
+            })
           });
 
           const payload = await response.json().catch(() => null);

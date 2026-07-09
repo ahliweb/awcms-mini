@@ -50,6 +50,28 @@ export default defineConfig({
   // hash added here instead. See `src/lib/security/theme-init-script.ts`
   // for the single source of truth this hash is computed from, and
   // `tests/theme-init-script.test.ts` for the test that keeps them in sync.
+  //
+  // Cloudflare Turnstile (Issue #588, epic: full-online auth hardening) —
+  // `scriptDirective.resources` allows loading its widget script
+  // (`https://challenges.cloudflare.com/turnstile/v0/api.js`,
+  // `src/pages/login.astro`) and `frame-src` allows rendering its widget
+  // iframe. Deliberately NOT gated on `TURNSTILE_ENABLED` at build time: CSP
+  // here is a build-time-only Astro feature (see the doc comment above —
+  // unsupported in `astro dev`, baked into the built output), while every
+  // other Turnstile-related behavior in this app is a runtime env toggle
+  // (`isTurnstileRequired()`) — gating this one directive on a build-time
+  // env read would mean flipping `TURNSTILE_ENABLED` on/off requires a
+  // rebuild just for the CSP header to catch up, unlike every other flag in
+  // this app. The two origins added are narrow and specific to Cloudflare's
+  // own official Turnstile CDN (not a broad allowlist), and are inert on
+  // every page/deployment that never renders the widget — `login.astro`
+  // still only emits the widget markup/script tag when
+  // `isTurnstileRequired()` is true at *request* time, so allowing the
+  // origin in CSP doesn't by itself introduce a live third-party call
+  // anywhere. `scriptDirective.resources` replaces (not adds to) Astro's
+  // default script-src sources, so `'self'` must be repeated here
+  // explicitly to keep every same-origin bundled script Astro itself emits
+  // working.
   security: {
     csp: {
       directives: [
@@ -57,10 +79,12 @@ export default defineConfig({
         "object-src 'none'",
         "base-uri 'none'",
         "form-action 'self'",
-        "frame-ancestors 'none'"
+        "frame-ancestors 'none'",
+        "frame-src 'self' https://challenges.cloudflare.com"
       ],
       scriptDirective: {
-        hashes: [THEME_INIT_SCRIPT_HASH]
+        hashes: [THEME_INIT_SCRIPT_HASH],
+        resources: ["'self'", "https://challenges.cloudflare.com"]
       }
     }
   }

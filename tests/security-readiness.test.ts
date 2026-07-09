@@ -7,6 +7,7 @@ import {
   checkLoginRateLimitImplemented,
   checkOnlineAuthSecurityReady,
   checkSyncHmacSecretNotDefault,
+  checkTurnstileReady,
   scanLineForHardcodedSecret
 } from "../scripts/security-readiness";
 
@@ -209,6 +210,35 @@ describe("checkEmailProviderConfigReady", () => {
       EMAIL_MAILKETING_ACCOUNT_ID: "acc",
       EMAIL_MAILKETING_API_TOKEN: "token",
       EMAIL_MAILKETING_API_BASE_URL: "https://api.mailketing.co.id"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("pass");
+  });
+});
+
+describe("checkTurnstileReady", () => {
+  test("is critical/pass (informational, not a failure) when Turnstile is not enabled", () => {
+    const result = checkTurnstileReady({} as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("pass");
+  });
+
+  test("fails when TURNSTILE_ENABLED=true but the site/secret keys are missing", () => {
+    const result = checkTurnstileReady({
+      TURNSTILE_ENABLED: "true"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("fail");
+  });
+
+  test("passes when TURNSTILE_ENABLED=true and both keys are set", () => {
+    const result = checkTurnstileReady({
+      TURNSTILE_ENABLED: "true",
+      TURNSTILE_SITE_KEY: "site-key-abc",
+      TURNSTILE_SECRET_KEY: "a-real-secret"
     } as NodeJS.ProcessEnv);
 
     expect(result.severity).toBe("critical");
