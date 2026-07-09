@@ -7,6 +7,18 @@
  * hashed at rest exactly like a session/reset/challenge token — unlike the
  * OIDC `nonce`, which is stored plaintext (see `sql/035...`'s comment on
  * `awcms_mini_oidc_auth_requests`).
+ *
+ * `hashOAuthState` uses a fast hash (sha256), deliberately — same reasoning
+ * `password-reset-token.ts` documents for its own `hashResetToken`: `state`
+ * is a 256-bit CSPRNG value (`generateOAuthState`), not a user-chosen
+ * low-entropy secret, so a slow adaptive hash (bcrypt/argon2/scrypt) would
+ * only cost every callback verification for no real benefit — offline
+ * brute-forcing a 256-bit random value is infeasible regardless of hash
+ * speed. CodeQL's `js/insufficient-password-hash` query has been observed
+ * to flag this exact shape as a false positive (fast hash of a token whose
+ * value later gets compared for equality, which structurally resembles
+ * password verification) — this is the same known, accepted false-positive
+ * class `password-reset-token.ts` already documents for `hashResetToken`.
  */
 import { createHash, randomBytes } from "node:crypto";
 
