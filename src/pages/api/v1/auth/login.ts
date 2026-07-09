@@ -17,6 +17,15 @@ import {
   resolveClientIp
 } from "../../../../lib/security/rate-limit";
 import { enforceTurnstileIfRequired } from "../../../../lib/security/turnstile";
+import {
+  isMfaRequired,
+  resolveChallengeTtlSec
+} from "../../../../lib/auth/mfa-config";
+import {
+  createMfaChallenge,
+  findActiveMfaFactor
+} from "../../../../modules/identity-access/application/mfa";
+import { recordAuditEvent } from "../../../../modules/logging/application/audit-log";
 
 const MAX_FAILED_ATTEMPTS = Number(process.env.AUTH_LOGIN_MAX_ATTEMPTS ?? 5);
 const LOCKOUT_MINUTES = 15;
@@ -47,7 +56,12 @@ type LoginBody = {
   turnstileToken?: unknown;
 };
 
-export const POST: APIRoute = async ({ request, cookies, clientAddress }) => {
+export const POST: APIRoute = async ({
+  request,
+  cookies,
+  clientAddress,
+  locals
+}) => {
   const tenantId = request.headers.get("x-awcms-mini-tenant-id");
 
   if (!tenantId) {
@@ -192,6 +206,54 @@ export const POST: APIRoute = async ({ request, cookies, clientAddress }) => {
         "AUTH_INVALID_CREDENTIALS",
         "Invalid login identifier or password."
       );
+    }
+
+    // Full-online-only (Issue #587/#589): a no-op on every local/offline/LAN
+    // deployment and for every identity that has never enrolled MFA (MFA is
+    // opt-in per identity, not mandatory tenant-wide, even when the feature
+    // is enabled). Checked AFTER password verification succeeds but BEFORE
+    // any session is created — a password-valid login with an active MFA
+    // factor must never receive a session, only a challenge.
+    if (isMfaRequired()) {
+      const factor = await findActiveMfaFactor(tx, tenantId, identityRow!.id);
+
+      if (factor) {
+        await tx`
+          UPDATE awcms_mini_identities
+          SET failed_login_count = 0
+          WHERE id = ${identityRow!.id}
+        `;
+
+        const challenge = await createMfaChallenge(
+          tx,
+          tenantId,
+          identityRow!.id,
+          resolveChallengeTtlSec(),
+          now
+        );
+
+        await recordAuditEvent(tx, {
+          tenantId,
+          moduleKey: "identity_access",
+          action: "mfa_challenge_issued",
+          resourceType: "identity",
+          resourceId: identityRow!.id,
+          severity: "info",
+          message: "Password verified; MFA challenge issued.",
+          correlationId: locals.correlationId
+        });
+
+        return fail(
+          401,
+          "MFA_REQUIRED",
+          "Multi-factor authentication is required to complete sign-in.",
+          {},
+          {
+            mfaChallengeToken: challenge.token,
+            expiresAt: challenge.expiresAt.toISOString()
+          }
+        );
+      }
     }
 
     const token = generateSessionToken();

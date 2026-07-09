@@ -6,8 +6,11 @@ import type { Translator } from "./translate";
  * `RESOURCE_CONFLICT`, `PURGE_BLOCKED_BY_DEPENDENTS`,
  * `PURGE_REQUIRES_SOFT_DELETE`, and — Issue #563 — the tenant domain
  * management API's own `HOSTNAME_CONFLICT`/`INVALID_STATUS_TRANSITION`/
- * `CONCURRENT_UPDATE`, Issue #562 — and Issue #588's Cloudflare Turnstile
- * gate's own `TURNSTILE_REQUIRED`/`TURNSTILE_INVALID`) to i18n catalog keys
+ * `CONCURRENT_UPDATE`, Issue #562 — Issue #588's Cloudflare Turnstile
+ * gate's own `TURNSTILE_REQUIRED`/`TURNSTILE_INVALID` — and Issue #589's
+ * MFA/TOTP codes: `MFA_REQUIRED`/`MFA_DISABLED`/`MFA_ALREADY_ACTIVE`/
+ * `MFA_NOT_ACTIVE`/`MFA_ENROLLMENT_NOT_FOUND`/`MFA_INVALID_CODE`/
+ * `MFA_CHALLENGE_INVALID`/`MFA_MISCONFIGURED`) to i18n catalog keys
  * under the `error.` namespace. Used both server-side (SSR error panels)
  * and to build the
  * client-string JSON blob admin pages inline for their fetch-based action
@@ -37,7 +40,15 @@ export const ERROR_CODE_KEYS: Record<string, string> = {
   INVALID_STATUS_TRANSITION: "error.invalid_status_transition",
   CONCURRENT_UPDATE: "error.concurrent_update",
   TURNSTILE_REQUIRED: "error.turnstile_required",
-  TURNSTILE_INVALID: "error.turnstile_invalid"
+  TURNSTILE_INVALID: "error.turnstile_invalid",
+  MFA_REQUIRED: "error.mfa_required",
+  MFA_DISABLED: "error.mfa_disabled",
+  MFA_ALREADY_ACTIVE: "error.mfa_already_active",
+  MFA_NOT_ACTIVE: "error.mfa_not_active",
+  MFA_ENROLLMENT_NOT_FOUND: "error.mfa_enrollment_not_found",
+  MFA_INVALID_CODE: "error.mfa_invalid_code",
+  MFA_CHALLENGE_INVALID: "error.mfa_challenge_invalid",
+  MFA_MISCONFIGURED: "error.mfa_misconfigured"
 };
 
 /**

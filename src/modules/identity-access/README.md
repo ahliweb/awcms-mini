@@ -150,14 +150,59 @@ Astro secara default menolak (403, tanpa body) permintaan `POST`/`PUT`/`PATCH`/`
 
 CRUD ABAC policy row (`awcms_mini_abac_policies` — schema tersedia, evaluator masih pakai aturan generik bawaan, belum ada endpoint kelola policy), dan publikasi event `identity.login.succeeded`/`identity.login.failed` (doc 05, menyusul modul Observability/Logging) belum ada pada tahap ini. `/access/decision-logs` tetap `LIMIT 50` per halaman tapi kini punya keyset pagination opsional (Issue #435, `?cursor=`/`nextCursor` — lihat `src/modules/_shared/keyset-pagination.ts`).
 
-MFA/TOTP, Google OIDC login, generic tenant OIDC SSO, dan admin policy
-UI (Issue #589-#592) masih backlog untuk epic full-online auth security
-hardening (#587-#593). #587 (gate bersama, lihat §Full-online-only auth
-security feature gate di bawah) dan #588 (Cloudflare Turnstile,
-`src/lib/security/turnstile.ts` — bukan bagian modul ini, tapi
-dipanggil dari `POST /auth/login` di modul ini via
-`enforceTurnstileIfRequired`, lihat skill `awcms-mini-auth-online-hardening`
-§Cloudflare Turnstile) sudah selesai.
+Google OIDC login, generic tenant OIDC SSO, dan admin policy UI (Issue
+#590-#592) masih backlog untuk epic full-online auth security hardening
+(#587-#593). #587 (gate bersama, lihat §Full-online-only auth security
+feature gate di bawah), #588 (Cloudflare Turnstile,
+`src/lib/security/turnstile.ts` — bukan bagian modul ini, tapi dipanggil
+dari `POST /auth/login` di modul ini via `enforceTurnstileIfRequired`),
+dan #589 (MFA/TOTP, lihat §MFA/TOTP login challenge di bawah) sudah
+selesai. Lihat skill `awcms-mini-auth-online-hardening` untuk detail
+lintas-issue.
+
+## MFA/TOTP login challenge (Issue #589)
+
+`src/modules/identity-access/application/mfa.ts` +
+`src/modules/identity-access/domain/mfa-policy.ts` (challenge, bukan
+factor/token, yang punya logic domain murni di sini — enroll/disable/
+regenerate cukup query+mutate langsung tanpa evaluasi kondisional
+berlapis) + `src/lib/auth/totp.ts`/`mfa-secret-crypto.ts`/
+`mfa-recovery-code.ts`/`mfa-challenge-token.ts`/`mfa-config.ts` (RFC
+6238 TOTP, enkripsi secret AES-256-GCM, recovery code, challenge token,
+gate env — semuanya modul-agnostic, tinggal di `src/lib/auth/` seperti
+`session-token.ts`/`password.ts`).
+
+- Gate gabungan `isMfaRequired(env)` = `isFullOnlineSecurityActive(env)`
+  (#587) ∧ `AUTH_MFA_ENABLED=true` — mengikuti pola persis
+  `isTurnstileRequired()` (#588). MFA **opt-in per identity**: identity
+  yang belum pernah enroll tetap login normal bahkan saat gate ini aktif
+  tenant-wide.
+- Login (`login.ts`): password-valid TAPI identity punya factor TOTP
+  `active` → TIDAK membuat session, malah menerbitkan
+  `awcms_mini_mfa_challenges` row dan balas `401 MFA_REQUIRED` berisi
+  `mfaChallengeToken`. `POST /auth/mfa/totp/verify` (satu-satunya
+  endpoint MFA yang TIDAK butuh session — diautentikasi lewat possession
+  token challenge, sama seperti `password/reset`) menyelesaikan login:
+  kode/recovery code valid → session dibuat persis seperti
+  `login.ts`, cookie sama.
+- Enroll: `POST /auth/mfa/totp/enroll/start` (butuh session; generate
+  secret baru, simpan `pending`, plaintext secret HANYA di respons ini)
+  → `POST /auth/mfa/totp/enroll/verify` (kode valid → `active` +
+  10 recovery code sekali tampil). Re-enroll saat sudah `active` ditolak
+  `409 MFA_ALREADY_ACTIVE` — harus `disable` dulu.
+- `POST /auth/mfa/totp/disable`/`POST /auth/mfa/recovery-codes/regenerate`:
+  high-risk, diaudit (`mfa_disabled`/`mfa_recovery_codes_regenerated`).
+  Reset password (`completePasswordReset`) **tidak** menyentuh MFA sama
+  sekali — diverifikasi test integrasi eksplisit (bukan MFA bypass).
+- TOTP secret dienkripsi AES-256-GCM (`AUTH_MFA_SECRET_ENCRYPTION_KEY`)
+  — satu-satunya secret di aplikasi ini yang reversibel (dienkripsi,
+  bukan di-hash) karena harus dihitung ulang saat verifikasi; recovery
+  code & challenge token tetap hash-only (sha256) seperti
+  session/reset token. Replay kode TOTP dicegah via kolom
+  `last_used_step` per factor (kode/step yang sama tidak bisa dipakai
+  dua kali walau masih dalam window toleransi clock drift).
+- Detail lengkap + rasional lintas-issue: skill
+  `awcms-mini-auth-online-hardening` §MFA/TOTP.
 
 ## Full-online-only auth security feature gate (Issue #587)
 

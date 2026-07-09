@@ -133,9 +133,18 @@ hardening).
   `/setup/initialize`. `TURNSTILE_ENABLED` sendiri divalidasi independen
   dari gate `AUTH_ONLINE_SECURITY_*` (operator boleh isi credential
   Turnstile lebih dulu), tapi aktivasi runtime-nya tetap butuh keduanya.
-  #589-#593 (MFA/TOTP, Google login, generic SSO, admin policy UI,
-  dokumentasi/kontrak penutup) masih backlog, belum diimplementasikan di
-  repo ini.
+- **MFA/TOTP (Issue #589, selesai)**: set tambahan `AUTH_MFA_ENABLED=true`
+  - `AUTH_MFA_SECRET_ENCRYPTION_KEY` (base64, 32 byte AES-256 key) untuk
+    mengaktifkan MFA/TOTP login challenge. Sama seperti Turnstile,
+    `AUTH_MFA_ENABLED` divalidasi independen dari gate di atas, aktivasi
+    runtime butuh keduanya. MFA **opt-in per identity** — mengaktifkan flag
+    ini tidak memaksa MFA untuk identity yang belum pernah enroll
+    (`POST /auth/mfa/totp/enroll/start` + `/enroll/verify`); identity dengan
+    factor aktif akan dihentikan di `401 MFA_REQUIRED` saat login sampai
+    menyelesaikan `POST /auth/mfa/totp/verify`.
+    #590-#593 (Google login, generic SSO, admin policy UI,
+    dokumentasi/kontrak penutup) masih backlog, belum diimplementasikan di
+    repo ini.
 
 ## Cara menjalankan tiap profil
 

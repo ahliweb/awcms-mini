@@ -37,6 +37,7 @@ import { resolveAppBaseUrl } from "./lib/app-url";
 import { checkRateLimit } from "../src/lib/security/rate-limit";
 import {
   checkEmailConfig,
+  checkMfaConfig,
   checkOnlineAuthSecurityConfig,
   checkTurnstileConfig
 } from "./validate-env";
@@ -788,10 +789,11 @@ export function checkEmailProviderConfigReady(
  * pattern): the value describes how bad a genuine misconfiguration would
  * be, not this run's outcome — `status` alone is what "disabled ->
  * informational pass, not a failure" (the issue's own acceptance criterion)
- * actually means here. #588 (Turnstile) now exists and has its own
- * `checkTurnstileReady` check below; #589-#592 (MFA/Google login/generic
- * SSO/admin policy UI) still don't, so there is nothing else for this
- * particular check to verify beyond the shared gate itself.
+ * actually means here. #588 (Turnstile) and #589 (MFA/TOTP) now exist and
+ * have their own `checkTurnstileReady`/`checkMfaReady` checks below;
+ * #590-#592 (Google login/generic SSO/admin policy UI) still don't, so
+ * there is nothing else for this particular check to verify beyond the
+ * shared gate itself.
  */
 export function checkOnlineAuthSecurityReady(
   env: NodeJS.ProcessEnv = process.env
@@ -883,6 +885,49 @@ export function checkTurnstileReady(
     status: "pass",
     evidence:
       "TURNSTILE_ENABLED=true and all conditional Turnstile config check(s) pass."
+  };
+}
+
+/**
+ * Reuses `checkMfaConfig` from `validate-env.ts` verbatim — same pattern and
+ * same rationale as `checkTurnstileReady` above (checked independently of
+ * the #587 outer gate; an incomplete `AUTH_MFA_SECRET_ENCRYPTION_KEY` is
+ * worth flagging even if the outer gate is currently off).
+ */
+export function checkMfaReady(
+  env: NodeJS.ProcessEnv = process.env
+): SecurityCheckResult {
+  const name = "MFA/TOTP configuration is complete when enabled";
+  const severity: CheckSeverity = "critical";
+  const results = checkMfaConfig(env);
+  const failed = results.filter((result) => result.status === "fail");
+
+  if (failed.length > 0) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `AUTH_MFA_ENABLED=true but config is incomplete: ${failed
+        .map((result) => result.detail)
+        .join(" ")}`
+    };
+  }
+
+  if (env.AUTH_MFA_ENABLED !== "true") {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence: 'AUTH_MFA_ENABLED is not "true" — MFA config not required.'
+    };
+  }
+
+  return {
+    name,
+    severity,
+    status: "pass",
+    evidence:
+      "AUTH_MFA_ENABLED=true and all conditional MFA config check(s) pass."
   };
 }
 
@@ -1128,6 +1173,7 @@ export async function runSecurityReadinessChecks(): Promise<
     checkEmailProviderConfigReady(),
     checkOnlineAuthSecurityReady(),
     checkTurnstileReady(),
+    checkMfaReady(),
     await checkErrorsDontLeakStackTraces(),
     await checkSecurityHeadersPresent(),
     checkLoginRateLimitImplemented()

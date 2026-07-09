@@ -7,6 +7,7 @@ import {
   checkLoginRateLimitImplemented,
   checkOnlineAuthSecurityReady,
   checkSyncHmacSecretNotDefault,
+  checkMfaReady,
   checkTurnstileReady,
   scanLineForHardcodedSecret
 } from "../scripts/security-readiness";
@@ -239,6 +240,36 @@ describe("checkTurnstileReady", () => {
       TURNSTILE_ENABLED: "true",
       TURNSTILE_SITE_KEY: "site-key-abc",
       TURNSTILE_SECRET_KEY: "a-real-secret"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("pass");
+  });
+});
+
+describe("checkMfaReady", () => {
+  const validKey = Buffer.alloc(32, 5).toString("base64");
+
+  test("is critical/pass (informational, not a failure) when MFA is not enabled", () => {
+    const result = checkMfaReady({} as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("pass");
+  });
+
+  test("fails when AUTH_MFA_ENABLED=true but the encryption key is missing", () => {
+    const result = checkMfaReady({
+      AUTH_MFA_ENABLED: "true"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("fail");
+  });
+
+  test("passes when AUTH_MFA_ENABLED=true and the key is a valid 32-byte base64 value", () => {
+    const result = checkMfaReady({
+      AUTH_MFA_ENABLED: "true",
+      AUTH_MFA_SECRET_ENCRYPTION_KEY: validKey
     } as NodeJS.ProcessEnv);
 
     expect(result.severity).toBe("critical");

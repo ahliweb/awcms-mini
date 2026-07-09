@@ -33,7 +33,7 @@ keputusan desain yang mengikat semua issue di epic ini sekaligus.
 | ----- | ------------------------------------------------------ | -------------------------------------------------- |
 | #587  | Gate bersama `AUTH_ONLINE_SECURITY_ENABLED`/`_PROFILE` | **Selesai** — lihat §Gate bersama di bawah         |
 | #588  | Cloudflare Turnstile untuk form auth publik            | **Selesai** — lihat §Cloudflare Turnstile di bawah |
-| #589  | MFA/TOTP login challenge                               | Belum dikerjakan                                   |
+| #589  | MFA/TOTP login challenge                               | **Selesai** — lihat §MFA/TOTP di bawah             |
 | #590  | Google OIDC login                                      | Belum dikerjakan                                   |
 | #591  | Generic tenant OIDC SSO provider                       | Belum dikerjakan                                   |
 | #592  | Admin UI kebijakan auth security online                | Belum dikerjakan (depends #587 selesai + #591)     |
@@ -138,6 +138,68 @@ isTurnstileRequired(env)
 - Error code i18n: `error.turnstile_required`/`error.turnstile_invalid`
   (`src/lib/i18n/error-messages.ts`, `i18n/en.po`+`id.po`).
 
+### MFA/TOTP (Issue #589, `src/modules/identity-access/application/mfa.ts`)
+
+Gate gabungan sama persis polanya dengan Turnstile:
+
+```txt
+isMfaRequired(env)
+  = isFullOnlineSecurityActive(env) AND isMfaEnabled(env)
+  (isMfaEnabled = AUTH_MFA_ENABLED === "true")
+```
+
+- **MFA opt-in per identity, bukan mandatory tenant-wide** — bahkan
+  dengan gate aktif, identity yang belum pernah enroll tetap login
+  normal (`login.ts` mengecek `findActiveMfaFactor` per identity SETELAH
+  password valid, bukan hanya gate env). Jangan asumsikan mengaktifkan
+  `AUTH_MFA_ENABLED=true` otomatis mewajibkan MFA untuk semua user.
+- **Login yang dijeda, bukan ditolak**: password valid + factor `active`
+  → `login.ts` TIDAK membuat session, malah insert row
+  `awcms_mini_mfa_challenges` dan balas `401 MFA_REQUIRED` berisi
+  `error.details.mfaChallengeToken` (bentuk `details` di sini SENGAJA
+  bukan `ErrorDetail[]` seperti endpoint lain — lihat OpenAPI schema
+  `LoginMfaRequiredResponse` — karena payload asli (token) harus
+  dikembalikan, bukan sekadar array pesan validasi).
+  `POST /auth/mfa/totp/verify` adalah **satu-satunya endpoint MFA yang
+  TIDAK butuh session** — diautentikasi lewat possession token
+  challenge, pola sama seperti `password/reset` diautentikasi lewat
+  possession token reset. Kode/recovery code valid → session dibuat
+  identik dengan `login.ts` (token, cookie, response shape sama), supaya
+  client tidak perlu logic berbeda untuk step kedua.
+- **Enkripsi-at-rest, bukan hash, untuk TOTP secret** —
+  `src/lib/auth/mfa-secret-crypto.ts` (AES-256-GCM,
+  `AUTH_MFA_SECRET_ENCRYPTION_KEY`, base64 32-byte, divalidasi
+  `checkMfaConfig`) — satu-satunya secret di aplikasi ini yang
+  reversibel, karena verifikasi TOTP butuh menghitung ulang kode dari
+  secret asli setiap request, tidak seperti password/token yang cukup
+  dibandingkan hash-nya. Recovery code (`mfa-recovery-code.ts`) dan
+  challenge token (`mfa-challenge-token.ts`) tetap hash-only (sha256,
+  pola sama `session-token.ts`/`password-reset-token.ts`) — TIDAK
+  reversibel, karena keduanya tidak pernah perlu ditampilkan ulang
+  setelah reveal sekali di awal.
+- **Replay prevention**: `awcms_mini_identity_mfa_factors.last_used_step`
+  menyimpan step time-counter TOTP tertinggi yang pernah diterima —
+  verifikasi hanya diterima kalau step yang cocok STRICTLY LEBIH BESAR
+  dari nilai ini, supaya kode yang sama tidak bisa dipakai dua kali
+  walau masih dalam window toleransi clock drift (`src/lib/auth/totp.ts`'s
+  `verifyTotpCode`, default ±1 step). Fitur online lain yang menambah
+  time-based one-time code (kalau ada) harus pola replay yang sama —
+  jangan andalkan TTL/expiry saja.
+- **Reset password BUKAN bypass MFA** — `completePasswordReset` tidak
+  menyentuh tabel `awcms_mini_identity_mfa_factors` sama sekali;
+  diverifikasi test integrasi eksplisit (`mfa-flow.integration.test.ts`
+  §"password reset does not disable MFA").
+- **Re-enroll ditolak selagi factor aktif** (`409 MFA_ALREADY_ACTIVE`,
+  `POST /auth/mfa/totp/enroll/start`) — sesi yang di-hijack tidak bisa
+  diam-diam mengganti secret TOTP tanpa lebih dulu `disable`.
+- **Disable & regenerate recovery code = high-risk, diaudit**
+  (`mfa_disabled`/`mfa_recovery_codes_regenerated`,
+  severity `warning`) — pola sama `awcms-mini-audit-log`.
+- Error code i18n: `error.mfa_required`/`_disabled`/`_already_active`/
+  `_not_active`/`_enrollment_not_found`/`_invalid_code`/
+  `_challenge_invalid`/`_misconfigured` (`error-messages.ts`,
+  `i18n/en.po`+`id.po`).
+
 ## Aturan lintas-issue yang wajib diikuti (#588-#593)
 
 1. **Setiap fitur (#588-#592) WAJIB memanggil `isFullOnlineSecurityActive(env)`
@@ -190,10 +252,9 @@ isTurnstileRequired(env)
 
 ## Belum ada — jangan asumsikan sudah dikerjakan
 
-Lima fitur (#589-#592) plus dokumentasi/kontrak penutup (#593) masih
-backlog per 2026-07-09 — hanya gate bersama (#587) dan Cloudflare
-Turnstile (#588) yang sudah ada di repo ini. Jangan asumsikan
-`awcms_mini_auth_providers`, `awcms_mini_identity_mfa_factors`, atau
-endpoint `/api/v1/auth/mfa/*`/`/api/v1/auth/providers/google/*`/
-`/api/v1/auth/sso/*` sudah ada — cek langsung sebelum membangun di
-atasnya.
+Tiga fitur (#590-#592) plus dokumentasi/kontrak penutup (#593) masih
+backlog per 2026-07-09 — gate bersama (#587), Cloudflare Turnstile
+(#588), dan MFA/TOTP (#589) sudah ada di repo ini. Jangan asumsikan
+`awcms_mini_auth_providers` atau endpoint
+`/api/v1/auth/providers/google/*`/`/api/v1/auth/sso/*` sudah ada — cek
+langsung sebelum membangun di atasnya.
