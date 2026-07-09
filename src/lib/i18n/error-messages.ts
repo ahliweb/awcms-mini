@@ -10,7 +10,11 @@ import type { Translator } from "./translate";
  * gate's own `TURNSTILE_REQUIRED`/`TURNSTILE_INVALID` — and Issue #589's
  * MFA/TOTP codes: `MFA_REQUIRED`/`MFA_DISABLED`/`MFA_ALREADY_ACTIVE`/
  * `MFA_NOT_ACTIVE`/`MFA_ENROLLMENT_NOT_FOUND`/`MFA_INVALID_CODE`/
- * `MFA_CHALLENGE_INVALID`/`MFA_MISCONFIGURED`) to i18n catalog keys
+ * `MFA_CHALLENGE_INVALID`/`MFA_MISCONFIGURED` — and Issue #590's Google
+ * OIDC codes: `GOOGLE_LOGIN_DISABLED`/`GOOGLE_OAUTH_STATE_INVALID`/
+ * `GOOGLE_TOKEN_EXCHANGE_FAILED`/`GOOGLE_ID_TOKEN_INVALID`/
+ * `GOOGLE_ACCOUNT_NOT_LINKED`/`GOOGLE_ALREADY_LINKED`/`GOOGLE_NOT_LINKED`/
+ * `GOOGLE_MISCONFIGURED`) to i18n catalog keys
  * under the `error.` namespace. Used both server-side (SSR error panels)
  * and to build the
  * client-string JSON blob admin pages inline for their fetch-based action
@@ -48,7 +52,15 @@ export const ERROR_CODE_KEYS: Record<string, string> = {
   MFA_ENROLLMENT_NOT_FOUND: "error.mfa_enrollment_not_found",
   MFA_INVALID_CODE: "error.mfa_invalid_code",
   MFA_CHALLENGE_INVALID: "error.mfa_challenge_invalid",
-  MFA_MISCONFIGURED: "error.mfa_misconfigured"
+  MFA_MISCONFIGURED: "error.mfa_misconfigured",
+  GOOGLE_LOGIN_DISABLED: "error.google_login_disabled",
+  GOOGLE_OAUTH_STATE_INVALID: "error.google_oauth_state_invalid",
+  GOOGLE_TOKEN_EXCHANGE_FAILED: "error.google_token_exchange_failed",
+  GOOGLE_ID_TOKEN_INVALID: "error.google_id_token_invalid",
+  GOOGLE_ACCOUNT_NOT_LINKED: "error.google_account_not_linked",
+  GOOGLE_ALREADY_LINKED: "error.google_already_linked",
+  GOOGLE_NOT_LINKED: "error.google_not_linked",
+  GOOGLE_MISCONFIGURED: "error.google_misconfigured"
 };
 
 /**

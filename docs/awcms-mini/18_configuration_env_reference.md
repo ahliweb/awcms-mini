@@ -65,31 +65,36 @@ Legenda: Wajib = perlu untuk boot; Sensitif = jangan bocor ke log/response.
 
 ### Auth & keamanan
 
-| Var                                         | Wajib          | Default      | Sensitif | Fungsi                                                                                                  |
-| ------------------------------------------- | -------------- | ------------ | -------- | ------------------------------------------------------------------------------------------------------- |
-| `AUTH_JWT_SECRET`                           | Ya             | –            | Ya       | Signing token sesi                                                                                      |
-| `AUTH_SESSION_TTL_MIN`                      | –              | `120`        | –        | Umur sesi                                                                                               |
-| `AUTH_COOKIE_SECURE`                        | –              | `true`       | –        | Cookie hanya HTTPS di prod                                                                              |
-| `AUTH_LOGIN_MAX_ATTEMPTS`                   | –              | `5`          | –        | Lockout login (per identitas)                                                                           |
-| `AUTH_LOGIN_RATE_LIMIT_MAX`                 | –              | `20`         | –        | Rate limit login per sumber+tenant (Issue #437)                                                         |
-| `AUTH_LOGIN_RATE_LIMIT_WINDOW_SEC`          | –              | `60`         | –        | Jendela waktu rate limit login (detik)                                                                  |
-| `AUTH_PASSWORD_RESET_TOKEN_TTL_MIN`         | –              | `30`         | –        | Umur token reset password (Issue #496)                                                                  |
-| `AUTH_PASSWORD_RESET_RATE_LIMIT_MAX`        | –              | `5`          | –        | Rate limit forgot/reset per sumber+tenant                                                               |
-| `AUTH_PASSWORD_RESET_RATE_LIMIT_WINDOW_SEC` | –              | `900`        | –        | Jendela waktu rate limit reset password (detik)                                                         |
-| `AUTH_ONLINE_SECURITY_ENABLED`              | –              | `false`      | –        | Gate full-online-only auth hardening (Issue #587) — lihat §Full-online auth security hardening di bawah |
-| `AUTH_ONLINE_SECURITY_PROFILE`              | –              | `disabled`   | –        | `disabled` (default) atau `full_online`; wajib `full_online` bila `AUTH_ONLINE_SECURITY_ENABLED=true`   |
-| `TURNSTILE_ENABLED`                         | –              | `false`      | –        | Cloudflare Turnstile bot protection (Issue #588) — lihat §Full-online auth security hardening di bawah  |
-| `TURNSTILE_SITE_KEY`                        | bila Turnstile | –            | –        | Site key publik (bukan secret) — dirender di widget `/login`                                            |
-| `TURNSTILE_SECRET_KEY`                      | bila Turnstile | –            | Ya       | Secret key — hanya untuk verifikasi server-side, tidak pernah ke klien                                  |
-| `TURNSTILE_VERIFY_TIMEOUT_MS`               | –              | `5000`       | –        | Timeout panggilan siteverify Cloudflare (ms)                                                            |
-| `AUTH_MFA_ENABLED`                          | –              | `false`      | –        | MFA/TOTP login challenge (Issue #589) — lihat §Full-online auth security hardening di bawah             |
-| `AUTH_MFA_SECRET_ENCRYPTION_KEY`            | bila MFA       | –            | Ya       | Key AES-256-GCM (base64, 32 byte) untuk enkripsi-at-rest TOTP secret                                    |
-| `AUTH_MFA_TOTP_ISSUER`                      | –              | `AWCMS-Mini` | –        | Nama issuer yang tampil di aplikasi authenticator                                                       |
-| `AUTH_MFA_TOTP_PERIOD_SEC`                  | –              | `30`         | –        | Panjang time-step TOTP (detik)                                                                          |
-| `AUTH_MFA_TOTP_DIGITS`                      | –              | `6`          | –        | Jumlah digit kode TOTP (`6` atau `8`)                                                                   |
-| `AUTH_MFA_CHALLENGE_TTL_SEC`                | –              | `300`        | –        | Umur challenge MFA login (detik)                                                                        |
-| `AUTH_MFA_RATE_LIMIT_MAX`                   | –              | `5`          | –        | Rate limit `POST /auth/mfa/totp/verify` per sumber+tenant                                               |
-| `AUTH_MFA_RATE_LIMIT_WINDOW_SEC`            | –              | `300`        | –        | Jendela waktu rate limit verifikasi MFA (detik)                                                         |
+| Var                                         | Wajib          | Default                                  | Sensitif | Fungsi                                                                                                  |
+| ------------------------------------------- | -------------- | ---------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------- |
+| `AUTH_JWT_SECRET`                           | Ya             | –                                        | Ya       | Signing token sesi                                                                                      |
+| `AUTH_SESSION_TTL_MIN`                      | –              | `120`                                    | –        | Umur sesi                                                                                               |
+| `AUTH_COOKIE_SECURE`                        | –              | `true`                                   | –        | Cookie hanya HTTPS di prod                                                                              |
+| `AUTH_LOGIN_MAX_ATTEMPTS`                   | –              | `5`                                      | –        | Lockout login (per identitas)                                                                           |
+| `AUTH_LOGIN_RATE_LIMIT_MAX`                 | –              | `20`                                     | –        | Rate limit login per sumber+tenant (Issue #437)                                                         |
+| `AUTH_LOGIN_RATE_LIMIT_WINDOW_SEC`          | –              | `60`                                     | –        | Jendela waktu rate limit login (detik)                                                                  |
+| `AUTH_PASSWORD_RESET_TOKEN_TTL_MIN`         | –              | `30`                                     | –        | Umur token reset password (Issue #496)                                                                  |
+| `AUTH_PASSWORD_RESET_RATE_LIMIT_MAX`        | –              | `5`                                      | –        | Rate limit forgot/reset per sumber+tenant                                                               |
+| `AUTH_PASSWORD_RESET_RATE_LIMIT_WINDOW_SEC` | –              | `900`                                    | –        | Jendela waktu rate limit reset password (detik)                                                         |
+| `AUTH_ONLINE_SECURITY_ENABLED`              | –              | `false`                                  | –        | Gate full-online-only auth hardening (Issue #587) — lihat §Full-online auth security hardening di bawah |
+| `AUTH_ONLINE_SECURITY_PROFILE`              | –              | `disabled`                               | –        | `disabled` (default) atau `full_online`; wajib `full_online` bila `AUTH_ONLINE_SECURITY_ENABLED=true`   |
+| `TURNSTILE_ENABLED`                         | –              | `false`                                  | –        | Cloudflare Turnstile bot protection (Issue #588) — lihat §Full-online auth security hardening di bawah  |
+| `TURNSTILE_SITE_KEY`                        | bila Turnstile | –                                        | –        | Site key publik (bukan secret) — dirender di widget `/login`                                            |
+| `TURNSTILE_SECRET_KEY`                      | bila Turnstile | –                                        | Ya       | Secret key — hanya untuk verifikasi server-side, tidak pernah ke klien                                  |
+| `TURNSTILE_VERIFY_TIMEOUT_MS`               | –              | `5000`                                   | –        | Timeout panggilan siteverify Cloudflare (ms)                                                            |
+| `AUTH_MFA_ENABLED`                          | –              | `false`                                  | –        | MFA/TOTP login challenge (Issue #589) — lihat §Full-online auth security hardening di bawah             |
+| `AUTH_MFA_SECRET_ENCRYPTION_KEY`            | bila MFA       | –                                        | Ya       | Key AES-256-GCM (base64, 32 byte) untuk enkripsi-at-rest TOTP secret                                    |
+| `AUTH_MFA_TOTP_ISSUER`                      | –              | `AWCMS-Mini`                             | –        | Nama issuer yang tampil di aplikasi authenticator                                                       |
+| `AUTH_MFA_TOTP_PERIOD_SEC`                  | –              | `30`                                     | –        | Panjang time-step TOTP (detik)                                                                          |
+| `AUTH_MFA_TOTP_DIGITS`                      | –              | `6`                                      | –        | Jumlah digit kode TOTP (`6` atau `8`)                                                                   |
+| `AUTH_MFA_CHALLENGE_TTL_SEC`                | –              | `300`                                    | –        | Umur challenge MFA login (detik)                                                                        |
+| `AUTH_MFA_RATE_LIMIT_MAX`                   | –              | `5`                                      | –        | Rate limit `POST /auth/mfa/totp/verify` per sumber+tenant                                               |
+| `AUTH_MFA_RATE_LIMIT_WINDOW_SEC`            | –              | `300`                                    | –        | Jendela waktu rate limit verifikasi MFA (detik)                                                         |
+| `AUTH_GOOGLE_LOGIN_ENABLED`                 | –              | `false`                                  | –        | Google OIDC login (Issue #590) — lihat §Full-online auth security hardening di bawah                    |
+| `AUTH_GOOGLE_CLIENT_ID`                     | bila Google    | –                                        | –        | OAuth client ID dari Google Cloud Console                                                               |
+| `AUTH_GOOGLE_CLIENT_SECRET`                 | bila Google    | –                                        | Ya       | OAuth client secret — hanya untuk token exchange server-side                                            |
+| `AUTH_GOOGLE_ALLOWED_DOMAINS`               | –              | –                                        | –        | Daftar domain email (dipisah koma) yang boleh auto-link; kosong = auto-link selalu ditolak              |
+| `AUTH_GOOGLE_REDIRECT_PATH`                 | –              | `/api/v1/auth/providers/google/callback` | –        | Path callback OAuth di bawah `APP_URL`                                                                  |
 
 ### Full-online auth security hardening (opsional, Issue #587-#593)
 
@@ -152,7 +157,28 @@ online-only ini (lihat `deployment-profiles.md`).
   `last_used_step` per factor. Reset password TIDAK menonaktifkan MFA
   (diverifikasi test integrasi). Detail lengkap: skill
   `awcms-mini-auth-online-hardening`.
-- #590-#593 (Google login, generic SSO, admin policy UI,
+- **Google OIDC login (Issue #590, selesai)** — `AUTH_GOOGLE_LOGIN_ENABLED`
+  divalidasi independen dari gate di atas (`checkGoogleOidcConfig`), tapi
+  aktivasi runtime-nya butuh KEDUANYA
+  (`isGoogleLoginRequired(env)` = gate ∧ `AUTH_GOOGLE_LOGIN_ENABLED=true`).
+  Endpoint baru: `GET /auth/providers/google/start` (redirect ke Google,
+  tombol "Continue with Google" di `/login`), `GET .../callback`
+  (redirect target Google, memvalidasi `state`/nonce/ID token lalu
+  membuat session ATAU memicu `401 MFA_REQUIRED` bila Issue #589 aktif
+  untuk identity itu), `POST .../link` (mulai alur link untuk identity
+  yang sudah login, mengembalikan `authorizationUrl` sebagai JSON, bukan
+  redirect), `POST .../unlink`. Provider account ditautkan via `sub`
+  (subject OIDC), TIDAK PERNAH via email — auto-link by email hanya
+  terjadi bila `email_verified` DAN domain-nya ada di
+  `AUTH_GOOGLE_ALLOWED_DOMAINS` (kosong = auto-link selalu ditolak,
+  fail-closed). ID token diverifikasi kriptografis penuh (signature RS256
+  via WebCrypto, issuer, audience, expiry, nonce) — tidak pernah
+  dipercaya dari query param begitu saja. `state` param membawa prefix
+  tenant id (`${tenantId}.${rawToken}`) karena redirect Google adalah
+  navigasi browser murni yang tidak bisa membawa header
+  `X-AWCMS-Mini-Tenant-ID`. Detail lengkap: skill
+  `awcms-mini-auth-online-hardening`.
+- #591-#593 (generic tenant OIDC SSO, admin policy UI,
   dokumentasi/kontrak penutup) masih backlog — belum diimplementasikan di
   repo ini.
 
@@ -393,6 +419,8 @@ AUTH_MFA_TOTP_DIGITS=6
 AUTH_MFA_CHALLENGE_TTL_SEC=300
 AUTH_MFA_RATE_LIMIT_MAX=5
 AUTH_MFA_RATE_LIMIT_WINDOW_SEC=300
+AUTH_GOOGLE_LOGIN_ENABLED=false
+AUTH_GOOGLE_REDIRECT_PATH=/api/v1/auth/providers/google/callback
 
 # Sync
 AWCMS_MINI_NODE_ID=local-dev-node

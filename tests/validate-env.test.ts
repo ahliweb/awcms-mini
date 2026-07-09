@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   checkEmailConfig,
+  checkGoogleOidcConfig,
   checkOnlineAuthSecurityConfig,
   checkPublicRoutingConfig,
   checkR2Config,
@@ -566,6 +567,61 @@ describe("checkMfaConfig", () => {
 
     for (const result of results) {
       expect(result.detail).not.toContain(VALID_MFA_KEY_BASE64);
+    }
+  });
+});
+
+describe("checkGoogleOidcConfig", () => {
+  test("passes (single check) when AUTH_GOOGLE_LOGIN_ENABLED is not set", () => {
+    const results = checkGoogleOidcConfig({} as NodeJS.ProcessEnv);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe("pass");
+  });
+
+  test("passes when AUTH_GOOGLE_LOGIN_ENABLED=false", () => {
+    const results = checkGoogleOidcConfig({
+      AUTH_GOOGLE_LOGIN_ENABLED: "false"
+    } as NodeJS.ProcessEnv);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe("pass");
+  });
+
+  test("fails and names each missing var when AUTH_GOOGLE_LOGIN_ENABLED=true", () => {
+    const results = checkGoogleOidcConfig({
+      AUTH_GOOGLE_LOGIN_ENABLED: "true"
+    } as NodeJS.ProcessEnv);
+
+    const failedNames = results
+      .filter((result) => result.status === "fail")
+      .map((result) => result.name)
+      .sort();
+
+    expect(failedNames).toEqual(
+      ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET"].sort()
+    );
+  });
+
+  test("all pass when AUTH_GOOGLE_LOGIN_ENABLED=true and both vars are set", () => {
+    const results = checkGoogleOidcConfig({
+      AUTH_GOOGLE_LOGIN_ENABLED: "true",
+      AUTH_GOOGLE_CLIENT_ID: "client-abc",
+      AUTH_GOOGLE_CLIENT_SECRET: "a-real-secret"
+    } as NodeJS.ProcessEnv);
+
+    expect(results.every((result) => result.status === "pass")).toBe(true);
+  });
+
+  test("never includes the configured secret in any result detail", () => {
+    const results = checkGoogleOidcConfig({
+      AUTH_GOOGLE_LOGIN_ENABLED: "true",
+      AUTH_GOOGLE_CLIENT_ID: "client-abc",
+      AUTH_GOOGLE_CLIENT_SECRET: "super-secret-google-value"
+    } as NodeJS.ProcessEnv);
+
+    for (const result of results) {
+      expect(result.detail).not.toContain("super-secret-google-value");
     }
   });
 });

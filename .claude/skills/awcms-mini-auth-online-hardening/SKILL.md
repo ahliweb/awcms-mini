@@ -34,7 +34,7 @@ keputusan desain yang mengikat semua issue di epic ini sekaligus.
 | #587  | Gate bersama `AUTH_ONLINE_SECURITY_ENABLED`/`_PROFILE` | **Selesai** — lihat §Gate bersama di bawah         |
 | #588  | Cloudflare Turnstile untuk form auth publik            | **Selesai** — lihat §Cloudflare Turnstile di bawah |
 | #589  | MFA/TOTP login challenge                               | **Selesai** — lihat §MFA/TOTP di bawah             |
-| #590  | Google OIDC login                                      | Belum dikerjakan                                   |
+| #590  | Google OIDC login                                      | **Selesai** — lihat §Google OIDC login di bawah    |
 | #591  | Generic tenant OIDC SSO provider                       | Belum dikerjakan                                   |
 | #592  | Admin UI kebijakan auth security online                | Belum dikerjakan (depends #587 selesai + #591)     |
 | #593  | Docs/kontrak/readiness penutup epic                    | Belum dikerjakan (finalisasi setelah #588-592)     |
@@ -228,6 +228,115 @@ isMfaRequired(env)
   `_challenge_invalid`/`_misconfigured` (`error-messages.ts`,
   `i18n/en.po`+`id.po`).
 
+### Google OIDC login (Issue #590, `src/modules/identity-access/application/google-oidc.ts`)
+
+Gate gabungan sama persis polanya dengan Turnstile/MFA:
+
+```txt
+isGoogleLoginRequired(env)
+  = isFullOnlineSecurityActive(env) AND isGoogleLoginEnabled(env)
+  (isGoogleLoginEnabled = AUTH_GOOGLE_LOGIN_ENABLED === "true")
+```
+
+- **Tenant id lewat `state`, bukan header** — `GET .../callback` adalah
+  redirect target Google (navigasi browser murni), yang TIDAK BISA
+  membawa header `X-AWCMS-Mini-Tenant-ID` seperti endpoint lain. `state`
+  yang dikirim ke Google berbentuk `${tenantId}.${rawToken}`
+  (`src/lib/auth/oauth-state-token.ts`'s `buildOAuthStateParam`/
+  `parseOAuthStateParam`) — tenant id BUKAN secret, jadi aman muncul di
+  URL; bagian token (pertahanan CSRF/replay sesungguhnya, ≥32 byte
+  random) tetap di-hash at rest seperti `state`/session/reset/challenge
+  token lain di aplikasi ini. Fitur online lain yang butuh redirect ke
+  provider eksternal (mis. #591 generic SSO) WAJIB pola yang sama untuk
+  membawa tenant id — jangan asumsikan header selalu tersedia di
+  endpoint redirect-target.
+- **Dua flow berbeda dari satu orkestrator**: `GET .../start`
+  (unauthenticated, dari tombol "Continue with Google" di `/login`)
+  selalu `purpose='login'`. `POST .../link` (BUTUH session — identity
+  diambil server-side dari session yang sedang login, TIDAK PERNAH
+  dipercaya dari request callback) mengembalikan `authorizationUrl`
+  sebagai JSON (bukan redirect 302), karena dipanggil lewat `fetch()`
+  dari konteks yang sudah authenticated — client men-`window.location`
+  sendiri. `GET .../callback` (satu-satunya redirect target Google)
+  menangani KEDUA purpose lewat satu orkestrator
+  `completeGoogleOAuthCallback` (application layer) berdasarkan kolom
+  `purpose`/`identity_id` di baris `awcms_mini_oidc_auth_requests` yang
+  tersimpan saat start/link — BUKAN dua implementasi terpisah yang bisa
+  divergen soal keamanan.
+- **Verifikasi ID token kriptografis PENUH, bukan sekadar decode JSON**
+  (issue's security note: "Do not trust query parameters alone; validate
+  ID token cryptographically") — signature RS256 lewat WebCrypto
+  `crypto.subtle` (`src/lib/auth/jwt-verify.ts`, TIDAK ada library JWT
+  eksternal), lalu issuer/audience/expiry/nonce
+  (`google-oidc-policy.ts`'s `validateIdTokenClaims`, pure/testable).
+  Setiap kegagalan collapse ke `GOOGLE_ID_TOKEN_INVALID` generik
+  (anti-enumeration, pola sama `MFA_CHALLENGE_INVALID`) — JANGAN
+  bocorkan alasan spesifik (issuer salah vs audience salah vs signature
+  invalid) ke response.
+- **Provider account ditautkan via `sub`, TIDAK PERNAH via email**
+  (issue's security note: "Use `sub` as the stable provider key") —
+  `awcms_mini_identity_provider_accounts`, unique per
+  (tenant, provider, subject) DAN per (tenant, identity, provider).
+  Auto-link by email HANYA aktif bila `email_verified=true` DAN domain
+  email ada di `AUTH_GOOGLE_ALLOWED_DOMAINS` (`isEmailDomainAllowed` —
+  **fail-closed**: list kosong/tidak di-set = auto-link SELALU ditolak,
+  bukan "izinkan semua domain"). Kalau tidak ada provider account yang
+  cocok dan auto-link tidak berlaku → `401 GOOGLE_ACCOUNT_NOT_LINKED`,
+  TIDAK PERNAH provisioning identity baru (self-service registration via
+  Google eksplisit out-of-scope issue ini).
+- **Google login TIDAK PERNAH bypass MFA** (issue's acceptance
+  criterion: "If #589 is implemented and MFA is required, Google login
+  still proceeds through MFA challenge before session creation") —
+  `completeGoogleOAuthCallback` memanggil `findActiveMfaFactor`/
+  `createMfaChallenge` yang SAMA persis dengan `login.ts` (bukan jalur
+  MFA terpisah yang bisa lupa di-wire). Endpoint `callback.ts`
+  mengembalikan `401 MFA_REQUIRED` dengan `mfaChallengeToken` yang sama
+  bentuknya seperti dari `login.ts` — client menyelesaikan lewat
+  `POST /auth/mfa/totp/verify` yang sudah ada, tidak perlu endpoint MFA
+  baru untuk provider OIDC lain.
+- **Circuit breaker HANYA trip pada kegagalan transport genuine** —
+  pelajaran langsung dari bug Turnstile (PR #596 security review, lihat
+  §Cloudflare Turnstile di atas): token exchange yang menjawab `400
+invalid_grant` untuk `code` yang salah/bekas/kedaluwarsa adalah Google
+  BENAR menolak input attacker-controlled, bukan tanda Google unhealthy
+  — `google-oauth-client.ts`'s `exchangeAuthorizationCode` HANYA
+  `recordFailure` pada 5xx/network error/timeout, tidak pernah pada
+  respons 4xx yang valid. JWKS di-cache 1 jam (`fetchGoogleJwks`) —
+  jangan fetch JWKS setiap request.
+- **JANGAN pernah INSERT/UPDATE dengan `tenantId` yang belum divalidasi
+  SEBELUM `SELECT` yang aman** — security review PR #598 menemukan
+  `GET .../start` awalnya langsung `INSERT INTO
+awcms_mini_oidc_auth_requests` dengan `tenantId` dari query param
+  tak terautentikasi TANPA mengecek tenant itu benar-benar ada lebih
+  dulu. `tenant_id` punya FK ke `awcms_mini_tenants` — tenant palsu
+  memicu foreign-key violation, dan exception itu ditangkap
+  `withTenant`'s catch-all lalu di-record ke
+  **`getDatabaseCircuitBreaker()`, breaker tunggal APLIKASI-LEBAR**
+  (beda dari breaker per-provider seperti punya Turnstile/Google
+  sendiri — breaker ini dipakai SEMUA endpoint, SEMUA tenant). Lima
+  request dengan `tenantId` acak dari penyerang tak terautentikasi bisa
+  membuka breaker ini dan menjatuhkan SELURUH aplikasi 30 detik,
+  diulang tanpa henti — blast radius lebih besar dari bug Turnstile
+  PR #596. Diperbaiki dengan `SELECT status FROM awcms_mini_tenants
+WHERE id = tenantId` (aman, tidak pernah throw untuk baris kosong)
+  SEBELUM memanggil `createOAuthRequest`, plus rate limiting
+  (`checkRateLimit`, pola sama `login.ts`) sebagai lapis kedua. Fitur
+  online lain (mis. #591 generic SSO) yang punya endpoint tak
+  terautentikasi dengan INSERT/UPDATE ber-FK ke tabel tenant-scoped
+  WAJIB pola yang sama — cek keberadaan/status via SELECT dulu, jangan
+  pernah biarkan sebuah write yang bisa gagal FK constraint jadi baris
+  pertama yang menyentuh DB untuk input tak terautentikasi.
+  Regression test: `google-oidc-flow.integration.test.ts` §"start
+  rejects a nonexistent tenant WITHOUT tripping the shared database
+  circuit breaker".
+- `POST .../link`/`.../unlink`: high-risk, diaudit
+  (`google_account_linked`/`google_account_unlinked`); `callback.ts`
+  login sukses diaudit `google_login_succeeded`.
+- Error code i18n: `error.google_login_disabled`/
+  `_oauth_state_invalid`/`_token_exchange_failed`/`_id_token_invalid`/
+  `_account_not_linked`/`_already_linked`/`_not_linked`/`_misconfigured`
+  (`error-messages.ts`, `i18n/en.po`+`id.po`).
+
 ## Aturan lintas-issue yang wajib diikuti (#588-#593)
 
 1. **Setiap fitur (#588-#592) WAJIB memanggil `isFullOnlineSecurityActive(env)`
@@ -263,26 +372,47 @@ isMfaRequired(env)
    diaudit (`awcms-mini-audit-log`) dan idempotent kalau mutation
    (`awcms-mini-idempotency`).
 7. **Provider identifier stabil adalah `sub` (subject OIDC), bukan
-   email** — auto-link by email (kalau diimplementasikan) wajib
-   mensyaratkan email terverifikasi + kebijakan allowed-domain eksplisit,
-   tidak pernah linking implisit murni dari kecocokan string email.
+   email** — auto-link by email wajib mensyaratkan email terverifikasi +
+   kebijakan allowed-domain eksplisit, tidak pernah linking implisit
+   murni dari kecocokan string email. Sudah diimplementasikan konkret di
+   #590 (`isEmailDomainAllowed`, fail-closed) — #591 (generic tenant OIDC
+   SSO) WAJIB reuse pola yang sama, jangan re-derive.
 8. **Semua panggilan provider eksternal (OIDC discovery/JWKS, Turnstile
-   siteverify) wajib timeout-bounded** — pola sama seperti
-   `cloudflare-dns-adapter.ts`/`mailketing-provider.ts` (`withTimeout`,
-   circuit breaker `getProviderCircuitBreaker`), dan tidak pernah
-   dipanggil di dalam DB transaction (ADR-0006).
-9. **Tabel baru yang tenant-scoped (`awcms_mini_auth_providers`,
-   `awcms_mini_identity_provider_accounts`, `awcms_mini_tenant_auth_policies`,
-   `awcms_mini_identity_mfa_factors`, dst.) wajib RLS `ENABLE` + `FORCE`**
-   — pola sama seperti setiap migration sejak 013 (`awcms-mini-new-migration`).
+   siteverify, Google token exchange) wajib timeout-bounded DAN circuit
+   breaker-nya hanya boleh trip pada kegagalan transport genuine** — pola
+   sama seperti `cloudflare-dns-adapter.ts`/`mailketing-provider.ts`/
+   `turnstile.ts`/`google-oauth-client.ts` (`withTimeout`, circuit
+   breaker `getProviderCircuitBreaker`), dan tidak pernah dipanggil di
+   dalam DB transaction (ADR-0006). JANGAN treat respons 4xx yang valid
+   (input attacker-controlled ditolak provider dengan benar) sebagai
+   provider-failure — pelajaran dari bug Turnstile PR #596, diulang
+   benar di #590's `exchangeAuthorizationCode`. **Aturan yang sama
+   berlaku untuk breaker DATABASE bawaan** (`getDatabaseCircuitBreaker()`,
+   dipakai `withTenant` untuk SEMUA endpoint/tenant, bukan sekadar satu
+   provider) — endpoint tak terautentikasi TIDAK BOLEH melakukan
+   INSERT/UPDATE ber-FK ke tabel tenant-scoped dengan `tenantId` yang
+   belum divalidasi keberadaannya; exception (mis. foreign-key
+   violation) dari input attacker-controlled akan ditangkap
+   `withTenant`'s catch-all dan mentrip breaker aplikasi-lebar ini —
+   blast radius JAUH lebih besar dari breaker per-provider mana pun
+   (pelajaran PR #598, lihat §Google OIDC login di atas). Selalu
+   `SELECT` (aman, tidak throw untuk baris kosong) sebelum write
+   ber-FK di endpoint yang bisa dijangkau tanpa autentikasi.
+9. **Tabel baru yang tenant-scoped (`awcms_mini_identity_provider_accounts`,
+   `awcms_mini_oidc_auth_requests` — #590; `awcms_mini_tenant_auth_policies`
+   dst. untuk #591-#592; `awcms_mini_identity_mfa_factors` dkk. — #589)
+   wajib RLS `ENABLE` + `FORCE`** — pola sama seperti setiap migration
+   sejak 013 (`awcms-mini-new-migration`).
 10. **MFA reset password tidak boleh jadi bypass MFA** — reset password
     yang berhasil tidak otomatis menonaktifkan MFA milik identity itu.
 
 ## Belum ada — jangan asumsikan sudah dikerjakan
 
-Tiga fitur (#590-#592) plus dokumentasi/kontrak penutup (#593) masih
+Dua fitur (#591-#592) plus dokumentasi/kontrak penutup (#593) masih
 backlog per 2026-07-09 — gate bersama (#587), Cloudflare Turnstile
-(#588), dan MFA/TOTP (#589) sudah ada di repo ini. Jangan asumsikan
-`awcms_mini_auth_providers` atau endpoint
-`/api/v1/auth/providers/google/*`/`/api/v1/auth/sso/*` sudah ada — cek
-langsung sebelum membangun di atasnya.
+(#588), MFA/TOTP (#589), dan Google OIDC login (#590) sudah ada di repo
+ini. Jangan asumsikan `awcms_mini_auth_providers`,
+`awcms_mini_tenant_auth_policies`, atau endpoint
+`/api/v1/auth/sso/*`/admin policy UI sudah ada — cek langsung sebelum
+membangun di atasnya. `/api/v1/auth/providers/google/*` SUDAH ada
+(#590) — jangan bangun ulang.

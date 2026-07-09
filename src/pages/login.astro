@@ -20,11 +20,19 @@
  * docs: embedded in every public Turnstile widget) — only
  * `TURNSTILE_SECRET_KEY` (server-side verification only, never sent here)
  * needs the redaction discipline `src/lib/security/turnstile.ts` applies.
+ *
+ * Google OIDC login (Issue #590) — the "Continue with Google" button only
+ * renders when `isGoogleLoginRequired()` is true. It's a plain button (not
+ * an `<a href>`) because the destination URL needs the Tenant ID field's
+ * CURRENT value at click time (`GET /auth/providers/google/start
+ * ?tenantId=...` — see that endpoint's own comment for why a query param
+ * fallback exists there pre-login).
  */
 import "../styles/tokens.css";
 import { createTranslator } from "../lib/i18n/translate";
 import { buildClientErrorMessages } from "../lib/i18n/error-messages";
 import { isTurnstileRequired } from "../lib/security/turnstile";
+import { isGoogleLoginRequired } from "../lib/auth/google-oidc-config";
 
 const locale = Astro.locals.locale;
 const t = await createTranslator(locale);
@@ -32,6 +40,7 @@ const turnstileActive = isTurnstileRequired();
 const turnstileSiteKey = turnstileActive
   ? process.env.TURNSTILE_SITE_KEY
   : null;
+const googleLoginActive = isGoogleLoginRequired();
 
 const clientStrings = {
   genericError: t("auth.login.generic_error"),
@@ -97,6 +106,14 @@ const clientStrings = {
         <button type="submit" id="login-submit">
           {t("auth.login.submit")}
         </button>
+
+        {
+          googleLoginActive && (
+            <button type="button" id="google-login-button">
+              {t("auth.login.google_button")}
+            </button>
+          )
+        }
       </form>
     </main>
 
@@ -205,6 +222,29 @@ const clientStrings = {
           unlock();
         }
       });
+
+      // Google OIDC login (Issue #590) — the destination needs the Tenant
+      // ID field's CURRENT value, read at click time, as a `?tenantId=`
+      // query param (this page has no tenant cookie yet pre-login, and a
+      // plain navigation can't carry the `X-AWCMS-Mini-Tenant-ID` header
+      // every fetch-based call on this page uses instead).
+      const googleButton = document.getElementById(
+        "google-login-button"
+      ) as HTMLButtonElement | null;
+
+      googleButton?.addEventListener("click", () => {
+        const tenantId = String(
+          (document.getElementById("tenant-id") as HTMLInputElement | null)
+            ?.value ?? ""
+        ).trim();
+
+        if (!tenantId) {
+          showError(strings.genericError);
+          return;
+        }
+
+        window.location.href = `/api/v1/auth/providers/google/start?tenantId=${encodeURIComponent(tenantId)}`;
+      });
     </script>
   </body>
 </html>
@@ -264,6 +304,13 @@ const clientStrings = {
   .login-form button:disabled {
     cursor: not-allowed;
     opacity: 0.75;
+  }
+
+  #google-login-button {
+    margin-top: var(--sp-2);
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
   }
 
   .login-form input {
