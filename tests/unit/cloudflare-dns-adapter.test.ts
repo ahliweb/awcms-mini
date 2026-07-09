@@ -521,6 +521,41 @@ describe("resolveTenantDomainDnsProvider (missing env behavior)", () => {
       /platform root domain/i
     );
   });
+
+  test("TENANT_DOMAIN_CLOUDFLARE_TIMEOUT_MS actually reaches the real adapter through resolveTenantDomainDnsProvider (not just the composed pure functions)", async () => {
+    // `resolveTenantDomainDnsProvider` always targets the real Cloudflare API
+    // base URL (no override), so `fetch` itself is stubbed here — the only
+    // way to prove the env var's value survives the resolver's own
+    // `timeoutMs: resolveTenantDomainCloudflareTimeoutMs(env)` wiring
+    // (cloudflare-dns-adapter.ts) end to end, not just that the two
+    // functions compose correctly in isolation.
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+
+    try {
+      const provider = resolveTenantDomainDnsProvider({
+        TENANT_DOMAIN_DNS_PROVIDER: "cloudflare",
+        TENANT_DOMAIN_CLOUDFLARE_ZONE_ID: "zone-abc",
+        TENANT_DOMAIN_CLOUDFLARE_API_TOKEN: "token-xyz",
+        TENANT_DOMAIN_PLATFORM_ROOT_DOMAIN: "platform.example",
+        TENANT_DOMAIN_CLOUDFLARE_TIMEOUT_MS: "20"
+      } as NodeJS.ProcessEnv);
+
+      const result = await provider.createVerificationRecord({
+        recordType: "TXT",
+        recordName: "tenant1.platform.example",
+        recordValue: "awcms-verify=abc123"
+      });
+
+      expect(result.ok).toBe(false);
+      expect((result as { error: string }).error).toMatch(/timed out/i);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 describe("resolveTenantDomainCloudflareTimeoutMs (security audit follow-up on PR #580 — timeout is now env-tunable, not hardcoded)", () => {
