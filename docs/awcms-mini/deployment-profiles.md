@@ -154,9 +154,24 @@ hardening).
   Issue #589 (MFA) juga aktif untuk identity yang login lewat Google, MFA
   challenge tetap wajib diselesaikan sebelum session dibuat — Google
   login tidak pernah jadi jalan pintas melewati MFA.
-  #591-#593 (generic tenant OIDC SSO, admin policy UI,
-  dokumentasi/kontrak penutup) masih backlog, belum diimplementasikan di
-  repo ini.
+- **Generic tenant OIDC SSO (Issue #591, selesai)**: set tambahan
+  `AUTH_SSO_ENABLED=true` + `AUTH_SSO_CREDENTIAL_ENCRYPTION_KEY` (base64,
+  32 byte AES-256 key, beda dari key MFA) untuk mengaktifkan
+  `GET/POST /api/v1/auth/sso/{providerKey}/*`. Sama seperti fitur lain,
+  `AUTH_SSO_ENABLED` divalidasi independen dari gate di atas, aktivasi
+  runtime butuh keduanya. Berbeda dari Google (endpoint hardcoded), setiap
+  provider (Okta, Azure AD, Keycloak, dst.) dikonfigurasi PER TENANT lewat
+  admin API `/api/v1/identity/sso/providers` (issuer/client
+  id/secret/scopes/allowed domains) — bukan env var deployment-wide;
+  admin CRUD ini reachable regardless of gate ini (operator boleh
+  provisioning provider lebih dulu). `sso_required=true`/
+  `password_login_enabled=false` (`/api/v1/identity/sso/policy`) hanya
+  bisa disimpan bila minimal satu break-glass local owner tetap tersedia
+  — dicek di titik SAVE, bukan hanya login, supaya outage provider tidak
+  pernah mengunci operator keluar dari akunnya sendiri. MFA (#589) tetap
+  ditegakkan sama seperti Google. #592-#593 (admin UI kebijakan,
+  dokumentasi/kontrak penutup epic) masih backlog, belum diimplementasikan
+  di repo ini.
 
 ## Cara menjalankan tiap profil
 

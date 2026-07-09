@@ -40,6 +40,7 @@ import {
   checkGoogleOidcConfig,
   checkMfaConfig,
   checkOnlineAuthSecurityConfig,
+  checkSsoConfig,
   checkTurnstileConfig
 } from "./validate-env";
 
@@ -974,6 +975,49 @@ export function checkGoogleOidcReady(
   };
 }
 
+/**
+ * Reuses `checkSsoConfig` from `validate-env.ts` verbatim — same pattern
+ * and rationale as `checkTurnstileReady`/`checkMfaReady`/
+ * `checkGoogleOidcReady` above (Issue #591, epic: full-online auth
+ * hardening).
+ */
+export function checkSsoReady(
+  env: NodeJS.ProcessEnv = process.env
+): SecurityCheckResult {
+  const name = "Tenant OIDC SSO configuration is complete when enabled";
+  const severity: CheckSeverity = "critical";
+  const results = checkSsoConfig(env);
+  const failed = results.filter((result) => result.status === "fail");
+
+  if (failed.length > 0) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `AUTH_SSO_ENABLED=true but config is incomplete: ${failed
+        .map((result) => result.detail)
+        .join(" ")}`
+    };
+  }
+
+  if (env.AUTH_SSO_ENABLED !== "true") {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence: 'AUTH_SSO_ENABLED is not "true" — SSO config not required.'
+    };
+  }
+
+  return {
+    name,
+    severity,
+    status: "pass",
+    evidence:
+      "AUTH_SSO_ENABLED=true and all conditional SSO config check(s) pass."
+  };
+}
+
 // ---------------------------------------------------------------------------
 // 10. Errors don't leak stack traces (warning/info, best-effort)
 // ---------------------------------------------------------------------------
@@ -1218,6 +1262,7 @@ export async function runSecurityReadinessChecks(): Promise<
     checkTurnstileReady(),
     checkMfaReady(),
     checkGoogleOidcReady(),
+    checkSsoReady(),
     await checkErrorsDontLeakStackTraces(),
     await checkSecurityHeadersPresent(),
     checkLoginRateLimitImplemented()

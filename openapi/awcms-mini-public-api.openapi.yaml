@@ -1387,6 +1387,622 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/auth/sso/{providerKey}/start:
+    get:
+      tags:
+        - Identity & Access
+      summary: Redirect to a tenant-configured OIDC provider's authorization endpoint (login)
+      description: >-
+        Full-online-only (Issue #591) — `403 SSO_DISABLED` unless the #587
+        gate AND `AUTH_SSO_ENABLED=true` are both active. Generalizes Issue
+        #590's Google login to a tenant-configured provider
+        (`awcms_mini_auth_providers`); Google's own
+        `/auth/providers/google/*` endpoints are unaffected. `providerKey`
+        must resolve to an `enabled` provider for this tenant, else `404
+        SSO_PROVIDER_NOT_FOUND`. Tenant resolved from the
+        `X-AWCMS-Mini-Tenant-ID` header, the tenant cookie, or a
+        `?tenantId=` query param fallback, same as Google's own `start`.
+      operationId: authSsoStart
+      security:
+        - tenantHeader: []
+      parameters:
+        - name: providerKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenantId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Fallback tenant id when neither the header nor cookie is present.
+      responses:
+        "302":
+          description: Redirect to the provider's authorization endpoint.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          description: Tenant OIDC SSO is not enabled for this deployment (`SSO_DISABLED`), or the tenant is not active (`ACCESS_DENIED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No enabled SSO provider matches this key (`SSO_PROVIDER_NOT_FOUND`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "429":
+          description: Too many requests from this source (`RATE_LIMITED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "502":
+          description: The SSO provider's discovery endpoint could not be reached (`SSO_PROVIDER_UNAVAILABLE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/sso/{providerKey}/callback:
+    get:
+      tags:
+        - Identity & Access
+      summary: Tenant OIDC provider's redirect target — completes login or link
+      description: >-
+        Full-online-only (Issue #591). A plain top-level browser
+        navigation, never a `fetch()` call — the provider redirects here
+        with `code`+`state` (or `error` if the user cancelled consent).
+        Validates `state` (CSRF/replay defense) and the ID token's
+        signature, issuer, audience, expiry, and nonce cryptographically
+        before trusting any claim — same verification depth as Issue #590's
+        Google callback. For a `login`-purpose request: creates the
+        existing AWCMS-Mini session type (or, if Issue #589's MFA gate is
+        active and the identity has an active factor, returns `401
+        MFA_REQUIRED` exactly like `POST /auth/login`/Google login — SSO
+        login never bypasses MFA). For a `link`-purpose request (from
+        `POST .../link`): attaches the verified provider account to the
+        identity captured server-side at link-initiation time.
+      operationId: authSsoCallback
+      security:
+        - tenantHeader: []
+      parameters:
+        - name: providerKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: error
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Present when the user cancelled/denied consent at the provider.
+      responses:
+        "302":
+          description: Login or link succeeded; redirects to `/admin`.
+        "400":
+          description: Missing or malformed `state` (`SSO_OAUTH_STATE_INVALID`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: >-
+            The state/nonce/ID token could not be verified
+            (`SSO_OAUTH_STATE_INVALID`/`SSO_TOKEN_EXCHANGE_FAILED`/
+            `SSO_ID_TOKEN_INVALID`/`SSO_ACCOUNT_NOT_LINKED`), or MFA must
+            be completed first (`MFA_REQUIRED`, `LoginMfaRequiredResponse`).
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ApiError"
+                  - $ref: "#/components/schemas/LoginMfaRequiredResponse"
+        "403":
+          description: >-
+            Tenant OIDC SSO is not enabled for this deployment
+            (`SSO_DISABLED`), this provider is disabled
+            (`SSO_PROVIDER_DISABLED`), or the resolved identity/tenant is
+            not active (`ACCESS_DENIED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This provider subject is already linked to a different identity (`SSO_ALREADY_LINKED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "502":
+          description: The SSO provider could not be reached (`SSO_PROVIDER_UNAVAILABLE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/sso/{providerKey}/link:
+    post:
+      tags:
+        - Identity & Access
+      summary: Start linking the caller's own identity to a tenant-configured OIDC provider account
+      description: >-
+        Full-online-only (Issue #591). Authenticated: creates a
+        `link`-purpose OAuth request bound to the caller's own identity
+        (captured server-side, never trusted from the callback request) and
+        returns the provider's authorization URL as JSON — same shape as
+        Issue #590's Google `link`.
+      operationId: authSsoLink
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: providerKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Link-purpose OAuth request created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SsoLinkStartResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Tenant OIDC SSO is not enabled for this deployment (`SSO_DISABLED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No enabled SSO provider matches this key (`SSO_PROVIDER_NOT_FOUND`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "502":
+          description: The SSO provider's discovery endpoint could not be reached (`SSO_PROVIDER_UNAVAILABLE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/sso/{providerKey}/unlink:
+    post:
+      tags:
+        - Identity & Access
+      summary: Unlink the caller's own tenant-configured OIDC provider account
+      description: >-
+        Full-online-only (Issue #591). High-risk, audited
+        (`sso_account_unlinked`). Never touches local password login —
+        unlinking a provider cannot lock an identity out of its own
+        account (that guarantee is the tenant policy's `sso_required` +
+        break-glass enforcement's job instead).
+      operationId: authSsoUnlink
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: providerKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: SSO account unlinked.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SsoUnlinkResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Tenant OIDC SSO is not enabled for this deployment (`SSO_DISABLED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: No SSO account is currently linked (`SSO_NOT_LINKED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/identity/sso/providers:
+    get:
+      tags:
+        - Identity & Access
+      summary: List this tenant's configured OIDC SSO providers
+      description: >-
+        Admin CRUD (Issue #591), protected by ABAC
+        (`identity_access.sso_providers.read`). Never returns a provider's
+        client secret plaintext — see `AuthProviderView`'s `secretSource`.
+      operationId: identitySsoProvidersList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: SSO providers listed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AuthProviderListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Identity & Access
+      summary: Add a tenant OIDC SSO provider
+      description: >-
+        Admin CRUD (Issue #591), protected by ABAC
+        (`identity_access.sso_providers.create`). High-risk: audited
+        (`sso_provider_created`). Exactly one of `clientSecret`/
+        `clientSecretEnvVar` must be provided; the secret is encrypted at
+        rest (AES-256-GCM, `AUTH_SSO_CREDENTIAL_ENCRYPTION_KEY`) or stored
+        as an environment variable name reference — never plaintext.
+      operationId: identitySsoProvidersCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAuthProviderRequest"
+      responses:
+        "200":
+          description: SSO provider created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AuthProviderView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: A provider already exists for this `providerKey` (`SSO_PROVIDER_KEY_CONFLICT`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: >-
+            Internal error, or `AUTH_SSO_CREDENTIAL_ENCRYPTION_KEY` is not
+            configured on this server (`SSO_MISCONFIGURED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v1/identity/sso/providers/{id}:
+    get:
+      tags:
+        - Identity & Access
+      summary: Read one tenant OIDC SSO provider
+      operationId: identitySsoProvidersGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: SSO provider found.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AuthProviderView"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Identity & Access
+      summary: Update a tenant OIDC SSO provider
+      description: >-
+        Admin CRUD (Issue #591), protected by ABAC
+        (`identity_access.sso_providers.update`). Partial update;
+        high-risk, audited (`sso_provider_updated`).
+      operationId: identitySsoProvidersUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAuthProviderRequest"
+      responses:
+        "200":
+          description: SSO provider updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AuthProviderView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          description: >-
+            Internal error, or `AUTH_SSO_CREDENTIAL_ENCRYPTION_KEY` is not
+            configured on this server (`SSO_MISCONFIGURED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      tags:
+        - Identity & Access
+      summary: Soft-delete a tenant OIDC SSO provider
+      description: >-
+        Admin CRUD (Issue #591), protected by ABAC
+        (`identity_access.sso_providers.delete`). High-risk, audited
+        (`sso_provider_deleted`).
+      operationId: identitySsoProvidersDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+      responses:
+        "200":
+          description: SSO provider deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - id
+                          - deleted
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/identity/sso/policy:
+    get:
+      tags:
+        - Identity & Access
+      summary: Read this tenant's authentication policy
+      description: >-
+        Admin CRUD (Issue #591), protected by ABAC
+        (`identity_access.sso_policy.read`). Falls back to the safe default
+        (password login enabled, SSO disabled) when never configured.
+      operationId: identitySsoPolicyGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Tenant authentication policy.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantAuthPolicyView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Identity & Access
+      summary: Update this tenant's authentication policy
+      description: >-
+        Admin CRUD (Issue #591), protected by ABAC
+        (`identity_access.sso_policy.update`). High-risk, audited
+        (`sso_policy_updated`). Server-side break-glass enforcement:
+        `sso_required=true` or `password_login_enabled=false` is rejected
+        (`409 BREAK_GLASS_REQUIRED`) unless at least one currently-active
+        break-glass identity with an active tenant membership is
+        configured.
+      operationId: identitySsoPolicyUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTenantAuthPolicyRequest"
+      responses:
+        "200":
+          description: Tenant authentication policy updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantAuthPolicyView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Break-glass requirement not satisfied (`BREAK_GLASS_REQUIRED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/auth/password/forgot:
     post:
       tags:
@@ -7241,6 +7857,217 @@ components:
       properties:
         unlinked:
           type: boolean
+    SsoLinkStartResponse:
+      type: object
+      required:
+        - authorizationUrl
+      additionalProperties: false
+      properties:
+        authorizationUrl:
+          type: string
+          description: >-
+            The tenant-configured provider's authorization URL — the
+            client navigates itself here
+            (`window.location = authorizationUrl`).
+    SsoUnlinkResponse:
+      type: object
+      required:
+        - unlinked
+      additionalProperties: false
+      properties:
+        unlinked:
+          type: boolean
+    AuthProviderView:
+      type: object
+      required:
+        - id
+        - providerKey
+        - providerType
+        - displayName
+        - issuerUrl
+        - clientId
+        - secretSource
+        - clientSecretEnvVar
+        - scopes
+        - allowedEmailDomains
+        - enabled
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        providerKey:
+          type: string
+        providerType:
+          type: string
+          enum: [oidc]
+        displayName:
+          type: string
+        issuerUrl:
+          type: string
+        clientId:
+          type: string
+        secretSource:
+          type: string
+          enum: [encrypted, env]
+          description: >-
+            Never the secret itself — `encrypted` means a client secret is
+            stored encrypted at rest (AES-256-GCM); `env` means the secret
+            is read from the named environment variable
+            (`clientSecretEnvVar`) at OAuth-call time.
+        clientSecretEnvVar:
+          type: string
+          nullable: true
+          description: The environment variable NAME (never a secret value) when `secretSource` is `env`.
+        scopes:
+          type: string
+        allowedEmailDomains:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    AuthProviderListResponse:
+      type: object
+      required:
+        - providers
+      additionalProperties: false
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuthProviderView"
+    CreateAuthProviderRequest:
+      type: object
+      required:
+        - providerKey
+        - displayName
+        - issuerUrl
+        - clientId
+      additionalProperties: false
+      properties:
+        providerKey:
+          type: string
+          pattern: "^[a-z0-9][a-z0-9_-]*$"
+        displayName:
+          type: string
+          maxLength: 120
+        issuerUrl:
+          type: string
+          description: Must be an `https://` URL.
+        clientId:
+          type: string
+          maxLength: 255
+        clientSecret:
+          type: string
+          description: Plaintext secret, encrypted at rest immediately — never returned by any endpoint. Exactly one of `clientSecret`/`clientSecretEnvVar` must be provided.
+        clientSecretEnvVar:
+          type: string
+          description: Name of an environment variable holding the secret. Exactly one of `clientSecret`/`clientSecretEnvVar` must be provided.
+        scopes:
+          type: string
+          default: "openid email profile"
+        allowedEmailDomains:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+          default: false
+    UpdateAuthProviderRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        displayName:
+          type: string
+          maxLength: 120
+        issuerUrl:
+          type: string
+        clientId:
+          type: string
+          maxLength: 255
+        clientSecret:
+          type: string
+        clientSecretEnvVar:
+          type: string
+        scopes:
+          type: string
+        allowedEmailDomains:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+    TenantAuthPolicyView:
+      type: object
+      required:
+        - tenantId
+        - passwordLoginEnabled
+        - ssoEnabled
+        - ssoRequired
+        - autoLinkVerifiedEmail
+        - allowedEmailDomains
+        - breakGlassIdentityIds
+        - mfaRequired
+        - updatedAt
+      additionalProperties: false
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        passwordLoginEnabled:
+          type: boolean
+        ssoEnabled:
+          type: boolean
+        ssoRequired:
+          type: boolean
+        autoLinkVerifiedEmail:
+          type: boolean
+        allowedEmailDomains:
+          type: array
+          items:
+            type: string
+        breakGlassIdentityIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        mfaRequired:
+          type: boolean
+          description: Reserved for future compatibility with Issue #589's MFA policy — not yet enforced.
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    UpdateTenantAuthPolicyRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        passwordLoginEnabled:
+          type: boolean
+        ssoEnabled:
+          type: boolean
+        ssoRequired:
+          type: boolean
+        autoLinkVerifiedEmail:
+          type: boolean
+        allowedEmailDomains:
+          type: array
+          items:
+            type: string
+        breakGlassIdentityIds:
+          type: array
+          items:
+            type: string
+            format: uuid
     LogoutResponse:
       type: object
       required:

@@ -95,6 +95,9 @@ Legenda: Wajib = perlu untuk boot; Sensitif = jangan bocor ke log/response.
 | `AUTH_GOOGLE_CLIENT_SECRET`                 | bila Google    | –                                        | Ya       | OAuth client secret — hanya untuk token exchange server-side                                            |
 | `AUTH_GOOGLE_ALLOWED_DOMAINS`               | –              | –                                        | –        | Daftar domain email (dipisah koma) yang boleh auto-link; kosong = auto-link selalu ditolak              |
 | `AUTH_GOOGLE_REDIRECT_PATH`                 | –              | `/api/v1/auth/providers/google/callback` | –        | Path callback OAuth di bawah `APP_URL`                                                                  |
+| `AUTH_SSO_ENABLED`                          | –              | `false`                                  | –        | Generic tenant OIDC SSO (Issue #591) — lihat §Full-online auth security hardening di bawah              |
+| `AUTH_SSO_CREDENTIAL_ENCRYPTION_KEY`        | bila SSO       | –                                        | Ya       | Key AES-256-GCM (base64, 32 byte) untuk enkripsi-at-rest client secret provider — beda dari key MFA     |
+| `AUTH_SSO_DISCOVERY_TIMEOUT_MS`             | –              | `5000`                                   | –        | Timeout discovery/JWKS/token-exchange OIDC provider tenant (ms)                                         |
 
 ### Full-online auth security hardening (opsional, Issue #587-#593)
 
@@ -178,9 +181,47 @@ online-only ini (lihat `deployment-profiles.md`).
   navigasi browser murni yang tidak bisa membawa header
   `X-AWCMS-Mini-Tenant-ID`. Detail lengkap: skill
   `awcms-mini-auth-online-hardening`.
-- #591-#593 (generic tenant OIDC SSO, admin policy UI,
-  dokumentasi/kontrak penutup) masih backlog — belum diimplementasikan di
-  repo ini.
+- **Generic tenant OIDC SSO (Issue #591, selesai)** — `AUTH_SSO_ENABLED`
+  divalidasi independen dari gate di atas (`checkSsoConfig`), tapi aktivasi
+  runtime-nya butuh KEDUANYA (`isSsoRequired(env)` = gate ∧
+  `AUTH_SSO_ENABLED=true`). Menggeneralisasi Google OIDC login (#590) tanpa
+  mengubahnya — provider Google tetap berjalan lewat `google-oidc.ts`-nya
+  sendiri; SSO generik ini adalah jalur PARALEL untuk provider
+  tenant-configured (Okta, Azure AD, Keycloak, dst.), memakai ulang tabel
+  `awcms_mini_oidc_auth_requests`/`awcms_mini_identity_provider_accounts`
+  (migration 035, sudah generik `provider text` sejak awal) dengan
+  `provider = <providerKey>`. Schema baru (migration 036):
+  `awcms_mini_auth_providers` (per tenant: `provider_key`, `issuer_url`,
+  `client_id`, client secret terenkripsi AES-256-GCM ATAU env-var
+  reference — persis salah satu, tidak pernah keduanya, dan tidak pernah
+  plaintext di response API manapun; `scopes`, `allowed_email_domains`
+  jsonb, `enabled`, soft delete) dan `awcms_mini_tenant_auth_policies`
+  (satu baris per tenant: `password_login_enabled`, `sso_enabled`,
+  `sso_required`, `auto_link_verified_email`, `allowed_email_domains`
+  jsonb, `break_glass_identity_ids` jsonb, `mfa_required` — reserved untuk
+  kompatibilitas #589 di masa depan, belum ditegakkan). Endpoint baru:
+  `GET /auth/sso/{providerKey}/start|callback`,
+  `POST /auth/sso/{providerKey}/link|unlink` (pola identik Google), plus
+  admin CRUD `identity_access.sso_providers.*`/`sso_policy.*` di
+  `/api/v1/identity/sso/providers`/`/api/v1/identity/sso/policy`
+  (dilindungi ABAC, migration 037). OIDC discovery
+  (`.well-known/openid-configuration`) dan JWKS di-fetch per provider (beda
+  dari Google yang hardcode endpoint) — timeout `AUTH_SSO_DISCOVERY_TIMEOUT_MS`,
+  circuit breaker PER PROVIDER KEY (`sso-oidc-discovery:<key>`/
+  `sso-oidc-jwks:<key>`/`sso-oidc-token:<key>`), hanya trip pada kegagalan
+  transport genuine (bukan respons 4xx valid dari provider). **Break-glass
+  enforcement**: `sso_required=true` atau `password_login_enabled=false`
+  tidak bisa disimpan (`PATCH .../policy` → `409 BREAK_GLASS_REQUIRED`)
+  kecuali minimal satu `break_glass_identity_ids` adalah identity yang saat
+  ini `active` DENGAN tenant_user membership `active` — dicek ulang dari DB
+  di titik SAVE, bukan hanya di titik login. `login.ts` menegakkan
+  `password_login_enabled=false` HANYA saat `isSsoRequired(env)` aktif
+  (deployment offline/LAN yang tidak pernah menyalakan gate ini tidak
+  pernah menjalankan query tambahan ini maupun berubah perilaku). Detail
+  lengkap: skill `awcms-mini-auth-online-hardening`,
+  `src/modules/identity-access/README.md`.
+- #592-#593 (admin policy UI, dokumentasi/kontrak penutup) masih backlog —
+  belum diimplementasikan di repo ini.
 
 ### Sync & node
 
@@ -421,6 +462,8 @@ AUTH_MFA_RATE_LIMIT_MAX=5
 AUTH_MFA_RATE_LIMIT_WINDOW_SEC=300
 AUTH_GOOGLE_LOGIN_ENABLED=false
 AUTH_GOOGLE_REDIRECT_PATH=/api/v1/auth/providers/google/callback
+AUTH_SSO_ENABLED=false
+AUTH_SSO_DISCOVERY_TIMEOUT_MS=5000
 
 # Sync
 AWCMS_MINI_NODE_ID=local-dev-node

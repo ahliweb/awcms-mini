@@ -26,6 +26,8 @@ import {
   findActiveMfaFactor
 } from "../../../../modules/identity-access/application/mfa";
 import { recordAuditEvent } from "../../../../modules/logging/application/audit-log";
+import { isSsoRequired } from "../../../../lib/auth/sso-config";
+import { isPasswordLoginDisabledForIdentity } from "../../../../modules/identity-access/application/tenant-auth-policy";
 
 const MAX_FAILED_ATTEMPTS = Number(process.env.AUTH_LOGIN_MAX_ATTEMPTS ?? 5);
 const LOCKOUT_MINUTES = 15;
@@ -163,6 +165,16 @@ export const POST: APIRoute = async ({
         null;
     }
 
+    // Full-online-only (Issue #587/#591): a no-op on every local/offline/LAN
+    // deployment (isSsoRequired() is false there) and on every tenant that
+    // has never configured a restrictive auth policy — only then is the
+    // extra read even attempted, preserving today's login behavior exactly
+    // everywhere else.
+    const passwordLoginDisabled =
+      identityRow && isSsoRequired()
+        ? await isPasswordLoginDisabledForIdentity(tx, tenantId, identityRow.id)
+        : false;
+
     const result = evaluateLoginAttempt({
       now,
       tenantStatus,
@@ -176,7 +188,8 @@ export const POST: APIRoute = async ({
       tenantUserStatus,
       passwordMatches,
       maxFailedAttempts: MAX_FAILED_ATTEMPTS,
-      lockoutMinutes: LOCKOUT_MINUTES
+      lockoutMinutes: LOCKOUT_MINUTES,
+      passwordLoginDisabled
     });
 
     if (result.outcome === "deny") {
@@ -198,6 +211,14 @@ export const POST: APIRoute = async ({
           401,
           "AUTH_INVALID_CREDENTIALS",
           "Account is temporarily locked."
+        );
+      }
+
+      if (result.reason === "password_login_disabled") {
+        return fail(
+          403,
+          "PASSWORD_LOGIN_DISABLED",
+          "Password login is disabled for this account. Use single sign-on instead."
         );
       }
 

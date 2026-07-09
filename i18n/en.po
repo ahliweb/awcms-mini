@@ -179,6 +179,48 @@ msgstr "No Google account is currently linked."
 msgid "error.google_misconfigured"
 msgstr "Google login is misconfigured on this server."
 
+msgid "error.sso_disabled"
+msgstr "Tenant OIDC SSO is not enabled for this deployment."
+
+msgid "error.sso_provider_not_found"
+msgstr "No enabled SSO provider matches this key."
+
+msgid "error.sso_provider_disabled"
+msgstr "This SSO provider is disabled."
+
+msgid "error.sso_provider_unavailable"
+msgstr "The SSO provider could not be reached. Try again later."
+
+msgid "error.sso_oauth_state_invalid"
+msgstr "SSO sign-in could not be verified. Please try again."
+
+msgid "error.sso_token_exchange_failed"
+msgstr "SSO sign-in could not be completed. Please try again."
+
+msgid "error.sso_id_token_invalid"
+msgstr "SSO sign-in could not be verified. Please try again."
+
+msgid "error.sso_account_not_linked"
+msgstr "No account is linked to this SSO identity."
+
+msgid "error.sso_already_linked"
+msgstr "An SSO account is already linked."
+
+msgid "error.sso_not_linked"
+msgstr "No SSO account is currently linked."
+
+msgid "error.sso_misconfigured"
+msgstr "Tenant OIDC SSO is misconfigured on this server."
+
+msgid "error.sso_provider_key_conflict"
+msgstr "A provider already exists for this provider key."
+
+msgid "error.break_glass_required"
+msgstr "This change requires at least one currently-active break-glass identity."
+
+msgid "error.password_login_disabled"
+msgstr "Password login is disabled for this account. Use single sign-on instead."
+
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"
 msgstr "No role"
