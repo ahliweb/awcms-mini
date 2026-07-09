@@ -1,0 +1,1048 @@
+---
+/**
+ * Full-online auth security admin UI (Issue #592, epic: full-online auth
+ * hardening #587-#593). Surfaces and edits what #587-#591 already built —
+ * this page adds no new enforcement of its own (issue's own security note:
+ * "Avoid making the UI the only enforcement point; server-side checks
+ * remain mandatory"), it only renders the #587 gate's status and, when that
+ * gate is active, the #591 tenant auth policy + SSO provider admin CRUD
+ * API's data through the existing admin-form-client.ts mutation pattern.
+ *
+ * Two independent gates control what renders, per the issue's own
+ * acceptance criteria:
+ *
+ * 1. **Deployment gate** (`isFullOnlineSecurityActive`, #587) — when
+ *    inactive (every local/offline/LAN deployment, the default), the page
+ *    renders ONLY an informational `StateNotice` (`kind="info"`) and
+ *    nothing else: no Turnstile/MFA/Google/SSO status, no forms. This is
+ *    checked here, server-side, in the page's own frontmatter — never just
+ *    hidden with CSS (issue's own guardrail: "No Cloudflare/Google/OIDC
+ *    call is triggered merely by rendering admin UI on local/offline/LAN").
+ * 2. **ABAC permission** (`identity_access.sso_policy.*`/`sso_providers.*`,
+ *    migration 037) — when the gate is active but the caller holds neither
+ *    permission, the page renders an access-denied `StateNotice`. Each
+ *    section below additionally checks its OWN specific permission
+ *    (`CAN_READ_POLICY`/`CAN_READ_PROVIDERS`) independently, same
+ *    "each fieldset gated on its own permission" convention
+ *    `admin/access-users.astro` already established.
+ *
+ * SSR reads the #591 application-layer functions directly inside this
+ * page's own `withTenant` transaction (`getTenantAuthPolicy`,
+ * `listAuthProviders`) rather than round-tripping through this app's own
+ * HTTP API — same convention `admin/settings.astro`/`admin/blog/settings.astro`
+ * already use. Mutations go through the real
+ * `PATCH /api/v1/identity/sso/policy` /
+ * `POST|PATCH|DELETE /api/v1/identity/sso/providers[/{id}]` endpoints via
+ * `submitJson` (`admin-form-client.ts`), so every mutation still runs
+ * through the endpoints' own ABAC + break-glass + audit logic — this page
+ * never writes to the database directly.
+ *
+ * Break-glass UX (issue's own acceptance criterion: "UI prevents enabling
+ * `sso_required` unless a valid break-glass local owner/account exists"):
+ * this page does NOT re-implement the eligibility check the server already
+ * owns (`saveTenantAuthPolicy`'s fresh DB read) — that would be a second,
+ * potentially-divergent source of truth. Instead it (a) always shows the
+ * break-glass requirement inline next to the risky toggles, (b) blocks an
+ * obviously-doomed submit client-side (no break-glass identity selected at
+ * all while requesting `sso_required`/disabling password login) as a fast
+ * UX nicety, and (c) always surfaces the server's authoritative
+ * `409 BREAK_GLASS_REQUIRED` rejection through the same translated
+ * error-message banner every other mutation on this page uses
+ * (`error.break_glass_required`, already in `error-messages.ts` since
+ * Issue #591 — see that file's own comment).
+ */
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import StateNotice from "../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../lib/database/client";
+import { withTenant } from "../../lib/database/tenant-context";
+import { permissionKey } from "../../modules/identity-access/domain/access-control";
+import { resolveAuthSecurityStatusSummary } from "../../lib/auth/auth-security-status";
+import {
+  getTenantAuthPolicy,
+  type TenantAuthPolicyView
+} from "../../modules/identity-access/application/tenant-auth-policy";
+import {
+  listAuthProviders,
+  type AuthProviderView
+} from "../../modules/identity-access/application/auth-provider-directory";
+import { fetchTenantUsersWithRoles } from "../../modules/identity-access/application/user-directory";
+import { createTranslator } from "../../lib/i18n/translate";
+import { buildClientErrorMessages } from "../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/security.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const clientStrings = {
+  policySaveSuccess: t("admin.security.policy_save_success"),
+  createProviderSuccess: t("admin.security.create_provider_success"),
+  updateProviderSuccess: t("admin.security.update_provider_success"),
+  deleteProviderSuccess: t("admin.security.delete_provider_success"),
+  deleteProviderPrompt: t("admin.security.delete_provider_prompt"),
+  breakGlassClientWarning: t("admin.security.break_glass_client_warning"),
+  invalidSecretChoice: t("admin.security.invalid_secret_choice"),
+  invalidCreateSecretChoice: t("admin.security.invalid_create_secret_choice"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+// Gate 1 (#587) — checked server-side before anything else. Inactive on
+// every local/offline/LAN deployment (the default): nothing below this
+// branch ever runs, no DB read beyond this summary (env-only, no I/O).
+const statusSummary = resolveAuthSecurityStatusSummary();
+
+const CAN_READ_POLICY = context.permissions.has(
+  permissionKey("identity_access", "sso_policy", "read")
+);
+const CAN_UPDATE_POLICY = context.permissions.has(
+  permissionKey("identity_access", "sso_policy", "update")
+);
+const CAN_READ_PROVIDERS = context.permissions.has(
+  permissionKey("identity_access", "sso_providers", "read")
+);
+const CAN_CREATE_PROVIDERS = context.permissions.has(
+  permissionKey("identity_access", "sso_providers", "create")
+);
+const CAN_UPDATE_PROVIDERS = context.permissions.has(
+  permissionKey("identity_access", "sso_providers", "update")
+);
+const CAN_DELETE_PROVIDERS = context.permissions.has(
+  permissionKey("identity_access", "sso_providers", "delete")
+);
+const CAN_READ_USERS = context.permissions.has(
+  permissionKey("identity_access", "user_management", "read")
+);
+
+const CAN_READ_ANYTHING = CAN_READ_POLICY || CAN_READ_PROVIDERS;
+
+let policy: TenantAuthPolicyView | null = null;
+let providers: AuthProviderView[] = [];
+let breakGlassCandidates: Awaited<
+  ReturnType<typeof fetchTenantUsersWithRoles>
+> = [];
+let loadError = false;
+
+if (statusSummary.gateActive && CAN_READ_ANYTHING) {
+  try {
+    await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
+      if (CAN_READ_POLICY) {
+        policy = await getTenantAuthPolicy(tx, context.tenantId);
+      }
+      if (CAN_READ_PROVIDERS) {
+        providers = await listAuthProviders(tx, context.tenantId);
+      }
+      if (CAN_READ_POLICY && CAN_READ_USERS) {
+        breakGlassCandidates = await fetchTenantUsersWithRoles(
+          tx,
+          context.tenantId
+        );
+      }
+    });
+  } catch (error) {
+    console.error("admin/security.astro: failed to load security data", error);
+    loadError = true;
+  }
+}
+
+function featureStatusLabel(enabled: boolean): string {
+  return enabled
+    ? t("admin.security.feature_status_enabled")
+    : t("admin.security.feature_status_disabled");
+}
+
+function configuredLabel(configured: boolean): string {
+  return configured
+    ? t("admin.security.feature_configured")
+    : t("admin.security.feature_not_configured");
+}
+---
+
+<AdminLayout title={t("admin.layout.nav_security")}>
+  <h1>{t("admin.security.heading")}</h1>
+
+  {
+    !statusSummary.gateActive && (
+      <StateNotice
+        kind="info"
+        title={t("admin.security.gate_disabled_title")}
+        body={t("admin.security.gate_disabled_body")}
+      />
+    )
+  }
+
+  {
+    statusSummary.gateActive && !CAN_READ_ANYTHING && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.security.access_denied_title")}
+        body={t("admin.security.access_denied_body")}
+      />
+    )
+  }
+
+  {
+    statusSummary.gateActive && CAN_READ_ANYTHING && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+
+  {
+    statusSummary.gateActive && CAN_READ_ANYTHING && !loadError && (
+      <div class="security-admin">
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        <section class="sec-section" aria-labelledby="status-legend">
+          <h2 id="status-legend">{t("admin.security.status_legend")}</h2>
+          <dl class="status-grid">
+            <dt>{t("admin.security.gate_label")}</dt>
+            <dd>
+              <span
+                class="status-pill"
+                data-status={statusSummary.gateActive ? "active" : "inactive"}
+              >
+                {statusSummary.gateActive
+                  ? t("admin.security.gate_active_value")
+                  : t("admin.security.gate_inactive_value")}
+              </span>
+            </dd>
+
+            <dt>{t("admin.security.gate_profile_label")}</dt>
+            <dd>
+              <code>{statusSummary.gateProfile}</code>
+            </dd>
+
+            <dt>{t("admin.security.turnstile_label")}</dt>
+            <dd>
+              {featureStatusLabel(statusSummary.turnstile.enabled)} ·{" "}
+              {configuredLabel(statusSummary.turnstile.configured)}
+            </dd>
+
+            <dt>{t("admin.security.mfa_label")}</dt>
+            <dd>
+              {featureStatusLabel(statusSummary.mfa.enabled)} ·{" "}
+              {configuredLabel(statusSummary.mfa.configured)}
+            </dd>
+
+            <dt>{t("admin.security.google_login_label")}</dt>
+            <dd>
+              {featureStatusLabel(statusSummary.googleLogin.enabled)} ·{" "}
+              {configuredLabel(statusSummary.googleLogin.configured)}
+            </dd>
+
+            <dt>{t("admin.security.sso_label")}</dt>
+            <dd>
+              {featureStatusLabel(statusSummary.sso.enabled)} ·{" "}
+              {configuredLabel(statusSummary.sso.configured)}
+            </dd>
+          </dl>
+        </section>
+
+        {policy && CAN_READ_POLICY && (
+          <section class="sec-section" aria-labelledby="policy-legend">
+            <h2 id="policy-legend">{t("admin.security.policy_legend")}</h2>
+            <form id="policy-form" class="sec-form">
+              <fieldset disabled={!CAN_UPDATE_POLICY}>
+                <label class="checkbox-label">
+                  <input
+                    type="checkbox"
+                    name="passwordLoginEnabled"
+                    checked={policy.passwordLoginEnabled}
+                  />
+                  {t("admin.security.password_login_enabled_label")}
+                </label>
+
+                <label class="checkbox-label">
+                  <input
+                    type="checkbox"
+                    name="ssoEnabled"
+                    checked={policy.ssoEnabled}
+                  />
+                  {t("admin.security.sso_enabled_label")}
+                </label>
+
+                <label class="checkbox-label">
+                  <input
+                    type="checkbox"
+                    name="ssoRequired"
+                    checked={policy.ssoRequired}
+                  />
+                  {t("admin.security.sso_required_label")}
+                </label>
+                <p class="field-hint field-hint-warning">
+                  {t("admin.security.sso_required_hint")}
+                </p>
+
+                <label class="checkbox-label">
+                  <input
+                    type="checkbox"
+                    name="autoLinkVerifiedEmail"
+                    checked={policy.autoLinkVerifiedEmail}
+                  />
+                  {t("admin.security.auto_link_verified_email_label")}
+                </label>
+
+                <label>
+                  {t("admin.security.allowed_email_domains_label")}
+                  <input
+                    type="text"
+                    name="allowedEmailDomains"
+                    value={policy.allowedEmailDomains.join(", ")}
+                  />
+                </label>
+                <p class="field-hint">
+                  {t("admin.security.allowed_email_domains_hint")}
+                </p>
+
+                <fieldset class="break-glass-fieldset">
+                  <legend>{t("admin.security.break_glass_legend")}</legend>
+                  <p class="field-hint">
+                    {t("admin.security.break_glass_hint")}
+                  </p>
+                  {CAN_READ_USERS ? (
+                    <div class="role-checkbox-group">
+                      {breakGlassCandidates.map((user) => (
+                        <label class="checkbox-label">
+                          <input
+                            type="checkbox"
+                            name="breakGlassIdentityIds"
+                            value={user.identityId}
+                            checked={policy.breakGlassIdentityIds.includes(
+                              user.identityId
+                            )}
+                          />
+                          {user.displayName} ({user.loginIdentifier})
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <label>
+                      {t("admin.security.break_glass_manual_label")}
+                      <input
+                        type="text"
+                        name="breakGlassIdentityIdsManual"
+                        value={policy.breakGlassIdentityIds.join(", ")}
+                      />
+                      <p class="field-hint">
+                        {t("admin.security.break_glass_manual_hint")}
+                      </p>
+                    </label>
+                  )}
+                </fieldset>
+
+                {CAN_UPDATE_POLICY && (
+                  <button type="submit" id="policy-save-button">
+                    {t("admin.security.policy_save_button")}
+                  </button>
+                )}
+              </fieldset>
+            </form>
+          </section>
+        )}
+
+        {CAN_READ_PROVIDERS && (
+          <section class="sec-section" aria-labelledby="providers-legend">
+            <h2 id="providers-legend">
+              {t("admin.security.providers_legend")}
+            </h2>
+
+            <div class="table-scroll">
+              <table class="sec-table">
+                <thead>
+                  <tr>
+                    <th>{t("admin.security.providers_table_key_column")}</th>
+                    <th>{t("admin.security.providers_table_name_column")}</th>
+                    <th>{t("admin.security.providers_table_issuer_column")}</th>
+                    <th>{t("admin.security.providers_table_secret_column")}</th>
+                    <th>{t("admin.security.providers_table_scopes_column")}</th>
+                    <th>
+                      {t("admin.security.providers_table_domains_column")}
+                    </th>
+                    <th>{t("admin.security.providers_table_status_column")}</th>
+                    {(CAN_UPDATE_PROVIDERS || CAN_DELETE_PROVIDERS) && (
+                      <th>
+                        {t("admin.security.providers_table_actions_column")}
+                      </th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {providers.length === 0 && (
+                    <tr>
+                      <td
+                        colspan={
+                          CAN_UPDATE_PROVIDERS || CAN_DELETE_PROVIDERS ? 8 : 7
+                        }
+                      >
+                        {t("admin.security.no_providers")}
+                      </td>
+                    </tr>
+                  )}
+                  {providers.map((provider) => (
+                    <tr data-provider-row={provider.id}>
+                      <td>
+                        <code>{provider.providerKey}</code>
+                      </td>
+                      <td>{provider.displayName}</td>
+                      <td>{provider.issuerUrl}</td>
+                      <td>
+                        {provider.secretSource === "encrypted"
+                          ? t("admin.security.secret_source_encrypted_value")
+                          : t("admin.security.secret_source_env_value", {
+                              name: provider.clientSecretEnvVar ?? ""
+                            })}
+                      </td>
+                      <td>{provider.scopes}</td>
+                      <td>{provider.allowedEmailDomains.join(", ")}</td>
+                      <td>
+                        <span
+                          class="status-pill"
+                          data-status={provider.enabled ? "active" : "inactive"}
+                        >
+                          {provider.enabled
+                            ? t("admin.security.provider_enabled_value")
+                            : t("admin.security.provider_disabled_value")}
+                        </span>
+                      </td>
+                      {(CAN_UPDATE_PROVIDERS || CAN_DELETE_PROVIDERS) && (
+                        <td class="sec-actions-cell">
+                          {CAN_UPDATE_PROVIDERS && (
+                            <details>
+                              <summary>
+                                {t("admin.security.edit_provider_summary")}
+                              </summary>
+                              <form
+                                class="edit-provider-form sec-form"
+                                data-provider-id={provider.id}
+                              >
+                                <label>
+                                  {t("admin.security.display_name_label")}
+                                  <input
+                                    type="text"
+                                    name="displayName"
+                                    value={provider.displayName}
+                                    required
+                                  />
+                                </label>
+                                <label>
+                                  {t("admin.security.issuer_url_label")}
+                                  <input
+                                    type="url"
+                                    name="issuerUrl"
+                                    value={provider.issuerUrl}
+                                    required
+                                  />
+                                </label>
+                                <label>
+                                  {t("admin.security.client_id_label")}
+                                  <input
+                                    type="text"
+                                    name="clientId"
+                                    value={provider.clientId}
+                                    required
+                                  />
+                                </label>
+                                <label>
+                                  {t("admin.security.client_secret_label")}
+                                  <input
+                                    type="password"
+                                    name="clientSecret"
+                                    autocomplete="new-password"
+                                  />
+                                </label>
+                                <label>
+                                  {t(
+                                    "admin.security.client_secret_env_var_label"
+                                  )}
+                                  <input
+                                    type="text"
+                                    name="clientSecretEnvVar"
+                                  />
+                                </label>
+                                <p class="field-hint">
+                                  {t("admin.security.client_secret_hint")}
+                                </p>
+                                <label>
+                                  {t("admin.security.scopes_label")}
+                                  <input
+                                    type="text"
+                                    name="scopes"
+                                    value={provider.scopes}
+                                    required
+                                  />
+                                </label>
+                                <label>
+                                  {t(
+                                    "admin.security.allowed_email_domains_label"
+                                  )}
+                                  <input
+                                    type="text"
+                                    name="allowedEmailDomains"
+                                    value={provider.allowedEmailDomains.join(
+                                      ", "
+                                    )}
+                                  />
+                                </label>
+                                <label class="checkbox-label">
+                                  <input
+                                    type="checkbox"
+                                    name="enabled"
+                                    checked={provider.enabled}
+                                  />
+                                  {t("admin.security.enabled_label")}
+                                </label>
+                                <button type="submit">
+                                  {t("admin.security.update_provider_submit")}
+                                </button>
+                              </form>
+                            </details>
+                          )}
+                          {CAN_DELETE_PROVIDERS && (
+                            <button
+                              type="button"
+                              class="delete-provider-button"
+                              data-delete-provider={provider.id}
+                            >
+                              {t("admin.security.delete_provider_button")}
+                            </button>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {CAN_CREATE_PROVIDERS && (
+              <details class="sec-create">
+                <summary>{t("admin.security.create_provider_summary")}</summary>
+                <form id="create-provider-form" class="sec-form">
+                  <label>
+                    {t("admin.security.provider_key_label")}
+                    <input
+                      type="text"
+                      name="providerKey"
+                      pattern="^[a-z0-9][a-z0-9_-]*$"
+                      required
+                    />
+                  </label>
+                  <p class="field-hint">
+                    {t("admin.security.provider_key_hint")}
+                  </p>
+                  <label>
+                    {t("admin.security.display_name_label")}
+                    <input type="text" name="displayName" required />
+                  </label>
+                  <label>
+                    {t("admin.security.issuer_url_label")}
+                    <input type="url" name="issuerUrl" required />
+                  </label>
+                  <label>
+                    {t("admin.security.client_id_label")}
+                    <input type="text" name="clientId" required />
+                  </label>
+                  <label>
+                    {t("admin.security.client_secret_label")}
+                    <input
+                      type="password"
+                      name="clientSecret"
+                      autocomplete="new-password"
+                    />
+                  </label>
+                  <label>
+                    {t("admin.security.client_secret_env_var_label")}
+                    <input type="text" name="clientSecretEnvVar" />
+                  </label>
+                  <p class="field-hint">
+                    {t("admin.security.client_secret_env_var_hint")}
+                  </p>
+                  <label>
+                    {t("admin.security.scopes_label")}
+                    <input
+                      type="text"
+                      name="scopes"
+                      value="openid email profile"
+                      required
+                    />
+                  </label>
+                  <label>
+                    {t("admin.security.allowed_email_domains_label")}
+                    <input type="text" name="allowedEmailDomains" />
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" name="enabled" />
+                    {t("admin.security.enabled_label")}
+                  </label>
+                  <button type="submit">
+                    {t("admin.security.create_provider_submit")}
+                  </button>
+                </form>
+              </details>
+            )}
+          </section>
+        )}
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .security-admin {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-5);
+    max-width: 960px;
+  }
+
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+  }
+
+  .action-banner[data-variant="success"] {
+    background: color-mix(
+      in srgb,
+      var(--color-success) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-success);
+  }
+
+  .action-banner[data-variant="error"] {
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-danger);
+  }
+
+  .sec-section {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+
+  .sec-section h2 {
+    margin: 0;
+    font-size: var(--fs-md);
+  }
+
+  .status-grid {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--sp-1) var(--sp-3);
+    margin: 0;
+  }
+
+  .status-grid dt {
+    font-weight: 600;
+    color: var(--color-text-muted);
+  }
+
+  .status-grid dd {
+    margin: 0;
+  }
+
+  .status-pill {
+    display: inline-block;
+    padding: 0 var(--sp-2);
+    border-radius: var(--radius-pill, 999px);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+  }
+
+  .status-pill[data-status="active"] {
+    background: color-mix(
+      in srgb,
+      var(--color-success) 20%,
+      var(--color-surface)
+    );
+    color: var(--color-success-strong, var(--color-success));
+  }
+
+  .status-pill[data-status="inactive"] {
+    background: var(--color-surface-2);
+    color: var(--color-text-muted);
+  }
+
+  .sec-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+
+  .sec-form fieldset {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+
+  .sec-form legend {
+    font-weight: 600;
+    padding: 0 var(--sp-1);
+  }
+
+  .sec-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+
+  .checkbox-label {
+    flex-direction: row !important;
+    align-items: center;
+    gap: var(--sp-2) !important;
+  }
+
+  .sec-form input,
+  .sec-form select,
+  .sec-form textarea {
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: inherit;
+  }
+
+  .field-hint {
+    margin: 0;
+    font-size: var(--fs-xs);
+    color: var(--color-text-muted);
+  }
+
+  .field-hint-warning {
+    color: var(--color-warning);
+  }
+
+  .break-glass-fieldset {
+    border: 1px dashed var(--color-border);
+  }
+
+  .role-checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    max-height: 220px;
+    overflow-y: auto;
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+  }
+
+  .sec-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fs-sm);
+  }
+
+  .sec-table th,
+  .sec-table td {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+  }
+
+  .sec-actions-cell {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    min-width: 140px;
+  }
+
+  .sec-form button,
+  .delete-provider-button {
+    align-self: flex-start;
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-2) var(--sp-4);
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  .delete-provider-button {
+    background: var(--color-danger-strong, var(--color-danger));
+  }
+
+  .sec-form button:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  @media (max-width: 768px) {
+    .sec-form input,
+    .sec-form select {
+      min-height: 44px;
+    }
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../lib/ui/admin-form-client";
+
+  interface SecurityStrings {
+    policySaveSuccess: string;
+    createProviderSuccess: string;
+    updateProviderSuccess: string;
+    deleteProviderSuccess: string;
+    deleteProviderPrompt: string;
+    breakGlassClientWarning: string;
+    invalidSecretChoice: string;
+    invalidCreateSecretChoice: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<SecurityStrings>();
+
+  function submitButtonOf(form: HTMLFormElement): HTMLButtonElement | null {
+    return form.querySelector('button[type="submit"]');
+  }
+
+  function parseDomainList(raw: FormDataEntryValue | null): string[] {
+    return String(raw ?? "")
+      .split(",")
+      .map((domain) => domain.trim())
+      .filter((domain) => domain.length > 0);
+  }
+
+  function parseIdList(raw: FormDataEntryValue | null): string[] {
+    return String(raw ?? "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
+  }
+
+  // Fast, non-authoritative client-side nudge (issue's own acceptance
+  // criterion: "UI prevents enabling sso_required unless a valid
+  // break-glass local owner/account exists") — the server's own
+  // `saveTenantAuthPolicy` (fresh DB read, Issue #591) remains the only
+  // authoritative check; a request that slips past this still gets a
+  // clear `409 BREAK_GLASS_REQUIRED` from the API, mapped through
+  // `errorMessages` below exactly like any other rejection.
+  document
+    .getElementById("policy-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = document.getElementById(
+        "policy-save-button"
+      ) as HTMLButtonElement | null;
+      if (button?.disabled) return;
+
+      const formData = new FormData(form);
+      const passwordLoginEnabled =
+        formData.get("passwordLoginEnabled") === "on";
+      const ssoRequired = formData.get("ssoRequired") === "on";
+      const breakGlassIdentityIds = formData.has("breakGlassIdentityIds")
+        ? (formData.getAll("breakGlassIdentityIds") as string[])
+        : parseIdList(formData.get("breakGlassIdentityIdsManual"));
+
+      const requiresBreakGlass = ssoRequired || !passwordLoginEnabled;
+      if (requiresBreakGlass && breakGlassIdentityIds.length === 0) {
+        showBanner("action-banner", strings.breakGlassClientWarning, "error");
+        return;
+      }
+
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+      try {
+        const body = {
+          passwordLoginEnabled,
+          ssoEnabled: formData.get("ssoEnabled") === "on",
+          ssoRequired,
+          autoLinkVerifiedEmail: formData.get("autoLinkVerifiedEmail") === "on",
+          allowedEmailDomains: parseDomainList(
+            formData.get("allowedEmailDomains")
+          ),
+          breakGlassIdentityIds
+        };
+
+        const result = await submitJson(
+          "/api/v1/identity/sso/policy",
+          "PATCH",
+          body,
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.policySaveSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
+    });
+
+  document
+    .getElementById("create-provider-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = submitButtonOf(form);
+      if (button?.disabled) return;
+
+      const formData = new FormData(form);
+      const clientSecret = String(formData.get("clientSecret") ?? "").trim();
+      const clientSecretEnvVar = String(
+        formData.get("clientSecretEnvVar") ?? ""
+      ).trim();
+
+      if (clientSecret.length > 0 === clientSecretEnvVar.length > 0) {
+        showBanner("action-banner", strings.invalidCreateSecretChoice, "error");
+        return;
+      }
+
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+      try {
+        const result = await submitJson(
+          "/api/v1/identity/sso/providers",
+          "POST",
+          {
+            providerKey: formData.get("providerKey"),
+            displayName: formData.get("displayName"),
+            issuerUrl: formData.get("issuerUrl"),
+            clientId: formData.get("clientId"),
+            clientSecret: clientSecret.length > 0 ? clientSecret : null,
+            clientSecretEnvVar:
+              clientSecretEnvVar.length > 0 ? clientSecretEnvVar : null,
+            scopes: formData.get("scopes"),
+            allowedEmailDomains: parseDomainList(
+              formData.get("allowedEmailDomains")
+            ),
+            enabled: formData.get("enabled") === "on"
+          },
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.createProviderSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
+    });
+
+  document.querySelectorAll(".edit-provider-form").forEach((formEl) => {
+    formEl.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = submitButtonOf(form);
+      if (button?.disabled) return;
+
+      const providerId = form.dataset.providerId!;
+      const formData = new FormData(form);
+      const clientSecret = String(formData.get("clientSecret") ?? "").trim();
+      const clientSecretEnvVar = String(
+        formData.get("clientSecretEnvVar") ?? ""
+      ).trim();
+
+      if (clientSecret.length > 0 && clientSecretEnvVar.length > 0) {
+        showBanner("action-banner", strings.invalidSecretChoice, "error");
+        return;
+      }
+
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+      try {
+        const body: Record<string, unknown> = {
+          displayName: formData.get("displayName"),
+          issuerUrl: formData.get("issuerUrl"),
+          clientId: formData.get("clientId"),
+          scopes: formData.get("scopes"),
+          allowedEmailDomains: parseDomainList(
+            formData.get("allowedEmailDomains")
+          ),
+          enabled: formData.get("enabled") === "on"
+        };
+        if (clientSecret.length > 0) body.clientSecret = clientSecret;
+        if (clientSecretEnvVar.length > 0) {
+          body.clientSecretEnvVar = clientSecretEnvVar;
+        }
+
+        const result = await submitJson(
+          `/api/v1/identity/sso/providers/${providerId}`,
+          "PATCH",
+          body,
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.updateProviderSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
+    });
+  });
+
+  document.querySelectorAll(".delete-provider-button").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const el = button as HTMLButtonElement;
+      if (el.disabled) return;
+
+      const providerId = el.dataset.deleteProvider!;
+      const reason = window.prompt(strings.deleteProviderPrompt);
+      if (!reason || reason.trim().length === 0) return;
+
+      const unlock = lockElement(el, strings.pleaseWait);
+      try {
+        const result = await submitJson(
+          `/api/v1/identity/sso/providers/${providerId}`,
+          "DELETE",
+          { reason },
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.deleteProviderSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock();
+      }
+    });
+  });
+</script>

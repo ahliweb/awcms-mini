@@ -150,18 +150,18 @@ Astro secara default menolak (403, tanpa body) permintaan `POST`/`PUT`/`PATCH`/`
 
 CRUD ABAC policy row (`awcms_mini_abac_policies` — schema tersedia, evaluator masih pakai aturan generik bawaan, belum ada endpoint kelola policy), dan publikasi event `identity.login.succeeded`/`identity.login.failed` (doc 05, menyusul modul Observability/Logging) belum ada pada tahap ini. `/access/decision-logs` tetap `LIMIT 50` per halaman tapi kini punya keyset pagination opsional (Issue #435, `?cursor=`/`nextCursor` — lihat `src/modules/_shared/keyset-pagination.ts`).
 
-Admin policy UI (Issue #592, minimal UI verifikasi terpisah dari admin
-CRUD API yang sudah ada — lihat §Generic tenant OIDC SSO provider di
-bawah) masih backlog untuk epic full-online auth security hardening
-(#587-#593). #587 (gate bersama, lihat §Full-online-only auth security
-feature gate di bawah), #588 (Cloudflare Turnstile,
-`src/lib/security/turnstile.ts` — bukan bagian modul ini, tapi
-dipanggil dari `POST /auth/login` di modul ini via
-`enforceTurnstileIfRequired`), #589 (MFA/TOTP, lihat §MFA/TOTP login
-challenge di bawah), #590 (Google OIDC login, lihat §Google OIDC login
-di bawah), dan #591 (generic tenant OIDC SSO provider, lihat §Generic
-tenant OIDC SSO provider di bawah) sudah selesai. Lihat skill
-`awcms-mini-auth-online-hardening` untuk detail lintas-issue.
+Untuk epic full-online auth security hardening (#587-#593): #587 (gate
+bersama, lihat §Full-online-only auth security feature gate di bawah),
+#588 (Cloudflare Turnstile, `src/lib/security/turnstile.ts` — bukan
+bagian modul ini, tapi dipanggil dari `POST /auth/login` di modul ini
+via `enforceTurnstileIfRequired`), #589 (MFA/TOTP, lihat §MFA/TOTP
+login challenge di bawah), #590 (Google OIDC login, lihat §Google OIDC
+login di bawah), #591 (generic tenant OIDC SSO provider, lihat
+§Generic tenant OIDC SSO provider di bawah), DAN #592 (admin policy UI
+`/admin/security`, lihat §Admin policy UI di bawah) sudah selesai.
+Hanya #593 (dokumentasi/kontrak/readiness penutup epic) yang masih
+backlog. Lihat skill `awcms-mini-auth-online-hardening` untuk detail
+lintas-issue.
 
 ## MFA/TOTP login challenge (Issue #589)
 
@@ -378,3 +378,38 @@ acceptance criteria issue ini). Detail env var lengkap:
 `docs/awcms-mini/18_configuration_env_reference.md` §Full-online auth
 security hardening, `docs/awcms-mini/deployment-profiles.md` §Full-online
 auth security hardening.
+
+## Admin policy UI (Issue #592)
+
+`src/pages/admin/security.astro` (bukan bagian `src/modules/`, tapi
+satu-satunya UI yang mengonsumsi admin CRUD API modul ini dari #591) +
+`src/lib/auth/auth-security-status.ts` (aggregator status env-only,
+tanpa I/O — bukan bagian modul ini juga, tapi dipakai halaman ini).
+
+- **Tidak ada endpoint API baru** — halaman ini murni UI di atas API
+  #591 yang sudah ada (`GET/PATCH /api/v1/identity/sso/policy`,
+  `GET/POST/PATCH/DELETE /api/v1/identity/sso/providers[/{id}]`). SSR
+  membaca `getTenantAuthPolicy`/`listAuthProviders` langsung di dalam
+  `withTenant` milik halaman (pola sama `admin/settings.astro`), mutation
+  lewat endpoint sungguhan via `submitJson` (`admin-form-client.ts`) —
+  ABAC + break-glass + audit tetap sepenuhnya ditegakkan server-side oleh
+  endpoint #591, halaman ini tidak pernah menulis DB langsung.
+- **Dua gate independen**: gate deployment (`isFullOnlineSecurityActive(env)`,
+  #587 — nonaktif berarti HANYA notice informational yang dirender,
+  dicek server-side di frontmatter SEBELUM markup lain dibuat) dan ABAC
+  (`identity_access.sso_policy.*`/`sso_providers.*`, migration 037 —
+  gate aktif tapi tanpa permission berarti notice access-denied).
+- `StateNotice.astro` (`src/components/ui`) dapat varian ketiga
+  `kind="info"` (`role="status"`) untuk state "fitur nonaktif untuk
+  profil deployment ini" — beda semantik dari `"denied"`/`"error"`.
+- `identityAccessModule`'s `navigation` (Issue #518's registry) kini
+  mendaftarkan `/admin/security` (`requiredPermission:
+"identity_access.sso_policy.read"`) — muncul di sidebar admin otomatis,
+  tidak menyentuh `AdminLayout.astro`.
+- Break-glass picker checkbox butuh `identity_access.user_management.read`
+  (dipakai ulang dari guard `admin/access-users.astro`) untuk daftar
+  tenant user; tanpa izin itu, form jatuh ke textarea UUID manual supaya
+  tetap bisa dipakai di bawah least privilege, bukan hilang total.
+- Detail lengkap + rasional lintas-issue (termasuk kuirk
+  Playwright+Bun `page.request` yang ditemukan saat menulis E2E spec-nya):
+  skill `awcms-mini-auth-online-hardening` §Admin policy UI.

@@ -18,9 +18,19 @@
  * distinguishes the two cases (permission vs. transient failure) so the
  * copy and follow-up action make sense for each — "contact your admin" for
  * denied, "try again" for error.
+ *
+ * `kind="info"` (Issue #592, `/admin/security`) covers a THIRD, distinct
+ * case none of the above fit: a feature that is simply not active for this
+ * deployment profile ("Full-online auth hardening is disabled for this
+ * deployment profile") — not a permission problem, not a failure, just a
+ * neutral fact the admin should know before the page renders (or omits)
+ * further controls. `role="status"` (not `"alert"`) for this kind
+ * specifically: an informational banner on normal page load is not the
+ * urgent, must-interrupt announcement `role="alert"` implies for the
+ * denied/error branches.
  */
 interface Props {
-  kind: "denied" | "error";
+  kind: "denied" | "error" | "info";
   title: string;
   body: string;
   retryLabel?: string;
@@ -28,12 +38,21 @@ interface Props {
 }
 
 const { kind, title, body, retryLabel, retryHref } = Astro.props;
+const ICONS: Record<Props["kind"], string> = {
+  denied: "⛔",
+  error: "⚠️",
+  info: "ℹ️"
+};
 ---
 
-<div class="state-notice" data-kind={kind} role="alert">
+<div
+  class="state-notice"
+  data-kind={kind}
+  role={kind === "info" ? "status" : "alert"}
+>
   <p class="state-notice-heading">
     <span class="state-notice-icon" aria-hidden="true">
-      {kind === "denied" ? "⛔" : "⚠️"}
+      {ICONS[kind]}
     </span>
     <strong>{title}</strong>
   </p>
@@ -57,6 +76,10 @@ const { kind, title, body, retryLabel, retryHref } = Astro.props;
 
   .state-notice[data-kind="error"] {
     border-color: var(--color-warning);
+  }
+
+  .state-notice[data-kind="info"] {
+    border-color: var(--color-info);
   }
 
   .state-notice-heading {

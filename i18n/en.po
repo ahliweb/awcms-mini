@@ -253,6 +253,10 @@ msgstr "Modules"
 msgid "admin.layout.nav_module_matrix"
 msgstr "Module Matrix"
 
+#. Issue #592, epic: full-online auth hardening #587-#593
+msgid "admin.layout.nav_security"
+msgstr "Security"
+
 msgid "admin.layout.breadcrumb_aria_label"
 msgstr "Breadcrumb"
 
@@ -2009,3 +2013,212 @@ msgstr "Status"
 msgid "admin.tenant_domain.invalid_hostname"
 msgstr "Enter a valid hostname (no scheme, no port, e.g. shop.example.com)."
 
+
+#. admin.security (Issue #592, epic: full-online auth hardening #587-#593)
+
+msgid "admin.security.heading"
+msgstr "Full-online auth security"
+
+msgid "admin.security.gate_disabled_title"
+msgstr "Full-online auth hardening is disabled for this deployment profile."
+
+msgid "admin.security.gate_disabled_body"
+msgstr "This deployment runs with local/offline/LAN authentication only. Cloudflare Turnstile, MFA, Google login, and SSO configuration controls are hidden because AUTH_ONLINE_SECURITY_ENABLED/AUTH_ONLINE_SECURITY_PROFILE are not set to full_online on this server. Ask an operator to enable the full-online security profile if this tenant needs these features."
+
+msgid "admin.security.access_denied_title"
+msgstr "You do not have access to security settings."
+
+msgid "admin.security.access_denied_body"
+msgstr "Ask a tenant admin to grant you the authentication policy or SSO provider permission."
+
+msgid "admin.security.status_legend"
+msgstr "Online auth hardening status"
+
+msgid "admin.security.gate_label"
+msgstr "Full-online security gate"
+
+msgid "admin.security.gate_active_value"
+msgstr "Active"
+
+msgid "admin.security.gate_inactive_value"
+msgstr "Inactive"
+
+msgid "admin.security.gate_profile_label"
+msgstr "Deployment profile"
+
+msgid "admin.security.feature_status_enabled"
+msgstr "Enabled"
+
+msgid "admin.security.feature_status_disabled"
+msgstr "Disabled"
+
+msgid "admin.security.feature_configured"
+msgstr "Configured"
+
+msgid "admin.security.feature_not_configured"
+msgstr "Not configured"
+
+msgid "admin.security.turnstile_label"
+msgstr "Cloudflare Turnstile"
+
+msgid "admin.security.mfa_label"
+msgstr "MFA / TOTP"
+
+msgid "admin.security.google_login_label"
+msgstr "Google login"
+
+msgid "admin.security.sso_label"
+msgstr "Generic tenant SSO"
+
+msgid "admin.security.policy_legend"
+msgstr "Tenant authentication policy"
+
+msgid "admin.security.password_login_enabled_label"
+msgstr "Local password login enabled"
+
+msgid "admin.security.sso_enabled_label"
+msgstr "SSO login enabled"
+
+msgid "admin.security.sso_required_label"
+msgstr "SSO login required (disables password login for non-break-glass identities)"
+
+msgid "admin.security.sso_required_hint"
+msgstr "Requires at least one currently-active break-glass local owner selected below, or the server will reject this change."
+
+msgid "admin.security.auto_link_verified_email_label"
+msgstr "Auto-link accounts by verified email domain"
+
+msgid "admin.security.allowed_email_domains_label"
+msgstr "Allowed email domains (comma-separated)"
+
+msgid "admin.security.allowed_email_domains_hint"
+msgstr "Leave blank to allow every domain the provider itself allows. Example: example.com, example.org"
+
+msgid "admin.security.break_glass_legend"
+msgstr "Break-glass local owners"
+
+msgid "admin.security.break_glass_hint"
+msgstr "At least one selected identity here must remain an active local login for this tenant if SSO is required or password login is disabled."
+
+msgid "admin.security.break_glass_manual_label"
+msgstr "Break-glass identity IDs (comma-separated UUIDs)"
+
+msgid "admin.security.break_glass_manual_hint"
+msgstr "You do not have permission to browse the user list, so enter identity UUIDs directly. Ask a user administrator for the correct values."
+
+msgid "admin.security.break_glass_client_warning"
+msgstr "Select at least one break-glass local owner before requiring SSO login or disabling password login."
+
+msgid "admin.security.policy_save_button"
+msgstr "Save authentication policy"
+
+msgid "admin.security.policy_save_success"
+msgstr "Authentication policy saved."
+
+msgid "admin.security.providers_legend"
+msgstr "Tenant SSO providers"
+
+msgid "admin.security.providers_table_key_column"
+msgstr "Provider key"
+
+msgid "admin.security.providers_table_name_column"
+msgstr "Display name"
+
+msgid "admin.security.providers_table_issuer_column"
+msgstr "Issuer URL"
+
+msgid "admin.security.providers_table_secret_column"
+msgstr "Client secret"
+
+msgid "admin.security.providers_table_scopes_column"
+msgstr "Scopes"
+
+msgid "admin.security.providers_table_domains_column"
+msgstr "Allowed domains"
+
+msgid "admin.security.providers_table_status_column"
+msgstr "Status"
+
+msgid "admin.security.providers_table_actions_column"
+msgstr "Actions"
+
+msgid "admin.security.no_providers"
+msgstr "No SSO providers configured yet."
+
+msgid "admin.security.provider_enabled_value"
+msgstr "Enabled"
+
+msgid "admin.security.provider_disabled_value"
+msgstr "Disabled"
+
+msgid "admin.security.secret_source_encrypted_value"
+msgstr "Encrypted (hidden)"
+
+msgid "admin.security.secret_source_env_value"
+msgstr "Env var: {name}"
+
+msgid "admin.security.create_provider_summary"
+msgstr "Add SSO provider"
+
+msgid "admin.security.provider_key_label"
+msgstr "Provider key"
+
+msgid "admin.security.provider_key_hint"
+msgstr "Lowercase letters, numbers, hyphens, underscores only. Cannot be changed later. Example: okta"
+
+msgid "admin.security.display_name_label"
+msgstr "Display name"
+
+msgid "admin.security.issuer_url_label"
+msgstr "Issuer URL (https only)"
+
+msgid "admin.security.client_id_label"
+msgstr "Client ID"
+
+msgid "admin.security.client_secret_label"
+msgstr "Client secret value"
+
+msgid "admin.security.client_secret_hint"
+msgstr "Stored encrypted at rest. Never shown again after saving — leave blank when editing to keep the current secret."
+
+msgid "admin.security.client_secret_env_var_label"
+msgstr "Client secret environment variable name"
+
+msgid "admin.security.client_secret_env_var_hint"
+msgstr "The server reads the secret from this environment variable instead of storing it in the database. Provide exactly one of client secret value or environment variable name."
+
+msgid "admin.security.scopes_label"
+msgstr "OAuth scopes"
+
+msgid "admin.security.enabled_label"
+msgstr "Enabled"
+
+msgid "admin.security.create_provider_submit"
+msgstr "Add provider"
+
+msgid "admin.security.create_provider_success"
+msgstr "SSO provider added."
+
+msgid "admin.security.edit_provider_summary"
+msgstr "Edit"
+
+msgid "admin.security.update_provider_submit"
+msgstr "Save changes"
+
+msgid "admin.security.update_provider_success"
+msgstr "SSO provider updated."
+
+msgid "admin.security.delete_provider_button"
+msgstr "Delete"
+
+msgid "admin.security.delete_provider_prompt"
+msgstr "Reason for deleting this SSO provider:"
+
+msgid "admin.security.delete_provider_success"
+msgstr "SSO provider deleted."
+
+msgid "admin.security.invalid_secret_choice"
+msgstr "Provide at most one of client secret value or environment variable name."
+
+msgid "admin.security.invalid_create_secret_choice"
+msgstr "Provide exactly one of client secret value or environment variable name."
