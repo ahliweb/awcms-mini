@@ -8,6 +8,7 @@ import {
   checkRequiredVars,
   checkSyncConfig,
   checkTenantDomainDnsConfig,
+  checkMfaConfig,
   checkTurnstileConfig,
   runEnvValidation
 } from "../scripts/validate-env";
@@ -504,6 +505,67 @@ describe("checkTurnstileConfig", () => {
 
     for (const result of results) {
       expect(result.detail).not.toContain("super-secret-turnstile-value");
+    }
+  });
+});
+
+const VALID_MFA_KEY_BASE64 = Buffer.alloc(32, 3).toString("base64");
+
+describe("checkMfaConfig", () => {
+  test("passes (single check) when AUTH_MFA_ENABLED is not set", () => {
+    const results = checkMfaConfig({} as NodeJS.ProcessEnv);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe("pass");
+  });
+
+  test("passes when AUTH_MFA_ENABLED=false", () => {
+    const results = checkMfaConfig({
+      AUTH_MFA_ENABLED: "false"
+    } as NodeJS.ProcessEnv);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe("pass");
+  });
+
+  test("fails when AUTH_MFA_ENABLED=true but the encryption key is missing", () => {
+    const results = checkMfaConfig({
+      AUTH_MFA_ENABLED: "true"
+    } as NodeJS.ProcessEnv);
+
+    const failed = results.filter((result) => result.status === "fail");
+    expect(failed).toHaveLength(1);
+    expect(failed[0]?.name).toBe("AUTH_MFA_SECRET_ENCRYPTION_KEY");
+  });
+
+  test("fails when the encryption key is set but not a valid 32-byte base64 value", () => {
+    const results = checkMfaConfig({
+      AUTH_MFA_ENABLED: "true",
+      AUTH_MFA_SECRET_ENCRYPTION_KEY: "too-short"
+    } as NodeJS.ProcessEnv);
+
+    const failed = results.filter((result) => result.status === "fail");
+    expect(failed).toHaveLength(1);
+    expect(failed[0]?.name).toBe("AUTH_MFA_SECRET_ENCRYPTION_KEY");
+  });
+
+  test("all pass when AUTH_MFA_ENABLED=true and the key is a valid 32-byte base64 value", () => {
+    const results = checkMfaConfig({
+      AUTH_MFA_ENABLED: "true",
+      AUTH_MFA_SECRET_ENCRYPTION_KEY: VALID_MFA_KEY_BASE64
+    } as NodeJS.ProcessEnv);
+
+    expect(results.every((result) => result.status === "pass")).toBe(true);
+  });
+
+  test("never includes the configured key value in any result detail", () => {
+    const results = checkMfaConfig({
+      AUTH_MFA_ENABLED: "true",
+      AUTH_MFA_SECRET_ENCRYPTION_KEY: VALID_MFA_KEY_BASE64
+    } as NodeJS.ProcessEnv);
+
+    for (const result of results) {
+      expect(result.detail).not.toContain(VALID_MFA_KEY_BASE64);
     }
   });
 });

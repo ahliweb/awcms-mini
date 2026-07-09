@@ -128,6 +128,30 @@ msgstr "Mohon selesaikan verifikasi terlebih dahulu."
 msgid "error.turnstile_invalid"
 msgstr "Verifikasi gagal. Silakan coba lagi."
 
+msgid "error.mfa_required"
+msgstr "Autentikasi multi-faktor diperlukan untuk menyelesaikan proses masuk."
+
+msgid "error.mfa_disabled"
+msgstr "Autentikasi multi-faktor tidak diaktifkan untuk deployment ini."
+
+msgid "error.mfa_already_active"
+msgstr "Autentikasi multi-faktor sudah aktif untuk akun ini."
+
+msgid "error.mfa_not_active"
+msgstr "Autentikasi multi-faktor sedang tidak aktif untuk akun ini."
+
+msgid "error.mfa_enrollment_not_found"
+msgstr "Tidak ada pendaftaran MFA yang tertunda. Mulai pendaftaran lagi."
+
+msgid "error.mfa_invalid_code"
+msgstr "Kode verifikasi tidak valid."
+
+msgid "error.mfa_challenge_invalid"
+msgstr "Tantangan MFA ini tidak valid, kedaluwarsa, atau sudah digunakan."
+
+msgid "error.mfa_misconfigured"
+msgstr "Autentikasi multi-faktor salah konfigurasi di server ini."
+
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"
 msgstr "Tanpa role"

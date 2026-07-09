@@ -128,6 +128,30 @@ msgstr "Please complete the verification challenge."
 msgid "error.turnstile_invalid"
 msgstr "Verification failed. Please try again."
 
+msgid "error.mfa_required"
+msgstr "Multi-factor authentication is required to complete sign-in."
+
+msgid "error.mfa_disabled"
+msgstr "Multi-factor authentication is not enabled for this deployment."
+
+msgid "error.mfa_already_active"
+msgstr "Multi-factor authentication is already active for this account."
+
+msgid "error.mfa_not_active"
+msgstr "Multi-factor authentication is not currently active for this account."
+
+msgid "error.mfa_enrollment_not_found"
+msgstr "No pending MFA enrollment found. Start enrollment again."
+
+msgid "error.mfa_invalid_code"
+msgstr "Invalid verification code."
+
+msgid "error.mfa_challenge_invalid"
+msgstr "This MFA challenge is invalid, expired, or already used."
+
+msgid "error.mfa_misconfigured"
+msgstr "Multi-factor authentication is misconfigured on this server."
+
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"
 msgstr "No role"

@@ -111,6 +111,14 @@
  *     (`../src/lib/security/turnstile`). Whether Turnstile actually
  *     activates at runtime depends on BOTH this flag AND the #587 gate
  *     (`isTurnstileRequired()`), not on this validation alone.
+ *  9. Full-online MFA/TOTP (Issue #589, epic: full-online auth hardening):
+ *     if AUTH_MFA_ENABLED is not "true", nothing else is required —
+ *     independent of the #587 gate, same rationale as item 8. AUTH_MFA_ENABLED=true
+ *     requires AUTH_MFA_SECRET_ENCRYPTION_KEY, which must additionally
+ *     decode as base64 to exactly 32 bytes (`../src/lib/auth/mfa-secret-crypto`'s
+ *     `resolveMfaEncryptionKey`) — not just be present. Whether MFA actually
+ *     activates at runtime depends on BOTH this flag AND the #587 gate
+ *     (`isMfaRequired()`), not on this validation alone.
  *
  * Never prints actual secret values — only which variable name is
  * missing/invalid (doc 18: "Var wajib hilang → gagal start dengan pesan
@@ -134,6 +142,11 @@ import {
   isTurnstileEnabled,
   TURNSTILE_REQUIRED_WHEN_ENABLED
 } from "../src/lib/security/turnstile";
+import {
+  AUTH_MFA_REQUIRED_WHEN_ENABLED,
+  isMfaEnabled
+} from "../src/lib/auth/mfa-config";
+import { resolveMfaEncryptionKey } from "../src/lib/auth/mfa-secret-crypto";
 
 export type EnvCheckResult = {
   name: string;
@@ -589,6 +602,69 @@ export function checkTurnstileConfig(
   });
 }
 
+/**
+ * Full-online MFA/TOTP (Issue #589, epic: full-online auth hardening).
+ * `AUTH_MFA_ENABLED` left unset (or anything other than `"true"`) requires
+ * nothing else — same "unset/off requires nothing" shape as
+ * `checkTurnstileConfig`, and validated independently of the #587 gate for
+ * the same reason (an operator can provision the encryption key ahead of
+ * time). `AUTH_MFA_SECRET_ENCRYPTION_KEY` is checked for more than presence
+ * — it must decode as base64 to exactly 32 bytes (AES-256-GCM), the same
+ * validity `resolveMfaEncryptionKey` itself enforces at runtime, so a
+ * deployment that passes `config:validate` never later hits the
+ * `MFA_MISCONFIGURED` fail-closed path due to a malformed key.
+ */
+/**
+ * Only whether the key decodes correctly — never the key material itself —
+ * crosses out of this function. Deliberately isolated from
+ * `checkMfaConfig`'s report-building below (a plain boolean computed once,
+ * not inlined into the same expression that also builds the logged
+ * `name`/`detail` strings) so a static analyzer can't mistake "we checked
+ * the key's *validity*" for "we logged the key's *value*" — `detail` below
+ * only ever contains the env var's NAME (`AUTH_MFA_SECRET_ENCRYPTION_KEY`),
+ * a compile-time constant, never `env.AUTH_MFA_SECRET_ENCRYPTION_KEY`'s
+ * actual value.
+ */
+function isMfaEncryptionKeyWellFormed(env: NodeJS.ProcessEnv): boolean {
+  return resolveMfaEncryptionKey(env) !== null;
+}
+
+export function checkMfaConfig(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult[] {
+  if (!isMfaEnabled(env)) {
+    return [
+      {
+        name: "MFA config (conditional on AUTH_MFA_ENABLED)",
+        status: "pass",
+        detail: 'AUTH_MFA_ENABLED is not "true" — MFA config not required.'
+      }
+    ];
+  }
+
+  const encryptionKeyWellFormed = isMfaEncryptionKeyWellFormed(env);
+
+  return AUTH_MFA_REQUIRED_WHEN_ENABLED.map((name) => {
+    if (!isSet(env[name])) {
+      return {
+        name,
+        status: "fail",
+        detail: `AUTH_MFA_ENABLED=true but ${name} is missing or empty.`
+      };
+    }
+
+    if (name === "AUTH_MFA_SECRET_ENCRYPTION_KEY" && !encryptionKeyWellFormed) {
+      return {
+        name,
+        status: "fail",
+        detail: `${name} must be a base64-encoded 32-byte (AES-256) key, e.g. from "openssl rand -base64 32".`
+      };
+    }
+
+    return { name, status: "pass", detail: `${name} is set.` };
+  });
+}
+
 export function runEnvValidation(
   env: NodeJS.ProcessEnv = process.env
 ): EnvCheckResult[] {
@@ -600,6 +676,7 @@ export function runEnvValidation(
     ...checkPublicRoutingConfig(env),
     ...checkTenantDomainDnsConfig(env),
     ...checkTurnstileConfig(env),
+    ...checkMfaConfig(env),
     ...checkOnlineAuthSecurityConfig(env)
   ];
 }
