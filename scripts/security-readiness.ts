@@ -35,7 +35,10 @@ import { evaluateLoginAttempt } from "../src/modules/identity-access/domain/logi
 import { hashPassword } from "../src/lib/auth/password";
 import { resolveAppBaseUrl } from "./lib/app-url";
 import { checkRateLimit } from "../src/lib/security/rate-limit";
-import { checkEmailConfig } from "./validate-env";
+import {
+  checkEmailConfig,
+  checkOnlineAuthSecurityConfig
+} from "./validate-env";
 
 export type CheckSeverity = "critical" | "warning" | "info";
 export type CheckStatus = "pass" | "fail";
@@ -772,6 +775,62 @@ export function checkEmailProviderConfigReady(
 }
 
 // ---------------------------------------------------------------------------
+// 9c. Full-online auth security hardening gate is correctly configured
+// (critical when misconfigured, informational when disabled — Issue #587)
+// ---------------------------------------------------------------------------
+
+/**
+ * Reuses `checkOnlineAuthSecurityConfig` from `validate-env.ts` verbatim —
+ * same "don't reimplement the same conditional check a second, divergent
+ * way" rule `checkEmailProviderConfigReady` above already follows. Severity
+ * is `critical` even for the "disabled" branch (matching that function's
+ * pattern): the value describes how bad a genuine misconfiguration would
+ * be, not this run's outcome — `status` alone is what "disabled ->
+ * informational pass, not a failure" (the issue's own acceptance criterion)
+ * actually means here. None of #588-#592 (Turnstile/MFA/Google
+ * login/generic SSO/admin policy UI) exist yet in this repo, so there is
+ * nothing else for this check to verify beyond the shared gate itself.
+ */
+export function checkOnlineAuthSecurityReady(
+  env: NodeJS.ProcessEnv = process.env
+): SecurityCheckResult {
+  const name =
+    "Full-online auth security hardening gate is correctly configured";
+  const severity: CheckSeverity = "critical";
+  const results = checkOnlineAuthSecurityConfig(env);
+  const failed = results.filter((result) => result.status === "fail");
+
+  if (failed.length > 0) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `AUTH_ONLINE_SECURITY_ENABLED=true but config is invalid: ${failed
+        .map((result) => result.detail)
+        .join(" ")}`
+    };
+  }
+
+  if (env.AUTH_ONLINE_SECURITY_ENABLED !== "true") {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        'AUTH_ONLINE_SECURITY_ENABLED is not "true" — full-online auth hardening (Turnstile/MFA/Google login/SSO) is disabled; local/offline/LAN deployments are unaffected.'
+    };
+  }
+
+  return {
+    name,
+    severity,
+    status: "pass",
+    evidence:
+      "AUTH_ONLINE_SECURITY_ENABLED=true and AUTH_ONLINE_SECURITY_PROFILE=full_online — full-online auth hardening gate is active."
+  };
+}
+
+// ---------------------------------------------------------------------------
 // 10. Errors don't leak stack traces (warning/info, best-effort)
 // ---------------------------------------------------------------------------
 
@@ -1011,6 +1070,7 @@ export async function runSecurityReadinessChecks(): Promise<
     await checkSoftDeletePermissionsSeededAndAudited(),
     checkSyncHmacSecretNotDefault(),
     checkEmailProviderConfigReady(),
+    checkOnlineAuthSecurityReady(),
     await checkErrorsDontLeakStackTraces(),
     await checkSecurityHeadersPresent(),
     checkLoginRateLimitImplemented()

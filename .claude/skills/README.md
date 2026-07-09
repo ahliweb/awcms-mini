@@ -37,6 +37,7 @@ Skill Claude Code tingkat-proyek untuk AWCMS-Mini. Setiap skill meng-encode stan
 | `awcms-mini-legacy-migration`                          | Migrasi data legacy aman (dry-run, backfill)                                          | 07, 06                         |
 | `awcms-mini-blog-content`                              | Kerjakan bagian mana pun epic blog_content (Issue #537-#543)                          | blog-content/README.md         |
 | `awcms-mini-tenant-domain-routing`                     | Kerjakan bagian mana pun epic online public routing & tenant domain (Issue #556-#567) | tenant-domain-routing/SKILL.md |
+| `awcms-mini-auth-online-hardening`                     | Kerjakan bagian mana pun epic full-online auth security hardening (Issue #587-#593)   | auth-online-hardening/SKILL.md |
 
 ## Katalog peningkatan (improvement/hardening)
 
@@ -95,6 +96,12 @@ flowchart TD
   TDR --> NM
   TDR --> BLOG
   TDR --> MM[awcms-mini-module-management]
+  II --> AOH[awcms-mini-auth-online-hardening]
+  AOH --> EP
+  AOH --> IDEM
+  AOH --> ABAC
+  AOH --> AUD
+  AOH --> SD
   II --> PR[awcms-mini-pr-review]
   PR --> SEC[awcms-mini-security-review]
   PR --> CQ[awcms-mini-codeql-triage]
