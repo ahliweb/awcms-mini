@@ -177,14 +177,34 @@ isMfaRequired(env)
   pola sama `session-token.ts`/`password-reset-token.ts`) — TIDAK
   reversibel, karena keduanya tidak pernah perlu ditampilkan ulang
   setelah reveal sekali di awal.
-- **Replay prevention**: `awcms_mini_identity_mfa_factors.last_used_step`
-  menyimpan step time-counter TOTP tertinggi yang pernah diterima —
-  verifikasi hanya diterima kalau step yang cocok STRICTLY LEBIH BESAR
-  dari nilai ini, supaya kode yang sama tidak bisa dipakai dua kali
-  walau masih dalam window toleransi clock drift (`src/lib/auth/totp.ts`'s
-  `verifyTotpCode`, default ±1 step). Fitur online lain yang menambah
-  time-based one-time code (kalau ada) harus pola replay yang sama —
-  jangan andalkan TTL/expiry saja.
+- **Replay prevention, dan WAJIB atomik, bukan read-then-write** —
+  `awcms_mini_identity_mfa_factors.last_used_step` menyimpan step
+  time-counter TOTP tertinggi yang pernah diterima; verifikasi hanya
+  diterima kalau step yang cocok STRICTLY LEBIH BESAR dari nilai ini
+  (`src/lib/auth/totp.ts`'s `verifyTotpCode`, default ±1 step window).
+  **PR #597 security review menemukan `verifyMfaChallenge` awalnya
+  melakukan SELECT lalu UPDATE terpisah** (untuk `last_used_step`,
+  `awcms_mini_identity_mfa_recovery_codes.used_at`, DAN
+  `awcms_mini_mfa_challenges.failed_attempts`) — di bawah READ COMMITTED
+  (default Postgres, `withTenant` tidak mengubah isolation level), request
+  verifikasi konkuren semuanya membaca state lama sebelum salah satu
+  commit, sehingga replay guard maupun batas `failed_attempts` bisa
+  dilewati sepenuhnya oleh penyerang yang mengirim tebakan paralel.
+  Diperbaiki dengan: (a) `SELECT ... FOR UPDATE` pada baris challenge di
+  awal `verifyMfaChallenge` (mengunci baris itu untuk sisa transaksi,
+  men-serialize semua request verifikasi terhadap challenge yang sama),
+  (b) compare-and-swap untuk `last_used_step`
+  (`UPDATE ... WHERE last_used_step < $step RETURNING id`, 0 baris = gagal
+  — melindungi replay lintas-challenge yang FOR UPDATE saja tidak
+  jangkau, mis. dua login attempt berbeda membuat dua challenge terpisah
+  untuk identity yang sama), (c) compare-and-swap yang sama untuk
+  recovery code (`UPDATE ... WHERE used_at IS NULL RETURNING id`). Fitur
+  online lain yang menambah state single-use/counter yang bisa
+  diverifikasi berkali-kali (kode OTP lain, dsb.) WAJIB pola atomik yang
+  sama — jangan pernah SELECT untuk mengevaluasi kondisi lalu UPDATE
+  terpisah untuk menandainya terpakai/gagal; regression test-nya:
+  `mfa-flow.integration.test.ts` §"concurrent verification attempts..."
+  dan §"concurrent wrong-code attempts...".
 - **Reset password BUKAN bypass MFA** — `completePasswordReset` tidak
   menyentuh tabel `awcms_mini_identity_mfa_factors` sama sekali;
   diverifikasi test integrasi eksplisit (`mfa-flow.integration.test.ts`
@@ -194,7 +214,15 @@ isMfaRequired(env)
   diam-diam mengganti secret TOTP tanpa lebih dulu `disable`.
 - **Disable & regenerate recovery code = high-risk, diaudit**
   (`mfa_disabled`/`mfa_recovery_codes_regenerated`,
-  severity `warning`) — pola sama `awcms-mini-audit-log`.
+  severity `warning`) — pola sama `awcms-mini-audit-log`. **Catatan
+  desain yang belum ditutup** (PR #597 review, tidak blocking): kedua
+  endpoint ini hanya mensyaratkan sesi valid, tanpa re-autentikasi
+  tambahan (password saat ini/kode TOTP saat ini) — sesi yang dibajak
+  (bukan hanya dicuri sebelum MFA aktif) cukup untuk mematikan MFA korban
+  atau membuang recovery code lama. Diterima sebagai trade-off untuk
+  scope issue #589 saat ini; fitur online lanjutan (mis. #592 admin
+  policy UI) yang menyentuh area ini sebaiknya mempertimbangkan
+  step-up re-auth di titik ini.
 - Error code i18n: `error.mfa_required`/`_disabled`/`_already_active`/
   `_not_active`/`_enrollment_not_found`/`_invalid_code`/
   `_challenge_invalid`/`_misconfigured` (`error-messages.ts`,

@@ -352,10 +352,20 @@ export async function verifyMfaChallenge(
 ): Promise<VerifyMfaChallengeResult> {
   const tokenHash = hashChallengeToken(challengeToken);
 
+  // `FOR UPDATE` locks this challenge row for the rest of the transaction —
+  // essential, not optional: without it, N concurrent verification
+  // requests for the SAME challenge would all read the same
+  // `failed_attempts` value before any of them commits, all pass the
+  // `>= maxAttempts` check, and all get to guess a code, silently
+  // defeating the attempt limit this column exists to enforce (found in
+  // PR #597 security review). Serializing on this row means the second
+  // concurrent request only proceeds after the first's UPDATE below has
+  // committed, so it always sees the up-to-date count.
   const challengeRows = (await tx`
     SELECT id, identity_id, expires_at, consumed_at, failed_attempts
     FROM awcms_mini_mfa_challenges
     WHERE tenant_id = ${tenantId} AND challenge_token_hash = ${tokenHash}
+    FOR UPDATE
   `) as {
     id: string;
     identity_id: string;
@@ -419,12 +429,23 @@ export async function verifyMfaChallenge(
         );
 
         if (matchedStep !== null && matchedStep > factor.last_used_step) {
-          await tx`
+          // Compare-and-swap, not a blind SET: `last_used_step` is also
+          // read by whichever OTHER challenge might be racing this one for
+          // the same identity (a second login attempt can create a second
+          // challenge row) — the `FOR UPDATE` lock above only serializes
+          // requests against THIS challenge, not against the factor row
+          // shared by every challenge for this identity. Re-asserting
+          // `last_used_step < matchedStep` atomically in the WHERE clause
+          // closes that gap: if another request already advanced the step
+          // first, this UPDATE affects zero rows and the code is correctly
+          // treated as replayed (found in PR #597 security review).
+          const advancedRows = (await tx`
             UPDATE awcms_mini_identity_mfa_factors
             SET last_used_step = ${matchedStep}
-            WHERE id = ${factor.id}
-          `;
-          matched = true;
+            WHERE id = ${factor.id} AND last_used_step < ${matchedStep}
+            RETURNING id
+          `) as { id: string }[];
+          matched = advancedRows.length > 0;
         }
       } catch {
         matched = false;
@@ -432,21 +453,21 @@ export async function verifyMfaChallenge(
     }
   } else if (credentials.recoveryCode) {
     const hash = hashRecoveryCode(credentials.recoveryCode);
-    const recoveryRows = (await tx`
-      SELECT id FROM awcms_mini_identity_mfa_recovery_codes
+
+    // Compare-and-swap: the `WHERE ... AND used_at IS NULL` is re-asserted
+    // atomically in the same UPDATE that consumes the code, rather than
+    // trusting a separate prior SELECT — otherwise two concurrent requests
+    // with the same recovery code could both read "unused" before either
+    // commits, and both would be accepted (same class of race as
+    // `last_used_step` above).
+    const consumedRows = (await tx`
+      UPDATE awcms_mini_identity_mfa_recovery_codes
+      SET used_at = ${now}
       WHERE tenant_id = ${tenantId} AND factor_id = ${factor.id}
         AND code_hash = ${hash} AND used_at IS NULL
+      RETURNING id
     `) as { id: string }[];
-    const recoveryRow = recoveryRows[0];
-
-    if (recoveryRow) {
-      await tx`
-        UPDATE awcms_mini_identity_mfa_recovery_codes
-        SET used_at = ${now}
-        WHERE id = ${recoveryRow.id}
-      `;
-      matched = true;
-    }
+    matched = consumedRows.length > 0;
   }
 
   if (deniedByMisconfiguration) {

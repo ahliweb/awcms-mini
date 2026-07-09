@@ -348,6 +348,129 @@ suite("MFA/TOTP login-challenge flow (Issue #589)", () => {
     });
   });
 
+  test("concurrent verification attempts with the same valid code only succeed once (race-safe replay prevention)", async () => {
+    const owner = await bootstrapTenant();
+
+    await withEnvOverride(FULL_ONLINE_MFA_ENV, async () => {
+      const initialToken = await loginAndGetToken(owner.tenantId);
+      const { secretBase32 } = await enrollMfa(owner.tenantId, initialToken);
+
+      const loginAttempt = await invoke<ErrorEnvelope>(authLogin, {
+        method: "POST",
+        path: "/api/v1/auth/login",
+        headers: {
+          "content-type": "application/json",
+          "x-awcms-mini-tenant-id": owner.tenantId
+        },
+        body: { loginIdentifier: OWNER_LOGIN, password: OWNER_PASSWORD },
+        cookies: createCookieJar()
+      });
+      const challengeToken = loginAttempt.body.error.details?.mfaChallengeToken;
+      const code = totpCodeFor(secretBase32, Date.now() + 30_000);
+
+      const verifyOnce = () =>
+        invoke<{ data?: { token: string } } & Partial<ErrorEnvelope>>(
+          mfaVerify,
+          {
+            method: "POST",
+            path: "/api/v1/auth/mfa/totp/verify",
+            headers: {
+              "content-type": "application/json",
+              "x-awcms-mini-tenant-id": owner.tenantId
+            },
+            body: { mfaChallengeToken: challengeToken, code }
+          }
+        );
+
+      // Fire 5 concurrent requests with the IDENTICAL valid code against
+      // the SAME challenge. Without the FOR UPDATE lock + compare-and-swap
+      // on last_used_step (PR #597 security review), a read-then-write
+      // race would let more than one of these succeed.
+      const results = await Promise.all([
+        verifyOnce(),
+        verifyOnce(),
+        verifyOnce(),
+        verifyOnce(),
+        verifyOnce()
+      ]);
+
+      const succeeded = results.filter((result) => result.status === 200);
+      expect(succeeded).toHaveLength(1);
+    });
+  });
+
+  test("concurrent wrong-code attempts against one challenge never exceed the failed-attempt cap", async () => {
+    // `totp/verify.ts` reads AUTH_MFA_RATE_LIMIT_MAX into a module-level
+    // constant at import time (same convention as login.ts's own rate
+    // limit constants), so overriding it per-test has no effect — the cap
+    // enforced here is whatever the real default is (5).
+    const DEFAULT_MAX_ATTEMPTS = 5;
+    const owner = await bootstrapTenant();
+
+    await withEnvOverride(FULL_ONLINE_MFA_ENV, async () => {
+      const initialToken = await loginAndGetToken(owner.tenantId);
+      await enrollMfa(owner.tenantId, initialToken);
+
+      const loginAttempt = await invoke<ErrorEnvelope>(authLogin, {
+        method: "POST",
+        path: "/api/v1/auth/login",
+        headers: {
+          "content-type": "application/json",
+          "x-awcms-mini-tenant-id": owner.tenantId
+        },
+        body: { loginIdentifier: OWNER_LOGIN, password: OWNER_PASSWORD },
+        cookies: createCookieJar()
+      });
+      const challengeToken = loginAttempt.body.error.details?.mfaChallengeToken;
+
+      const wrongAttempt = (code: string) =>
+        invoke<ErrorEnvelope>(mfaVerify, {
+          method: "POST",
+          path: "/api/v1/auth/mfa/totp/verify",
+          headers: {
+            "content-type": "application/json",
+            "x-awcms-mini-tenant-id": owner.tenantId
+          },
+          body: { mfaChallengeToken: challengeToken, code }
+        });
+
+      // 10 concurrent wrong-code attempts against one challenge whose cap
+      // is 5 — without the FOR UPDATE lock, every one of these would read
+      // failed_attempts=0 before any commit and all "pass" the
+      // attempt-limit check (PR #597 security review). (The source+tenant
+      // in-memory rate limiter also bounds this independently, at the
+      // same default of 5 — reset below so it doesn't mask the DB-level
+      // assertion that follows.)
+      await Promise.all(
+        Array.from({ length: 10 }, (_, i) =>
+          wrongAttempt(`00000${i}`.slice(-6))
+        )
+      );
+
+      // `evaluateMfaChallenge` rejects (without incrementing further) once
+      // `failed_attempts >= maxAttempts`, so the counter must cap at
+      // exactly the configured max — not creep past it the way an
+      // unlocked read-then-write race would allow.
+      const admin = getAdminSql();
+      const rows = (await admin`
+        SELECT failed_attempts FROM awcms_mini_mfa_challenges
+        WHERE tenant_id = ${owner.tenantId}
+      `) as { failed_attempts: number }[];
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.failed_attempts).toBe(DEFAULT_MAX_ATTEMPTS);
+
+      // The challenge must now be unusable via too_many_attempts — even a
+      // subsequently correct code must not be accepted once the cap is
+      // reached. Reset the in-memory rate limiter first so this assertion
+      // is purely about the DB-level cap, not the independent source+
+      // tenant limiter (already proven capped above).
+      resetRateLimitStoreForTests();
+      const afterCap = await wrongAttempt("000000");
+      expect(afterCap.status).toBe(401);
+      expect(afterCap.body.error.code).toBe("MFA_CHALLENGE_INVALID");
+    });
+  });
+
   test("recovery code completes a challenge and is single-use", async () => {
     const owner = await bootstrapTenant();
 

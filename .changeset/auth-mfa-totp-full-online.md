@@ -33,8 +33,13 @@ base64 32-byte key) — the only reversibly-stored secret in this app, since
 verification must recompute the code from the original secret; recovery
 codes and challenge tokens remain hash-only like every other token in this
 codebase. Replay of an already-used TOTP time step is prevented via a
-per-factor `last_used_step` counter. Password reset never disables MFA
-(verified by an explicit integration test).
+per-factor `last_used_step` counter, and challenge/recovery-code/replay
+state transitions are all atomic (`SELECT ... FOR UPDATE` on the
+challenge row plus compare-and-swap `UPDATE`s) so concurrent verification
+attempts against the same challenge or code can't bypass the attempt cap
+or the replay guard — found and fixed during PR review, with regression
+tests proving the race. Password reset never disables MFA (verified by
+an explicit integration test).
 
 New env vars: `AUTH_MFA_ENABLED` (default `false`),
 `AUTH_MFA_SECRET_ENCRYPTION_KEY`, `AUTH_MFA_TOTP_ISSUER` (default
