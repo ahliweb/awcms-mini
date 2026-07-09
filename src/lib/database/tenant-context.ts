@@ -148,7 +148,7 @@ export async function withTenant<T>(
     }
 
     if (isPostgresClientInputError(error)) {
-      log("info", "database.integrity_violation_excluded", {
+      log("info", "database.client_input_error_excluded", {
         moduleKey: "database-connectivity",
         tenantId: safeTenantId,
         sqlstate: (error as InstanceType<typeof Bun.SQL.PostgresError>).errno

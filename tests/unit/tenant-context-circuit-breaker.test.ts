@@ -185,7 +185,7 @@ describe("withTenant circuit breaker (Issue #599, extended by Issue #601)", () =
     const entry = logLines
       .map((line) => JSON.parse(line))
       .find(
-        (parsed) => parsed.message === "database.integrity_violation_excluded"
+        (parsed) => parsed.message === "database.client_input_error_excluded"
       );
 
     expect(entry).toBeDefined();
