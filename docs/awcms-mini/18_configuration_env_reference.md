@@ -209,12 +209,13 @@ apa pun** di repo ini yang memanggil adapter tersebut (lihat
 detail lengkap — issue ini hanya menambah provider boundary-nya, bukan
 wiring ke endpoint).
 
-| Var                                  | Wajib           | Default  | Sensitif | Fungsi                                                                            |
-| ------------------------------------ | --------------- | -------- | -------- | --------------------------------------------------------------------------------- |
-| `TENANT_DOMAIN_DNS_PROVIDER`         | –               | `manual` | –        | `manual` (default) atau `cloudflare` — nilai lain gagal validasi                  |
-| `TENANT_DOMAIN_PLATFORM_ROOT_DOMAIN` | bila cloudflare | –        | –        | Root domain platform; adapter menolak record di luar domain ini atau subdomainnya |
-| `TENANT_DOMAIN_CLOUDFLARE_ZONE_ID`   | bila cloudflare | –        | –        | Zone id Cloudflare tempat record dibuat/diperiksa                                 |
-| `TENANT_DOMAIN_CLOUDFLARE_API_TOKEN` | bila cloudflare | –        | Ya       | Token API Cloudflare — hanya dari env/secret manager, tidak pernah disimpan di DB |
+| Var                                   | Wajib           | Default  | Sensitif | Fungsi                                                                                                                                                |
+| ------------------------------------- | --------------- | -------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TENANT_DOMAIN_DNS_PROVIDER`          | –               | `manual` | –        | `manual` (default) atau `cloudflare` — nilai lain gagal validasi                                                                                      |
+| `TENANT_DOMAIN_PLATFORM_ROOT_DOMAIN`  | bila cloudflare | –        | –        | Root domain platform; adapter menolak record di luar domain ini atau subdomainnya                                                                     |
+| `TENANT_DOMAIN_CLOUDFLARE_ZONE_ID`    | bila cloudflare | –        | –        | Zone id Cloudflare tempat record dibuat/diperiksa                                                                                                     |
+| `TENANT_DOMAIN_CLOUDFLARE_API_TOKEN`  | bila cloudflare | –        | Ya       | Token API Cloudflare — hanya dari env/secret manager, tidak pernah disimpan di DB                                                                     |
+| `TENANT_DOMAIN_CLOUDFLARE_TIMEOUT_MS` | –               | `8000`   | –        | Timeout per panggilan adapter (ms) — nilai kosong/tidak valid selalu jatuh ke default, tidak pernah gagalkan boot (pola sama `EMAIL_SEND_TIMEOUT_MS`) |
 
 Aturan validasi cross-field (`scripts/validate-env.ts`'s
 `checkTenantDomainDnsConfig`): `TENANT_DOMAIN_DNS_PROVIDER` tidak di-set atau
@@ -236,8 +237,9 @@ adapter (`src/modules/tenant-domain/infrastructure/cloudflare-dns-adapter.ts`)
 di-redact: hanya kode error numerik Cloudflare yang disurfacekan (bukan
 teks `.message` mentah), token/zone id disaring dari teks error apa pun
 sebagai defense in depth, dan tidak pernah stack trace. Setiap panggilan
-provider timeout-bounded (default 8 detik) dan dijalankan di luar
-transaksi DB mana pun (ADR-0006).
+provider timeout-bounded (default 8 detik, bisa diubah lewat
+`TENANT_DOMAIN_CLOUDFLARE_TIMEOUT_MS` — security audit follow-up PR #580,
+sebelumnya hardcoded) dan dijalankan di luar transaksi DB mana pun (ADR-0006).
 
 ### Provider CRM (opsional) — contoh domain retail/POS
 

@@ -52,3 +52,27 @@ export const TENANT_DOMAIN_CLOUDFLARE_REQUIRED_WHEN_SELECTED = [
   "TENANT_DOMAIN_CLOUDFLARE_ZONE_ID",
   "TENANT_DOMAIN_CLOUDFLARE_API_TOKEN"
 ] as const;
+
+/**
+ * Default per-call timeout for the Cloudflare adapter's `withTimeout`-bounded
+ * network calls (security audit follow-up on PR #580 — this was previously
+ * hardcoded in `../infrastructure/cloudflare-dns-adapter.ts` with no way to
+ * tune it per-deployment). Optional — `TENANT_DOMAIN_CLOUDFLARE_TIMEOUT_MS`
+ * is *not* in `TENANT_DOMAIN_CLOUDFLARE_REQUIRED_WHEN_SELECTED` above; an
+ * unset or invalid value always falls back to this default, exactly the same
+ * "never fail boot over an optional tuning knob" convention
+ * `email/domain/email-config.ts`'s `resolveEmailSendTimeoutMs` already uses
+ * for `EMAIL_SEND_TIMEOUT_MS` (not validated by `scripts/validate-env.ts`
+ * either, for the same reason).
+ */
+export const DEFAULT_TENANT_DOMAIN_CLOUDFLARE_TIMEOUT_MS = 8_000;
+
+export function resolveTenantDomainCloudflareTimeoutMs(
+  env: NodeJS.ProcessEnv = process.env
+): number {
+  const raw = Number(env.TENANT_DOMAIN_CLOUDFLARE_TIMEOUT_MS);
+
+  return Number.isFinite(raw) && raw > 0
+    ? raw
+    : DEFAULT_TENANT_DOMAIN_CLOUDFLARE_TIMEOUT_MS;
+}
