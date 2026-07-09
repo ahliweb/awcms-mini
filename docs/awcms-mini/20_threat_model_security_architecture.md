@@ -118,7 +118,7 @@ Audit kepatuhan yang memetakan kontrol proyek ke kerangka standar industri untuk
 | A07 | Identification & Auth Failures     | ✅     | Lockout setelah `AUTH_LOGIN_MAX_ATTEMPTS` (default 5) kegagalan berturut per identitas (`evaluateLoginAttempt`, `login-policy.ts`; digerbang `checkLoginLockoutImplemented`). Pesan generik anti-enumeration (`AUTH_INVALID_CREDENTIALS` sama untuk user tak ada vs password salah). Sesi TTL (`AUTH_SESSION_TTL_MIN`) + revoke eksplisit saat logout (`src/pages/api/v1/auth/logout.ts` menghapus baris `awcms_mini_sessions`). **Gap ditemukan+ditutup Issue #437**: lockout per-identitas tak menahan penyerang yang merotasi `loginIdentifier` dari sumber yang sama (enumerasi lintas-akun) — ditambahkan rate limit sumber+tenant (`src/lib/security/rate-limit.ts`). **Diperluas Issue #496**: `POST /auth/password/forgot`/`reset` — respons 200 generik identik ada/tidaknya akun, token reset di-hash (`sha256`, `awcms_mini_password_reset_tokens`), single-use (`used_at`), short-lived (`AUTH_PASSWORD_RESET_TOKEN_TTL_MIN`, default 30 menit), request baru men-supersede token lama, sesi identity di-revoke penuh setelah reset (`revokeAllSessionsForIdentity`), rate limit sumber+tenant terpisah dari login. | Ditutup (lihat di bawah).                                                                                      |
 | A08 | Software & Data Integrity Failures | ✅     | Checksum sha256 file sync/objek diverifikasi sebelum upload (`verifyObjectChecksum`, `src/modules/sync-storage/domain/object-queue.ts`, dipanggil nyata oleh `object-storage-uploader.ts` sejak Issue #436). Audit append-only (tak ada `UPDATE`/`DELETE` pada `awcms_mini_audit_events` di seluruh `src/`). Migration checksum di runner (`scripts/db-migrate.ts`). CodeQL code scanning.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | —                                                                                                              |
 | A09 | Logging & Monitoring Failures      | ✅     | Audit high-risk + decision log + correlation ID (`src/modules/logging/application/audit-log.ts`, `src/modules/identity-access/application/decision-log.ts`, `X-Correlation-ID` di `src/middleware.ts`). Redaksi wajib sebelum log/audit: `src/modules/_shared/redaction.ts` (14 key sensitif: password, token, npwp, nik, phone, whatsapp, email, dst., rekursif) dipakai bersama oleh logger (`src/lib/logging/logger.ts`) dan audit trail.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | —                                                                                                              |
-| A10 | SSRF                               | ✅     | URL provider R2 selalu dari `process.env.R2_ACCOUNT_ID` (env tepercaya), tak pernah dari input user (`object-storage-uploader.ts:88-89`); endpoint sync HMAC node juga dari konfigurasi, bukan payload request. Provider dipanggil di luar transaction DB (ADR-0006), circuit breaker per-provider (`src/lib/database/circuit-breaker.ts`). Sudah diverifikasi tuntas di Issue #436 — tidak diulang/diduplikasi di sini.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | —                                                                                                              |
+| A10 | SSRF                               | ✅     | URL provider R2 selalu dari `process.env.R2_ACCOUNT_ID` (env tepercaya), tak pernah dari input user (`object-storage-uploader.ts:88-89`); endpoint sync HMAC node juga dari konfigurasi, bukan payload request. Provider dipanggil di luar transaction DB (ADR-0006), circuit breaker per-provider (`src/lib/database/circuit-breaker.ts`). Sudah diverifikasi tuntas di Issue #436 — tidak diulang/diduplikasi di sini. **Pengecualian yang disengaja (Issue #591/#603)**: `awcms_mini_auth_providers.issuer_url` (generic tenant OIDC SSO) SATU-SATUNYA outbound URL di base ini yang berasal dari data tenant-configured, bukan env server — `generic-oidc-client.ts` fetch `.well-known/openid-configuration` dan JWKS/token endpoint hasil discovery-nya ke `issuer_url` itu. **Diputuskan sebagai accepted risk, bukan celah** — lihat §Batasan yang dicatat, bukan diabaikan di bawah untuk rasional lengkap.                                                                                                                                                                                                            | —                                                                                                              |
 
 ### OWASP ASVS (L1/L2 relevan)
 
@@ -380,7 +380,43 @@ sekali — `APP_ENV=production` **bukan** proxy untuk gate ini (lihat
   eligible (lihat skill `awcms-mini-auth-online-hardening` §Break-glass
   picker/data-hygiene).
 - **SSRF hardening untuk `issuer_url` OIDC tenant-configured (#591)** — Issue
-  #603 (dibuka terpisah), belum ditutup oleh epic ini.
+  #603, **selesai sebagai keputusan didokumentasikan, bukan perubahan
+  kode**: diputuskan TIDAK menambah IP-range denylist (resolve hostname,
+  tolak private/loopback/link-local/metadata-endpoint) di
+  `generic-oidc-client.ts`.
+
+  **Koreksi setelah audit keamanan PR #609** (versi awal keputusan ini
+  salah mengaitkan alasan dengan mode deployment LAN-first/offline —
+  fitur ini justru HANYA aktif di profil `full_online`
+  (`isFullOnlineSecurityActive`, doc 18), yaitu KEBALIKAN dari
+  LAN-first/offline yang tidak pernah memuat kode ini sama sekali).
+  Alasan yang benar: deployment `full_online` (cloud/registry) sering
+  tetap perlu terhubung ke IdP enterprise tenant yang di-host on-prem
+  dan hanya reachable lewat VPN/tunnel privat (pola "bring-your-own-IdP"
+  yang umum di SaaS multi-tenant) — blanket private-IP block akan
+  mematahkan skenario SAH ini.
+
+  **Batas mitigasi yang sebenarnya (dikoreksi)**: gate ABAC
+  (`identity_access.sso_providers.create`/`update`) dan audit log
+  hanya membatasi siapa yang bisa MENGONFIGURASI `issuer_url` jahat —
+  KEDUANYA TIDAK membatasi siapa yang bisa MEMICU fetch keluar
+  setelahnya. `GET /api/v1/auth/sso/{providerKey}/start` yang memicu
+  `discoverOidcConfiguration`/dst. bersifat **tanpa autentikasi**,
+  hanya dibatasi rate limit per-sumber+tenant (`start.ts`) — bukan
+  per-`providerKey`, dan cache discovery hanya mengisi pada request
+  SUKSES, sehingga target internal yang tidak pernah membalas JSON OIDC
+  valid tidak pernah di-cache, membiarkan probe berulang tanpa batas
+  lewat endpoint publik ini. Risiko residual ini SENGAJA diterima
+  bersama keputusan utama (tidak menambah IP blocking), tapi dicatat
+  eksplisit di sini alih-alih dianggap sudah tertutup oleh ABAC.
+  Follow-up (rate limit per-`providerKey`, negative-cache percobaan
+  gagal, rekomendasi infra-layer blokir egress `169.254.169.254` untuk
+  deployment `full_online`) dicatat di skill
+  `awcms-mini-auth-online-hardening` §SSRF/`issuer_url`, belum
+  diimplementasi (bukan bagian keputusan #603, follow-up terpisah bila
+  dibutuhkan). Tidak ada perubahan kode dari keputusan #603 sendiri —
+  murni dokumentasi risiko yang diterima secara eksplisit.
+
 - **Circuit breaker exclusion untuk SQLSTATE class 22** — Issue #601,
   **selesai** (`isPostgresClientInputError` di `tenant-context.ts` kini
   mencakup kelas `22` dan `23`).

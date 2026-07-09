@@ -18,6 +18,29 @@
  * — a slow/unhealthy tenant-configured provider must never affect any
  * other tenant's or provider's login, unlike the single application-wide
  * database circuit breaker.
+ *
+ * SSRF note (Issue #603, decided — not an oversight): `issuer_url` (and
+ * whatever `token_endpoint`/`jwks_uri` its discovery document points to)
+ * is the one outbound URL in this codebase that comes from tenant-admin
+ * data rather than server env config, unlike every other provider adapter
+ * (R2, Mailketing, Cloudflare). Deliberately NOT IP-range-blocked: this
+ * generic SSO feature only activates in the `full_online` deployment
+ * profile (`isFullOnlineSecurityActive`), which still often needs to
+ * reach an enterprise tenant's on-prem IdP over a private VPN/tunnel path
+ * — blocking private ranges would break that legitimate pattern.
+ *
+ * IMPORTANT — this is NOT fully mitigated by ABAC: the gate on
+ * `identity_access.sso_providers.create`/`update` only limits who can
+ * CONFIGURE a malicious `issuer_url`, not who can TRIGGER the fetch
+ * afterward — `GET /api/v1/auth/sso/{providerKey}/start` (the entry
+ * point into this file's functions) is unauthenticated, rate-limited only
+ * per-source+tenant (not per-`providerKey`), and the discovery cache
+ * below only fills on success, so a non-responding internal target can
+ * be probed repeatedly with no real throttling. Accepted as a known
+ * residual alongside the "no IP blocking" decision — see skill
+ * `awcms-mini-auth-online-hardening` §SSRF/`issuer_url` for the full,
+ * audit-corrected rationale before reopening this as a "gap" or assuming
+ * ABAC already closes it.
  */
 import { getProviderCircuitBreaker } from "../database/circuit-breaker";
 import { withTimeout } from "../integration/timeout";
