@@ -149,3 +149,40 @@ Astro secara default menolak (403, tanpa body) permintaan `POST`/`PUT`/`PATCH`/`
 ## Belum tersedia
 
 CRUD ABAC policy row (`awcms_mini_abac_policies` — schema tersedia, evaluator masih pakai aturan generik bawaan, belum ada endpoint kelola policy), dan publikasi event `identity.login.succeeded`/`identity.login.failed` (doc 05, menyusul modul Observability/Logging) belum ada pada tahap ini. `/access/decision-logs` tetap `LIMIT 50` per halaman tapi kini punya keyset pagination opsional (Issue #435, `?cursor=`/`nextCursor` — lihat `src/modules/_shared/keyset-pagination.ts`).
+
+Belum ada implementasi konkret untuk epic full-online auth security
+hardening (Issue #587-#593): Cloudflare Turnstile, MFA/TOTP, Google OIDC
+login, generic tenant OIDC SSO, dan admin policy UI-nya semua masih
+backlog. Issue #587 sendiri sudah selesai (lihat §Full-online-only auth
+security feature gate di bawah) — hanya menambahkan gate bersama
+(`AUTH_ONLINE_SECURITY_ENABLED`/`_PROFILE`), belum ada satu pun fitur
+konkret yang memakainya.
+
+## Full-online-only auth security feature gate (Issue #587)
+
+`src/lib/auth/online-security-config.ts` — gate bersama yang WAJIB dicek
+setiap fitur hardening online-only di epic ini (#588-#592) sebelum
+melakukan apa pun yang online/provider-terkait. Dua env var, keduanya
+opsional/backward-compatible (`AUTH_ONLINE_SECURITY_ENABLED=false` dan
+`AUTH_ONLINE_SECURITY_PROFILE=disabled` — default setiap deployment
+offline/LAN, tidak mengubah perilaku login apa pun):
+
+- `isOnlineSecurityEnabled(env)` — `true` hanya kalau
+  `AUTH_ONLINE_SECURITY_ENABLED === "true"` persis.
+- `resolveOnlineSecurityProfile(env)` — `"full_online"` kalau di-set
+  persis begitu, selalu jatuh ke `"disabled"` untuk nilai lain/tidak
+  di-set (tidak pernah throw).
+- `isFullOnlineSecurityActive(env)` — **satu-satunya fungsi yang wajib
+  dipanggil** fitur #588-#592: `true` hanya kalau KEDUA di atas setuju.
+  Jangan re-derive aturan "keduanya harus setuju" di modul lain.
+
+Divalidasi `scripts/validate-env.ts`'s `checkOnlineAuthSecurityConfig`
+(`AUTH_ONLINE_SECURITY_ENABLED=true` mewajibkan
+`AUTH_ONLINE_SECURITY_PROFILE=full_online`, nilai lain gagal
+`config:validate`) dan dilaporkan `scripts/security-readiness.ts`'s
+`checkOnlineAuthSecurityReady` (severity `critical`, tapi `status: pass`
+untuk kondisi disabled — bukan kegagalan, murni informational, sesuai
+acceptance criteria issue ini). Detail env var lengkap:
+`docs/awcms-mini/18_configuration_env_reference.md` §Full-online auth
+security hardening, `docs/awcms-mini/deployment-profiles.md` §Full-online
+auth security hardening.

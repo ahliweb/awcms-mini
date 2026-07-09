@@ -5,6 +5,7 @@ import {
   checkEmailProviderConfigReady,
   checkLoginLockoutImplemented,
   checkLoginRateLimitImplemented,
+  checkOnlineAuthSecurityReady,
   checkSyncHmacSecretNotDefault,
   scanLineForHardcodedSecret
 } from "../scripts/security-readiness";
@@ -208,6 +209,34 @@ describe("checkEmailProviderConfigReady", () => {
       EMAIL_MAILKETING_ACCOUNT_ID: "acc",
       EMAIL_MAILKETING_API_TOKEN: "token",
       EMAIL_MAILKETING_API_BASE_URL: "https://api.mailketing.co.id"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("pass");
+  });
+});
+
+describe("checkOnlineAuthSecurityReady", () => {
+  test("is critical/pass (informational, not a failure) when the gate is disabled", () => {
+    const result = checkOnlineAuthSecurityReady({} as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("pass");
+  });
+
+  test("fails when AUTH_ONLINE_SECURITY_ENABLED=true but AUTH_ONLINE_SECURITY_PROFILE is missing/invalid", () => {
+    const result = checkOnlineAuthSecurityReady({
+      AUTH_ONLINE_SECURITY_ENABLED: "true"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("fail");
+  });
+
+  test("passes when AUTH_ONLINE_SECURITY_ENABLED=true and AUTH_ONLINE_SECURITY_PROFILE=full_online", () => {
+    const result = checkOnlineAuthSecurityReady({
+      AUTH_ONLINE_SECURITY_ENABLED: "true",
+      AUTH_ONLINE_SECURITY_PROFILE: "full_online"
     } as NodeJS.ProcessEnv);
 
     expect(result.severity).toBe("critical");

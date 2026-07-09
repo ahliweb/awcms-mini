@@ -103,6 +103,30 @@ men-set `PUBLIC_*` apa pun tetap berperilaku identik dengan sebelum epic
   dicatat sebagai anomali di log; ini bukan pengganti memperbaiki
   konfigurasi proxy yang salah.
 
+## Full-online auth security hardening (opsional, Issue #587-#592)
+
+Gate terpisah dari profil routing publik di atas — **bukan** bagian dari
+model deployment (`APP_ENV=production` sendiri **tidak** setara dengan
+full-online; offline/LAN bisa production-grade secara operasional tanpa
+pernah butuh fitur ini). Enam fitur online-only (Cloudflare Turnstile,
+MFA/TOTP, Google OIDC login, generic tenant OIDC SSO, admin policy UI,
+dan dokumentasi/kontrak penutup) semuanya digerbangi satu pasang var:
+`AUTH_ONLINE_SECURITY_ENABLED` + `AUTH_ONLINE_SECURITY_PROFILE` (detail
+lengkap: `18_configuration_env_reference.md` §Full-online auth security
+hardening).
+
+- **offline/LAN & development**: biarkan kedua var tidak di-set (default).
+  `config:validate` lulus tanpa credential provider apa pun — login lokal
+  berperilaku identik dengan sebelum epic #587 ada.
+- **production (online)**, hanya bila operator benar-benar ingin
+  mengaktifkan salah satu fitur hardening ini: set
+  `AUTH_ONLINE_SECURITY_ENABLED=true` DAN
+  `AUTH_ONLINE_SECURITY_PROFILE=full_online` — kombinasi lain gagal
+  `config:validate`. Mengaktifkan gate ini sendiri tidak mengaktifkan fitur
+  apa pun secara konkret; setiap fitur (#588-#592) punya flag env-nya
+  sendiri di atas gate ini, dan belum ada satu pun yang diimplementasikan
+  di repo ini (Issue #587 baru menambahkan gate bersamanya).
+
 ## Cara menjalankan tiap profil
 
 ### development

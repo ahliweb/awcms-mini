@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   checkEmailConfig,
+  checkOnlineAuthSecurityConfig,
   checkPublicRoutingConfig,
   checkR2Config,
   checkRequiredVars,
@@ -401,6 +402,53 @@ describe("checkTenantDomainDnsConfig", () => {
     for (const result of results) {
       expect(result.detail).not.toContain("super-secret-token-value");
     }
+  });
+});
+
+describe("checkOnlineAuthSecurityConfig", () => {
+  test("passes (single check) when AUTH_ONLINE_SECURITY_ENABLED is not set", () => {
+    const results = checkOnlineAuthSecurityConfig({} as NodeJS.ProcessEnv);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe("pass");
+  });
+
+  test("passes when AUTH_ONLINE_SECURITY_ENABLED=false", () => {
+    const results = checkOnlineAuthSecurityConfig({
+      AUTH_ONLINE_SECURITY_ENABLED: "false"
+    } as NodeJS.ProcessEnv);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe("pass");
+  });
+
+  test("fails when AUTH_ONLINE_SECURITY_ENABLED=true and AUTH_ONLINE_SECURITY_PROFILE is unset", () => {
+    const results = checkOnlineAuthSecurityConfig({
+      AUTH_ONLINE_SECURITY_ENABLED: "true"
+    } as NodeJS.ProcessEnv);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe("fail");
+  });
+
+  test("fails when AUTH_ONLINE_SECURITY_ENABLED=true and AUTH_ONLINE_SECURITY_PROFILE=disabled (contradictory)", () => {
+    const results = checkOnlineAuthSecurityConfig({
+      AUTH_ONLINE_SECURITY_ENABLED: "true",
+      AUTH_ONLINE_SECURITY_PROFILE: "disabled"
+    } as NodeJS.ProcessEnv);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe("fail");
+  });
+
+  test("passes when AUTH_ONLINE_SECURITY_ENABLED=true and AUTH_ONLINE_SECURITY_PROFILE=full_online", () => {
+    const results = checkOnlineAuthSecurityConfig({
+      AUTH_ONLINE_SECURITY_ENABLED: "true",
+      AUTH_ONLINE_SECURITY_PROFILE: "full_online"
+    } as NodeJS.ProcessEnv);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe("pass");
   });
 });
 

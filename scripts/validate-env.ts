@@ -91,6 +91,17 @@
  *     default and keeps working with none of these vars present. Mirrors
  *     the EMAIL_PROVIDER conditional check above. See
  *     `src/modules/tenant-domain/README.md` §Cloudflare DNS adapter.
+ *  7. Full-online-only auth security feature gate (Issue #587, epic:
+ *     full-online auth hardening — #588-#592): if AUTH_ONLINE_SECURITY_ENABLED
+ *     is not "true", nothing else is required and every online auth
+ *     hardening feature (Turnstile, MFA/TOTP, Google login, generic SSO) is
+ *     considered disabled — the default for every local/offline/LAN
+ *     deployment. If AUTH_ONLINE_SECURITY_ENABLED=true, AUTH_ONLINE_SECURITY_PROFILE
+ *     must be exactly "full_online" (`../src/lib/auth/online-security-config`);
+ *     any other value (including the explicitly-contradictory "disabled")
+ *     fails validation. This issue only adds the shared gate itself — no
+ *     provider (Turnstile/Google/OIDC/TOTP) config is validated here yet,
+ *     that lands with each feature's own issue.
  *
  * Never prints actual secret values — only which variable name is
  * missing/invalid (doc 18: "Var wajib hilang → gagal start dengan pesan
@@ -109,6 +120,7 @@ import {
   KNOWN_TENANT_DOMAIN_DNS_PROVIDERS,
   TENANT_DOMAIN_CLOUDFLARE_REQUIRED_WHEN_SELECTED
 } from "../src/modules/tenant-domain/domain/tenant-domain-dns-config";
+import { isOnlineSecurityEnabled } from "../src/lib/auth/online-security-config";
 
 export type EnvCheckResult = {
   name: string;
@@ -475,6 +487,57 @@ export function checkTenantDomainDnsConfig(
   return results;
 }
 
+/**
+ * Full-online-only auth security feature gate (Issue #587, epic: full-online
+ * auth hardening). `AUTH_ONLINE_SECURITY_ENABLED` left unset (or anything
+ * other than `"true"`) requires nothing else and `config:validate` passes
+ * exactly as it does today — mirrors `checkTenantDomainDnsConfig`'s
+ * "manual/unset requires nothing" shape. Only `AUTH_ONLINE_SECURITY_ENABLED=true`
+ * gates `AUTH_ONLINE_SECURITY_PROFILE`, which must then be exactly
+ * `"full_online"` (the only other known value, `"disabled"`, would be a
+ * contradiction — enabled but explicitly disabled profile).
+ */
+export function checkOnlineAuthSecurityConfig(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult[] {
+  const name =
+    "AUTH_ONLINE_SECURITY_PROFILE (conditional on AUTH_ONLINE_SECURITY_ENABLED)";
+
+  if (!isOnlineSecurityEnabled(env)) {
+    return [
+      {
+        name,
+        status: "pass",
+        detail:
+          'AUTH_ONLINE_SECURITY_ENABLED is not "true" — full-online auth hardening (Turnstile/MFA/Google login/SSO) is disabled; no online auth provider config required.'
+      }
+    ];
+  }
+
+  const profile = env.AUTH_ONLINE_SECURITY_PROFILE;
+
+  if (profile !== "full_online") {
+    return [
+      {
+        name,
+        status: "fail",
+        detail: `AUTH_ONLINE_SECURITY_ENABLED=true requires AUTH_ONLINE_SECURITY_PROFILE=full_online; got ${
+          profile ? `"${profile}"` : "unset"
+        }.`
+      }
+    ];
+  }
+
+  return [
+    {
+      name,
+      status: "pass",
+      detail:
+        "AUTH_ONLINE_SECURITY_ENABLED=true and AUTH_ONLINE_SECURITY_PROFILE=full_online."
+    }
+  ];
+}
+
 export function runEnvValidation(
   env: NodeJS.ProcessEnv = process.env
 ): EnvCheckResult[] {
@@ -484,7 +547,8 @@ export function runEnvValidation(
     ...checkR2Config(env),
     ...checkEmailConfig(env),
     ...checkPublicRoutingConfig(env),
-    ...checkTenantDomainDnsConfig(env)
+    ...checkTenantDomainDnsConfig(env),
+    ...checkOnlineAuthSecurityConfig(env)
   ];
 }
 
