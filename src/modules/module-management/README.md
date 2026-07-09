@@ -154,15 +154,17 @@ metadata, `ModuleDescriptor.permissions`) and the actual
   it to write permissions too is a real, separate capability the
   acceptance criteria for this issue doesn't actually require (only the
   read-side report does), so it's left out rather than half-built.
-- **Only `module_management` and `blog_content`'s descriptors currently
-  declare `permissions`** (`blog_content` added its full 36-entry array in
-  Issue #543, closing epic #536 — grep `permissions:` across
-  `src/modules/*/module.ts` to confirm which modules declare it as code
-  evolves). The other 9 registered modules' permissions (email,
-  form-drafts, identity-access, logging, profile-identity, reporting,
-  sync-storage, tenant-admin, workflow-approval) were seeded directly by
-  their own migrations, e.g. migration 005/010/014, without ever being
-  added to their `module.ts`. This means every one of those 9 modules'
+- **Only `module_management`, `blog_content`, and `tenant_domain`'s
+  descriptors currently declare `permissions`** (`blog_content` added its
+  full 36-entry array in Issue #543, closing epic #536; `tenant_domain`
+  added a six-entry array in Issue #558, epic #555 — grep `permissions:`
+  across `src/modules/*/module.ts` to confirm which modules declare it as
+  code evolves, since this list has already grown twice). The other 9
+  registered modules' permissions (email, form-drafts, identity-access,
+  logging, profile-identity, reporting, sync-storage, tenant-admin,
+  workflow-approval) were seeded directly by their own migrations, e.g.
+  migration 005/010/014, without ever being added to their `module.ts`.
+  This means every one of those 9 modules'
   catalog permissions legitimately shows as `orphaned` today — an honest
   reflection of incomplete descriptor metadata, not a real drift/incident.
   Backfilling every other module's `permissions` array is out of scope
@@ -202,9 +204,14 @@ each would risk _changing_ who sees them (their current checks are
 "holds any `identity_access.*`/`sync_storage.*` permission", not one
 specific permission key) — out of scope for this issue, which only needs
 to add the registry _alongside_ the existing items, not migrate them onto
-it. The registry-driven list is appended after those 4, currently
-surfacing exactly one entry: `module_management`'s own `/admin/modules`.
-A failure loading the registry (e.g. a transient DB hiccup) falls back to
+it. The registry-driven list is appended after those 4 — at the time
+this was written it surfaced exactly one entry (`module_management`'s
+own `/admin/modules`); `blog_content` (`/admin/blog`, Issue #543) and
+`tenant_domain` (`/admin/tenant/domains`, Issue #563) have since added
+their own `navigation` entries, so it now surfaces three (grep
+`navigation:` across `src/modules/*/module.ts` to confirm the current
+count as more modules add entries). A failure loading the registry (e.g.
+a transient DB hiccup) falls back to
 an empty list — same defensive pattern as `tenantName`/`syncActive` above
 it — so it never hides the 4 hardcoded items or otherwise locks an admin
 out.
@@ -234,6 +241,9 @@ Job ownership (`ModuleDescriptor.jobs`) by module:
 - `form_drafts` — `form-drafts:purge`.
 - `email` — `email:dispatch`, `email:provider:health`,
   `email:templates:seed-defaults`.
+- `blog_content` — `blog:publish:scheduled` (Issue #541, epic #536 —
+  publishes every due `status='scheduled'` post; idempotent, no external
+  provider call, safe in any deployment profile).
 - `module_management` — `security:readiness`, `config:validate`,
   `production:preflight` (platform-wide/deployment-level checks that
   aren't owned by any single domain module — `module_management` is
@@ -322,8 +332,10 @@ also syncs the registry first (same reasoning as
 `/admin/modules/{moduleKey}` (full detail) — the last issue in epic #510.
 
 - **List**: catalog table + client-side type/status/health filters (pure
-  `data-*` attribute show/hide — only 10 modules exist in this base, a
-  server round-trip per filter change would be pure overhead) + a health
+  `data-*` attribute show/hide — only a dozen or so modules exist in this
+  base (12 as of epic #555, see `src/modules/index.ts`'s `modules` array
+  for the current count), a server round-trip per filter change would be
+  pure overhead) + a health
   status column (every module's `fetchModuleHealthReport`, #520, computed
   in parallel — each check is individually cheap/bounded by design, and
   this only runs on an explicit admin page load).

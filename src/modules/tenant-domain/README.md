@@ -97,22 +97,24 @@ uses `/blog/{tenantCode}` legacy routing never needs a domain mapping at
 all.
 
 `api.basePath: "/api/v1/tenant/domains"` and `navigation.path:
-"/admin/tenant/domains"` are declared now even though neither the API
-(#562) nor the admin UI (#563) exist yet, per this issue's own explicit
-descriptor requirements. Two consequences worth knowing about until those
-issues land:
+"/admin/tenant/domains"` were declared as part of this module's initial
+descriptor (Issue #558) even though neither the API (#562) nor the admin
+UI (#563) existed yet at that point, per this issue's own explicit
+descriptor requirements. Both have since shipped (#562's API landed real
+`/api/v1/tenant/domains` OpenAPI paths; #563's admin UI is live at
+`/admin/tenant/domains`), so the two consequences below were real only
+in the window between #558 and #562/#563 — kept here as history, not a
+live caveat:
 
 - Module Management's readiness check (`openApiDocumentedSignal`,
-  `application/health-registry.ts`) will report this module's
-  `openapi_documented` signal as `fail` until #562 adds real
-  `/api/v1/tenant/domains` paths to the OpenAPI document — this is
-  expected, not a regression.
+  `application/health-registry.ts`) reported this module's
+  `openapi_documented` signal as `fail` until #562 added real
+  `/api/v1/tenant/domains` paths to the OpenAPI document — expected at
+  the time, not a regression, and passing since #562 merged.
 - The navigation entry only ever appears in the admin sidebar for a
-  caller holding `tenant_domain.domains.read`, and (per §Permission seed)
-  no role has that permission yet. If an operator manually grants it via
-  Access & Users before #563 ships, the link will 404 — a known,
-  low-probability gap accepted for this issue rather than withholding the
-  descriptor requirement the issue asked for.
+  caller holding `tenant_domain.domains.read`. Before #563 shipped, a
+  role manually granted that permission early would have hit a 404 —
+  moot now that the admin UI exists at that path.
 
 `settings.defaults: { defaultVerificationMethod: "manual" }` — the only
 non-secret operational preference this module currently declares

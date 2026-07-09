@@ -49,13 +49,13 @@ Enam env var baru, semuanya **opsional** dan backward-compatible — kalau
 tidak diset sama sekali, `config:validate` tetap PASS dan perilaku tetap
 offline/LAN-first (`tenant_code_legacy` implisit):
 
-- `PUBLIC_TENANT_RESOLUTION_MODE` — enum `host_default | env_default | setup_default | tenant_code_legacy`. Divalidasi `isKnownPublicTenantResolutionMode` (`scripts/validate-env.ts:114`); value lain gagal validasi dengan pesan daftar value yang sah.
+- `PUBLIC_TENANT_RESOLUTION_MODE` — enum `host_default | env_default | setup_default | tenant_code_legacy`. Divalidasi `isKnownPublicTenantResolutionMode` (`scripts/validate-env.ts`, cari nama fungsinya — nomor baris di file ini bergeser tiap ada penyisipan check baru di atasnya, jangan percaya angka baris statis); value lain gagal validasi dengan pesan daftar value yang sah.
 - `PUBLIC_DEFAULT_TENANT_ID` / `PUBLIC_DEFAULT_TENANT_CODE` — wajib **minimal salah satu** saat mode `env_default` (bukan keduanya).
 - `PUBLIC_PLATFORM_ROOT_DOMAIN` — wajib saat mode `host_default` (landasan untuk resolver berbasis host di Issue #559 — tanpa root domain, resolver tidak bisa membedakan subdomain tenant valid dari `Host` header sembarangan).
-- `PUBLIC_CANONICAL_BASE_PATH` — default `/news` (belum ada rute nyata di sana sampai #560), divalidasi `isValidCanonicalBasePath` (`scripts/validate-env.ts:129`): wajib absolute path (`/...`), tanpa whitespace, tanpa `//`, tanpa trailing slash kecuali `/` itu sendiri. Divalidasi **selalu**, independen dari mode.
+- `PUBLIC_CANONICAL_BASE_PATH` — default `/news` (belum ada rute nyata di sana sampai #560), divalidasi `isValidCanonicalBasePath` (`scripts/validate-env.ts`, cari nama fungsinya): wajib absolute path (`/...`), tanpa whitespace, tanpa `//`, tanpa trailing slash kecuali `/` itu sendiri. Divalidasi **selalu**, independen dari mode.
 - `PUBLIC_TRUST_PROXY` — default `false` (aman). Kalau `true`, app **wajib** jalan di belakang reverse proxy tepercaya yang men-sanitize `X-Forwarded-Host` — jangan pernah percaya header itu tanpa proxy tepercaya di depan (catatan keamanan eksplisit epic #555, relevan untuk resolver #559).
 
-Entry point: `checkPublicRoutingConfig()` (`scripts/validate-env.ts:304`),
+Entry point: `checkPublicRoutingConfig()` (`scripts/validate-env.ts`, cari nama fungsinya),
 dipanggil dari `runEnvValidation()`. Semua pesan fail hanya menyebut nama
 var, tidak pernah value-nya (pola sama seperti check lain di file ini) —
 kecuali `PUBLIC_CANONICAL_BASE_PATH`/`PUBLIC_TENANT_RESOLUTION_MODE` yang
@@ -381,8 +381,10 @@ memusatkan dua langkah wajib sebelum query post apa pun:
    seluruh helper return `null`.
 2. **Module-disabled gate (acceptance criterion eksplisit Issue #560, DAN
    gap yang belum ada bahkan di `/blog/{tenantCode}` existing)**: setelah
-   tenant resolve, `fetchTenantModuleEntries(tx, tenantId)`
-   (`module-management/application/tenant-module-lifecycle.ts`, sudah ada)
+   tenant resolve, `fetchTenantModuleEntry(tx, tenantId, "blog_content")`
+   (`module-management/application/tenant-module-lifecycle.ts` — single-module
+   narrowing dari `fetchTenantModuleEntries`, lihat "Sudah diperbaiki" di
+   bawah untuk alasannya)
    dipanggil **di dalam** `withTenant(...)` yang sama, **sebelum** `handler`
    (yang query post) dijalankan. Kalau entry `blog_content`'s
    `tenantEnabled === false`, helper return `null` — rute memetakannya ke
