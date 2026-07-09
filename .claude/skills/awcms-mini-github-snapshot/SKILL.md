@@ -9,6 +9,28 @@ Ikuti `docs/awcms-mini/github/README.md`. Snapshot ini adalah salinan
 faktual state GitHub (issue, label, milestone, security alert) — bukan
 backlog rencana (itu tetap `docs/awcms-mini/06_github_issues_detail.md`).
 
+## Sebelum refresh: cek issue yang PR-nya sudah merge tapi belum ke-close
+
+**Recurring, sudah terjadi dua kali** (epic `blog_content` #537-#540;
+epic online public tenant routing #556-#560): PR di repo ini kadang tidak
+menyertakan kata kunci `Closes #NNN` di body-nya, jadi merge PR **tidak**
+otomatis menutup issue terkait — issue-nya tertinggal `open` di GitHub
+walau kodenya sudah live di `main`. `gh issue list --state open` saja
+**tidak cukup** untuk tahu backlog nyata (lihat memori
+`pr-body-missing-closes-keyword`). Sebelum menjalankan refresh:
+
+```bash
+gh issue list --state open --limit 50 --json number,title
+gh pr list --state merged --limit 30 --json number,title,mergedAt
+```
+
+Cocokkan tiap issue open dengan judul PR yang menyebut nomor issue itu
+(pola judul di repo ini: `... (Issue #NNN)`). Untuk setiap match yang
+PR-nya sudah `mergedAt` terisi, tutup issue-nya manual dengan komentar
+yang menyebut PR penutupnya, baru lanjut ke command refresh di bawah —
+jangan biarkan refresh berjalan dengan open-issue count yang sebenarnya
+sudah salah.
+
 ## Command
 
 ```bash
