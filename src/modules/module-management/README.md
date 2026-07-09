@@ -430,6 +430,96 @@ against both a synthetic registry and the real one) and
 real row states, real audit events, idempotent re-application, and
 switching between two different presets).
 
+## Tenant-module matrix admin UI — `application/module-matrix.ts` (Issue #566, epic #555)
+
+`/admin/modules/tenants` — a denser, module x relevant-attribute view for
+**one tenant** on top of the same registry/lifecycle data #521's list/detail
+pages already read, not a rebuild of either.
+
+**Binding scope decision (single-tenant, not cross-tenant)**: the issue's
+own wording ("filter by tenant", "managing module availability across
+tenants") reads like a genuine multi-tenant matrix, but this repo's identity
+model is strictly 1:1 tenant-scoped — `identity-access/README.md` documents
+no cross-tenant linking anywhere in the schema, and
+`src/components/TenantSwitcher.astro` is a permanently-disabled stub for
+exactly this reason. Decided with the maintainer: this screen is scoped to
+the admin's own tenant (`context.tenantId`), matching every other admin
+screen in this app — there is no tenant selector/filter anywhere on this
+page. Full reasoning: `src/pages/admin/modules/tenants.astro`'s own
+docblock.
+
+**What "matrix" concretely adds over #521's list+detail**, since there is no
+second (tenant) axis to build a real grid against:
+
+1. **Dependency/reverse-dependency warnings for every module at once**
+   (`fetchModuleMatrix`'s `dependencyWarning`/`reverseDependencyWarning`) —
+   100% reuse of `evaluateModuleEnable`/`evaluateModuleDisable` (#515), never
+   a re-derived graph walk. `dependencyWarning` is only ever computed for a
+   currently-**disabled** module (would enabling it succeed right now?,
+   filtered to the dependency/version rejection codes); `reverseDependencyWarning`
+   is only ever computed for a currently-**enabled** module (would disabling
+   it right now be blocked because something still depends on it?, filtered
+   to `MODULE_REVERSE_DEPENDENCY_ACTIVE`). Calling `evaluateModuleEnable` on
+   an already-enabled module would only ever short-circuit to
+   `MODULE_ALREADY_ENABLED` before reaching the dependency loop — asking it a
+   question it isn't designed to answer for that state — so this
+   deliberately does not attempt that direction; a currently-enabled
+   module's dependencies are guaranteed satisfied by construction anyway
+   (`disableTenantModule` already refuses to disable a dependency while an
+   active dependent remains enabled).
+2. **Core/protected visualization** — `isCore` and `isProtected`
+   (`resolveProtectedModuleKeys`, #565) are both flagged per row, so an
+   admin can bulk-see which modules are freely toggleable vs. structurally
+   protected instead of discovering it one rejected click at a time on the
+   detail page. The disable control is hidden for both — not just literal
+   `isCore` — because a protected-but-non-core module's disable is always
+   rejected server-side anyway (`MODULE_REVERSE_DEPENDENCY_ACTIVE`), so
+   offering a guaranteed-to-fail button would be misleading (the issue only
+   strictly requires blocking literal core modules; this goes slightly
+   further as a UX nicety, never a security boundary — the endpoint enforces
+   both ways regardless).
+3. **A single "only show modules with a warning" client-side filter**, pure
+   `data-*` show/hide like #521's own type/status filters — no equivalent on
+   either existing page.
+
+**Explicitly reused, not duplicated**: settings editing and the audit-event
+list both already exist on `/admin/modules/{moduleKey}` — this screen only
+links there (`admin.modules.view_detail_link`, same label #521's own list
+page uses), it does not re-render either.
+
+**Preset application (#565's `applyModulePreset`) is NOT wired into this
+screen.** It was considered — this is the first plausible UI caller — but
+doing so cleanly needs a new guarded/audited API endpoint (+ OpenAPI update,
+its own ABAC guard, its own tests), which is large enough to be its own
+atomic unit of work. Noted as a natural follow-up issue rather than
+force-fit here.
+
+**Binding split**: SSR reads are a direct, read-only `withTenant` call
+(`fetchModuleMatrix`), same pattern as `admin/modules.astro`. Every mutation
+(enable/disable) goes through the real `/api/v1/tenant/modules/{moduleKey}/enable|disable`
+endpoints (#515) via client-side `fetch` — no privileged SSR shortcut,
+same binding split `admin/tenant/domains.astro` (#563) established for this
+epic. Neither endpoint requires an `Idempotency-Key` (confirmed by reading
+both route files), so none is sent. Disable prompts for a reason via
+`window.prompt` (same pattern as `admin/modules/[moduleKey].astro`'s
+enable/disable buttons) — the real endpoint rejects an empty reason with
+`400 VALIDATION_ERROR` regardless of what the UI does.
+
+Gated on **both** `module_management.modules.read` AND
+`module_management.tenant_modules.read` (the matrix intrinsically shows
+tenant enablement, unlike the plain catalog list) — `module_management.health.read`
+additionally gates the health column exactly like `admin/modules.astro`.
+
+Covered by `tests/integration/module-tenant-matrix.integration.test.ts`
+(real Postgres: `fetchModuleMatrix`'s health-inclusion toggle, both warning
+directions using the same registry scenarios
+`module-tenant-lifecycle.integration.test.ts` already established, core
+protection, and the real enable/disable endpoints including a 403 for a
+caller without permission). Client-side-only behavior (filters, the
+StateNotice empty/error branches) has no browser/SSR render harness in this
+repo (see `blog-content-admin-ui.integration.test.ts`'s own docblock) —
+smoke-tested manually against a real dev server instead.
+
 ## Out of scope (epic #510)
 
 Marketplace, runtime plugin upload, running arbitrary jobs from the UI,

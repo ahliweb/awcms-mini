@@ -38,7 +38,7 @@ menjembatani beberapa modul sekaligus (config, `tenant_domain` module baru,
 | #563  | Admin UI domain/subdomain                                     | **Selesai** — lihat §Admin UI di bawah                                           |
 | #564  | Tenant settings untuk rute `/news` vs legacy (`blog_content`) | **Selesai** — lihat §Tenant settings public route di bawah                       |
 | #565  | Tenant module presets (online/news/LAN/minimal)               | **Selesai** — lihat §Tenant module presets di bawah                              |
-| #566  | Tenant-module matrix admin UI                                 | Belum                                                                            |
+| #566  | Tenant-module matrix admin UI                                 | **Selesai** — lihat §Tenant-module matrix admin UI di bawah                      |
 | #567  | Cloudflare DNS adapter (opsional)                             | Belum                                                                            |
 
 ## Yang sudah ada — pakai ulang, jangan re-derive
@@ -649,6 +649,62 @@ lewat synthetic registry) dan
 Postgres). Detail lengkap tiga keputusan desain di atas:
 `module-management/README.md` §Tenant module presets.
 
+### Tenant-module matrix admin UI (Issue #566, `module_management`)
+
+`/admin/modules/tenants` (`src/pages/admin/modules/tenants.astro` +
+`application/module-matrix.ts`'s `fetchModuleMatrix`) — layar admin yang
+menampilkan module x atribut relevan **untuk satu tenant**, di atas data
+yang sama yang sudah dibaca #521's list/detail (`fetchModuleCatalog`,
+`fetchTenantModuleEntries`, `fetchModuleHealthReport`) plus #565's
+`resolveProtectedModuleKeys`, dan `evaluateModuleEnable`/
+`evaluateModuleDisable` (#515) untuk dua peringatan baru
+(`dependencyWarning`/`reverseDependencyWarning`) — bukan graph baru.
+
+**Keputusan scope mengikat (single-tenant, BUKAN cross-tenant)**: kata-kata
+issue sendiri ("filter by tenant", "managing module availability across
+tenants") terbaca seperti matrix lintas-tenant sungguhan — tapi model
+identity repo ini strictly 1:1 tenant-scoped (`identity-access/README.md`,
+`TenantSwitcher.astro` adalah stub yang sengaja permanen-disabled). Sudah
+diputuskan bersama maintainer: layar ini scoped ke tenant admin sendiri
+(`context.tenantId`), sama seperti semua layar admin lain di app ini —
+**tidak ada** filter/selector tenant di mana pun di halaman ini. Alasan
+lengkap: docblock `tenants.astro` sendiri. Issue lanjutan manapun **jangan**
+"perbaiki" ini dengan menambah dropdown tenant satu-opsi palsu atau
+membangun filtering lintas-tenant sungguhan — itu butuh konsep
+identity/session platform-operator baru yang sama sekali di luar scope
+repo ini hari ini.
+
+**Nilai "matrix" konkret** (karena tidak ada sumbu tenant kedua untuk
+dijadikan grid sungguhan): (1) peringatan dependency/reverse-dependency
+untuk SEMUA modul sekaligus (100% reuse `evaluateModuleEnable`/
+`evaluateModuleDisable`, tidak pernah walk graph baru — `dependencyWarning`
+hanya dihitung untuk modul yang SEDANG disabled, `reverseDependencyWarning`
+hanya untuk modul yang SEDANG enabled, karena memanggil `evaluateModuleEnable`
+pada modul yang sudah enabled hanya akan short-circuit ke
+`MODULE_ALREADY_ENABLED` sebelum sempat mengecek dependency — bukan
+pertanyaan yang didesain untuk state itu); (2) visualisasi core/protected
+bulk (`isCore` + `isProtected` per baris, tombol disable disembunyikan untuk
+keduanya — protected non-core pun, karena disable-nya pasti ditolak server
+lewat `MODULE_REVERSE_DEPENDENCY_ACTIVE`); (3) filter client-side "hanya
+tampilkan modul dengan peringatan". Settings editing dan audit-event list
+**tidak** diduplikasi — tetap link ke `/admin/modules/{moduleKey}` yang
+sudah punya keduanya.
+
+**Preset (#565's `applyModulePreset`) SENGAJA TIDAK diwire ke layar ini** —
+butuh endpoint API + OpenAPI + guard + test baru, unit kerja tersendiri yang
+cukup besar; dicatat sebagai follow-up terpisah, bukan dipaksakan masuk
+issue ini.
+
+**Binding split sama seperti #563**: SSR baca langsung (`withTenant` +
+`fetchModuleMatrix`), setiap mutasi (enable/disable) lewat
+`/api/v1/tenant/modules/{moduleKey}/enable|disable` (#515) yang sudah ada —
+tidak ada shortcut SSR privileged. Kedua endpoint itu **tidak** butuh
+`Idempotency-Key` (dicek langsung dari `enable.ts`/`disable.ts`), jadi tidak
+dikirim di sini — beda dari `verify`/`set-primary` #563 yang butuh.
+
+Test: `tests/integration/module-tenant-matrix.integration.test.ts`. Detail
+lengkap: `module-management/README.md` §Tenant-module matrix admin UI.
+
 ## Aturan lintas-issue yang wajib diikuti
 
 1. **Backward compatibility non-negotiable**: setiap deployment offline/LAN existing yang tidak pernah set `PUBLIC_*` apa pun harus tetap `config:validate` PASS dan berperilaku persis seperti sebelum epic ini — jangan pernah membuat salah satu dari enam var config ini menjadi wajib secara default.
@@ -664,21 +720,22 @@ Postgres). Detail lengkap tiga keputusan desain di atas:
 
 ## Belum ada — jangan asumsikan sudah dikerjakan
 
-Isu #566-#567 (matrix UI admin dan adapter Cloudflare DNS) **belum ada**.
-Sudah selesai: config (#556), schema `awcms_mini_tenant_domains` (#557),
-module descriptor `tenant_domain` (#558), resolver host-based (#559),
-rute publik `/news` (#560), dokumentasi legacy/ADR-0010 (#561), API
-tenant domain management (#562, §API di atas), admin UI (#563, §Admin UI
-di atas), tenant settings public route `blog_content` (#564, §Tenant
-settings public route di atas), dan tenant module presets (#565, §Tenant
-module presets di atas — **service layer saja, belum ada API/UI**, itu
-scope #566). Tabel `awcms_mini_tenant_domains` sekarang bisa
-ditulis lewat kode aplikasi (API #562 + admin UI #563) — bukan lagi
-schema-only. Operator yang benar-benar mengisi baris nyata lewat
-UI/API dan mengaktifkan `PUBLIC_TENANT_RESOLUTION_MODE=host_default`
-membuat resolver #559 langkah 1 (host/domain mapping asli) benar-benar
-reachable di production untuk pertama kalinya — lihat konsekuensi
-keamanan di ADR-0010 §Konsekuensi sebelum mengaktifkan mode itu.
+Isu #567 (adapter Cloudflare DNS) **belum ada**. Sudah selesai: config
+(#556), schema `awcms_mini_tenant_domains` (#557), module descriptor
+`tenant_domain` (#558), resolver host-based (#559), rute publik `/news`
+(#560), dokumentasi legacy/ADR-0010 (#561), API tenant domain management
+(#562, §API di atas), admin UI (#563, §Admin UI di atas), tenant settings
+public route `blog_content` (#564, §Tenant settings public route di atas),
+tenant module presets (#565, §Tenant module presets di atas — service layer
+saja), dan tenant-module matrix admin UI (#566, §Tenant-module matrix admin
+UI di atas — single-tenant scope, lihat keputusan mengikat di bagian itu).
+Tabel `awcms_mini_tenant_domains` sekarang bisa ditulis lewat kode aplikasi
+(API #562 + admin UI #563) — bukan lagi schema-only. Operator yang
+benar-benar mengisi baris nyata lewat UI/API dan mengaktifkan
+`PUBLIC_TENANT_RESOLUTION_MODE=host_default` membuat resolver #559 langkah 1
+(host/domain mapping asli) benar-benar reachable di production untuk
+pertama kalinya — lihat konsekuensi keamanan di ADR-0010 §Konsekuensi
+sebelum mengaktifkan mode itu.
 
 **Follow-up keamanan wajib diselesaikan sebelum `PUBLIC_TENANT_RESOLUTION_MODE=host_default` diaktifkan di production** (ditemukan `awcms-mini-security-auditor` saat audit #560, verdict PASS tapi non-blocking karena `host_default` belum bisa resolve apa pun secara nyata hari ini — lihat alasan di atas):
 

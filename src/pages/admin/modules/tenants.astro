@@ -1,0 +1,672 @@
+---
+/**
+ * Tenant-module matrix admin screen (Issue #566, epic #555, depends on
+ * #565). Path is `/admin/modules/tenants` per the issue's own literal
+ * wording, gated by `module_management.modules.read` AND
+ * `module_management.tenant_modules.read` (both required — this is the
+ * catalog x tenant-enablement matrix, not a copy of `admin/modules.astro`).
+ *
+ * ## Binding scope decision — single-tenant, not cross-tenant (read this first)
+ *
+ * The issue's own wording ("filter by tenant", "managing module
+ * availability across tenants") reads like a genuine multi-tenant matrix.
+ * This repo's identity model is strictly 1:1 tenant-scoped —
+ * `awcms_mini_identities.tenant_id` has no cross-tenant linking anywhere in
+ * the schema (`identity-access/README.md` line ~74), and
+ * `src/components/TenantSwitcher.astro` is a permanently-disabled stub for
+ * exactly this reason ("switch tenant sungguhan tidak punya target untuk
+ * saat ini"). Every other `/admin/*` screen in this app
+ * (`admin/modules.astro`, `admin/blog/*`, `admin/tenant/domains.astro`)
+ * operates within exactly one tenant's `withTenant`/RLS-scoped session —
+ * none are cross-tenant.
+ *
+ * **Decided with the maintainer**: this screen is a single-tenant matrix,
+ * scoped to the admin's own tenant (`context.tenantId`), matching every
+ * other admin screen in this repo. There is NO tenant selector/filter
+ * anywhere on this page — the session is already scoped to one tenant, same
+ * as `admin/modules.astro` today. A future reader must not "fix" this by
+ * adding a fake single-option tenant dropdown or by trying to build real
+ * cross-tenant filtering — that would require an entirely new
+ * platform-operator identity/session concept that does not exist in this
+ * repo and is out of scope here.
+ *
+ * ## What "matrix" concretely means given the above
+ *
+ * With no second (tenant) axis, the matrix is: module x the
+ * attributes/actions relevant to THIS tenant, all visible at once — a
+ * denser, more consolidated view than `admin/modules.astro` (list) +
+ * `admin/modules/{moduleKey}.astro` (one module's detail) combined. Its
+ * genuine, non-duplicated value over those two existing pages:
+ *
+ *  1. **Dependency/reverse-dependency warnings surfaced for every module at
+ *     once** (`application/module-matrix.ts`'s `dependencyWarning`/
+ *     `reverseDependencyWarning`, 100% reuse of `evaluateModuleEnable`/
+ *     `evaluateModuleDisable`, #515) — the detail page can only ever show
+ *     one module's dependency list at a time; this page lets an admin spot
+ *     "module X can't be safely re-enabled" or "disabling module Y would
+ *     break Z" across the WHOLE registry in one glance, which neither
+ *     existing page offers.
+ *  2. **Core/protected visualization** — `isCore` (server-enforced,
+ *     `CORE_MODULE_CANNOT_BE_DISABLED`) and `isProtected`
+ *     (`resolveProtectedModuleKeys`, #565 — core's transitive dependency
+ *     closure) are both flagged per row, so an admin can bulk-see which
+ *     modules are freely toggleable vs. structurally protected, instead of
+ *     discovering it one rejected click at a time on the detail page.
+ *  3. **A single-action "only show modules with a warning" filter** (pure
+ *     client-side, same `data-*` pattern as `admin/modules.astro`'s
+ *     type/status filters) that has no equivalent anywhere else.
+ *
+ * Explicitly NOT rebuilt here (issue's own instruction — reuse, don't
+ * duplicate): settings editing and the audit-event list both already exist
+ * on `/admin/modules/{moduleKey}` — this page only links there via the
+ * existing "View" affordance, same label/target `admin/modules.astro`
+ * already uses. Preset application (`applyModulePreset`, #565) is NOT wired
+ * into this screen — doing so cleanly needs a new guarded/audited API
+ * endpoint (+ OpenAPI update), which is a large enough, separable unit of
+ * work that force-fitting it here would blow this issue's atomic scope;
+ * noted as a natural follow-up issue instead.
+ *
+ * ## Binding split (same as every other admin-mutation screen in this epic —
+ * see `admin/tenant/domains.astro`, Issue #563, for the precedent this
+ * follows exactly)
+ *
+ * SSR reads are a direct, read-only DB call (`fetchModuleMatrix` via
+ * `withTenant`) — same pattern as `admin/modules.astro`. **Every mutation**
+ * (enable/disable) goes through the real, already-guarded/audited
+ * `/api/v1/tenant/modules/{moduleKey}/enable|disable` endpoints (#515) via
+ * client-side `fetch` — this page has no privileged SSR shortcut. Neither
+ * endpoint requires an `Idempotency-Key` (confirmed by reading
+ * `enable.ts`/`disable.ts` — neither reads one), so none is sent here
+ * either, matching `admin/modules/[moduleKey].astro`'s own enable/disable
+ * buttons exactly (as opposed to `admin/tenant/domains.astro`'s
+ * verify/set-primary, which do require one).
+ *
+ * Disable requires a reason: the real API rejects an empty/missing `reason`
+ * with `400 VALIDATION_ERROR` (`disable.ts`), so this page uses the same
+ * `window.prompt` pattern as `admin/modules/[moduleKey].astro` — no
+ * additional `window.confirm`, matching that exact sibling precedent, not
+ * `admin/tenant/domains.astro`'s prompt+confirm pair (that page's delete is
+ * a different, destructive action class).
+ *
+ * A literal `isCore` module never renders a disable control (defense in
+ * depth — hiding it is a UX nicety, `CORE_MODULE_CANNOT_BE_DISABLED` is the
+ * real, authoritative enforcement). A transitively `isProtected`
+ * (non-core) module also has its disable control hidden here, even though
+ * the issue only strictly requires blocking literal core modules — a
+ * protected module's disable would always be rejected server-side anyway
+ * (`MODULE_REVERSE_DEPENDENCY_ACTIVE`, since something that can never be
+ * disabled still depends on it), so offering a guaranteed-to-fail button
+ * would be actively misleading.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import { fetchModuleMatrix } from "../../../modules/module-management/application/module-matrix";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/modules/tenants.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ_MODULES = context.permissions.has(
+  permissionKey("module_management", "modules", "read")
+);
+const CAN_READ_TENANT_MODULES = context.permissions.has(
+  permissionKey("module_management", "tenant_modules", "read")
+);
+const CAN_ENABLE = context.permissions.has(
+  permissionKey("module_management", "tenant_modules", "enable")
+);
+const CAN_DISABLE = context.permissions.has(
+  permissionKey("module_management", "tenant_modules", "disable")
+);
+const CAN_READ_HEALTH = context.permissions.has(
+  permissionKey("module_management", "health", "read")
+);
+
+const CAN_VIEW_MATRIX = CAN_READ_MODULES && CAN_READ_TENANT_MODULES;
+
+const clientStrings = {
+  enableSuccess: t("admin.modules.enable_success"),
+  disableSuccess: t("admin.modules.disable_success"),
+  disableReasonPrompt: t("admin.modules.disable_reason_prompt"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+let rows: Awaited<ReturnType<typeof fetchModuleMatrix>> = [];
+let loadError = false;
+
+if (CAN_VIEW_MATRIX) {
+  try {
+    rows = await withTenant(getDatabaseClient(), context.tenantId, (tx) =>
+      fetchModuleMatrix(tx, context.tenantId, {
+        includeHealth: CAN_READ_HEALTH,
+        correlationId: Astro.locals.correlationId
+      })
+    );
+  } catch (error) {
+    console.error(
+      "admin/modules/tenants.astro: failed to load module matrix",
+      error
+    );
+    loadError = true;
+  }
+}
+
+const types = [...new Set(rows.map((r) => r.type).filter(Boolean))];
+const statuses = [...new Set(rows.map((r) => r.status))];
+---
+
+<AdminLayout title={t("admin.modules.matrix_title")}>
+  {
+    !CAN_VIEW_MATRIX && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.modules.access_denied_title")}
+        body={t("admin.modules.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_VIEW_MATRIX && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_VIEW_MATRIX && !loadError && (
+      <div class="module-matrix">
+        <p class="matrix-intro">{t("admin.modules.matrix_intro")}</p>
+        <p>
+          <a href="/admin/modules">{t("admin.modules.back_to_list")}</a>
+        </p>
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        <form
+          class="matrix-filters"
+          aria-label={t("admin.modules.filters_aria_label")}
+        >
+          <label>
+            {t("admin.modules.filter_type_label")}
+            <select id="filter-type">
+              <option value="">{t("admin.modules.filter_all")}</option>
+              {types.map((type) => (
+                <option value={type ?? ""}>{type}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {t("admin.modules.filter_status_label")}
+            <select id="filter-status">
+              <option value="">{t("admin.modules.filter_all")}</option>
+              {statuses.map((status) => (
+                <option value={status}>{status}</option>
+              ))}
+            </select>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="filter-warnings-only" />
+            {t("admin.modules.matrix_filter_warning_label")}
+          </label>
+        </form>
+
+        <div class="table-scroll">
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th>{t("admin.modules.module_column")}</th>
+                <th>{t("admin.modules.type_column")}</th>
+                <th>{t("admin.modules.core_column")}</th>
+                <th>{t("admin.modules.tenant_status_column")}</th>
+                {CAN_READ_HEALTH && <th>{t("admin.modules.health_column")}</th>}
+                <th>{t("admin.modules.warnings_column")}</th>
+                <th>
+                  <span class="sr-only">
+                    {t("admin.modules.actions_column")}
+                  </span>
+                </th>
+              </tr>
+            </thead>
+            <tbody id="matrix-tbody">
+              {rows.length === 0 && (
+                <tr>
+                  <td colspan={CAN_READ_HEALTH ? 7 : 6}>
+                    {t("admin.modules.no_modules")}
+                  </td>
+                </tr>
+              )}
+              {rows.map((row) => {
+                const hasWarning = Boolean(
+                  row.dependencyWarning || row.reverseDependencyWarning
+                );
+                const canOfferDisable =
+                  row.tenantEnabled &&
+                  CAN_DISABLE &&
+                  !row.isCore &&
+                  !row.isProtected;
+                const canOfferEnable = !row.tenantEnabled && CAN_ENABLE;
+
+                return (
+                  <tr
+                    data-type={row.type ?? ""}
+                    data-status={row.status}
+                    data-has-warning={hasWarning ? "true" : "false"}
+                  >
+                    <td>
+                      <strong>{row.name}</strong>
+                      <br />
+                      <code>{row.moduleKey}</code>
+                    </td>
+                    <td>{row.type ?? "-"}</td>
+                    <td>
+                      {row.isCore ? (
+                        <span class="status-pill" data-status="active">
+                          {t("common.yes")}
+                        </span>
+                      ) : row.isProtected ? (
+                        <span class="status-pill" data-status="protected">
+                          {t("admin.modules.protected_label")}
+                        </span>
+                      ) : (
+                        t("common.no")
+                      )}
+                    </td>
+                    <td>
+                      <span
+                        class="status-pill"
+                        data-status={row.tenantEnabled ? "active" : "inactive"}
+                      >
+                        {row.tenantEnabled
+                          ? t("admin.modules.enabled_label")
+                          : t("admin.modules.disabled_label")}
+                      </span>
+                      {row.disableReason && (
+                        <div class="field-hint">{row.disableReason}</div>
+                      )}
+                    </td>
+                    {CAN_READ_HEALTH && (
+                      <td>
+                        {row.healthStatus ? (
+                          <span
+                            class="health-pill"
+                            data-health={row.healthStatus}
+                          >
+                            {row.healthStatus}
+                          </span>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                    )}
+                    <td>
+                      {row.dependencyWarning && (
+                        <p class="warning-text">
+                          {t("admin.modules.matrix_dependency_warning_prefix")}{" "}
+                          {row.dependencyWarning.message}
+                        </p>
+                      )}
+                      {row.reverseDependencyWarning && (
+                        <p class="warning-text">
+                          {t(
+                            "admin.modules.matrix_reverse_dependency_warning_prefix"
+                          )}{" "}
+                          {row.reverseDependencyWarning.message}
+                        </p>
+                      )}
+                      {!row.dependencyWarning &&
+                        !row.reverseDependencyWarning &&
+                        "-"}
+                    </td>
+                    <td class="actions-cell">
+                      {canOfferEnable && (
+                        <button
+                          type="button"
+                          class="enable-module-button"
+                          data-module-key={row.moduleKey}
+                        >
+                          {t("admin.modules.enable_button")}
+                        </button>
+                      )}
+                      {canOfferDisable && (
+                        <button
+                          type="button"
+                          class="disable-module-button"
+                          data-module-key={row.moduleKey}
+                        >
+                          {t("admin.modules.disable_button")}
+                        </button>
+                      )}
+                      <a href={`/admin/modules/${row.moduleKey}`}>
+                        {t("admin.modules.view_detail_link")}
+                      </a>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .module-matrix {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+
+  .matrix-intro {
+    color: var(--color-text-muted);
+    font-size: var(--fs-sm);
+    max-width: 68ch;
+  }
+
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+  }
+
+  .action-banner[data-variant="success"] {
+    background: color-mix(
+      in srgb,
+      var(--color-success) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-success);
+  }
+
+  .action-banner[data-variant="error"] {
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-danger);
+  }
+
+  .matrix-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-4);
+    align-items: end;
+  }
+
+  .matrix-filters label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+
+  .checkbox-label {
+    flex-direction: row !important;
+    align-items: center;
+    gap: var(--sp-2) !important;
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+  }
+
+  .matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .matrix-table th,
+  .matrix-table td {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--fs-sm);
+    vertical-align: top;
+  }
+
+  .status-pill,
+  .health-pill {
+    display: inline-block;
+    padding: 0 var(--sp-2);
+    border-radius: var(--radius-full);
+    font-size: var(--fs-xs);
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+  }
+
+  .status-pill[data-status="active"] {
+    background: var(--color-success-strong);
+    color: var(--color-primary-contrast);
+    border-color: var(--color-success-strong);
+  }
+
+  .status-pill[data-status="inactive"] {
+    background: var(--color-danger-strong);
+    color: var(--color-primary-contrast);
+    border-color: var(--color-danger-strong);
+  }
+
+  .status-pill[data-status="protected"] {
+    background: var(--color-warning);
+    border-color: var(--color-warning);
+  }
+
+  .health-pill[data-health="healthy"] {
+    background: var(--color-success-strong);
+    color: var(--color-primary-contrast);
+    border-color: var(--color-success-strong);
+  }
+
+  .health-pill[data-health="degraded"] {
+    background: var(--color-warning);
+    border-color: var(--color-warning);
+  }
+
+  .health-pill[data-health="failed"] {
+    background: var(--color-danger-strong);
+    color: var(--color-primary-contrast);
+    border-color: var(--color-danger-strong);
+  }
+
+  .warning-text {
+    margin: 0 0 var(--sp-1);
+    color: var(--color-danger-strong);
+    font-size: var(--fs-xs);
+  }
+
+  .field-hint {
+    color: var(--color-text-muted);
+    font-size: var(--fs-xs);
+    margin-top: var(--sp-1);
+  }
+
+  .actions-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-1);
+    min-width: 140px;
+  }
+
+  .actions-cell button,
+  .actions-cell a {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-2);
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    font-size: var(--fs-xs);
+    color: var(--color-text);
+    text-decoration: none;
+    box-sizing: border-box;
+    width: 100%;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  input:focus-visible,
+  select:focus-visible,
+  button:focus-visible,
+  a:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface ModuleMatrixStrings {
+    enableSuccess: string;
+    disableSuccess: string;
+    disableReasonPrompt: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<ModuleMatrixStrings>();
+
+  function applyFilters(): void {
+    const typeValue =
+      (document.getElementById("filter-type") as HTMLSelectElement | null)
+        ?.value ?? "";
+    const statusValue =
+      (document.getElementById("filter-status") as HTMLSelectElement | null)
+        ?.value ?? "";
+    const warningsOnly =
+      (
+        document.getElementById(
+          "filter-warnings-only"
+        ) as HTMLInputElement | null
+      )?.checked ?? false;
+
+    document
+      .querySelectorAll<HTMLTableRowElement>("#matrix-tbody tr[data-type]")
+      .forEach((row) => {
+        const matchesType = !typeValue || row.dataset.type === typeValue;
+        const matchesStatus =
+          !statusValue || row.dataset.status === statusValue;
+        const matchesWarning =
+          !warningsOnly || row.dataset.hasWarning === "true";
+
+        row.hidden = !(matchesType && matchesStatus && matchesWarning);
+      });
+  }
+
+  document
+    .getElementById("filter-type")
+    ?.addEventListener("change", applyFilters);
+  document
+    .getElementById("filter-status")
+    ?.addEventListener("change", applyFilters);
+  document
+    .getElementById("filter-warnings-only")
+    ?.addEventListener("change", applyFilters);
+
+  document
+    .querySelectorAll<HTMLButtonElement>(".enable-module-button")
+    .forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (button.disabled) return;
+        const moduleKey = button.dataset.moduleKey;
+        if (!moduleKey) return;
+
+        const unlock = lockElement(button, strings.pleaseWait);
+        try {
+          const result = await submitJson(
+            `/api/v1/tenant/modules/${moduleKey}/enable`,
+            "POST",
+            {},
+            strings
+          );
+          showBanner(
+            "action-banner",
+            result.ok ? strings.enableSuccess : result.message,
+            result.ok ? "success" : "error"
+          );
+          if (result.ok) reloadAfterDelay();
+        } finally {
+          unlock();
+        }
+      });
+    });
+
+  document
+    .querySelectorAll<HTMLButtonElement>(".disable-module-button")
+    .forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (button.disabled) return;
+        const moduleKey = button.dataset.moduleKey;
+        if (!moduleKey) return;
+
+        const reason = window.prompt(strings.disableReasonPrompt);
+        if (!reason || reason.trim().length === 0) return;
+
+        const unlock = lockElement(button, strings.pleaseWait);
+        try {
+          const result = await submitJson(
+            `/api/v1/tenant/modules/${moduleKey}/disable`,
+            "POST",
+            { reason },
+            strings
+          );
+          showBanner(
+            "action-banner",
+            result.ok ? strings.disableSuccess : result.message,
+            result.ok ? "success" : "error"
+          );
+          if (result.ok) reloadAfterDelay();
+        } finally {
+          unlock();
+        }
+      });
+    });
+</script>

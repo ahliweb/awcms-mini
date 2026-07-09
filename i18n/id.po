@@ -150,6 +150,10 @@ msgstr "Domain Tenant"
 msgid "admin.layout.nav_modules"
 msgstr "Modul"
 
+#. Issue #566, epic #555 — layar admin matriks tenant-modul
+msgid "admin.layout.nav_module_matrix"
+msgstr "Matriks Modul"
+
 msgid "admin.layout.breadcrumb_aria_label"
 msgstr "Breadcrumb"
 
@@ -723,6 +727,33 @@ msgstr "Waktu"
 
 msgid "admin.modules.no_audit_events"
 msgstr "Belum ada aktivitas terbaru untuk modul ini."
+
+#. admin.modules.matrix_* — Issue #566, epic #555 (matriks tenant-modul,
+#. scope single-tenant — lihat docblock src/pages/admin/modules/tenants.astro
+#. untuk keputusan scope mengikat)
+msgid "admin.modules.matrix_title"
+msgstr "Matriks Modul x Tenant"
+
+msgid "admin.modules.matrix_intro"
+msgstr "Tampilan ini menampilkan semua modul hanya untuk tenant Anda saat ini — ini bukan tampilan lintas-tenant. Gunakan untuk melihat masalah dependensi, modul terproteksi, dan masalah kesehatan di semua modul sekaligus."
+
+msgid "admin.modules.matrix_filter_warning_label"
+msgstr "Hanya tampilkan modul dengan peringatan"
+
+msgid "admin.modules.tenant_status_column"
+msgstr "Status Tenant"
+
+msgid "admin.modules.warnings_column"
+msgstr "Peringatan"
+
+msgid "admin.modules.protected_label"
+msgstr "Terproteksi"
+
+msgid "admin.modules.matrix_dependency_warning_prefix"
+msgstr "Masalah dependensi:"
+
+msgid "admin.modules.matrix_reverse_dependency_warning_prefix"
+msgstr "Akan menghalangi penonaktifan:"
 
 #. admin.examples.wizard — Issue #483, fixture non-domain
 msgid "admin.examples.wizard.nav_title"

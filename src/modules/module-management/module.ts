@@ -20,6 +20,12 @@ export const moduleManagementModule = defineModule({
       path: "/admin/modules",
       order: 50,
       requiredPermission: "module_management.modules.read"
+    },
+    {
+      labelKey: "admin.layout.nav_module_matrix",
+      path: "/admin/modules/tenants",
+      order: 51,
+      requiredPermission: "module_management.tenant_modules.read"
     }
   ],
   permissions: [
