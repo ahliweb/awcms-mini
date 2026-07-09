@@ -1180,6 +1180,213 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/auth/providers/google/start:
+    get:
+      tags:
+        - Identity & Access
+      summary: Redirect to Google's OAuth Authorization Code endpoint (login)
+      description: >-
+        Full-online-only (Issue #590) — `403 GOOGLE_LOGIN_DISABLED` unless
+        the #587 gate AND `AUTH_GOOGLE_LOGIN_ENABLED=true` are both active.
+        Unauthenticated entry point reached from the "Continue with Google"
+        button on `/login`. Accepts `tenantId` via the
+        `X-AWCMS-Mini-Tenant-ID` header, the tenant cookie, or a `?tenantId=`
+        query param (the login page has no tenant cookie yet, and a plain
+        browser navigation can't set a custom header). Always a `login`
+        intent — see `POST .../link` for the authenticated linking flow.
+      operationId: authGoogleStart
+      security:
+        - tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Fallback tenant id when neither the header nor cookie is present.
+      responses:
+        "302":
+          description: Redirect to Google's authorization endpoint.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          description: Google login is not enabled for this deployment (`GOOGLE_LOGIN_DISABLED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/providers/google/callback:
+    get:
+      tags:
+        - Identity & Access
+      summary: Google's OAuth redirect target — completes login or link
+      description: >-
+        Full-online-only (Issue #590). A plain top-level browser
+        navigation, never a `fetch()` call — Google redirects here with
+        `code`+`state` (or `error` if the user cancelled consent).
+        Validates `state` (CSRF/replay defense) and the ID token's
+        signature, issuer, audience, expiry, and nonce cryptographically
+        before trusting any claim. For a `login`-purpose request: creates
+        the existing AWCMS-Mini session type (or, if Issue #589's MFA gate
+        is active and the identity has an active factor, returns
+        `401 MFA_REQUIRED` exactly like `POST /auth/login` — Google login
+        never bypasses MFA). For a `link`-purpose request (from
+        `POST .../link`): attaches the verified Google account to the
+        identity captured server-side at link-initiation time.
+      operationId: authGoogleCallback
+      security:
+        - tenantHeader: []
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: error
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Present when the user cancelled/denied consent at Google.
+      responses:
+        "302":
+          description: Login or link succeeded; redirects to `/admin`.
+        "400":
+          description: Missing or malformed `state` (`GOOGLE_OAUTH_STATE_INVALID`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: >-
+            The state/nonce/ID token could not be verified
+            (`GOOGLE_OAUTH_STATE_INVALID`/`GOOGLE_TOKEN_EXCHANGE_FAILED`/
+            `GOOGLE_ID_TOKEN_INVALID`/`GOOGLE_ACCOUNT_NOT_LINKED`), or MFA
+            must be completed first (`MFA_REQUIRED`,
+            `LoginMfaRequiredResponse`).
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ApiError"
+                  - $ref: "#/components/schemas/LoginMfaRequiredResponse"
+        "403":
+          description: >-
+            Google login is not enabled for this deployment
+            (`GOOGLE_LOGIN_DISABLED`), or the resolved identity/tenant is
+            not active (`ACCESS_DENIED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This Google subject is already linked to a different identity (`GOOGLE_ALREADY_LINKED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/providers/google/link:
+    post:
+      tags:
+        - Identity & Access
+      summary: Start linking the caller's own identity to a Google account
+      description: >-
+        Full-online-only (Issue #590). Authenticated: creates a
+        `link`-purpose OAuth request bound to the caller's own identity
+        (captured server-side, never trusted from the callback request) and
+        returns the Google authorization URL as JSON — invoked via
+        `fetch()` from an authenticated context, so the client navigates
+        itself (`window.location = data.authorizationUrl`) rather than
+        receiving a redirect.
+      operationId: authGoogleLink
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Link-purpose OAuth request created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/GoogleLinkStartResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Google login is not enabled for this deployment (`GOOGLE_LOGIN_DISABLED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/providers/google/unlink:
+    post:
+      tags:
+        - Identity & Access
+      summary: Unlink the caller's own Google account
+      description: >-
+        Full-online-only (Issue #590). High-risk, audited
+        (`google_account_unlinked`). Never touches local password login —
+        removing a Google link cannot lock an identity out of its own
+        account.
+      operationId: authGoogleUnlink
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Google account unlinked.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/GoogleUnlinkResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Google login is not enabled for this deployment (`GOOGLE_LOGIN_DISABLED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: No Google account is currently linked (`GOOGLE_NOT_LINKED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/auth/password/forgot:
     post:
       tags:
@@ -7015,6 +7222,25 @@ components:
           description: >-
             10 fresh single-use recovery codes, shown exactly once — every
             previously issued code stops working immediately.
+    GoogleLinkStartResponse:
+      type: object
+      required:
+        - authorizationUrl
+      additionalProperties: false
+      properties:
+        authorizationUrl:
+          type: string
+          description: >-
+            Google's authorization URL — the client navigates itself here
+            (`window.location = authorizationUrl`).
+    GoogleUnlinkResponse:
+      type: object
+      required:
+        - unlinked
+      additionalProperties: false
+      properties:
+        unlinked:
+          type: boolean
     LogoutResponse:
       type: object
       required:

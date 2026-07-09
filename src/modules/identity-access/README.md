@@ -150,15 +150,15 @@ Astro secara default menolak (403, tanpa body) permintaan `POST`/`PUT`/`PATCH`/`
 
 CRUD ABAC policy row (`awcms_mini_abac_policies` — schema tersedia, evaluator masih pakai aturan generik bawaan, belum ada endpoint kelola policy), dan publikasi event `identity.login.succeeded`/`identity.login.failed` (doc 05, menyusul modul Observability/Logging) belum ada pada tahap ini. `/access/decision-logs` tetap `LIMIT 50` per halaman tapi kini punya keyset pagination opsional (Issue #435, `?cursor=`/`nextCursor` — lihat `src/modules/_shared/keyset-pagination.ts`).
 
-Google OIDC login, generic tenant OIDC SSO, dan admin policy UI (Issue
-#590-#592) masih backlog untuk epic full-online auth security hardening
-(#587-#593). #587 (gate bersama, lihat §Full-online-only auth security
-feature gate di bawah), #588 (Cloudflare Turnstile,
-`src/lib/security/turnstile.ts` — bukan bagian modul ini, tapi dipanggil
-dari `POST /auth/login` di modul ini via `enforceTurnstileIfRequired`),
-dan #589 (MFA/TOTP, lihat §MFA/TOTP login challenge di bawah) sudah
-selesai. Lihat skill `awcms-mini-auth-online-hardening` untuk detail
-lintas-issue.
+Generic tenant OIDC SSO dan admin policy UI (Issue #591-#592) masih
+backlog untuk epic full-online auth security hardening (#587-#593).
+#587 (gate bersama, lihat §Full-online-only auth security feature gate
+di bawah), #588 (Cloudflare Turnstile, `src/lib/security/turnstile.ts`
+— bukan bagian modul ini, tapi dipanggil dari `POST /auth/login` di
+modul ini via `enforceTurnstileIfRequired`), #589 (MFA/TOTP, lihat
+§MFA/TOTP login challenge di bawah), dan #590 (Google OIDC login, lihat
+§Google OIDC login di bawah) sudah selesai. Lihat skill
+`awcms-mini-auth-online-hardening` untuk detail lintas-issue.
 
 ## MFA/TOTP login challenge (Issue #589)
 
@@ -203,6 +203,67 @@ gate env — semuanya modul-agnostic, tinggal di `src/lib/auth/` seperti
   dua kali walau masih dalam window toleransi clock drift).
 - Detail lengkap + rasional lintas-issue: skill
   `awcms-mini-auth-online-hardening` §MFA/TOTP.
+
+## Google OIDC login (Issue #590)
+
+`src/modules/identity-access/application/google-oidc.ts` +
+`src/modules/identity-access/domain/google-oidc-policy.ts` (evaluasi
+OAuth request/claims, pure) + `src/lib/auth/jwt-verify.ts` (RS256 via
+WebCrypto `crypto.subtle`, tanpa library JWT eksternal) +
+`google-oauth-client.ts` (token exchange + JWKS fetch, timeout +
+circuit breaker) + `oauth-state-token.ts`/`google-oidc-config.ts`
+(state/nonce, gate env — modul-agnostic, sama seperti pola
+`turnstile.ts`/`mfa-config.ts`).
+
+- Gate gabungan `isGoogleLoginRequired(env)` =
+  `isFullOnlineSecurityActive(env)` (#587) ∧
+  `AUTH_GOOGLE_LOGIN_ENABLED=true` — pola persis
+  `isTurnstileRequired()`/`isMfaRequired()`.
+- **Tenant id lewat `state`, bukan header**: `GET .../callback` adalah
+  redirect target Google — navigasi browser murni yang tidak bisa
+  membawa header `X-AWCMS-Mini-Tenant-ID`. `state` yang dikirim ke
+  Google berbentuk `${tenantId}.${rawToken}` (`oauth-state-token.ts`'s
+  `buildOAuthStateParam`/`parseOAuthStateParam`) — tenant id bukan
+  secret, dan bagian token (pertahanan CSRF/replay sesungguhnya, ≥32
+  byte random) tetap di-hash at rest seperti biasa.
+- **Login vs link, dua flow berbeda**: `GET .../start` (dari tombol
+  "Continue with Google" di `/login`, tanpa session) selalu
+  `purpose='login'`. `POST .../link` (butuh session — identity diambil
+  server-side dari session, TIDAK PERNAH dipercaya dari request
+  callback) mengembalikan `authorizationUrl` sebagai JSON, bukan
+  redirect, karena dipanggil lewat `fetch()` dari konteks yang sudah
+  login. `GET .../callback` menangani KEDUA purpose berdasarkan row
+  `awcms_mini_oidc_auth_requests` yang tersimpan saat start/link.
+- **Verifikasi ID token kriptografis penuh** (bukan sekadar baca JSON):
+  signature RS256 (WebCrypto, terhadap JWKS Google yang di-cache 1 jam),
+  issuer, audience, expiry, DAN nonce — kalau salah satu gagal, hasilnya
+  generic `GOOGLE_ID_TOKEN_INVALID` (anti-enumeration, pola sama
+  `MFA_CHALLENGE_INVALID`).
+- **Provider account ditautkan via `sub`, TIDAK PERNAH via email** —
+  `awcms_mini_identity_provider_accounts` (unique per tenant+provider+subject
+  DAN per tenant+identity+provider). Auto-link by email HANYA saat
+  `email_verified=true` DAN domainnya ada di `AUTH_GOOGLE_ALLOWED_DOMAINS`
+  (kosong = auto-link selalu ditolak, fail-closed) — kalau tidak ada
+  provider account yang cocok dan auto-link tidak berlaku, login ditolak
+  `401 GOOGLE_ACCOUNT_NOT_LINKED`, TIDAK provisioning identity baru.
+- **Google login TIDAK PERNAH bypass MFA**: kalau Issue #589 aktif dan
+  identity yang berhasil verifikasi Google punya factor TOTP `active`,
+  `callback.ts` menjalankan gate MFA yang SAMA persis dengan `login.ts`
+  (challenge dibuat, `401 MFA_REQUIRED`, session baru dibuat setelah
+  `POST /auth/mfa/totp/verify`) — bukan jalur terpisah yang bisa
+  kelewatan.
+- **Token exchange/JWKS fetch**: circuit breaker HANYA trip pada
+  kegagalan transport genuine (5xx/network/timeout) — respons `400
+invalid_grant` Google terhadap `code` yang salah/bekas/kedaluwarsa
+  adalah sinyal sehat (Google benar menolak input buruk), BUKAN outage,
+  dan tidak pernah menaikkan failure count breaker (pelajaran langsung
+  dari bug circuit breaker Turnstile, PR #596 — lihat
+  `google-oauth-client.ts`).
+- `POST .../unlink`/enroll MFA: high-risk, diaudit
+  (`google_account_linked`/`google_account_unlinked`/
+  `google_login_succeeded`).
+- Detail lengkap + rasional lintas-issue: skill
+  `awcms-mini-auth-online-hardening` §Google OIDC login.
 
 ## Full-online-only auth security feature gate (Issue #587)
 

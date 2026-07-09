@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   checkAbacDefaultDeny,
   checkEmailProviderConfigReady,
+  checkGoogleOidcReady,
   checkLoginLockoutImplemented,
   checkLoginRateLimitImplemented,
   checkOnlineAuthSecurityReady,
@@ -270,6 +271,35 @@ describe("checkMfaReady", () => {
     const result = checkMfaReady({
       AUTH_MFA_ENABLED: "true",
       AUTH_MFA_SECRET_ENCRYPTION_KEY: validKey
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("pass");
+  });
+});
+
+describe("checkGoogleOidcReady", () => {
+  test("is critical/pass (informational, not a failure) when Google login is not enabled", () => {
+    const result = checkGoogleOidcReady({} as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("pass");
+  });
+
+  test("fails when AUTH_GOOGLE_LOGIN_ENABLED=true but the client id/secret are missing", () => {
+    const result = checkGoogleOidcReady({
+      AUTH_GOOGLE_LOGIN_ENABLED: "true"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("fail");
+  });
+
+  test("passes when AUTH_GOOGLE_LOGIN_ENABLED=true and both client id/secret are set", () => {
+    const result = checkGoogleOidcReady({
+      AUTH_GOOGLE_LOGIN_ENABLED: "true",
+      AUTH_GOOGLE_CLIENT_ID: "client-abc",
+      AUTH_GOOGLE_CLIENT_SECRET: "a-real-secret"
     } as NodeJS.ProcessEnv);
 
     expect(result.severity).toBe("critical");

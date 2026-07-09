@@ -21,6 +21,9 @@ msgstr "Password"
 msgid "auth.login.submit"
 msgstr "Sign in"
 
+msgid "auth.login.google_button"
+msgstr "Continue with Google"
+
 msgid "auth.login.generic_error"
 msgstr "Login failed. Try again."
 
@@ -151,6 +154,30 @@ msgstr "This MFA challenge is invalid, expired, or already used."
 
 msgid "error.mfa_misconfigured"
 msgstr "Multi-factor authentication is misconfigured on this server."
+
+msgid "error.google_login_disabled"
+msgstr "Google login is not enabled for this deployment."
+
+msgid "error.google_oauth_state_invalid"
+msgstr "Google sign-in could not be verified. Please try again."
+
+msgid "error.google_token_exchange_failed"
+msgstr "Google sign-in could not be completed. Please try again."
+
+msgid "error.google_id_token_invalid"
+msgstr "Google sign-in could not be verified. Please try again."
+
+msgid "error.google_account_not_linked"
+msgstr "No account is linked to this Google account."
+
+msgid "error.google_already_linked"
+msgstr "A Google account is already linked."
+
+msgid "error.google_not_linked"
+msgstr "No Google account is currently linked."
+
+msgid "error.google_misconfigured"
+msgstr "Google login is misconfigured on this server."
 
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"

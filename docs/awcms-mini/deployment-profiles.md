@@ -142,9 +142,21 @@ hardening).
     (`POST /auth/mfa/totp/enroll/start` + `/enroll/verify`); identity dengan
     factor aktif akan dihentikan di `401 MFA_REQUIRED` saat login sampai
     menyelesaikan `POST /auth/mfa/totp/verify`.
-    #590-#593 (Google login, generic SSO, admin policy UI,
-    dokumentasi/kontrak penutup) masih backlog, belum diimplementasikan di
-    repo ini.
+- **Google OIDC login (Issue #590, selesai)**: set tambahan
+  `AUTH_GOOGLE_LOGIN_ENABLED=true` + `AUTH_GOOGLE_CLIENT_ID`/
+  `AUTH_GOOGLE_CLIENT_SECRET` (dari Google Cloud Console) untuk
+  mengaktifkan tombol "Continue with Google" di `/login`. Sama seperti
+  Turnstile/MFA, `AUTH_GOOGLE_LOGIN_ENABLED` divalidasi independen dari
+  gate di atas, aktivasi runtime butuh keduanya. Provider account
+  ditautkan via `sub` (subject OIDC), tidak pernah via email — auto-link
+  by email hanya aktif bila operator eksplisit mengisi
+  `AUTH_GOOGLE_ALLOWED_DOMAINS` (kosong = auto-link selalu ditolak). Bila
+  Issue #589 (MFA) juga aktif untuk identity yang login lewat Google, MFA
+  challenge tetap wajib diselesaikan sebelum session dibuat — Google
+  login tidak pernah jadi jalan pintas melewati MFA.
+  #591-#593 (generic tenant OIDC SSO, admin policy UI,
+  dokumentasi/kontrak penutup) masih backlog, belum diimplementasikan di
+  repo ini.
 
 ## Cara menjalankan tiap profil
 

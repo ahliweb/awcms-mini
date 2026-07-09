@@ -37,6 +37,7 @@ import { resolveAppBaseUrl } from "./lib/app-url";
 import { checkRateLimit } from "../src/lib/security/rate-limit";
 import {
   checkEmailConfig,
+  checkGoogleOidcConfig,
   checkMfaConfig,
   checkOnlineAuthSecurityConfig,
   checkTurnstileConfig
@@ -931,6 +932,48 @@ export function checkMfaReady(
   };
 }
 
+/**
+ * Reuses `checkGoogleOidcConfig` from `validate-env.ts` verbatim — same
+ * pattern and rationale as `checkTurnstileReady`/`checkMfaReady` above.
+ */
+export function checkGoogleOidcReady(
+  env: NodeJS.ProcessEnv = process.env
+): SecurityCheckResult {
+  const name = "Google OIDC configuration is complete when enabled";
+  const severity: CheckSeverity = "critical";
+  const results = checkGoogleOidcConfig(env);
+  const failed = results.filter((result) => result.status === "fail");
+
+  if (failed.length > 0) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `AUTH_GOOGLE_LOGIN_ENABLED=true but config is incomplete: ${failed
+        .map((result) => result.detail)
+        .join(" ")}`
+    };
+  }
+
+  if (env.AUTH_GOOGLE_LOGIN_ENABLED !== "true") {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        'AUTH_GOOGLE_LOGIN_ENABLED is not "true" — Google OIDC config not required.'
+    };
+  }
+
+  return {
+    name,
+    severity,
+    status: "pass",
+    evidence:
+      "AUTH_GOOGLE_LOGIN_ENABLED=true and all conditional Google OIDC config check(s) pass."
+  };
+}
+
 // ---------------------------------------------------------------------------
 // 10. Errors don't leak stack traces (warning/info, best-effort)
 // ---------------------------------------------------------------------------
@@ -1174,6 +1217,7 @@ export async function runSecurityReadinessChecks(): Promise<
     checkOnlineAuthSecurityReady(),
     checkTurnstileReady(),
     checkMfaReady(),
+    checkGoogleOidcReady(),
     await checkErrorsDontLeakStackTraces(),
     await checkSecurityHeadersPresent(),
     checkLoginRateLimitImplemented()

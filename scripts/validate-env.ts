@@ -147,6 +147,10 @@ import {
   isMfaEnabled
 } from "../src/lib/auth/mfa-config";
 import { resolveMfaEncryptionKey } from "../src/lib/auth/mfa-secret-crypto";
+import {
+  GOOGLE_OIDC_REQUIRED_WHEN_ENABLED,
+  isGoogleLoginEnabled
+} from "../src/lib/auth/google-oidc-config";
 
 export type EnvCheckResult = {
   name: string;
@@ -665,6 +669,44 @@ export function checkMfaConfig(
   });
 }
 
+/**
+ * Google OIDC login (Issue #590, epic: full-online auth hardening).
+ * `AUTH_GOOGLE_LOGIN_ENABLED` left unset (or anything other than `"true"`)
+ * requires nothing else — same "unset/off requires nothing" shape as
+ * `checkTurnstileConfig`/`checkMfaConfig`, and validated independently of
+ * the #587 gate for the same reason (an operator can provision Google
+ * OAuth credentials ahead of time). `AUTH_GOOGLE_ALLOWED_DOMAINS` is
+ * intentionally never required here — leaving it unset simply means
+ * auto-linking-by-email is never allowed (`isEmailDomainAllowed` fails
+ * closed), a safe default, not a misconfiguration.
+ */
+export function checkGoogleOidcConfig(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult[] {
+  if (!isGoogleLoginEnabled(env)) {
+    return [
+      {
+        name: "Google OIDC config (conditional on AUTH_GOOGLE_LOGIN_ENABLED)",
+        status: "pass",
+        detail:
+          'AUTH_GOOGLE_LOGIN_ENABLED is not "true" — Google OIDC config not required.'
+      }
+    ];
+  }
+
+  return GOOGLE_OIDC_REQUIRED_WHEN_ENABLED.map((name) => {
+    if (!isSet(env[name])) {
+      return {
+        name,
+        status: "fail",
+        detail: `AUTH_GOOGLE_LOGIN_ENABLED=true but ${name} is missing or empty.`
+      };
+    }
+
+    return { name, status: "pass", detail: `${name} is set.` };
+  });
+}
+
 export function runEnvValidation(
   env: NodeJS.ProcessEnv = process.env
 ): EnvCheckResult[] {
@@ -677,6 +719,7 @@ export function runEnvValidation(
     ...checkTenantDomainDnsConfig(env),
     ...checkTurnstileConfig(env),
     ...checkMfaConfig(env),
+    ...checkGoogleOidcConfig(env),
     ...checkOnlineAuthSecurityConfig(env)
   ];
 }

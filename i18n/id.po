@@ -21,6 +21,9 @@ msgstr "Kata sandi"
 msgid "auth.login.submit"
 msgstr "Masuk"
 
+msgid "auth.login.google_button"
+msgstr "Lanjutkan dengan Google"
+
 msgid "auth.login.generic_error"
 msgstr "Login gagal. Coba lagi."
 
@@ -151,6 +154,30 @@ msgstr "Tantangan MFA ini tidak valid, kedaluwarsa, atau sudah digunakan."
 
 msgid "error.mfa_misconfigured"
 msgstr "Autentikasi multi-faktor salah konfigurasi di server ini."
+
+msgid "error.google_login_disabled"
+msgstr "Login Google tidak diaktifkan untuk deployment ini."
+
+msgid "error.google_oauth_state_invalid"
+msgstr "Login Google tidak dapat diverifikasi. Silakan coba lagi."
+
+msgid "error.google_token_exchange_failed"
+msgstr "Login Google tidak dapat diselesaikan. Silakan coba lagi."
+
+msgid "error.google_id_token_invalid"
+msgstr "Login Google tidak dapat diverifikasi. Silakan coba lagi."
+
+msgid "error.google_account_not_linked"
+msgstr "Tidak ada akun yang tertaut dengan akun Google ini."
+
+msgid "error.google_already_linked"
+msgstr "Akun Google sudah tertaut."
+
+msgid "error.google_not_linked"
+msgstr "Tidak ada akun Google yang sedang tertaut."
+
+msgid "error.google_misconfigured"
+msgstr "Login Google salah konfigurasi di server ini."
 
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"
