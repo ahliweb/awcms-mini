@@ -14,20 +14,30 @@ const UUID_PATTERN =
 
 const DEFAULT_QUEUE_TIMEOUT_MS = 2000;
 
-/** Postgres SQLSTATE class 23 — integrity constraint violation
- * (23503 foreign_key_violation, 23505 unique_violation, 23514
- * check_violation, ...). These are expected outcomes of ordinary business
- * logic (a caller-supplied reference doesn't exist, a concurrent request
- * won a uniqueness race, ...), not database/infra failures, so they must
- * not count against the shared circuit breaker (Issue #599). */
-const POSTGRES_INTEGRITY_CONSTRAINT_VIOLATION_CLASS = "23";
+/** Postgres SQLSTATE classes that reflect bad/malformed CALLER INPUT, not a
+ * database/infra failure, so they must not count against the shared circuit
+ * breaker (Issue #599, extended by Issue #601):
+ * - `22` — data exception (22P02 invalid_text_representation, 22003
+ *   numeric_value_out_of_range, 22007 invalid_datetime_format, ...) — e.g. a
+ *   non-UUID-shaped string compared/cast against a `uuid` column.
+ * - `23` — integrity constraint violation (23503 foreign_key_violation,
+ *   23505 unique_violation, 23514 check_violation, ...) — e.g. a
+ *   caller-supplied reference doesn't exist, or a concurrent request won a
+ *   uniqueness race.
+ * Every other class (08 connection exception, 53 insufficient resources, 57
+ * operator intervention, ...) still trips the breaker exactly as before —
+ * only these two classes are excluded. */
+const POSTGRES_CLIENT_INPUT_ERROR_CLASSES = ["22", "23"];
 
-function isPostgresIntegrityConstraintViolation(error: unknown): boolean {
-  return (
-    error instanceof Bun.SQL.PostgresError &&
-    String(error.errno).startsWith(
-      POSTGRES_INTEGRITY_CONSTRAINT_VIOLATION_CLASS
-    )
+function isPostgresClientInputError(error: unknown): boolean {
+  if (!(error instanceof Bun.SQL.PostgresError)) {
+    return false;
+  }
+
+  const sqlstate = String(error.errno);
+
+  return POSTGRES_CLIENT_INPUT_ERROR_CLASSES.some((sqlstateClass) =>
+    sqlstate.startsWith(sqlstateClass)
   );
 }
 
@@ -137,8 +147,8 @@ export async function withTenant<T>(
       ) as T;
     }
 
-    if (isPostgresIntegrityConstraintViolation(error)) {
-      log("info", "database.integrity_violation_excluded", {
+    if (isPostgresClientInputError(error)) {
+      log("info", "database.client_input_error_excluded", {
         moduleKey: "database-connectivity",
         tenantId: safeTenantId,
         sqlstate: (error as InstanceType<typeof Bun.SQL.PostgresError>).errno
