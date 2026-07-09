@@ -373,10 +373,14 @@ sekali — `APP_ENV=production` **bukan** proxy untuk gate ini (lihat
 - **Step-up re-auth untuk disable MFA/regenerate recovery code** — trade-off
   Issue #589 di atas, belum ada follow-up issue eksplisit; dicatat di skill
   `awcms-mini-auth-online-hardening`.
-- **Break-glass identity picker/data-hygiene di admin UI** — Issue #605 (dibuka
-  terpisah dari review epic ini), tidak ditutup oleh check readiness baru di
-  atas (yang mengaudit DB, bukan UX pemilihan identity di form admin).
+- **Break-glass identity picker/data-hygiene di admin UI** — Issue #605,
+  **selesai**: picker `admin/security.astro` sekarang memfilter kandidat ke
+  identity+tenant-user `active`, dan `saveTenantAuthPolicy` memfilter
+  `break_glass_identity_ids` yang dipersist ke hanya id yang dikonfirmasi
+  eligible (lihat skill `awcms-mini-auth-online-hardening` §Break-glass
+  picker/data-hygiene).
 - **SSRF hardening untuk `issuer_url` OIDC tenant-configured (#591)** — Issue
   #603 (dibuka terpisah), belum ditutup oleh epic ini.
-- **Circuit breaker exclusion untuk SQLSTATE class 22** — Issue #601 (bug-class
-  follow-up, tidak spesifik epic ini).
+- **Circuit breaker exclusion untuk SQLSTATE class 22** — Issue #601,
+  **selesai** (`isPostgresClientInputError` di `tenant-context.ts` kini
+  mencakup kelas `22` dan `23`).

@@ -84,7 +84,7 @@ export async function getTenantAuthPolicy(
 }
 
 /**
- * Counts how many of `breakGlassIdentityIds` currently resolve to an
+ * Resolves which of `breakGlassIdentityIds` currently resolve to an
  * identity that can actually still complete a local password login in this
  * tenant: the identity exists, belongs to this tenant, `status = 'active'`,
  * and has an `active` `awcms_mini_tenant_users` membership. Every identity
@@ -100,13 +100,13 @@ export async function getTenantAuthPolicy(
  * being re-saved, so save-time validation alone cannot catch that drift.
  * Do not reimplement this query a second, divergent way elsewhere.
  */
-export async function countEligibleBreakGlassIdentities(
+export async function fetchEligibleBreakGlassIdentityIds(
   tx: Bun.SQL,
   tenantId: string,
   breakGlassIdentityIds: string[]
-): Promise<number> {
+): Promise<string[]> {
   if (breakGlassIdentityIds.length === 0) {
-    return 0;
+    return [];
   }
 
   const rows = (await tx`
@@ -120,7 +120,26 @@ export async function countEligibleBreakGlassIdentities(
       AND tu.status = 'active'
   `) as { id: string }[];
 
-  return rows.length;
+  return rows.map((row) => row.id);
+}
+
+/**
+ * Count-only convenience wrapper around `fetchEligibleBreakGlassIdentityIds`
+ * for callers (e.g. `checkSsoBreakGlassReady`) that only need to know
+ * whether at least one eligible identity exists, not which ones.
+ */
+export async function countEligibleBreakGlassIdentities(
+  tx: Bun.SQL,
+  tenantId: string,
+  breakGlassIdentityIds: string[]
+): Promise<number> {
+  const eligibleIds = await fetchEligibleBreakGlassIdentityIds(
+    tx,
+    tenantId,
+    breakGlassIdentityIds
+  );
+
+  return eligibleIds.length;
 }
 
 export type SaveTenantAuthPolicyResult =
@@ -143,25 +162,38 @@ export async function saveTenantAuthPolicy(
     input.autoLinkVerifiedEmail ?? current.autoLinkVerifiedEmail;
   const allowedEmailDomains =
     input.allowedEmailDomains ?? current.allowedEmailDomains;
-  const breakGlassIdentityIds =
+  const submittedBreakGlassIdentityIds =
     input.breakGlassIdentityIds ?? current.breakGlassIdentityIds;
 
-  const eligibleBreakGlassCount = await countEligibleBreakGlassIdentities(
-    tx,
-    tenantId,
-    breakGlassIdentityIds
-  );
+  const eligibleBreakGlassIdentityIds =
+    await fetchEligibleBreakGlassIdentityIds(
+      tx,
+      tenantId,
+      submittedBreakGlassIdentityIds
+    );
 
   const breakGlassEvaluation = evaluateBreakGlassRequirement({
     passwordLoginEnabled,
     ssoRequired,
-    breakGlassIdentityIds,
-    eligibleBreakGlassCount
+    breakGlassIdentityIds: submittedBreakGlassIdentityIds,
+    eligibleBreakGlassCount: eligibleBreakGlassIdentityIds.length
   });
 
   if (breakGlassEvaluation.outcome === "invalid") {
     return { outcome: "break_glass_required" };
   }
+
+  // Issue #605: persist only the ids confirmed eligible right now, never
+  // the submitted list verbatim — otherwise a submission of "1 valid + N
+  // garbage/typo'd ids" (possible via the admin UI's manual free-text
+  // fallback, or a direct API call) would silently save the garbage ids
+  // alongside the real one, even though only the valid id ever mattered for
+  // this save to succeed. Filtering (rather than trusting the request body)
+  // keeps `break_glass_identity_ids` self-cleaning on every save.
+  const eligibleIdSet = new Set(eligibleBreakGlassIdentityIds);
+  const breakGlassIdentityIds = submittedBreakGlassIdentityIds.filter((id) =>
+    eligibleIdSet.has(id)
+  );
 
   const rows = (await tx`
     INSERT INTO awcms_mini_tenant_auth_policies

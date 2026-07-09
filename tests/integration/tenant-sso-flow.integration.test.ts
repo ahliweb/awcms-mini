@@ -595,6 +595,56 @@ suite("Generic tenant OIDC SSO flow (Issue #591)", () => {
     expect(accepted.body.data.ssoRequired).toBe(true);
   });
 
+  test("break-glass hygiene: saving policy with 1 valid + N garbage/ineligible ids persists ONLY the valid one (Issue #605)", async () => {
+    const owner = await bootstrapTenant();
+    await createOktaProvider(owner);
+
+    const admin = getAdminSql();
+    const ownerIdentityRows = await admin`
+      SELECT id FROM awcms_mini_identities
+      WHERE tenant_id = ${owner.tenantId} AND login_identifier = ${OWNER_LOGIN}
+    `;
+    const ownerIdentityId = (ownerIdentityRows[0] as { id: string }).id;
+
+    // Two syntactically valid UUIDs that don't correspond to any identity in
+    // this (or any) tenant — `validateUpdateTenantAuthPolicyInput` only
+    // checks UUID *shape*, so these pass input validation and reach
+    // `saveTenantAuthPolicy`, exactly like a soft-deleted/typo'd real id
+    // would. Neither should ever end up persisted in
+    // `break_glass_identity_ids`, only the one id the server itself
+    // confirmed eligible via a fresh DB read.
+    const nonexistentId1 = "00000000-0000-0000-0000-000000000000";
+    const nonexistentId2 = "11111111-2222-3333-4444-555555555555";
+
+    const accepted = await invoke<{
+      data: { ssoRequired: boolean; breakGlassIdentityIds: string[] };
+    }>(updatePolicy, {
+      method: "PATCH",
+      path: "/api/v1/identity/sso/policy",
+      headers: authHeaders(owner),
+      body: {
+        ssoEnabled: true,
+        ssoRequired: true,
+        breakGlassIdentityIds: [ownerIdentityId, nonexistentId1, nonexistentId2]
+      }
+    });
+
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.data.ssoRequired).toBe(true);
+    expect(accepted.body.data.breakGlassIdentityIds).toEqual([ownerIdentityId]);
+
+    // Confirm the garbage/nonexistent ids were never persisted, not just
+    // absent from this response — read the policy back fresh.
+    const reread = await invoke<{
+      data: { breakGlassIdentityIds: string[] };
+    }>(getPolicy, {
+      method: "GET",
+      path: "/api/v1/identity/sso/policy",
+      headers: authHeaders(owner)
+    });
+    expect(reread.body.data.breakGlassIdentityIds).toEqual([ownerIdentityId]);
+  });
+
   test("break-glass enforcement also rejects password_login_enabled=false without an eligible break-glass identity", async () => {
     const owner = await bootstrapTenant();
 
