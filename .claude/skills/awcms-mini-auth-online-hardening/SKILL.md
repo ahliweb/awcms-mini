@@ -37,7 +37,7 @@ keputusan desain yang mengikat semua issue di epic ini sekaligus.
 | #590  | Google OIDC login                                      | **Selesai** — lihat §Google OIDC login di bawah                |
 | #591  | Generic tenant OIDC SSO provider                       | **Selesai** — lihat §Generic tenant OIDC SSO provider di bawah |
 | #592  | Admin UI kebijakan auth security online                | **Selesai** — lihat §Admin policy UI di bawah                  |
-| #593  | Docs/kontrak/readiness penutup epic                    | Belum dikerjakan (finalisasi setelah #588-592)                 |
+| #593  | Docs/kontrak/readiness penutup epic                    | **Selesai** — lihat §Epic #587-#593 selesai di bawah           |
 
 ## Yang sudah ada — pakai ulang, jangan re-derive
 
@@ -605,20 +605,56 @@ issue**, and none was needed:
 10. **MFA reset password tidak boleh jadi bypass MFA** — reset password
     yang berhasil tidak otomatis menonaktifkan MFA milik identity itu.
 
-## Belum ada — jangan asumsikan sudah dikerjakan
+## Epic #587-#593 selesai
 
-Hanya dokumentasi/kontrak/readiness penutup epic (#593) yang masih
-backlog per 2026-07-09 — gate bersama (#587), Cloudflare Turnstile
-(#588), MFA/TOTP (#589), Google OIDC login (#590), generic tenant OIDC
-SSO provider (#591, termasuk admin CRUD API-nya), DAN admin policy UI
-(#592, `/admin/security`) sudah ada di repo ini. `awcms_mini_auth_providers`/
-`awcms_mini_tenant_auth_policies` (migration 036), endpoint
-`/api/v1/auth/sso/*`, admin CRUD API `/api/v1/identity/sso/providers`/
-`/api/v1/identity/sso/policy`, DAN halaman admin `/admin/security` yang
-mengonsumsinya SUDAH ada — jangan bangun ulang.
-`/api/v1/auth/providers/google/*` SUDAH ada (#590) — jangan bangun
-ulang, dan #591 sengaja TIDAK mengubah/menggantinya (lihat §Generic
-tenant OIDC SSO provider di atas). Yang BELUM ada: dokumentasi/kontrak
-penutup epic dan production-readiness sign-off lintas #587-#592 (Issue
-#593) — lihat §Admin policy UI di atas untuk apa yang sudah dibangun
-sebagai sumber materi #593.
+**Epic #587-#593 sekarang 100% selesai** (ditutup 2026-07-10) — gate
+bersama (#587), Cloudflare Turnstile (#588), MFA/TOTP (#589), Google OIDC
+login (#590), generic tenant OIDC SSO provider (#591, termasuk admin CRUD
+API-nya), admin policy UI (#592, `/admin/security`), DAN dokumentasi/
+kontrak/readiness penutup epic (#593) semuanya sudah ada di repo ini —
+jangan bangun ulang, jangan re-derive keputusan yang sudah dijelaskan di
+atas. `awcms_mini_auth_providers`/`awcms_mini_tenant_auth_policies`
+(migration 036), endpoint `/api/v1/auth/sso/*`, admin CRUD API
+`/api/v1/identity/sso/providers`/`/api/v1/identity/sso/policy`, DAN
+halaman admin `/admin/security` yang mengonsumsinya SUDAH ada.
+`/api/v1/auth/providers/google/*` SUDAH ada (#590) — jangan bangun ulang,
+dan #591 sengaja TIDAK mengubah/menggantinya (lihat §Generic tenant OIDC
+SSO provider di atas).
+
+Issue #593 sendiri menutup loop dokumentasi/kontrak/readiness lintas
+#587-#592 (audit, bukan fitur baru) — konfirmasi/perbaikan konkret yang
+dihasilkan:
+
+- `docs/awcms-mini/18_configuration_env_reference.md` dan
+  `deployment-profiles.md` sebelumnya masih menulis "#592-#593 masih
+  backlog" walau #592 (admin policy UI) sudah merge — diperbaiki (stale
+  doc, ditemukan oleh audit #593 ini, bukan hipotetis).
+- `docs/awcms-mini/20_threat_model_security_architecture.md` sebelumnya
+  NOL menyebut Turnstile/MFA/Google OIDC/SSO/break-glass sama sekali —
+  ditambah §Standar tambahan dipicu epic full-online auth security
+  hardening (Issue #587-#593) memetakan tujuh kategori risiko yang
+  diminta eksplisit issue ini (credential stuffing, bot abuse, OIDC
+  callback abuse, provider outage, MFA recovery abuse, SSO lockout,
+  offline dependency breakage) ke bukti konkret yang sudah ada.
+- `scripts/security-readiness.ts` menambah `checkSsoBreakGlassReady`
+  (critical) — celah residual yang sudah dicatat di atas (§Generic
+  tenant OIDC SSO provider): `saveTenantAuthPolicy` hanya memvalidasi
+  break-glass eligibility di titik SAVE; sebuah break-glass identity bisa
+  dinonaktifkan (atau tenant membership-nya dicabut) OLEH AKSI LAIN
+  setelahnya tanpa kebijakan itu sendiri pernah disimpan ulang. Check baru
+  ini mem-verifikasi ULANG eligibility setiap tenant aktif dari DB di
+  waktu readiness/go-live, memakai ulang `countEligibleBreakGlassIdentities`
+  (kini diekspor dari `tenant-auth-policy.ts`) — bukan aturan kedua yang
+  bisa divergen. Berbeda dari Issue #605 (break-glass picker/data-hygiene
+  UX di admin form) yang tetap dibiarkan terbuka sebagai issue terpisah —
+  check readiness ini mengaudit DB, bukan UX form.
+- `.env.example`, `scripts/validate-env.ts`, OpenAPI
+  (`openapi/awcms-mini-public-api.openapi.yaml`), dan
+  `src/modules/identity-access/README.md` sudah akurat sejak #587-#591
+  masing-masing — dikonfirmasi ulang oleh #593, tidak diubah.
+
+Issue #601 (SQLSTATE class 22 circuit-breaker exclusion), #603 (SSRF
+hardening untuk `issuer_url` OIDC tenant-configured), dan #605 (break-glass
+picker/data-hygiene UX admin) tetap terbuka sebagai issue terpisah — #593
+sengaja tidak mencoba menutupnya (lihat §Batasan yang dicatat, bukan
+diabaikan di threat model doc 20 untuk detailnya).

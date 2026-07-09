@@ -150,17 +150,18 @@ Astro secara default menolak (403, tanpa body) permintaan `POST`/`PUT`/`PATCH`/`
 
 CRUD ABAC policy row (`awcms_mini_abac_policies` — schema tersedia, evaluator masih pakai aturan generik bawaan, belum ada endpoint kelola policy), dan publikasi event `identity.login.succeeded`/`identity.login.failed` (doc 05, menyusul modul Observability/Logging) belum ada pada tahap ini. `/access/decision-logs` tetap `LIMIT 50` per halaman tapi kini punya keyset pagination opsional (Issue #435, `?cursor=`/`nextCursor` — lihat `src/modules/_shared/keyset-pagination.ts`).
 
-Untuk epic full-online auth security hardening (#587-#593): #587 (gate
-bersama, lihat §Full-online-only auth security feature gate di bawah),
-#588 (Cloudflare Turnstile, `src/lib/security/turnstile.ts` — bukan
-bagian modul ini, tapi dipanggil dari `POST /auth/login` di modul ini
-via `enforceTurnstileIfRequired`), #589 (MFA/TOTP, lihat §MFA/TOTP
-login challenge di bawah), #590 (Google OIDC login, lihat §Google OIDC
-login di bawah), #591 (generic tenant OIDC SSO provider, lihat
-§Generic tenant OIDC SSO provider di bawah), DAN #592 (admin policy UI
-`/admin/security`, lihat §Admin policy UI di bawah) sudah selesai.
-Hanya #593 (dokumentasi/kontrak/readiness penutup epic) yang masih
-backlog. Lihat skill `awcms-mini-auth-online-hardening` untuk detail
+Epic full-online auth security hardening (#587-#593) **sekarang 100%
+selesai**: #587 (gate bersama, lihat §Full-online-only auth security
+feature gate di bawah), #588 (Cloudflare Turnstile,
+`src/lib/security/turnstile.ts` — bukan bagian modul ini, tapi dipanggil
+dari `POST /auth/login` di modul ini via `enforceTurnstileIfRequired`),
+#589 (MFA/TOTP, lihat §MFA/TOTP login challenge di bawah), #590 (Google
+OIDC login, lihat §Google OIDC login di bawah), #591 (generic tenant OIDC
+SSO provider, lihat §Generic tenant OIDC SSO provider di bawah), #592
+(admin policy UI `/admin/security`, lihat §Admin policy UI di bawah), DAN
+#593 (dokumentasi/kontrak/readiness penutup epic — menambah
+`checkSsoBreakGlassReady` di `scripts/security-readiness.ts`, lihat skill
+di bawah). Lihat skill `awcms-mini-auth-online-hardening` untuk detail
 lintas-issue.
 
 ## MFA/TOTP login challenge (Issue #589)
