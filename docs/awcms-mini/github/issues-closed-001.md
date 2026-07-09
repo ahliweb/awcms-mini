@@ -3,11 +3,11 @@
 | Metadata           | Nilai                                                                                                                                    |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Repository         | `ahliweb/awcms-mini`                                                                                                                     |
-| Snapshot           | 2026-07-08T01:11:10.873Z                                                                                                                 |
+| Snapshot           | 2026-07-09T03:50:52.565Z                                                                                                                 |
 | State              | `CLOSED`                                                                                                                                 |
 | File page          | 1/1                                                                                                                                      |
 | Max issue per file | 100                                                                                                                                      |
-| Issue dalam file   | 94                                                                                                                                       |
+| Issue dalam file   | 107                                                                                                                                      |
 | Range              | #371-#454 (#409-#432, #439-#446, #448-#449, #455-#460 adalah nomor PR, bukan issue — issue/PR berbagi satu urutan nomor per repo GitHub) |
 
 > File ini adalah snapshot dari GitHub. Refresh dengan proses di `docs/awcms-mini/github/README.md` bila state issue berubah.
@@ -123,6 +123,19 @@ Ditutup `completed` pada 2026-07-06 s.d. 2026-07-07, setelah seluruh 18 issue ba
 | [#541](https://github.com/ahliweb/awcms-mini/issues/541) | Issue 5: Implement Revisions and Scheduled Publishing                                                                               | -                                            |
 | [#542](https://github.com/ahliweb/awcms-mini/issues/542) | Issue 6: Implement Templates, Menus, Widgets, Media/Gallery, Multilingual, Theme Mode, and Ads                                      | -                                            |
 | [#543](https://github.com/ahliweb/awcms-mini/issues/543) | Issue 7: Implement Admin UI, Documentation, and Final Hardening for blog_content                                                    | -                                            |
+| [#555](https://github.com/ahliweb/awcms-mini/issues/555) | epic: online public tenant routing, news routes, and tenant domain management                                                       | -                                            |
+| [#556](https://github.com/ahliweb/awcms-mini/issues/556) | feat(config): add online public tenant routing mode while preserving offline/LAN fallback                                           | -                                            |
+| [#557](https://github.com/ahliweb/awcms-mini/issues/557) | feat(tenant-domain): add tenant domain and subdomain mapping schema                                                                 | -                                            |
+| [#558](https://github.com/ahliweb/awcms-mini/issues/558) | feat(tenant-domain): register tenant domain management module descriptor                                                            | -                                            |
+| [#559](https://github.com/ahliweb/awcms-mini/issues/559) | feat(tenant): resolve public tenant by host with safe fallback                                                                      | -                                            |
+| [#560](https://github.com/ahliweb/awcms-mini/issues/560) | feat(blog-content): add /news public routes using default public tenant resolver                                                    | -                                            |
+| [#561](https://github.com/ahliweb/awcms-mini/issues/561) | docs(blog-content): mark /blog/{tenantCode} as legacy and document /news as default public route                                    | -                                            |
+| [#562](https://github.com/ahliweb/awcms-mini/issues/562) | feat(tenant-domain): add tenant domain management API                                                                               | -                                            |
+| [#563](https://github.com/ahliweb/awcms-mini/issues/563) | feat(tenant-domain): add admin UI for domain and subdomain management                                                               | -                                            |
+| [#564](https://github.com/ahliweb/awcms-mini/issues/564) | feat(blog-content): add tenant settings for news route and legacy route behavior                                                    | -                                            |
+| [#565](https://github.com/ahliweb/awcms-mini/issues/565) | feat(module-management): add tenant module presets for online, news, LAN, and minimal profiles                                      | -                                            |
+| [#566](https://github.com/ahliweb/awcms-mini/issues/566) | feat(module-management): add tenant-module matrix management screen                                                                 | -                                            |
+| [#567](https://github.com/ahliweb/awcms-mini/issues/567) | feat(tenant-domain): add optional Cloudflare DNS adapter for managed platform subdomains                                            | -                                            |
 
 <!-- github-snapshot:closed-issues-post-doc06:end -->
 <!-- Regenerated by `bun run github:snapshot:refresh` (Issue #464) between the

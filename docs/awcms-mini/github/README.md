@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-08T01:11:10.873Z        |
-| Total issue  | 94                              |
+| Snapshot     | 2026-07-09T03:50:52.565Z        |
+| Total issue  | 107                             |
 | Open issue   | 0                               |
-| Closed issue | 94                              |
+| Closed issue | 107                             |
 | Labels       | 99 (25 doc 06 + 74 peninggalan) |
 | Milestones   | 25 (6 doc 06 + 19 peninggalan)  |
 
@@ -17,7 +17,7 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
 | OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    0 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                   94 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                  107 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             99 labels, 25 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -65,10 +65,45 @@ Update juga metadata di `docs/awcms-mini/README.md`, `06_github_issues_detail.md
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ------ | -----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OPEN   |      0 | Tidak ada issue open — seluruh backlog (doc06 dan pasca-doc06) sudah `completed`/`not planned`.                                                                                                                                                                                                                                                                                                                                                                           |
-| CLOSED |     94 | 20 issue domain ditutup `not planned`; 18 issue backlog doc06 (#371-#373, #376-#379, #391-#393, #398, #401, #403-#408) ditutup `completed`; epic M9 (#433-#438, #447), 12 issue pasca-analisis lanjutan (#450-#454, #461-#465, #473, #475), epic reusable wizard form (#479, #481-#485), epic reusable email module (#492-#500), epic Module Management (#510-#522), dan epic blog_content (#536-#543) ditutup `completed` di luar backlog doc06 — lihat bagian di bawah. |
+| State  | Jumlah | Catatan                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------ | -----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| OPEN   |      0 | Tidak ada issue open — seluruh backlog (doc06 dan pasca-doc06) sudah `completed`/`not planned`.                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| CLOSED |    107 | 20 issue domain ditutup `not planned`; 18 issue backlog doc06 (#371-#373, #376-#379, #391-#393, #398, #401, #403-#408) ditutup `completed`; epic M9 (#433-#438, #447), 12 issue pasca-analisis lanjutan (#450-#454, #461-#465, #473, #475), epic reusable wizard form (#479, #481-#485), epic reusable email module (#492-#500), epic Module Management (#510-#522), epic blog_content (#536-#543), dan epic online public tenant routing (#555-#567) ditutup `completed` di luar backlog doc06 — lihat bagian di bawah. |
+
+### Epic online public tenant routing #555-#567 completed (2026-07-08 s.d. 2026-07-09)
+
+Epic kedua yang mendaftarkan modul domain langsung di repo base ini
+(setelah `blog_content`) — menambah `tenant_domain` module dan online-primary
+public routing tanpa menghapus kapabilitas offline/LAN-first. Dua belas
+issue anak, seluruhnya `completed`:
+
+- **[#556](https://github.com/ahliweb/awcms-mini/issues/556)** — config online public tenant routing mode (`PUBLIC_TENANT_RESOLUTION_MODE` dkk.), fallback offline/LAN dipertahankan. PR [#568](https://github.com/ahliweb/awcms-mini/pull/568).
+- **[#557](https://github.com/ahliweb/awcms-mini/issues/557)** — schema `awcms_mini_tenant_domains` (migration 031), RLS, unique index primary-dedup. PR [#569](https://github.com/ahliweb/awcms-mini/pull/569).
+- **[#558](https://github.com/ahliweb/awcms-mini/issues/558)** — descriptor module `tenant_domain` terdaftar di `listModules()`. PR [#570](https://github.com/ahliweb/awcms-mini/pull/570).
+- **[#559](https://github.com/ahliweb/awcms-mini/issues/559)** — `resolvePublicTenantFromRequest` (host/domain -> env/setup default -> 404 generic), migration 033 timing-parity. PR [#571](https://github.com/ahliweb/awcms-mini/pull/571).
+- **[#560](https://github.com/ahliweb/awcms-mini/issues/560)** — rute publik `/news` (index/slug/category/tag/search/feed/sitemap), reuse resolver #559. PR [#572](https://github.com/ahliweb/awcms-mini/pull/572).
+- **[#561](https://github.com/ahliweb/awcms-mini/issues/561)** — `/blog/{tenantCode}` didokumentasikan legacy (ADR-0010), tidak dihapus. PR [#573](https://github.com/ahliweb/awcms-mini/pull/573).
+- **[#562](https://github.com/ahliweb/awcms-mini/issues/562)** — API manajemen tenant domain (CRUD, verify, set-primary), idempotency + audit. PR [#574](https://github.com/ahliweb/awcms-mini/pull/574).
+- **[#563](https://github.com/ahliweb/awcms-mini/issues/563)** — admin UI domain/subdomain management. PR [#575](https://github.com/ahliweb/awcms-mini/pull/575).
+- **[#564](https://github.com/ahliweb/awcms-mini/issues/564)** — tenant settings untuk `/news` route dan legacy route behavior (`publicRouteMode`). PR [#577](https://github.com/ahliweb/awcms-mini/pull/577).
+- **[#565](https://github.com/ahliweb/awcms-mini/issues/565)** — tenant module presets (`online_website`/`news_portal`/`saas_online`/`pos_lan`/`minimal`), service layer. PR [#578](https://github.com/ahliweb/awcms-mini/pull/578).
+- **[#566](https://github.com/ahliweb/awcms-mini/issues/566)** — layar admin tenant-module matrix, single-tenant scope. PR [#579](https://github.com/ahliweb/awcms-mini/pull/579).
+- **[#567](https://github.com/ahliweb/awcms-mini/issues/567)** — adapter Cloudflare DNS opsional, provider boundary saja (belum di-wire ke rute). PR [#580](https://github.com/ahliweb/awcms-mini/pull/580).
+
+Empat follow-up non-blocking dari rantai security audit epic ini juga
+ditutup sebelum snapshot ini: race idempotency-store lintas-modul
+(PR [#581](https://github.com/ahliweb/awcms-mini/pull/581)), value-shape
+heuristic untuk module settings
+(PR [#582](https://github.com/ahliweb/awcms-mini/pull/582)), single-module
+lookup untuk gate publik `/news`
+(PR [#583](https://github.com/ahliweb/awcms-mini/pull/583)), dan timeout
+adapter Cloudflare yang env-tunable
+(PR [#584](https://github.com/ahliweb/awcms-mini/pull/584)).
+
+Sama seperti epic `blog_content` sebelumnya: #556-#560 sempat tertinggal
+`open` di GitHub selama ~1 hari meski PR-nya sudah merge (badan PR tidak
+menyertakan kata kunci `Closes #NNN`) — ditutup manual bersama epic
+#555 sendiri saat refresh snapshot ini.
 
 ### Epic blog_content #536-#543 completed (2026-07-07 s.d. 2026-07-08)
 

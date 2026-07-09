@@ -1,6 +1,6 @@
 # GitHub Security Setup AWCMS-Mini
 
-Snapshot: 2026-07-08T01:11:10.873Z
+Snapshot: 2026-07-09T03:50:52.565Z
 
 Dokumen ini mencatat konfigurasi GitHub Security untuk `ahliweb/awcms-mini`: Bun + Astro 7 + PostgreSQL, base generik selesai (v0.23.5). Baris konfigurasi diperbarui saat setup berubah (baris CodeQL code scanning disegarkan untuk Issue #452 — coverage `javascript-typescript`); metrik point-in-time (alert count, commit run) mengikuti timestamp snapshot di atas dan disegarkan lewat §Proses Refresh. Refresh 2026-07-06 (Issue #461): dua temuan nyata dari scan `javascript-typescript` pertama (alert #8 `js/file-system-race`, #9 `js/unused-local-variable`) diperbaiki dan dikonfirmasi `state: fixed` via API — lihat §Alert Count Saat Setup.
 
@@ -20,7 +20,7 @@ Dokumen ini mencatat konfigurasi GitHub Security untuk `ahliweb/awcms-mini`: Bun
 | Secret scanning validity checks       | Disabled pada GitHub saat setup                                                                                                                                                                                     |
 | Code scanning                         | Enabled lewat `.github/workflows/codeql.yml` untuk GitHub Actions **dan** `javascript-typescript` (source TypeScript/Astro, Issue #452); default setup `not-configured` agar tidak konflik dengan advanced workflow |
 | Private vulnerability reporting       | Enabled; gunakan link GitHub advisory di `SECURITY.md`                                                                                                                                                              |
-| Latest CodeQL run                     | Success pada `main` commit `dba8b10` (2026-07-08T01:04:51Z)                                                                                                                                                         |
+| Latest CodeQL run                     | Success pada `main` commit `2c8888b` (2026-07-09T03:47:32Z)                                                                                                                                                         |
 
 ## Alert Count Saat Setup
 
