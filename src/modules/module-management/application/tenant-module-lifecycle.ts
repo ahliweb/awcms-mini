@@ -83,6 +83,55 @@ function findDescriptor(moduleKey: string): ModuleDescriptor | null {
   return listModules().find((d) => d.key === moduleKey) ?? null;
 }
 
+/**
+ * Single-module narrowing of `fetchTenantModuleEntries` above (security
+ * audit follow-up, epic #555 — flagged during Issue #560's review: a caller
+ * that only needs one module's tenant-enabled state, like the anonymous
+ * public `/news` gate in `blog-content/application/public-news-tenant-resolution.ts`,
+ * was reading every registered module's state via the plural function,
+ * violating the "read surface as narrow as possible" principle for a public,
+ * unauthenticated code path — not a live DoS/leak, but unnecessary surface).
+ * Returns `null` only if `moduleKey` isn't a registered descriptor at all
+ * (the caller's own fail-closed default applies from there, same as the
+ * plural function's per-entry shape). Same opt-out-by-default semantics as
+ * `fetchTenantModuleEntries` — no `awcms_mini_tenant_modules` row means
+ * `tenantEnabled: true`.
+ */
+export async function fetchTenantModuleEntry(
+  tx: Bun.SQL,
+  tenantId: string,
+  moduleKey: string
+): Promise<TenantModuleListEntry | null> {
+  const descriptor = findDescriptor(moduleKey);
+
+  if (!descriptor) {
+    return null;
+  }
+
+  const rows = (await tx`
+    SELECT enabled, enabled_at, disabled_at, disable_reason
+    FROM awcms_mini_tenant_modules
+    WHERE tenant_id = ${tenantId} AND module_key = ${moduleKey}
+  `) as {
+    enabled: boolean;
+    enabled_at: Date | null;
+    disabled_at: Date | null;
+    disable_reason: string | null;
+  }[];
+  const row = rows[0];
+
+  return {
+    moduleKey: descriptor.key,
+    name: descriptor.name,
+    version: descriptor.version,
+    isCore: descriptor.isCore ?? false,
+    tenantEnabled: row?.enabled ?? true,
+    enabledAt: row?.enabled_at?.toISOString() ?? null,
+    disabledAt: row?.disabled_at?.toISOString() ?? null,
+    disableReason: row?.disable_reason ?? null
+  };
+}
+
 export type TenantModuleMutationResult =
   | { outcome: "applied" }
   | {

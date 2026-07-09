@@ -4,7 +4,7 @@ import {
   type PublicHostResolverConfig,
   type PublicTenantResolution
 } from "../../../lib/tenant/public-host-tenant-resolver";
-import { fetchTenantModuleEntries } from "../../module-management/application/tenant-module-lifecycle";
+import { fetchTenantModuleEntry } from "../../module-management/application/tenant-module-lifecycle";
 import {
   fetchEffectivePublicRouteSettings,
   type EffectivePublicRouteSettings
@@ -20,8 +20,11 @@ import {
  *    `tenantCode`-in-path resolver), since `/news` carries no `tenantCode`
  *    path segment at all.
  * 2. Confirm `blog_content` is enabled for that tenant
- *    (`fetchTenantModuleEntries`, Module Management's existing tenant
- *    lifecycle service) — an explicit acceptance criterion of Issue #560
+ *    (`fetchTenantModuleEntry`, Module Management's existing tenant
+ *    lifecycle service — the single-module narrowing added as a security
+ *    audit follow-up so this anonymous public gate reads only
+ *    `blog_content`'s own state, not every registered module's) — an
+ *    explicit acceptance criterion of Issue #560
  *    that does not exist yet for the legacy `/blog/{tenantCode}` routes
  *    (a pre-existing gap this issue documents but deliberately does not
  *    retrofit — out of this issue's scope).
@@ -54,7 +57,7 @@ const BLOG_CONTENT_MODULE_KEY = "blog_content";
  * fix, `withNewsTenant` had three outcomes with different latency: tenant
  * not resolved (fastest — no DB transaction at all), tenant resolved but
  * `blog_content` disabled (medium — opens `withTenant` + one
- * `fetchTenantModuleEntries` query), tenant resolved and enabled (slowest —
+ * `fetchTenantModuleEntry` query), tenant resolved and enabled (slowest —
  * adds the actual content query). The first two both produce the exact same
  * generic 404, so a prober varying the `Host` header could learn "this
  * hostname maps to a real, active tenant" purely from response latency,
@@ -91,9 +94,10 @@ async function checkBlogContentAndRouteGate(
   blogContentEnabled: boolean;
   routeSettings: EffectivePublicRouteSettings;
 }> {
-  const moduleEntries = await fetchTenantModuleEntries(tx, tenantId);
-  const blogContentEntry = moduleEntries.find(
-    (entry) => entry.moduleKey === BLOG_CONTENT_MODULE_KEY
+  const blogContentEntry = await fetchTenantModuleEntry(
+    tx,
+    tenantId,
+    BLOG_CONTENT_MODULE_KEY
   );
   const routeSettings = await fetchEffectivePublicRouteSettings(
     tx,

@@ -63,6 +63,23 @@ core-module protection) — see that file and
 section for how a disabled module is actually blocked everywhere, not just
 in this module's own state row.
 
+- **`fetchTenantModuleEntries(tx, tenantId)`** — every registered module's
+  tenant-enabled state, for callers that genuinely need the full list (the
+  `GET` endpoint above, tenant module presets, the tenant-module matrix
+  admin UI).
+- **`fetchTenantModuleEntry(tx, tenantId, moduleKey)`** — single-module
+  narrowing added as a security audit follow-up (epic #555, flagged during
+  Issue #560's review): a caller that only needs one module's state, like
+  `blog-content`'s anonymous public `/news` gate
+  (`public-news-tenant-resolution.ts`), was reading every registered
+  module's row via the plural function — not a real DoS risk (one cheap
+  indexed query, filtered in memory), but unnecessary read surface for a
+  public, unauthenticated code path. This variant filters `module_key` in
+  the `SQL` itself instead of filtering in memory, and returns `null` only
+  if `moduleKey` isn't a registered descriptor at all. Same
+  opt-out-by-default semantics as the plural function (no
+  `awcms_mini_tenant_modules` row means `tenantEnabled: true`).
+
 ## Tenant module settings — `application/module-settings.ts` (Issue #516)
 
 `GET/PATCH /api/v1/tenant/modules/{moduleKey}/settings`. Non-secret,
