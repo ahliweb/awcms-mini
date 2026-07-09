@@ -654,10 +654,13 @@ dihasilkan:
   masing-masing — dikonfirmasi ulang oleh #593, tidak diubah.
 
 Issue #601 (SQLSTATE class 22 circuit-breaker exclusion), #605 (break-glass
-picker/data-hygiene UX admin), dan #603 (SSRF hardening untuk `issuer_url`
-OIDC tenant-configured) sudah **selesai** sebagai follow-up terpisah setelah
-#593 (lihat §Break-glass picker/data-hygiene di bawah untuk #605, dan
-§SSRF/`issuer_url` — keputusan accepted risk untuk #603).
+picker/data-hygiene UX admin), #603 (SSRF hardening untuk `issuer_url`
+OIDC tenant-configured), dan #610 (hardening tambahan atas keputusan
+#603 — rate limit agregat per-`providerKey` + negative-TTL cache) sudah
+**selesai** sebagai follow-up terpisah setelah #593 (lihat §Break-glass
+picker/data-hygiene di bawah untuk #605, dan §SSRF/`issuer_url` —
+keputusan accepted risk untuk #603, termasuk hardening #610 di
+sub-bagian yang sama).
 
 ### SSRF/`issuer_url` — keputusan accepted risk (Issue #603, selesai)
 
@@ -697,16 +700,26 @@ diterima BERSAMA keputusan utama, bukan celah yang sudah tertutup oleh
 ABAC — segmentasi jaringan level operator untuk service internal yang
 sungguh sensitif tetap jadi lapis pertahanan yang sebenarnya, bukan ABAC.
 
-**Follow-up yang belum diimplementasi** (opsional, tidak menunda
-keputusan utama #603): rate limit per-`providerKey` (bukan cuma
-sumber+tenant), negative/short-TTL cache untuk percobaan discovery yang
-GAGAL (supaya probe berulang tak selalu memicu fetch baru), rekomendasi
-infra-layer blokir egress ke `169.254.169.254` (metadata endpoint cloud)
-khusus deployment `full_online` (residual paling konkret karena profil
-ini yang paling mungkin jalan di infrastruktur cloud). **Kalau butuh SSRF
-hardening lebih ketat di masa depan** (mis. operator `full_online` murni
-SaaS yang tidak butuh IdP on-prem sama sekali): jangan blanket-block —
-tambahkan sebagai opt-in per-deployment (env var terpisah, default off)
+**Follow-up — selesai (Issue #610)**: rate limit AGREGAT per-`providerKey`
+(`AUTH_SSO_PROVIDER_RATE_LIMIT_MAX`/`_WINDOW_SEC`, `start.ts`) di atas
+limiter per-sumber+tenant yang sudah ada — membatasi prober terdistribusi
+yang merotasi source IP terhadap SATU target regardless jumlah sumbernya.
+Negative/short-TTL cache (`NEGATIVE_CACHE_TTL_MS = 30s`,
+`discoveryFailureCache`/`jwksFailureCache` di `generic-oidc-client.ts`)
+untuk percobaan discovery/JWKS yang GAGAL — target yang tak pernah
+membalas JSON valid tidak lagi memicu fetch baru di setiap hit, hanya
+sekali per jendela 30 detik. Rekomendasi infra-layer blokir egress ke
+`169.254.169.254` (metadata endpoint cloud) khusus deployment
+`full_online` didokumentasikan di `deployment-profiles.md` §Generic
+tenant OIDC SSO (residual yang tetap di luar cakupan aplikasi — tanggung
+jawab operator, bukan kode). Regression test:
+`tests/unit/generic-oidc-client.test.ts` (negative cache) dan
+`tests/integration/tenant-sso-flow.integration.test.ts`'s "start
+rate-limits aggregate requests to one providerKey across many DIFFERENT
+source IPs" (rate limit agregat). **Kalau butuh SSRF hardening lebih
+ketat di masa depan** (mis. operator `full_online` murni SaaS yang tidak
+butuh IdP on-prem sama sekali): jangan blanket-block — tambahkan sebagai
+opt-in per-deployment (env var terpisah, default off)
 supaya skenario enterprise-IdP-via-VPN tidak pernah terkena regresi diam-diam.
 Jangan reimplementasi keputusan ini tanpa membaca rasional di atas dulu.
 

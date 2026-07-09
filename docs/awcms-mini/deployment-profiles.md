@@ -170,6 +170,24 @@ hardening).
   — dicek di titik SAVE, bukan hanya login, supaya outage provider tidak
   pernah mengunci operator keluar dari akunnya sendiri. MFA (#589) tetap
   ditegakkan sama seperti Google.
+
+  **Rekomendasi infra-layer untuk operator `full_online` (Issue #610,
+  follow-up dari keputusan accepted-risk #603)**: `issuer_url` per-provider
+  adalah data tenant-configured, bukan env server tepercaya (lihat skill
+  `awcms-mini-auth-online-hardening` §SSRF/`issuer_url`) — sengaja TIDAK
+  di-IP-range-block di level aplikasi supaya IdP on-prem enterprise
+  tenant yang reachable lewat VPN privat tetap berfungsi. Karena profil
+  `full_online` yang paling mungkin jalan di infrastruktur cloud, operator
+  disarankan memblokir/membatasi egress container aplikasi ke endpoint
+  metadata cloud (`169.254.169.254`) di level jaringan/firewall, atau
+  menegakkan IMDSv2 dengan hop-limit=1 di sisi cloud provider — residual
+  paling konkret untuk profil ini secara spesifik, di luar cakupan
+  aplikasi (doc 20 §Batasan sudah menugaskan WAF/network policy ke
+  lapisan deployment). Mitigasi app-level yang sudah ada: rate limit
+  agregat per-`providerKey` (`AUTH_SSO_PROVIDER_RATE_LIMIT_MAX`/
+  `_WINDOW_SEC` di atas gate per-sumber+tenant yang sudah ada) dan
+  negative-TTL cache untuk percobaan discovery/JWKS yang gagal.
+
 - **Admin policy UI (Issue #592, selesai)**: `/admin/security` — permukaan
   admin untuk melihat status keenam fitur di atas dan mengelola kebijakan
   auth (`sso_required`, `password_login_enabled`, break-glass identity list)

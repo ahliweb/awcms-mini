@@ -33,14 +33,20 @@
  * `identity_access.sso_providers.create`/`update` only limits who can
  * CONFIGURE a malicious `issuer_url`, not who can TRIGGER the fetch
  * afterward — `GET /api/v1/auth/sso/{providerKey}/start` (the entry
- * point into this file's functions) is unauthenticated, rate-limited only
- * per-source+tenant (not per-`providerKey`), and the discovery cache
- * below only fills on success, so a non-responding internal target can
- * be probed repeatedly with no real throttling. Accepted as a known
- * residual alongside the "no IP blocking" decision — see skill
- * `awcms-mini-auth-online-hardening` §SSRF/`issuer_url` for the full,
- * audit-corrected rationale before reopening this as a "gap" or assuming
- * ABAC already closes it.
+ * point into this file's functions) is unauthenticated. Issue #610
+ * (follow-up from #603) narrowed, but did not eliminate, the residual
+ * probing surface this creates: `start.ts` now rate-limits BOTH
+ * per-source+tenant AND in aggregate per-`providerKey` (so distributed
+ * source-IP rotation against one target is capped too), and the
+ * negative-TTL caches below (`discoveryFailureCache`/`jwksFailureCache`)
+ * mean a target that never returns a valid document stops getting a
+ * fresh live network attempt on every single hit — repeated probes
+ * within the negative-TTL window get an instant cached failure instead.
+ * Real internal-network reconnaissance is still possible within these
+ * bounds, just meaningfully throttled rather than "no real throttling."
+ * See skill `awcms-mini-auth-online-hardening` §SSRF/`issuer_url` for the
+ * full, audit-corrected rationale before reopening this as a "gap" or
+ * assuming ABAC alone closes it.
  */
 import { getProviderCircuitBreaker } from "../database/circuit-breaker";
 import { withTimeout } from "../integration/timeout";
@@ -58,10 +64,26 @@ export type DiscoverOidcResult =
 
 const DISCOVERY_CACHE_TTL_MS = 60 * 60 * 1000;
 
+/**
+ * Short negative-TTL for a FAILED discovery/JWKS attempt (Issue #610,
+ * follow-up from the Issue #603 SSRF risk-acceptance decision). The
+ * positive cache above only ever fills on success, so before this existed
+ * a target that never returns a valid OIDC document got a fresh live
+ * network attempt on every single unauthenticated `/start` hit — this
+ * cache makes repeated hits within the window return the same cached
+ * failure instantly instead, removing most of the timing/liveness signal
+ * an internal-network prober could otherwise read from repeated probes.
+ * Deliberately much shorter than the positive TTL: a real provider
+ * recovering from a transient outage should start working again quickly
+ * once its own health is restored, not stay cached-failed for an hour.
+ */
+const NEGATIVE_CACHE_TTL_MS = 30 * 1000;
+
 const discoveryCache = new Map<
   string,
   { document: OidcDiscoveryDocument; fetchedAt: number }
 >();
+const discoveryFailureCache = new Map<string, number>();
 
 function normalizeIssuerUrl(issuerUrl: string): string {
   return issuerUrl.endsWith("/") ? issuerUrl.slice(0, -1) : issuerUrl;
@@ -89,12 +111,22 @@ export async function discoverOidcConfiguration(
     return { ok: true, document: cached.document };
   }
 
+  const recentFailure = discoveryFailureCache.get(providerKey);
+
+  if (
+    recentFailure !== undefined &&
+    now - recentFailure < NEGATIVE_CACHE_TTL_MS
+  ) {
+    return { ok: false };
+  }
+
   const breaker = getProviderCircuitBreaker(
     `sso-oidc-discovery:${providerKey}`
   );
   const attemptedAt = new Date();
 
   if (!breaker.canAttempt(attemptedAt)) {
+    discoveryFailureCache.set(providerKey, now);
     return { ok: false };
   }
 
@@ -107,6 +139,7 @@ export async function discoverOidcConfiguration(
 
     if (response.status < 200 || response.status >= 300) {
       breaker.recordFailure(attemptedAt);
+      discoveryFailureCache.set(providerKey, now);
       return { ok: false };
     }
 
@@ -122,15 +155,18 @@ export async function discoverOidcConfiguration(
       typeof document.issuer !== "string"
     ) {
       breaker.recordFailure(attemptedAt);
+      discoveryFailureCache.set(providerKey, now);
       return { ok: false };
     }
 
     breaker.recordSuccess(attemptedAt);
+    discoveryFailureCache.delete(providerKey);
     const resolved = document as OidcDiscoveryDocument;
     discoveryCache.set(providerKey, { document: resolved, fetchedAt: now });
     return { ok: true, document: resolved };
   } catch {
     breaker.recordFailure(attemptedAt);
+    discoveryFailureCache.set(providerKey, now);
     return { ok: false };
   }
 }
@@ -138,11 +174,17 @@ export async function discoverOidcConfiguration(
 export type GenericJwks = { keys: Record<string, unknown>[] };
 
 const jwksCache = new Map<string, { jwks: GenericJwks; fetchedAt: number }>();
+const jwksFailureCache = new Map<string, number>();
 const JWKS_CACHE_TTL_MS = 60 * 60 * 1000;
 
 export type FetchJwksResult = { ok: true; jwks: GenericJwks } | { ok: false };
 
-/** Same breaker-tripping rule as `discoverOidcConfiguration`/`exchangeAuthorizationCode` — only a genuine transport failure counts. */
+/**
+ * Same breaker-tripping rule as `discoverOidcConfiguration`/
+ * `exchangeAuthorizationCode` — only a genuine transport failure counts.
+ * Same negative-TTL-cache rationale as `discoverOidcConfiguration` too
+ * (Issue #610) — see that function's comment on the positive cache above.
+ */
 export async function fetchProviderJwks(
   providerKey: string,
   jwksUri: string,
@@ -155,10 +197,20 @@ export async function fetchProviderJwks(
     return { ok: true, jwks: cached.jwks };
   }
 
+  const recentFailure = jwksFailureCache.get(providerKey);
+
+  if (
+    recentFailure !== undefined &&
+    now - recentFailure < NEGATIVE_CACHE_TTL_MS
+  ) {
+    return { ok: false };
+  }
+
   const breaker = getProviderCircuitBreaker(`sso-oidc-jwks:${providerKey}`);
   const attemptedAt = new Date();
 
   if (!breaker.canAttempt(attemptedAt)) {
+    jwksFailureCache.set(providerKey, now);
     return { ok: false };
   }
 
@@ -171,6 +223,7 @@ export async function fetchProviderJwks(
 
     if (response.status < 200 || response.status >= 300) {
       breaker.recordFailure(attemptedAt);
+      jwksFailureCache.set(providerKey, now);
       return { ok: false };
     }
 
@@ -180,14 +233,17 @@ export async function fetchProviderJwks(
 
     if (!jwks || !Array.isArray(jwks.keys)) {
       breaker.recordFailure(attemptedAt);
+      jwksFailureCache.set(providerKey, now);
       return { ok: false };
     }
 
     breaker.recordSuccess(attemptedAt);
+    jwksFailureCache.delete(providerKey);
     jwksCache.set(providerKey, { jwks, fetchedAt: now });
     return { ok: true, jwks };
   } catch {
     breaker.recordFailure(attemptedAt);
+    jwksFailureCache.set(providerKey, now);
     return { ok: false };
   }
 }
@@ -278,4 +334,6 @@ export async function exchangeAuthorizationCode(
 export function resetGenericOidcCachesForTests(): void {
   discoveryCache.clear();
   jwksCache.clear();
+  discoveryFailureCache.clear();
+  jwksFailureCache.clear();
 }

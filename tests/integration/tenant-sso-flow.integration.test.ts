@@ -292,6 +292,41 @@ suite("Generic tenant OIDC SSO flow (Issue #591)", () => {
     });
   });
 
+  test("start rate-limits aggregate requests to one providerKey across many DIFFERENT source IPs (Issue #610)", async () => {
+    const owner = await bootstrapTenant();
+    await createOktaProvider(owner);
+
+    await withEnvOverride(FULL_ONLINE_SSO_ENV, async () => {
+      await withStubbedOkta({}, async () => {
+        // Default AUTH_SSO_PROVIDER_RATE_LIMIT_MAX is 60 — each call below
+        // uses a DIFFERENT X-Forwarded-For so the pre-existing per-source
+        // limiter (default max 20) never trips first; only the aggregate
+        // per-providerKey check should fire, proving it bounds a
+        // distributed prober rotating source IPs against one target.
+        for (let i = 0; i < 60; i += 1) {
+          const start = await invoke(ssoStart, {
+            method: "GET",
+            path: `/api/v1/auth/sso/okta/start?tenantId=${owner.tenantId}`,
+            params: { providerKey: "okta" },
+            headers: {
+              "x-forwarded-for": `10.0.${Math.floor(i / 255)}.${i % 255}`
+            }
+          });
+          expect(start.status).toBe(302);
+        }
+
+        const oneTooMany = await invoke<{ error: { code: string } }>(ssoStart, {
+          method: "GET",
+          path: `/api/v1/auth/sso/okta/start?tenantId=${owner.tenantId}`,
+          params: { providerKey: "okta" },
+          headers: { "x-forwarded-for": "10.0.99.99" }
+        });
+        expect(oneTooMany.status).toBe(429);
+        expect(oneTooMany.body.error.code).toBe("RATE_LIMITED");
+      });
+    });
+  });
+
   test("disabled mode (default): start/link/unlink all report SSO_DISABLED", async () => {
     const owner = await bootstrapTenant();
 

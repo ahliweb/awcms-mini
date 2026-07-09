@@ -23,6 +23,25 @@ const RATE_LIMIT_WINDOW_SEC = Number(
 );
 
 /**
+ * Aggregate (NOT per-source) budget for this one `providerKey`, on top of
+ * the per-source+tenant limiter above (Issue #610, follow-up from the
+ * Issue #603 SSRF risk-acceptance decision). The per-source limiter bounds
+ * how fast any ONE client can hit this endpoint, but does nothing against
+ * many different source IPs each staying under that limit while probing
+ * the SAME tenant-configured `issuer_url` in aggregate — this second
+ * check bounds total request volume against one specific provider
+ * regardless of how many distinct sources it comes from. Default is
+ * generous enough for legitimate concurrent SSO logins to a popular
+ * provider within one tenant; tune down for stricter environments.
+ */
+const PROVIDER_RATE_LIMIT_MAX_ATTEMPTS = Number(
+  process.env.AUTH_SSO_PROVIDER_RATE_LIMIT_MAX ?? 60
+);
+const PROVIDER_RATE_LIMIT_WINDOW_SEC = Number(
+  process.env.AUTH_SSO_PROVIDER_RATE_LIMIT_WINDOW_SEC ?? 60
+);
+
+/**
  * `GET /api/v1/auth/sso/{providerKey}/start` (Issue #591) — unauthenticated
  * entry point, same shape as Issue #590's `providers/google/start.ts`:
  * `tenantId` resolved from header/cookie/`?tenantId=` query param fallback
@@ -80,6 +99,28 @@ export const GET: APIRoute = async ({
       {},
       undefined,
       { "retry-after": String(rateLimit.retryAfterSec) }
+    );
+  }
+
+  // Aggregate-across-sources check (Issue #610) — deliberately a SEPARATE
+  // key/bucket from the per-source one above, so a distributed prober
+  // rotating source IPs against this one provider still gets capped.
+  const providerRateLimit = checkRateLimit(
+    `${tenantId}:${providerKey}:sso-provider-start`,
+    {
+      maxAttempts: PROVIDER_RATE_LIMIT_MAX_ATTEMPTS,
+      windowMs: PROVIDER_RATE_LIMIT_WINDOW_SEC * 1000
+    }
+  );
+
+  if (!providerRateLimit.allowed) {
+    return fail(
+      429,
+      "RATE_LIMITED",
+      "Too many requests for this provider. Try again later.",
+      {},
+      undefined,
+      { "retry-after": String(providerRateLimit.retryAfterSec) }
     );
   }
 

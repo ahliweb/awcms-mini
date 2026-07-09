@@ -98,6 +98,8 @@ Legenda: Wajib = perlu untuk boot; Sensitif = jangan bocor ke log/response.
 | `AUTH_SSO_ENABLED`                          | –              | `false`                                  | –        | Generic tenant OIDC SSO (Issue #591) — lihat §Full-online auth security hardening di bawah              |
 | `AUTH_SSO_CREDENTIAL_ENCRYPTION_KEY`        | bila SSO       | –                                        | Ya       | Key AES-256-GCM (base64, 32 byte) untuk enkripsi-at-rest client secret provider — beda dari key MFA     |
 | `AUTH_SSO_DISCOVERY_TIMEOUT_MS`             | –              | `5000`                                   | –        | Timeout discovery/JWKS/token-exchange OIDC provider tenant (ms)                                         |
+| `AUTH_SSO_PROVIDER_RATE_LIMIT_MAX`          | –              | `60`                                     | –        | Budget agregat (BUKAN per-sumber) `GET .../start` per `providerKey` (Issue #610)                        |
+| `AUTH_SSO_PROVIDER_RATE_LIMIT_WINDOW_SEC`   | –              | `60`                                     | –        | Jendela waktu budget agregat per `providerKey` (detik)                                                  |
 
 ### Full-online auth security hardening (opsional, Issue #587-#593)
 
@@ -482,6 +484,8 @@ AUTH_GOOGLE_LOGIN_ENABLED=false
 AUTH_GOOGLE_REDIRECT_PATH=/api/v1/auth/providers/google/callback
 AUTH_SSO_ENABLED=false
 AUTH_SSO_DISCOVERY_TIMEOUT_MS=5000
+AUTH_SSO_PROVIDER_RATE_LIMIT_MAX=60
+AUTH_SSO_PROVIDER_RATE_LIMIT_WINDOW_SEC=60
 
 # Sync
 AWCMS_MINI_NODE_ID=local-dev-node
