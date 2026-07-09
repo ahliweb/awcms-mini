@@ -44,7 +44,9 @@ type AccessRequest = {
     | "check"
     | "publish"
     | "schedule"
-    | "archive";
+    | "archive"
+    | "verify"
+    | "set_primary"; // Issue #562 (tenant_domain) — see access-control.ts's own comment for why neither is in HIGH_RISK_ACTIONS
   resourceType?: string;
   resourceId?: string;
   resourceAttributes?: Record<string, unknown>;
