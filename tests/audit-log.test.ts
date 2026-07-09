@@ -170,8 +170,12 @@ describe("findSecretShapedValues", () => {
   test("finds a JWT-shaped value under an innocently-named key", () => {
     expect(
       findSecretShapedValues({
+        // The canonical public example token from jwt.io's own debugger
+        // (used verbatim in virtually every JWT tutorial) — a recognizable
+        // non-secret, same convention as AWS's own "AKIA...EXAMPLE" key id
+        // below, chosen so this fixture doesn't read as a real leaked token.
         publicLabel:
-          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dGhpc19pc19hX2Zha2Vfc2lnbmF0dXJl"
+          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
       })
     ).toEqual(["publicLabel"]);
   });
@@ -192,7 +196,7 @@ describe("findSecretShapedValues", () => {
 
   test("finds a raw Bearer/Basic auth-header value", () => {
     expect(
-      findSecretShapedValues({ title: "Bearer sk-live-abc123xyz" })
+      findSecretShapedValues({ title: "Bearer not-a-real-token-example-0000" })
     ).toEqual(["title"]);
   });
 
@@ -206,14 +210,19 @@ describe("findSecretShapedValues", () => {
 
   test("finds a secret-shaped value nested inside an object", () => {
     expect(
-      findSecretShapedValues({ provider: { note: "Bearer sk-live-abc123xyz" } })
+      findSecretShapedValues({
+        provider: { note: "Bearer not-a-real-token-example-0000" }
+      })
     ).toEqual(["provider.note"]);
   });
 
   test("finds a secret-shaped value nested inside an array of objects", () => {
     expect(
       findSecretShapedValues({
-        webhooks: [{ label: "ok" }, { label: "Bearer sk-live-abc123xyz" }]
+        webhooks: [
+          { label: "ok" },
+          { label: "Bearer not-a-real-token-example-0000" }
+        ]
       })
     ).toEqual(["webhooks[1].label"]);
   });

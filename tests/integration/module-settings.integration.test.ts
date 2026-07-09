@@ -176,7 +176,7 @@ suite("tenant module settings API", () => {
       // `publicLabel` isn't a secret-shaped key name, but the value pasted
       // into it is a raw Bearer token — the value-shape check must still
       // reject it (key-name checking alone would let this through).
-      body: { publicLabel: "Bearer sk-live-abc123xyz" }
+      body: { publicLabel: "Bearer not-a-real-token-example-0000" }
     });
 
     expect(result.status).toBe(400);
