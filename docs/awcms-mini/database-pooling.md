@@ -143,6 +143,17 @@ Alur:
      dihitung sebagai kegagalan infra dan bisa membuka breaker
      aplikasi-lebar hanya dari beberapa request dengan input invalid —
      lihat Issue #599 dan `.changeset/database-circuit-breaker-integrity-violations.md`.
+   - `Bun.SQL.PostgresError` dengan SQLSTATE kelas `22` (data exception —
+     `22P02` invalid_text_representation, `22003` numeric_value_out_of_range,
+     dst.), ditambahkan Issue #601 sebagai generalisasi dari kelas `23` di
+     atas — sama-sama "input caller yang salah bentuk", bukan kegagalan
+     infra (mis. string bukan-UUID yang dibandingkan ke kolom `uuid`).
+     Belum ada endpoint yang mengeksploitasi celah ini saat Issue #601
+     dibuka (setiap identifier caller-supplied sudah divalidasi
+     `assertUuid()` sebelum menyentuh SQL), tapi pengecualian ditambahkan
+     sebagai penutup celah struktural, bukan menunggu endpoint baru
+     mereproduksinya.
+
      Error class lain (koneksi terputus, timeout, syntax error, izin
      ditolak, dst.) tetap dihitung sebagai kegagalan seperti biasa.
 

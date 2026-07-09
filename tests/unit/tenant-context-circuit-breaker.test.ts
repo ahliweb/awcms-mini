@@ -25,7 +25,7 @@ function fakeSql(): Bun.SQL {
   } as unknown as Bun.SQL;
 }
 
-describe("withTenant circuit breaker (Issue #599)", () => {
+describe("withTenant circuit breaker (Issue #599, extended by Issue #601)", () => {
   beforeEach(() => {
     resetDatabaseCircuitBreakerForTests();
     resetWorkClassGatesForTests();
@@ -65,6 +65,45 @@ describe("withTenant circuit breaker (Issue #599)", () => {
         errno: "23503"
       }
     );
+
+    for (let i = 0; i < 10; i++) {
+      await expect(
+        withTenant(sql, TENANT_ID, async () => {
+          throw violation;
+        })
+      ).rejects.toBe(violation);
+    }
+
+    expect(getDatabaseCircuitBreaker().canAttempt(new Date())).toBe(true);
+  });
+
+  test("a data exception (22P02 invalid_text_representation) does not trip the breaker", async () => {
+    const sql = fakeSql();
+    const violation = new Bun.SQL.PostgresError(
+      "invalid input syntax for type uuid",
+      {
+        code: "22P02",
+        errno: "22P02"
+      }
+    );
+
+    for (let i = 0; i < 10; i++) {
+      await expect(
+        withTenant(sql, TENANT_ID, async () => {
+          throw violation;
+        })
+      ).rejects.toBe(violation);
+    }
+
+    expect(getDatabaseCircuitBreaker().canAttempt(new Date())).toBe(true);
+  });
+
+  test("a numeric data exception (22003 numeric_value_out_of_range) does not trip the breaker", async () => {
+    const sql = fakeSql();
+    const violation = new Bun.SQL.PostgresError("numeric field overflow", {
+      code: "22003",
+      errno: "22003"
+    });
 
     for (let i = 0; i < 10; i++) {
       await expect(
