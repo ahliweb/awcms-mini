@@ -150,14 +150,17 @@ Astro secara default menolak (403, tanpa body) permintaan `POST`/`PUT`/`PATCH`/`
 
 CRUD ABAC policy row (`awcms_mini_abac_policies` — schema tersedia, evaluator masih pakai aturan generik bawaan, belum ada endpoint kelola policy), dan publikasi event `identity.login.succeeded`/`identity.login.failed` (doc 05, menyusul modul Observability/Logging) belum ada pada tahap ini. `/access/decision-logs` tetap `LIMIT 50` per halaman tapi kini punya keyset pagination opsional (Issue #435, `?cursor=`/`nextCursor` — lihat `src/modules/_shared/keyset-pagination.ts`).
 
-Generic tenant OIDC SSO dan admin policy UI (Issue #591-#592) masih
-backlog untuk epic full-online auth security hardening (#587-#593).
-#587 (gate bersama, lihat §Full-online-only auth security feature gate
-di bawah), #588 (Cloudflare Turnstile, `src/lib/security/turnstile.ts`
-— bukan bagian modul ini, tapi dipanggil dari `POST /auth/login` di
-modul ini via `enforceTurnstileIfRequired`), #589 (MFA/TOTP, lihat
-§MFA/TOTP login challenge di bawah), dan #590 (Google OIDC login, lihat
-§Google OIDC login di bawah) sudah selesai. Lihat skill
+Admin policy UI (Issue #592, minimal UI verifikasi terpisah dari admin
+CRUD API yang sudah ada — lihat §Generic tenant OIDC SSO provider di
+bawah) masih backlog untuk epic full-online auth security hardening
+(#587-#593). #587 (gate bersama, lihat §Full-online-only auth security
+feature gate di bawah), #588 (Cloudflare Turnstile,
+`src/lib/security/turnstile.ts` — bukan bagian modul ini, tapi
+dipanggil dari `POST /auth/login` di modul ini via
+`enforceTurnstileIfRequired`), #589 (MFA/TOTP, lihat §MFA/TOTP login
+challenge di bawah), #590 (Google OIDC login, lihat §Google OIDC login
+di bawah), dan #591 (generic tenant OIDC SSO provider, lihat §Generic
+tenant OIDC SSO provider di bawah) sudah selesai. Lihat skill
 `awcms-mini-auth-online-hardening` untuk detail lintas-issue.
 
 ## MFA/TOTP login challenge (Issue #589)
@@ -264,6 +267,88 @@ invalid_grant` Google terhadap `code` yang salah/bekas/kedaluwarsa
   `google_login_succeeded`).
 - Detail lengkap + rasional lintas-issue: skill
   `awcms-mini-auth-online-hardening` §Google OIDC login.
+
+## Generic tenant OIDC SSO provider (Issue #591)
+
+`src/modules/identity-access/application/tenant-sso.ts` +
+`auth-provider-directory.ts` + `tenant-auth-policy.ts` +
+`src/modules/identity-access/domain/tenant-sso-policy.ts` (break-glass
+evaluation, auto-link domain resolution, admin input validation, pure)
+
+- `src/lib/auth/sso-config.ts`/`sso-credential-crypto.ts`/
+  `generic-oidc-client.ts` (gate env, AES-256-GCM client-secret
+  encryption, discovery/JWKS/token-exchange with per-provider circuit
+  breaker — module-agnostic, same shape as `google-oidc-config.ts`/
+  `mfa-secret-crypto.ts`/`google-oauth-client.ts`).
+
+* Gate gabungan `isSsoRequired(env)` = `isFullOnlineSecurityActive(env)`
+  (#587) ∧ `AUTH_SSO_ENABLED=true` — pola persis
+  `isTurnstileRequired()`/`isMfaRequired()`/`isGoogleLoginRequired()`.
+* **Menggeneralisasi Google OIDC (#590) tanpa mengubahnya**: jalur ini
+  adalah PARALEL terhadap `google-oidc.ts`, bukan pengganti — Google
+  login tetap berjalan lewat kode/tabelnya sendiri persis seperti
+  sebelumnya. SSO generik memakai ulang `awcms_mini_oidc_auth_requests`/
+  `awcms_mini_identity_provider_accounts` (migration 035, sudah generik
+  `provider text` sejak awal — lihat komentar migration itu) dengan
+  `provider = <providerKey>` alih-alih `'google'`.
+* **Skema baru (migration 036)**: `awcms_mini_auth_providers` (tenant
+  master data — `provider_key`, `provider_type='oidc'`, `issuer_url`,
+  `client_id`, client secret terenkripsi AES-256-GCM ATAU nama env var
+  referensi — persis salah satu lewat CHECK constraint, TIDAK PERNAH
+  dikembalikan plaintext oleh endpoint manapun, `scopes`,
+  `allowed_email_domains` jsonb, `enabled`, soft delete) dan
+  `awcms_mini_tenant_auth_policies` (satu baris per tenant —
+  `password_login_enabled`, `sso_enabled`, `sso_required`,
+  `auto_link_verified_email`, `allowed_email_domains` jsonb,
+  `break_glass_identity_ids` jsonb, `mfa_required` reserved untuk
+  kompatibilitas #589 di masa depan, belum ditegakkan). Keduanya RLS
+  `ENABLE`+`FORCE`.
+* **Endpoint login/link generik** — pola identik Google: `GET
+/auth/sso/{providerKey}/start` (unauthenticated, tenant dari
+  header/cookie/`?tenantId=`, tenant di-`SELECT` sebelum INSERT apa pun
+  — pola yang sama PR #598 paksakan ke Google `start.ts` untuk
+  menghindari trip circuit breaker database aplikasi-lebar),
+  `GET .../callback` (redirect target provider, validasi
+  `state`/nonce/ID token kriptografis penuh, MFA gate #589 SAMA persis
+  dengan `login.ts`/Google), `POST .../link` (butuh session, kembalikan
+  `authorizationUrl` sebagai JSON), `POST .../unlink` (high-risk,
+  diaudit `sso_account_unlinked`).
+* **Admin CRUD API** (bukan admin UI — itu Issue #592) dilindungi ABAC
+  (migration 037): `identity_access.sso_providers.{read,create,update,delete}`
+  di `/api/v1/identity/sso/providers`(`/{id}`), dan
+  `identity_access.sso_policy.{read,update}` di
+  `/api/v1/identity/sso/policy`. Semua mutation high-risk: diaudit
+  (`sso_provider_created`/`_updated`/`_deleted`, `sso_policy_updated`).
+* **OIDC discovery per-provider** (beda dari Google yang endpoint-nya
+  hardcoded konstan): `.well-known/openid-configuration` + JWKS
+  di-fetch dari `issuer_url` masing-masing provider, di-cache 1 jam,
+  timeout `AUTH_SSO_DISCOVERY_TIMEOUT_MS` (default 5000ms), circuit
+  breaker PER PROVIDER KEY (`sso-oidc-discovery:<key>`/
+  `sso-oidc-jwks:<key>`/`sso-oidc-token:<key>`) — provider satu tenant
+  yang tidak sehat tidak pernah memengaruhi tenant/provider lain. Hanya
+  kegagalan transport genuine (5xx/network/timeout) yang trip breaker;
+  respons 4xx valid dari provider (`invalid_grant`, dst.) TIDAK —
+  pelajaran yang sama dari PR #596/#598 diterapkan sejak awal di sini.
+* **Break-glass enforcement, di titik SAVE bukan hanya login**:
+  `PATCH /api/v1/identity/sso/policy` menolak (`409
+BREAK_GLASS_REQUIRED`) permintaan yang membuat `sso_required=true`
+  atau `password_login_enabled=false` TANPA minimal satu
+  `break_glass_identity_ids` yang saat ini `active` DENGAN tenant_user
+  membership `active` — dicek ulang dari DB (`saveTenantAuthPolicy`,
+  bukan dipercaya dari body request), bukan sekadar validasi bentuk
+  array. `login.ts` menegakkan `password_login_enabled=false` HANYA
+  ketika `isSsoRequired(env)` aktif — deployment offline/LAN yang tidak
+  pernah menyalakan gate #587/#591 tidak pernah menjalankan query
+  tambahan ini maupun mengalami perubahan perilaku login.
+* **Auto-link by email**, dua lapis fail-closed: `provider.allowed_email_domains`
+  (mirip `AUTH_GOOGLE_ALLOWED_DOMAINS`, per provider) DAN
+  `policy.auto_link_verified_email` sebagai master switch — kalau
+  `false` (default), tidak pernah auto-link, identity harus
+  `POST .../link` eksplisit dari sesi yang sudah login. Provider account
+  selalu ditautkan via `sub` (subject OIDC), TIDAK PERNAH via email
+  semata.
+* Detail lengkap + rasional lintas-issue: skill
+  `awcms-mini-auth-online-hardening` §Generic tenant OIDC SSO provider.
 
 ## Full-online-only auth security feature gate (Issue #587)
 

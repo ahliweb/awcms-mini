@@ -151,6 +151,11 @@ import {
   GOOGLE_OIDC_REQUIRED_WHEN_ENABLED,
   isGoogleLoginEnabled
 } from "../src/lib/auth/google-oidc-config";
+import {
+  isSsoEnabled,
+  SSO_REQUIRED_WHEN_ENABLED
+} from "../src/lib/auth/sso-config";
+import { resolveSsoEncryptionKey } from "../src/lib/auth/sso-credential-crypto";
 
 export type EnvCheckResult = {
   name: string;
@@ -707,6 +712,61 @@ export function checkGoogleOidcConfig(
   });
 }
 
+/**
+ * Generic tenant OIDC SSO (Issue #591, epic: full-online auth hardening).
+ * `AUTH_SSO_ENABLED` left unset (or anything other than `"true"`) requires
+ * nothing else — same "unset/off requires nothing" shape as
+ * `checkTurnstileConfig`/`checkMfaConfig`/`checkGoogleOidcConfig`, validated
+ * independently of the #587 gate for the same reason (an operator can
+ * provision the credential encryption key ahead of time). Per-provider
+ * issuer/client id/secret are tenant-configured DATA
+ * (`awcms_mini_auth_providers`, migration 036), not deployment-level env
+ * vars, so unlike Google OIDC there is nothing provider-specific to check
+ * here — only the shared encryption key, checked for validity (decodes as
+ * base64 to exactly 32 bytes) the same way `checkMfaConfig` validates
+ * `AUTH_MFA_SECRET_ENCRYPTION_KEY`, so a deployment that passes
+ * `config:validate` never later hits the `SSO_MISCONFIGURED` fail-closed
+ * path due to a malformed key.
+ */
+export function checkSsoConfig(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult[] {
+  if (!isSsoEnabled(env)) {
+    return [
+      {
+        name: "SSO config (conditional on AUTH_SSO_ENABLED)",
+        status: "pass",
+        detail: 'AUTH_SSO_ENABLED is not "true" — SSO config not required.'
+      }
+    ];
+  }
+
+  const encryptionKeyWellFormed = resolveSsoEncryptionKey(env) !== null;
+
+  return SSO_REQUIRED_WHEN_ENABLED.map((name) => {
+    if (!isSet(env[name])) {
+      return {
+        name,
+        status: "fail",
+        detail: `AUTH_SSO_ENABLED=true but ${name} is missing or empty.`
+      };
+    }
+
+    if (
+      name === "AUTH_SSO_CREDENTIAL_ENCRYPTION_KEY" &&
+      !encryptionKeyWellFormed
+    ) {
+      return {
+        name,
+        status: "fail",
+        detail: `${name} must be a base64-encoded 32-byte (AES-256) key, e.g. from "openssl rand -base64 32".`
+      };
+    }
+
+    return { name, status: "pass", detail: `${name} is set.` };
+  });
+}
+
 export function runEnvValidation(
   env: NodeJS.ProcessEnv = process.env
 ): EnvCheckResult[] {
@@ -720,6 +780,7 @@ export function runEnvValidation(
     ...checkTurnstileConfig(env),
     ...checkMfaConfig(env),
     ...checkGoogleOidcConfig(env),
+    ...checkSsoConfig(env),
     ...checkOnlineAuthSecurityConfig(env)
   ];
 }

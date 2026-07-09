@@ -14,7 +14,13 @@ import type { Translator } from "./translate";
  * OIDC codes: `GOOGLE_LOGIN_DISABLED`/`GOOGLE_OAUTH_STATE_INVALID`/
  * `GOOGLE_TOKEN_EXCHANGE_FAILED`/`GOOGLE_ID_TOKEN_INVALID`/
  * `GOOGLE_ACCOUNT_NOT_LINKED`/`GOOGLE_ALREADY_LINKED`/`GOOGLE_NOT_LINKED`/
- * `GOOGLE_MISCONFIGURED`) to i18n catalog keys
+ * `GOOGLE_MISCONFIGURED` — and Issue #591's generic tenant OIDC SSO codes:
+ * `SSO_DISABLED`/`SSO_PROVIDER_NOT_FOUND`/`SSO_PROVIDER_DISABLED`/
+ * `SSO_PROVIDER_UNAVAILABLE`/`SSO_OAUTH_STATE_INVALID`/
+ * `SSO_TOKEN_EXCHANGE_FAILED`/`SSO_ID_TOKEN_INVALID`/
+ * `SSO_ACCOUNT_NOT_LINKED`/`SSO_ALREADY_LINKED`/`SSO_NOT_LINKED`/
+ * `SSO_MISCONFIGURED`/`SSO_PROVIDER_KEY_CONFLICT`/`BREAK_GLASS_REQUIRED`/
+ * `PASSWORD_LOGIN_DISABLED`) to i18n catalog keys
  * under the `error.` namespace. Used both server-side (SSR error panels)
  * and to build the
  * client-string JSON blob admin pages inline for their fetch-based action
@@ -60,7 +66,21 @@ export const ERROR_CODE_KEYS: Record<string, string> = {
   GOOGLE_ACCOUNT_NOT_LINKED: "error.google_account_not_linked",
   GOOGLE_ALREADY_LINKED: "error.google_already_linked",
   GOOGLE_NOT_LINKED: "error.google_not_linked",
-  GOOGLE_MISCONFIGURED: "error.google_misconfigured"
+  GOOGLE_MISCONFIGURED: "error.google_misconfigured",
+  SSO_DISABLED: "error.sso_disabled",
+  SSO_PROVIDER_NOT_FOUND: "error.sso_provider_not_found",
+  SSO_PROVIDER_DISABLED: "error.sso_provider_disabled",
+  SSO_PROVIDER_UNAVAILABLE: "error.sso_provider_unavailable",
+  SSO_OAUTH_STATE_INVALID: "error.sso_oauth_state_invalid",
+  SSO_TOKEN_EXCHANGE_FAILED: "error.sso_token_exchange_failed",
+  SSO_ID_TOKEN_INVALID: "error.sso_id_token_invalid",
+  SSO_ACCOUNT_NOT_LINKED: "error.sso_account_not_linked",
+  SSO_ALREADY_LINKED: "error.sso_already_linked",
+  SSO_NOT_LINKED: "error.sso_not_linked",
+  SSO_MISCONFIGURED: "error.sso_misconfigured",
+  SSO_PROVIDER_KEY_CONFLICT: "error.sso_provider_key_conflict",
+  BREAK_GLASS_REQUIRED: "error.break_glass_required",
+  PASSWORD_LOGIN_DISABLED: "error.password_login_disabled"
 };
 
 /**

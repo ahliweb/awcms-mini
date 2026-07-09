@@ -30,10 +30,23 @@ export type LoginAttemptInput = {
   passwordMatches: boolean;
   maxFailedAttempts: number;
   lockoutMinutes: number;
+  /**
+   * Issue #591 (epic: full-online auth hardening) — `true` when the
+   * tenant's `awcms_mini_tenant_auth_policies.password_login_enabled` is
+   * `false` AND this identity is not one of the tenant's configured
+   * break-glass identities. Callers must only ever compute this when
+   * `isSsoRequired(env)` is active (`login.ts`) — every local/offline/LAN
+   * deployment leaves this `false` and this check is a complete no-op,
+   * preserving today's login behavior exactly.
+   */
+  passwordLoginDisabled?: boolean;
 };
 
 export type LoginDenyReason =
-  "tenant_inactive" | "locked" | "invalid_credentials";
+  | "tenant_inactive"
+  | "locked"
+  | "password_login_disabled"
+  | "invalid_credentials";
 
 export type LoginAttemptResult =
   | { outcome: "allow" }
@@ -57,6 +70,10 @@ export function evaluateLoginAttempt(
       isAccountLocked(input.identity.lockedUntil, input.now))
   ) {
     return { outcome: "deny", reason: "locked" };
+  }
+
+  if (input.identity && input.passwordLoginDisabled) {
+    return { outcome: "deny", reason: "password_login_disabled" };
   }
 
   const isValid =

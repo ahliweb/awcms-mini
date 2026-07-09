@@ -179,6 +179,48 @@ msgstr "Tidak ada akun Google yang sedang tertaut."
 msgid "error.google_misconfigured"
 msgstr "Login Google salah konfigurasi di server ini."
 
+msgid "error.sso_disabled"
+msgstr "SSO OIDC tenant tidak diaktifkan untuk deployment ini."
+
+msgid "error.sso_provider_not_found"
+msgstr "Tidak ada provider SSO aktif yang cocok dengan kunci ini."
+
+msgid "error.sso_provider_disabled"
+msgstr "Provider SSO ini dinonaktifkan."
+
+msgid "error.sso_provider_unavailable"
+msgstr "Provider SSO tidak dapat dihubungi. Coba lagi nanti."
+
+msgid "error.sso_oauth_state_invalid"
+msgstr "Login SSO tidak dapat diverifikasi. Silakan coba lagi."
+
+msgid "error.sso_token_exchange_failed"
+msgstr "Login SSO tidak dapat diselesaikan. Silakan coba lagi."
+
+msgid "error.sso_id_token_invalid"
+msgstr "Login SSO tidak dapat diverifikasi. Silakan coba lagi."
+
+msgid "error.sso_account_not_linked"
+msgstr "Tidak ada akun yang tertaut ke identitas SSO ini."
+
+msgid "error.sso_already_linked"
+msgstr "Akun SSO sudah tertaut."
+
+msgid "error.sso_not_linked"
+msgstr "Tidak ada akun SSO yang sedang tertaut."
+
+msgid "error.sso_misconfigured"
+msgstr "SSO OIDC tenant salah konfigurasi di server ini."
+
+msgid "error.sso_provider_key_conflict"
+msgstr "Provider dengan kunci ini sudah ada."
+
+msgid "error.break_glass_required"
+msgstr "Perubahan ini membutuhkan minimal satu identitas break-glass yang masih aktif."
+
+msgid "error.password_login_disabled"
+msgstr "Login password dinonaktifkan untuk akun ini. Gunakan single sign-on."
+
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"
 msgstr "Tanpa role"
