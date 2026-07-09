@@ -139,9 +139,18 @@ if (statusSummary.gateActive && CAN_READ_ANYTHING) {
         providers = await listAuthProviders(tx, context.tenantId);
       }
       if (CAN_READ_POLICY && CAN_READ_USERS) {
-        breakGlassCandidates = await fetchTenantUsersWithRoles(
+        // Issue #605: only offer identities that could actually still pass
+        // `countEligibleBreakGlassIdentities`'s own eligibility check
+        // (`saveTenantAuthPolicy`) — the underlying directory query lists
+        // every tenant user (needed elsewhere, e.g. `admin/access-users`),
+        // but selecting an inactive/suspended one here would be a doomed
+        // choice the server rejects only after submit.
+        const allTenantUsers = await fetchTenantUsersWithRoles(
           tx,
           context.tenantId
+        );
+        breakGlassCandidates = allTenantUsers.filter(
+          (user) => user.status === "active" && user.identityStatus === "active"
         );
       }
     });

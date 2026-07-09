@@ -653,8 +653,36 @@ dihasilkan:
   `src/modules/identity-access/README.md` sudah akurat sejak #587-#591
   masing-masing — dikonfirmasi ulang oleh #593, tidak diubah.
 
-Issue #601 (SQLSTATE class 22 circuit-breaker exclusion), #603 (SSRF
-hardening untuk `issuer_url` OIDC tenant-configured), dan #605 (break-glass
-picker/data-hygiene UX admin) tetap terbuka sebagai issue terpisah — #593
-sengaja tidak mencoba menutupnya (lihat §Batasan yang dicatat, bukan
-diabaikan di threat model doc 20 untuk detailnya).
+Issue #601 (SQLSTATE class 22 circuit-breaker exclusion) dan #605
+(break-glass picker/data-hygiene UX admin) sudah **selesai** sebagai
+follow-up terpisah setelah #593 (lihat §Break-glass picker/data-hygiene di
+bawah untuk #605). Issue #603 (SSRF hardening untuk `issuer_url` OIDC
+tenant-configured) tetap terbuka.
+
+### Break-glass picker/data-hygiene (Issue #605, selesai)
+
+Follow-up dari security-auditor review PR #604 (#592) — dua celah UX
+non-blocking (bukan bypass keamanan; `saveTenantAuthPolicy` selalu tetap
+jadi kontrol otoritatif) diperbaiki:
+
+- **Picker checkbox `admin/security.astro` sekarang memfilter kandidat ke
+  `tenant_user.status === 'active' && identity.status === 'active'`**
+  sebelum dirender — sebelumnya menampilkan SEMUA tenant user (termasuk
+  yang suspended/inactive) sebagai pilihan break-glass, sehingga admin
+  bisa memilih identity yang jelas akan ditolak server baru diketahui
+  setelah submit. `fetchTenantUsersWithRoles` (dipakai bersama
+  `admin/access-users.astro`) sendiri TIDAK diubah — filternya di titik
+  pemakaian (`security.astro`), bukan di query yang dipakai bersama.
+- **`saveTenantAuthPolicy` sekarang memfilter `break_glass_identity_ids`
+  yang DIPERSIST ke hanya id yang dikonfirmasi eligible** oleh
+  `fetchEligibleBreakGlassIdentityIds` (fungsi baru — `countEligibleBreakGlassIdentities`
+  kini wrapper tipis di atasnya, `scripts/security-readiness.ts`'s
+  `checkSsoBreakGlassReady` tidak berubah karena signature count-nya
+  sama), bukan menyimpan list yang disubmit apa adanya. Sebelumnya,
+  submit "1 id valid + N id sampah/salah ketik" (mis. lewat manual
+  free-text fallback picker untuk admin tanpa `user_management.read`,
+  atau panggilan API langsung) akan menyimpan SEMUA id termasuk yang
+  sampah, walau hanya satu yang pernah menentukan hasil save. Regression
+  test: `tests/integration/tenant-sso-flow.integration.test.ts`'s
+  "break-glass hygiene: saving policy with 1 valid + N garbage/ineligible
+  ids persists ONLY the valid one".
