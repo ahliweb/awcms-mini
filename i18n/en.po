@@ -150,6 +150,10 @@ msgstr "Tenant Domains"
 msgid "admin.layout.nav_modules"
 msgstr "Modules"
 
+#. Issue #566, epic #555 — tenant-module matrix admin screen
+msgid "admin.layout.nav_module_matrix"
+msgstr "Module Matrix"
+
 msgid "admin.layout.breadcrumb_aria_label"
 msgstr "Breadcrumb"
 
@@ -723,6 +727,33 @@ msgstr "Time"
 
 msgid "admin.modules.no_audit_events"
 msgstr "No recent activity for this module."
+
+#. admin.modules.matrix_* — Issue #566, epic #555 (tenant-module matrix,
+#. single-tenant scope — see src/pages/admin/modules/tenants.astro's own
+#. docblock for the binding scope decision)
+msgid "admin.modules.matrix_title"
+msgstr "Module x Tenant Matrix"
+
+msgid "admin.modules.matrix_intro"
+msgstr "This view shows every module for your current tenant only — it is not a cross-tenant view. Use it to spot dependency issues, protected modules, and health problems across all modules at a glance."
+
+msgid "admin.modules.matrix_filter_warning_label"
+msgstr "Only show modules with a warning"
+
+msgid "admin.modules.tenant_status_column"
+msgstr "Tenant Status"
+
+msgid "admin.modules.warnings_column"
+msgstr "Warnings"
+
+msgid "admin.modules.protected_label"
+msgstr "Protected"
+
+msgid "admin.modules.matrix_dependency_warning_prefix"
+msgstr "Dependency issue:"
+
+msgid "admin.modules.matrix_reverse_dependency_warning_prefix"
+msgstr "Would block disabling:"
 
 #. admin.examples.wizard — Issue #483, non-domain fixture page
 msgid "admin.examples.wizard.nav_title"
