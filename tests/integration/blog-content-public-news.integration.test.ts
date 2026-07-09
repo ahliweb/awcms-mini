@@ -58,7 +58,7 @@ import {
   withNewsTenant
 } from "../../src/modules/blog-content/application/public-news-tenant-resolution";
 import { withTenant } from "../../src/lib/database/tenant-context";
-import { fetchTenantModuleEntries } from "../../src/modules/module-management/application/tenant-module-lifecycle";
+import { fetchTenantModuleEntry } from "../../src/modules/module-management/application/tenant-module-lifecycle";
 import { fetchEffectivePublicRouteSettings } from "../../src/modules/blog-content/application/public-route-settings";
 
 import { GET as newsIndex } from "../../src/pages/news/index";
@@ -807,7 +807,7 @@ suite("public /news routes (Issue #560)", () => {
   // resolved but blog_content disabled" outcomes both produce the
   // identical generic 404 — before this fix they cost a different number
   // of DB round trips (no transaction at all vs one `withTenant`
-  // transaction + one `fetchTenantModuleEntries` query), letting a prober
+  // transaction + one module-enabled lookup query), letting a prober
   // vary the `Host` header to learn "this hostname maps to a real active
   // tenant" purely from response latency once #562 lets
   // `awcms_mini_tenant_domains` hold real mappings. The three tests below
@@ -830,8 +830,12 @@ suite("public /news routes (Issue #560)", () => {
         // Same sequence `checkBlogContentAndRouteGate` (private to
         // `public-news-tenant-resolution.ts`) runs internally — Issue #564
         // added the `fetchEffectivePublicRouteSettings` call alongside the
-        // pre-existing `fetchTenantModuleEntries` one.
-        await fetchTenantModuleEntries(tx, owner.tenantId);
+        // pre-existing module-enabled one; the module-enabled lookup itself
+        // switched from `fetchTenantModuleEntries` (plural) to
+        // `fetchTenantModuleEntry` (singular) as a read-surface narrowing,
+        // still exactly one round trip either way, so this baseline stays
+        // accurate.
+        await fetchTenantModuleEntry(tx, owner.tenantId, "blog_content");
         await fetchEffectivePublicRouteSettings(tx, owner.tenantId);
       }
     );
@@ -855,7 +859,7 @@ suite("public /news routes (Issue #560)", () => {
       wrapCountingSql(baseSql, expectedCounter),
       owner.tenantId,
       async (tx) => {
-        await fetchTenantModuleEntries(tx, owner.tenantId);
+        await fetchTenantModuleEntry(tx, owner.tenantId, "blog_content");
         await fetchEffectivePublicRouteSettings(tx, owner.tenantId);
       }
     );
@@ -904,7 +908,7 @@ suite("public /news routes (Issue #560)", () => {
     // pattern the cross-tenant isolation test above uses) with
     // blog_content left enabled by default (no awcms_mini_tenant_modules
     // row at all -> tenantEnabled defaults to true, see
-    // fetchTenantModuleEntries).
+    // fetchTenantModuleEntry).
     const enabledTenantId = crypto.randomUUID();
     await admin`
       INSERT INTO awcms_mini_tenants (id, tenant_code, tenant_name, status)
