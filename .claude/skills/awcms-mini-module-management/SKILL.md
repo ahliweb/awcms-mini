@@ -62,6 +62,22 @@ Modul `isCore: true` (saat ini hanya `module_management` sendiri) tidak
 bisa dinonaktifkan — ini pencegah _admin lockout_ utama: kemampuan
 mengelola modul lain tidak pernah hilang.
 
+## Baca status tenant-enabled: plural vs singular
+
+`fetchTenantModuleEntries(tx, tenantId)` (semua modul terdaftar) vs
+`fetchTenantModuleEntry(tx, tenantId, moduleKey)` (satu modul,
+`SELECT`-nya di-filter `module_key` langsung, bukan filter di memori).
+Pakai yang **singular** kalau consumer-mu cuma butuh status satu modul
+spesifik (terutama di gate publik/anonim — narrower read surface untuk
+kode yang tidak authenticated), seperti `blog-content`'s
+`public-news-tenant-resolution.ts`. Pakai yang **plural** kalau memang
+butuh daftar lengkap (endpoint `GET /api/v1/tenant/modules`, tenant module
+presets, tenant-module matrix UI). Keduanya punya semantik
+opt-out-by-default yang sama (tidak ada row `awcms_mini_tenant_modules`
+→ `tenantEnabled: true`). Detail lengkap:
+`module-management/README.md` §Tenant module lifecycle, skill
+`awcms-mini-tenant-domain-routing` §Belum ada (Sudah diperbaiki).
+
 ## Tenant module presets (Issue #565, epic #555)
 
 `domain/module-presets.ts` + `application/module-presets.ts`

@@ -26,6 +26,9 @@ import { POST as enableModule } from "../../src/pages/api/v1/tenant/modules/[mod
 import { POST as disableModule } from "../../src/pages/api/v1/tenant/modules/[moduleKey]/disable";
 import { GET as listFormDrafts } from "../../src/pages/api/v1/form-drafts/index";
 import { syncModuleDescriptors } from "../../src/modules/module-management/application/descriptor-sync";
+import { fetchTenantModuleEntry } from "../../src/modules/module-management/application/tenant-module-lifecycle";
+import { getDatabaseClient } from "../../src/lib/database/client";
+import { withTenant } from "../../src/lib/database/tenant-context";
 
 const OWNER_LOGIN = "owner@example.com";
 const OWNER_PASSWORD = "integration-test-owner-password";
@@ -112,6 +115,41 @@ suite("tenant module lifecycle API", () => {
 
     expect(result.status).toBe(200);
     expect(result.body.data.modules.every((m) => m.tenantEnabled)).toBe(true);
+  });
+
+  test("fetchTenantModuleEntry (single-module narrowing of fetchTenantModuleEntries, security audit follow-up) matches the plural function's per-entry result before and after a real disable", async () => {
+    const owner = await bootstrap();
+    const sql = getDatabaseClient();
+
+    const beforeDisable = await withTenant(sql, owner.tenantId, (tx) =>
+      fetchTenantModuleEntry(tx, owner.tenantId, "form_drafts")
+    );
+    expect(beforeDisable?.tenantEnabled).toBe(true);
+
+    const disableResult = await invoke<{ data: { tenantEnabled: boolean } }>(
+      disableModule,
+      {
+        method: "POST",
+        path: "/api/v1/tenant/modules/form_drafts/disable",
+        headers: authHeaders(owner),
+        params: { moduleKey: "form_drafts" },
+        body: { reason: "single-module lookup test" }
+      }
+    );
+    expect(disableResult.status).toBe(200);
+
+    const afterDisable = await withTenant(sql, owner.tenantId, (tx) =>
+      fetchTenantModuleEntry(tx, owner.tenantId, "form_drafts")
+    );
+    expect(afterDisable?.tenantEnabled).toBe(false);
+    expect(afterDisable?.disableReason).toBe("single-module lookup test");
+
+    // Unknown module key -> null, same fail-closed shape the caller
+    // (public-news-tenant-resolution.ts) treats as "not enabled".
+    const unknown = await withTenant(sql, owner.tenantId, (tx) =>
+      fetchTenantModuleEntry(tx, owner.tenantId, "does_not_exist")
+    );
+    expect(unknown).toBeNull();
   });
 
   test("disabling a leaf module (no reverse dependents) succeeds and is audited", async () => {

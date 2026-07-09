@@ -280,9 +280,12 @@ routes need before touching a single post row:
    returns `null`.
 2. **Module-disabled + route-mode gate** (`checkBlogContentAndRouteGate`,
    private): inside the same `withTenant(...)` transaction,
-   `fetchTenantModuleEntries` (`module-management/application/tenant-module-lifecycle.ts`,
-   pre-existing) confirms `blog_content` is enabled (explicit Issue #560
-   acceptance criterion), and `fetchEffectivePublicRouteSettings` (Issue
+   `fetchTenantModuleEntry` (`module-management/application/tenant-module-lifecycle.ts`
+   — the single-module narrowing of the plural `fetchTenantModuleEntries`,
+   added as a security audit follow-up so this anonymous gate reads only
+   `blog_content`'s own row, not every registered module's) confirms
+   `blog_content` is enabled (explicit Issue #560 acceptance criterion),
+   and `fetchEffectivePublicRouteSettings` (Issue
    #564, `application/public-route-settings.ts`) confirms the tenant's
    effective `publicRouteMode` is not `"disabled"`. Either failing -> the
    helper returns `null` — indistinguishable from every other non-resolving
@@ -305,7 +308,7 @@ tenant/module/route-mode gate.
 resolved" and "tenant resolved but `blog_content` disabled" both return the
 identical `null`/404, but used to cost a different number of DB round trips
 (the first touched no transaction at all, the second opened `withTenant` +
-one `fetchTenantModuleEntries` query) — an external prober varying the
+one module-enabled lookup query) — an external prober varying the
 `Host` header could have learned "this hostname maps to a real, active
 tenant" purely from response latency once Issue #562's API let
 `awcms_mini_tenant_domains` hold real mappings. Fixed by
@@ -441,7 +444,7 @@ already had a timing side-channel fix (Issue #562's
 real tenant" latency leak). Adding a second condition (`publicRouteMode`)
 to the same branch risked reopening it if the new check's query cost
 weren't paid on every outcome uniformly. Fixed by factoring the whole gate
-(`fetchTenantModuleEntries` + `fetchEffectivePublicRouteSettings`) into one
+(`fetchTenantModuleEntry` + `fetchEffectivePublicRouteSettings`) into one
 private `checkBlogContentAndRouteGate` function that both the real
 resolved-tenant branch **and** `padUnresolvedTenantLatency` call — they can
 never drift apart because they're the same function call, not
