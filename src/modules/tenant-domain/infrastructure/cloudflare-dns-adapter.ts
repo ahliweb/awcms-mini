@@ -59,12 +59,14 @@ import { getProviderCircuitBreaker } from "../../../lib/database/circuit-breaker
 import { withTimeout } from "../../../lib/integration/timeout";
 import { normalizePublicHost } from "../../../lib/tenant/public-host-tenant-resolver";
 import {
+  DEFAULT_TENANT_DOMAIN_CLOUDFLARE_TIMEOUT_MS,
   isKnownTenantDomainDnsProvider,
+  resolveTenantDomainCloudflareTimeoutMs,
   TENANT_DOMAIN_CLOUDFLARE_REQUIRED_WHEN_SELECTED
 } from "../domain/tenant-domain-dns-config";
 
 const PROVIDER_KEY = "tenant-domain-cloudflare-dns";
-const DEFAULT_TIMEOUT_MS = 8_000;
+const DEFAULT_TIMEOUT_MS = DEFAULT_TENANT_DOMAIN_CLOUDFLARE_TIMEOUT_MS;
 const MAX_ERROR_MESSAGE_LENGTH = 300;
 const DEFAULT_API_BASE_URL = "https://api.cloudflare.com/client/v4";
 const MAX_TXT_VALUE_LENGTH = 2048; // Cloudflare TXT record content limit.
@@ -114,6 +116,7 @@ export type CloudflareDnsProviderConfig = {
   platformRootDomain: string;
   /** Override for tests/dev only — a local fake HTTP server standing in for the Cloudflare API. Always supplied from configuration, never from request/user input (SSRF-safe, same convention as `mailketing-provider.ts`'s `baseUrl` override). */
   baseUrl?: string;
+  /** Defaults to `DEFAULT_TIMEOUT_MS` (8s) if omitted. `resolveTenantDomainDnsProvider` below always passes `resolveTenantDomainCloudflareTimeoutMs(env)` here, so production deployments tune this via `TENANT_DOMAIN_CLOUDFLARE_TIMEOUT_MS`, not by editing code. */
   timeoutMs?: number;
 };
 
@@ -550,5 +553,10 @@ export function resolveTenantDomainDnsProvider(
     );
   }
 
-  return createCloudflareDnsProvider({ zoneId, apiToken, platformRootDomain });
+  return createCloudflareDnsProvider({
+    zoneId,
+    apiToken,
+    platformRootDomain,
+    timeoutMs: resolveTenantDomainCloudflareTimeoutMs(env)
+  });
 }

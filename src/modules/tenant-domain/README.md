@@ -293,7 +293,7 @@ instead of inventing one under time pressure.
 
 ### Config (`domain/tenant-domain-dns-config.ts`, `scripts/validate-env.ts`'s `checkTenantDomainDnsConfig`)
 
-Four env vars, all optional/backward-compatible:
+Five env vars, all optional/backward-compatible:
 
 - `TENANT_DOMAIN_DNS_PROVIDER` — `manual` (default) | `cloudflare`. Left
   unset, `config:validate` passes exactly as before this issue.
@@ -315,11 +315,25 @@ Four env vars, all optional/backward-compatible:
   DB table, and never returned in any API response or rendered in any admin
   UI (binding rule, Issue #567 §Security notes; also epic #555's own §Aturan
   lintas-issue #7).
+- `TENANT_DOMAIN_CLOUDFLARE_TIMEOUT_MS` — always optional, even when
+  `cloudflare` is selected. Per-call timeout (ms) for the adapter's
+  `withTimeout`-bounded network calls; unset or invalid always falls back to
+  the safe default (8s) rather than failing boot — not in
+  `TENANT_DOMAIN_CLOUDFLARE_REQUIRED_WHEN_SELECTED`, and not checked by
+  `checkTenantDomainDnsConfig` for the same reason `EMAIL_SEND_TIMEOUT_MS`
+  isn't checked either (security audit follow-up on PR #580 — this value
+  used to be hardcoded with no way to tune it per-deployment).
 
 ### Adapter (`infrastructure/cloudflare-dns-adapter.ts`)
 
 Port `TenantDomainDnsProvider` with two methods, both timeout-bounded
-(`withTimeout`, default 8s) and gated by a shared circuit breaker
+(`withTimeout`, default 8s — tunable via `TENANT_DOMAIN_CLOUDFLARE_TIMEOUT_MS`,
+resolved by `resolveTenantDomainCloudflareTimeoutMs`
+(`domain/tenant-domain-dns-config.ts`) the same way
+`email/domain/email-config.ts`'s `resolveEmailSendTimeoutMs` resolves
+`EMAIL_SEND_TIMEOUT_MS`: unset/invalid always falls back to the default,
+never fails boot; security audit follow-up on PR #580, previously
+hardcoded) and gated by a shared circuit breaker
 (`getProviderCircuitBreaker("tenant-domain-cloudflare-dns")`) — the same
 pattern `email/infrastructure/mailketing-provider.ts` and
 `sync-storage/infrastructure/object-storage-uploader.ts` already use, and
