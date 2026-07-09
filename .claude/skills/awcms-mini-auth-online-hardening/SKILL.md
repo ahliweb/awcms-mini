@@ -668,29 +668,47 @@ berasal dari data tenant-configured, bukan env server tepercaya (beda dari
 setiap provider lain — R2, Mailketing, Cloudflare DNS/Turnstile — yang
 semuanya SSRF-safe by convention: URL selalu dari `process.env`).
 
-**Kenapa TIDAK diblok** (bukan oversight — keputusan eksplisit): AWCMS-Mini
-secara sengaja mendukung deployment LAN-first/offline (doc 18) di mana
-provider OIDC tenant SAH beroperasi di IP privat (mis. Keycloak/ADFS
-on-prem hanya reachable lewat LAN, `10.x`/`192.168.x`). Blanket private-IP
-block akan mematahkan skenario deployment SAH ini — bukan cuma mencegah
-serangan, seperti yang biasanya jadi concern SaaS-only. Ini beda dari
-kebanyakan aplikasi SaaS murni yang boleh asumsikan semua backend
-tenant-configured selalu di internet publik.
+**Kenapa TIDAK diblok — dikoreksi setelah audit keamanan PR #609** (versi
+awal keputusan ini salah menyebut LAN-first/offline sebagai alasan;
+faktanya fitur generic SSO ini HANYA aktif di profil `full_online`
+(`isFullOnlineSecurityActive`) — KEBALIKAN dari LAN-first/offline, yang
+tidak pernah memuat kode ini sama sekali karena gate-nya tidak aktif).
+Alasan yang benar: deployment `full_online` (cloud/registry) tetap sering
+perlu terhubung ke IdP enterprise milik tenant yang di-host on-prem dan
+hanya reachable lewat VPN/tunnel privat — pola "bring-your-own-IdP" yang
+umum di produk SaaS multi-tenant (WorkOS, Auth0 Enterprise Connections,
+dst. — BUKAN Okta/Auth0/Azure AD sendiri sebagai IdP, yang bukan analogi
+yang tepat karena AWCMS-Mini di sini berperan sebagai relying party yang
+memanggil issuer pihak ketiga, bukan sebagai IdP). Blanket private-IP
+block akan mematahkan skenario enterprise-IdP-via-VPN ini.
 
-**Mitigasi yang tetap jadi kontrol utama**: gate ABAC
-(`identity_access.sso_providers.create`/`update`, sudah ada sejak #591),
-audit log setiap create/update provider (`sso_provider_created`/
-`sso_provider_updated`, sudah ada), dan segmentasi jaringan level operator
-untuk service internal yang sungguh sensitif — sama seperti model Okta/
-Auth0/Azure AD sendiri (semuanya mengizinkan admin-configured issuer URL
-tanpa pembatasan IP-range).
+**Batas mitigasi yang sebenarnya (dikoreksi)** — PENTING, jangan anggap
+sudah menutup risiko eksploitasi: gate ABAC
+(`identity_access.sso_providers.create`/`update`) dan audit log HANYA
+membatasi siapa yang bisa MENGONFIGURASI `issuer_url` jahat. Keduanya
+TIDAK membatasi siapa yang bisa MEMICU fetch keluar setelah provider
+dikonfigurasi — `GET /api/v1/auth/sso/{providerKey}/start` yang memicu
+`discoverOidcConfiguration` bersifat tanpa autentikasi, hanya rate-limit
+per-sumber+tenant (bukan per-`providerKey`), dan discovery cache hanya
+terisi pada request SUKSES — target internal yang tak pernah membalas
+JSON OIDC valid tak pernah ter-cache, sehingga endpoint publik ini bisa
+dipakai probe berulang tanpa batas nyata. Ini risiko residual yang
+diterima BERSAMA keputusan utama, bukan celah yang sudah tertutup oleh
+ABAC — segmentasi jaringan level operator untuk service internal yang
+sungguh sensitif tetap jadi lapis pertahanan yang sebenarnya, bukan ABAC.
 
-**Kalau butuh SSRF hardening di masa depan** (mis. untuk profil deployment
-full-online/multi-tenant-SaaS murni yang TIDAK butuh dukungan on-prem
-LAN): jangan blanket-block — tambahkan sebagai opt-in per-deployment (env
-var terpisah, default off) supaya deployment LAN-first tidak pernah
-terkena regresi diam-diam. Jangan reimplementasi keputusan ini tanpa
-membaca rasional di atas dulu.
+**Follow-up yang belum diimplementasi** (opsional, tidak menunda
+keputusan utama #603): rate limit per-`providerKey` (bukan cuma
+sumber+tenant), negative/short-TTL cache untuk percobaan discovery yang
+GAGAL (supaya probe berulang tak selalu memicu fetch baru), rekomendasi
+infra-layer blokir egress ke `169.254.169.254` (metadata endpoint cloud)
+khusus deployment `full_online` (residual paling konkret karena profil
+ini yang paling mungkin jalan di infrastruktur cloud). **Kalau butuh SSRF
+hardening lebih ketat di masa depan** (mis. operator `full_online` murni
+SaaS yang tidak butuh IdP on-prem sama sekali): jangan blanket-block —
+tambahkan sebagai opt-in per-deployment (env var terpisah, default off)
+supaya skenario enterprise-IdP-via-VPN tidak pernah terkena regresi diam-diam.
+Jangan reimplementasi keputusan ini tanpa membaca rasional di atas dulu.
 
 ### Break-glass picker/data-hygiene (Issue #605, selesai)
 

@@ -382,21 +382,41 @@ sekali — `APP_ENV=production` **bukan** proxy untuk gate ini (lihat
 - **SSRF hardening untuk `issuer_url` OIDC tenant-configured (#591)** — Issue
   #603, **selesai sebagai keputusan didokumentasikan, bukan perubahan
   kode**: diputuskan TIDAK menambah IP-range denylist (resolve hostname,
-  tolak private/loopback/link-local/metadata-endpoint). AWCMS-Mini secara
-  eksplisit mendukung deployment LAN-first/offline (doc 18 §Topologi
-  deployment LAN-first, dan `deployment-profiles.md`) di mana provider
-  OIDC tenant SAH beroperasi di IP
-  privat (mis. Keycloak/ADFS on-prem di `10.x`/`192.168.x` yang hanya
-  reachable lewat LAN) — blanket private-IP block akan mematahkan
-  skenario deployment SAH ini, bukan cuma mencegah serangan. Mitigasi
-  yang sudah ada dan tetap jadi kontrol utama: gate ABAC
-  (`identity_access.sso_providers.create`/`update`) untuk mengonfigurasi
-  provider, audit log setiap create/update provider (`sso_provider_created`/
-  `sso_provider_updated`), dan segmentasi jaringan di level operator untuk
-  service internal yang sungguh sensitif. Ini konsisten dengan model Okta/
-  Auth0/Azure AD sendiri (semuanya mengizinkan admin-configured issuer URL
-  tanpa pembatasan IP-range). Tidak ada perubahan kode dari keputusan ini —
+  tolak private/loopback/link-local/metadata-endpoint) di
+  `generic-oidc-client.ts`.
+
+  **Koreksi setelah audit keamanan PR #609** (versi awal keputusan ini
+  salah mengaitkan alasan dengan mode deployment LAN-first/offline —
+  fitur ini justru HANYA aktif di profil `full_online`
+  (`isFullOnlineSecurityActive`, doc 18), yaitu KEBALIKAN dari
+  LAN-first/offline yang tidak pernah memuat kode ini sama sekali).
+  Alasan yang benar: deployment `full_online` (cloud/registry) sering
+  tetap perlu terhubung ke IdP enterprise tenant yang di-host on-prem
+  dan hanya reachable lewat VPN/tunnel privat (pola "bring-your-own-IdP"
+  yang umum di SaaS multi-tenant) — blanket private-IP block akan
+  mematahkan skenario SAH ini.
+
+  **Batas mitigasi yang sebenarnya (dikoreksi)**: gate ABAC
+  (`identity_access.sso_providers.create`/`update`) dan audit log
+  hanya membatasi siapa yang bisa MENGONFIGURASI `issuer_url` jahat —
+  KEDUANYA TIDAK membatasi siapa yang bisa MEMICU fetch keluar
+  setelahnya. `GET /api/v1/auth/sso/{providerKey}/start` yang memicu
+  `discoverOidcConfiguration`/dst. bersifat **tanpa autentikasi**,
+  hanya dibatasi rate limit per-sumber+tenant (`start.ts`) — bukan
+  per-`providerKey`, dan cache discovery hanya mengisi pada request
+  SUKSES, sehingga target internal yang tidak pernah membalas JSON OIDC
+  valid tidak pernah di-cache, membiarkan probe berulang tanpa batas
+  lewat endpoint publik ini. Risiko residual ini SENGAJA diterima
+  bersama keputusan utama (tidak menambah IP blocking), tapi dicatat
+  eksplisit di sini alih-alih dianggap sudah tertutup oleh ABAC.
+  Follow-up (rate limit per-`providerKey`, negative-cache percobaan
+  gagal, rekomendasi infra-layer blokir egress `169.254.169.254` untuk
+  deployment `full_online`) dicatat di skill
+  `awcms-mini-auth-online-hardening` §SSRF/`issuer_url`, belum
+  diimplementasi (bukan bagian keputusan #603, follow-up terpisah bila
+  dibutuhkan). Tidak ada perubahan kode dari keputusan #603 sendiri —
   murni dokumentasi risiko yang diterima secara eksplisit.
+
 - **Circuit breaker exclusion untuk SQLSTATE class 22** — Issue #601,
   **selesai** (`isPostgresClientInputError` di `tenant-context.ts` kini
   mencakup kelas `22` dan `23`).
