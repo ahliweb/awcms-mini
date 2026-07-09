@@ -1077,38 +1077,58 @@ export async function checkSsoBreakGlassReady(): Promise<SecurityCheckResult> {
     `) as { id: string }[];
 
     const atRiskTenantIds: string[] = [];
+    const erroredTenants: string[] = [];
 
     for (const tenant of tenants) {
       const tenantId = assertUuid(tenant.id);
 
-      await sql.begin(async (tx) => {
-        await tx.unsafe(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
+      try {
+        await sql.begin(async (tx) => {
+          await tx.unsafe(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
 
-        const policy = await getTenantAuthPolicy(tx, tenantId);
+          const policy = await getTenantAuthPolicy(tx, tenantId);
 
-        if (policy.passwordLoginEnabled && !policy.ssoRequired) {
-          return;
-        }
+          if (policy.passwordLoginEnabled && !policy.ssoRequired) {
+            return;
+          }
 
-        const eligibleCount = await countEligibleBreakGlassIdentities(
-          tx,
-          tenantId,
-          policy.breakGlassIdentityIds
-        );
+          const eligibleCount = await countEligibleBreakGlassIdentities(
+            tx,
+            tenantId,
+            policy.breakGlassIdentityIds
+          );
 
-        if (eligibleCount === 0) {
-          atRiskTenantIds.push(tenantId);
-        }
-      });
+          if (eligibleCount === 0) {
+            atRiskTenantIds.push(tenantId);
+          }
+        });
+      } catch (error) {
+        // One tenant's query failing (corrupt data, transient error, ...)
+        // must not hide a genuine at-risk finding for every OTHER tenant —
+        // isolate it here instead of letting it escape to the outer catch,
+        // which would otherwise abort the whole check after only a partial
+        // scan and report it as an inconclusive error rather than surfacing
+        // whichever tenants were already confirmed at-risk.
+        erroredTenants.push(`${tenantId} (${errorMessage(error)})`);
+      }
     }
 
-    if (atRiskTenantIds.length > 0) {
-      return {
-        name,
-        severity,
-        status: "fail",
-        evidence: `${atRiskTenantIds.length} tenant(s) have sso_required=true or password_login_enabled=false with ZERO currently-eligible break-glass identity: ${atRiskTenantIds.join(", ")}. A break-glass identity may have been deactivated (identity/tenant-user membership) after the policy was saved — saveTenantAuthPolicy only validates eligibility at the moment of save, not continuously.`
-      };
+    if (atRiskTenantIds.length > 0 || erroredTenants.length > 0) {
+      const parts: string[] = [];
+
+      if (atRiskTenantIds.length > 0) {
+        parts.push(
+          `${atRiskTenantIds.length} tenant(s) have sso_required=true or password_login_enabled=false with ZERO currently-eligible break-glass identity: ${atRiskTenantIds.join(", ")}. A break-glass identity may have been deactivated (identity/tenant-user membership) after the policy was saved — saveTenantAuthPolicy only validates eligibility at the moment of save, not continuously.`
+        );
+      }
+
+      if (erroredTenants.length > 0) {
+        parts.push(
+          `${erroredTenants.length} tenant(s) could not be checked: ${erroredTenants.join("; ")}.`
+        );
+      }
+
+      return { name, severity, status: "fail", evidence: parts.join(" ") };
     }
 
     return {

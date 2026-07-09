@@ -30,6 +30,10 @@ Fixed real gaps found by the audit:
   `tenant-auth-policy.ts`) so the eligibility rule is never re-derived a
   second, divergent way. Covered by a new integration test,
   `tests/integration/security-readiness-break-glass.integration.test.ts`.
+  Per-tenant errors during the scan are isolated (caught individually
+  inside the loop) rather than aborting the whole check on the first bad
+  tenant — a single tenant with an unexpected query failure no longer
+  masks a genuine at-risk finding for every other tenant.
 
 Everything else audited (`.env.example`, `scripts/validate-env.ts`,
 OpenAPI, `src/modules/identity-access/README.md`) was already accurate
