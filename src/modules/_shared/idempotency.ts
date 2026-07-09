@@ -53,23 +53,38 @@ export type IdempotencyRecord = {
  * caller already goes through, per that function's own docblock), which
  * rolls back this transaction (so the loser's mutation never persists —
  * required by the "double submit paralel -> tidak dobel" rule in skill
- * `awcms-mini-idempotency`) and returns a clean `409 IDEMPOTENCY_CONFLICT`
- * instead of leaking a raw unique-violation error to ~25 route files.
+ * `awcms-mini-idempotency`).
+ *
+ * If the winner's committed request hash matches ours, `replay` carries its
+ * stored response so `withTenant` can transparently return it — honoring the
+ * pre-existing "key sama + hash sama -> replay" rule even under the race,
+ * instead of forcing a hard `409` on what is really a same-payload retry.
+ * `replay` is `null` only for a genuine hash mismatch (racing request for the
+ * same key with a *different* payload), which still gets a clean
+ * `409 IDEMPOTENCY_CONFLICT` instead of a raw unique-violation error.
  */
 export class IdempotencyRaceLostError extends Error {
   /** Never the raw key (doc 10 masking discipline) — safe to include in logs. */
   readonly idempotencyKeyHash: string;
   readonly requestScope: string;
+  readonly replay: { responseStatus: number; responseBody: unknown } | null;
 
-  constructor(requestScope: string, idempotencyKey: string) {
+  constructor(
+    requestScope: string,
+    idempotencyKey: string,
+    replay: { responseStatus: number; responseBody: unknown } | null = null
+  ) {
     super(
-      `Idempotency key for scope "${requestScope}" was already claimed by a concurrent request.`
+      replay
+        ? `Idempotency key for scope "${requestScope}" was already recorded by a concurrent request with an identical payload.`
+        : `Idempotency key for scope "${requestScope}" was already claimed by a concurrent request with a different payload.`
     );
     this.name = "IdempotencyRaceLostError";
     this.requestScope = requestScope;
     this.idempotencyKeyHash = createHash("sha256")
       .update(idempotencyKey)
       .digest("hex");
+    this.replay = replay;
   }
 }
 
@@ -120,7 +135,28 @@ export async function saveIdempotencyRecord(
     RETURNING id
   `;
 
-  if (rows.length === 0) {
-    throw new IdempotencyRaceLostError(requestScope, idempotencyKey);
+  if (rows.length > 0) {
+    return;
   }
+
+  // Lost the race. `ON CONFLICT` only fires against a row from a transaction
+  // that has already committed (a still-uncommitted conflicting insert would
+  // block us here instead), so the winner is guaranteed visible to this SELECT.
+  const winner = await findIdempotencyRecord(
+    tx,
+    tenantId,
+    requestScope,
+    idempotencyKey
+  );
+
+  throw new IdempotencyRaceLostError(
+    requestScope,
+    idempotencyKey,
+    winner && winner.requestHash === requestHash
+      ? {
+          responseStatus: winner.responseStatus,
+          responseBody: winner.responseBody
+        }
+      : null
+  );
 }

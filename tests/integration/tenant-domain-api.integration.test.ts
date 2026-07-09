@@ -807,7 +807,7 @@ suite("tenant domain management API (Issue #562)", () => {
     expect(primaryRows).toHaveLength(1);
   });
 
-  test("set-primary under concurrent SAME Idempotency-Key: exactly one request wins, the loser gets a clean 409 IDEMPOTENCY_CONFLICT (not a raw error), and the mutation never runs twice", async () => {
+  test("set-primary under concurrent SAME Idempotency-Key + SAME payload: both requests get 200 (winner's mutation, loser's transparent replay), and the mutation never runs twice", async () => {
     const owner = await bootstrap();
 
     const domain = await invoke<{ data: { id: string } }>(createDomain, {
@@ -829,11 +829,13 @@ suite("tenant domain management API (Issue #562)", () => {
 
     const sharedIdempotencyKey = crypto.randomUUID();
 
-    // Same Idempotency-Key sent twice, concurrently — simulates a client
-    // network retry racing its own original request. Under READ COMMITTED
-    // both requests can pass `findIdempotencyRecord` (no row yet) before
-    // either commits; only one can win the
-    // `awcms_mini_idempotency_keys_scope_key` unique index.
+    // Same Idempotency-Key AND same target domain (same request hash) sent
+    // twice, concurrently — simulates a client network retry racing its own
+    // original request. Under READ COMMITTED both requests can pass
+    // `findIdempotencyRecord` (no row yet) before either commits; only one
+    // can win the `awcms_mini_idempotency_keys_scope_key` unique index, but
+    // since the payload is identical the loser must transparently replay the
+    // winner's response ("hash sama -> replay"), not surface a 409.
     const [firstResult, secondResult] = await Promise.all([
       invoke<{ data?: { isPrimary: boolean }; error?: { code: string } }>(
         setPrimaryDomain,
@@ -861,11 +863,10 @@ suite("tenant domain management API (Issue #562)", () => {
       )
     ]);
 
-    const statuses = [firstResult.status, secondResult.status].sort();
-    expect(statuses).toEqual([200, 409]);
-
-    const loser = firstResult.status === 409 ? firstResult : secondResult;
-    expect(loser.body.error?.code).toBe("IDEMPOTENCY_CONFLICT");
+    expect(firstResult.status).toBe(200);
+    expect(secondResult.status).toBe(200);
+    expect(firstResult.body.data?.isPrimary).toBe(true);
+    expect(secondResult.body.data).toEqual(firstResult.body.data);
 
     const admin = getAdminSql();
 
@@ -877,6 +878,72 @@ suite("tenant domain management API (Issue #562)", () => {
     `) as { id: string }[];
     expect(auditRows).toHaveLength(1);
 
+    const idempotencyRows = (await admin`
+      SELECT id FROM awcms_mini_idempotency_keys
+      WHERE tenant_id = ${owner.tenantId} AND idempotency_key = ${sharedIdempotencyKey}
+    `) as { id: string }[];
+    expect(idempotencyRows).toHaveLength(1);
+  });
+
+  test("verify under concurrent SAME Idempotency-Key + DIFFERENT payload (different domain): one request wins (200), the other gets a clean 409 IDEMPOTENCY_CONFLICT (not a raw error)", async () => {
+    const owner = await bootstrap();
+
+    // Two independent domains — `verifyTenantDomain` has no cross-domain
+    // uniqueness constraint (unlike `set-primary`'s primary-dedup index), so
+    // this isolates the idempotency-key race from any other business-logic
+    // race: the only thing that can conflict here is the shared key itself.
+    const first = await invoke<{ data: { id: string } }>(createDomain, {
+      method: "POST",
+      path: "/api/v1/tenant/domains",
+      headers: authHeaders(owner),
+      body: CREATE_BODY
+    });
+    const second = await invoke<{ data: { id: string } }>(createDomain, {
+      method: "POST",
+      path: "/api/v1/tenant/domains",
+      headers: authHeaders(owner),
+      body: { ...CREATE_BODY, hostname: "second-same-key-race.example.com" }
+    });
+
+    const sharedIdempotencyKey = crypto.randomUUID();
+
+    // Same Idempotency-Key, but targeting two *different* domains — the
+    // request hash differs, so the loser must not silently replay the
+    // winner's response; it is a genuine conflict.
+    const [firstResult, secondResult] = await Promise.all([
+      invoke<{ data?: { status: string }; error?: { code: string } }>(
+        verifyDomain,
+        {
+          method: "POST",
+          path: `/api/v1/tenant/domains/${first.body.data.id}/verify`,
+          headers: {
+            ...authHeaders(owner),
+            "idempotency-key": sharedIdempotencyKey
+          },
+          params: { id: first.body.data.id }
+        }
+      ),
+      invoke<{ data?: { status: string }; error?: { code: string } }>(
+        verifyDomain,
+        {
+          method: "POST",
+          path: `/api/v1/tenant/domains/${second.body.data.id}/verify`,
+          headers: {
+            ...authHeaders(owner),
+            "idempotency-key": sharedIdempotencyKey
+          },
+          params: { id: second.body.data.id }
+        }
+      )
+    ]);
+
+    const statuses = [firstResult.status, secondResult.status].sort();
+    expect(statuses).toEqual([200, 409]);
+
+    const loser = firstResult.status === 409 ? firstResult : secondResult;
+    expect(loser.body.error?.code).toBe("IDEMPOTENCY_CONFLICT");
+
+    const admin = getAdminSql();
     const idempotencyRows = (await admin`
       SELECT id FROM awcms_mini_idempotency_keys
       WHERE tenant_id = ${owner.tenantId} AND idempotency_key = ${sharedIdempotencyKey}
