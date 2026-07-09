@@ -40,7 +40,11 @@ import { POST as googleLink } from "../../src/pages/api/v1/auth/providers/google
 import { POST as googleUnlink } from "../../src/pages/api/v1/auth/providers/google/unlink";
 import { GOOGLE_OIDC_ENDPOINTS } from "../../src/lib/auth/google-oidc-config";
 import { resetGoogleJwksCacheForTests } from "../../src/lib/auth/google-oauth-client";
-import { resetProviderCircuitBreakersForTests } from "../../src/lib/database/circuit-breaker";
+import {
+  getDatabaseCircuitBreaker,
+  resetDatabaseCircuitBreakerForTests,
+  resetProviderCircuitBreakersForTests
+} from "../../src/lib/database/circuit-breaker";
 
 const OWNER_LOGIN = "owner@example.com";
 const OWNER_PASSWORD = "integration-test-owner-password";
@@ -215,6 +219,38 @@ suite("Google OIDC login flow (Issue #590)", () => {
 
   beforeEach(async () => {
     await resetDatabase();
+    resetDatabaseCircuitBreakerForTests();
+  });
+
+  test("start rejects a nonexistent tenant WITHOUT tripping the shared database circuit breaker", async () => {
+    // Security review of this PR found that inserting into
+    // awcms_mini_oidc_auth_requests with an unauthenticated, unvalidated
+    // tenantId let a nonexistent tenant trip a foreign-key violation,
+    // which withTenant's catch-all records against the single,
+    // APPLICATION-WIDE database circuit breaker — shared across every
+    // tenant and every endpoint, not scoped to this feature. Five bogus
+    // requests would have opened it and taken down the entire deployment
+    // for 30 seconds at a time, repeatedly, from an unauthenticated
+    // caller. Fixed by checking tenant existence/status via a plain
+    // SELECT (which never throws for a missing row) before ever
+    // attempting the insert.
+    await withEnvOverride(FULL_ONLINE_GOOGLE_ENV, async () => {
+      const bogusTenantId = "00000000-0000-0000-0000-000000000000";
+
+      for (let i = 0; i < 10; i += 1) {
+        const start = await invoke<{ error: { code: string } }>(googleStart, {
+          method: "GET",
+          path: `/api/v1/auth/providers/google/start?tenantId=${bogusTenantId}`
+        });
+        expect(start.status).toBe(403);
+        expect(start.body.error.code).toBe("ACCESS_DENIED");
+      }
+
+      // The shared database breaker must still be closed (i.e. usable) —
+      // if the bug were present, 5 consecutive FK-violation exceptions
+      // would have opened it.
+      expect(getDatabaseCircuitBreaker().canAttempt(new Date())).toBe(true);
+    });
   });
 
   test("disabled mode (default): start/link/unlink all report disabled", async () => {
@@ -408,6 +444,50 @@ suite("Google OIDC login flow (Issue #590)", () => {
           );
           expect(replay.status).toBe(401);
           expect(replay.body.error.code).toBe("GOOGLE_OAUTH_STATE_INVALID");
+        });
+      }
+    );
+  });
+
+  test("concurrent callback requests with the same state only succeed once (race-safe single-use)", async () => {
+    // `consumeOAuthRequest` uses SELECT ... FOR UPDATE + a compare-and-swap
+    // UPDATE ... WHERE consumed_at IS NULL RETURNING id (PR #597's fix for
+    // the equivalent MFA challenge race, reapplied here) — without it,
+    // concurrent requests carrying the same state could all read
+    // "not yet consumed" before any commits and all succeed.
+    const owner = await bootstrapTenant();
+
+    await withEnvOverride(
+      { ...FULL_ONLINE_GOOGLE_ENV, AUTH_GOOGLE_ALLOWED_DOMAINS: "example.com" },
+      async () => {
+        const { state, nonce } = await startGoogleLogin(owner.tenantId);
+        const idToken = signGoogleIdToken({
+          iss: "https://accounts.google.com",
+          aud: GOOGLE_CLIENT_ID,
+          sub: "google-subject-concurrent-replay",
+          email: OWNER_LOGIN,
+          email_verified: true,
+          nonce,
+          exp: Math.floor(Date.now() / 1000) + 3600
+        });
+
+        await withStubbedGoogle({ idToken }, async () => {
+          const callOnce = () =>
+            invoke<{ data?: { token: string } }>(googleCallback, {
+              method: "GET",
+              path: `/api/v1/auth/providers/google/callback?code=some-code&state=${encodeURIComponent(state)}`
+            });
+
+          const results = await Promise.all([
+            callOnce(),
+            callOnce(),
+            callOnce(),
+            callOnce(),
+            callOnce()
+          ]);
+
+          const succeeded = results.filter((result) => result.status === 302);
+          expect(succeeded).toHaveLength(1);
         });
       }
     );

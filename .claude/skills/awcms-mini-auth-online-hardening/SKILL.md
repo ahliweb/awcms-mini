@@ -303,6 +303,32 @@ invalid_grant` untuk `code` yang salah/bekas/kedaluwarsa adalah Google
   `recordFailure` pada 5xx/network error/timeout, tidak pernah pada
   respons 4xx yang valid. JWKS di-cache 1 jam (`fetchGoogleJwks`) —
   jangan fetch JWKS setiap request.
+- **JANGAN pernah INSERT/UPDATE dengan `tenantId` yang belum divalidasi
+  SEBELUM `SELECT` yang aman** — security review PR #598 menemukan
+  `GET .../start` awalnya langsung `INSERT INTO
+awcms_mini_oidc_auth_requests` dengan `tenantId` dari query param
+  tak terautentikasi TANPA mengecek tenant itu benar-benar ada lebih
+  dulu. `tenant_id` punya FK ke `awcms_mini_tenants` — tenant palsu
+  memicu foreign-key violation, dan exception itu ditangkap
+  `withTenant`'s catch-all lalu di-record ke
+  **`getDatabaseCircuitBreaker()`, breaker tunggal APLIKASI-LEBAR**
+  (beda dari breaker per-provider seperti punya Turnstile/Google
+  sendiri — breaker ini dipakai SEMUA endpoint, SEMUA tenant). Lima
+  request dengan `tenantId` acak dari penyerang tak terautentikasi bisa
+  membuka breaker ini dan menjatuhkan SELURUH aplikasi 30 detik,
+  diulang tanpa henti — blast radius lebih besar dari bug Turnstile
+  PR #596. Diperbaiki dengan `SELECT status FROM awcms_mini_tenants
+WHERE id = tenantId` (aman, tidak pernah throw untuk baris kosong)
+  SEBELUM memanggil `createOAuthRequest`, plus rate limiting
+  (`checkRateLimit`, pola sama `login.ts`) sebagai lapis kedua. Fitur
+  online lain (mis. #591 generic SSO) yang punya endpoint tak
+  terautentikasi dengan INSERT/UPDATE ber-FK ke tabel tenant-scoped
+  WAJIB pola yang sama — cek keberadaan/status via SELECT dulu, jangan
+  pernah biarkan sebuah write yang bisa gagal FK constraint jadi baris
+  pertama yang menyentuh DB untuk input tak terautentikasi.
+  Regression test: `google-oidc-flow.integration.test.ts` §"start
+  rejects a nonexistent tenant WITHOUT tripping the shared database
+  circuit breaker".
 - `POST .../link`/`.../unlink`: high-risk, diaudit
   (`google_account_linked`/`google_account_unlinked`); `callback.ts`
   login sukses diaudit `google_login_succeeded`.
@@ -360,7 +386,18 @@ invalid_grant` untuk `code` yang salah/bekas/kedaluwarsa adalah Google
    dalam DB transaction (ADR-0006). JANGAN treat respons 4xx yang valid
    (input attacker-controlled ditolak provider dengan benar) sebagai
    provider-failure — pelajaran dari bug Turnstile PR #596, diulang
-   benar di #590's `exchangeAuthorizationCode`.
+   benar di #590's `exchangeAuthorizationCode`. **Aturan yang sama
+   berlaku untuk breaker DATABASE bawaan** (`getDatabaseCircuitBreaker()`,
+   dipakai `withTenant` untuk SEMUA endpoint/tenant, bukan sekadar satu
+   provider) — endpoint tak terautentikasi TIDAK BOLEH melakukan
+   INSERT/UPDATE ber-FK ke tabel tenant-scoped dengan `tenantId` yang
+   belum divalidasi keberadaannya; exception (mis. foreign-key
+   violation) dari input attacker-controlled akan ditangkap
+   `withTenant`'s catch-all dan mentrip breaker aplikasi-lebar ini —
+   blast radius JAUH lebih besar dari breaker per-provider mana pun
+   (pelajaran PR #598, lihat §Google OIDC login di atas). Selalu
+   `SELECT` (aman, tidak throw untuk baris kosong) sebelum write
+   ber-FK di endpoint yang bisa dijangkau tanpa autentikasi.
 9. **Tabel baru yang tenant-scoped (`awcms_mini_identity_provider_accounts`,
    `awcms_mini_oidc_auth_requests` — #590; `awcms_mini_tenant_auth_policies`
    dst. untuk #591-#592; `awcms_mini_identity_mfa_factors` dkk. — #589)

@@ -33,7 +33,21 @@ gated, with the breaker only tripping on genuine transport failures
 (5xx/network/timeout) — a well-formed `400 invalid_grant` for a bad/reused
 authorization code is Google correctly rejecting attacker-controlled
 input, not an outage, and must never trip the breaker (the same class of
-bug found and fixed in Turnstile's PR #596).
+bug found and fixed in Turnstile's PR #596). The OAuth state/nonce
+exchange is single-use and race-safe (`SELECT ... FOR UPDATE` plus
+compare-and-swap, the same fix PR #597 applied to MFA challenges).
+
+Security review of this PR also found that `GET .../start` inserted a
+row keyed by an unauthenticated, caller-supplied `tenantId` before
+verifying the tenant existed — a nonexistent tenant tripped a
+foreign-key violation that `withTenant`'s catch-all recorded against the
+single, application-wide database circuit breaker (shared by every
+tenant and every endpoint, not just this feature), letting an
+unauthenticated caller take down the entire deployment for 30 seconds at
+a time, repeatedly, with a handful of garbage tenant ids. Fixed by
+checking tenant existence/status via a plain `SELECT` (which never
+throws for a missing row) before ever attempting the insert, plus adding
+source-scoped rate limiting to `start.ts` matching `login.ts`.
 
 Account linking is by Google's `sub` only. Auto-linking a Google login to
 an existing identity by email is fail-closed: it requires both a verified
