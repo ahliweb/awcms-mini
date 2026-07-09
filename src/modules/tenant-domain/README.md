@@ -280,14 +280,118 @@ hostname 409, soft-delete-only, verify idempotency + status gating,
 set-primary atomicity + idempotency, no `verification_token_hash` in any
 response).
 
+## Cloudflare DNS adapter (`infrastructure/cloudflare-dns-adapter.ts`, Issue #567)
+
+Optional enhancement, **not a hard dependency** — manual domain management
+(`POST /api/v1/tenant/domains/{id}/verify`, Issue #562) remains the MVP
+default and keeps working with zero Cloudflare configuration. Nothing in
+this repo calls this adapter yet: no route wires it into `.../verify` or a
+"provision platform subdomain" flow (that is left for a future issue). This
+issue only adds the provider boundary itself — config, adapter, and tests —
+so that future work has a ready-made, security-reviewed integration point
+instead of inventing one under time pressure.
+
+### Config (`domain/tenant-domain-dns-config.ts`, `scripts/validate-env.ts`'s `checkTenantDomainDnsConfig`)
+
+Four env vars, all optional/backward-compatible:
+
+- `TENANT_DOMAIN_DNS_PROVIDER` — `manual` (default) | `cloudflare`. Left
+  unset, `config:validate` passes exactly as before this issue.
+- `TENANT_DOMAIN_PLATFORM_ROOT_DOMAIN` — required only when
+  `TENANT_DOMAIN_DNS_PROVIDER=cloudflare`. **Deliberately a separate
+  variable from `PUBLIC_PLATFORM_ROOT_DOMAIN`** (Issue #556) even though the
+  two will often hold the same value operationally:
+  `PUBLIC_PLATFORM_ROOT_DOMAIN` gates the public host-based _resolver_
+  (which subdomains are trusted to resolve a tenant, Issue #559); this one
+  scopes which hostnames the Cloudflare adapter is allowed to create/query
+  DNS records for. Conflating the two would let a change meant for one
+  concern silently change the other.
+- `TENANT_DOMAIN_CLOUDFLARE_ZONE_ID` — required only when selected. Not a
+  secret in the traditional sense, but still never rendered anywhere and
+  redacted out of any adapter error text as defense in depth (see below).
+- `TENANT_DOMAIN_CLOUDFLARE_API_TOKEN` — required only when selected. A
+  real secret, read from env/secret manager only — **never** stored in
+  `awcms_mini_tenant_domains`, `awcms_mini_module_settings`, or any other
+  DB table, and never returned in any API response or rendered in any admin
+  UI (binding rule, Issue #567 §Security notes; also epic #555's own §Aturan
+  lintas-issue #7).
+
+### Adapter (`infrastructure/cloudflare-dns-adapter.ts`)
+
+Port `TenantDomainDnsProvider` with two methods, both timeout-bounded
+(`withTimeout`, default 8s) and gated by a shared circuit breaker
+(`getProviderCircuitBreaker("tenant-domain-cloudflare-dns")`) — the same
+pattern `email/infrastructure/mailketing-provider.ts` and
+`sync-storage/infrastructure/object-storage-uploader.ts` already use, and
+meant to be called **outside** any DB transaction (ADR-0006):
+
+- `createVerificationRecord({ recordType: "TXT" | "CNAME", recordName, recordValue })`
+  — creates a DNS record on the configured zone. **Idempotent by
+  construction**: it first lists existing records with the same
+  type/name/content and returns `{ ok: true, alreadyExists: true }` without
+  a second write if a match already exists, rather than depending on a
+  specific Cloudflare duplicate-record error code.
+- `checkVerificationStatus({ recordType, recordName, expectedValue })` —
+  lists records at that name/type and reports whether one matches
+  `expectedValue` (`{ ok: true, verified: boolean }`). CNAME comparison
+  normalizes a trailing dot and case before matching.
+
+**Input validation (binding, "no arbitrary DNS record creation from
+user-controlled input")**: `validateDnsRecordInput()` (exported, pure)
+rejects any `recordName` that is not `TENANT_DOMAIN_PLATFORM_ROOT_DOMAIN`
+itself or a subdomain of it — before any network call is attempted. This
+mirrors a real Cloudflare API constraint (one zone id/token can only manage
+records within its own zone), not an arbitrary restriction. Record-name
+shape validation is a **dedicated** check
+(`isValidDnsRecordNameShape`), not a reuse of
+`lib/tenant/public-host-tenant-resolver.ts`'s `normalizePublicHost()` (Issue
+#559): DNS verification record names conventionally use an
+underscore-prefixed label (e.g. `_acme-challenge.example.com`,
+`_awcms-verify.tenant1.platform.example`) that a `Host`-header shape check
+rightly rejects but every DNS verification flow needs to allow.
+`normalizePublicHost()` is still reused, unchanged, for the CNAME _target
+value_ (a real "points-to" hostname, not a record label) — that one keeps
+the strict shape. `recordValue` is further bounded (no `\r`/`\n`, TXT
+content ≤ 2048 chars — Cloudflare's own limit).
+
+**Error redaction (binding, "no token, zone ID internals, or stack
+trace")**: a provider HTTP error never surfaces Cloudflare's own
+`errors[].message` text — only the numeric `errors[].code` values (safe,
+non-identifying) are included. Any thrown-error text (network failure,
+timeout) is also passed through `redact()`, which strips the configured
+`apiToken`/`zoneId` values out of it as defense in depth (e.g. a network
+error whose message happens to embed the request URL, which itself embeds
+the zone id) before truncation to 300 characters.
+
+`resolveTenantDomainDnsProvider(env)` is the production resolver (mirrors
+`email/infrastructure/email-provider-resolver.ts`'s `resolveEmailProvider`
+and `sync-storage/infrastructure/object-storage-uploader.ts`'s
+`resolveObjectUploader`): builds the real Cloudflare provider when fully
+configured, or a safe stub that returns a clear `{ ok: false }` result —
+never throws — for `manual` mode, an unknown provider value, or a
+`cloudflare` selection missing any of the three required vars. `bun run
+config:validate` is what should already have caught a misconfigured
+deployment at boot; this resolver is a second, defensive layer.
+
+Test: `tests/unit/cloudflare-dns-adapter.test.ts` — pure `validateDnsRecordInput`
+cases, and, against a local fake HTTP server (`Bun.serve`, same technique as
+`tests/object-storage-uploader.test.ts`): success (create + idempotent
+re-create), provider error (redaction proven against a server that
+deliberately echoes the token/zone id in its error `message`, which the
+adapter must never forward), timeout, circuit-breaker trip, and
+`resolveTenantDomainDnsProvider`'s missing/invalid/unknown-env behavior.
+`tests/validate-env.test.ts`'s `describe("checkTenantDomainDnsConfig", ...)`
+covers the env-gating rules above.
+
 ## Not yet available
 
-- Admin UI, `/admin/tenant/domains` (Issue #563).
-- The tenant setting that chooses between `/news` and legacy
-  `/blog/{tenantCode}` (Issue #564).
-- Optional Cloudflare DNS adapter (Issue #567) — explicitly out of scope
-  for the whole epic as a hard dependency; manual DNS setup by the
-  operator must keep working without it.
+- Admin UI, `/admin/tenant/domains` (Issue #563) is done, but it never
+  edits Cloudflare provider credentials — that stays env/secret-manager-only
+  by design (out of scope for the whole epic, Issue #567 §Out of scope).
+- Wiring `cloudflare-dns-adapter.ts` into
+  `POST /api/v1/tenant/domains/{id}/verify` or a "provision platform
+  subdomain" endpoint — Issue #567 added the provider boundary only, no
+  route calls it yet.
 
 No `jobs` or `health` are declared on this module's descriptor yet — both
 fields exist on `ModuleDescriptor` but, consistent with

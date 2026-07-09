@@ -198,6 +198,47 @@ tidak tepercaya oleh aplikasi meski operator sudah set `PUBLIC_TRUST_PROXY=true`
 perbaiki konfigurasi proxy-nya, jangan andalkan aplikasi menebak nilai
 mana yang benar.
 
+### Cloudflare DNS adapter (opsional — Issue #567, epic #555, modul `tenant_domain`)
+
+Manual domain management (`POST /api/v1/tenant/domains/{id}/verify`, Issue
+#562) tetap default MVP. Var di bawah ini semuanya opsional/backward
+compatible — tidak di-set sama sekali (atau `TENANT_DOMAIN_DNS_PROVIDER=manual`)
+tetap lulus `config:validate` tanpa var lain wajib, dan **belum ada rute
+apa pun** di repo ini yang memanggil adapter tersebut (lihat
+`src/modules/tenant-domain/README.md` §Cloudflare DNS adapter untuk
+detail lengkap — issue ini hanya menambah provider boundary-nya, bukan
+wiring ke endpoint).
+
+| Var                                  | Wajib           | Default  | Sensitif | Fungsi                                                                            |
+| ------------------------------------ | --------------- | -------- | -------- | --------------------------------------------------------------------------------- |
+| `TENANT_DOMAIN_DNS_PROVIDER`         | –               | `manual` | –        | `manual` (default) atau `cloudflare` — nilai lain gagal validasi                  |
+| `TENANT_DOMAIN_PLATFORM_ROOT_DOMAIN` | bila cloudflare | –        | –        | Root domain platform; adapter menolak record di luar domain ini atau subdomainnya |
+| `TENANT_DOMAIN_CLOUDFLARE_ZONE_ID`   | bila cloudflare | –        | –        | Zone id Cloudflare tempat record dibuat/diperiksa                                 |
+| `TENANT_DOMAIN_CLOUDFLARE_API_TOKEN` | bila cloudflare | –        | Ya       | Token API Cloudflare — hanya dari env/secret manager, tidak pernah disimpan di DB |
+
+Aturan validasi cross-field (`scripts/validate-env.ts`'s
+`checkTenantDomainDnsConfig`): `TENANT_DOMAIN_DNS_PROVIDER` tidak di-set atau
+`manual` → tidak ada var lain wajib. `cloudflare` → ketiga var lain
+(`TENANT_DOMAIN_PLATFORM_ROOT_DOMAIN`/`TENANT_DOMAIN_CLOUDFLARE_ZONE_ID`/
+`TENANT_DOMAIN_CLOUDFLARE_API_TOKEN`) wajib diisi.
+`TENANT_DOMAIN_PLATFORM_ROOT_DOMAIN` sengaja **var terpisah** dari
+`PUBLIC_PLATFORM_ROOT_DOMAIN` (§Public routing di atas) meski keduanya
+biasanya bernilai sama secara operasional — var itu menggerbangi resolver
+host-based publik (Issue #559), var ini menggerbangi hostname mana yang
+boleh disentuh adapter Cloudflare (Issue #567), mencegah perubahan satu
+concern diam-diam mengubah concern lain.
+
+**Catatan keamanan mengikat**: `TENANT_DOMAIN_CLOUDFLARE_API_TOKEN` hanya
+pernah dibaca dari environment/secret manager — tidak pernah disimpan di
+`awcms_mini_tenant_domains`, `awcms_mini_module_settings`, atau tabel DB
+lain mana pun, dan tidak pernah dirender di admin UI mana pun. Error dari
+adapter (`src/modules/tenant-domain/infrastructure/cloudflare-dns-adapter.ts`)
+di-redact: hanya kode error numerik Cloudflare yang disurfacekan (bukan
+teks `.message` mentah), token/zone id disaring dari teks error apa pun
+sebagai defense in depth, dan tidak pernah stack trace. Setiap panggilan
+provider timeout-bounded (default 8 detik) dan dijalankan di luar
+transaksi DB mana pun (ADR-0006).
+
 ### Provider CRM (opsional) — contoh domain retail/POS
 
 | Var                    | Wajib      | Default | Sensitif | Fungsi             |

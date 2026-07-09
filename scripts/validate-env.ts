@@ -79,6 +79,18 @@
  *         `PUBLIC_TRUST_PROXY=true` must only be used behind a trusted
  *         reverse proxy, since a future host-based resolver (#559) would
  *         otherwise trust a spoofable `X-Forwarded-Host` header.
+ *  6. Optional Cloudflare DNS adapter (Issue #567, epic #555): if
+ *     TENANT_DOMAIN_DNS_PROVIDER is set, it must be one of
+ *     `KNOWN_TENANT_DOMAIN_DNS_PROVIDERS`
+ *     (`../src/modules/tenant-domain/domain/tenant-domain-dns-config`) —
+ *     `manual` (default/MVP, no extra var required) or `cloudflare` (then
+ *     TENANT_DOMAIN_PLATFORM_ROOT_DOMAIN, TENANT_DOMAIN_CLOUDFLARE_ZONE_ID,
+ *     and TENANT_DOMAIN_CLOUDFLARE_API_TOKEN must all be set). Left unset it
+ *     is *not* an error — manual domain management
+ *     (`POST /api/v1/tenant/domains/{id}/verify`, Issue #562) remains the
+ *     default and keeps working with none of these vars present. Mirrors
+ *     the EMAIL_PROVIDER conditional check above. See
+ *     `src/modules/tenant-domain/README.md` §Cloudflare DNS adapter.
  *
  * Never prints actual secret values — only which variable name is
  * missing/invalid (doc 18: "Var wajib hilang → gagal start dengan pesan
@@ -92,6 +104,11 @@ import {
   EMAIL_REQUIRED_WHEN_ENABLED,
   isKnownEmailProvider
 } from "../src/modules/email/domain/email-config";
+import {
+  isKnownTenantDomainDnsProvider,
+  KNOWN_TENANT_DOMAIN_DNS_PROVIDERS,
+  TENANT_DOMAIN_CLOUDFLARE_REQUIRED_WHEN_SELECTED
+} from "../src/modules/tenant-domain/domain/tenant-domain-dns-config";
 
 export type EnvCheckResult = {
   name: string;
@@ -399,6 +416,65 @@ export function checkPublicRoutingConfig(
   return results;
 }
 
+/**
+ * Optional Cloudflare DNS adapter (Issue #567, epic #555). Manual domain
+ * management stays the default: `TENANT_DOMAIN_DNS_PROVIDER` left unset (or
+ * explicitly `"manual"`) requires none of the Cloudflare vars below and
+ * `config:validate` passes exactly as it does today. Only
+ * `"cloudflare"` gates the three extra vars, mirroring `checkEmailConfig`'s
+ * `EMAIL_PROVIDER=mailketing` conditional above.
+ */
+export function checkTenantDomainDnsConfig(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult[] {
+  const results: EnvCheckResult[] = [];
+  const raw = env.TENANT_DOMAIN_DNS_PROVIDER;
+
+  if (!isSet(raw)) {
+    results.push({
+      name: "TENANT_DOMAIN_DNS_PROVIDER",
+      status: "pass",
+      detail:
+        "TENANT_DOMAIN_DNS_PROVIDER is not set — defaults to manual domain verification (Issue #562's POST .../verify); no Cloudflare credentials required."
+    });
+    return results;
+  }
+
+  const provider = (raw as string).trim();
+
+  if (!isKnownTenantDomainDnsProvider(provider)) {
+    results.push({
+      name: "TENANT_DOMAIN_DNS_PROVIDER",
+      status: "fail",
+      detail: `TENANT_DOMAIN_DNS_PROVIDER must be one of ${KNOWN_TENANT_DOMAIN_DNS_PROVIDERS.join(", ")}; got "${provider}".`
+    });
+    return results;
+  }
+
+  results.push({
+    name: "TENANT_DOMAIN_DNS_PROVIDER",
+    status: "pass",
+    detail: `TENANT_DOMAIN_DNS_PROVIDER is a known provider (${provider}).`
+  });
+
+  if (provider === "cloudflare") {
+    for (const name of TENANT_DOMAIN_CLOUDFLARE_REQUIRED_WHEN_SELECTED) {
+      if (isSet(env[name])) {
+        results.push({ name, status: "pass", detail: `${name} is set.` });
+        continue;
+      }
+
+      results.push({
+        name,
+        status: "fail",
+        detail: `TENANT_DOMAIN_DNS_PROVIDER=cloudflare but ${name} is missing or empty.`
+      });
+    }
+  }
+
+  return results;
+}
+
 export function runEnvValidation(
   env: NodeJS.ProcessEnv = process.env
 ): EnvCheckResult[] {
@@ -407,7 +483,8 @@ export function runEnvValidation(
     checkSyncConfig(env),
     ...checkR2Config(env),
     ...checkEmailConfig(env),
-    ...checkPublicRoutingConfig(env)
+    ...checkPublicRoutingConfig(env),
+    ...checkTenantDomainDnsConfig(env)
   ];
 }
 
