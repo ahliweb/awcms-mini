@@ -3,9 +3,11 @@ import { fail, ok } from "../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../lib/database/client";
 import { assertUuid } from "../../../../lib/database/tenant-context";
 import { hashPassword } from "../../../../lib/auth/password";
+import { resolveClientIp } from "../../../../lib/security/rate-limit";
+import { enforceTurnstileIfRequired } from "../../../../lib/security/turnstile";
 import { validateSetupInitializeInput } from "../../../../modules/tenant-admin/domain/setup-validation";
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, clientAddress }) => {
   const body = await request.json().catch(() => null);
   const validation = validateSetupInitializeInput(body);
 
@@ -16,6 +18,28 @@ export const POST: APIRoute = async ({ request }) => {
       "Setup input is invalid.",
       {},
       validation.errors
+    );
+  }
+
+  // Full-online-only (Issue #587/#588): a no-op on every local/offline/LAN
+  // deployment, and cheaper than the multi-row tenant/owner INSERT sequence
+  // below when it does apply — verify before either. Setup is a once-only,
+  // singleton-locked endpoint (see the `ON CONFLICT DO NOTHING` claim below),
+  // but still worth gating: an attacker racing this endpoint before a real
+  // operator completes setup is exactly the kind of public, unauthenticated,
+  // high-value target Turnstile exists for.
+  const turnstileResult = await enforceTurnstileIfRequired(
+    (body as Record<string, unknown> | null)?.turnstileToken,
+    resolveClientIp(request, clientAddress)
+  );
+
+  if (!turnstileResult.ok) {
+    return fail(
+      400,
+      turnstileResult.code,
+      turnstileResult.code === "TURNSTILE_REQUIRED"
+        ? "Turnstile verification token is required."
+        : "Turnstile verification failed."
     );
   }
 

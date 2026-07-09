@@ -7,6 +7,7 @@ import {
   checkRateLimit,
   resolveClientIp
 } from "../../../../../lib/security/rate-limit";
+import { enforceTurnstileIfRequired } from "../../../../../lib/security/turnstile";
 import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
 import { completePasswordReset } from "../../../../../modules/identity-access/application/password-reset";
 import { validateCompleteResetInput } from "../../../../../modules/identity-access/domain/password-reset-validation";
@@ -56,9 +57,8 @@ export const POST: APIRoute = async ({ request, clientAddress, locals }) => {
     );
   }
 
-  const validation = validateCompleteResetInput(
-    await request.json().catch(() => null)
-  );
+  const rawBody = await request.json().catch(() => null);
+  const validation = validateCompleteResetInput(rawBody);
 
   if (!validation.valid) {
     return fail(
@@ -67,6 +67,24 @@ export const POST: APIRoute = async ({ request, clientAddress, locals }) => {
       "token and newPassword are required.",
       {},
       validation.errors
+    );
+  }
+
+  // Full-online-only (Issue #587/#588): a no-op on every local/offline/LAN
+  // deployment, and cheaper than the password-hash + DB mutation below when
+  // it does apply — verify before either.
+  const turnstileResult = await enforceTurnstileIfRequired(
+    (rawBody as Record<string, unknown> | null)?.turnstileToken,
+    clientIp
+  );
+
+  if (!turnstileResult.ok) {
+    return fail(
+      400,
+      turnstileResult.code,
+      turnstileResult.code === "TURNSTILE_REQUIRED"
+        ? "Turnstile verification token is required."
+        : "Turnstile verification failed."
     );
   }
 

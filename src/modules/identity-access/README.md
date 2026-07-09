@@ -150,13 +150,14 @@ Astro secara default menolak (403, tanpa body) permintaan `POST`/`PUT`/`PATCH`/`
 
 CRUD ABAC policy row (`awcms_mini_abac_policies` — schema tersedia, evaluator masih pakai aturan generik bawaan, belum ada endpoint kelola policy), dan publikasi event `identity.login.succeeded`/`identity.login.failed` (doc 05, menyusul modul Observability/Logging) belum ada pada tahap ini. `/access/decision-logs` tetap `LIMIT 50` per halaman tapi kini punya keyset pagination opsional (Issue #435, `?cursor=`/`nextCursor` — lihat `src/modules/_shared/keyset-pagination.ts`).
 
-Belum ada implementasi konkret untuk epic full-online auth security
-hardening (Issue #587-#593): Cloudflare Turnstile, MFA/TOTP, Google OIDC
-login, generic tenant OIDC SSO, dan admin policy UI-nya semua masih
-backlog. Issue #587 sendiri sudah selesai (lihat §Full-online-only auth
-security feature gate di bawah) — hanya menambahkan gate bersama
-(`AUTH_ONLINE_SECURITY_ENABLED`/`_PROFILE`), belum ada satu pun fitur
-konkret yang memakainya.
+MFA/TOTP, Google OIDC login, generic tenant OIDC SSO, dan admin policy
+UI (Issue #589-#592) masih backlog untuk epic full-online auth security
+hardening (#587-#593). #587 (gate bersama, lihat §Full-online-only auth
+security feature gate di bawah) dan #588 (Cloudflare Turnstile,
+`src/lib/security/turnstile.ts` — bukan bagian modul ini, tapi
+dipanggil dari `POST /auth/login` di modul ini via
+`enforceTurnstileIfRequired`, lihat skill `awcms-mini-auth-online-hardening`
+§Cloudflare Turnstile) sudah selesai.
 
 ## Full-online-only auth security feature gate (Issue #587)
 

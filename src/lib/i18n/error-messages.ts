@@ -6,8 +6,10 @@ import type { Translator } from "./translate";
  * `RESOURCE_CONFLICT`, `PURGE_BLOCKED_BY_DEPENDENTS`,
  * `PURGE_REQUIRES_SOFT_DELETE`, and — Issue #563 — the tenant domain
  * management API's own `HOSTNAME_CONFLICT`/`INVALID_STATUS_TRANSITION`/
- * `CONCURRENT_UPDATE`, Issue #562) to i18n catalog keys under the `error.`
- * namespace. Used both server-side (SSR error panels) and to build the
+ * `CONCURRENT_UPDATE`, Issue #562 — and Issue #588's Cloudflare Turnstile
+ * gate's own `TURNSTILE_REQUIRED`/`TURNSTILE_INVALID`) to i18n catalog keys
+ * under the `error.` namespace. Used both server-side (SSR error panels)
+ * and to build the
  * client-string JSON blob admin pages inline for their fetch-based action
  * banners (see `AdminLayout.astro`'s client i18n script pattern).
  */
@@ -33,7 +35,9 @@ export const ERROR_CODE_KEYS: Record<string, string> = {
   PURGE_REQUIRES_SOFT_DELETE: "error.purge_requires_soft_delete",
   HOSTNAME_CONFLICT: "error.hostname_conflict",
   INVALID_STATUS_TRANSITION: "error.invalid_status_transition",
-  CONCURRENT_UPDATE: "error.concurrent_update"
+  CONCURRENT_UPDATE: "error.concurrent_update",
+  TURNSTILE_REQUIRED: "error.turnstile_required",
+  TURNSTILE_INVALID: "error.turnstile_invalid"
 };
 
 /**

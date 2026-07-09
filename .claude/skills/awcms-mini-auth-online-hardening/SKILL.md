@@ -29,15 +29,15 @@ keputusan desain yang mengikat semua issue di epic ini sekaligus.
 
 ## Status per issue (jangan bangun ulang yang sudah ada)
 
-| Issue | Scope                                                  | Status                                         |
-| ----- | ------------------------------------------------------ | ---------------------------------------------- |
-| #587  | Gate bersama `AUTH_ONLINE_SECURITY_ENABLED`/`_PROFILE` | **Selesai** — lihat §Gate bersama di bawah     |
-| #588  | Cloudflare Turnstile untuk form auth publik            | Belum dikerjakan                               |
-| #589  | MFA/TOTP login challenge                               | Belum dikerjakan                               |
-| #590  | Google OIDC login                                      | Belum dikerjakan                               |
-| #591  | Generic tenant OIDC SSO provider                       | Belum dikerjakan                               |
-| #592  | Admin UI kebijakan auth security online                | Belum dikerjakan (depends #587 selesai + #591) |
-| #593  | Docs/kontrak/readiness penutup epic                    | Belum dikerjakan (finalisasi setelah #588-592) |
+| Issue | Scope                                                  | Status                                             |
+| ----- | ------------------------------------------------------ | -------------------------------------------------- |
+| #587  | Gate bersama `AUTH_ONLINE_SECURITY_ENABLED`/`_PROFILE` | **Selesai** — lihat §Gate bersama di bawah         |
+| #588  | Cloudflare Turnstile untuk form auth publik            | **Selesai** — lihat §Cloudflare Turnstile di bawah |
+| #589  | MFA/TOTP login challenge                               | Belum dikerjakan                                   |
+| #590  | Google OIDC login                                      | Belum dikerjakan                                   |
+| #591  | Generic tenant OIDC SSO provider                       | Belum dikerjakan                                   |
+| #592  | Admin UI kebijakan auth security online                | Belum dikerjakan (depends #587 selesai + #591)     |
+| #593  | Docs/kontrak/readiness penutup epic                    | Belum dikerjakan (finalisasi setelah #588-592)     |
 
 ## Yang sudah ada — pakai ulang, jangan re-derive
 
@@ -73,6 +73,53 @@ disabled — informational, bukan kegagalan, sesuai acceptance criteria
 `docs/awcms-mini/deployment-profiles.md` §Full-online auth security
 hardening, `src/modules/identity-access/README.md` §Full-online-only
 auth security feature gate.
+
+### Cloudflare Turnstile (Issue #588, `src/lib/security/turnstile.ts`)
+
+Fitur konkret **pertama** yang dibangun di atas gate #587 — pola
+referensi untuk #589-#592 berikutnya. Gate gabungan:
+
+```txt
+isTurnstileRequired(env)
+  = isFullOnlineSecurityActive(env) AND isTurnstileEnabled(env)
+  (isTurnstileEnabled = TURNSTILE_ENABLED === "true")
+```
+
+- **Satu fungsi enforcement dipanggil dari 4 endpoint**:
+  `enforceTurnstileIfRequired(turnstileToken, remoteIp, env)` — dipanggil
+  di `POST /api/v1/auth/login`, `/auth/password/forgot`, `/auth/password/reset`,
+  dan `/setup/initialize`, tepat setelah body divalidasi tapi **sebelum**
+  DB/password hashing (issue's security note: verifikasi Turnstile lebih
+  murah, jangan buang kerja mahal untuk request yang bahkan tidak lolos
+  bot-check). Mengembalikan `{ok:true}` atau `{ok:false, code:
+"TURNSTILE_REQUIRED" | "TURNSTILE_INVALID"}` — **fail closed**:
+  misconfiguration (`resolveTurnstileConfig` → `null`) diperlakukan sama
+  seperti token invalid, bukan dilewati.
+- **Verifikasi env var independen dari gate #587**: `TURNSTILE_ENABLED=true`
+  sendiri sudah mewajibkan `TURNSTILE_SITE_KEY`+`TURNSTILE_SECRET_KEY`
+  di `config:validate`/`security-readiness` (`checkTurnstileConfig`,
+  `scripts/validate-env.ts`) — operator boleh isi kredensial ini lebih
+  dulu tanpa menyalakan `AUTH_ONLINE_SECURITY_ENABLED`; aktivasi runtime
+  tetap butuh KEDUA gate setuju.
+- **`verifyTurnstileToken`** memanggil Cloudflare siteverify server-side
+  (issue's security note: "client widget alone is not security"),
+  timeout-bounded (`withTimeout`) + circuit breaker
+  (`getProviderCircuitBreaker("turnstile")`), pola sama seperti
+  `cloudflare-dns-adapter.ts`/`mailketing-provider.ts`.
+- **CSP** (`astro.config.mjs`): `script-src`/`frame-src` mengizinkan
+  `https://challenges.cloudflare.com` **tanpa syarat** (tidak digerbangi
+  `TURNSTILE_ENABLED` di build time) — alasannya didokumentasikan
+  langsung di file itu: CSP Astro cuma bisa di-bake saat build,
+  sedangkan `TURNSTILE_ENABLED` didesain runtime-toggleable seperti flag
+  lain; widget sendiri tetap runtime-gated lewat `isTurnstileRequired()`
+  di `login.astro`.
+- **Widget UI** hanya di-render di `login.astro` (form publik lain —
+  forgot/reset/setup — belum punya halaman UI di repo ini, baru endpoint
+  API-nya) saat `isTurnstileRequired()` true; token dikirim sebagai field
+  opsional `turnstileToken` di body JSON, dibaca dari hidden field
+  `cf-turnstile-response` yang otomatis diisi widget.
+- Error code i18n: `error.turnstile_required`/`error.turnstile_invalid`
+  (`src/lib/i18n/error-messages.ts`, `i18n/en.po`+`id.po`).
 
 ## Aturan lintas-issue yang wajib diikuti (#588-#593)
 
@@ -126,9 +173,10 @@ auth security feature gate.
 
 ## Belum ada — jangan asumsikan sudah dikerjakan
 
-Semua enam fitur konkret (#588-#592) plus dokumentasi/kontrak penutup
-(#593) masih backlog per 2026-07-09 — hanya gate bersama (#587) yang
-sudah ada di repo ini. Jangan asumsikan `awcms_mini_auth_providers`,
-endpoint `/api/v1/auth/mfa/*`/`/api/v1/auth/providers/google/*`/`/api/v1/auth/sso/*`,
-atau `src/lib/security/turnstile.ts` sudah ada — cek langsung sebelum
-membangun di atasnya.
+Lima fitur (#589-#592) plus dokumentasi/kontrak penutup (#593) masih
+backlog per 2026-07-09 — hanya gate bersama (#587) dan Cloudflare
+Turnstile (#588) yang sudah ada di repo ini. Jangan asumsikan
+`awcms_mini_auth_providers`, `awcms_mini_identity_mfa_factors`, atau
+endpoint `/api/v1/auth/mfa/*`/`/api/v1/auth/providers/google/*`/
+`/api/v1/auth/sso/*` sudah ada — cek langsung sebelum membangun di
+atasnya.

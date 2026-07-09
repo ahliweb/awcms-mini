@@ -99,9 +99,18 @@
  *     deployment. If AUTH_ONLINE_SECURITY_ENABLED=true, AUTH_ONLINE_SECURITY_PROFILE
  *     must be exactly "full_online" (`../src/lib/auth/online-security-config`);
  *     any other value (including the explicitly-contradictory "disabled")
- *     fails validation. This issue only adds the shared gate itself — no
- *     provider (Turnstile/Google/OIDC/TOTP) config is validated here yet,
- *     that lands with each feature's own issue.
+ *     fails validation. Was the shared gate itself only when first added —
+ *     this file now also validates the first concrete feature to consume
+ *     it (item 8 below).
+ *  8. Cloudflare Turnstile (Issue #588, epic: full-online auth hardening):
+ *     if TURNSTILE_ENABLED is not "true", nothing else is required —
+ *     independent of the #587 gate above, so a deployment can configure
+ *     Turnstile credentials ahead of time without flipping
+ *     AUTH_ONLINE_SECURITY_ENABLED on yet. TURNSTILE_ENABLED=true requires
+ *     both TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY
+ *     (`../src/lib/security/turnstile`). Whether Turnstile actually
+ *     activates at runtime depends on BOTH this flag AND the #587 gate
+ *     (`isTurnstileRequired()`), not on this validation alone.
  *
  * Never prints actual secret values — only which variable name is
  * missing/invalid (doc 18: "Var wajib hilang → gagal start dengan pesan
@@ -121,6 +130,10 @@ import {
   TENANT_DOMAIN_CLOUDFLARE_REQUIRED_WHEN_SELECTED
 } from "../src/modules/tenant-domain/domain/tenant-domain-dns-config";
 import { isOnlineSecurityEnabled } from "../src/lib/auth/online-security-config";
+import {
+  isTurnstileEnabled,
+  TURNSTILE_REQUIRED_WHEN_ENABLED
+} from "../src/lib/security/turnstile";
 
 export type EnvCheckResult = {
   name: string;
@@ -538,6 +551,44 @@ export function checkOnlineAuthSecurityConfig(
   ];
 }
 
+/**
+ * Cloudflare Turnstile (Issue #588, epic: full-online auth hardening).
+ * `TURNSTILE_ENABLED` left unset (or anything other than `"true"`) requires
+ * nothing else — mirrors `checkTenantDomainDnsConfig`'s "unset/off requires
+ * nothing" shape. Validated independently of the #587 full-online gate
+ * (`AUTH_ONLINE_SECURITY_ENABLED`/`_PROFILE`) — a deployment can have its
+ * Turnstile credentials configured ahead of time without yet flipping the
+ * outer gate on; the outer gate (checked separately by
+ * `checkOnlineAuthSecurityConfig` above) is what actually decides whether
+ * `isTurnstileRequired()` returns true at runtime.
+ */
+export function checkTurnstileConfig(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult[] {
+  if (!isTurnstileEnabled(env)) {
+    return [
+      {
+        name: "Turnstile config (conditional on TURNSTILE_ENABLED)",
+        status: "pass",
+        detail:
+          'TURNSTILE_ENABLED is not "true" — Turnstile config not required.'
+      }
+    ];
+  }
+
+  return TURNSTILE_REQUIRED_WHEN_ENABLED.map((name) => {
+    if (isSet(env[name])) {
+      return { name, status: "pass", detail: `${name} is set.` };
+    }
+
+    return {
+      name,
+      status: "fail",
+      detail: `TURNSTILE_ENABLED=true but ${name} is missing or empty.`
+    };
+  });
+}
+
 export function runEnvValidation(
   env: NodeJS.ProcessEnv = process.env
 ): EnvCheckResult[] {
@@ -548,6 +599,7 @@ export function runEnvValidation(
     ...checkEmailConfig(env),
     ...checkPublicRoutingConfig(env),
     ...checkTenantDomainDnsConfig(env),
+    ...checkTurnstileConfig(env),
     ...checkOnlineAuthSecurityConfig(env)
   ];
 }

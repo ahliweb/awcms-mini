@@ -8,6 +8,7 @@ import {
   checkRequiredVars,
   checkSyncConfig,
   checkTenantDomainDnsConfig,
+  checkTurnstileConfig,
   runEnvValidation
 } from "../scripts/validate-env";
 
@@ -449,6 +450,61 @@ describe("checkOnlineAuthSecurityConfig", () => {
 
     expect(results).toHaveLength(1);
     expect(results[0]?.status).toBe("pass");
+  });
+});
+
+describe("checkTurnstileConfig", () => {
+  test("passes (single check) when TURNSTILE_ENABLED is not set", () => {
+    const results = checkTurnstileConfig({} as NodeJS.ProcessEnv);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe("pass");
+  });
+
+  test("passes when TURNSTILE_ENABLED=false", () => {
+    const results = checkTurnstileConfig({
+      TURNSTILE_ENABLED: "false"
+    } as NodeJS.ProcessEnv);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe("pass");
+  });
+
+  test("fails and names each missing var when TURNSTILE_ENABLED=true", () => {
+    const results = checkTurnstileConfig({
+      TURNSTILE_ENABLED: "true"
+    } as NodeJS.ProcessEnv);
+
+    const failedNames = results
+      .filter((result) => result.status === "fail")
+      .map((result) => result.name)
+      .sort();
+
+    expect(failedNames).toEqual(
+      ["TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY"].sort()
+    );
+  });
+
+  test("all pass when TURNSTILE_ENABLED=true and both vars are set", () => {
+    const results = checkTurnstileConfig({
+      TURNSTILE_ENABLED: "true",
+      TURNSTILE_SITE_KEY: "site-key-abc",
+      TURNSTILE_SECRET_KEY: "a-real-secret"
+    } as NodeJS.ProcessEnv);
+
+    expect(results.every((result) => result.status === "pass")).toBe(true);
+  });
+
+  test("never includes the configured secret key in any result detail", () => {
+    const results = checkTurnstileConfig({
+      TURNSTILE_ENABLED: "true",
+      TURNSTILE_SITE_KEY: "site-key-abc",
+      TURNSTILE_SECRET_KEY: "super-secret-turnstile-value"
+    } as NodeJS.ProcessEnv);
+
+    for (const result of results) {
+      expect(result.detail).not.toContain("super-secret-turnstile-value");
+    }
   });
 });
 

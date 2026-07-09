@@ -103,7 +103,7 @@ men-set `PUBLIC_*` apa pun tetap berperilaku identik dengan sebelum epic
   dicatat sebagai anomali di log; ini bukan pengganti memperbaiki
   konfigurasi proxy yang salah.
 
-## Full-online auth security hardening (opsional, Issue #587-#592)
+## Full-online auth security hardening (opsional, Issue #587-#593)
 
 Gate terpisah dari profil routing publik di atas — **bukan** bagian dari
 model deployment (`APP_ENV=production` sendiri **tidak** setara dengan
@@ -124,8 +124,18 @@ hardening).
   `AUTH_ONLINE_SECURITY_PROFILE=full_online` — kombinasi lain gagal
   `config:validate`. Mengaktifkan gate ini sendiri tidak mengaktifkan fitur
   apa pun secara konkret; setiap fitur (#588-#592) punya flag env-nya
-  sendiri di atas gate ini, dan belum ada satu pun yang diimplementasikan
-  di repo ini (Issue #587 baru menambahkan gate bersamanya).
+  sendiri di atas gate ini.
+- **Cloudflare Turnstile (Issue #588, selesai)** adalah fitur pertama yang
+  benar-benar diimplementasikan di atas gate ini: set tambahan
+  `TURNSTILE_ENABLED=true` + `TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY`
+  untuk mengaktifkan bot protection di `POST /auth/login`,
+  `/auth/password/forgot`, `/auth/password/reset`, dan
+  `/setup/initialize`. `TURNSTILE_ENABLED` sendiri divalidasi independen
+  dari gate `AUTH_ONLINE_SECURITY_*` (operator boleh isi credential
+  Turnstile lebih dulu), tapi aktivasi runtime-nya tetap butuh keduanya.
+  #589-#593 (MFA/TOTP, Google login, generic SSO, admin policy UI,
+  dokumentasi/kontrak penutup) masih backlog, belum diimplementasikan di
+  repo ini.
 
 ## Cara menjalankan tiap profil
 

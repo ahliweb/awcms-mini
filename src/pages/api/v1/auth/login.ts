@@ -16,6 +16,7 @@ import {
   checkRateLimit,
   resolveClientIp
 } from "../../../../lib/security/rate-limit";
+import { enforceTurnstileIfRequired } from "../../../../lib/security/turnstile";
 
 const MAX_FAILED_ATTEMPTS = Number(process.env.AUTH_LOGIN_MAX_ATTEMPTS ?? 5);
 const LOCKOUT_MINUTES = 15;
@@ -43,6 +44,7 @@ const LOGIN_RATE_LIMIT_WINDOW_SEC = Number(
 type LoginBody = {
   loginIdentifier?: unknown;
   password?: unknown;
+  turnstileToken?: unknown;
 };
 
 export const POST: APIRoute = async ({ request, cookies, clientAddress }) => {
@@ -85,6 +87,24 @@ export const POST: APIRoute = async ({ request, cookies, clientAddress }) => {
       400,
       "VALIDATION_ERROR",
       "loginIdentifier and password are required."
+    );
+  }
+
+  // Full-online-only (Issue #587/#588): a no-op on every local/offline/LAN
+  // deployment (isTurnstileRequired() is false there), and cheaper than the
+  // DB/password-hash work below when it does apply — verify before either.
+  const turnstileResult = await enforceTurnstileIfRequired(
+    body.turnstileToken,
+    clientIp
+  );
+
+  if (!turnstileResult.ok) {
+    return fail(
+      400,
+      turnstileResult.code,
+      turnstileResult.code === "TURNSTILE_REQUIRED"
+        ? "Turnstile verification token is required."
+        : "Turnstile verification failed."
     );
   }
 
