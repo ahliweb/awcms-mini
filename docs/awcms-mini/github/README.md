@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                           |
 | ------------ | ------------------------------- |
 | Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-09T03:50:52.565Z        |
-| Total issue  | 107                             |
-| Open issue   | 0                               |
-| Closed issue | 107                             |
+| Snapshot     | 2026-07-09T05:45:41.368Z        |
+| Total issue  | 114                             |
+| Open issue   | 6                               |
+| Closed issue | 108                             |
 | Labels       | 99 (25 doc 06 + 74 peninggalan) |
 | Milestones   | 25 (6 doc 06 + 19 peninggalan)  |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    0 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                  107 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    6 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                  108 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             99 labels, 25 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
@@ -65,10 +65,23 @@ Update juga metadata di `docs/awcms-mini/README.md`, `06_github_issues_detail.md
 
 ## Ringkasan state saat snapshot
 
-| State  | Jumlah | Catatan                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------ | -----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| OPEN   |      0 | Tidak ada issue open — seluruh backlog (doc06 dan pasca-doc06) sudah `completed`/`not planned`.                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| CLOSED |    107 | 20 issue domain ditutup `not planned`; 18 issue backlog doc06 (#371-#373, #376-#379, #391-#393, #398, #401, #403-#408) ditutup `completed`; epic M9 (#433-#438, #447), 12 issue pasca-analisis lanjutan (#450-#454, #461-#465, #473, #475), epic reusable wizard form (#479, #481-#485), epic reusable email module (#492-#500), epic Module Management (#510-#522), epic blog_content (#536-#543), dan epic online public tenant routing (#555-#567) ditutup `completed` di luar backlog doc06 — lihat bagian di bawah. |
+| State  | Jumlah | Catatan                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------ | -----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OPEN   |      6 | Epic full-online auth security hardening (#588-#593) — enam issue fitur konkret (Turnstile, MFA/TOTP, Google OIDC, generic SSO, admin policy UI) plus penutup docs/kontrak, semuanya masih backlog. Issue pertama epic ini, #587 (gate bersama), sudah `completed` — lihat bagian di bawah.                                                                                                                                                                                                                                                                       |
+| CLOSED |    108 | 20 issue domain ditutup `not planned`; 18 issue backlog doc06 (#371-#373, #376-#379, #391-#393, #398, #401, #403-#408) ditutup `completed`; epic M9 (#433-#438, #447), 12 issue pasca-analisis lanjutan (#450-#454, #461-#465, #473, #475), epic reusable wizard form (#479, #481-#485), epic reusable email module (#492-#500), epic Module Management (#510-#522), epic blog_content (#536-#543), epic online public tenant routing (#555-#567), dan #587 (gate bersama epic auth hardening) ditutup `completed` di luar backlog doc06 — lihat bagian di bawah. |
+
+### Epic full-online auth security hardening #587-#593 in progress (mulai 2026-07-09)
+
+Epic ketiga yang menambahkan modul/fitur langsung di repo base ini
+(setelah `blog_content` dan `tenant_domain`) — enam fitur hardening auth
+**online-only** (Cloudflare Turnstile, MFA/TOTP, Google OIDC login,
+generic tenant OIDC SSO, admin policy UI) di atas login lokal/password +
+session opaque yang sudah ada, tanpa mengubah perilaku default
+offline/LAN/local. Detail lengkap & status per issue: skill
+`awcms-mini-auth-online-hardening`.
+
+- **[#587](https://github.com/ahliweb/awcms-mini/issues/587)** — `completed` — gate bersama `AUTH_ONLINE_SECURITY_ENABLED`/`_PROFILE` (`src/lib/auth/online-security-config.ts`), dua env var opsional yang WAJIB dicek setiap fitur #588-#592 sebelum melakukan apa pun online/provider-terkait. PR [#594](https://github.com/ahliweb/awcms-mini/pull/594) — auto-closed via `Closes #587` di badan PR (bukan tertinggal `open` seperti epic sebelumnya).
+- **#588-#593** — belum dikerjakan (Cloudflare Turnstile, MFA/TOTP, Google OIDC login, generic SSO, admin policy UI, docs/kontrak penutup).
 
 ### Epic online public tenant routing #555-#567 completed (2026-07-08 s.d. 2026-07-09)
 
