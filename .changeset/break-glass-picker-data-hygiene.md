@@ -37,3 +37,11 @@ New regression test in `tests/integration/tenant-sso-flow.integration.test.ts`:
 persists ONLY the valid one" — submits one real identity id alongside two
 syntactically-valid-but-nonexistent UUIDs and confirms only the real one is
 ever persisted, verified via a fresh re-read of the policy.
+
+Per a security-auditor follow-up finding on this PR: the `sso_policy_updated`
+audit event now also records `breakGlassIdentityIdsSubmittedCount`/
+`breakGlassIdentityIdsPersistedCount` (counts only, never the ids
+themselves) whenever `breakGlassIdentityIds` is part of the request, so a
+forensic review of the audit log alone can see that a save silently dropped
+ineligible/garbage ids, without needing a before/after database snapshot
+diff. Covered by a new test in `tests/integration/admin-security-ui.integration.test.ts`.

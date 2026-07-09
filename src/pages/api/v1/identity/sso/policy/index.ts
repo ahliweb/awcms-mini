@@ -140,6 +140,20 @@ export const PATCH: APIRoute = async ({ request, cookies, locals }) => {
       resourceId: tenantId,
       severity: "warning",
       message: "Tenant authentication policy updated.",
+      // Counts only (never the ids themselves — redaction-safe per doc 10
+      // masking discipline) so a forensic review of the audit log alone can
+      // see that `saveTenantAuthPolicy` (Issue #605) silently dropped
+      // ineligible/garbage break-glass ids from this specific save, without
+      // needing a before/after DB snapshot diff to notice.
+      attributes:
+        input.breakGlassIdentityIds !== undefined
+          ? {
+              breakGlassIdentityIdsSubmittedCount:
+                input.breakGlassIdentityIds.length,
+              breakGlassIdentityIdsPersistedCount:
+                result.policy.breakGlassIdentityIds.length
+            }
+          : undefined,
       correlationId
     });
 

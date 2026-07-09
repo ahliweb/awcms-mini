@@ -210,6 +210,42 @@ suite("Admin security UI (Issue #592) — ABAC + audit", () => {
     expect(auditRows[0]!.severity).toBe("warning");
   });
 
+  test("the sso_policy_updated audit event records submitted-vs-persisted break-glass counts when ids are dropped (Issue #605)", async () => {
+    const owner = await bootstrapTenant();
+
+    const ownerIdentityRows = await getAdminSql()`
+      SELECT id FROM awcms_mini_identities
+      WHERE tenant_id = ${owner.tenantId} AND login_identifier = ${OWNER_LOGIN}
+    `;
+    const ownerIdentityId = (ownerIdentityRows[0] as { id: string }).id;
+    const nonexistentId = "99999999-8888-7777-6666-555555555555";
+
+    const result = await invoke<{
+      data: { breakGlassIdentityIds: string[] };
+    }>(updatePolicy, {
+      method: "PATCH",
+      path: "/api/v1/identity/sso/policy",
+      headers: authHeaders(owner),
+      body: {
+        breakGlassIdentityIds: [ownerIdentityId, nonexistentId]
+      }
+    });
+    expect(result.status).toBe(200);
+    expect(result.body.data.breakGlassIdentityIds).toEqual([ownerIdentityId]);
+
+    const admin = getAdminSql();
+    const auditRows = (await admin`
+      SELECT attributes
+      FROM awcms_mini_audit_events
+      WHERE tenant_id = ${owner.tenantId} AND action = 'sso_policy_updated'
+    `) as { attributes: Record<string, unknown> | null }[];
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]!.attributes).toEqual({
+      breakGlassIdentityIdsSubmittedCount: 2,
+      breakGlassIdentityIdsPersistedCount: 1
+    });
+  });
+
   test("a rejected break-glass PATCH (409) does NOT write an sso_policy_updated audit event", async () => {
     const owner = await bootstrapTenant();
 
