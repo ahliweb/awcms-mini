@@ -105,7 +105,24 @@ isTurnstileRequired(env)
   (issue's security note: "client widget alone is not security"),
   timeout-bounded (`withTimeout`) + circuit breaker
   (`getProviderCircuitBreaker("turnstile")`), pola sama seperti
-  `cloudflare-dns-adapter.ts`/`mailketing-provider.ts`.
+  `cloudflare-dns-adapter.ts`/`mailketing-provider.ts` — **dengan satu
+  perbedaan penting yang wajib dipertahankan**: `breaker.recordFailure()`
+  HANYA dipanggil untuk kegagalan transport genuine ke Cloudflare (HTTP
+  non-2xx, body tak terparse, network error/timeout), TIDAK PERNAH untuk
+  respons 2xx yang sah dengan `success:false` (itu Cloudflare menjawab
+  dengan benar bahwa token client-nya salah — hasil normal yang bisa
+  dipicu siapa pun tanpa autentikasi). PR #596 security review menemukan
+  versi awal menyamakan keduanya: breaker ini shared/cross-tenant, dan
+  `enforceTurnstileIfRequired` fail-closed saat breaker terbuka, jadi
+  penyerang bisa mengunci login/password-reset/setup SEMUA tenant hanya
+  dengan mengirim segelintir token sampah setiap ~30 detik. Jangan
+  regresi pola ini di fitur online lain (#589-#592) yang menambah
+  circuit breaker provider baru — bedakan selalu "provider tidak sehat"
+  dari "input client ditolak provider dengan benar". Log
+  `turnstile.circuit_breaker_open`/`turnstile.provider_call_failed`/
+  `turnstile.provider_call_errored` (severity `warning`,
+  `src/lib/logging/logger.ts`) memberi visibilitas operasional untuk
+  keduanya.
 - **CSP** (`astro.config.mjs`): `script-src`/`frame-src` mengizinkan
   `https://challenges.cloudflare.com` **tanpa syarat** (tidak digerbangi
   `TURNSTILE_ENABLED` di build time) — alasannya didokumentasikan

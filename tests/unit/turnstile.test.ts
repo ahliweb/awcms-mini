@@ -203,11 +203,11 @@ describe("verifyTurnstileToken", () => {
     expect((result as { error: string }).error).toMatch(/timed out/i);
   });
 
-  test("opens the circuit breaker after consecutive failures", async () => {
+  test("opens the circuit breaker after consecutive PROVIDER failures (5xx), not client-rejected tokens", async () => {
     using server = Bun.serve({
       port: 0,
       fetch() {
-        return Response.json({ success: false, "error-codes": ["boom"] });
+        return new Response("upstream error", { status: 500 });
       }
     });
 
@@ -224,6 +224,38 @@ describe("verifyTurnstileToken", () => {
 
     expect(sixth.ok).toBe(false);
     expect((sixth as { error: string }).error).toMatch(/circuit breaker/i);
+  });
+
+  test("never trips the circuit breaker on repeated client-rejected tokens (success:false) — an unauthenticated caller must not be able to lock out every tenant's login/reset/setup by submitting garbage tokens", async () => {
+    using server = Bun.serve({
+      port: 0,
+      fetch() {
+        return Response.json({
+          success: false,
+          "error-codes": ["invalid-input-response"]
+        });
+      }
+    });
+
+    const config = {
+      secretKey: "super-secret-turnstile-value",
+      verifyUrl: `http://127.0.0.1:${server.port}`
+    };
+
+    let lastResult:
+      Awaited<ReturnType<typeof verifyTurnstileToken>> | undefined;
+
+    for (let i = 0; i < 10; i += 1) {
+      lastResult = await verifyTurnstileToken("bad-token", config);
+    }
+
+    expect(lastResult?.ok).toBe(false);
+    expect((lastResult as { error: string }).error).not.toMatch(
+      /circuit breaker/i
+    );
+    expect((lastResult as { error: string }).error).toMatch(
+      /invalid-input-response/
+    );
   });
 });
 

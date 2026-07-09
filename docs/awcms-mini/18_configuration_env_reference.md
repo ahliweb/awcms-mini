@@ -112,8 +112,20 @@ online-only ini (lihat `deployment-profiles.md`).
   di `POST /auth/login`, `/auth/password/forgot`, `/auth/password/reset`,
   `/setup/initialize` — token diverifikasi server-side ke Cloudflare
   siteverify SEBELUM proses password/DB yang mahal
-  (`src/lib/security/turnstile.ts`). Detail lengkap: skill
-  `awcms-mini-auth-online-hardening`.
+  (`src/lib/security/turnstile.ts`). **Catatan operasional**: verifikasi
+  fail-closed by design (token hilang/invalid/misconfigured semuanya
+  ditolak) — hanya kegagalan transport genuine ke Cloudflare (HTTP 5xx,
+  network error, timeout) yang membuka circuit breaker-nya; respons
+  `success:false` yang normal (token client memang salah) TIDAK memicu
+  breaker (lihat PR #596 security review — versi awal keliru menyamakan
+  keduanya, memungkinkan siapa pun mengunci login/reset/setup semua
+  tenant dengan mengirim token sampah berulang). Saat breaker benar-benar
+  terbuka (outage Cloudflare sungguhan), seluruh permintaan login/
+  password-reset/setup untuk SEMUA tenant akan ditolak selama jendela
+  breaker (default 30 detik) — operator yang mengaktifkan fitur ini
+  sebaiknya memantau log `turnstile.circuit_breaker_open`/
+  `turnstile.provider_call_failed` (severity `warning`) sebagai sinyal
+  operasional. Detail lengkap: skill `awcms-mini-auth-online-hardening`.
 - #589-#593 (MFA/TOTP, Google login, generic SSO, admin policy UI,
   dokumentasi/kontrak penutup) masih backlog — belum diimplementasikan di
   repo ini.

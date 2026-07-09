@@ -20,6 +20,7 @@
 import { getProviderCircuitBreaker } from "../database/circuit-breaker";
 import { withTimeout } from "../integration/timeout";
 import { isFullOnlineSecurityActive } from "../auth/online-security-config";
+import { log } from "../logging/logger";
 
 const PROVIDER_KEY = "turnstile";
 const DEFAULT_TIMEOUT_MS = 5_000;
@@ -98,6 +99,12 @@ export async function verifyTurnstileToken(
   const secrets = [config.secretKey];
 
   if (!breaker.canAttempt(attemptedAt)) {
+    // Operationally significant: while open, `enforceTurnstileIfRequired`
+    // fails closed and blocks every login/password-reset/setup request for
+    // every tenant. Logged at `warning` so a sustained open breaker (real
+    // Cloudflare outage) is distinguishable from normal traffic.
+    log("warning", "turnstile.circuit_breaker_open");
+
     return {
       ok: false,
       error: "Turnstile circuit breaker is open; skipping attempt.",
@@ -133,20 +140,49 @@ export async function verifyTurnstileToken(
       body = undefined;
     }
 
-    if (response.status < 200 || response.status >= 300 || !body?.success) {
+    // Only a transport-level problem with Cloudflare itself (non-2xx HTTP
+    // status, or a 2xx response we couldn't even parse) counts as a
+    // *provider* failure for circuit-breaker purposes. A well-formed 2xx
+    // response with `success: false` is Cloudflare correctly telling us the
+    // client-submitted token was bad — the normal, expected, and trivially
+    // attacker-repeatable outcome for a garbage/expired/reused token. Feeding
+    // that into `recordFailure` would let anyone trip this shared,
+    // cross-tenant breaker (and, since `enforceTurnstileIfRequired` fails
+    // closed while it's open, lock out login/password-reset/setup for every
+    // tenant) just by submitting a handful of invalid tokens — see PR #596
+    // security review.
+    if (response.status < 200 || response.status >= 300 || !body) {
       breaker.recordFailure(attemptedAt);
+      log("warning", "turnstile.provider_call_failed", {
+        httpStatus: response.status
+      });
 
       return {
         ok: false,
         error: truncate(
           redact(
-            `Turnstile verification failed (HTTP ${response.status}, error codes: ${
-              (body?.["error-codes"] ?? []).join(", ") || "none"
-            }).`,
+            `Turnstile provider call failed (HTTP ${response.status}).`,
             secrets
           )
         ),
         retryable: response.status >= 500 || response.status === 0
+      };
+    }
+
+    if (!body.success) {
+      breaker.recordSuccess(attemptedAt);
+
+      return {
+        ok: false,
+        error: truncate(
+          redact(
+            `Turnstile token rejected (error codes: ${
+              (body["error-codes"] ?? []).join(", ") || "none"
+            }).`,
+            secrets
+          )
+        ),
+        retryable: false
       };
     }
 
@@ -155,6 +191,9 @@ export async function verifyTurnstileToken(
   } catch (error) {
     breaker.recordFailure(attemptedAt);
     const message = error instanceof Error ? error.message : String(error);
+    log("warning", "turnstile.provider_call_errored", {
+      error: redact(truncate(message), secrets)
+    });
 
     return {
       ok: false,

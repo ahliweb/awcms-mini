@@ -239,6 +239,30 @@ suite("Turnstile gate across auth endpoints (Issue #588)", () => {
     expect(result.body.error.code).toBe("TURNSTILE_REQUIRED");
   });
 
+  test("password/forgot: enabled mode accepts a valid turnstileToken end to end", async () => {
+    const owner = await bootstrapTenant();
+
+    const result = await withEnvOverride(FULL_ONLINE_TURNSTILE_ENV, () =>
+      withStubbedSiteverify(true, () =>
+        invoke<{ data: { requested: boolean } }>(passwordForgot, {
+          method: "POST",
+          path: "/api/v1/auth/password/forgot",
+          headers: {
+            "content-type": "application/json",
+            "x-awcms-mini-tenant-id": owner.tenantId
+          },
+          body: {
+            loginIdentifier: OWNER_LOGIN,
+            turnstileToken: "good-token"
+          }
+        })
+      )
+    );
+
+    expect(result.status).toBe(200);
+    expect(result.body.data.requested).toBe(true);
+  });
+
   test("password/reset: enabled mode rejects a request with no turnstileToken, before any token lookup", async () => {
     const owner = await bootstrapTenant();
 

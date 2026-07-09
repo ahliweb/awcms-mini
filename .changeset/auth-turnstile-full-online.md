@@ -18,7 +18,12 @@ query or password hashing. Verification is server-side against
 Cloudflare's siteverify endpoint, timeout-bounded and circuit-breaker
 gated (same pattern as `cloudflare-dns-adapter.ts`/
 `mailketing-provider.ts`), and fails closed: misconfiguration is treated
-as an invalid token, not skipped.
+as an invalid token, not skipped. The circuit breaker only trips on
+genuine provider-transport failures (HTTP 5xx, network error, timeout)
+— a well-formed "token rejected" response never trips it, so an
+unauthenticated caller can't lock out login/password-reset/setup for
+every tenant by submitting a handful of invalid tokens (found and fixed
+during PR review).
 
 New env vars: `TURNSTILE_ENABLED` (default `false`), `TURNSTILE_SITE_KEY`,
 `TURNSTILE_SECRET_KEY`, `TURNSTILE_VERIFY_TIMEOUT_MS` (default `5000`).
