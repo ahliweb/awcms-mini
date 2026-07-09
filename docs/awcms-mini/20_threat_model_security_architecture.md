@@ -383,8 +383,9 @@ sekali — `APP_ENV=production` **bukan** proxy untuk gate ini (lihat
   #603, **selesai sebagai keputusan didokumentasikan, bukan perubahan
   kode**: diputuskan TIDAK menambah IP-range denylist (resolve hostname,
   tolak private/loopback/link-local/metadata-endpoint). AWCMS-Mini secara
-  eksplisit mendukung deployment LAN-first/offline (doc 18
-  §deployment-profiles) di mana provider OIDC tenant SAH beroperasi di IP
+  eksplisit mendukung deployment LAN-first/offline (doc 18 §Topologi
+  deployment LAN-first, dan `deployment-profiles.md`) di mana provider
+  OIDC tenant SAH beroperasi di IP
   privat (mis. Keycloak/ADFS on-prem di `10.x`/`192.168.x` yang hanya
   reachable lewat LAN) — blanket private-IP block akan mematahkan
   skenario deployment SAH ini, bukan cuma mencegah serangan. Mitigasi
