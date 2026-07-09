@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import {
+  findSecretShapedValues,
   findSensitiveKeys,
   redactSensitiveAttributes
 } from "../src/modules/_shared/redaction";
@@ -147,6 +148,74 @@ describe("findSensitiveKeys", () => {
     expect(
       findSensitiveKeys({ webhooks: [{ url: "x", secret: "shh" }] })
     ).toEqual(["secret"]);
+  });
+});
+
+describe("findSecretShapedValues", () => {
+  test("undefined input yields no paths", () => {
+    expect(findSecretShapedValues(undefined)).toEqual([]);
+  });
+
+  test("ordinary label/URL/flag values are left alone", () => {
+    expect(
+      findSecretShapedValues({
+        publicLabel: "Acme News",
+        publicBasePath: "/news",
+        enabled: true,
+        webhookUrl: "https://example.com/hooks/acme"
+      })
+    ).toEqual([]);
+  });
+
+  test("finds a JWT-shaped value under an innocently-named key", () => {
+    expect(
+      findSecretShapedValues({
+        publicLabel:
+          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dGhpc19pc19hX2Zha2Vfc2lnbmF0dXJl"
+      })
+    ).toEqual(["publicLabel"]);
+  });
+
+  test("finds a PEM private key block", () => {
+    expect(
+      findSecretShapedValues({
+        note: "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEA\n-----END PRIVATE KEY-----"
+      })
+    ).toEqual(["note"]);
+  });
+
+  test("finds an AWS access key id", () => {
+    expect(
+      findSecretShapedValues({ description: "AKIAIOSFODNN7EXAMPLE" })
+    ).toEqual(["description"]);
+  });
+
+  test("finds a raw Bearer/Basic auth-header value", () => {
+    expect(
+      findSecretShapedValues({ title: "Bearer sk-live-abc123xyz" })
+    ).toEqual(["title"]);
+  });
+
+  test("finds a connection string with an embedded user:pass@ credential", () => {
+    expect(
+      findSecretShapedValues({
+        webhookUrl: "postgres://admin:hunter2@db.example.com:5432/prod"
+      })
+    ).toEqual(["webhookUrl"]);
+  });
+
+  test("finds a secret-shaped value nested inside an object", () => {
+    expect(
+      findSecretShapedValues({ provider: { note: "Bearer sk-live-abc123xyz" } })
+    ).toEqual(["provider.note"]);
+  });
+
+  test("finds a secret-shaped value nested inside an array of objects", () => {
+    expect(
+      findSecretShapedValues({
+        webhooks: [{ label: "ok" }, { label: "Bearer sk-live-abc123xyz" }]
+      })
+    ).toEqual(["webhooks[1].label"]);
   });
 });
 

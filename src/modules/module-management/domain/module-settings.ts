@@ -6,10 +6,15 @@
  * hands both to these functions, keeping the decision testable without a
  * database.
  */
-import { findSensitiveKeys } from "../../_shared/redaction";
+import {
+  findSecretShapedValues,
+  findSensitiveKeys
+} from "../../_shared/redaction";
 
 export type ModuleSettingsErrorCode =
-  "VALIDATION_ERROR" | "SETTINGS_SENSITIVE_KEY_REJECTED";
+  | "VALIDATION_ERROR"
+  | "SETTINGS_SENSITIVE_KEY_REJECTED"
+  | "SETTINGS_SECRET_SHAPED_VALUE_REJECTED";
 
 export type ModuleSettingsValidationResult =
   | { valid: true; value: Record<string, unknown> }
@@ -28,7 +33,10 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * Validates a `PATCH .../settings` body: must be a JSON object, and must
  * never contain a secret-shaped key anywhere in it (nested included) — real
  * provider secrets belong in environment variables/a secret manager, never
- * in tenant-writable, DB-stored, admin-readable settings.
+ * in tenant-writable, DB-stored, admin-readable settings. Also rejects a
+ * secret-*shaped value* even under an innocently-named key (e.g. a JWT or
+ * `Bearer ...` token pasted into `publicLabel`) — key-name checking alone
+ * can't catch that, since the field's name gives no hint of its content.
  */
 export function validateModuleSettingsPatch(
   body: unknown
@@ -48,6 +56,16 @@ export function validateModuleSettingsPatch(
       valid: false,
       code: "SETTINGS_SENSITIVE_KEY_REJECTED",
       message: `Settings cannot contain secret-shaped keys (${sensitiveKeys.join(", ")}). Provider secrets belong in environment variables or a secret manager, not tenant settings.`
+    };
+  }
+
+  const secretShapedValuePaths = findSecretShapedValues(body);
+
+  if (secretShapedValuePaths.length > 0) {
+    return {
+      valid: false,
+      code: "SETTINGS_SECRET_SHAPED_VALUE_REJECTED",
+      message: `Settings cannot contain a credential-shaped value, regardless of the field's name (found at: ${secretShapedValuePaths.join(", ")}). Provider secrets belong in environment variables or a secret manager, not tenant settings.`
     };
   }
 

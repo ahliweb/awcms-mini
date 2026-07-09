@@ -590,11 +590,12 @@ Validasi nilai: `isPublicRouteMode`/`isValidBasePath`
 (`public-route-settings.ts`) — enum-checked untuk mode, absolute-path +
 no-whitespace + no-`//` + no-trailing-slash untuk base path; nilai tak
 valid jatuh ke default aman, tidak pernah dipakai mentah. `publicLabel`
-tidak divalidasi bentuknya (bebas string, sama seperti `blogTitle` di
-`awcms_mini_blog_settings`) tapi tetap lolos `validateModuleSettingsPatch`
-(cek nama-key sensitif, bukan bentuk nilai — celah pre-existing di
-framework generik Issue #516, bukan spesifik #564, lihat catatan di
-`module-management` README bila menyentuh area itu).
+tidak divalidasi bentuk semantiknya (bebas string label, sama seperti
+`blogTitle` di `awcms_mini_blog_settings`), tapi sejak perbaikan
+value-shape heuristic (lihat "Sudah diperbaiki" di bawah)
+`validateModuleSettingsPatch` tetap menolak kalau isinya credential-shaped
+(JWT/PEM/AWS key/Bearer/connection-string) — bebas-string hanya untuk
+konten label yang wajar, bukan celah untuk menyimpan secret mentah.
 
 Test: `tests/integration/blog-content-settings.integration.test.ts` (12
 test) dan 3 test paritas round-trip di
@@ -865,4 +866,5 @@ Sudah diperbaiki bersamaan dengan #562 (bukan follow-up lagi): **timing side-cha
 
 4. Belum ada test `wrapCountingSql`-based yang secara eksplisit membandingkan round-trip count outcome `publicRouteMode=disabled` vs 3 outcome lainnya — paritas berlaku by construction (diverifikasi manual saat audit #564) tapi belum diuji langsung seperti paritas module-disabled vs enabled sudah diuji. Tambahkan test pembanding eksplisit bila menyentuh `checkBlogContentAndRouteGate`/`padUnresolvedTenantLatency` lagi.
 5. Belum ada test regresi XSS eksplisit untuk `publicLabel`/`publicBasePath` di output `/news` (mitigasi sudah diverifikasi manual — `escapeHtml()` dipanggil di setiap titik render, tidak ada `set:html`/raw string concatenation — tapi belum jadi regression test otomatis yang mengirim payload `<script>` lalu assert output ter-escape). Tambahkan bila menyentuh rendering `/news` lagi.
-6. `validateModuleSettingsPatch` (framework generik Issue #516, `module-management/domain/module-settings.ts`) hanya memeriksa **nama key** sensitif (`REDACTION_KEYS`), bukan **bentuk nilai** — admin tenant (atau siapa pun dengan sesi admin) bisa menulis nilai credential-shaped ke field non-sensitif-namanya seperti `publicLabel` dan itu tersimpan mentah, terbaca lewat GET yang sama. Bukan regresi #564 (identik untuk semua modul yang pakai framework ini), tidak spesifik `blog_content` — perbaikannya idealnya value-shape heuristic sekali di `domain/module-settings.ts` untuk semua konsumen, bukan tambalan per-modul.
+
+Sudah diperbaiki (follow-up dari security audit #564, bukan follow-up lagi): **`validateModuleSettingsPatch` hanya memeriksa nama key, bukan bentuk nilai** (framework generik Issue #516, `module-management/domain/module-settings.ts`) — admin tenant (atau siapa pun dengan sesi admin) bisa menulis nilai credential-shaped ke field non-sensitif-namanya seperti `publicLabel` dan itu tersimpan mentah, terbaca lewat GET yang sama. Bukan regresi #564 (identik untuk semua modul yang pakai framework ini), tidak spesifik `blog_content`. Fix: `_shared/redaction.ts`'s baru `findSecretShapedValues` — heuristik bentuk-value yang sengaja konservatif (JWT tiga segmen, blok PEM private key, AWS access key id, header `Bearer`/`Basic` mentah, connection string ber-`user:pass@`) supaya label/URL/flag biasa tidak pernah salah tertolak — dipanggil `validateModuleSettingsPatch` setelah cek nama key; kalau ada yang cocok, `400 SETTINGS_SECRET_SHAPED_VALUE_REJECTED` (pesan error hanya menyebut _path_ key, tidak pernah value-nya sendiri). Berlaku otomatis untuk semua konsumen `PATCH .../settings` (satu route file, `tenant/modules/{moduleKey}/settings.ts`, sudah generik terhadap `ModuleSettingsErrorCode` apa pun) tanpa ubah route atau modul manapun. Test: `tests/audit-log.test.ts`'s `findSecretShapedValues` (unit, semua pola + no-false-positive pada label/URL/flag biasa) dan `tests/integration/module-settings.integration.test.ts`'s "PATCH rejects a secret-shaped VALUE under an innocently-named key".

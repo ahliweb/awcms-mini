@@ -277,7 +277,15 @@ tenant: key berbentuk secret (mengandung `password`/`token`/`apikey`/
 `secret`/`credential`, daftar sama `_shared/redaction.ts`'s
 `REDACTION_KEYS`) **ditolak saat request** (`400 SETTINGS_SENSITIVE_KEY_REJECTED`),
 bukan disimpan lalu di-redact saat dibaca — nilai yang tidak pernah
-disimpan tidak bisa bocor kemudian. Audit trail (`settings_updated`)
+disimpan tidak bisa bocor kemudian. Cek nama key saja tidak menutup
+kasus admin (sengaja atau tidak) menempelkan credential nyata ke field
+yang namanya tidak mencurigakan (mis. `publicLabel`) — `_shared/redaction.ts`'s
+`findSecretShapedValues` melengkapi dengan heuristik bentuk-value
+(JWT, blok PEM private key, AWS access key id, header `Bearer`/`Basic`
+mentah, connection string ber-`user:pass@`), sengaja konservatif supaya
+label/URL/flag biasa tidak pernah salah tertolak, dan menolak
+(`400 SETTINGS_SECRET_SHAPED_VALUE_REJECTED`) tanpa pernah menyertakan
+value itu sendiri di pesan error (hanya path key). Audit trail (`settings_updated`)
 hanya mencatat _nama key_ yang berubah (`addedKeys`/`changedKeys`/`removedKeys`),
 tidak pernah nilainya — konsisten dengan prinsip data minimization yang
 sama dipakai modul Email untuk data recipient (§ di atas).
