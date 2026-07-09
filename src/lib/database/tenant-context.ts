@@ -14,6 +14,23 @@ const UUID_PATTERN =
 
 const DEFAULT_QUEUE_TIMEOUT_MS = 2000;
 
+/** Postgres SQLSTATE class 23 — integrity constraint violation
+ * (23503 foreign_key_violation, 23505 unique_violation, 23514
+ * check_violation, ...). These are expected outcomes of ordinary business
+ * logic (a caller-supplied reference doesn't exist, a concurrent request
+ * won a uniqueness race, ...), not database/infra failures, so they must
+ * not count against the shared circuit breaker (Issue #599). */
+const POSTGRES_INTEGRITY_CONSTRAINT_VIOLATION_CLASS = "23";
+
+function isPostgresIntegrityConstraintViolation(error: unknown): boolean {
+  return (
+    error instanceof Bun.SQL.PostgresError &&
+    String(error.errno).startsWith(
+      POSTGRES_INTEGRITY_CONSTRAINT_VIOLATION_CLASS
+    )
+  );
+}
+
 export function assertUuid(value: string): string {
   if (!UUID_PATTERN.test(value)) {
     throw new Error(`Expected a UUID, received: ${value}`);
@@ -120,7 +137,16 @@ export async function withTenant<T>(
       ) as T;
     }
 
-    breaker.recordFailure(new Date());
+    if (isPostgresIntegrityConstraintViolation(error)) {
+      log("info", "database.integrity_violation_excluded", {
+        moduleKey: "database-connectivity",
+        tenantId: safeTenantId,
+        sqlstate: (error as InstanceType<typeof Bun.SQL.PostgresError>).errno
+      });
+    } else {
+      breaker.recordFailure(new Date());
+    }
+
     throw error;
   } finally {
     slot.release();

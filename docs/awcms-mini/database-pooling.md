@@ -128,6 +128,24 @@ Alur:
    "sukses" pada level breaker, karena breaker mengukur kegagalan
    transaksi/koneksi database, bukan logika bisnis).
 
+   Dua pengecualian di catch block yang **tidak** memanggil
+   `recordFailure()` meski melempar exception, karena keduanya adalah
+   outcome logika bisnis/concurrency yang wajar, bukan kegagalan
+   infra database (Issue #599, awalnya untuk `IdempotencyRaceLostError`
+   saja):
+   - `IdempotencyRaceLostError` — race benign pada
+     `saveIdempotencyRecord` (lihat skill `awcms-mini-idempotency`).
+   - `Bun.SQL.PostgresError` dengan SQLSTATE kelas `23` (integrity
+     constraint violation — `23503` foreign_key_violation, `23505`
+     unique_violation, `23514` check_violation, dst.). Sebelum Issue
+     #599, sebuah `INSERT`/`UPDATE` yang gagal karena FK/unique
+     constraint (mis. caller mengirim `tenantId` yang tidak ada) ikut
+     dihitung sebagai kegagalan infra dan bisa membuka breaker
+     aplikasi-lebar hanya dari beberapa request dengan input invalid —
+     lihat Issue #599 dan `.changeset/database-circuit-breaker-integrity-violations.md`.
+     Error class lain (koneksi terputus, timeout, syntax error, izin
+     ditolak, dst.) tetap dihitung sebagai kegagalan seperti biasa.
+
 Endpoint yang direklasifikasi dari default `"interactive"` (mengikuti
 pemetaan contoh doc 16):
 
