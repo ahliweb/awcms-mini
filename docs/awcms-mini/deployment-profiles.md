@@ -169,9 +169,27 @@ hardening).
   bisa disimpan bila minimal satu break-glass local owner tetap tersedia
   — dicek di titik SAVE, bukan hanya login, supaya outage provider tidak
   pernah mengunci operator keluar dari akunnya sendiri. MFA (#589) tetap
-  ditegakkan sama seperti Google. #592-#593 (admin UI kebijakan,
-  dokumentasi/kontrak penutup epic) masih backlog, belum diimplementasikan
-  di repo ini.
+  ditegakkan sama seperti Google.
+- **Admin policy UI (Issue #592, selesai)**: `/admin/security` — permukaan
+  admin untuk melihat status keenam fitur di atas dan mengelola kebijakan
+  auth (`sso_required`, `password_login_enabled`, break-glass identity list)
+  serta CRUD provider tenant, tanpa endpoint API baru (memakai ulang #591's
+  admin CRUD). Nonaktif di setiap deployment offline/LAN/local — hanya
+  menampilkan info panel, tanpa form.
+- **#593 (dokumentasi/kontrak/readiness penutup epic, selesai)**: penutup
+  audit lintas #587-#592 ini sendiri. Satu readiness check baru yang dituntut
+  eksplisit oleh issue ini: `bun run security:readiness`'s
+  `checkSsoBreakGlassReady` (critical) mem-verifikasi ULANG dari database,
+  di waktu readiness/go-live (bukan hanya di waktu kebijakan disimpan),
+  bahwa setiap tenant dengan `sso_required=true` atau
+  `password_login_enabled=false` masih punya minimal satu break-glass
+  identity yang benar-benar eligible SEKARANG — operator yang menonaktifkan
+  identity break-glass (atau mencabut tenant membership-nya) lewat aksi
+  administratif LAIN setelah kebijakan disimpan tidak akan tertangkap oleh
+  validasi save-time `saveTenantAuthPolicy` saja; jalankan
+  `bun run security:readiness` secara berkala (bukan hanya sekali saat
+  fitur ini pertama diaktifkan) untuk operator yang mengaktifkan
+  `sso_required`/`password_login_enabled=false` di produksi.
 
 ## Cara menjalankan tiap profil
 

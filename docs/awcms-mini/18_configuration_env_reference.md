@@ -220,8 +220,26 @@ online-only ini (lihat `deployment-profiles.md`).
   pernah menjalankan query tambahan ini maupun berubah perilaku). Detail
   lengkap: skill `awcms-mini-auth-online-hardening`,
   `src/modules/identity-access/README.md`.
-- #592-#593 (admin policy UI, dokumentasi/kontrak penutup) masih backlog —
-  belum diimplementasikan di repo ini.
+- **Admin policy UI (Issue #592, selesai)** — `/admin/security`
+  (`src/pages/admin/security.astro` + `src/lib/auth/auth-security-status.ts`)
+  menampilkan ringkasan status keenam fitur di atas dan menjadi permukaan
+  admin untuk `PATCH /api/v1/identity/sso/policy` +
+  `POST|PATCH|DELETE /api/v1/identity/sso/providers[/{id}]` (#591's admin CRUD
+  API, tidak ada endpoint baru untuk #592). Dua gate independen mengontrol apa
+  yang dirender: gate deployment `isFullOnlineSecurityActive(env)` (#587) — di
+  setiap deployment offline/LAN/local (default), halaman hanya menampilkan
+  `StateNotice` informational, tanpa form/tabel apa pun; DAN ABAC
+  (`identity_access.sso_policy.*`/`sso_providers.*`). Detail lengkap: skill
+  `awcms-mini-auth-online-hardening`, `src/modules/identity-access/README.md`.
+- **#593 (dokumentasi/kontrak/readiness penutup epic, selesai)** — audit
+  epic-wide ini sendiri: `scripts/security-readiness.ts` menambah
+  `checkSsoBreakGlassReady` (critical) yang mem-verifikasi ULANG dari DB,
+  pada waktu readiness/go-live (bukan hanya waktu save kebijakan), bahwa
+  setiap tenant dengan `sso_required=true`/`password_login_enabled=false`
+  masih punya minimal satu break-glass identity yang BENAR-BENAR eligible
+  saat ini — menutup celah "break-glass identity dinonaktifkan setelah
+  kebijakan disimpan" yang tidak bisa dideteksi `saveTenantAuthPolicy`'s
+  validasi save-time saja.
 
 ### Sync & node
 

@@ -91,8 +91,16 @@ export async function getTenantAuthPolicy(
  * row always has a `password_hash` (NOT NULL, migration 004 — there is no
  * "SSO-only identity" model in this schema), so this is a sufficient
  * eligibility check without inspecting `password_hash` itself.
+ *
+ * Exported (Issue #593) so `scripts/security-readiness.ts`'s
+ * `checkSsoBreakGlassReady` can re-derive the SAME eligibility rule at
+ * readiness/go-live time — a break-glass identity that was eligible when
+ * `saveTenantAuthPolicy` last validated it can become ineligible later
+ * (deactivated, membership revoked) without the policy row itself ever
+ * being re-saved, so save-time validation alone cannot catch that drift.
+ * Do not reimplement this query a second, divergent way elsewhere.
  */
-async function countEligibleBreakGlassIdentities(
+export async function countEligibleBreakGlassIdentities(
   tx: Bun.SQL,
   tenantId: string,
   breakGlassIdentityIds: string[]

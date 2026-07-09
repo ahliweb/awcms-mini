@@ -14,12 +14,16 @@ import {
 } from "../scripts/security-readiness";
 
 // DB-dependent checks (`checkRlsEnabled`, `checkAuditLogTableReachable`,
-// `checkSoftDeletePermissionsSeededAndAudited`'s permission-row lookup) are
-// NOT unit-tested here — they require a real PostgreSQL connection and
-// can't be meaningfully faked without either a real DB or a mock so heavy
-// it would stop testing the actual query. They are covered by live
-// verification instead (`bun run security:readiness` against a real
-// migrated database, see `docs/awcms-mini/production-readiness.md`).
+// `checkSoftDeletePermissionsSeededAndAudited`'s permission-row lookup,
+// `checkSsoBreakGlassReady` — Issue #593) are NOT unit-tested here — they
+// require a real PostgreSQL connection and can't be meaningfully faked
+// without either a real DB or a mock so heavy it would stop testing the
+// actual query. They are covered by live verification instead (`bun run
+// security:readiness` against a real migrated database, see
+// `docs/awcms-mini/production-readiness.md`) AND, for `checkSsoBreakGlassReady`
+// specifically, by `tests/integration/security-readiness-break-glass.integration.test.ts`
+// (real Postgres, both the "eligible" pass case and the "deactivated after
+// save" fail case).
 //
 // `checkSecurityHeadersPresent` (Issue #437) is likewise not unit-tested
 // here — it deliberately hits a *running* server to prove

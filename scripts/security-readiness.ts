@@ -30,11 +30,16 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 
 import { getDatabaseClient } from "../src/lib/database/client";
+import { assertUuid } from "../src/lib/database/tenant-context";
 import { evaluateAccess } from "../src/modules/identity-access/domain/access-control";
 import { evaluateLoginAttempt } from "../src/modules/identity-access/domain/login-policy";
 import { hashPassword } from "../src/lib/auth/password";
 import { resolveAppBaseUrl } from "./lib/app-url";
 import { checkRateLimit } from "../src/lib/security/rate-limit";
+import {
+  countEligibleBreakGlassIdentities,
+  getTenantAuthPolicy
+} from "../src/modules/identity-access/application/tenant-auth-policy";
 import {
   checkEmailConfig,
   checkGoogleOidcConfig,
@@ -1019,6 +1024,110 @@ export function checkSsoReady(
 }
 
 // ---------------------------------------------------------------------------
+// 9e. Tenant auth policies requiring SSO/no-password-login still have a
+// currently-eligible break-glass owner (critical when misconfigured —
+// Issue #593)
+// ---------------------------------------------------------------------------
+
+/**
+ * `saveTenantAuthPolicy` (Issue #591, `tenant-auth-policy.ts`) already
+ * refuses to PERSIST a policy with `sso_required=true` or
+ * `password_login_enabled=false` unless at least one break-glass identity is
+ * eligible (active identity + active tenant membership) at the moment the
+ * policy is saved. That is a save-time guarantee only: a break-glass
+ * identity that was eligible then can become ineligible LATER (deactivated,
+ * membership revoked, or removed from a role) via an unrelated action,
+ * without the policy row itself ever being re-saved — silently leaving the
+ * tenant with `sso_required=true`/`password_login_enabled=false` and zero
+ * remaining way back into local password login if its SSO provider ever has
+ * an outage. This is exactly the residual gap Issue #593 asks
+ * `security:readiness` to close (distinct from Issue #605's admin-UI
+ * break-glass picker/data-hygiene concern, which stays its own separate open
+ * issue).
+ *
+ * Re-derives eligibility from a FRESH read at readiness/go-live time by
+ * reusing `countEligibleBreakGlassIdentities`/`getTenantAuthPolicy` VERBATIM
+ * from `tenant-auth-policy.ts` — same "don't re-derive the same rule a
+ * second, divergent way" convention every other `checkXxxReady` in this file
+ * already follows for `validate-env.ts`'s `checkXxxConfig` functions.
+ *
+ * Iterates tenants from `awcms_mini_tenants` (RLS-free, migration 002,
+ * `status = 'active'` only — a suspended/inactive tenant's login is already
+ * blocked at the tenant level, so its break-glass state is not a live go-live
+ * risk) and, for each, opens a short transaction that `SET LOCAL
+ * app.current_tenant_id` exactly like `withTenant()` does. This makes the
+ * check exercise the SAME RLS-scoped path a real request takes regardless of
+ * whether `security:readiness` happens to run with a privileged or
+ * least-privilege `DATABASE_URL` — it never needs its own RLS-bypassing
+ * connection to see across tenants.
+ */
+export async function checkSsoBreakGlassReady(): Promise<SecurityCheckResult> {
+  const name =
+    "Tenant auth policies requiring SSO/no-password-login have a valid break-glass owner";
+  const severity: CheckSeverity = "critical";
+
+  try {
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL is not set.");
+    }
+
+    const sql = getDatabaseClient();
+    const tenants = (await sql<{ id: string }[]>`
+      SELECT id FROM awcms_mini_tenants WHERE status = 'active'
+    `) as { id: string }[];
+
+    const atRiskTenantIds: string[] = [];
+
+    for (const tenant of tenants) {
+      const tenantId = assertUuid(tenant.id);
+
+      await sql.begin(async (tx) => {
+        await tx.unsafe(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
+
+        const policy = await getTenantAuthPolicy(tx, tenantId);
+
+        if (policy.passwordLoginEnabled && !policy.ssoRequired) {
+          return;
+        }
+
+        const eligibleCount = await countEligibleBreakGlassIdentities(
+          tx,
+          tenantId,
+          policy.breakGlassIdentityIds
+        );
+
+        if (eligibleCount === 0) {
+          atRiskTenantIds.push(tenantId);
+        }
+      });
+    }
+
+    if (atRiskTenantIds.length > 0) {
+      return {
+        name,
+        severity,
+        status: "fail",
+        evidence: `${atRiskTenantIds.length} tenant(s) have sso_required=true or password_login_enabled=false with ZERO currently-eligible break-glass identity: ${atRiskTenantIds.join(", ")}. A break-glass identity may have been deactivated (identity/tenant-user membership) after the policy was saved — saveTenantAuthPolicy only validates eligibility at the moment of save, not continuously.`
+      };
+    }
+
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence: `${tenants.length} active tenant(s) checked — none have sso_required=true/password_login_enabled=false without a currently-eligible break-glass identity.`
+    };
+  } catch (error) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `Could not verify tenant auth policy break-glass eligibility: ${errorMessage(error)}.`
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 10. Errors don't leak stack traces (warning/info, best-effort)
 // ---------------------------------------------------------------------------
 
@@ -1263,6 +1372,7 @@ export async function runSecurityReadinessChecks(): Promise<
     checkMfaReady(),
     checkGoogleOidcReady(),
     checkSsoReady(),
+    await checkSsoBreakGlassReady(),
     await checkErrorsDontLeakStackTraces(),
     await checkSecurityHeadersPresent(),
     checkLoginRateLimitImplemented()
