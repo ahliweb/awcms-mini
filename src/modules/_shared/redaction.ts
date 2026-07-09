@@ -116,6 +116,12 @@ export function findSensitiveKeys(
  * a JWT (three base64url segments), a PEM private key block, an AWS access
  * key id, a raw `Bearer `/`Basic ` auth-header value, or a connection string
  * with an embedded `user:pass@` credential.
+ *
+ * This is a heuristic, not a DLP solution — trivially evaded by anyone who
+ * actually wants to smuggle a secret through (splitting a JWT across two
+ * fields, wrapping it in surrounding text or another encoding, adding
+ * whitespace inside the pattern). It closes the "innocent/accidental paste"
+ * gap the key-name check can't, not every adversarial exfiltration path.
  */
 const SECRET_VALUE_PATTERNS: readonly RegExp[] = [
   /^eyJ[a-zA-Z0-9_-]{5,}\.[a-zA-Z0-9_-]{5,}\.[a-zA-Z0-9_-]{5,}$/,
