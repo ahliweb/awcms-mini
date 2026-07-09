@@ -105,3 +105,86 @@ export function findSensitiveKeys(
 
   return [...keys].filter(isSensitiveKey);
 }
+
+/**
+ * Value-shape complement to `isSensitiveKey`/`findSensitiveKeys` (module
+ * settings follow-up, epic #555 security audit — `validateModuleSettingsPatch`
+ * only checked key *names*, so a credential could still be written into an
+ * innocently-named field like `publicLabel` and stored/returned raw).
+ * Deliberately conservative — only patterns that are essentially never a
+ * legitimate label/URL/flag value — to keep false positives near zero:
+ * a JWT (three base64url segments), a PEM private key block, an AWS access
+ * key id, a raw `Bearer `/`Basic ` auth-header value, or a connection string
+ * with an embedded `user:pass@` credential.
+ *
+ * This is a heuristic, not a DLP solution — trivially evaded by anyone who
+ * actually wants to smuggle a secret through (splitting a JWT across two
+ * fields, wrapping it in surrounding text or another encoding, adding
+ * whitespace inside the pattern). It closes the "innocent/accidental paste"
+ * gap the key-name check can't, not every adversarial exfiltration path.
+ */
+const SECRET_VALUE_PATTERNS: readonly RegExp[] = [
+  /^eyJ[a-zA-Z0-9_-]{5,}\.[a-zA-Z0-9_-]{5,}\.[a-zA-Z0-9_-]{5,}$/,
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
+  /^AKIA[0-9A-Z]{16}$/,
+  /^(Bearer|Basic)\s+\S+/i,
+  /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^:@/\s]+:[^:@/\s]+@/
+];
+
+function isSecretShapedValue(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    SECRET_VALUE_PATTERNS.some((pattern) => pattern.test(value))
+  );
+}
+
+function collectSecretShapedValuePaths(
+  value: unknown,
+  path: string,
+  paths: string[]
+): void {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      collectSecretShapedValuePaths(item, `${path}[${index}]`, paths)
+    );
+    return;
+  }
+
+  if (value && typeof value === "object") {
+    for (const [key, nested] of Object.entries(
+      value as Record<string, unknown>
+    )) {
+      collectSecretShapedValuePaths(
+        nested,
+        path ? `${path}.${key}` : key,
+        paths
+      );
+    }
+    return;
+  }
+
+  if (isSecretShapedValue(value)) {
+    paths.push(path);
+  }
+}
+
+/**
+ * Every key path (dot notation, e.g. `webhook.publicLabel`, array indices as
+ * `[n]`) whose string value looks like a credential, *regardless of the
+ * key's own name* — used to reject module settings patches the same way
+ * `findSensitiveKeys` rejects a secret-shaped key name: a value the app
+ * never persisted can't leak later. Never includes the value itself, only
+ * the path, so the rejection message stays safe to return to the client.
+ */
+export function findSecretShapedValues(
+  input: Record<string, unknown> | undefined
+): string[] {
+  if (input === undefined) {
+    return [];
+  }
+
+  const paths: string[] = [];
+  collectSecretShapedValuePaths(input, "", paths);
+
+  return paths;
+}

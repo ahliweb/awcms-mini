@@ -3362,10 +3362,15 @@ paths:
         (shallow, top-level JSON-merge-patch — omitted keys are left
         untouched). Rejected with `400 SETTINGS_SENSITIVE_KEY_REJECTED` if
         any key anywhere in the body looks secret-shaped (matches the
-        shared redaction key list) — provider secrets belong in environment
-        variables or a secret manager, never tenant-writable settings.
-        Audited with safe diff metadata (changed key names only, never
-        values).
+        shared redaction key list), or `400
+        SETTINGS_SECRET_SHAPED_VALUE_REJECTED` if any string value anywhere
+        in the body looks credential-shaped regardless of its key's own
+        name (a JWT, a PEM private key block, an AWS access key id, a raw
+        `Bearer`/`Basic` header value, or a connection string with an
+        embedded `user:pass@` credential) — provider secrets belong in
+        environment variables or a secret manager, never tenant-writable
+        settings. Audited with safe diff metadata (changed key names only,
+        never values).
       operationId: tenantModuleSettingsUpdate
       security:
         - bearerAuth: []
@@ -3404,7 +3409,8 @@ paths:
         "400":
           description: >-
             Validation failed (see `error.code`: `VALIDATION_ERROR`,
-            `SETTINGS_SENSITIVE_KEY_REJECTED`).
+            `SETTINGS_SENSITIVE_KEY_REJECTED`,
+            `SETTINGS_SECRET_SHAPED_VALUE_REJECTED`).
           content:
             application/json:
               schema:

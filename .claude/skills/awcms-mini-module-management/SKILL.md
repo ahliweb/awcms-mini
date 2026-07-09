@@ -89,7 +89,15 @@ settings-nya, bukan satu field bernama di resource lain. Key yang
 menyerupai secret (daftar sama `_shared/redaction.ts`'s `REDACTION_KEYS`,
 termasuk `credential`) **ditolak saat request** (`400
 SETTINGS_SENSITIVE_KEY_REJECTED`), tidak pernah disimpan lalu di-redact
-saat dibaca.
+saat dibaca. **Value** berbentuk credential juga ditolak walau key-nya
+tidak mencurigakan (`_shared/redaction.ts`'s `findSecretShapedValues` —
+JWT, blok PEM private key, AWS access key id, header `Bearer`/`Basic`
+mentah, connection string ber-`user:pass@`; sengaja konservatif supaya
+label/URL/flag biasa tidak pernah salah tertolak) — `400
+SETTINGS_SECRET_SHAPED_VALUE_REJECTED`, pesan error hanya menyebut path
+key, tidak pernah value-nya. Berlaku otomatis untuk semua modul yang
+pakai `validateModuleSettingsPatch`, tanpa perlu ubah route/modul
+masing-masing.
 
 ## Permission sync status — jangan auto-fix `orphaned`
 

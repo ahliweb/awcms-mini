@@ -82,8 +82,10 @@ export const GET: APIRoute = async ({ request, params, cookies }) => {
  * the body into the tenant's existing settings override (shallow, top-level
  * JSON-merge-patch — omitted keys are left untouched, present keys are
  * replaced wholesale). Rejects (`400 SETTINGS_SENSITIVE_KEY_REJECTED`) any
- * secret-shaped key anywhere in the body: real provider secrets belong in
- * environment variables/a secret manager, never a tenant-writable,
+ * secret-shaped key anywhere in the body, and (`400
+ * SETTINGS_SECRET_SHAPED_VALUE_REJECTED`) any secret-shaped *value* anywhere
+ * in the body regardless of its key's own name: real provider secrets belong
+ * in environment variables/a secret manager, never a tenant-writable,
  * admin-readable settings row. Audited with safe diff metadata (changed key
  * *names* only, never values).
  */

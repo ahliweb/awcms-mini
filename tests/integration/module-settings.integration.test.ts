@@ -165,6 +165,33 @@ suite("tenant module settings API", () => {
     expect((rows[0] as { count: number }).count).toBe(0);
   });
 
+  test("PATCH rejects a secret-shaped VALUE under an innocently-named key (400 SETTINGS_SECRET_SHAPED_VALUE_REJECTED)", async () => {
+    const owner = await bootstrap();
+
+    const result = await invoke(patchModuleSettings, {
+      method: "PATCH",
+      path: "/api/v1/tenant/modules/form_drafts/settings",
+      headers: authHeaders(owner),
+      params: { moduleKey: "form_drafts" },
+      // `publicLabel` isn't a secret-shaped key name, but the value pasted
+      // into it is a raw Bearer token — the value-shape check must still
+      // reject it (key-name checking alone would let this through).
+      body: { publicLabel: "Bearer not-a-real-token-example-0000" }
+    });
+
+    expect(result.status).toBe(400);
+    expect((result.body as { error: { code: string } }).error.code).toBe(
+      "SETTINGS_SECRET_SHAPED_VALUE_REJECTED"
+    );
+
+    const admin = getAdminSql();
+    const rows = await admin`
+      SELECT count(*)::int AS count FROM awcms_mini_module_settings
+      WHERE tenant_id = ${owner.tenantId} AND module_key = 'form_drafts'
+    `;
+    expect((rows[0] as { count: number }).count).toBe(0);
+  });
+
   test("PATCH is a shallow merge — a later PATCH does not wipe keys the caller didn't mention", async () => {
     const owner = await bootstrap();
 

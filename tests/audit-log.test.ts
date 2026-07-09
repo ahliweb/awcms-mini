@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import {
+  findSecretShapedValues,
   findSensitiveKeys,
   redactSensitiveAttributes
 } from "../src/modules/_shared/redaction";
@@ -147,6 +148,83 @@ describe("findSensitiveKeys", () => {
     expect(
       findSensitiveKeys({ webhooks: [{ url: "x", secret: "shh" }] })
     ).toEqual(["secret"]);
+  });
+});
+
+describe("findSecretShapedValues", () => {
+  test("undefined input yields no paths", () => {
+    expect(findSecretShapedValues(undefined)).toEqual([]);
+  });
+
+  test("ordinary label/URL/flag values are left alone", () => {
+    expect(
+      findSecretShapedValues({
+        publicLabel: "Acme News",
+        publicBasePath: "/news",
+        enabled: true,
+        webhookUrl: "https://example.com/hooks/acme"
+      })
+    ).toEqual([]);
+  });
+
+  test("finds a JWT-shaped value under an innocently-named key", () => {
+    expect(
+      findSecretShapedValues({
+        // The canonical public example token from jwt.io's own debugger
+        // (used verbatim in virtually every JWT tutorial) — a recognizable
+        // non-secret, same convention as AWS's own "AKIA...EXAMPLE" key id
+        // below, chosen so this fixture doesn't read as a real leaked token.
+        publicLabel:
+          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+      })
+    ).toEqual(["publicLabel"]);
+  });
+
+  test("finds a PEM private key block", () => {
+    expect(
+      findSecretShapedValues({
+        note: "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEA\n-----END PRIVATE KEY-----"
+      })
+    ).toEqual(["note"]);
+  });
+
+  test("finds an AWS access key id", () => {
+    expect(
+      findSecretShapedValues({ description: "AKIAIOSFODNN7EXAMPLE" })
+    ).toEqual(["description"]);
+  });
+
+  test("finds a raw Bearer/Basic auth-header value", () => {
+    expect(
+      findSecretShapedValues({ title: "Bearer not-a-real-token-example-0000" })
+    ).toEqual(["title"]);
+  });
+
+  test("finds a connection string with an embedded user:pass@ credential", () => {
+    expect(
+      findSecretShapedValues({
+        webhookUrl: "postgres://admin:hunter2@db.example.com:5432/prod"
+      })
+    ).toEqual(["webhookUrl"]);
+  });
+
+  test("finds a secret-shaped value nested inside an object", () => {
+    expect(
+      findSecretShapedValues({
+        provider: { note: "Bearer not-a-real-token-example-0000" }
+      })
+    ).toEqual(["provider.note"]);
+  });
+
+  test("finds a secret-shaped value nested inside an array of objects", () => {
+    expect(
+      findSecretShapedValues({
+        webhooks: [
+          { label: "ok" },
+          { label: "Bearer not-a-real-token-example-0000" }
+        ]
+      })
+    ).toEqual(["webhooks[1].label"]);
   });
 });
 

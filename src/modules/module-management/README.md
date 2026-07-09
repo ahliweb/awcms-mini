@@ -93,6 +93,18 @@ variables or a secret manager.
   anything already at rest (e.g. via a future descriptor's own
   `settings.defaults`, though the descriptor contract's own doc comment
   already says never to declare a secret-shaped default there).
+- **Secret-_shaped values_ are rejected too, regardless of key name**
+  (`400 SETTINGS_SECRET_SHAPED_VALUE_REJECTED` — found during the epic #555
+  security audit chain: key-name checking alone lets an admin paste a real
+  credential into an innocently-named field like `publicLabel`, where it
+  gets stored raw and returned as-is via `GET`). `_shared/redaction.ts`'s
+  `findSecretShapedValues` checks every string value (recursively) against
+  a deliberately conservative set of patterns — JWT (three base64url
+  segments), a PEM private key block, an AWS access key id, a raw
+  `Bearer `/`Basic ` header value, a connection string with an embedded
+  `user:pass@` — chosen so ordinary labels/URLs/flags are never
+  false-flagged. The rejection message names only the offending key
+  _path_, never the value itself.
 - **Audit carries safe diff metadata only** — `diffModuleSettings` reports
   which top-level keys were added/changed/removed, never the values, so
   the audit trail is useful without needing its own redaction pass to stay
