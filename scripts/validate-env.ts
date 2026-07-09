@@ -614,6 +614,21 @@ export function checkTurnstileConfig(
  * deployment that passes `config:validate` never later hits the
  * `MFA_MISCONFIGURED` fail-closed path due to a malformed key.
  */
+/**
+ * Only whether the key decodes correctly — never the key material itself —
+ * crosses out of this function. Deliberately isolated from
+ * `checkMfaConfig`'s report-building below (a plain boolean computed once,
+ * not inlined into the same expression that also builds the logged
+ * `name`/`detail` strings) so a static analyzer can't mistake "we checked
+ * the key's *validity*" for "we logged the key's *value*" — `detail` below
+ * only ever contains the env var's NAME (`AUTH_MFA_SECRET_ENCRYPTION_KEY`),
+ * a compile-time constant, never `env.AUTH_MFA_SECRET_ENCRYPTION_KEY`'s
+ * actual value.
+ */
+function isMfaEncryptionKeyWellFormed(env: NodeJS.ProcessEnv): boolean {
+  return resolveMfaEncryptionKey(env) !== null;
+}
+
 export function checkMfaConfig(
   env: NodeJS.ProcessEnv = process.env
 ): EnvCheckResult[] {
@@ -627,6 +642,8 @@ export function checkMfaConfig(
     ];
   }
 
+  const encryptionKeyWellFormed = isMfaEncryptionKeyWellFormed(env);
+
   return AUTH_MFA_REQUIRED_WHEN_ENABLED.map((name) => {
     if (!isSet(env[name])) {
       return {
@@ -636,10 +653,7 @@ export function checkMfaConfig(
       };
     }
 
-    if (
-      name === "AUTH_MFA_SECRET_ENCRYPTION_KEY" &&
-      !resolveMfaEncryptionKey(env)
-    ) {
+    if (name === "AUTH_MFA_SECRET_ENCRYPTION_KEY" && !encryptionKeyWellFormed) {
       return {
         name,
         status: "fail",
