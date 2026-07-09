@@ -253,6 +253,10 @@ msgstr "Modul"
 msgid "admin.layout.nav_module_matrix"
 msgstr "Matriks Modul"
 
+#. Issue #592, epic: full-online auth hardening #587-#593
+msgid "admin.layout.nav_security"
+msgstr "Keamanan"
+
 msgid "admin.layout.breadcrumb_aria_label"
 msgstr "Breadcrumb"
 
@@ -2009,3 +2013,212 @@ msgstr "Status"
 msgid "admin.tenant_domain.invalid_hostname"
 msgstr "Masukkan hostname yang valid (tanpa skema, tanpa port, mis. shop.example.com)."
 
+
+#. admin.security (Issue #592, epic: full-online auth hardening #587-#593)
+
+msgid "admin.security.heading"
+msgstr "Keamanan autentikasi full-online"
+
+msgid "admin.security.gate_disabled_title"
+msgstr "Pengerasan autentikasi full-online dinonaktifkan untuk profil deployment ini."
+
+msgid "admin.security.gate_disabled_body"
+msgstr "Deployment ini berjalan hanya dengan autentikasi lokal/offline/LAN. Kontrol konfigurasi Cloudflare Turnstile, MFA, login Google, dan SSO disembunyikan karena AUTH_ONLINE_SECURITY_ENABLED/AUTH_ONLINE_SECURITY_PROFILE belum diset ke full_online di server ini. Minta operator mengaktifkan profil keamanan full-online jika tenant ini membutuhkan fitur-fitur ini."
+
+msgid "admin.security.access_denied_title"
+msgstr "Anda tidak memiliki akses ke pengaturan keamanan."
+
+msgid "admin.security.access_denied_body"
+msgstr "Minta admin tenant memberikan izin kebijakan autentikasi atau penyedia SSO kepada Anda."
+
+msgid "admin.security.status_legend"
+msgstr "Status pengerasan autentikasi online"
+
+msgid "admin.security.gate_label"
+msgstr "Gerbang keamanan full-online"
+
+msgid "admin.security.gate_active_value"
+msgstr "Aktif"
+
+msgid "admin.security.gate_inactive_value"
+msgstr "Tidak aktif"
+
+msgid "admin.security.gate_profile_label"
+msgstr "Profil deployment"
+
+msgid "admin.security.feature_status_enabled"
+msgstr "Aktif"
+
+msgid "admin.security.feature_status_disabled"
+msgstr "Nonaktif"
+
+msgid "admin.security.feature_configured"
+msgstr "Terkonfigurasi"
+
+msgid "admin.security.feature_not_configured"
+msgstr "Belum terkonfigurasi"
+
+msgid "admin.security.turnstile_label"
+msgstr "Cloudflare Turnstile"
+
+msgid "admin.security.mfa_label"
+msgstr "MFA / TOTP"
+
+msgid "admin.security.google_login_label"
+msgstr "Login Google"
+
+msgid "admin.security.sso_label"
+msgstr "SSO tenant generik"
+
+msgid "admin.security.policy_legend"
+msgstr "Kebijakan autentikasi tenant"
+
+msgid "admin.security.password_login_enabled_label"
+msgstr "Login password lokal diaktifkan"
+
+msgid "admin.security.sso_enabled_label"
+msgstr "Login SSO diaktifkan"
+
+msgid "admin.security.sso_required_label"
+msgstr "Login SSO wajib (menonaktifkan login password untuk identitas non-break-glass)"
+
+msgid "admin.security.sso_required_hint"
+msgstr "Membutuhkan minimal satu pemilik lokal break-glass yang saat ini aktif dipilih di bawah, atau server akan menolak perubahan ini."
+
+msgid "admin.security.auto_link_verified_email_label"
+msgstr "Tautkan otomatis akun berdasarkan domain email terverifikasi"
+
+msgid "admin.security.allowed_email_domains_label"
+msgstr "Domain email yang diizinkan (pisahkan dengan koma)"
+
+msgid "admin.security.allowed_email_domains_hint"
+msgstr "Kosongkan untuk mengizinkan semua domain yang diizinkan provider itu sendiri. Contoh: example.com, example.org"
+
+msgid "admin.security.break_glass_legend"
+msgstr "Pemilik lokal break-glass"
+
+msgid "admin.security.break_glass_hint"
+msgstr "Minimal satu identitas yang dipilih di sini harus tetap bisa login lokal aktif untuk tenant ini jika SSO diwajibkan atau login password dinonaktifkan."
+
+msgid "admin.security.break_glass_manual_label"
+msgstr "ID identitas break-glass (UUID dipisahkan koma)"
+
+msgid "admin.security.break_glass_manual_hint"
+msgstr "Anda tidak memiliki izin untuk menelusuri daftar pengguna, jadi masukkan UUID identitas secara langsung. Minta nilai yang benar dari admin pengguna."
+
+msgid "admin.security.break_glass_client_warning"
+msgstr "Pilih minimal satu pemilik lokal break-glass sebelum mewajibkan login SSO atau menonaktifkan login password."
+
+msgid "admin.security.policy_save_button"
+msgstr "Simpan kebijakan autentikasi"
+
+msgid "admin.security.policy_save_success"
+msgstr "Kebijakan autentikasi disimpan."
+
+msgid "admin.security.providers_legend"
+msgstr "Penyedia SSO tenant"
+
+msgid "admin.security.providers_table_key_column"
+msgstr "Kunci provider"
+
+msgid "admin.security.providers_table_name_column"
+msgstr "Nama tampilan"
+
+msgid "admin.security.providers_table_issuer_column"
+msgstr "URL issuer"
+
+msgid "admin.security.providers_table_secret_column"
+msgstr "Client secret"
+
+msgid "admin.security.providers_table_scopes_column"
+msgstr "Scopes"
+
+msgid "admin.security.providers_table_domains_column"
+msgstr "Domain yang diizinkan"
+
+msgid "admin.security.providers_table_status_column"
+msgstr "Status"
+
+msgid "admin.security.providers_table_actions_column"
+msgstr "Aksi"
+
+msgid "admin.security.no_providers"
+msgstr "Belum ada penyedia SSO yang dikonfigurasi."
+
+msgid "admin.security.provider_enabled_value"
+msgstr "Aktif"
+
+msgid "admin.security.provider_disabled_value"
+msgstr "Nonaktif"
+
+msgid "admin.security.secret_source_encrypted_value"
+msgstr "Terenkripsi (disembunyikan)"
+
+msgid "admin.security.secret_source_env_value"
+msgstr "Env var: {name}"
+
+msgid "admin.security.create_provider_summary"
+msgstr "Tambah penyedia SSO"
+
+msgid "admin.security.provider_key_label"
+msgstr "Kunci provider"
+
+msgid "admin.security.provider_key_hint"
+msgstr "Hanya huruf kecil, angka, tanda hubung, garis bawah. Tidak dapat diubah setelah dibuat. Contoh: okta"
+
+msgid "admin.security.display_name_label"
+msgstr "Nama tampilan"
+
+msgid "admin.security.issuer_url_label"
+msgstr "URL issuer (hanya https)"
+
+msgid "admin.security.client_id_label"
+msgstr "Client ID"
+
+msgid "admin.security.client_secret_label"
+msgstr "Nilai client secret"
+
+msgid "admin.security.client_secret_hint"
+msgstr "Disimpan terenkripsi. Tidak pernah ditampilkan lagi setelah disimpan — kosongkan saat mengedit untuk mempertahankan secret saat ini."
+
+msgid "admin.security.client_secret_env_var_label"
+msgstr "Nama environment variable client secret"
+
+msgid "admin.security.client_secret_env_var_hint"
+msgstr "Server membaca secret dari environment variable ini alih-alih menyimpannya di database. Isi tepat salah satu: nilai client secret atau nama environment variable."
+
+msgid "admin.security.scopes_label"
+msgstr "OAuth scopes"
+
+msgid "admin.security.enabled_label"
+msgstr "Aktif"
+
+msgid "admin.security.create_provider_submit"
+msgstr "Tambah provider"
+
+msgid "admin.security.create_provider_success"
+msgstr "Penyedia SSO ditambahkan."
+
+msgid "admin.security.edit_provider_summary"
+msgstr "Edit"
+
+msgid "admin.security.update_provider_submit"
+msgstr "Simpan perubahan"
+
+msgid "admin.security.update_provider_success"
+msgstr "Penyedia SSO diperbarui."
+
+msgid "admin.security.delete_provider_button"
+msgstr "Hapus"
+
+msgid "admin.security.delete_provider_prompt"
+msgstr "Alasan menghapus penyedia SSO ini:"
+
+msgid "admin.security.delete_provider_success"
+msgstr "Penyedia SSO dihapus."
+
+msgid "admin.security.invalid_secret_choice"
+msgstr "Isi paling banyak salah satu: nilai client secret atau nama environment variable."
+
+msgid "admin.security.invalid_create_secret_choice"
+msgstr "Isi tepat salah satu: nilai client secret atau nama environment variable."

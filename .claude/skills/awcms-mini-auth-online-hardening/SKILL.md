@@ -36,7 +36,7 @@ keputusan desain yang mengikat semua issue di epic ini sekaligus.
 | #589  | MFA/TOTP login challenge                               | **Selesai** — lihat §MFA/TOTP di bawah                         |
 | #590  | Google OIDC login                                      | **Selesai** — lihat §Google OIDC login di bawah                |
 | #591  | Generic tenant OIDC SSO provider                       | **Selesai** — lihat §Generic tenant OIDC SSO provider di bawah |
-| #592  | Admin UI kebijakan auth security online                | Belum dikerjakan (depends #587 selesai + #591 selesai)         |
+| #592  | Admin UI kebijakan auth security online                | **Selesai** — lihat §Admin policy UI di bawah                  |
 | #593  | Docs/kontrak/readiness penutup epic                    | Belum dikerjakan (finalisasi setelah #588-592)                 |
 
 ## Yang sudah ada — pakai ulang, jangan re-derive
@@ -442,6 +442,96 @@ BREAK_GLASS_REQUIRED` and never persisted. `login.ts` itself only
   `_provider_key_conflict`, plus `break_glass_required`/
   `password_login_disabled` (`error-messages.ts`, `i18n/en.po`+`id.po`).
 
+### Admin policy UI (Issue #592)
+
+`src/pages/admin/security.astro` + `src/lib/auth/auth-security-status.ts`
+(pure env-only status aggregator, no DB/network I/O). Consumes #591's
+existing admin CRUD API as-is — **no new API endpoint was added for this
+issue**, and none was needed:
+
+- SSR reads `getTenantAuthPolicy`/`listAuthProviders` (#591's own
+  application-layer functions) directly inside the page's own
+  `withTenant` transaction, same "call the application layer directly
+  instead of round-tripping through this app's own HTTP API" convention
+  `admin/settings.astro`/`admin/blog/settings.astro` already use.
+  Mutations (policy save, provider create/update/delete) go through the
+  REAL `PATCH /api/v1/identity/sso/policy` /
+  `POST|PATCH|DELETE /api/v1/identity/sso/providers[/{id}]` endpoints via
+  `submitJson` (`admin-form-client.ts`) — every mutation still runs
+  through those endpoints' own ABAC + break-glass + audit logic; this
+  page never writes to the database directly.
+- **Two independent gates control what renders** (issue's own acceptance
+  criteria): (1) the deployment gate `isFullOnlineSecurityActive(env)`
+  (#587) — inactive on every local/offline/LAN deployment (the default),
+  the page renders ONLY an informational `StateNotice` (`kind="info"`,
+  new third variant alongside `"denied"`/`"error"`, `role="status"`) and
+  nothing else, checked server-side in the page's own frontmatter BEFORE
+  any of the status/policy/provider markup is generated — never just
+  hidden with CSS; (2) ABAC (`identity_access.sso_policy.*`/
+  `sso_providers.*`, migration 037, already seeded by #591) — gate active
+  but neither permission held renders an access-denied `StateNotice`
+  instead. Each section (policy form, provider table) additionally checks
+  its OWN specific permission independently, same per-fieldset-permission
+  convention `admin/access-users.astro` established.
+- **Status summary never re-derives each feature's own gate** —
+  `resolveAuthSecurityStatusSummary(env)` imports `isTurnstileEnabled`/
+  `isMfaEnabled`/`isGoogleLoginEnabled`/`isSsoEnabled` plus each feature's
+  own `*_REQUIRED_WHEN_ENABLED` env var name list
+  (`TURNSTILE_REQUIRED_WHEN_ENABLED`, `AUTH_MFA_REQUIRED_WHEN_ENABLED`,
+  `GOOGLE_OIDC_REQUIRED_WHEN_ENABLED`, `SSO_REQUIRED_WHEN_ENABLED`)
+  directly from those features' own config modules rather than
+  re-listing var names here — `configured: boolean` only ever reflects
+  whether the required var(s) are PRESENT, never a value (issue's own
+  security note: "Avoid leaking whether a provider credential exists
+  beyond safe status flags such as `configured: true`").
+- **Break-glass UX does not re-implement the eligibility check** — the
+  form always shows the requirement inline next to `sso_required`/
+  "disable password login", blocks an obviously-doomed submit
+  client-side (zero break-glass identities selected at all) as a fast UX
+  nicety, and always surfaces the server's authoritative
+  `409 BREAK_GLASS_REQUIRED` rejection through the same translated
+  error-message banner (`error.break_glass_required`, already in
+  `error-messages.ts` since #591) every other mutation on the page uses.
+  The break-glass identity picker itself needs `identity_access.user_management.read`
+  (reused from `admin/access-users.astro`'s own guard) to render a
+  checkbox list of tenant users; without it, the page falls back to a
+  plain comma-separated-UUID text input so the form stays usable under
+  least privilege rather than disappearing entirely.
+- **Client secret fields are write-only** — never pre-filled or
+  round-tripped from the API on the provider edit form, matching #591's
+  own `AuthProviderView` never exposing `client_secret_ciphertext`.
+- `identity_access`'s module descriptor (`module.ts`) now declares a
+  `navigation` entry (`/admin/security`, `requiredPermission:
+"identity_access.sso_policy.read"`) — the existing module-navigation
+  registry (#518) renders it in the admin sidebar automatically; no
+  `AdminLayout.astro` hardcoding needed, same pattern
+  `tenant_domain`/`module_management`'s own descriptors already use.
+- Playwright E2E specs (`tests/e2e/admin-security-disabled.e2e.ts`/
+  `admin-security-enabled.e2e.ts`) log in through the REAL `/login` form
+  (fill + submit + wait for the `/admin` redirect), not
+  `page.request.post("/api/v1/auth/login")` — empirically, in this
+  environment, a SUCCESSFUL login's `Set-Cookie` response headers going
+  through Playwright's `page.request` API (as opposed to a real
+  navigation/form submit) intermittently broke every subsequent
+  `page.request`/`page.goto` call with an unrelated-looking `TypeError:
+"<path>" cannot be parsed as a URL.` — reproduces even with a fully
+  qualified absolute URL string, only after a 200 response carrying
+  `Set-Cookie`; a failed login attempt (401/403, no cookie) never
+  reproduces it. Root cause not fully isolated (did not reproduce from
+  `Bun.spawn`, `Bun.SQL`, or `Bun.password.hash` in isolation, only their
+  combination through a specific call path) — logged here so a future
+  issue that needs `page.request` for an authenticated flow in this repo
+  doesn't have to re-discover it from scratch; driving the real login
+  form sidesteps the whole class of that bug and is arguably the more
+  faithful "browser E2E" exercise anyway. Both specs seed an isolated
+  owner/tenant fixture directly via SQL (`tests/e2e/helpers/seed-owner-tenant.ts`,
+  run in a SEPARATE `bun` subprocess via `seed-owner-tenant-cli.ts` —
+  keeping the argon2/Postgres work out of the same process that drives
+  Playwright regardless of the exact trigger above) rather than
+  `POST /api/v1/setup/initialize`, which is a once-only singleton-locked
+  endpoint (`awcms_mini_setup_state`) almost always already claimed on
+  any long-lived dev database.
+
 ## Aturan lintas-issue yang wajib diikuti (#588-#593)
 
 1. **Setiap fitur (#588-#592) WAJIB memanggil `isFullOnlineSecurityActive(env)`
@@ -517,15 +607,18 @@ BREAK_GLASS_REQUIRED` and never persisted. `login.ts` itself only
 
 ## Belum ada — jangan asumsikan sudah dikerjakan
 
-Admin policy UI (#592) plus dokumentasi/kontrak penutup epic (#593)
-masih backlog per 2026-07-09 — gate bersama (#587), Cloudflare Turnstile
-(#588), MFA/TOTP (#589), Google OIDC login (#590), DAN generic tenant
-OIDC SSO provider (#591, termasuk admin CRUD API-nya) sudah ada di repo
-ini. `awcms_mini_auth_providers`/`awcms_mini_tenant_auth_policies`
-(migration 036), endpoint `/api/v1/auth/sso/*`, dan admin CRUD API
-`/api/v1/identity/sso/providers`/`/api/v1/identity/sso/policy` SUDAH
-ada — jangan bangun ulang. Yang BELUM ada: admin UI PAGES untuk
-kebijakan ini (Issue #592 — admin CRUD API dari #591 belum punya
-halaman `/admin/*` yang mengonsumsinya). `/api/v1/auth/providers/google/*`
-SUDAH ada (#590) — jangan bangun ulang, dan #591 sengaja TIDAK
-mengubah/menggantinya (lihat §Generic tenant OIDC SSO provider di atas).
+Hanya dokumentasi/kontrak/readiness penutup epic (#593) yang masih
+backlog per 2026-07-09 — gate bersama (#587), Cloudflare Turnstile
+(#588), MFA/TOTP (#589), Google OIDC login (#590), generic tenant OIDC
+SSO provider (#591, termasuk admin CRUD API-nya), DAN admin policy UI
+(#592, `/admin/security`) sudah ada di repo ini. `awcms_mini_auth_providers`/
+`awcms_mini_tenant_auth_policies` (migration 036), endpoint
+`/api/v1/auth/sso/*`, admin CRUD API `/api/v1/identity/sso/providers`/
+`/api/v1/identity/sso/policy`, DAN halaman admin `/admin/security` yang
+mengonsumsinya SUDAH ada — jangan bangun ulang.
+`/api/v1/auth/providers/google/*` SUDAH ada (#590) — jangan bangun
+ulang, dan #591 sengaja TIDAK mengubah/menggantinya (lihat §Generic
+tenant OIDC SSO provider di atas). Yang BELUM ada: dokumentasi/kontrak
+penutup epic dan production-readiness sign-off lintas #587-#592 (Issue
+#593) — lihat §Admin policy UI di atas untuk apa yang sudah dibangun
+sebagai sumber materi #593.
