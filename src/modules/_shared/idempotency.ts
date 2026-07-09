@@ -45,6 +45,26 @@ export type IdempotencyRecord = {
   responseBody: unknown;
 };
 
+/**
+ * Thrown by `saveIdempotencyRecord` when a concurrent request already won
+ * the race for the same `(tenant_id, request_scope, idempotency_key)` under
+ * READ COMMITTED — both requests can pass `findIdempotencyRecord` before
+ * either commits. Caught centrally by `withTenant` (the one chokepoint every
+ * caller already goes through, per that function's own docblock), which
+ * rolls back this transaction (so the loser's mutation never persists —
+ * required by the "double submit paralel -> tidak dobel" rule in skill
+ * `awcms-mini-idempotency`) and returns a clean `409 IDEMPOTENCY_CONFLICT`
+ * instead of leaking a raw unique-violation error to ~25 route files.
+ */
+export class IdempotencyRaceLostError extends Error {
+  constructor(requestScope: string, idempotencyKey: string) {
+    super(
+      `Idempotency key "${idempotencyKey}" for scope "${requestScope}" was already claimed by a concurrent request.`
+    );
+    this.name = "IdempotencyRaceLostError";
+  }
+}
+
 export async function findIdempotencyRecord(
   tx: Bun.SQL,
   tenantId: string,
@@ -81,12 +101,18 @@ export async function saveIdempotencyRecord(
   responseStatus: number,
   responseBody: unknown
 ): Promise<void> {
-  await tx`
+  const rows = await tx`
     INSERT INTO awcms_mini_idempotency_keys
       (tenant_id, request_scope, idempotency_key, request_hash, response_status, response_body)
     VALUES (
       ${tenantId}, ${requestScope}, ${idempotencyKey}, ${requestHash},
       ${responseStatus}, ${responseBody}
     )
+    ON CONFLICT (tenant_id, request_scope, idempotency_key) DO NOTHING
+    RETURNING id
   `;
+
+  if (rows.length === 0) {
+    throw new IdempotencyRaceLostError(requestScope, idempotencyKey);
+  }
 }

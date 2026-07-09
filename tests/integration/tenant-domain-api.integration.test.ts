@@ -806,4 +806,81 @@ suite("tenant domain management API (Issue #562)", () => {
 
     expect(primaryRows).toHaveLength(1);
   });
+
+  test("set-primary under concurrent SAME Idempotency-Key: exactly one request wins, the loser gets a clean 409 IDEMPOTENCY_CONFLICT (not a raw error), and the mutation never runs twice", async () => {
+    const owner = await bootstrap();
+
+    const domain = await invoke<{ data: { id: string } }>(createDomain, {
+      method: "POST",
+      path: "/api/v1/tenant/domains",
+      headers: authHeaders(owner),
+      body: CREATE_BODY
+    });
+    const verified = await invoke(verifyDomain, {
+      method: "POST",
+      path: `/api/v1/tenant/domains/${domain.body.data.id}/verify`,
+      headers: {
+        ...authHeaders(owner),
+        "idempotency-key": crypto.randomUUID()
+      },
+      params: { id: domain.body.data.id }
+    });
+    expect(verified.status).toBe(200);
+
+    const sharedIdempotencyKey = crypto.randomUUID();
+
+    // Same Idempotency-Key sent twice, concurrently — simulates a client
+    // network retry racing its own original request. Under READ COMMITTED
+    // both requests can pass `findIdempotencyRecord` (no row yet) before
+    // either commits; only one can win the
+    // `awcms_mini_idempotency_keys_scope_key` unique index.
+    const [firstResult, secondResult] = await Promise.all([
+      invoke<{ data?: { isPrimary: boolean }; error?: { code: string } }>(
+        setPrimaryDomain,
+        {
+          method: "POST",
+          path: `/api/v1/tenant/domains/${domain.body.data.id}/set-primary`,
+          headers: {
+            ...authHeaders(owner),
+            "idempotency-key": sharedIdempotencyKey
+          },
+          params: { id: domain.body.data.id }
+        }
+      ),
+      invoke<{ data?: { isPrimary: boolean }; error?: { code: string } }>(
+        setPrimaryDomain,
+        {
+          method: "POST",
+          path: `/api/v1/tenant/domains/${domain.body.data.id}/set-primary`,
+          headers: {
+            ...authHeaders(owner),
+            "idempotency-key": sharedIdempotencyKey
+          },
+          params: { id: domain.body.data.id }
+        }
+      )
+    ]);
+
+    const statuses = [firstResult.status, secondResult.status].sort();
+    expect(statuses).toEqual([200, 409]);
+
+    const loser = firstResult.status === 409 ? firstResult : secondResult;
+    expect(loser.body.error?.code).toBe("IDEMPOTENCY_CONFLICT");
+
+    const admin = getAdminSql();
+
+    // The loser's transaction rolled back — its audit event never persisted,
+    // so the mutation ran exactly once despite two concurrent requests.
+    const auditRows = (await admin`
+      SELECT id FROM awcms_mini_audit_events
+      WHERE tenant_id = ${owner.tenantId} AND action = 'tenant_domain.domain.set_primary'
+    `) as { id: string }[];
+    expect(auditRows).toHaveLength(1);
+
+    const idempotencyRows = (await admin`
+      SELECT id FROM awcms_mini_idempotency_keys
+      WHERE tenant_id = ${owner.tenantId} AND idempotency_key = ${sharedIdempotencyKey}
+    `) as { id: string }[];
+    expect(idempotencyRows).toHaveLength(1);
+  });
 });

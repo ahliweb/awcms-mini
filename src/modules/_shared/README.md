@@ -13,6 +13,10 @@ Endpoint REST memakai helper dari `api-response.ts` agar response konsisten:
 - sukses: `{ success: true, data, meta }`
 - gagal: `{ success: false, error: { code, message, details? }, meta }`
 
+## Idempotency Store
+
+`idempotency.ts` backs `awcms_mini_idempotency_keys` (migration 012) for every high-risk mutation endpoint that requires `Idempotency-Key` (doc 10, skill `awcms-mini-idempotency`). `saveIdempotencyRecord` uses `INSERT ... ON CONFLICT (tenant_id, request_scope, idempotency_key) DO NOTHING RETURNING id` and throws `IdempotencyRaceLostError` when a concurrent request already claimed the same key — two parallel requests can both pass `findIdempotencyRecord` under READ COMMITTED before either commits, and only one may win the unique index. `withTenant` (`src/lib/database/tenant-context.ts`) catches this error at the one chokepoint every caller already goes through: it rolls back the loser's transaction (so its mutation never persists) and returns a clean `409 IDEMPOTENCY_CONFLICT` instead of a raw constraint error, without touching the ~25 individual route files.
+
 ## Soft Delete Convention
 
 Resource master/config/draft yang bisa dihapus wajib memakai kolom:

@@ -216,6 +216,7 @@ flowchart TD
 
 - Tabel `awcms_mini_idempotency_keys` menyimpan `key`, request hash, status, response/resource.
 - Alur di skill `awcms-mini-idempotency` (doc 10). Retention 7–30 hari (doc 04).
+- Race concurrent-request dengan `Idempotency-Key` yang SAMA (dua request paralel lolos cek awal bareng di bawah READ COMMITTED) ditangani di satu titik: `saveIdempotencyRecord` (`src/modules/_shared/idempotency.ts`) memakai `INSERT ... ON CONFLICT (tenant_id, request_scope, idempotency_key) DO NOTHING RETURNING id`; yang kalah melempar `IdempotencyRaceLostError`, ditangkap `withTenant` (`src/lib/database/tenant-context.ts`) yang me-rollback transaksinya (mutation loser tidak pernah persist) dan mengembalikan `409 IDEMPOTENCY_CONFLICT` bersih — bukan raw constraint error atau circuit-breaker failure palsu. Berlaku otomatis untuk semua endpoint idempotent tanpa perlu ubah routenya masing-masing.
 
 ## Repository dan mapper
 

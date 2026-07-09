@@ -1,4 +1,5 @@
 import { fail } from "../../modules/_shared/api-response";
+import { IdempotencyRaceLostError } from "../../modules/_shared/idempotency";
 import { log } from "../logging/logger";
 import { getDatabaseCircuitBreaker } from "./circuit-breaker";
 import {
@@ -91,6 +92,16 @@ export async function withTenant<T>(
 
     return result;
   } catch (error) {
+    if (error instanceof IdempotencyRaceLostError) {
+      // Benign concurrency outcome, not a database/infra failure — skip the
+      // circuit breaker so bursty duplicate-submit traffic can't false-trip it.
+      return fail(
+        409,
+        "IDEMPOTENCY_CONFLICT",
+        "Idempotency-Key was already claimed by a concurrent request. Retry to get the recorded response."
+      ) as T;
+    }
+
     breaker.recordFailure(new Date());
     throw error;
   } finally {
