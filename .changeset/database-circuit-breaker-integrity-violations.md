@@ -36,9 +36,15 @@ syntax errors, permission errors, ...) still trips the breaker exactly as
 before. This is centralized in `withTenant` itself, so none of the
 ~25+ existing endpoints need their own pre-check.
 
+Excluded violations are logged as `database.integrity_violation_excluded`
+(SQLSTATE + tenant id, no query data) so operators keep visibility into
+how often this happens, matching the existing `idempotency.race_lost`
+logging for the other breaker exclusion.
+
 New unit tests in `tests/unit/tenant-context-circuit-breaker.test.ts`
 prove: a `23505`/`23503` error thrown inside `withTenant` never trips the
 breaker even across repeated failures; a genuine Postgres infra error
 (`08006` connection failure) and a plain non-Postgres `Error` still trip
-it after the existing 5-consecutive-failure threshold; and a successful
-call still resets state as before.
+it after the existing 5-consecutive-failure threshold; a successful call
+still resets state as before; and the new log line fires with the
+correct SQLSTATE.

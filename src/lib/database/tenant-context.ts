@@ -137,7 +137,13 @@ export async function withTenant<T>(
       ) as T;
     }
 
-    if (!isPostgresIntegrityConstraintViolation(error)) {
+    if (isPostgresIntegrityConstraintViolation(error)) {
+      log("info", "database.integrity_violation_excluded", {
+        moduleKey: "database-connectivity",
+        tenantId: safeTenantId,
+        sqlstate: (error as InstanceType<typeof Bun.SQL.PostgresError>).errno
+      });
+    } else {
       breaker.recordFailure(new Date());
     }
 

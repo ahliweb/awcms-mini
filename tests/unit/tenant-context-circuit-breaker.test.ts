@@ -119,4 +119,38 @@ describe("withTenant circuit breaker (Issue #599)", () => {
     expect(result).toBe("ok");
     expect(getDatabaseCircuitBreaker().canAttempt(new Date())).toBe(true);
   });
+
+  test("an excluded integrity violation logs the SQLSTATE for observability, without recording a breaker failure", async () => {
+    const sql = fakeSql();
+    const violation = new Bun.SQL.PostgresError("duplicate key value", {
+      code: "23505",
+      errno: "23505"
+    });
+
+    const originalConsoleLog = console.log;
+    const logLines: string[] = [];
+    console.log = (line: string) => {
+      logLines.push(line);
+    };
+
+    try {
+      await expect(
+        withTenant(sql, TENANT_ID, async () => {
+          throw violation;
+        })
+      ).rejects.toBe(violation);
+    } finally {
+      console.log = originalConsoleLog;
+    }
+
+    const entry = logLines
+      .map((line) => JSON.parse(line))
+      .find(
+        (parsed) => parsed.message === "database.integrity_violation_excluded"
+      );
+
+    expect(entry).toBeDefined();
+    expect(entry.sqlstate).toBe("23505");
+    expect(entry.tenantId).toBe(TENANT_ID);
+  });
 });
