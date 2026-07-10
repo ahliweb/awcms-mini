@@ -6,22 +6,34 @@
  * (`full-online-r2-architecture.md` §9, `r2-upload-sop.md` §2 step 5):
  *
  *   1. `HEAD` (via `NewsMediaR2Client.headObject`) — cheap existence +
- *      real-size check, short-circuits before any full `GET` for a missing
- *      or over-size object.
- *   2. Full `GET` (via `NewsMediaR2Client.getObject`) — reads the object's
- *      actual bytes.
+ *      size fast-path, short-circuits before any full `GET` for a missing
+ *      or (as R2 reports it right now) over-size object.
+ *   2. Full `GET` (via `NewsMediaR2Client.getObject`), streamed and capped
+ *      at `maxUploadBytes` — reads the object's actual bytes. This is the
+ *      REAL size enforcement (PR #653 review, security-auditor Critical):
+ *      `headObject`'s report can be stale by the time this runs (a
+ *      presigned PUT URL is reusable, so the object at this key can be
+ *      swapped for a much larger one between step 1 and step 2), so a
+ *      `sizeExceeded` result here is treated as authoritative regardless of
+ *      what `HEAD` reported a moment earlier.
  *   3. MIME sniffing from magic bytes (`sniffNewsMediaMimeType`) against
  *      the bytes from step 2 — NOT `Content-Type`, NOT the file extension,
  *      NOT the checksum.
- *   4. Server-side SHA-256 checksum computed from the SAME bytes read in
- *      step 2.
+ *   4. Server-side SHA-256 checksum, AND the authoritative `sizeBytes`,
+ *      both computed from the SAME bytes actually read in step 2 — never
+ *      from `head.sizeBytes`.
  *   5. `decideNewsMediaFinalizeOutcome` — the pure classification of the
  *      above against the allow-list/claimed mime type/claimed checksum.
  *
  * Deliberately takes no `Bun.SQL`/transaction — every call here is a
  * network call to R2 and must run strictly OUTSIDE any DB transaction
- * (ADR-0006). The caller (`pages/api/v1/media/news-images/upload-sessions/
- * [id]/finalize.ts`) runs this between two separate `withTenant` blocks.
+ * (ADR-0006). The caller (`application/news-media-finalize-upload-session.ts`)
+ * runs this between two separate `withTenant` blocks, and only after having
+ * already atomically claimed the row (`pending_upload -> uploaded`) in the
+ * first of those — see that module's header for why (security-auditor
+ * High finding, PR #653 review: without that claim, concurrent `finalize`
+ * calls using different `Idempotency-Key`s would each reach this function
+ * and each pay for their own `HEAD`+`GET` against the same object).
  */
 import type { NewsMediaR2Client } from "../infrastructure/news-media-r2-client";
 import { sniffNewsMediaMimeType } from "../domain/news-media-mime-sniffer";
@@ -63,13 +75,22 @@ export async function verifyNewsMediaR2Object(
   }
 
   if (head.sizeBytes > input.maxUploadBytes) {
+    // Fast-path only — still re-checked authoritatively below regardless.
     return { outcome: "rejected", reason: "size_exceeded" };
   }
 
-  const get = await client.getObject(input.objectKey);
+  const get = await client.getObject(input.objectKey, input.maxUploadBytes);
 
   if (!get.ok) {
     return { outcome: "provider_error", error: get.error };
+  }
+
+  if (get.sizeExceeded) {
+    // The authoritative check: the object actually read exceeds the cap,
+    // regardless of what `HEAD` reported a moment earlier (TOCTOU — the
+    // presigned PUT URL can be reused to swap the object between HEAD and
+    // GET). No bytes were fully buffered for this outcome.
+    return { outcome: "rejected", reason: "size_exceeded" };
   }
 
   const sniffedMimeType = sniffNewsMediaMimeType(get.bytes);
@@ -91,7 +112,9 @@ export async function verifyNewsMediaR2Object(
 
   return {
     outcome: "accepted",
-    sizeBytes: head.sizeBytes,
+    // Authoritative — the length of the bytes actually read in step 2,
+    // never `head.sizeBytes`.
+    sizeBytes: get.bytes.byteLength,
     checksumSha256: computedChecksumSha256
   };
 }

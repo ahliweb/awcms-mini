@@ -251,29 +251,44 @@ export async function fetchNewsMediaObjectById(
 }
 
 export type MarkNewsMediaObjectUploadedInput = {
-  sizeBytes: number;
-  checksumSha256: string;
+  sizeBytes?: number;
+  checksumSha256?: string;
 };
 
 /**
- * `pending_upload -> uploaded` — the R2 PUT itself succeeded (proven by the
- * caller's own HEAD/GET against R2, done OUTSIDE this transaction per
- * ADR-0006 — this function only records the outcome). Deliberately NOT an
- * audited action on its own: "uploaded" only means bytes exist at the
- * object key, not that they were verified as safe/matching content
- * (`markNewsMediaObjectVerified` is the audited "verify" action the epic's
- * acceptance criteria actually requires).
+ * `pending_upload -> uploaded`. The `WHERE status = 'pending_upload'` guard
+ * is this table's mutual-exclusion primitive: Postgres serializes concurrent
+ * `UPDATE`s against the same row, so exactly one concurrent caller ever
+ * transitions a given row out of `pending_upload` — every other caller's
+ * `UPDATE` matches zero rows and gets `null` back. Issue #634's finalize
+ * orchestration (security-auditor High finding, PR #653 review) calls this
+ * with NO `input` at all as the atomic "claim" step BEFORE attempting any
+ * R2 network call — this is what prevents N concurrent `finalize` requests
+ * (different `Idempotency-Key`s, so the idempotency store alone cannot
+ * dedupe them) from each triggering their own expensive R2 `HEAD`+`GET`
+ * for the same object. `sizeBytes`/`checksumSha256` are optional precisely
+ * because at claim time (before the real `GET` has happened) neither is
+ * known yet — `COALESCE` leaves the column untouched (`NULL`, for a fresh
+ * claim) when omitted, so a caller that already knows both values (a
+ * standalone/legacy call site, or a test) can still set them here in one
+ * step, same as before this change. Deliberately NOT an audited action on
+ * its own: "uploaded" only means bytes exist at the object key, not that
+ * they were verified as safe/matching content (`markNewsMediaObjectVerified`
+ * is the audited "verify" action the epic's acceptance criteria actually
+ * requires).
  */
 export async function markNewsMediaObjectUploaded(
   tx: Bun.SQL,
   tenantId: string,
   id: string,
-  input: MarkNewsMediaObjectUploadedInput
+  input: MarkNewsMediaObjectUploadedInput = {}
 ): Promise<NewsMediaObjectView | null> {
   const rows = (await tx`
     UPDATE awcms_mini_news_media_objects
-    SET status = 'uploaded', size_bytes = ${input.sizeBytes},
-        checksum_sha256 = ${input.checksumSha256}, updated_at = now()
+    SET status = 'uploaded',
+        size_bytes = COALESCE(${input.sizeBytes ?? null}, size_bytes),
+        checksum_sha256 = COALESCE(${input.checksumSha256 ?? null}, checksum_sha256),
+        updated_at = now()
     WHERE tenant_id = ${tenantId} AND id = ${id}
       AND status = 'pending_upload' AND deleted_at IS NULL
     RETURNING id, tenant_id, module_key, owner_resource_type, owner_resource_id,
@@ -289,6 +304,16 @@ export async function markNewsMediaObjectUploaded(
 export type MarkNewsMediaObjectVerifiedInput = {
   width?: number;
   height?: number;
+  /**
+   * The REAL size/checksum, computed from the bytes actually read by the
+   * capped streaming `GET` (`news-media-r2-client.ts`'s `getObject`) —
+   * never from a `HEAD` response, which can be stale/raced (security-auditor
+   * Critical finding, PR #653 review). Optional + `COALESCE`d so a caller
+   * that already set them via `markNewsMediaObjectUploaded` (the legacy/
+   * standalone one-step flow) does not need to repeat them here.
+   */
+  sizeBytes?: number;
+  checksumSha256?: string;
 };
 
 /**
@@ -307,6 +332,8 @@ export async function markNewsMediaObjectVerified(
   const rows = (await tx`
     UPDATE awcms_mini_news_media_objects
     SET status = 'verified', width = ${input.width ?? null}, height = ${input.height ?? null},
+        size_bytes = COALESCE(${input.sizeBytes ?? null}, size_bytes),
+        checksum_sha256 = COALESCE(${input.checksumSha256 ?? null}, checksum_sha256),
         updated_at = now()
     WHERE tenant_id = ${tenantId} AND id = ${id}
       AND status = 'uploaded' AND deleted_at IS NULL
@@ -482,6 +509,38 @@ export async function markNewsMediaObjectFailed(
     SET status = 'failed', updated_at = now()
     WHERE tenant_id = ${tenantId} AND id = ${id}
       AND status IN ('pending_upload', 'uploaded') AND deleted_at IS NULL
+    RETURNING id, tenant_id, module_key, owner_resource_type, owner_resource_id,
+      storage_driver, bucket_name, object_key, original_filename, public_url,
+      mime_type, size_bytes, checksum_sha256, width, height, alt_text, caption,
+      status, created_by_tenant_user_id, created_at, updated_at,
+      deleted_at, deleted_by, delete_reason, restored_at, restored_by
+  `) as NewsMediaObjectRow[];
+
+  return rows[0] ? toView(rows[0]) : null;
+}
+
+/**
+ * `uploaded -> pending_upload` — reverts the atomic claim
+ * `markNewsMediaObjectUploaded` makes, ONLY for a transient/infra reason
+ * (R2 provider error, circuit breaker open, timeout) rather than a
+ * definitive content-rejection (that path is `markNewsMediaObjectFailed`,
+ * permanent — the client must start a new upload session). Issue #634's
+ * finalize orchestration (security-auditor High finding, PR #653 review)
+ * claims a row BEFORE calling R2 so concurrent `finalize` calls cannot each
+ * trigger their own R2 round trip; without this revert, a single transient
+ * R2 failure would leave the row stuck in `uploaded` forever with no path
+ * back to a retryable state.
+ */
+export async function revertNewsMediaObjectUploadClaim(
+  tx: Bun.SQL,
+  tenantId: string,
+  id: string
+): Promise<NewsMediaObjectView | null> {
+  const rows = (await tx`
+    UPDATE awcms_mini_news_media_objects
+    SET status = 'pending_upload', updated_at = now()
+    WHERE tenant_id = ${tenantId} AND id = ${id}
+      AND status = 'uploaded' AND deleted_at IS NULL
     RETURNING id, tenant_id, module_key, owner_resource_type, owner_resource_id,
       storage_driver, bucket_name, object_key, original_filename, public_url,
       mime_type, size_bytes, checksum_sha256, width, height, alt_text, caption,

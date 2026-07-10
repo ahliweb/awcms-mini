@@ -35,7 +35,8 @@ function fakeClient(overrides: {
         exists: true,
         sizeBytes: JPEG_BYTES.byteLength
       },
-    getObject: async () => overrides.get ?? { ok: true, bytes: JPEG_BYTES }
+    getObject: async () =>
+      overrides.get ?? { ok: true, sizeExceeded: false, bytes: JPEG_BYTES }
   };
 }
 
@@ -47,7 +48,7 @@ describe("verifyNewsMediaR2Object (Issue #634)", () => {
       headObject: async () => ({ ok: true, exists: false }),
       getObject: async () => {
         getCalled = true;
-        return { ok: true, bytes: JPEG_BYTES };
+        return { ok: true, sizeExceeded: false, bytes: JPEG_BYTES };
       }
     };
 
@@ -74,7 +75,7 @@ describe("verifyNewsMediaR2Object (Issue #634)", () => {
       }),
       getObject: async () => {
         getCalled = true;
-        return { ok: true, bytes: JPEG_BYTES };
+        return { ok: true, sizeExceeded: false, bytes: JPEG_BYTES };
       }
     };
 
@@ -88,6 +89,23 @@ describe("verifyNewsMediaR2Object (Issue #634)", () => {
 
     expect(result).toEqual({ outcome: "rejected", reason: "size_exceeded" });
     expect(getCalled).toBe(false);
+  });
+
+  test("HEAD reports in-bounds size but GET's actual read exceeds it (object swapped between HEAD and GET, PR #653 TOCTOU fix) -> rejected size_exceeded, authoritative over the stale HEAD", async () => {
+    const client = fakeClient({
+      head: { ok: true, exists: true, sizeBytes: 10 },
+      get: { ok: true, sizeExceeded: true }
+    });
+
+    const result = await verifyNewsMediaR2Object(client, {
+      objectKey: "k",
+      claimedMimeType: "image/jpeg",
+      allowedMimeTypes: ALLOWED,
+      maxUploadBytes: MAX_BYTES,
+      claimedChecksumSha256: null
+    });
+
+    expect(result).toEqual({ outcome: "rejected", reason: "size_exceeded" });
   });
 
   test("HEAD provider error -> provider_error, never mutates/decides content validity", async () => {
@@ -120,7 +138,7 @@ describe("verifyNewsMediaR2Object (Issue #634)", () => {
     );
     const client = fakeClient({
       head: { ok: true, exists: true, sizeBytes: html.byteLength },
-      get: { ok: true, bytes: html }
+      get: { ok: true, sizeExceeded: false, bytes: html }
     });
 
     const result = await verifyNewsMediaR2Object(client, {

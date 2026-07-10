@@ -18,6 +18,24 @@
  * uniform (rather than "only the genuinely-networked calls count") avoids
  * a future refactor accidentally moving a real network call inside a
  * transaction by analogy with this one.
+ *
+ * ## `getObject` streaming size cap (security-auditor Critical finding, PR #653 review)
+ *
+ * `getObject` used to be a single `file.arrayBuffer()` call — buffer
+ * everything, THEN let the caller check the size. That is a TOCTOU hole: a
+ * presigned PUT URL is not single-use, so between a `headObject` call
+ * reporting a small size and this `getObject` call actually running, an
+ * attacker can re-PUT a multi-gigabyte object to the SAME key (still
+ * starting with valid image magic bytes, so the MIME sniff would still
+ * pass). `file.arrayBuffer()` would then buffer the ENTIRE object into the
+ * Bun process's memory — a process that serves every tenant — before this
+ * function ever gets a chance to reject it for size. `getObject` now reads
+ * the object as a stream (`S3File.stream()`) and aborts (cancels the
+ * stream) the moment the running total exceeds `maxBytes`, WITHOUT ever
+ * buffering more than `maxBytes` worth of chunks. `headObject`'s own size
+ * check is kept as a cheap fast-path (skip an attempt entirely for an
+ * object R2 already reports as too big), but it is no longer the only line
+ * of defense — the real enforcement now happens during the read itself.
  */
 import { getProviderCircuitBreaker } from "../../../lib/database/circuit-breaker";
 import { withTimeout } from "../../../lib/integration/timeout";
@@ -54,7 +72,9 @@ export type NewsMediaR2HeadResult =
   | { ok: false; error: string };
 
 export type NewsMediaR2GetResult =
-  { ok: true; bytes: Uint8Array } | { ok: false; error: string };
+  | { ok: true; sizeExceeded: false; bytes: Uint8Array }
+  | { ok: true; sizeExceeded: true }
+  | { ok: false; error: string };
 
 export type NewsMediaR2Client = {
   /**
@@ -64,23 +84,75 @@ export type NewsMediaR2Client = {
    */
   presignUploadUrl(input: NewsMediaR2PresignUploadInput): string;
   /**
-   * Cheap existence + size check (§9 step 1) — always run BEFORE
-   * `getObject`, so an object that is already known to be missing or
-   * over-size never wastes bandwidth on a full `GET`.
+   * Cheap existence + size check (§9 step 1) — a fast-path only. An object
+   * this reports as within-bounds is NOT trusted on its own; `getObject`
+   * re-enforces the size cap itself against the bytes it actually reads,
+   * because this value can be stale by the time `getObject` runs (a
+   * presigned PUT URL can be reused to overwrite the same key).
    */
   headObject(objectKey: string): Promise<NewsMediaR2HeadResult>;
   /**
-   * Full object `GET` (§9 steps 2/5) — the caller must have already
-   * confirmed via `headObject` that the real size is within
-   * `NEWS_MEDIA_R2_MAX_UPLOAD_BYTES`; this method does not itself cap the
-   * read, by design, because a partial/ranged read cannot be used for
-   * either MIME sniffing (needs the leading bytes at minimum, but a
-   * corrupt/truncated read could still coincidentally sniff clean) or a
-   * checksum that means anything (a checksum of a truncated read digest is
-   * NOT the checksum of the uploaded object).
+   * Full object `GET` (§9 steps 2/5), read as a stream and capped at
+   * `maxBytes` — the read is aborted the moment the running total exceeds
+   * `maxBytes`, without ever buffering more than that much (see this
+   * module's header). Returns `{ ok: true, sizeExceeded: true }` (no
+   * `bytes`) rather than throwing, so a legitimately-oversized/maliciously
+   * swapped object is a normal rejection outcome, not an error path.
    */
-  getObject(objectKey: string): Promise<NewsMediaR2GetResult>;
+  getObject(objectKey: string, maxBytes: number): Promise<NewsMediaR2GetResult>;
 };
+
+/**
+ * Reads `stream` incrementally, accumulating chunks only up to `maxBytes`.
+ * The instant the running total exceeds `maxBytes`, the stream is cancelled
+ * and `null` is returned — chunks already buffered are dropped and no
+ * further reads happen, so memory use is bounded at (at most) `maxBytes`
+ * plus one chunk, never the full object size.
+ */
+// Exported for direct, network-independent unit testing (`readCappedStream`
+// against a synthetic `ReadableStream` proves the abort-before-fully-
+// buffering property deterministically — going only through a real
+// `Bun.S3Client`/loopback HTTP server is not reliable for this, since OS/Bun
+// socket-level read-ahead buffering can race far ahead of this function's
+// own per-chunk consumption on a fast local link, independent of whether
+// this function's cap logic is correct).
+export async function readCappedStream(
+  stream: ReadableStream<Uint8Array>,
+  maxBytes: number
+): Promise<Uint8Array | null> {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+
+    if (done) break;
+    if (!value || value.byteLength === 0) continue;
+
+    total += value.byteLength;
+
+    if (total > maxBytes) {
+      await reader
+        .cancel("news-media-r2: object exceeds maxUploadBytes, aborting read")
+        .catch(() => {
+          // Best-effort — the read is already being abandoned either way.
+        });
+      return null;
+    }
+
+    chunks.push(value);
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return bytes;
+}
 
 export function createNewsMediaR2Client(
   config: NewsMediaR2ClientConfig
@@ -146,7 +218,7 @@ export function createNewsMediaR2Client(
       }
     },
 
-    async getObject(objectKey) {
+    async getObject(objectKey, maxBytes) {
       const attemptedAt = new Date();
 
       if (!breaker.canAttempt(attemptedAt)) {
@@ -158,14 +230,19 @@ export function createNewsMediaR2Client(
 
       try {
         const file = client.file(objectKey);
-        const buffer = await withTimeout(
-          file.arrayBuffer(),
+        const bytes = await withTimeout(
+          readCappedStream(file.stream(), maxBytes),
           timeoutMs,
           `news-media-r2 GET ${objectKey}`
         );
 
         breaker.recordSuccess(new Date());
-        return { ok: true, bytes: new Uint8Array(buffer) };
+
+        if (bytes === null) {
+          return { ok: true, sizeExceeded: true };
+        }
+
+        return { ok: true, sizeExceeded: false, bytes };
       } catch (error) {
         breaker.recordFailure(new Date());
         const message = error instanceof Error ? error.message : String(error);

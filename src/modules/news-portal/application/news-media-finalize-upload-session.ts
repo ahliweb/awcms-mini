@@ -13,10 +13,30 @@
  * THIS is the function that closes the security-auditor Critical finding
  * on Issue #631: it never promotes a row past `HEAD` alone.
  * `verifyNewsMediaR2Object` (called below, between two separate
- * `withTenant` transactions) performs a full `GET` + magic-byte MIME
- * sniffing + server-side SHA-256 checksum before any acceptance decision
- * is made (ADR-0006: the R2 calls happen strictly outside any DB
+ * `withTenant` transactions) performs a full, size-capped `GET` + magic-byte
+ * MIME sniffing + server-side SHA-256 checksum before any acceptance
+ * decision is made (ADR-0006: the R2 calls happen strictly outside any DB
  * transaction).
+ *
+ * ## Atomic claim BEFORE the R2 call (security-auditor High finding, PR #653 review)
+ *
+ * `Idempotency-Key` only dedupes an EXACT key match — it does nothing to
+ * stop N concurrent `finalize` calls against the SAME `objectId`, each
+ * using its OWN distinct key (a normal-looking client retry storm, or a
+ * deliberate cost-amplification attack: every such call used to reach
+ * `verifyNewsMediaR2Object` in parallel, each paying for its own `HEAD`+
+ * full `GET` of the same object). The precheck transaction below now calls
+ * `markNewsMediaObjectUploaded(tx, tenantId, objectId)` (no `sizeBytes`/
+ * `checksumSha256` — those are not known yet) as an ATOMIC CLAIM
+ * (`pending_upload -> uploaded`) BEFORE any R2 call happens. Postgres
+ * serializes concurrent `UPDATE`s against the same row, so exactly one
+ * concurrent caller's claim succeeds; every other caller's `UPDATE`
+ * matches zero rows (the row is no longer `pending_upload`) and gets `null`
+ * back immediately — a cheap `409`, no R2 call ever attempted. If the R2
+ * call itself then fails for a transient/infra reason (not a content
+ * rejection), the claim is reverted (`revertNewsMediaObjectUploadClaim`)
+ * so the session stays retryable rather than being stuck in `uploaded`
+ * forever.
  */
 import { fail, jsonResponse, ok } from "../../_shared/api-response";
 import { withTenant } from "../../../lib/database/tenant-context";
@@ -33,7 +53,8 @@ import {
   fetchNewsMediaObjectById,
   markNewsMediaObjectFailed,
   markNewsMediaObjectUploaded,
-  markNewsMediaObjectVerified
+  markNewsMediaObjectVerified,
+  revertNewsMediaObjectUploadClaim
 } from "./news-media-object-directory";
 import {
   createNewsMediaR2Client,
@@ -187,6 +208,22 @@ export async function finalizeNewsMediaUploadSession(
         };
       }
 
+      // Atomic claim — see this module's header. Must happen BEFORE any R2
+      // call, and BEFORE this transaction commits, so Postgres's own
+      // row-update serialization is what does the mutual exclusion.
+      const claimed = await markNewsMediaObjectUploaded(tx, tenantId, objectId);
+
+      if (!claimed) {
+        return {
+          kind: "response",
+          response: fail(
+            409,
+            "INVALID_STATUS_TRANSITION",
+            "Upload session is already being finalized (or was already finalized) by another request."
+          )
+        };
+      }
+
       return {
         kind: "proceed",
         objectId: row.id,
@@ -202,6 +239,9 @@ export async function finalizeNewsMediaUploadSession(
   }
 
   // Strictly outside any DB transaction (ADR-0006) — real R2 network calls.
+  // At this point THIS call, and only this call, holds the `uploaded` claim
+  // for this object — no other concurrent `finalize` call can reach here
+  // for the same objectId until this one reverts or resolves it.
   const r2Client = createR2Client(config);
 
   const verification = await verifyNewsMediaR2Object(r2Client, {
@@ -219,6 +259,12 @@ export async function finalizeNewsMediaUploadSession(
       objectId: precheck.objectId,
       error: verification.error
     });
+
+    // Transient/infra failure, not a content rejection — revert the claim
+    // so the session stays retryable instead of being stuck in `uploaded`.
+    await withTenant(sql, tenantId, (tx) =>
+      revertNewsMediaObjectUploadClaim(tx, tenantId, precheck.objectId)
+    );
 
     return fail(
       502,
@@ -246,31 +292,32 @@ export async function finalizeNewsMediaUploadSession(
         correlationId
       });
 
-      return fail(
+      const rejectedResponse = fail(
         422,
         "UPLOAD_VERIFICATION_FAILED",
         "Uploaded object failed content verification.",
         {},
         { reason: verification.reason }
       );
-    }
+      const rejectedBody = await rejectedResponse.clone().json();
 
-    const uploaded = await markNewsMediaObjectUploaded(
-      tx,
-      tenantId,
-      precheck.objectId,
-      {
-        sizeBytes: verification.sizeBytes,
-        checksumSha256: verification.checksumSha256
-      }
-    );
-
-    if (!uploaded) {
-      return fail(
-        409,
-        "INVALID_STATUS_TRANSITION",
-        "Upload session state changed concurrently; retry."
+      // Store the rejection under this Idempotency-Key too (not just the
+      // success path) — the row is now `failed`, so a same-key/same-payload
+      // retry without this would hit the status guard above instead and
+      // get a DIFFERENT ("Cannot finalize... status failed") response,
+      // breaking the "same key + same request -> replay" idempotency
+      // contract (reviewer feedback, PR #653).
+      await saveIdempotencyRecord(
+        tx,
+        tenantId,
+        IDEMPOTENCY_SCOPE,
+        idempotencyKey,
+        requestHash,
+        422,
+        rejectedBody
       );
+
+      return rejectedResponse;
     }
 
     const verified = await markNewsMediaObjectVerified(
@@ -278,7 +325,10 @@ export async function finalizeNewsMediaUploadSession(
       tenantId,
       precheck.actorTenantUserId,
       precheck.objectId,
-      {},
+      {
+        sizeBytes: verification.sizeBytes,
+        checksumSha256: verification.checksumSha256
+      },
       correlationId
     );
 
