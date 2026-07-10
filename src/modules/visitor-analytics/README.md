@@ -43,8 +43,13 @@ Issue #618 (`sql/039_awcms_mini_visitor_analytics_schema.sql`): adds
 LEVEL SECURITY` (see §Schema below). **Schema only — no writer yet.**
 Nothing inserts into these tables until the middleware collector (#620).
 
-Issue #619: visitor identity, user-agent, and human/bot classification
-helpers.
+Issue #619 (`domain/visitor-key.ts`, `domain/user-agent.ts`,
+`domain/human-classifier.ts`, `domain/path-sanitizer.ts`,
+`domain/referrer.ts`): pure, unit-tested helpers for visitor identity,
+user-agent parsing, human/bot classification, path/query sanitization,
+and referrer extraction (see §Domain helpers below). **Helpers only — not
+wired into any request path yet.** Nothing calls these until the
+middleware collector (#620).
 
 Issue #620: middleware telemetry collection (admin + public routes).
 
@@ -139,10 +144,55 @@ including the two `jsonb` catch-alls. Verified by
 `tests/integration/visitor-analytics-schema.integration.test.ts`'s
 column-name scan and per-table RLS isolation/fail-closed tests.
 
+## Domain helpers (Issue #619)
+
+Pure, unit-tested functions under `domain/` — no request/cookie I/O, no
+database writes. The middleware collector (#620) is the first caller.
+
+- **`visitor-key.ts`** — `generateVisitorKey()` (CSPRNG UUID),
+  `isValidVisitorKey()`/`resolveVisitorKey()` (reuse a valid existing
+  cookie value or mint a new one — never trusts a forged/non-UUID value
+  as-is), and `hashVisitorKey`/`hashIpAddress`/`hashUserAgent` (HMAC-SHA256
+  keyed by `VISITOR_ANALYTICS_HASH_SALT`, not plain SHA256 — a deployment
+  salt prevents cross-deployment correlation via precomputed hash tables,
+  unlike `profile-identity/domain/identifier.ts`'s deliberately unsalted
+  `hashIdentifier`).
+- **`user-agent.ts`** — `parseUserAgent()` returns browser name/major
+  version, OS name, `deviceType` (`desktop`/`mobile`/`tablet`/`bot`/
+  `unknown`), and bot detection (`isBotUserAgent()`). No UA-parsing
+  library dependency — a compact regex table covers common browser/OS/bot
+  families; missing an exotic UA degrades to `"unknown"`, never a wrong
+  guess presented as certain. **Never a security/authorization decision
+  point** — a spoofed UA trivially defeats it, which is acceptable for
+  analytics but never for access control.
+- **`human-classifier.ts`** — `classifyHumanStatus()` (tri-state
+  `human`/`bot`/`unknown` for `awcms_mini_visit_events.human_status`: bot
+  UA always wins; an authenticated session with any non-bot UA is human;
+  an unauthenticated request with an unrecognized UA is `unknown`, never
+  defaulted to human) and `classifySessionHumanity()` (boolean
+  `is_human`/`bot_reason` for `awcms_mini_visitor_sessions`, which has no
+  `unknown` tri-state column).
+- **`path-sanitizer.ts`** — `sanitizePath()` strips the issue's minimum
+  sensitive query parameter list (`token`, `code`, `password`, `secret`,
+  `email`, `phone`, `authorization`, `access_token`, `refresh_token`,
+  `reset_token`, `mfaChallengeToken`, matched case-insensitively) before a
+  path may ever reach `path_sanitized`; `isTrackablePath()` excludes
+  static assets, `/_astro/*` build output, favicon, health endpoints, and
+  OpenAPI/AsyncAPI spec paths from pageview counting.
+- **`referrer.ts`** — `extractReferrerDomain()` returns a bare lowercase
+  hostname only (never path/query/fragment, which routinely carry the
+  referring page's own tokens), `null` for anything unparseable or a
+  non-http(s) scheme.
+
+Test: `tests/unit/visitor-analytics-visitor-key.test.ts`,
+`-user-agent.test.ts` (20+ real user-agent strings — desktop, mobile,
+tablet, tablet-via-Android-without-Mobile-token, 13 bot/crawler
+signatures, unknown/gibberish), `-human-classifier.test.ts`,
+`-path-sanitizer.test.ts`, `-referrer.test.ts`.
+
 ## Not yet available
 
 - Any data collection — Issue #620 (middleware).
-- Identity/UA/bot classification helpers — Issue #619.
 - REST API (`/api/v1/analytics/*`) — Issue #621.
 - Admin dashboard UI (`/admin/analytics`) — Issue #622.
 - Geolocation enrichment — Issue #623.
