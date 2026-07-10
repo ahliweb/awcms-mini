@@ -5831,6 +5831,17 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "422":
+          description: >-
+            NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only
+            news portal mode is active for this tenant and the revision's
+            contentJson references image(s) that are not valid R2 media
+            objects (e.g. a raw URL from before the mode was activated) —
+            the revision cannot be restored onto the live post.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/blog/pages:

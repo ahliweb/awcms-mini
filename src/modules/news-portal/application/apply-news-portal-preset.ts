@@ -23,26 +23,11 @@
 import { recordAuditEvent } from "../../logging/application/audit-log";
 import { applyModulePreset } from "../../module-management/application/module-presets";
 import type { ApplyModulePresetResult } from "../../module-management/application/module-presets";
-import { updateModuleSettings } from "../../module-management/application/module-settings";
+import { markFullOnlineR2ModeApplied } from "./news-portal-tenant-state";
 import { evaluateNewsPortalFullOnlineR2Readiness } from "../domain/news-portal-preset-readiness";
 
 export const NEWS_PORTAL_FULL_ONLINE_R2_PRESET_NAME =
   "news_portal_full_online_r2";
-
-/**
- * `awcms_mini_module_settings.settings` key persisting that THIS tenant
- * has genuinely applied this preset (Issue #636, `blog_content`'s
- * `news-portal-r2-mode-gate.ts` reads it back). Deliberately NOT inferred
- * from `news_portal`'s tenant-module `enabled` state: every module in this
- * repo is opt-out-by-default (`fetchTenantModuleEntry`'s own docblock — no
- * row means enabled), so `enableTenantModule("news_portal")` on a tenant
- * that never touched it is rejected as `MODULE_ALREADY_ENABLED` by the
- * underlying lifecycle validation and writes NO row at all — there is no
- * way to derive "did this tenant actually apply the preset" from module-
- * enabled state alone. A dedicated settings key is the only reliable
- * signal.
- */
-const FULL_ONLINE_R2_MODE_APPLIED_SETTING_KEY = "fullOnlineR2ModeAppliedAt";
 
 export type ApplyNewsPortalFullOnlineR2PresetResult =
   | ({ outcome: "applied" } & Omit<
@@ -115,19 +100,55 @@ export async function applyNewsPortalFullOnlineR2Preset(
   );
 
   if (result.outcome === "applied") {
-    // Persist the genuine "this tenant applied the preset" signal — see
-    // this file's header for why `news_portal`'s module-enabled state
-    // alone cannot represent this. Set unconditionally on every successful
-    // application (including a re-application that finds every module
-    // already `already_satisfied`) so the timestamp always reflects the
-    // most recent confirmed-ready activation.
-    await updateModuleSettings(
-      tx,
-      tenantId,
-      "news_portal",
-      { [FULL_ONLINE_R2_MODE_APPLIED_SETTING_KEY]: new Date().toISOString() },
-      actorTenantUserId
+    // `applyModulePreset`'s top-level `outcome: "applied"` does NOT mean
+    // every module in the preset's list actually ended up enabled — a
+    // per-module rejection (e.g. `MODULE_DEPENDENCY_MISSING`/
+    // `MODULE_DEPENDENCY_DISABLED`) is recorded inside `result.changes[]`
+    // without changing the top-level outcome (reviewer finding, PR #666
+    // re-review). What #636's tenant-scoped gate actually depends on is
+    // narrowly "did `news_portal` itself end up enabled" — an unrelated
+    // bundled module (e.g. `visitor_analytics`) failing because of ITS OWN
+    // unrelated dependency (e.g. `logging` disabled) is a real, common
+    // occurrence (confirmed by this repo's own existing preset
+    // integration test fixture) that must NOT block the R2-only marker
+    // for a tenant whose `news_portal` enable genuinely succeeded — only
+    // a rejection of `news_portal`'s OWN change entry means the tenant is
+    // not actually in the state this marker claims.
+    const newsPortalChange = result.changes.find(
+      (change) => change.moduleKey === "news_portal"
     );
+    const newsPortalRejected = newsPortalChange?.outcome === "rejected";
+
+    if (newsPortalRejected) {
+      await recordAuditEvent(tx, {
+        tenantId,
+        actorTenantUserId,
+        moduleKey: "news_portal",
+        action: "news_portal_preset_partially_applied",
+        resourceType: "tenant_module_preset",
+        resourceId: NEWS_PORTAL_FULL_ONLINE_R2_PRESET_NAME,
+        severity: "warning",
+        message: `Preset "${NEWS_PORTAL_FULL_ONLINE_R2_PRESET_NAME}" was accepted by the generic engine, but news_portal's own module enable was rejected. Full-online R2-only mode is NOT considered active for this tenant until re-applied cleanly.`,
+        attributes: {
+          changes: result.changes,
+          skipped: result.skipped.length
+        },
+        correlationId: correlationId ?? undefined
+      });
+
+      return result;
+    }
+
+    // Persist the genuine "this tenant applied the preset" signal — a
+    // dedicated, non-tenant-writable table (migration `043`, see its
+    // header for why this is a brand-new table rather than reusing
+    // `awcms_mini_tenant_modules`/`awcms_mini_module_settings`, both tried
+    // and both found exploitable/useless in review). Set unconditionally
+    // on every fully successful application (including a re-application
+    // that finds every module already `already_satisfied`) so the
+    // timestamp always reflects the most recent confirmed-ready
+    // activation.
+    await markFullOnlineR2ModeApplied(tx, tenantId);
 
     await recordAuditEvent(tx, {
       tenantId,

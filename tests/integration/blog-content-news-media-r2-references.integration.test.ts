@@ -37,6 +37,7 @@ import { POST as createPost } from "../../src/pages/api/v1/blog/posts/index";
 import { PATCH as updatePost } from "../../src/pages/api/v1/blog/posts/[id]";
 import { POST as publishPost } from "../../src/pages/api/v1/blog/posts/[id]/publish";
 import { POST as restorePostRevision } from "../../src/pages/api/v1/blog/posts/[id]/revisions/[revisionId]/restore";
+import { PATCH as updateTenantModuleSettings } from "../../src/pages/api/v1/tenant/modules/[moduleKey]/settings";
 import { GET as getNewsDetail } from "../../src/pages/news/[slug]";
 import { getDatabaseClient } from "../../src/lib/database/client";
 import { withTenant } from "../../src/lib/database/tenant-context";
@@ -381,6 +382,41 @@ suite("blog_content news media R2 reference validation (Issue #636)", () => {
     });
 
     expect(response.status).toBe(200);
+  });
+
+  test("security-auditor finding, PR #666 second re-review: the generic PATCH /api/v1/tenant/modules/{moduleKey}/settings endpoint CANNOT disable R2-only validation for a tenant that genuinely applied the preset", async () => {
+    const owner = await bootstrap();
+    await activateFullOnlineR2Mode(owner);
+
+    // Same generic permission an Owner already holds by default seed RBAC
+    // (module_management.settings.update) — entirely unrelated to
+    // blog_content/news_portal permissions. Previously (when the marker
+    // lived in awcms_mini_module_settings) this exact call could null out
+    // the marker and disable all R2-only validation. The marker now lives
+    // in a dedicated table with no route anywhere that can write to it, so
+    // this PATCH either 404s (moduleKey exists but has no settings
+    // defaults to touch) or succeeds while having ZERO effect on the real
+    // signal.
+    await invoke(updateTenantModuleSettings, {
+      method: "PATCH",
+      path: "/api/v1/tenant/modules/news_portal/settings",
+      headers: authHeaders(owner),
+      params: { moduleKey: "news_portal" },
+      body: { fullOnlineR2ModeAppliedAt: null }
+    });
+
+    const response = await invoke(createPost, {
+      method: "POST",
+      path: "/api/v1/blog/posts",
+      headers: authHeaders(owner),
+      body: validCreatePostBody({
+        featuredMediaId: "99999999-9999-9999-9999-999999999999"
+      })
+    });
+
+    // Still rejected — the PATCH above had no effect on the real,
+    // dedicated-table signal.
+    expect(response.status).toBe(422);
   });
 
   test("R2-only mode active: featuredMediaId referencing a verified, same-tenant media object is accepted", async () => {

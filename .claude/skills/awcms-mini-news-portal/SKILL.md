@@ -967,10 +967,11 @@ check, BUKAN `module.ts` `dependencies` entry** — `blog_content` maupun
 selamanya — menambah dependency di sini akan membangkitkan masalah yang
 sama.
 
-**PENTING — DUA percobaan gagal sebelum menemukan sinyal yang benar
-(reviewer + security-auditor, PR #666 re-review; jangan re-derive dari
-nol, keduanya BUKAN cuma teori — dikonfirmasi gagal oleh integration
-test nyata):**
+**PENTING — TIGA percobaan gagal sebelum menemukan sinyal yang benar
+(tiga putaran review reviewer+security-auditor, PR #666; jangan re-derive
+dari nol, KETIGANYA dikonfirmasi gagal secara nyata — dua oleh
+integration test merah, satu oleh eksploitasi hidup yang direproduksi
+security-auditor):**
 
 1. **`fetchTenantModuleEntry(...).tenantEnabled` — GAGAL total.**
    Fungsi ini opt-out-by-default (tidak ada baris `awcms_mini_tenant_modules`
@@ -995,27 +996,55 @@ test nyata):**
    dengan tenant yang tidak pernah menyentuhnya — dikonfirmasi gagal
    oleh 8 test integration yang tadinya lulus tiba-tiba merah semua
    begitu fix ini dicoba.
+3. **`awcms_mini_module_settings` (`updateModuleSettings`/
+   `fetchModuleSettingsView`) — GAGAL, dan ini yang PALING BERBAHAYA.**
+   Percobaan ketiga BENAR secara logika (berhasil membedakan "diterapkan"
+   dari "belum pernah disentuh"), TAPI tabel ini bisa ditulis langsung
+   oleh tenant lewat endpoint generik
+   `PATCH /api/v1/tenant/modules/{moduleKey}/settings`, digerbangi permission
+   generik `module_management.settings.update` (default digrant ke
+   Owner/Admin — SAMA SEKALI tidak terkait permission
+   `blog_content`/`news_portal`). Tenant pemegang permission generik itu
+   bisa `PATCH` key markernya jadi `null` dan MEMATIKAN SELURUH validasi
+   R2-only issue ini untuk dirinya sendiri — security-auditor
+   mereproduksi eksploitasi ini hidup end-to-end (PATCH 200, lalu POST
+   post dengan `featuredMediaId` mentah lolos 200 padahal seharusnya
+   422). **Verdict BLOCKED** pada re-audit kedua karena temuan ini.
 
-**Sinyal yang BENAR-BENAR bekerja**: `applyNewsPortalFullOnlineR2Preset`
-(`news-portal/application/apply-news-portal-preset.ts`) sekarang menulis
-timestamp eksplisit `fullOnlineR2ModeAppliedAt` ke **module settings**
-per-tenant (`awcms_mini_module_settings`, via `updateModuleSettings` —
-mekanisme generik yang SAMA dipakai `blog_content`'s `publicRouteMode`
-sendiri, TIDAK butuh migration baru) setiap kali preset berhasil
-diterapkan. `isNewsPortalFullOnlineR2ModeActiveForTenant` membaca key
-ini lewat `fetchModuleSettingsView(tx, tenantId, "news_portal")` —
-tenant yang tidak pernah menerapkan preset tidak punya key ini sama
-sekali, sinyal yang benar-benar unambiguous, tidak seperti dua percobaan
-di atas.
+**Sinyal yang BENAR-BENAR bekerja (percobaan keempat, final)**: tabel
+BARU khusus, `awcms_mini_news_portal_tenant_state` (migration `043`,
+`tenant_id` PK, kolom `full_online_r2_mode_applied_at`), yang TIDAK
+PUNYA endpoint tulis generik SAMA SEKALI di mana pun. Satu-satunya kode
+yang pernah menulis ke tabel ini adalah
+`applyNewsPortalFullOnlineR2Preset`
+(`news-portal/application/apply-news-portal-preset.ts`, lewat
+`news-portal-tenant-state.ts`'s `markFullOnlineR2ModeApplied`) — satu-
+satunya jalur resmi mengaktifkan preset ini (lihat header file itu
+sendiri). `isNewsPortalFullOnlineR2ModeActiveForTenant` membaca lewat
+`isFullOnlineR2ModeAppliedForTenant` — tenant tanpa baris di tabel ini
+(mayoritas tenant hari ini) selalu `false`, fail-closed by construction,
+TIDAK ADA jalur API mana pun (baik `module_management.settings.update`
+maupun permission generik lain) yang bisa menyentuhnya.
+
+**Pelajaran untuk implementor lanjutan yang butuh sinyal per-tenant
+serupa**: JANGAN pernah menaruh sinyal keamanan/enforcement di
+mekanisme yang SUDAH punya endpoint generik tenant-writable
+(`awcms_mini_tenant_modules`, `awcms_mini_module_settings`) — keduanya
+dirancang untuk operator self-service, bukan untuk menyimpan state yang
+tidak boleh tenant itu sendiri ubah. Kalau butuh sinyal yang genuinely
+tamper-proof, buat tabel baru sempit yang HANYA disentuh oleh satu
+fungsi aplikasi yang sudah dipercaya, dan JANGAN mengekspos write path
+apa pun ke sana.
 
 Ketika mode TIDAK aktif untuk tenant (mayoritas deployment/tenant hari
 ini): seluruh validasi baru ini adalah no-op — `featuredMediaId`/URL
 gallery lama tetap berperilaku identik sebelum issue ini (backward
 compatible, bukan pengetatan blanket). Regression test
-`"R2-only mode active for tenant A does NOT leak into tenant B"` di
-`blog-content-news-media-r2-references.integration.test.ts` membuktikan
-ini secara eksplisit — implementor lanjutan yang mengubah gate ini
-**wajib** menjaga test itu tetap lulus.
+`"R2-only mode active for tenant A does NOT leak into tenant B"` DAN
+`"the generic PATCH .../settings endpoint CANNOT disable R2-only
+validation"` di `blog-content-news-media-r2-references.integration.test.ts`
+membuktikan ini secara eksplisit — implementor lanjutan yang mengubah
+gate ini **wajib** menjaga kedua test itu tetap lulus.
 
 ### Bypass jalur restore revisi — ditemukan & ditutup sebelum merge (security-auditor, PR #666 review)
 
@@ -1090,19 +1119,31 @@ keempat route handler asli sudah mencakup semua jalur tulis yang ada.
   `validateNewsMediaReferencesForFullOnlineR2Mode` setelah pure
   validator + (untuk posts) `countExistingTerms`, sebelum
   create/updateBlogPost/Page — gagal `422 NEWS_MEDIA_REFERENCE_INVALID`.
+- `sql/043_awcms_mini_news_portal_tenant_state_schema.sql` (baru) — tabel
+  sempit `awcms_mini_news_portal_tenant_state` (`tenant_id` PK,
+  `full_online_r2_mode_applied_at`), RLS FORCE, TANPA endpoint tulis
+  generik apa pun — lihat §"Gate tenant+env" di atas untuk kenapa ini
+  butuh migration baru (dua percobaan tanpa migration baru gagal, satu
+  di antaranya benar-benar bisa dieksploitasi).
+- `src/modules/news-portal/application/news-portal-tenant-state.ts`
+  (baru) — `markFullOnlineR2ModeApplied`/`isFullOnlineR2ModeAppliedForTenant`,
+  satu-satunya kode yang boleh menulis tabel di atas.
 - `src/modules/news-portal/application/apply-news-portal-preset.ts`:
-  setelah `applyModulePreset` sukses, menulis
-  `fullOnlineR2ModeAppliedAt` ke module settings tenant lewat
-  `updateModuleSettings` — lihat §"Gate tenant+env" di atas untuk alasan
-  lengkap kenapa sinyal ini (bukan `awcms_mini_tenant_modules`) yang
-  benar.
+  setelah `applyModulePreset` sukses DAN entry `news_portal` sendiri di
+  `result.changes` tidak `rejected` (rejection modul LAIN yang dibundel
+  preset, mis. `visitor_analytics` karena `logging`-nya sendiri disabled,
+  TIDAK memblokir — hanya rejection `news_portal` sendiri yang berarti
+  tenant ini genuinely belum siap), panggil `markFullOnlineR2ModeApplied`.
 - `src/lib/i18n/error-messages.ts`, `i18n/en.po`, `i18n/id.po`: entry baru
   `error.news_media_reference_invalid` untuk kode error di atas (admin UI
   sudah generic-fallback ke `error.message` server tanpa ini, tapi entry
   i18n eksplisit konsisten dengan SEMUA kode error lain di katalog).
 - `openapi/awcms-mini-public-api.openapi.yaml`: `featuredMediaId`/
   `contentJson` schema description diperbarui (bentuk TIDAK berubah);
-  response `422` baru di keempat endpoint create/update posts/pages.
+  response `422` baru di kelima endpoint create/update posts/pages +
+  restore revisi.
+- `tests/foundation.test.ts`: tambah nama file migration `043` ke daftar
+  migration yang diharapkan.
 - Test: `tests/unit/content-block-media-references.test.ts` (baru),
   `tests/blog-content-public-rendering.test.ts` (tambah describe block
   gallery mediaObjectId + og:image + `resolveOgImageUrl`),
@@ -1110,8 +1151,9 @@ keempat route handler asli sudah mencakup semua jalur tulis yang ada.
   (baru — end-to-end: create/update reject, cross-tenant, status
   unsafe, soft-deleted, gallery raw-url reject, gallery mediaObjectId
   accept, video item tidak terpengaruh, render publik og:image+gallery
-  `<img>`, restore-revisi reject, DAN "tenant B tidak terpengaruh
-  aktivasi tenant A" — dua test terakhir ditambah setelah re-review).
+  `<img>`, restore-revisi reject, "tenant B tidak terpengaruh aktivasi
+  tenant A", DAN "endpoint settings generik tidak bisa menonaktifkan
+  validasi" — tiga test terakhir ditambah setelah tiga putaran review).
 - Changeset: `.changeset/blog-content-news-media-r2-references-issue-636.md`.
 
 ### Belum/di luar cakupan issue ini (untuk issue lanjutan)
