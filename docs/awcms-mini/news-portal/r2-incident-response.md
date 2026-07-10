@@ -149,9 +149,16 @@ checksum yang selalu mismatch (indikasi automated probing/scanning).
 
 ### Contain
 
-- Validasi berlapis (§9 arsitektur) **sudah** mencegah file berbahaya
-  pernah mencapai status `confirmed`/tereferensi publik — langkah
-  containment tambahan adalah **operasional**, bukan teknis-darurat:
+- Validasi berlapis (§9 arsitektur) — termasuk `GET` penuh + MIME
+  sniffing dari magic bytes saat `confirm`, bukan `HEAD` saja — dirancang
+  untuk mencegah file berbahaya mencapai status `confirmed`/tereferensi
+  publik **selama implementasi benar-benar menjalankan `GET`+sniffing di
+  KEDUA jalur** (§9: tidak ada jalur pintas untuk Jalur A). Ini adalah
+  kontrol yang wajib diverifikasi ada di kode (mis. lewat test integrasi
+  yang meng-upload payload HTML/JS berkedok `.jpg`), bukan diasumsikan
+  otomatis benar hanya karena didokumentasikan. Langkah containment
+  tambahan berikut tetap **operasional**, bukan pengganti kontrol
+  teknis di atas:
   - Objek yang tertolak validasi tetap ter-upload sementara ke R2 pada
     Jalur A (client PUT duluan, confirm menyusul) — pastikan lifecycle
     job (`r2-backup-lifecycle.md`) membersihkannya, jangan biarkan

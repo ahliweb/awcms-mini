@@ -10,18 +10,32 @@ alasannya.
 ## 1. Validasi upload
 
 - [ ] Ukuran file ditolak **sebelum** membaca isi file bila melebihi
-      `NEWS_MEDIA_R2_MAX_UPLOAD_BYTES` (arsitektur §9 langkah 1).
-- [ ] MIME divalidasi dari **magic bytes**, bukan `Content-Type` header
-      client atau ekstensi nama file (§9 langkah 2).
+      `NEWS_MEDIA_R2_MAX_UPLOAD_BYTES` (arsitektur §9 langkah 1); untuk
+      Jalur A, `confirm` juga menolak reaktif via `Content-Length`
+      sebenarnya dari `HEAD` (residual risk presigned PUT yang diterima
+      secara eksplisit, §9 langkah 1).
+- [ ] `confirm` melakukan **`GET` penuh objek dari R2, bukan `HEAD`
+      saja**, sebelum status boleh naik ke `confirmed` — pada KEDUA
+      jalur (§9: "kedua jalur wajib menjalankan urutan validasi yang
+      sama"). `HEAD` sendirian (eksistensi/`Content-Length`/ETag) tidak
+      pernah menjadi dasar `confirmed`.
+- [ ] MIME divalidasi dari **magic bytes hasil `GET` di atas**, bukan
+      `Content-Type` header client, ekstensi nama file, atau checksum
+      yang diklaim client (§9 langkah 2).
 - [ ] `image/svg+xml` **tidak** ada di allow-list default (§9 langkah 3)
       — mengizinkannya butuh keputusan terpisah + pipeline sanitasi.
 - [ ] Ekstensi object key **diturunkan** dari MIME tervalidasi, bukan
       dari input client (§6/§9 langkah 4).
-- [ ] Checksum SHA-256 aktual dicocokkan terhadap checksum yang diklaim
-      sebelum status naik ke `confirmed` (§9 langkah 5).
-- [ ] Tidak ada jalur yang melewati salah satu dari empat validasi di
-      atas untuk kategori file/purpose apa pun (§9 langkah 6 — defense
-      in depth, tanpa pengecualian diam-diam).
+- [ ] Checksum SHA-256 dihitung **server-side dari isi objek** yang
+      benar-benar dibaca saat `confirm` (bukan hanya dibandingkan
+      terhadap `Content-Length`/ETag) sebelum status naik ke
+      `confirmed`; checksum yang diklaim client hanya dipakai sebagai
+      deteksi korupsi transport, tidak pernah sebagai satu-satunya
+      bukti validasi konten (§9 langkah 5).
+- [ ] Tidak ada jalur yang melewati salah satu dari validasi di atas
+      untuk kategori file/purpose apa pun (§9 langkah 6 — defense in
+      depth, tanpa pengecualian diam-diam, dan tanpa jalur yang
+      "dipercaya lebih aman" hanya karena upload-nya direct-to-R2).
 
 ## 2. Object key & penyimpanan
 
@@ -148,8 +162,12 @@ biarkan dokumen ini menyiratkan check sudah ada padahal belum
 
 ## 8. Monitoring & audit
 
-- [ ] Setiap `confirm` (sukses/gagal) dicatat lewat correlation ID
-      terstruktur (pola `sync_storage.object_dispatch.*` yang sudah ada).
+- [ ] Setiap `confirm` (sukses/gagal) menulis **audit event formal**
+      lewat skill `awcms-mini-audit-log` (bukan hanya correlation-ID
+      logging aplikasi biasa, pola `sync_storage.object_dispatch.*`) —
+      ini mutation high-risk yang menaikkan status metadata ke
+      `confirmed` (§7 arsitektur), sama kelas dengan aksi lain yang
+      wajib audit di doc 03/10.
 - [ ] Percobaan checksum-mismatch berulang dari identity/IP yang sama
       dalam jendela waktu pendek memicu perhatian operator (lihat
       `r2-incident-response.md` §Malicious upload untuk ambang & respons).

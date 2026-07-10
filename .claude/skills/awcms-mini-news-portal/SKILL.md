@@ -207,10 +207,22 @@ tenant-scoped lain).
 Ringkasan scope: endpoint upload presigned + confirm (Jalur A) dan/atau
 server-streaming (Jalur B) sesuai `r2-upload-sop.md` §2/§3. Implementor
 **wajib**: `Idempotency-Key` untuk langkah `confirm` (skill
-`awcms-mini-idempotency`), panggilan R2 di luar DB transaction
-(ADR-0006), circuit breaker + timeout (pola sama `object-storage`
-breaker `sync-storage` sudah pakai), validasi berlapis persis urutan
-`full-online-r2-architecture.md` §9.
+`awcms-mini-idempotency`), audit event formal untuk `confirm`
+sukses/gagal (skill `awcms-mini-audit-log`, bukan sekadar correlation-ID
+logging), panggilan R2 di luar DB transaction (ADR-0006), circuit
+breaker + timeout (pola sama `object-storage` breaker `sync-storage`
+sudah pakai), validasi berlapis persis urutan
+`full-online-r2-architecture.md` §9. **Titik paling kritis (temuan
+security-auditor #631, sudah diperbaiki di dokumen arsitektur)**:
+langkah `confirm` Jalur A HARUS melakukan `GET` penuh objek dari R2
+(bukan `HEAD` saja) untuk menjalankan MIME sniffing dari magic bytes
+dan menghitung checksum server-side dari isi objek — `HEAD` hanya
+membuktikan sesuatu ter-upload, bukan apa yang ter-upload, dan
+membandingkan checksum aktual dari `HEAD`/ETag terhadap klaim client
+adalah pemeriksaan self-referential yang tidak menutup upload konten
+berbahaya berkedok gambar. Tambahkan test integrasi yang meng-upload
+payload HTML/JS berkedok `.jpg` dan membuktikan `confirm` menolaknya
+sebelum menganggap implementasi ini benar.
 
 ## §635 — Readiness checks (belum dikerjakan)
 

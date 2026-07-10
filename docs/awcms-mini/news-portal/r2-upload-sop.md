@@ -41,17 +41,39 @@ checksumSha256, purpose }`. Server memvalidasi **shape saja** di
    transit lewat server AWCMS-Mini di langkah ini.
 5. **Confirm** — client memanggil
    `POST /api/v1/news-media/{objectKey}/confirm` dengan
-   `Idempotency-Key` (mutation high-risk, skill `awcms-mini-idempotency`).
-   Server:
-   - `HEAD` objek di R2 — pastikan benar-benar ada (client tidak bisa
-     "confirm" objek yang gagal ter-upload).
-   - Bandingkan `Content-Length`/ETag/checksum aktual terhadap yang
-     diklaim di langkah 1.
-   - Cocok → `status='confirmed'`, `confirmed_at=now()`.
-   - Tidak cocok → `status` tetap `pending` (atau `rejected` bila
-     implementasi memilih state eksplisit), response error jelas ke
-     client, dan objek dijadwalkan pembersihan
-     (`r2-backup-lifecycle.md` §Lifecycle objek pending).
+   `Idempotency-Key` (mutation high-risk, skill `awcms-mini-idempotency`,
+   dan **wajib menulis audit event lewat skill `awcms-mini-audit-log`**
+   baik sukses maupun gagal — bukan sekadar correlation-ID logging
+   biasa, karena ini menaikkan status metadata ke `confirmed` yang
+   dipakai untuk keputusan "boleh direferensikan konten publik").
+   Server (`HEAD` SAJA TIDAK PERNAH CUKUP di sini — lihat
+   `full-online-r2-architecture.md` §9):
+   - `HEAD` objek di R2 sebagai pengecekan cepat — pastikan benar-benar
+     ada dan `Content-Length`-nya tidak melebihi
+     `NEWS_MEDIA_R2_MAX_UPLOAD_BYTES` (client tidak bisa "confirm" objek
+     yang gagal ter-upload atau yang lebih besar dari batas — lihat §9
+     arsitektur soal residual risk ukuran di Jalur A).
+   - **`GET` penuh objek** (dibatasi ukuran yang sudah divalidasi di
+     atas) — bukan `HEAD` saja — untuk (a) menjalankan MIME sniffing
+     dari magic bytes terhadap isi objek yang sebenarnya, dan
+     (b) menghitung checksum SHA-256 **server-side dari byte yang
+     benar-benar diterima**, bukan mempercayai `Content-Length`/ETag
+     semata.
+   - Bandingkan MIME hasil sniffing terhadap allow-list DAN terhadap
+     `mimeType` yang diklaim di langkah 1; bandingkan checksum
+     server-side terhadap `checksumSha256` yang diklaim di langkah 1
+     (mismatch checksum di sini hanya mendeteksi korupsi transport —
+     keputusan MIME/konten selalu dari hasil sniffing, tidak pernah
+     dari klaim client).
+   - Semua cocok → `status='confirmed'`, `confirmed_at=now()`.
+   - Tidak cocok (MIME sniffing gagal allow-list, MIME tidak sama
+     dengan klaim, checksum tidak cocok, atau ukuran melebihi batas) →
+     `status` tetap `pending` (atau `rejected` bila implementasi
+     memilih state eksplisit), response error jelas ke client, dan
+     objek dijadwalkan pembersihan (`r2-backup-lifecycle.md` §Lifecycle
+     objek pending) — **objek yang MIME-nya tidak lolos sniffing tidak
+     pernah dibiarkan reachable publik di bawah status apa pun selain
+     dijadwalkan hapus.**
 6. **TTL kedaluwarsa sebelum confirm** — bila `confirm` dipanggil setelah
    `expiresAt`, server menolak dan editor harus mengulang dari langkah 1
    (object key baru, presigned URL baru — presigned URL lama tidak
@@ -102,29 +124,32 @@ tegasnya adalah **disk lokal**, bukan memori proses.
 
 ```mermaid
 flowchart TD
-  A[Terima request upload] --> B{Ukuran <= batas?}
-  B -- Tidak --> R1[Tolak — 413/400, tanpa proses lanjut]
-  B -- Ya --> C{MIME magic-bytes di allow-list?}
-  C -- Tidak --> R2[Tolak — 415, termasuk SVG]
+  A[confirm dipanggil] --> H{HEAD: objek ada & Content-Length <= batas?}
+  H -- Tidak --> R1[Tolak — 404/413, jadwalkan pembersihan bila ada objek]
+  H -- Ya --> G[GET penuh objek dari R2 — bukan HEAD saja]
+  G --> C{MIME magic-bytes hasil sniffing di allow-list & = klaim?}
+  C -- Tidak --> R2[Tolak — 415, termasuk SVG; jadwalkan pembersihan objek]
   C -- Ya --> D[Turunkan ekstensi dari MIME tervalidasi]
-  D --> E{Checksum aktual = checksum diklaim?}
+  D --> E{Checksum server-side dari isi objek = checksum diklaim?}
   E -- Tidak --> R3[Tolak, jadwalkan pembersihan objek]
   E -- Ya --> F[status = confirmed]
 ```
 
 Tidak ada jalur "lolos sebagian" — kegagalan pada langkah mana pun
 menghentikan seluruh proses, konsisten dengan prinsip default-deny (§3
-arsitektur).
+arsitektur). **`HEAD` sendirian tidak pernah menjadi dasar `confirmed`**
+— lihat `full-online-r2-architecture.md` §9 untuk kenapa ranged/full
+`GET` wajib pada kedua jalur.
 
 ## 5. Penanganan error & rollback
 
-| Skenario                                       | Penanganan                                                                                                                                                                                                    |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PUT ke R2 gagal (network/timeout, Jalur A)     | Client melihat error dari R2 langsung; baris metadata tetap `pending`, dibersihkan oleh lifecycle job.                                                                                                        |
-| `confirm` dipanggil tapi objek tidak ada di R2 | `HEAD` gagal → `404`, metadata tetap `pending` (tidak pernah naik jadi `confirmed` tanpa objek nyata).                                                                                                        |
-| Checksum mismatch saat `confirm`               | Tolak eksplisit, metadata tidak `confirmed`; lihat `r2-incident-response.md` bila polanya berulang/mencurigakan (indikasi upload berbahaya).                                                                  |
-| Retry `confirm` dengan `Idempotency-Key` sama  | Idempotent — request kedua mengembalikan hasil pertama, tidak membuat baris duplikat.                                                                                                                         |
-| R2 mengalami outage saat upload                | Gagal eksplisit ke editor (§3 arsitektur — tidak ada fallback lokal); circuit breaker provider mencegah percobaan berulang membebani R2 yang sedang down (pola sama `object-storage` breaker `sync-storage`). |
+| Skenario                                                                                                  | Penanganan                                                                                                                                                                                                    |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PUT ke R2 gagal (network/timeout, Jalur A)                                                                | Client melihat error dari R2 langsung; baris metadata tetap `pending`, dibersihkan oleh lifecycle job.                                                                                                        |
+| `confirm` dipanggil tapi objek tidak ada di R2                                                            | `HEAD` gagal → `404`, metadata tetap `pending` (tidak pernah naik jadi `confirmed` tanpa objek nyata).                                                                                                        |
+| MIME sniffing hasil `GET` tidak cocok allow-list/klaim, atau checksum server-side mismatch saat `confirm` | Tolak eksplisit, metadata tidak `confirmed`, objek dijadwalkan pembersihan; lihat `r2-incident-response.md` bila polanya berulang/mencurigakan (indikasi upload berbahaya).                                   |
+| Retry `confirm` dengan `Idempotency-Key` sama                                                             | Idempotent — request kedua mengembalikan hasil pertama, tidak membuat baris duplikat.                                                                                                                         |
+| R2 mengalami outage saat upload                                                                           | Gagal eksplisit ke editor (§3 arsitektur — tidak ada fallback lokal); circuit breaker provider mencegah percobaan berulang membebani R2 yang sedang down (pola sama `object-storage` breaker `sync-storage`). |
 
 ## 6. Troubleshooting operator
 

@@ -290,16 +290,47 @@ Catatan implementasi wajib untuk Issue #634:
 
 ## 9. Validasi MIME, ekstensi, dan checksum
 
-Urutan validasi wajib (server-side, sebelum objek dianggap `confirmed`):
+**Kedua jalur (§7) wajib menjalankan urutan validasi yang SAMA sebelum
+objek dianggap `confirmed` — tidak ada jalur pintas untuk Jalur A.**
+`HEAD` request (eksistensi/`Content-Length`/ETag) TIDAK PERNAH cukup
+untuk menaikkan status ke `confirmed`, karena `HEAD` tidak membaca isi
+objek — ia hanya membuktikan _sesuatu_ ter-upload, bukan _apa_ yang
+ter-upload. Presigned PUT S3-compatible juga tidak memverifikasi
+`Content-Type` yang dikirim client saat PUT terhadap apa pun yang
+disetujui server saat inisiasi upload — client bebas mem-PUT payload
+apa pun (mis. HTML/JS yang diberi nama/checksum seolah gambar) ke URL
+presigned yang sama. Karena itu langkah `confirm` WAJIB melakukan
+**ranged `GET`** (bukan `HEAD`) untuk membaca isi objek langsung dari
+R2, pada kedua jalur:
 
-1. **Ukuran** — tolak lebih awal (dari `Content-Length` atau saat stream
-   melampaui `NEWS_MEDIA_R2_MAX_UPLOAD_BYTES`) sebelum membaca isi file
-   — mencegah pemborosan CPU/bandwidth untuk file yang pasti ditolak
-   (juga mitigasi OWASP API4 "unrestricted resource consumption", §15).
-2. **MIME sniffing dari magic bytes**, bukan `Content-Type` header
-   client atau ekstensi nama file — header/ekstensi client adalah input
-   tidak tepercaya yang mudah dipalsukan. Allow-list default
+1. **Ukuran** — tolak lebih awal (dari `Content-Length` klaim awal atau
+   saat stream melampaui `NEWS_MEDIA_R2_MAX_UPLOAD_BYTES`) sebelum
+   membaca isi file, mencegah pemborosan CPU/bandwidth untuk file yang
+   pasti ditolak (mitigasi OWASP API4 "unrestricted resource
+   consumption", §15). **Residual risk pada Jalur A**: presigned PUT
+   (bukan presigned POST) tidak mendukung pembatasan ukuran di level
+   signature R2 — client secara teknis bisa mem-PUT byte lebih banyak
+   dari yang diklaim saat inisiasi. Mitigasi wajib: langkah `confirm`
+   membaca `Content-Length` sebenarnya dari R2 (`HEAD` sebagai
+   pengecekan cepat sebelum `GET`) dan menolak (`REJECTED` + jadwalkan
+   penghapusan objek) bila melebihi `NEWS_MEDIA_R2_MAX_UPLOAD_BYTES` —
+   lapisan reaktif menyusul lapisan preventif ini; bandwidth yang
+   sudah terpakai untuk objek yang akhirnya ditolak adalah risiko yang
+   **diterima secara eksplisit** (sama pola dengan §8's residual risk
+   soal status Postgres vs akses storage-level), bukan diklaim sudah
+   tertutup penuh. Implementasi yang lebih kuat (opsional, di luar
+   cakupan epic ini): presigned **POST** dengan policy condition
+   `content-length-range`, yang menolak PUT berlebih di level R2
+   sebelum data sampai ke bucket sama sekali.
+2. **MIME sniffing dari magic bytes**, dijalankan terhadap isi objek
+   hasil ranged `GET` di atas — **bukan** `Content-Type` header client,
+   bukan ekstensi nama file, dan bukan checksum yang diklaim client
+   (ketiganya adalah input tidak tepercaya yang mudah
+   dipalsukan/self-referential). Allow-list default
    `NEWS_MEDIA_R2_ALLOWED_MIME_TYPES` (§4): JPEG, PNG, WebP, GIF.
+   Mismatch antara MIME yang diklaim saat inisiasi dan MIME hasil
+   sniffing berarti `REJECTED`, objek dijadwalkan penghapusan, dan
+   baris metadata tidak pernah naik status ke `confirmed`.
 3. **`image/svg+xml` sengaja TIDAK diizinkan** secara default — SVG bisa
    membawa `<script>`/event handler dan dieksekusi sebagai HTML oleh
    sebagian browser bila disajikan dengan `Content-Type` yang salah
@@ -310,17 +341,24 @@ Urutan validasi wajib (server-side, sebelum objek dianggap `confirmed`):
    dari ekstensi asli — menutup celah "file dengan MIME benar tapi
    ekstensi berbahaya (`.php.jpg`, `.jpg.exe`)" karena ekstensi asli
    tidak pernah dipercaya sama sekali.
-5. **Checksum SHA-256** — client mengirim checksum yang diklaim saat
-   inisiasi upload (Jalur A) atau server menghitung on-the-fly saat
-   streaming (Jalur B); langkah `confirm`/akhir stream membandingkan
-   checksum aktual objek di R2 (dari `HEAD`/hasil hashing stream)
-   terhadap yang diklaim — mismatch berarti `REJECTED`, baris metadata
-   tidak pernah naik status ke `confirmed`, dan objek di R2 (bila
-   sempat ter-upload di Jalur A) dijadwalkan pembersihan (bukan
-   dibiarkan `pending` selamanya — `r2-backup-lifecycle.md`).
-6. Empat langkah di atas adalah **defense in depth** yang berurutan —
+5. **Checksum SHA-256** — dihitung **server-side dari isi objek yang
+   benar-benar dibaca di langkah 2** (Jalur A: server menyelesaikan
+   `GET` penuh objek untuk menghitung digest, dibatasi
+   `NEWS_MEDIA_R2_MAX_UPLOAD_BYTES` dari langkah 1, bukan hanya
+   membaca beberapa byte pertama untuk sniffing; Jalur B: server sudah
+   menghitung on-the-fly saat streaming). Checksum yang diklaim client
+   saat inisiasi (Jalur A) **hanya dipakai sebagai deteksi korupsi
+   transport** (bandingkan dua nilai yang sama-sama dihitung dari byte
+   yang benar-benar diterima server) — **tidak pernah** menjadi
+   satu-satunya bukti validasi konten/MIME, karena nilai itu
+   self-referential terhadap klaim client sendiri. Mismatch berarti
+   `REJECTED`, baris metadata tidak pernah naik status ke `confirmed`,
+   dan objek di R2 dijadwalkan pembersihan (bukan dibiarkan `pending`
+   selamanya — `r2-backup-lifecycle.md`).
+6. Lima langkah di atas adalah **defense in depth** yang berurutan —
    satu langkah gagal berarti seluruh upload ditolak, tidak ada
-   "sebagian lolos".
+   "sebagian lolos", dan tidak ada langkah yang dilewati hanya karena
+   sebuah jalur (A vs B) "sudah dipercaya lebih aman".
 
 ## 10. Konfigurasi CORS
 
