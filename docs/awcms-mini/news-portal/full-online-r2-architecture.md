@@ -160,8 +160,8 @@ awcms_mini_news_media_objects (tenant-scoped, RLS ENABLE+FORCE)
 - original_filename         text, nullable    -- hanya untuk tampilan, TIDAK pernah masuk object_key (§6)
 - public_url                text NOT NULL     -- dibangun server dari NEWS_MEDIA_R2_PUBLIC_BASE_URL (#632), tidak pernah dari input client
 - mime_type                 text NOT NULL     -- hasil validasi server (§9), bukan input mentah client
-- size_bytes                bigint, nullable  -- terisi saat status='uploaded'
-- checksum_sha256           text, nullable
+- size_bytes                bigint, nullable  -- terisi saat status='verified' (bukan 'uploaded' — Issue #634 PR #653: klaim atomik pending_upload->uploaded terjadi SEBELUM GET nyata, jadi nilai asli baru diketahui saat verified)
+- checksum_sha256           text, nullable    -- terisi saat status='verified', dari bytes GET nyata yang sama (lihat baris di atas)
 - width/height              integer, nullable -- terisi saat status='verified'
 - alt_text, caption         text, nullable    -- aksesibilitas (doc 14), wajib diisi sebelum publish (Issue #636/#640)
 - status                    text — pending_upload|uploaded|verified|attached|orphaned|deleted|failed (elaborasi 7-state dari sketsa pending|confirmed|orphaned|deleted semula — lihat migration 041's header comment)
@@ -524,16 +524,16 @@ Bukan tabel kosong — setiap baris merujuk keputusan konkret di atas.
 
 ### ISO/IEC 27001:2022 Annex A
 
-| Kontrol Annex A                           | Implementasi                                                                                                                            |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **A.5.15 Kontrol akses**                  | Presigned upload di-generate hanya untuk identity dengan permission `news_media.upload` (rencana Issue #633/#634), tidak pernah publik. |
-| **A.5.23 Keamanan layanan cloud**         | §2 — segregasi bucket/kredensial per fungsi (media publik vs sync privat), §13 least-privilege token per bucket.                        |
-| **A.8.10 Penghapusan informasi**          | §8/§12 objek `pending` kedaluwarsa dibersihkan; `r2-backup-lifecycle.md` §Retention untuk penghapusan objek `deleted`.                  |
-| **A.8.12 Pencegahan kebocoran data**      | §10 CORS allow-list eksplisit (bukan wildcard); §2 bucket terpisah mencegah kebocoran objek sync privat lewat konfigurasi publik.       |
-| **A.8.24 Kriptografi**                    | §9 checksum SHA-256 wajib untuk integritas; TLS wajib untuk custom domain (§11) dan komunikasi ke R2 API.                               |
-| **A.8.25 Siklus hidup pengembangan aman** | §9 urutan validasi defense-in-depth wajib diimplementasikan sebelum kode upload ditulis (ISO 27034, lihat di bawah).                    |
-| **A.5.30 Kesiapan TIK untuk kontinuitas** | §16/22301 di bawah — tidak ada fallback lokal berarti kesiapan R2 sendiri jadi kritis; lihat `r2-backup-lifecycle.md`.                  |
-| **A.5.34 Privasi dan perlindungan PII**   | §5 minimisasi metadata, §6 object key tidak pernah berisi nama file/PII; `r2-backup-lifecycle.md` §Privasi.                             |
+| Kontrol Annex A                           | Implementasi                                                                                                                                                                               |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **A.5.15 Kontrol akses**                  | Presigned upload di-generate hanya untuk identity dengan permission `news_portal.media.create` (finalize: `news_portal.media.verify`) — diimplementasikan Issue #634, tidak pernah publik. |
+| **A.5.23 Keamanan layanan cloud**         | §2 — segregasi bucket/kredensial per fungsi (media publik vs sync privat), §13 least-privilege token per bucket.                                                                           |
+| **A.8.10 Penghapusan informasi**          | §8/§12 objek `pending` kedaluwarsa dibersihkan; `r2-backup-lifecycle.md` §Retention untuk penghapusan objek `deleted`.                                                                     |
+| **A.8.12 Pencegahan kebocoran data**      | §10 CORS allow-list eksplisit (bukan wildcard); §2 bucket terpisah mencegah kebocoran objek sync privat lewat konfigurasi publik.                                                          |
+| **A.8.24 Kriptografi**                    | §9 checksum SHA-256 wajib untuk integritas; TLS wajib untuk custom domain (§11) dan komunikasi ke R2 API.                                                                                  |
+| **A.8.25 Siklus hidup pengembangan aman** | §9 urutan validasi defense-in-depth wajib diimplementasikan sebelum kode upload ditulis (ISO 27034, lihat di bawah).                                                                       |
+| **A.5.30 Kesiapan TIK untuk kontinuitas** | §16/22301 di bawah — tidak ada fallback lokal berarti kesiapan R2 sendiri jadi kritis; lihat `r2-backup-lifecycle.md`.                                                                     |
+| **A.5.34 Privasi dan perlindungan PII**   | §5 minimisasi metadata, §6 object key tidak pernah berisi nama file/PII; `r2-backup-lifecycle.md` §Privasi.                                                                                |
 
 ### ISO/IEC 27002:2022
 
@@ -655,14 +655,14 @@ auth-online-hardening di dokumen yang sama).
 
 ## 16. Peta issue lanjutan
 
-| Issue                 | Bagian dokumen ini yang diimplementasikan                                                      |
-| --------------------- | ---------------------------------------------------------------------------------------------- |
-| #632                  | §4 env var + preset `news_portal_full_online_r2`, §1 gating full-online                        |
-| #633                  | §5 media registry schema, §6 object key generator — **diimplementasikan**                      |
-| #634                  | §7 alur upload, §8 presigned URL, §9 validasi                                                  |
-| #635                  | §13 readiness (`config:validate`/`security:readiness`/`production:preflight`)                  |
-| #636                  | §5 "konten editorial wajib menunjuk media confirmed" diterapkan ke `blog_content`              |
-| #637-#640, #642, #649 | Konsumsi media registry untuk fitur editorial spesifik (lihat skill untuk ringkasan per issue) |
+| Issue                 | Bagian dokumen ini yang diimplementasikan                                                                                           |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| #632                  | §4 env var + preset `news_portal_full_online_r2`, §1 gating full-online                                                             |
+| #633                  | §5 media registry schema, §6 object key generator — **diimplementasikan**                                                           |
+| #634                  | §7 alur upload, §8 presigned URL, §9 validasi — **diimplementasikan** (lihat `.claude/skills/awcms-mini-news-portal/SKILL.md` §634) |
+| #635                  | §13 readiness (`config:validate`/`security:readiness`/`production:preflight`)                                                       |
+| #636                  | §5 "konten editorial wajib menunjuk media confirmed" diterapkan ke `blog_content`                                                   |
+| #637-#640, #642, #649 | Konsumsi media registry untuk fitur editorial spesifik (lihat skill untuk ringkasan per issue)                                      |
 
 ## 17. Referensi
 

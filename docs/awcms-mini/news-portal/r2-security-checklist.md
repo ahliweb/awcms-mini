@@ -156,14 +156,25 @@ menunggu #635):
   menjalankan `config:validate` dan `security:readiness` sebagai bagian
   urutannya, doc 18); kedua check di atas otomatis ikut terpanggil.
 
-**Masih terbuka untuk #633/#634/#635** (di luar cakupan #632): tidak ada
-check di atas yang menyentuh tabel media registry itu sendiri (objek
-`pending` basi, orphaned object detection — `r2-backup-lifecycle.md` §2)
-atau perilaku runtime endpoint upload (MIME sniffing dari magic bytes,
-checksum server-side dari isi objek — §9 arsitektur) karena tabel/endpoint
-itu belum ada. Implementor #633/#634/#635 **wajib** memperbarui bagian ini
-lagi begitu check readiness baru yang relevan ke schema/endpoint tersebut
-ditulis.
+**Update #634**: endpoint upload nyata sudah ada
+(`POST /api/v1/media/news-images/upload-sessions`,
+`.../{id}/finalize`, `.../{id}/cancel`) dan MIME sniffing dari magic
+bytes + checksum server-side dari isi objek **sudah ditegakkan di
+runtime endpoint itu sendiri**
+(`src/modules/news-portal/application/news-media-r2-verification.ts`,
+`domain/news-media-mime-sniffer.ts`, `domain/news-media-finalize-decision.ts`
+— lihat `.claude/skills/awcms-mini-news-portal/SKILL.md` §634 untuk
+detail lengkap) — ini bukan lagi gap, karena penegakannya terjadi
+sinkron di jalur request `finalize`, bukan lewat readiness-check
+terpisah.
+
+**Masih terbuka untuk #635** (di luar cakupan #632/#633/#634): tidak ada
+`config:validate`/`security:readiness`/`production:preflight` check yang
+menyentuh tabel media registry itu sendiri (objek `pending`/`failed`
+basi, orphaned object detection — `r2-backup-lifecycle.md` §2) — itu
+tetap murni operasional/lifecycle-job scope, belum ada implementasinya.
+Implementor #635 **wajib** memperbarui bagian ini lagi begitu check
+readiness baru yang relevan ditulis.
 
 ## 8. Monitoring & audit
 

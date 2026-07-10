@@ -7,10 +7,11 @@ import {
 } from "../../src/modules/news-portal/domain/news-media-permissions";
 
 describe("NEWS_MEDIA_PERMISSIONS", () => {
-  test("declares one key per required media lifecycle action", () => {
+  test("declares one key per required media lifecycle action (including cancel, added by Issue #634 for aborting a not-yet-uploaded session)", () => {
     expect(Object.keys(NEWS_MEDIA_PERMISSIONS).sort()).toEqual(
       [
         "attach",
+        "cancel",
         "create",
         "delete",
         "detach",
@@ -32,12 +33,15 @@ describe("NEWS_MEDIA_PERMISSIONS", () => {
     }
   });
 
-  test("module.ts does not declare these as real permissions yet (Issue #634 does, per this file's own header comment)", () => {
-    // `permissions` is deliberately left undeclared on `news_portal`'s module
-    // descriptor until a real endpoint exists to enforce them (see
-    // `module.ts`'s own description and this file's header comment) — this
-    // guards against silently wiring these constants into the descriptor
-    // without also adding the endpoint/ABAC check that should come with it.
-    expect(newsPortalModule.permissions).toBeUndefined();
+  test("module.ts now declares these as real permissions (Issue #634 added the endpoints that enforce them)", () => {
+    // Previously (#633) `permissions` was deliberately left undeclared until
+    // a real endpoint existed to enforce them. Issue #634 added the
+    // presigned-upload-session endpoints (create/finalize/cancel) — see
+    // `tests/modules/news-portal-module.test.ts` for the exhaustive
+    // key-by-key match against these exact constants.
+    expect(newsPortalModule.permissions).toBeDefined();
+    expect(newsPortalModule.permissions?.length).toBe(
+      Object.keys(NEWS_MEDIA_PERMISSIONS).length
+    );
   });
 });

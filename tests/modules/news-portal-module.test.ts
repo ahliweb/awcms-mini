@@ -2,8 +2,9 @@ import { describe, expect, test } from "bun:test";
 
 import { getModuleByKey, listModules } from "../../src/modules";
 import { newsPortalModule } from "../../src/modules/news-portal/module";
+import { NEWS_MEDIA_PERMISSIONS } from "../../src/modules/news-portal/domain/news-media-permissions";
 
-describe("news_portal module descriptor (Issue #632)", () => {
+describe("news_portal module descriptor (Issue #632, extended #634)", () => {
   test("listModules() includes news_portal", () => {
     expect(listModules().some((m) => m.key === "news_portal")).toBe(true);
     expect(getModuleByKey("news_portal")).toBe(newsPortalModule);
@@ -25,18 +26,42 @@ describe("news_portal module descriptor (Issue #632)", () => {
     ]);
   });
 
-  test("the module never declares permissions, navigation, api, settings, jobs, or health before those capabilities are real (Issue #632 is preset-only)", () => {
-    // Consistent with visitor_analytics's own precedent (Issue #617): a
-    // descriptor should only claim a capability once it genuinely exists.
-    // #632 adds only a tenant module preset + its readiness gate — no
-    // media registry (#633), no upload endpoint (#634), no admin UI, no
-    // permission catalog of its own yet.
-    expect(newsPortalModule.permissions).toBeUndefined();
+  test("Issue #634 declares permissions + api now that a real HTTP surface exists, but still leaves navigation/settings/jobs/health undeclared", () => {
+    // navigation/settings/jobs/health still have no real feature backing
+    // them (no admin UI page, no per-tenant setting, no background job, no
+    // health check) — same "only claim a capability once it genuinely
+    // exists" convention visitor_analytics established (Issue #617).
     expect(newsPortalModule.navigation).toBeUndefined();
-    expect(newsPortalModule.api).toBeUndefined();
     expect(newsPortalModule.settings).toBeUndefined();
     expect(newsPortalModule.jobs).toBeUndefined();
     expect(newsPortalModule.health).toBeUndefined();
+
+    expect(newsPortalModule.api).toEqual({
+      openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
+      basePath: "/api/v1/media/news-images"
+    });
+
+    expect(newsPortalModule.permissions).toBeDefined();
+  });
+
+  test("every declared permission's activityCode/action reproduces exactly one NEWS_MEDIA_PERMISSIONS constant from #633/#634 — no invented/duplicated/orphaned permission key", () => {
+    const permissions = newsPortalModule.permissions ?? [];
+    const expectedKeys = new Set(Object.values(NEWS_MEDIA_PERMISSIONS));
+
+    expect(permissions.length).toBe(expectedKeys.size);
+
+    const declaredKeys = permissions.map(
+      (p) => `news_portal.${p.activityCode}.${p.action}`
+    );
+
+    expect(new Set(declaredKeys)).toEqual(expectedKeys);
+    // No duplicates.
+    expect(declaredKeys.length).toBe(new Set(declaredKeys).size);
+
+    for (const permission of permissions) {
+      expect(permission.activityCode).toBe("media");
+      expect(permission.description.length).toBeGreaterThan(0);
+    }
   });
 
   test("descriptor never declares a secret, token, or provider credential", () => {
