@@ -56,6 +56,22 @@ describe("sanitizePath", () => {
   test("never throws on a malformed path", () => {
     expect(() => sanitizePath("not a url at all \0")).not.toThrow();
   });
+
+  // Post-review fix: the first version of the malformed-input fallback
+  // returned rawPath unchanged, which could echo an unstrippable
+  // sensitive query param verbatim whenever the surrounding string made
+  // the whole thing unparseable. It must now fail SAFE (drop the query
+  // string entirely), never fail open (echo the raw input).
+  for (const malformed of [
+    "http://[::1/x?token=SECRET123",
+    "http://a:99999999999/x?token=SECRET123",
+    "http://a:b:c/x?token=SECRET123",
+    "http://%zz/x?token=SECRET123"
+  ]) {
+    test(`never echoes a sensitive query string on unparseable input: "${malformed}"`, () => {
+      expect(sanitizePath(malformed)).not.toContain("SECRET123");
+    });
+  }
 });
 
 describe("isTrackablePath", () => {

@@ -33,10 +33,18 @@ const SENSITIVE_QUERY_PARAM_NAMES = new Set([
 
 /**
  * Strips every sensitive query parameter and returns `pathname` (+
- * remaining safe query string, if any). Never throws — an unparseable
- * `rawPath` degrades to returning it unchanged rather than dropping the
- * page entirely (a pageview with an odd path is still useful analytics
- * signal; failing loudly here is not).
+ * remaining safe query string, if any). Never throws.
+ *
+ * Fail SAFE, not fail open: a `rawPath` that `URL` cannot parse degrades
+ * to its path portion only (query string dropped entirely), never to the
+ * raw, un-sanitized input — the very thing this function exists to
+ * prevent from reaching `path_sanitized`. A pageview with a stripped
+ * query string is still useful analytics signal; echoing an
+ * unparseable-and-therefore-unstrippable query string is a real leak
+ * path (post-review fix — the first version of this function returned
+ * `rawPath` unchanged here, which could echo a sensitive param verbatim
+ * whenever its malformed surroundings made the whole string
+ * unparseable, e.g. a broken IPv6 literal or percent-encoding).
  */
 export function sanitizePath(rawPath: string): string {
   let url: URL;
@@ -44,7 +52,7 @@ export function sanitizePath(rawPath: string): string {
   try {
     url = new URL(rawPath, "http://internal.invalid");
   } catch {
-    return rawPath;
+    return rawPath.split("?")[0] ?? rawPath;
   }
 
   for (const key of [...url.searchParams.keys()]) {
