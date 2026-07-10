@@ -135,41 +135,76 @@ Prefix **`NEWS_MEDIA_R2_`** — sengaja berbeda dari `R2_*` generik
 Implementor (#632/#633/#634) wajib memakai nama ini persis — jangan
 memilih nama lain "yang mirip" tanpa memperbarui tabel ini.
 
-## 5. Model data konseptual — media registry (rencana untuk Issue #633)
+## 5. Model data konseptual — media registry (Issue #633, **diimplementasikan**)
 
-Bentuk metadata target (bukan DDL final — Issue #633 yang menulis
-migration sebenarnya, mengikuti skill `awcms-mini-new-migration`):
+**Status: diimplementasikan oleh Issue #633.** Skema final (migration
+`sql/041_awcms_mini_news_media_object_registry_schema.sql`) menggunakan
+tabel **`awcms_mini_news_media_objects`** — nama yang sudah dipilih di
+bawah ini SEBELUM issue #633 mulai dikerjakan, dan dipertahankan persis
+(bukan `awcms_mini_media_objects` yang sempat disebut di body issue
+#633 — lihat migration 041's header comment dan
+`.claude/skills/awcms-mini-news-portal/SKILL.md` §633 untuk alasan
+rekonsiliasi lengkap). Kolom final adalah **elaborasi** dari sketsa
+konseptual di bawah, bukan penggantian:
 
 ```text
 awcms_mini_news_media_objects (tenant-scoped, RLS ENABLE+FORCE)
-- id                 uuid PK
-- tenant_id          uuid FK -> awcms_mini_tenants
-- object_key         text UNIQUE (per tenant)   -- §6
-- original_filename  text                       -- hanya untuk tampilan, TIDAK pernah masuk object_key (§6)
-- mime_type          text                       -- hasil validasi server (§9), bukan input mentah client
-- byte_size          bigint
-- checksum_sha256    text
-- width_px/height_px integer, nullable           -- diisi bila server bisa membaca dimensi gambar
-- purpose            text  -- featured|gallery|ad|video_thumbnail|seo_share
-- status             text  -- pending|confirmed|orphaned|deleted (soft delete, doc 05)
-- alt_text           text, nullable              -- aksesibilitas (doc 14), wajib diisi sebelum publish (Issue #636/#640)
-- uploaded_by         uuid FK -> awcms_mini_identities
-- created_at, confirmed_at, deleted_at, deleted_by
+- id                        uuid PK
+- tenant_id                 uuid FK -> awcms_mini_tenants
+- module_key                text, CHECK = 'news_portal' (lebar bila modul lain reuse kelak)
+- owner_resource_type       text, nullable — polymorphic reference generik
+- owner_resource_id         uuid, nullable   (pola sama awcms_mini_audit_events, TANPA FK spesifik)
+- storage_driver            text, CHECK = 'cloudflare_r2'
+- bucket_name               text NOT NULL
+- object_key                text NOT NULL     -- §6, plus CHECK format tenant-prefixed di DB
+- original_filename         text, nullable    -- hanya untuk tampilan, TIDAK pernah masuk object_key (§6)
+- public_url                text NOT NULL     -- dibangun server dari NEWS_MEDIA_R2_PUBLIC_BASE_URL (#632), tidak pernah dari input client
+- mime_type                 text NOT NULL     -- hasil validasi server (§9), bukan input mentah client
+- size_bytes                bigint, nullable  -- terisi saat status='uploaded'
+- checksum_sha256           text, nullable
+- width/height              integer, nullable -- terisi saat status='verified'
+- alt_text, caption         text, nullable    -- aksesibilitas (doc 14), wajib diisi sebelum publish (Issue #636/#640)
+- status                    text — pending_upload|uploaded|verified|attached|orphaned|deleted|failed (elaborasi 7-state dari sketsa pending|confirmed|orphaned|deleted semula — lihat migration 041's header comment)
+- created_by_tenant_user_id uuid NOT NULL
+- created_at, updated_at, deleted_at, deleted_by, delete_reason, restored_at, restored_by
 ```
+
+Helper domain/application (`src/modules/news-portal/domain/news-media-object-key.ts`,
+`application/news-media-object-directory.ts`): `buildNewsMediaObjectKey`/
+`isValidNewsMediaObjectKey` (§6), `buildNewsMediaPublicUrl` (trusted base
+URL only), `createPendingNewsMediaObject`, `markNewsMediaObjectUploaded`/
+`Verified`/`Orphaned`/`Failed`, `attachNewsMediaObject`/`detachNewsMediaObject`,
+`softDeleteNewsMediaObject`/`restoreNewsMediaObject`/`purgeNewsMediaObject` —
+audit events (skill `awcms-mini-audit-log`) written for create/verify/
+attach/detach/delete/restore/purge. Permission key constants for the
+future upload endpoint (#634) are prepared, not yet wired into
+`module.ts`, in `domain/news-media-permissions.ts`.
 
 Catatan desain yang wajib dipertahankan:
 
 - **Tidak ada kolom binary apa pun** (§3.2) — pelanggaran ini adalah
   regresi kritis bila terjadi di issue mana pun.
-- **`status='pending'` bukan jaminan objek tidak bisa diakses publik** —
-  lihat §8 residual risk. Jangan berasumsi baris Postgres mengontrol
-  akses storage-level.
+- **`status='pending_upload'`/`'uploaded'` bukan jaminan objek tidak bisa
+  diakses publik** — lihat §8 residual risk. Jangan berasumsi baris
+  Postgres mengontrol akses storage-level.
+- Soft delete (`deleted_at`) **ortogonal** terhadap `status` (pola sama
+  `awcms_mini_blog_posts`) — hapus/restore tidak pernah menulis ulang
+  `status`.
 - Konten editorial (`blog_content`'s `featuredMediaId`, block `gallery`,
-  dsb.) **harus** menunjuk baris `status='confirmed'` di tabel ini
-  ketika mode R2-only aktif — inilah yang diterapkan Issue #636 (bukan
-  issue ini).
+  dsb.) **harus** menunjuk baris `status='attached'` (yang mensyaratkan
+  sebelumnya `verified`) di tabel ini ketika mode R2-only aktif — inilah
+  yang akan diterapkan Issue #636 (bukan issue ini); ditegakkan di level
+  write path oleh `attachNewsMediaObject` (hanya menerima dari
+  `status='verified'`), bukan hanya konvensi.
 
 ## 6. Konvensi object key
+
+**Status: diimplementasikan oleh Issue #633** —
+`src/modules/news-portal/domain/news-media-object-key.ts`
+(`buildNewsMediaObjectKey` generates it server-side;
+`isValidNewsMediaObjectKey` validates the tenant-prefixed shape; the
+same format is also enforced as a Postgres `CHECK` constraint on
+`awcms_mini_news_media_objects.object_key`, migration 041).
 
 Format wajib:
 
@@ -623,7 +658,7 @@ auth-online-hardening di dokumen yang sama).
 | Issue                 | Bagian dokumen ini yang diimplementasikan                                                      |
 | --------------------- | ---------------------------------------------------------------------------------------------- |
 | #632                  | §4 env var + preset `news_portal_full_online_r2`, §1 gating full-online                        |
-| #633                  | §5 media registry schema, §6 object key generator                                              |
+| #633                  | §5 media registry schema, §6 object key generator — **diimplementasikan**                      |
 | #634                  | §7 alur upload, §8 presigned URL, §9 validasi                                                  |
 | #635                  | §13 readiness (`config:validate`/`security:readiness`/`production:preflight`)                  |
 | #636                  | §5 "konten editorial wajib menunjuk media confirmed" diterapkan ke `blog_content`              |
