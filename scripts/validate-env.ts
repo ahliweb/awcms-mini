@@ -129,6 +129,25 @@
  *     (`parsePositiveInt`). No conditional cross-field requirement exists
  *     yet (unlike EMAIL_PROVIDER/TENANT_DOMAIN_DNS_PROVIDER) — geolocation
  *     enrichment provider config lands in a later issue (#623).
+ * 11. News portal full-online R2-only preset (Issue #632, epic `news_portal`
+ *     #631-#642/#649): if NEWS_PORTAL_PROFILE is set, it must be one of
+ *     `NEWS_PORTAL_PROFILES` (currently only "full_online_r2") —
+ *     `../src/modules/news-portal/domain/news-portal-preset-readiness`. If
+ *     NEWS_MEDIA_R2_ENABLED === "true", NEWS_MEDIA_R2_ACCOUNT_ID,
+ *     NEWS_MEDIA_R2_ACCESS_KEY_ID, NEWS_MEDIA_R2_SECRET_ACCESS_KEY,
+ *     NEWS_MEDIA_R2_BUCKET, and NEWS_MEDIA_R2_PUBLIC_BASE_URL must all be
+ *     set (`../src/modules/news-portal/domain/news-media-r2-config`) —
+ *     mirrors the R2_ENABLED conditional check above (item 3), deliberately
+ *     namespaced `NEWS_MEDIA_R2_*` rather than reusing `R2_*` (see that
+ *     file's header comment: news-portal media is a public bucket, wholly
+ *     separate from sync-storage's private object queue — Issue #631
+ *     architecture doc §2). Regardless of NEWS_MEDIA_R2_ENABLED, if BOTH a
+ *     NEWS_MEDIA_R2_* var and its `sync-storage` R2_* counterpart
+ *     (BUCKET/ACCESS_KEY_ID/SECRET_ACCESS_KEY) are set and equal, validation
+ *     fails — this is enforced at config:validate as a hard boot-time
+ *     failure, not merely a security:readiness warning, because sharing a
+ *     credential between a private sync queue and a public media bucket is
+ *     never a valid configuration in this repo, not just a risky one.
  *
  * Never prints actual secret values — only which variable name is
  * missing/invalid (doc 18: "Var wajib hilang → gagal start dengan pesan
@@ -172,6 +191,14 @@ import {
   VISITOR_ANALYTICS_MODES,
   VISITOR_ANALYTICS_POSITIVE_INT_VARS
 } from "../src/modules/visitor-analytics/domain/visitor-analytics-config";
+import {
+  findNewsMediaR2SeparationViolations,
+  NEWS_MEDIA_R2_REQUIRED_WHEN_ENABLED
+} from "../src/modules/news-portal/domain/news-media-r2-config";
+import {
+  isKnownNewsPortalProfile,
+  NEWS_PORTAL_PROFILES
+} from "../src/modules/news-portal/domain/news-portal-preset-readiness";
 
 export type EnvCheckResult = {
   name: string;
@@ -216,6 +243,15 @@ function isKnownPublicTenantResolutionMode(
 
 function isSet(value: string | undefined): boolean {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+/** `NEWS_MEDIA_R2_PUBLIC_BASE_URL` must be an absolute HTTPS URL — news media is public-by-design (architecture doc §11), never `r2.dev` over plain HTTP in a real deployment. */
+function isHttpsAbsoluteUrl(value: string): boolean {
+  try {
+    return new URL(value.trim()).protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -847,6 +883,116 @@ export function checkVisitorAnalyticsConfig(
   return results;
 }
 
+/**
+ * News portal full-online R2-only preset (Issue #632, epic `news_portal`
+ * #631-#642/#649). `NEWS_PORTAL_PROFILE` shape check first, then
+ * `NEWS_MEDIA_R2_*` conditional-required-vars (mirrors `checkR2Config`
+ * exactly, different namespace), then the hard separation-from-sync-R2
+ * check (Keputusan kunci #1 — never a warning, always a boot-blocking
+ * failure when violated).
+ */
+export function checkNewsPortalProfileConfig(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult {
+  const name = "NEWS_PORTAL_PROFILE";
+  const raw = env.NEWS_PORTAL_PROFILE;
+
+  if (!isSet(raw)) {
+    return {
+      name,
+      status: "pass",
+      detail: `${name} is not set — the news_portal_full_online_r2 preset is not requested.`
+    };
+  }
+
+  if (isKnownNewsPortalProfile((raw as string).trim())) {
+    return {
+      name,
+      status: "pass",
+      detail: `${name} is a known profile (${(raw as string).trim()}).`
+    };
+  }
+
+  return {
+    name,
+    status: "fail",
+    detail: `${name} must be one of ${NEWS_PORTAL_PROFILES.join(", ")}; got "${(raw as string).trim()}".`
+  };
+}
+
+export function checkNewsMediaR2Config(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult[] {
+  if (env.NEWS_MEDIA_R2_ENABLED !== "true") {
+    return [
+      {
+        name: "News media R2 credentials (conditional on NEWS_MEDIA_R2_ENABLED)",
+        status: "pass",
+        detail:
+          'NEWS_MEDIA_R2_ENABLED is not "true" — news media R2 credentials not required.'
+      }
+    ];
+  }
+
+  const results: EnvCheckResult[] = NEWS_MEDIA_R2_REQUIRED_WHEN_ENABLED.map(
+    (name) => {
+      if (isSet(env[name])) {
+        return { name, status: "pass", detail: `${name} is set.` };
+      }
+
+      return {
+        name,
+        status: "fail",
+        detail: `NEWS_MEDIA_R2_ENABLED=true but ${name} is missing or empty.`
+      };
+    }
+  );
+
+  const publicBaseUrlName = "NEWS_MEDIA_R2_PUBLIC_BASE_URL";
+  const publicBaseUrl = env.NEWS_MEDIA_R2_PUBLIC_BASE_URL;
+
+  if (isSet(publicBaseUrl)) {
+    results.push(
+      isHttpsAbsoluteUrl(publicBaseUrl as string)
+        ? {
+            name: `${publicBaseUrlName} (format)`,
+            status: "pass",
+            detail: `${publicBaseUrlName} is an absolute HTTPS URL.`
+          }
+        : {
+            name: `${publicBaseUrlName} (format)`,
+            status: "fail",
+            detail: `${publicBaseUrlName} must be an absolute HTTPS URL (news media is public-by-design — architecture doc §11); got "${(publicBaseUrl as string).trim()}".`
+          }
+    );
+  }
+
+  return results;
+}
+
+export function checkNewsMediaR2SeparationFromSyncR2(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult {
+  const name =
+    "News media R2 bucket/credentials separated from sync-storage's R2_*";
+  const violations = findNewsMediaR2SeparationViolations(env);
+
+  if (violations.length === 0) {
+    return {
+      name,
+      status: "pass",
+      detail:
+        "No NEWS_MEDIA_R2_* value is equal to its sync-storage R2_* counterpart."
+    };
+  }
+
+  return {
+    name,
+    status: "fail",
+    detail: `NEWS_MEDIA_R2_* must never share a bucket/credential with sync-storage's R2_* config (Issue #631 architecture doc §2): ${violations.join(", ")}.`
+  };
+}
+
 export function runEnvValidation(
   env: NodeJS.ProcessEnv = process.env
 ): EnvCheckResult[] {
@@ -862,7 +1008,10 @@ export function runEnvValidation(
     ...checkGoogleOidcConfig(env),
     ...checkSsoConfig(env),
     ...checkOnlineAuthSecurityConfig(env),
-    ...checkVisitorAnalyticsConfig(env)
+    ...checkVisitorAnalyticsConfig(env),
+    checkNewsPortalProfileConfig(env),
+    ...checkNewsMediaR2Config(env),
+    checkNewsMediaR2SeparationFromSyncR2(env)
   ];
 }
 

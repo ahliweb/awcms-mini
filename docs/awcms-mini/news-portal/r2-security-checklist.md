@@ -125,40 +125,45 @@ terpisah — **tidak pernah** lewat token yang sama yang disuntik ke
 
 ## 7. Readiness gates (`config:validate` / `security:readiness` / `production:preflight`)
 
-Acceptance criteria Issue #631 mensyaratkan readiness checklist ini
-merujuk tiga command yang sudah ada di repo — status saat ini (Issue
-#631, docs-only): **belum ada check khusus news media** di ketiganya;
-Issue #635 ("Add Cloudflare R2 image delivery readiness checks") adalah
-yang mengimplementasikannya. Kontrak yang wajib dipenuhi Issue #635:
+**Status: diimplementasikan oleh Issue #632** (lebih awal dari rencana
+semula #635 — #632's acceptance criteria sendiri mensyaratkan
+"`bun run config:validate` mencakup preset ini" dan
+"`bun run security:readiness` mencakup preset ini", jadi shape+separation
+checks di bawah landed bersamaan dengan preset itu sendiri, bukan
+menunggu #635):
 
-- **`bun run config:validate`** (shape-only, `scripts/validate-env.ts`)
-  wajib menambah:
-  - Bila `NEWS_MEDIA_R2_ENABLED=true`: `NEWS_MEDIA_R2_ACCOUNT_ID`,
-    `_ACCESS_KEY_ID`, `_SECRET_ACCESS_KEY`, `_BUCKET`,
-    `_PUBLIC_BASE_URL` wajib terisi (pola sama `checkR2Config` yang
-    sudah ada untuk `R2_*`).
-  - `NEWS_MEDIA_R2_BUCKET` ≠ `R2_BUCKET` (bila keduanya aktif) — gagal
-    validasi bila sama (§2 penegakan, bukan hanya dokumentasi).
-  - `NEWS_MEDIA_R2_PUBLIC_BASE_URL` harus URL HTTPS absolut.
-- **`bun run security:readiness`** (safety/severity, cross-field) wajib
-  menambah pengecekan **critical**:
-  - Bucket media dan bucket sync tidak sama (redundan dengan
-    `config:validate` sebagai defense in depth, pola yang sama dipakai
-    check lain di repo yang menduplikasi validasi shape+safety).
-  - Kredensial media berbeda dari kredensial sync.
-  - `image/svg+xml` tidak ada di `NEWS_MEDIA_R2_ALLOWED_MIME_TYPES`
-    kecuali operator eksplisit override (warning bila di-override, tidak
-    pernah default-on).
+- **`bun run config:validate`** (shape-only, `scripts/validate-env.ts`):
+  - `checkNewsPortalProfileConfig` — `NEWS_PORTAL_PROFILE` bila diisi
+    wajib `full_online_r2`.
+  - `checkNewsMediaR2Config` — bila `NEWS_MEDIA_R2_ENABLED=true`:
+    `NEWS_MEDIA_R2_ACCOUNT_ID`, `_ACCESS_KEY_ID`, `_SECRET_ACCESS_KEY`,
+    `_BUCKET`, `_PUBLIC_BASE_URL` wajib terisi (pola sama `checkR2Config`
+    untuk `R2_*`) DAN `_PUBLIC_BASE_URL` wajib URL HTTPS absolut.
+  - `checkNewsMediaR2SeparationFromSyncR2` — `NEWS_MEDIA_R2_BUCKET`/
+    `_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY` ≠ `R2_BUCKET`/`R2_ACCESS_KEY_ID`/
+    `R2_SECRET_ACCESS_KEY` (§2 penegakan nyata, gagal boot bila sama —
+    bukan hanya dokumentasi).
+- **`bun run security:readiness`** (`scripts/security-readiness.ts`):
+  - `checkNewsPortalFullOnlineR2PresetReady` (**critical**) — menilai
+    kombinasi penuh syarat aktivasi preset (`NEWS_PORTAL_ENABLED`,
+    `NEWS_PORTAL_PROFILE`, kelengkapan+separasi `NEWS_MEDIA_R2_*`) lewat
+    `evaluateNewsPortalFullOnlineR2Readiness`
+    (`src/modules/news-portal/domain/news-portal-preset-readiness.ts`).
+  - `checkNewsMediaR2SvgNotAllowed` (**warning**) — `image/svg+xml` tidak
+    ada di `NEWS_MEDIA_R2_ALLOWED_MIME_TYPES` kecuali operator eksplisit
+    override.
 - **`bun run production:preflight`** — tidak butuh tahap baru (sudah
   menjalankan `config:validate` dan `security:readiness` sebagai bagian
-  urutannya, doc 18) — cukup pastikan kedua check di atas benar-benar
-  terpanggil dari urutan yang sudah ada, tidak membuat jalur pintas
-  terpisah.
+  urutannya, doc 18); kedua check di atas otomatis ikut terpanggil.
 
-Implementor #635 **wajib** memperbarui bagian ini (ganti "belum ada"
-menjadi nama fungsi/test nyata) begitu check-nya ditulis — jangan
-biarkan dokumen ini menyiratkan check sudah ada padahal belum
-(konsisten dengan status "Belum dikerjakan" di skill).
+**Masih terbuka untuk #633/#634/#635** (di luar cakupan #632): tidak ada
+check di atas yang menyentuh tabel media registry itu sendiri (objek
+`pending` basi, orphaned object detection — `r2-backup-lifecycle.md` §2)
+atau perilaku runtime endpoint upload (MIME sniffing dari magic bytes,
+checksum server-side dari isi objek — §9 arsitektur) karena tabel/endpoint
+itu belum ada. Implementor #633/#634/#635 **wajib** memperbarui bagian ini
+lagi begitu check readiness baru yang relevan ke schema/endpoint tersebut
+ditulis.
 
 ## 8. Monitoring & audit
 

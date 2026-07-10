@@ -1,0 +1,190 @@
+import { describe, expect, test } from "bun:test";
+
+import {
+  allowsSvgMimeType,
+  findMissingNewsMediaR2Vars,
+  findNewsMediaR2SeparationViolations,
+  isNewsMediaR2Enabled,
+  NEWS_MEDIA_R2_DEFAULTS,
+  NEWS_MEDIA_R2_REQUIRED_WHEN_ENABLED,
+  resolveNewsMediaR2Config
+} from "../../src/modules/news-portal/domain/news-media-r2-config";
+
+describe("resolveNewsMediaR2Config", () => {
+  test("defaults to disabled with empty credential fields when env is empty", () => {
+    const config = resolveNewsMediaR2Config({} as NodeJS.ProcessEnv);
+
+    expect(config.enabled).toBe(false);
+    expect(config.accountId).toBe("");
+    expect(config.accessKeyId).toBe("");
+    expect(config.secretAccessKey).toBe("");
+    expect(config.bucket).toBe("");
+    expect(config.publicBaseUrl).toBe("");
+    expect(config.presignedUploadTtlSeconds).toBe(
+      NEWS_MEDIA_R2_DEFAULTS.presignedUploadTtlSeconds
+    );
+    expect(config.maxUploadBytes).toBe(NEWS_MEDIA_R2_DEFAULTS.maxUploadBytes);
+    expect(config.allowedMimeTypes).toEqual(
+      NEWS_MEDIA_R2_DEFAULTS.allowedMimeTypes
+    );
+    expect(config.pendingTtlMinutes).toBe(
+      NEWS_MEDIA_R2_DEFAULTS.pendingTtlMinutes
+    );
+  });
+
+  test("parses a fully-configured enabled env", () => {
+    const config = resolveNewsMediaR2Config({
+      NEWS_MEDIA_R2_ENABLED: "true",
+      NEWS_MEDIA_R2_ACCOUNT_ID: "acct-news",
+      NEWS_MEDIA_R2_ACCESS_KEY_ID: "news-key",
+      NEWS_MEDIA_R2_SECRET_ACCESS_KEY: "news-secret",
+      NEWS_MEDIA_R2_BUCKET: "news-media-bucket",
+      NEWS_MEDIA_R2_PUBLIC_BASE_URL: "https://media.example.test",
+      NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS: "120",
+      NEWS_MEDIA_R2_MAX_UPLOAD_BYTES: "2048",
+      NEWS_MEDIA_R2_ALLOWED_MIME_TYPES: "image/jpeg, image/png",
+      NEWS_MEDIA_R2_PENDING_TTL_MINUTES: "15"
+    } as NodeJS.ProcessEnv);
+
+    expect(config).toEqual({
+      enabled: true,
+      accountId: "acct-news",
+      accessKeyId: "news-key",
+      secretAccessKey: "news-secret",
+      bucket: "news-media-bucket",
+      publicBaseUrl: "https://media.example.test",
+      presignedUploadTtlSeconds: 120,
+      maxUploadBytes: 2048,
+      allowedMimeTypes: ["image/jpeg", "image/png"],
+      pendingTtlMinutes: 15
+    });
+  });
+
+  test("falls back to defaults for malformed numeric values", () => {
+    const config = resolveNewsMediaR2Config({
+      NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS: "not-a-number",
+      NEWS_MEDIA_R2_MAX_UPLOAD_BYTES: "-5",
+      NEWS_MEDIA_R2_PENDING_TTL_MINUTES: "0"
+    } as NodeJS.ProcessEnv);
+
+    expect(config.presignedUploadTtlSeconds).toBe(
+      NEWS_MEDIA_R2_DEFAULTS.presignedUploadTtlSeconds
+    );
+    expect(config.maxUploadBytes).toBe(NEWS_MEDIA_R2_DEFAULTS.maxUploadBytes);
+    expect(config.pendingTtlMinutes).toBe(
+      NEWS_MEDIA_R2_DEFAULTS.pendingTtlMinutes
+    );
+  });
+});
+
+describe("isNewsMediaR2Enabled", () => {
+  test("false by default", () => {
+    expect(isNewsMediaR2Enabled({} as NodeJS.ProcessEnv)).toBe(false);
+  });
+
+  test("true only for the literal string 'true'", () => {
+    expect(
+      isNewsMediaR2Enabled({
+        NEWS_MEDIA_R2_ENABLED: "true"
+      } as NodeJS.ProcessEnv)
+    ).toBe(true);
+    expect(
+      isNewsMediaR2Enabled({
+        NEWS_MEDIA_R2_ENABLED: "TRUE"
+      } as NodeJS.ProcessEnv)
+    ).toBe(false);
+  });
+});
+
+describe("findMissingNewsMediaR2Vars", () => {
+  test("empty when disabled, regardless of what else is set", () => {
+    expect(findMissingNewsMediaR2Vars({} as NodeJS.ProcessEnv)).toEqual([]);
+  });
+
+  test("lists every required var missing when enabled with nothing else set", () => {
+    expect(
+      findMissingNewsMediaR2Vars({
+        NEWS_MEDIA_R2_ENABLED: "true"
+      } as NodeJS.ProcessEnv)
+    ).toEqual([...NEWS_MEDIA_R2_REQUIRED_WHEN_ENABLED]);
+  });
+
+  test("empty when enabled and fully configured", () => {
+    expect(
+      findMissingNewsMediaR2Vars({
+        NEWS_MEDIA_R2_ENABLED: "true",
+        NEWS_MEDIA_R2_ACCOUNT_ID: "a",
+        NEWS_MEDIA_R2_ACCESS_KEY_ID: "b",
+        NEWS_MEDIA_R2_SECRET_ACCESS_KEY: "c",
+        NEWS_MEDIA_R2_BUCKET: "d",
+        NEWS_MEDIA_R2_PUBLIC_BASE_URL: "https://media.example.test"
+      } as NodeJS.ProcessEnv)
+    ).toEqual([]);
+  });
+});
+
+describe("findNewsMediaR2SeparationViolations — Keputusan kunci #1", () => {
+  test("no violation when neither sync-storage R2 var nor news-media R2 var is set", () => {
+    expect(
+      findNewsMediaR2SeparationViolations({} as NodeJS.ProcessEnv)
+    ).toEqual([]);
+  });
+
+  test("no violation when only one side is set (nothing to collide with)", () => {
+    expect(
+      findNewsMediaR2SeparationViolations({
+        NEWS_MEDIA_R2_BUCKET: "news-bucket"
+      } as NodeJS.ProcessEnv)
+    ).toEqual([]);
+  });
+
+  test("no violation when both sides are set but genuinely different", () => {
+    expect(
+      findNewsMediaR2SeparationViolations({
+        R2_BUCKET: "sync-bucket",
+        R2_ACCESS_KEY_ID: "sync-key",
+        R2_SECRET_ACCESS_KEY: "sync-secret",
+        NEWS_MEDIA_R2_BUCKET: "news-bucket",
+        NEWS_MEDIA_R2_ACCESS_KEY_ID: "news-key",
+        NEWS_MEDIA_R2_SECRET_ACCESS_KEY: "news-secret"
+      } as NodeJS.ProcessEnv)
+    ).toEqual([]);
+  });
+
+  test("flags a shared bucket", () => {
+    expect(
+      findNewsMediaR2SeparationViolations({
+        R2_BUCKET: "same-bucket",
+        NEWS_MEDIA_R2_BUCKET: "same-bucket"
+      } as NodeJS.ProcessEnv)
+    ).toEqual(["bucket_shared_with_sync_r2"]);
+  });
+
+  test("flags a shared access key id and secret access key independently", () => {
+    expect(
+      findNewsMediaR2SeparationViolations({
+        R2_ACCESS_KEY_ID: "same-key",
+        NEWS_MEDIA_R2_ACCESS_KEY_ID: "same-key",
+        R2_SECRET_ACCESS_KEY: "same-secret",
+        NEWS_MEDIA_R2_SECRET_ACCESS_KEY: "same-secret"
+      } as NodeJS.ProcessEnv)
+    ).toEqual([
+      "access_key_id_shared_with_sync_r2",
+      "secret_access_key_shared_with_sync_r2"
+    ]);
+  });
+});
+
+describe("allowsSvgMimeType", () => {
+  test("false for the default allow-list", () => {
+    expect(allowsSvgMimeType({} as NodeJS.ProcessEnv)).toBe(false);
+  });
+
+  test("true only when an operator explicitly overrides the allow-list to include it", () => {
+    expect(
+      allowsSvgMimeType({
+        NEWS_MEDIA_R2_ALLOWED_MIME_TYPES: "image/jpeg,image/svg+xml"
+      } as NodeJS.ProcessEnv)
+    ).toBe(true);
+  });
+});

@@ -70,7 +70,12 @@ import type { ModuleDescriptor } from "../../_shared/module-contract";
 import type { ModuleTenantState } from "./tenant-module-lifecycle";
 
 export type ModulePresetName =
-  "online_website" | "news_portal" | "saas_online" | "pos_lan" | "minimal";
+  | "online_website"
+  | "news_portal"
+  | "news_portal_full_online_r2"
+  | "saas_online"
+  | "pos_lan"
+  | "minimal";
 
 export type ModulePresetDefinition = {
   name: ModulePresetName;
@@ -104,6 +109,32 @@ export const MODULE_PRESETS: readonly ModulePresetDefinition[] = [
       "email",
       "reporting",
       "workflow"
+    ]
+  },
+  // NOTE: "news_portal" above (Issue #565, epic #555) and
+  // "news_portal_full_online_r2" below (Issue #632, epic `news_portal`
+  // #631-#642/#649) are deliberately DIFFERENT preset names for
+  // DIFFERENT concepts — "news_portal" is "online website + editorial
+  // approval workflow" (no R2/media requirement at all), while
+  // "news_portal_full_online_r2" is the full-online, R2-only-media
+  // editorial+news profile. Do not merge/rename either one to "fix" the
+  // apparent naming overlap — a tenant using the plain `news_portal`
+  // preset is not required to have any NEWS_MEDIA_R2_* config, and this
+  // preset's own activation is gated (see
+  // `news-portal/application/apply-news-portal-preset.ts`) in a way
+  // `news_portal` above is not.
+  {
+    name: "news_portal_full_online_r2",
+    label: "News portal (full-online, R2-only media)",
+    description:
+      "Full-online public news portal profile: blog_content + tenant_domain + visitor_analytics editorial/media stack, with news images stored exclusively in Cloudflare R2 (bucket/credentials kept separate from sync_storage's own R2_* config, Issue #631 architecture doc §2). Activation MUST go through `applyNewsPortalFullOnlineR2Preset` (`news-portal/application/apply-news-portal-preset.ts`), never this generic `applyModulePreset` directly with this name — that wrapper runs the readiness gate (`news-portal/domain/news-portal-preset-readiness.ts`: NEWS_PORTAL_ENABLED=true, NEWS_PORTAL_PROFILE=full_online_r2, complete+separated NEWS_MEDIA_R2_* config) this generic engine has no way to enforce (it never imports concrete domain modules — see this file's own header comment).",
+    enabledModuleKeys: [
+      "blog_content",
+      "tenant_domain",
+      "visitor_analytics",
+      "module_management",
+      "identity_access",
+      "news_portal"
     ]
   },
   {

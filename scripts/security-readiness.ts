@@ -49,6 +49,8 @@ import {
   checkTurnstileConfig
 } from "./validate-env";
 import { resolveVisitorAnalyticsConfig } from "../src/modules/visitor-analytics/domain/visitor-analytics-config";
+import { allowsSvgMimeType } from "../src/modules/news-portal/domain/news-media-r2-config";
+import { evaluateNewsPortalFullOnlineR2Readiness } from "../src/modules/news-portal/domain/news-portal-preset-readiness";
 
 export type CheckSeverity = "critical" | "warning" | "info";
 export type CheckStatus = "pass" | "fail";
@@ -1616,6 +1618,100 @@ export function checkLoginRateLimitImplemented(): SecurityCheckResult {
 }
 
 // ---------------------------------------------------------------------------
+// 12. News portal full-online R2-only preset readiness (critical/warning —
+//     Issue #632, epic `news_portal` #631-#642/#649)
+// ---------------------------------------------------------------------------
+
+/**
+ * Critical: once a tenant/deployment has opted in (`NEWS_PORTAL_ENABLED=true`),
+ * every activation precondition (`NEWS_PORTAL_PROFILE=full_online_r2`,
+ * complete `NEWS_MEDIA_R2_*` config, config separated from sync-storage's
+ * own `R2_*`) must hold — reuses
+ * `evaluateNewsPortalFullOnlineR2Readiness` (domain, pure) rather than
+ * re-deriving the same checks a second way. Passes trivially when the
+ * feature isn't opted into at all (the default for every existing
+ * offline/LAN or non-news deployment).
+ */
+export function checkNewsPortalFullOnlineR2PresetReady(
+  env: NodeJS.ProcessEnv = process.env
+): SecurityCheckResult {
+  const name = "News portal full-online R2-only preset readiness (Issue #632)";
+  const severity: CheckSeverity = "critical";
+
+  if (env.NEWS_PORTAL_ENABLED !== "true") {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        'NEWS_PORTAL_ENABLED is not "true" — the news_portal_full_online_r2 preset is not in use.'
+    };
+  }
+
+  const readiness = evaluateNewsPortalFullOnlineR2Readiness(env);
+
+  if (readiness.ready) {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        "NEWS_PORTAL_ENABLED=true, NEWS_PORTAL_PROFILE=full_online_r2, and NEWS_MEDIA_R2_* config is complete and separated from sync-storage's R2_* config."
+    };
+  }
+
+  return {
+    name,
+    severity,
+    status: "fail",
+    evidence: readiness.detail.join(" ")
+  };
+}
+
+/**
+ * Warning (not critical): `image/svg+xml` is excluded from the default
+ * `NEWS_MEDIA_R2_ALLOWED_MIME_TYPES` allow-list on purpose (SVG can embed
+ * `<script>`/event handlers — architecture doc §9). An operator CAN
+ * override the allow-list to include it, but that should be a deliberate,
+ * reviewed decision paired with a sanitization pipeline — not an
+ * accidental broadening. This check flags the override, it does not block
+ * go-live on its own.
+ */
+export function checkNewsMediaR2SvgNotAllowed(
+  env: NodeJS.ProcessEnv = process.env
+): SecurityCheckResult {
+  const name = "News media R2 allow-list excludes image/svg+xml by default";
+  const severity: CheckSeverity = "warning";
+
+  if (env.NEWS_MEDIA_R2_ENABLED !== "true") {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        'NEWS_MEDIA_R2_ENABLED is not "true" — no MIME allow-list in effect.'
+    };
+  }
+
+  if (allowsSvgMimeType(env)) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence:
+        "NEWS_MEDIA_R2_ALLOWED_MIME_TYPES includes image/svg+xml — verify this is a deliberate override paired with a real SVG sanitization pipeline, not an accidental broadening of the default allow-list (XSS risk via embedded <script>/event handlers)."
+    };
+  }
+
+  return {
+    name,
+    severity,
+    status: "pass",
+    evidence: "NEWS_MEDIA_R2_ALLOWED_MIME_TYPES does not include image/svg+xml."
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Out-of-scope items — printed as their own report section, never silently
 // dropped.
 // ---------------------------------------------------------------------------
@@ -1688,6 +1784,8 @@ export async function runSecurityReadinessChecks(): Promise<
     checkVisitorAnalyticsGeoTrustedSourceReady(),
     checkVisitorAnalyticsRetentionOrderingReady(),
     checkVisitorAnalyticsHashSaltReady(),
+    checkNewsPortalFullOnlineR2PresetReady(),
+    checkNewsMediaR2SvgNotAllowed(),
     await checkErrorsDontLeakStackTraces(),
     await checkSecurityHeadersPresent(),
     checkLoginRateLimitImplemented()
