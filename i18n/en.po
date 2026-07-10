@@ -2225,3 +2225,203 @@ msgstr "Provide at most one of client secret value or environment variable name.
 
 msgid "admin.security.invalid_create_secret_choice"
 msgstr "Provide exactly one of client secret value or environment variable name."
+
+#. admin.layout.nav_visitor_analytics (Issue #617/#622, epic: visitor analytics #617-#624)
+msgid "admin.layout.nav_visitor_analytics"
+msgstr "Visitor Analytics"
+
+#. admin.analytics (Issue #622, epic: visitor analytics #617-#624) — /admin/analytics dashboard
+msgid "admin.analytics.heading"
+msgstr "Visitor Analytics"
+
+msgid "admin.analytics.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.analytics.access_denied_body"
+msgstr "You do not have permission to view the visitor analytics dashboard."
+
+msgid "admin.analytics.state_loading"
+msgstr "Loading…"
+
+msgid "admin.analytics.state_empty_generic"
+msgstr "No analytics data yet for this period."
+
+msgid "admin.analytics.state_error_generic"
+msgstr "Could not load this section. Try again later."
+
+msgid "admin.analytics.online_heading"
+msgstr "Who's online now"
+
+msgid "admin.analytics.online_refresh_button"
+msgstr "Refresh"
+
+msgid "admin.analytics.online_human_label"
+msgstr "Human visitors online"
+
+msgid "admin.analytics.online_admin_label"
+msgstr "Admin pages"
+
+msgid "admin.analytics.online_public_label"
+msgstr "Public pages"
+
+msgid "admin.analytics.online_api_label"
+msgstr "API / other"
+
+msgid "admin.analytics.summary_heading"
+msgstr "Human visitors"
+
+msgid "admin.analytics.summary_24h_label"
+msgstr "Last 24 hours"
+
+msgid "admin.analytics.summary_7d_label"
+msgstr "Last 7 days"
+
+msgid "admin.analytics.summary_30d_label"
+msgstr "Last 30 days"
+
+msgid "admin.analytics.summary_pageviews_label"
+msgstr "pageviews"
+
+msgid "admin.analytics.range_filter_label"
+msgstr "Range"
+
+msgid "admin.analytics.range_24h"
+msgstr "Last 24 hours"
+
+msgid "admin.analytics.range_7d"
+msgstr "Last 7 days"
+
+msgid "admin.analytics.range_30d"
+msgstr "Last 30 days"
+
+msgid "admin.analytics.range_12m"
+msgstr "Last 12 months"
+
+msgid "admin.analytics.pages_heading"
+msgstr "Top pages"
+
+msgid "admin.analytics.pages_column_path"
+msgstr "Path"
+
+msgid "admin.analytics.pages_column_views"
+msgstr "Views"
+
+msgid "admin.analytics.devices_heading"
+msgstr "Devices & browsers"
+
+msgid "admin.analytics.devices_browsers_subheading"
+msgstr "Top browsers"
+
+msgid "admin.analytics.devices_devices_subheading"
+msgstr "Device types"
+
+msgid "admin.analytics.devices_column_name"
+msgstr "Name"
+
+msgid "admin.analytics.devices_column_count"
+msgstr "Count"
+
+msgid "admin.analytics.locations_heading"
+msgstr "Locations"
+
+msgid "admin.analytics.locations_column_country"
+msgstr "Country"
+
+msgid "admin.analytics.locations_column_count"
+msgstr "Visits"
+
+msgid "admin.analytics.locations_disabled_title"
+msgstr "Location tracking is disabled"
+
+msgid "admin.analytics.locations_disabled_body"
+msgstr "Enable geolocation in this tenant's deployment configuration to see country-level visitor data."
+
+msgid "admin.analytics.security_heading"
+msgstr "Bot & suspicious traffic"
+
+msgid "admin.analytics.security_total_label"
+msgstr "Bot pageviews"
+
+msgid "admin.analytics.security_by_reason_heading"
+msgstr "By reason"
+
+msgid "admin.analytics.security_by_area_heading"
+msgstr "By area"
+
+msgid "admin.analytics.sessions_heading"
+msgstr "Active sessions"
+
+msgid "admin.analytics.sessions_area_filter_label"
+msgstr "Area"
+
+msgid "admin.analytics.sessions_type_filter_label"
+msgstr "Visitor type"
+
+msgid "admin.analytics.sessions_filter_all"
+msgstr "All"
+
+msgid "admin.analytics.sessions_filter_admin"
+msgstr "Admin"
+
+msgid "admin.analytics.sessions_filter_public"
+msgstr "Public"
+
+msgid "admin.analytics.sessions_filter_api"
+msgstr "API"
+
+msgid "admin.analytics.sessions_filter_human"
+msgstr "Human"
+
+msgid "admin.analytics.sessions_filter_bot"
+msgstr "Bot"
+
+msgid "admin.analytics.sessions_column_area"
+msgstr "Area"
+
+msgid "admin.analytics.sessions_column_path"
+msgstr "Current path"
+
+msgid "admin.analytics.sessions_column_browser"
+msgstr "Browser"
+
+msgid "admin.analytics.sessions_column_os"
+msgstr "OS"
+
+msgid "admin.analytics.sessions_column_device"
+msgstr "Device"
+
+msgid "admin.analytics.sessions_column_type"
+msgstr "Type"
+
+msgid "admin.analytics.sessions_column_country"
+msgstr "Country"
+
+msgid "admin.analytics.sessions_column_last_seen"
+msgstr "Last seen"
+
+msgid "admin.analytics.sessions_column_ip"
+msgstr "IP address"
+
+msgid "admin.analytics.sessions_column_ip_hash"
+msgstr "IP hash"
+
+msgid "admin.analytics.sessions_column_user_agent_hash"
+msgstr "User-agent hash"
+
+msgid "admin.analytics.sessions_column_login_identifier"
+msgstr "Login identifier"
+
+msgid "admin.analytics.sessions_value_human"
+msgstr "Human"
+
+msgid "admin.analytics.sessions_value_bot"
+msgstr "Bot"
+
+msgid "admin.analytics.sessions_load_more_button"
+msgstr "Load more"
+
+msgid "admin.analytics.sessions_empty"
+msgstr "No active sessions in the current window."
+
+msgid "admin.analytics.sessions_filtered_empty"
+msgstr "No sessions match the selected filters."

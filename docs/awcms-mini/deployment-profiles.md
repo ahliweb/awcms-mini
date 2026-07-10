@@ -214,6 +214,51 @@ hardening).
   fitur ini pertama diaktifkan) untuk operator yang mengaktifkan
   `sso_required`/`password_login_enabled=false` di produksi.
 
+## Visitor analytics (opsional, privacy-first — Issue #617-#624)
+
+Berbeda dari full-online auth hardening di atas, modul `visitor_analytics`
+**aktif di semua profil secara default** (`VISITOR_ANALYTICS_ENABLED=true`)
+— termasuk offline/LAN, karena statistik pengunjung agregat (human
+pageviews, top paths/browsers/devices) tidak butuh koneksi internet apa
+pun; hanya tiga sub-fitur yang benar-benar online-dependent dan
+default-mati (`VISITOR_ANALYTICS_RAW_IP_ENABLED`/`_RAW_USER_AGENT_ENABLED`/
+`_GEO_ENABLED`). Lihat `docs/awcms-mini/visitor-analytics.md` untuk
+panduan lengkap privacy-first default, retensi, dan pemetaan kepatuhan;
+ringkasan per profil:
+
+- **offline/LAN & development**: biarkan semua `VISITOR_ANALYTICS_*`
+  tidak di-set. Statistik pengunjung dasar (dashboard `/admin/analytics`)
+  tetap berfungsi penuh tanpa IP mentah, user-agent mentah, atau
+  geolokasi apa pun tersimpan — cocok untuk deployment yang tidak pernah
+  tersambung internet publik.
+- **staging/production (online), di belakang Cloudflare**: hanya bila
+  operator memang menempatkan origin di belakang Cloudflare DAN
+  memfirewall origin agar hanya bisa diakses lewat edge Cloudflare, boleh
+  set `VISITOR_ANALYTICS_TRUST_CLOUDFLARE=true` untuk resolusi IP klien
+  yang lebih akurat (`CF-Connecting-IP`) dan `VISITOR_ANALYTICS_GEO_ENABLED=true`
+  untuk breakdown negara (`CF-IPCountry`, tanpa panggilan jaringan
+  eksternal apa pun — lihat §Trusted proxy/Cloudflare mode di
+  `visitor-analytics.md`). `bun run security:readiness`'s
+  `checkVisitorAnalyticsGeoTrustedSourceReady` (Issue #624) gagal kalau
+  geo diaktifkan tanpa trust Cloudflare — mencegah konfigurasi yang
+  terlihat aktif tapi diam-diam tidak menghasilkan data apa pun.
+- **staging/production (online), di belakang reverse proxy generik**
+  (bukan Cloudflare): `VISITOR_ANALYTICS_TRUST_PROXY=true` untuk
+  `X-Forwarded-For`, dengan syarat operasional yang sama dengan
+  `PUBLIC_TRUST_PROXY` — proxy WAJIB menimpa (bukan menambahkan) header
+  ini di setiap request.
+- **Raw IP/raw user-agent** (`VISITOR_ANALYTICS_RAW_IP_ENABLED`/
+  `_RAW_USER_AGENT_ENABLED`): default mati di semua profil, termasuk
+  online — hanya nyalakan bila benar-benar dibutuhkan (mis. investigasi
+  keamanan jangka pendek) dan `VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS`
+  tetap pendek (`bun run security:readiness`'s
+  `checkVisitorAnalyticsRawIpRetentionReady`, critical, menolak retensi
+  raw detail yang melebihi retensi event).
+- **Job terjadwal** (`analytics:rollup`, `analytics:purge`) — lihat
+  §Job registry lainnya di bawah untuk jadwal cron yang disarankan; kedua
+  job aman dijalankan di profil offline/LAN sekalipun (operasi database
+  lokal murni, tidak pernah memanggil provider eksternal).
+
 ## Cara menjalankan tiap profil
 
 ### development
@@ -459,15 +504,34 @@ daftar lengkap dan alasan tiap job dimiliki modul mana. Dua kategori:
 `email:dispatch` di atas (ganti nama command pada contoh crontab),
 idempoten/aman dijalankan berulang, no-op aman bila fiturnya nonaktif:
 
-| Command                 | Modul        | Jadwal disarankan |
-| ----------------------- | ------------ | ----------------- |
-| `sync:objects:dispatch` | sync_storage | Setiap 1-2 menit  |
-| `logs:audit:purge`      | logging      | Harian            |
-| `form-drafts:purge`     | form_drafts  | Harian            |
+| Command                 | Modul             | Jadwal disarankan                                        |
+| ----------------------- | ----------------- | -------------------------------------------------------- |
+| `sync:objects:dispatch` | sync_storage      | Setiap 1-2 menit                                         |
+| `logs:audit:purge`      | logging           | Harian                                                   |
+| `form-drafts:purge`     | form_drafts       | Harian                                                   |
+| `analytics:rollup`      | visitor_analytics | Harian (mis. 00:15, setelah hari UTC sebelumnya selesai) |
+| `analytics:purge`       | visitor_analytics | Harian, setelah `analytics:rollup`                       |
 
-Semua tiga bersifat operasi database murni (kecuali `sync:objects:dispatch`
+Semua bersifat operasi database murni (kecuali `sync:objects:dispatch`
 yang menyentuh R2 bila `STORAGE_DRIVER` bukan `local`) — aman dijadwalkan
-di profil offline/LAN sekalipun.
+di profil offline/LAN sekalipun, termasuk kedua job visitor analytics: baik
+rollup maupun purge murni membaca/menulis tabel
+`awcms_mini_visit_events`/`awcms_mini_visitor_sessions`/
+`awcms_mini_visitor_daily_rollups` lokal, tidak pernah memanggil provider
+eksternal (lihat `docs/awcms-mini/visitor-analytics.md` §Rollup dan §Purge
+untuk detail perilaku dan idempotency).
+
+`analytics:rollup` (Issue #624) tanpa argumen merangkum "kemarin" (UTC) —
+`--date=YYYY-MM-DD` untuk satu tanggal spesifik atau
+`--start-date=.../--end-date=...` untuk backfill rentang tanggal; aman
+dijalankan ulang untuk tanggal yang sama (UPSERT penuh, bukan increment).
+`analytics:purge` (Issue #624) memanggil
+`purgeVisitorAnalyticsData` yang sama dengan
+`POST /api/v1/analytics/retention/purge` (Issue #621) untuk setiap tenant
+`active`, dan mencatat audit `critical` `retention_purged` hanya untuk
+tenant yang benar-benar memiliki baris terhapus/dibersihkan — jadwalkan
+setelah `analytics:rollup` supaya data yang akan dipurge sudah
+teragregasi lebih dulu.
 
 **On-demand/manual (bukan cron berulang)** — dijalankan operator sesuai
 kebutuhan, bukan dijadwalkan terus-menerus:
@@ -502,3 +566,6 @@ profil non-development, termasuk offline/LAN (doc 18: "backup lokal").
   — checklist production readiness dan go-live plan.
 - `.claude/skills/awcms-mini-production-preflight/SKILL.md` — command
   preflight lengkap termasuk `config:validate`.
+- [`visitor-analytics.md`](visitor-analytics.md) — panduan lengkap mode
+  offline/LAN vs online, privacy-first default, retensi, dan pemetaan
+  kepatuhan modul visitor analytics.

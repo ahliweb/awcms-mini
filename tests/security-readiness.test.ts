@@ -10,6 +10,11 @@ import {
   checkSyncHmacSecretNotDefault,
   checkMfaReady,
   checkTurnstileReady,
+  checkVisitorAnalyticsGeoTrustedSourceReady,
+  checkVisitorAnalyticsHashSaltReady,
+  checkVisitorAnalyticsRawIpRetentionReady,
+  checkVisitorAnalyticsRawUserAgentRetentionReady,
+  checkVisitorAnalyticsRetentionOrderingReady,
   scanLineForHardcodedSecret
 } from "../scripts/security-readiness";
 
@@ -335,6 +340,164 @@ describe("checkOnlineAuthSecurityReady", () => {
     } as NodeJS.ProcessEnv);
 
     expect(result.severity).toBe("critical");
+    expect(result.status).toBe("pass");
+  });
+});
+
+// Issue #624 (epic: visitor analytics #617-#624) — cross-field
+// privacy/retention posture checks, distinct from `validate-env.test.ts`'s
+// `checkVisitorAnalyticsConfig` (shape-only: enum/positive-int format).
+describe("checkVisitorAnalyticsRawIpRetentionReady", () => {
+  test("is critical/pass when raw IP is not enabled", () => {
+    const result = checkVisitorAnalyticsRawIpRetentionReady(
+      {} as NodeJS.ProcessEnv
+    );
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("pass");
+  });
+
+  test("passes when raw IP is enabled and raw-detail retention does not exceed event retention", () => {
+    const result = checkVisitorAnalyticsRawIpRetentionReady({
+      VISITOR_ANALYTICS_RAW_IP_ENABLED: "true",
+      VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS: "30",
+      VISITOR_ANALYTICS_EVENT_RETENTION_DAYS: "90"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("pass");
+  });
+
+  test("fails when raw IP is enabled and raw-detail retention exceeds event retention", () => {
+    const result = checkVisitorAnalyticsRawIpRetentionReady({
+      VISITOR_ANALYTICS_RAW_IP_ENABLED: "true",
+      VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS: "200",
+      VISITOR_ANALYTICS_EVENT_RETENTION_DAYS: "90"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("fail");
+  });
+});
+
+describe("checkVisitorAnalyticsRawUserAgentRetentionReady", () => {
+  test("is warning/pass when raw user-agent is not enabled", () => {
+    const result = checkVisitorAnalyticsRawUserAgentRetentionReady(
+      {} as NodeJS.ProcessEnv
+    );
+
+    expect(result.severity).toBe("warning");
+    expect(result.status).toBe("pass");
+  });
+
+  test("fails (warning) when raw user-agent is enabled and retention ordering is unsafe", () => {
+    const result = checkVisitorAnalyticsRawUserAgentRetentionReady({
+      VISITOR_ANALYTICS_RAW_USER_AGENT_ENABLED: "true",
+      VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS: "200",
+      VISITOR_ANALYTICS_EVENT_RETENTION_DAYS: "90"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("warning");
+    expect(result.status).toBe("fail");
+    expect(result.evidence).toContain("no-op");
+  });
+
+  test("passes when raw user-agent is enabled and retention ordering is safe", () => {
+    const result = checkVisitorAnalyticsRawUserAgentRetentionReady({
+      VISITOR_ANALYTICS_RAW_USER_AGENT_ENABLED: "true",
+      VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS: "30",
+      VISITOR_ANALYTICS_EVENT_RETENTION_DAYS: "90"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("warning");
+    expect(result.status).toBe("pass");
+  });
+});
+
+describe("checkVisitorAnalyticsGeoTrustedSourceReady", () => {
+  test("is critical/pass when geo enrichment is not enabled", () => {
+    const result = checkVisitorAnalyticsGeoTrustedSourceReady(
+      {} as NodeJS.ProcessEnv
+    );
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("pass");
+  });
+
+  test("fails when geo is enabled but Cloudflare trust is not", () => {
+    const result = checkVisitorAnalyticsGeoTrustedSourceReady({
+      VISITOR_ANALYTICS_GEO_ENABLED: "true"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("fail");
+  });
+
+  test("passes when geo is enabled and Cloudflare trust is also enabled", () => {
+    const result = checkVisitorAnalyticsGeoTrustedSourceReady({
+      VISITOR_ANALYTICS_GEO_ENABLED: "true",
+      VISITOR_ANALYTICS_TRUST_CLOUDFLARE: "true"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("critical");
+    expect(result.status).toBe("pass");
+  });
+});
+
+describe("checkVisitorAnalyticsRetentionOrderingReady", () => {
+  test("passes with every retention var left at its privacy-first default", () => {
+    const result = checkVisitorAnalyticsRetentionOrderingReady(
+      {} as NodeJS.ProcessEnv
+    );
+
+    expect(result.severity).toBe("warning");
+    expect(result.status).toBe("pass");
+  });
+
+  test("fails when raw-detail retention exceeds event retention", () => {
+    const result = checkVisitorAnalyticsRetentionOrderingReady({
+      VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS: "200",
+      VISITOR_ANALYTICS_EVENT_RETENTION_DAYS: "90"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("fail");
+    expect(result.evidence).toContain("RAW_DETAIL_RETENTION_DAYS");
+  });
+
+  test("fails when rollup retention is shorter than event retention", () => {
+    const result = checkVisitorAnalyticsRetentionOrderingReady({
+      VISITOR_ANALYTICS_EVENT_RETENTION_DAYS: "90",
+      VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS: "30"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("fail");
+    expect(result.evidence).toContain("ROLLUP_RETENTION_DAYS");
+  });
+});
+
+describe("checkVisitorAnalyticsHashSaltReady", () => {
+  test("is warning/pass when visitor analytics is disabled entirely", () => {
+    const result = checkVisitorAnalyticsHashSaltReady({
+      VISITOR_ANALYTICS_ENABLED: "false"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("warning");
+    expect(result.status).toBe("pass");
+  });
+
+  test("fails (warning) when enabled (the default) with no hash salt configured", () => {
+    const result = checkVisitorAnalyticsHashSaltReady({} as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("warning");
+    expect(result.status).toBe("fail");
+  });
+
+  test("passes when enabled and a hash salt is configured", () => {
+    const result = checkVisitorAnalyticsHashSaltReady({
+      VISITOR_ANALYTICS_HASH_SALT: "a-real-deployment-salt"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("warning");
     expect(result.status).toBe("pass");
   });
 });

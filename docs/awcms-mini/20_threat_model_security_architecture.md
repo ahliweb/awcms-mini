@@ -451,3 +451,43 @@ sekali — `APP_ENV=production` **bukan** proxy untuk gate ini (lihat
 - **Circuit breaker exclusion untuk SQLSTATE class 22** — Issue #601,
   **selesai** (`isPostgresClientInputError` di `tenant-context.ts` kini
   mencakup kelas `22` dan `23`).
+
+## Standar tambahan dipicu epic visitor analytics (Issue #617-#624)
+
+Epic ini menambah **telemetry pengunjung berskala tinggi** (satu baris
+per page-view/API call, jauh lebih tinggi volumenya dari audit event
+yang hanya dicatat untuk aksi high-risk) yang menyentuh kelas data yang
+belum pernah dibahas matrix di atas: alamat IP, user-agent, dan
+(opsional) geolokasi. Detail lengkap kontrol, mode operasi, dan
+pemetaan kepatuhan penuh ada di `docs/awcms-mini/visitor-analytics.md`
+(dokumen baru, Issue #624) — bagian ini merangkum model ancaman inti,
+tidak mengulang kontrol generik (RLS, ABAC default-deny, audit) yang
+sudah berlaku sama di sini.
+
+| Kategori risiko                                                            | Mitigasi                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Re-identifikasi pengunjung lewat IP/user-agent mentah**                  | Privacy-first default: `VISITOR_ANALYTICS_RAW_IP_ENABLED`/`_RAW_USER_AGENT_ENABLED`/`_GEO_ENABLED` semuanya mati secara default (Issue #617) — hanya `ip_hash`/`user_agent_hash` (HMAC-SHA256 keyed `VISITOR_ANALYTICS_HASH_SALT`, Issue #619) dan field browser/device/OS hasil parse tersimpan. Raw value, bila diaktifkan eksplisit, dibatasi retensi pendek (`VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS`, default 30 hari) dan dibersihkan job purge terjadwal (Issue #624, lihat baris purge di bawah).                  |
+| **Existence oracle lintas-tenant lewat FK yang tidak dilindungi RLS**      | Ditemukan security-auditor di Issue #618 (FK `identity_id`/`visitor_session_id` tidak ditegakkan RLS Postgres — dokumentasi resmi `CREATE POLICY`), **ditutup di Issue #620**: `identity_id` selalu di-derive server-side dari sesi terautentikasi pemanggil sendiri, `visitor_session_id` selalu dari row yang baru saja dicari/dibuat fungsi collector sendiri di dalam tenant context-nya — tidak pernah dari UUID mentah yang bisa dikontrol client. Lihat skill `awcms-mini-visitor-analytics` §Schema untuk detail penuh. |
+| **Data sensitif bocor lewat query-string yang ikut ter-log**               | `sanitizePath` (Issue #619) membuang minimum 11 parameter sensitif (`token`/`code`/`password`/`secret`/`email`/`phone`/`authorization`/`access_token`/`refresh_token`/`reset_token`/`mfaChallengeToken`) sebelum path masuk `path_sanitized` — fail SAFE (buang seluruh query string, bukan echo raw input) untuk input yang gagal di-parse `URL()` (post-review fix, PR #627).                                                                                                                                                 |
+| **Geolokasi diam-diam tidak aktif meski dikira aktif (operator mismatch)** | `resolveGeoEnrichment` (Issue #623) mensyaratkan DUA gate (`VISITOR_ANALYTICS_GEO_ENABLED` DAN `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`) — salah satu mati menghasilkan semua field `null` (fail-safe, tidak pernah geolokasi keliru dari header yang tidak tepercaya). `bun run security:readiness`'s `checkVisitorAnalyticsGeoTrustedSourceReady` (Issue #624, critical) menangkap kombinasi "geo diaktifkan tanpa trust Cloudflare" sebelum go-live, supaya operator tidak mengira fitur aktif padahal diam-diam kosong.         |
+| **Header forwarded ambigu meracuni IP/geolokasi**                          | `resolveAnalyticsClientIp` (Issue #623) menolak `X-Forwarded-For`/`CF-Connecting-IP` yang membawa >1 nilai comma-separated (anomali → log warning → fallback ke sumber berikutnya), pola sama `X-Forwarded-Host` di epic tenant-domain-routing. Proxy tepercaya yang benar wajib MENIMPA (bukan menambahkan) header ini di setiap request (kontrak sama `PUBLIC_TRUST_PROXY`, doc 18).                                                                                                                                          |
+| **Retensi data yang tidak proporsional dengan sensitivitas**               | Prinsip urutan retensi ditegakkan: raw detail (30 hari default) < event (90 hari default) < rollup agregat (730 hari default) — dari Issue #617's config. Issue #624 menambah `checkVisitorAnalyticsRetentionOrderingReady` (warning) yang memverifikasi urutan ini setiap `security:readiness`, dan `checkVisitorAnalyticsRawIpRetentionReady` (critical) yang GAGAL bila raw IP aktif dengan retensi raw detail melebihi retensi event.                                                                                       |
+| **Purge terjadwal gagal/berhenti diam-diam**                               | `bun run analytics:purge` (Issue #624, `scripts/visitor-analytics-purge.ts`) memanggil `purgeVisitorAnalyticsData` yang SAMA dengan `POST /api/v1/analytics/retention/purge` (Issue #621, tidak pernah re-derive rule purge) untuk setiap tenant `active`, mencatat audit `critical` `retention_purged` per tenant yang benar-benar terpurge (bukan log silent), dan exit non-zero bila terjadi error — operator penjadwal (cron/systemd timer) melihat kegagalan lewat exit code, bukan berhenti diam-diam.                    |
+| **Rollup dihitung dobel saat job dijalankan ulang**                        | `rollupVisitorAnalyticsForDate` (Issue #624) UPSERT penuh (`ON CONFLICT (tenant_id, date, area) DO UPDATE SET ... = EXCLUDED...`) — setiap run merekomputasi total dari `awcms_mini_visit_events` mentah dan MENIMPA, tidak pernah menambah ke nilai lama. Rerun tanggal yang sama menghasilkan baris identik; diverifikasi `tests/integration/visitor-analytics-rollup.integration.test.ts`.                                                                                                                                   |
+
+### Batasan yang dicatat, bukan diabaikan (visitor analytics)
+
+- **`VISITOR_ANALYTICS_RAW_USER_AGENT_ENABLED` saat ini no-op** — belum
+  ada kolom raw-user-agent (migration 039 hanya `user_agent_hash` +
+  `user_agent_parsed`); flag ini divalidasi (`checkVisitorAnalyticsRawUserAgentRetentionReady`,
+  warning) untuk kesiapan retensi hari flag ini benar-benar diwire ke
+  kolom nyata, bukan karena ia melakukan sesuatu hari ini.
+- **Region/city/timezone selalu `null`** — belum ada database GeoIP
+  lokal/offline (di luar cakupan Issue #623); hanya country code dari
+  header Cloudflare `CF-IPCountry` yang pernah terisi.
+- **`VISITOR_ANALYTICS_HASH_SALT` default kosong tetap lulus
+  `security:readiness`** (warning, bukan critical) — hash tetap valid
+  secara fungsional tanpa salt, hanya lebih rentan korelasi lintas-
+  deployment lewat tabel precompute; menaikkan ini ke critical akan
+  menggagalkan setiap deployment default yang sudah ada tanpa manfaat
+  keamanan yang proporsional.

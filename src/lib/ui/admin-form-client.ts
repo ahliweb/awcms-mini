@@ -27,6 +27,17 @@
  * semantics `workflows/tasks/{id}/decisions.ts` established). Every
  * existing call site omits the third-turned-fourth argument and is
  * unaffected.
+ *
+ * `fetchJson` (Issue #622, `admin/analytics.astro`) — the same safe
+ * error-mapping `submitJson` already does (map a failure response's error
+ * code through the caller's translated `errorMessages`, never surface a
+ * raw exception/stack), but for a `GET` read instead of a mutation. The
+ * visitor analytics dashboard is the first admin page whose initial data
+ * load happens client-side against the real `GET /api/v1/analytics/*`
+ * endpoints rather than an SSR `withTenant` call in the page's own
+ * frontmatter (deliberate for that page — see its own doc comment: the
+ * dashboard must only ever call the already-guarded HTTP API, never touch
+ * the database directly from UI code).
  */
 
 export interface SubmitResult {
@@ -88,6 +99,50 @@ export async function submitJson(
     return { ok: true, message: "" };
   } catch {
     return { ok: false, message: strings.networkError };
+  }
+}
+
+export interface FetchJsonResult<TData> {
+  ok: boolean;
+  status: number;
+  code?: string;
+  message: string;
+  data: TData | null;
+}
+
+/**
+ * GET `url` and parse the standard `{ success, data }` / `{ success:
+ * false, error }` envelope (`modules/_shared/api-response.ts`). Never
+ * throws — a network failure or non-2xx response both come back as
+ * `ok: false` with a safe, translated `message`, the same guardrail
+ * `submitJson` already enforces (doc 10: no stack trace/internal detail
+ * ever reaches the UI).
+ */
+export async function fetchJson<TData = unknown>(
+  url: string,
+  strings: ClientErrorStrings
+): Promise<FetchJsonResult<TData>> {
+  try {
+    const res = await fetch(url, { credentials: "same-origin" });
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      const code = json?.error?.code as string | undefined;
+      const message: string =
+        (code && strings.errorMessages?.[code]) ??
+        json?.error?.message ??
+        `Request failed (${res.status}).`;
+      return { ok: false, status: res.status, code, message, data: null };
+    }
+
+    return {
+      ok: true,
+      status: res.status,
+      message: "",
+      data: (json?.data ?? null) as TData | null
+    };
+  } catch {
+    return { ok: false, status: 0, message: strings.networkError, data: null };
   }
 }
 

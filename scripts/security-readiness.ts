@@ -48,6 +48,7 @@ import {
   checkSsoConfig,
   checkTurnstileConfig
 } from "./validate-env";
+import { resolveVisitorAnalyticsConfig } from "../src/modules/visitor-analytics/domain/visitor-analytics-config";
 
 export type CheckSeverity = "critical" | "warning" | "info";
 export type CheckStatus = "pass" | "fail";
@@ -1148,6 +1149,295 @@ export async function checkSsoBreakGlassReady(): Promise<SecurityCheckResult> {
 }
 
 // ---------------------------------------------------------------------------
+// 9f. Visitor analytics privacy/retention posture (Issue #624, epic: visitor
+// analytics #617-#624)
+// ---------------------------------------------------------------------------
+
+/**
+ * `scripts/validate-env.ts`'s `checkVisitorAnalyticsConfig` (Issue #617)
+ * only validates SHAPE — `VISITOR_ANALYTICS_MODE` is a known enum value,
+ * the four retention/window vars are positive integers when set. It
+ * intentionally has no cross-field rule (its own file header comment
+ * §10 says so explicitly), because at the time it was written no other
+ * visitor-analytics var existed to cross-check against and no rollup/purge
+ * job existed yet to make the retention numbers operationally meaningful.
+ *
+ * The checks below are cross-field SAFETY judgment calls — "is this
+ * combination of flags actually safe to go live with", not "is this one
+ * var shaped correctly" — the same split `checkOnlineAuthSecurityReady`/
+ * `checkTurnstileReady`/etc. above already draw between `validate-env.ts`
+ * (shape) and this file (posture/severity). They all reuse
+ * `resolveVisitorAnalyticsConfig` (Issue #617) rather than re-reading
+ * `process.env.VISITOR_ANALYTICS_*` a second, divergent way.
+ */
+
+function isVisitorAnalyticsRetentionUnsafe(
+  rawDetailRetentionDays: number,
+  eventRetentionDays: number
+): boolean {
+  return rawDetailRetentionDays > eventRetentionDays;
+}
+
+/**
+ * Issue #624 bullet 1: `VISITOR_ANALYTICS_RAW_IP_ENABLED=true` without safe
+ * retention must fail readiness. "Safe" here means the raw-detail retention
+ * window (which governs how long `awcms_mini_visitor_sessions.ip_address`
+ * survives before `purgeVisitorAnalyticsData` clears it) does not outlive
+ * the general event retention window — raw IP is the single most sensitive
+ * column this module stores, so it must never be the longest-lived data
+ * class. `critical`: this is real, currently-active PII collection, not a
+ * hypothetical/reserved flag.
+ */
+export function checkVisitorAnalyticsRawIpRetentionReady(
+  env: NodeJS.ProcessEnv = process.env
+): SecurityCheckResult {
+  const name =
+    "Visitor analytics raw IP retention is safe when enabled (Issue #624)";
+  const severity: CheckSeverity = "critical";
+  const config = resolveVisitorAnalyticsConfig(env);
+
+  if (!config.rawIpEnabled) {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        'VISITOR_ANALYTICS_RAW_IP_ENABLED is not "true" — raw IP is never stored; retention ordering is not a live risk.'
+    };
+  }
+
+  if (
+    isVisitorAnalyticsRetentionUnsafe(
+      config.rawDetailRetentionDays,
+      config.eventRetentionDays
+    )
+  ) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `VISITOR_ANALYTICS_RAW_IP_ENABLED=true but VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS (${config.rawDetailRetentionDays}) exceeds VISITOR_ANALYTICS_EVENT_RETENTION_DAYS (${config.eventRetentionDays}) — raw IP would outlive the event window it is meant to support. Lower the raw-detail retention below (or equal to) the event retention.`
+    };
+  }
+
+  return {
+    name,
+    severity,
+    status: "pass",
+    evidence: `VISITOR_ANALYTICS_RAW_IP_ENABLED=true and VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS (${config.rawDetailRetentionDays}) does not exceed VISITOR_ANALYTICS_EVENT_RETENTION_DAYS (${config.eventRetentionDays}).`
+  };
+}
+
+/**
+ * Issue #624 bullet 2: `VISITOR_ANALYTICS_RAW_USER_AGENT_ENABLED=true`
+ * without safe retention should warn/fail "according to severity" — chosen
+ * `warning`, not `critical`, because this flag is currently a documented
+ * no-op (`src/modules/visitor-analytics/README.md` §Collector,
+ * `docs/awcms-mini/18_configuration_env_reference.md`): no raw-user-agent
+ * column exists yet (migration 039 only has `user_agent_hash` +
+ * `user_agent_parsed`), so setting it `true` today changes nothing about
+ * what is actually stored. It is still checked (rather than ignored
+ * outright) so the same retention-ordering rule is already enforced for
+ * the day a future issue wires this flag to a real column.
+ */
+export function checkVisitorAnalyticsRawUserAgentRetentionReady(
+  env: NodeJS.ProcessEnv = process.env
+): SecurityCheckResult {
+  const name =
+    "Visitor analytics raw user-agent retention is safe when enabled (Issue #624)";
+  const severity: CheckSeverity = "warning";
+  const config = resolveVisitorAnalyticsConfig(env);
+  const noOpNote =
+    "VISITOR_ANALYTICS_RAW_USER_AGENT_ENABLED is currently a documented no-op — no raw-user-agent column exists yet, so nothing extra is stored regardless of this check's outcome.";
+
+  if (!config.rawUserAgentEnabled) {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence: `VISITOR_ANALYTICS_RAW_USER_AGENT_ENABLED is not "true". ${noOpNote}`
+    };
+  }
+
+  if (
+    isVisitorAnalyticsRetentionUnsafe(
+      config.rawDetailRetentionDays,
+      config.eventRetentionDays
+    )
+  ) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `VISITOR_ANALYTICS_RAW_USER_AGENT_ENABLED=true but VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS (${config.rawDetailRetentionDays}) exceeds VISITOR_ANALYTICS_EVENT_RETENTION_DAYS (${config.eventRetentionDays}). ${noOpNote}`
+    };
+  }
+
+  return {
+    name,
+    severity,
+    status: "pass",
+    evidence: `VISITOR_ANALYTICS_RAW_USER_AGENT_ENABLED=true and retention ordering is safe. ${noOpNote}`
+  };
+}
+
+/**
+ * Issue #624 bullet 3: `VISITOR_ANALYTICS_GEO_ENABLED=true` without a
+ * trusted source must fail. `domain/geo-enrichment.ts` (Issue #623)
+ * already gates real enrichment behind BOTH `VISITOR_ANALYTICS_GEO_ENABLED`
+ * AND `VISITOR_ANALYTICS_TRUST_CLOUDFLARE` — leaving the latter off is
+ * fail-safe at runtime (every geo field stays `null`), so this is not a
+ * live data-leak. It is still `critical`, matching the issue's own
+ * wording, because it means the operator's stated intent ("I want geo
+ * enrichment") is silently unmet — shipping to production in that state
+ * would look configured but produce nothing, which is exactly the kind of
+ * silent misconfiguration a go-live gate exists to catch.
+ */
+export function checkVisitorAnalyticsGeoTrustedSourceReady(
+  env: NodeJS.ProcessEnv = process.env
+): SecurityCheckResult {
+  const name =
+    "Visitor analytics geolocation has a trusted source when enabled (Issue #624)";
+  const severity: CheckSeverity = "critical";
+  const config = resolveVisitorAnalyticsConfig(env);
+
+  if (!config.geoEnabled) {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        'VISITOR_ANALYTICS_GEO_ENABLED is not "true" — geolocation enrichment is disabled.'
+    };
+  }
+
+  if (!config.trustCloudflare) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence:
+        "VISITOR_ANALYTICS_GEO_ENABLED=true but VISITOR_ANALYTICS_TRUST_CLOUDFLARE is not \"true\" — geo enrichment has no trusted header source and will silently resolve every field to null (fail-safe, but not the operator's stated intent). Set VISITOR_ANALYTICS_TRUST_CLOUDFLARE=true only if this deployment is only reachable through Cloudflare's edge."
+    };
+  }
+
+  return {
+    name,
+    severity,
+    status: "pass",
+    evidence:
+      "VISITOR_ANALYTICS_GEO_ENABLED=true and VISITOR_ANALYTICS_TRUST_CLOUDFLARE=true — geolocation enrichment has a trusted header source."
+  };
+}
+
+/**
+ * Issue #624 bullets 5-6: retention ORDERING, independent of whether raw
+ * IP/UA collection is actually enabled (`checkVisitorAnalyticsRawIpRetentionReady`/
+ * `checkVisitorAnalyticsRawUserAgentRetentionReady` above already cover the
+ * flag-gated, higher-stakes version of the raw-detail-vs-event half of this
+ * rule). `warning`, not `critical`, for both halves — this is a data-hygiene/
+ * config-sanity concern (doc's own retention-ordering principle: raw detail
+ * < event < rollup), not by itself a live security compromise; the issue's
+ * own wording ("should not... unless explicitly justified") is advisory,
+ * not a hard block.
+ */
+export function checkVisitorAnalyticsRetentionOrderingReady(
+  env: NodeJS.ProcessEnv = process.env
+): SecurityCheckResult {
+  const name =
+    "Visitor analytics retention windows are correctly ordered (Issue #624)";
+  const severity: CheckSeverity = "warning";
+  const config = resolveVisitorAnalyticsConfig(env);
+  const problems: string[] = [];
+
+  if (
+    isVisitorAnalyticsRetentionUnsafe(
+      config.rawDetailRetentionDays,
+      config.eventRetentionDays
+    )
+  ) {
+    problems.push(
+      `VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS (${config.rawDetailRetentionDays}) exceeds VISITOR_ANALYTICS_EVENT_RETENTION_DAYS (${config.eventRetentionDays})`
+    );
+  }
+
+  if (config.rollupRetentionDays < config.eventRetentionDays) {
+    problems.push(
+      `VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS (${config.rollupRetentionDays}) is shorter than VISITOR_ANALYTICS_EVENT_RETENTION_DAYS (${config.eventRetentionDays})`
+    );
+  }
+
+  if (problems.length > 0) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `${problems.join("; ")}. Expected ordering: raw detail retention <= event retention <= rollup retention, unless explicitly justified for this deployment.`
+    };
+  }
+
+  return {
+    name,
+    severity,
+    status: "pass",
+    evidence: `Retention windows are correctly ordered: raw detail (${config.rawDetailRetentionDays}d) <= event (${config.eventRetentionDays}d) <= rollup (${config.rollupRetentionDays}d).`
+  };
+}
+
+/**
+ * Issue #624 bullet 7: `VISITOR_ANALYTICS_HASH_SALT` should be required or
+ * strongly warned when "stable hashing" is enabled. Stable hashing
+ * (`hashVisitorKey`/`hashIpAddress`/`hashUserAgent`, Issue #619,
+ * HMAC-SHA256 keyed by this salt) runs on every collected request whenever
+ * the module's master switch is on — it is not gated by any of the raw-*
+ * flags (those gate whether the RAW value is *also* stored, not whether
+ * it's hashed). `warning`, not `critical`/required: an empty salt (the
+ * default every existing deployment already runs with) still produces a
+ * valid, internally-consistent keyed hash — it is only weaker against an
+ * attacker correlating hashes across deployments via a precomputed table,
+ * not a functional break. Making this `critical` would fail every
+ * currently-passing default-configuration deployment for a defense-in-depth
+ * concern, which is why "strongly warned" (not "required") is the chosen
+ * severity, per the issue's own wording.
+ */
+export function checkVisitorAnalyticsHashSaltReady(
+  env: NodeJS.ProcessEnv = process.env
+): SecurityCheckResult {
+  const name =
+    "Visitor analytics hash salt is configured for stable hashing (Issue #624)";
+  const severity: CheckSeverity = "warning";
+  const config = resolveVisitorAnalyticsConfig(env);
+
+  if (!config.enabled) {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        'VISITOR_ANALYTICS_ENABLED is not "true" — no visitor/IP/user-agent hashing occurs.'
+    };
+  }
+
+  if (config.hashSalt.trim().length === 0) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence:
+        "VISITOR_ANALYTICS_ENABLED=true but VISITOR_ANALYTICS_HASH_SALT is empty — visitor/IP/user-agent hashes are still valid and internally consistent, but a deployment-specific salt is strongly recommended to prevent cross-deployment hash correlation via a precomputed table."
+    };
+  }
+
+  return {
+    name,
+    severity,
+    status: "pass",
+    evidence:
+      "VISITOR_ANALYTICS_ENABLED=true and VISITOR_ANALYTICS_HASH_SALT is set."
+  };
+}
+
+// ---------------------------------------------------------------------------
 // 10. Errors don't leak stack traces (warning/info, best-effort)
 // ---------------------------------------------------------------------------
 
@@ -1393,6 +1683,11 @@ export async function runSecurityReadinessChecks(): Promise<
     checkGoogleOidcReady(),
     checkSsoReady(),
     await checkSsoBreakGlassReady(),
+    checkVisitorAnalyticsRawIpRetentionReady(),
+    checkVisitorAnalyticsRawUserAgentRetentionReady(),
+    checkVisitorAnalyticsGeoTrustedSourceReady(),
+    checkVisitorAnalyticsRetentionOrderingReady(),
+    checkVisitorAnalyticsHashSaltReady(),
     await checkErrorsDontLeakStackTraces(),
     await checkSecurityHeadersPresent(),
     checkLoginRateLimitImplemented()

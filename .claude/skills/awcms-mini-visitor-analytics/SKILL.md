@@ -24,20 +24,20 @@ spesifik** yang menjembatani beberapa issue sekaligus.
 
 ## Status per issue (jangan bangun ulang yang sudah ada)
 
-| Issue | Scope                                                          | Status                                       |
-| ----- | -------------------------------------------------------------- | -------------------------------------------- |
-| #617  | Module descriptor, permission catalog, config gate             | **Selesai** — lihat §Config di bawah         |
-| #618  | Visitor session/event/rollup schema + RLS                      | **Selesai** — lihat §Schema di bawah         |
-| #619  | Visitor identity, user-agent, human/bot classification helpers | **Selesai** — lihat §Domain helpers di bawah |
-| #620  | Middleware telemetry collection (admin + public)               | **Selesai** — lihat §Collector di bawah      |
-| #621  | Analytics API + OpenAPI contract (`/api/v1/analytics`)         | **Selesai** — lihat §API di bawah            |
-| #623  | Trusted online geolocation enrichment                          | **Selesai** — lihat §Geo enrichment di bawah |
-| #622  | Admin visitor analytics dashboard UI (`/admin/analytics`)      | Belum dikerjakan                             |
-| #624  | Rollup job, retention purge job, readiness checks, docs pass   | Belum dikerjakan                             |
+| Issue | Scope                                                          | Status                                                                            |
+| ----- | -------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| #617  | Module descriptor, permission catalog, config gate             | **Selesai** — lihat §Config di bawah                                              |
+| #618  | Visitor session/event/rollup schema + RLS                      | **Selesai** — lihat §Schema di bawah                                              |
+| #619  | Visitor identity, user-agent, human/bot classification helpers | **Selesai** — lihat §Domain helpers di bawah                                      |
+| #620  | Middleware telemetry collection (admin + public)               | **Selesai** — lihat §Collector di bawah                                           |
+| #621  | Analytics API + OpenAPI contract (`/api/v1/analytics`)         | **Selesai** — lihat §API di bawah                                                 |
+| #623  | Trusted online geolocation enrichment                          | **Selesai** — lihat §Geo enrichment di bawah                                      |
+| #622  | Admin visitor analytics dashboard UI (`/admin/analytics`)      | **Selesai** — lihat §Dashboard UI di bawah                                        |
+| #624  | Rollup job, retention purge job, readiness checks, docs pass   | **Selesai** — lihat §Rollup job, §Retention purge job, §Readiness checks di bawah |
 
 Urutan dependency (dari body issue masing-masing): 617 → 618 → 619 → 620 →
 621 → 622; 623 boleh setelah 620 (paralel dengan 621/622); 624 butuh
-617+618+620+621 dan melengkapi 622/623.
+617+618+620+621 dan melengkapi 622/623. **Epic #617-#624 selesai penuh.**
 
 ## Yang sudah ada — pakai ulang, jangan re-derive
 
@@ -100,11 +100,11 @@ middleware di sini, itu semua issue lanjutan.
 - `api: { basePath: "/api/v1/analytics", openApiPath:
 "openapi/awcms-mini-public-api.openapi.yaml" }` dan `navigation: [{
 path: "/admin/analytics", requiredPermission:
-"visitor_analytics.dashboard.read", order: 70 }]` **dideklarasikan
-  sekarang** meski API (#621)/dashboard (#622) belum ada — konvensi sama
-  dengan `tenant_domain`'s descriptor sebelum #562. Konsekuensinya sama:
-  Module Management's `openApiDocumentedSignal` akan `fail` untuk modul
-  ini sampai #621 menambah path OpenAPI nyata.
+"visitor_analytics.dashboard.read", order: 70 }]` **dideklarasikan sejak
+  Issue #617** meski saat itu API (#621)/dashboard (#622) belum ada —
+  konvensi sama dengan `tenant_domain`'s descriptor sebelum #562. Kedua
+  issue itu sekarang sudah selesai (lihat §API dan §Dashboard UI di
+  bawah), jadi `navigation`/`api` di atas bukan lagi janji ke depan.
 - `permissions`: 8 entry (`dashboard.read`, `realtime.read`,
   `sessions.read`, `events.read`, `raw_detail.read`, `settings.read`,
   `settings.update`, `retention.purge`), match persis seed migration 038
@@ -307,11 +307,17 @@ analytics kosong/nol diam-diam.
   setelah hapus event — `last_seen_at` sesi selalu >= `occurred_at`
   event-nya sendiri, jadi FK `visit_events.visitor_session_id` sudah
   bersih), hapus rollup > `ROLLUP_RETENTION_DAYS`. Issue #624's scheduled
-  job (`bun run analytics:retention:purge`) akan memanggil fungsi ini
-  langsung, jangan re-derive.
+  job **selesai** — `bun run analytics:purge`
+  (`scripts/visitor-analytics-purge.ts`, via `purgeVisitorAnalyticsForAllTenants`)
+  memanggil `purgeVisitorAnalyticsData` ini langsung untuk setiap tenant
+  `active`, tidak re-derive. Lihat §Rollup job/§Retention purge job di
+  bawah untuk detail penuh.
 - Query agregat (`application/analytics-queries.ts`) baca langsung dari
   `visit_events`/`visitor_sessions` mentah, **bukan** `visitor_daily_rollups`
-  (selalu kosong sampai job rollup #624 ada).
+  — tetap begitu setelah #624: rollup job (di bawah) kini mengisi tabel
+  itu, tapi switch `fetchAnalyticsSummary` membaca rollup untuk rentang
+  lama tetap open future work (optimisasi performa, bukan bagian
+  acceptance criteria #624).
 
 Test: `tests/unit/visitor-analytics-{range,response-shaping}.test.ts`,
 `tests/integration/visitor-analytics-api.integration.test.ts` (13 test:
@@ -367,6 +373,119 @@ Test: `tests/unit/visitor-analytics-{client-ip,geo-enrichment}.test.ts`,
 `tests/integration/visitor-analytics-api.integration.test.ts` (geo/
 userAgentParsed object nyata lewat `/events` dan `/locations`).
 
+### Dashboard UI (Issue #622, `src/pages/admin/analytics.astro`)
+
+`/admin/analytics`, gate `visitor_analytics.dashboard.read`. **UI-only** —
+tidak menambah endpoint/permission baru, tidak pernah query
+`awcms_mini_visitor_sessions`/`awcms_mini_visit_events` langsung. Semua
+angka/tabel dimuat client-side dari `GET /api/v1/analytics/*` (#621) lewat
+helper baru `fetchJson` (`src/lib/ui/admin-form-client.ts`) — SENGAJA
+bukan konvensi SSR-panggil-application-layer-langsung yang dipakai
+`admin/security.astro`/`admin/sync.astro`, supaya ABAC server-side
+(`authorizeInTransaction`) tetap satu-satunya enforcement point nyata.
+
+- **Raw-detail gating tidak di-derive ulang** — dashboard render persis
+  apa yang API kembalikan (`domain/analytics-response-shaping.ts` sudah
+  men-null-kan `ipAddress`/`ipHash`/`userAgentHash`/
+  `loginIdentifierSnapshot` untuk caller tanpa `raw_detail.read`); logic
+  UI baru (`domain/dashboard-view.ts`'s `displayOrPlaceholder`/
+  `buildSessionRowCells`) cuma menerjemahkan `null` jadi placeholder
+  aman, tidak pernah membuat keputusan izin sendiri. `showRawDetailColumns`
+  cuma menyembunyikan 4 kolom tabel sebagai kosmetik (biar caller yang
+  memang tidak akan pernah lihat nilai asli tidak melihat tembok tanda
+  strip) — tidak bisa bocor karena nilai yang ditampilkan selalu berasal
+  dari respons API apa adanya.
+- **Filter area/visitor-type TIDAK menyentuh endpoint agregat** — tidak
+  ada endpoint #621 yang menerima parameter `area`/tipe pengunjung, jadi
+  kedua filter ini cuma menyaring baris tabel active-sessions yang sudah
+  ter-fetch (client-side, `matchesAreaFilter`/`matchesVisitorTypeFilter`).
+  Hanya `range` (`24h|7d|30d|12m`) yang benar-benar query parameter API
+  nyata (`/summary`, `/pages`, `/devices`, `/locations`, `/security`).
+  Jangan bangun ulang asumsi "semua filter berlaku ke semua section" di
+  issue lanjutan manapun tanpa lebih dulu menambah parameter itu ke API
+  (perubahan API, di luar scope #622).
+- **Geo gate** — Location section tampil sebagai `StateNotice` disabled
+  kalau `resolveVisitorAnalyticsConfig().geoEnabled &&
+.trustCloudflare` tidak keduanya `true` (baca config env langsung,
+  bukan akses DB, bukan gerbang keamanan kedua — cuma keputusan render).
+
+Test: `tests/unit/visitor-analytics-dashboard-view.test.ts` (raw-detail-
+null formatting, section-state loading/empty/error, filter predicate —
+semua pure), `tests/e2e/admin-analytics-access-denied.e2e.ts`,
+`tests/e2e/admin-analytics-dashboard.e2e.ts` (raw-detail gating end-to-end
+lewat render browser sungguhan — caller tanpa `raw_detail.read` melihat
+baris sesi tenant yang sama tanpa kolom raw-detail maupun nilai
+`sha256:`-prefixed apa pun).
+
+### Rollup job (Issue #624, `application/rollup.ts` + `scripts/visitor-analytics-rollup.ts`)
+
+`bun run analytics:rollup` — mengagregasi `awcms_mini_visit_events`
+mentah menjadi `awcms_mini_visitor_daily_rollups`, satu baris per
+`(tenant, date, area)`, untuk setiap tenant `active`.
+
+- **Idempotent by construction**: `rollupVisitorAnalyticsForDate`
+  merekomputasi PENUH dari event mentah untuk tanggal yang diminta dan
+  UPSERT (`ON CONFLICT (tenant_id, date, area) DO UPDATE SET ... =
+EXCLUDED...`) — rerun tanggal yang sama berkali-kali selalu konvergen
+  ke baris yang sama, tidak pernah menambah ke nilai lama. Jangan ubah
+  ini jadi logic increment/append apa pun.
+- **SENGAJA tidak reuse `application/analytics-queries.ts`'s top-N
+  helper verbatim** — fungsi-fungsi itu cumulative-since-`start` (tanpa
+  batas atas) dan tenant-wide (tanpa filter `area`), bentuk yang dipakai
+  dashboard live (#621). Rollup butuh jendela `[dayStart, dayEnd)`
+  tertutup DAN split per `area` (PK tabel rollup), jadi
+  `application/rollup.ts` mengimplementasikan query top-N sendiri yang
+  di-scope hari+area, mengikuti pola keamanan SQL yang sama
+  (allow-list kolom/key jsonb sebelum `tx.unsafe`).
+- Area tanpa event pada tanggal itu **tidak** mendapat baris rollup
+  (bukan baris bernilai nol).
+- CLI: `--date=YYYY-MM-DD` | `--start-date=.../--end-date=...` | default
+  "kemarin" (UTC).
+
+Test: `tests/integration/visitor-analytics-rollup.integration.test.ts`.
+
+### Retention purge job (Issue #624, `scripts/visitor-analytics-purge.ts`)
+
+`bun run analytics:purge` — mengiterasi setiap tenant `active` dan
+memanggil `purgeVisitorAnalyticsData` (§API di atas) LANGSUNG lewat
+fungsi yang diekspor `purgeVisitorAnalyticsForAllTenants`, TIDAK PERNAH
+re-derive empat cutoff-nya. Hanya tenant yang benar-benar ada
+baris terhapus/terbersihkan yang mendapat audit `critical`
+`retention_purged` (attributes: empat angka ringkasan saja) — tenant
+tanpa data kedaluwarsa tidak menghasilkan audit noise. Tidak ada lapisan
+batching tambahan di atas apa yang `purgeVisitorAnalyticsData` sudah
+lakukan.
+
+Test: `tests/integration/visitor-analytics-purge.integration.test.ts` —
+SENGAJA tidak menguji ulang empat aturan retensi (sudah dicakup
+`tests/integration/visitor-analytics-api.integration.test.ts` lewat
+`POST .../retention/purge`, fungsi yang sama persis); hanya menguji apa
+yang ditambahkan script ini — iterasi multi-tenant, jumlah total lintas
+tenant, dan audit hanya untuk tenant yang punya efek nyata.
+
+### Readiness checks (Issue #624, `scripts/security-readiness.ts`)
+
+`scripts/validate-env.ts`'s `checkVisitorAnalyticsConfig` (#617) TETAP
+shape-only (enum/positive-int). Lima check SAFETY cross-field baru ada
+di `security-readiness.ts` (bukan `validate-env.ts`) — pola yang sama
+`checkOnlineAuthSecurityConfig`/`Ready` dkk. sudah pakai (shape vs
+safety/severity). Semua reuse `resolveVisitorAnalyticsConfig`:
+
+| Check                                             | Severity | Gagal saat                                                   |
+| ------------------------------------------------- | -------- | ------------------------------------------------------------ |
+| `checkVisitorAnalyticsRawIpRetentionReady`        | critical | Raw IP aktif + retensi raw detail > retensi event            |
+| `checkVisitorAnalyticsRawUserAgentRetentionReady` | warning  | Raw user-agent aktif (masih no-op) + retensi sama tidak aman |
+| `checkVisitorAnalyticsGeoTrustedSourceReady`      | critical | Geo aktif tanpa `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`         |
+| `checkVisitorAnalyticsRetentionOrderingReady`     | warning  | Retensi raw detail > event, ATAU rollup < event              |
+| `checkVisitorAnalyticsHashSaltReady`              | warning  | Modul aktif + `VISITOR_ANALYTICS_HASH_SALT` kosong           |
+
+Default privacy-first (semua var tidak di-set) lulus BERSIH kelima
+check ini. Hanya `critical` yang memblokir go-live. Jangan re-derive
+aturan ini di `validate-env.ts` — kalau butuh dipakai script lain,
+import dari `security-readiness.ts` seperti check lain sudah lakukan.
+
+Test: `tests/security-readiness.test.ts`.
+
 ## Prinsip yang wajib dipertahankan di setiap issue lanjutan
 
 1. **Privacy-first default** — raw IP, raw user-agent, geolokasi selalu
@@ -395,5 +514,11 @@ userAgentParsed object nyata lewat `/events` dan `/locations`).
 ## Referensi
 
 - `src/modules/visitor-analytics/README.md` — detail per-issue di dalam modul.
+- `docs/awcms-mini/visitor-analytics.md` — panduan operasional lengkap
+  (mode offline/LAN vs online vs trusted-proxy/Cloudflare, retensi,
+  rollup/purge, dan pemetaan kepatuhan UU PDP/PP PSTE/ISO
+  27001-27002-27005-27701/OWASP ASVS/Logging Cheat Sheet).
 - `docs/awcms-mini/18_configuration_env_reference.md` §Visitor analytics.
+- `docs/awcms-mini/20_threat_model_security_architecture.md` §Standar
+  tambahan dipicu epic visitor analytics.
 - `AGENTS.md` skill table.
