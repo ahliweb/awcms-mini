@@ -91,7 +91,7 @@ describe("generic-oidc-client: tenant-scoped cache/breaker keys (Issue #610)", (
       const url = typeof input === "string" ? input : input.toString();
 
       // Tenant A's "okta" points at an attacker-controlled/broken target.
-      if (url.startsWith("https://attacker.example.com")) {
+      if (new URL(url).origin === "https://attacker.example.com") {
         return new Response("internal error", { status: 500 });
       }
 
