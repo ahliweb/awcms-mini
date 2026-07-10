@@ -79,6 +79,7 @@ export const ERROR_CODE_KEYS: Record<string, string> = {
   SSO_NOT_LINKED: "error.sso_not_linked",
   SSO_MISCONFIGURED: "error.sso_misconfigured",
   SSO_PROVIDER_KEY_CONFLICT: "error.sso_provider_key_conflict",
+  SSO_PROVIDER_LIMIT_EXCEEDED: "error.sso_provider_limit_exceeded",
   BREAK_GLASS_REQUIRED: "error.break_glass_required",
   PASSWORD_LOGIN_DISABLED: "error.password_login_disabled"
 };

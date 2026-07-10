@@ -15,6 +15,7 @@ import {
   encryptSsoClientSecret,
   resolveSsoEncryptionKey
 } from "../../../lib/auth/sso-credential-crypto";
+import { resolveSsoMaxProvidersPerTenant } from "../../../lib/auth/sso-config";
 import type {
   CreateAuthProviderInput,
   UpdateAuthProviderInput
@@ -129,6 +130,7 @@ export async function fetchAuthProviderRowByKey(
 export type CreateAuthProviderResult =
   | { outcome: "created"; provider: AuthProviderView }
   | { outcome: "duplicate_key" }
+  | { outcome: "limit_exceeded"; limit: number }
   | { outcome: "misconfigured" };
 
 export async function createAuthProvider(
@@ -145,6 +147,21 @@ export async function createAuthProvider(
 
   if (existingRows.length > 0) {
     return { outcome: "duplicate_key" };
+  }
+
+  // Count-then-insert, not atomic (no SELECT ... FOR UPDATE): this bounds a
+  // tenant's total probing budget (Issue #612), it isn't a security
+  // invariant like MFA replay — a handful of concurrent creates could land
+  // one or two rows past `limit`, which is harmless for what this defends
+  // against.
+  const limit = resolveSsoMaxProvidersPerTenant(env);
+  const countRows = (await tx`
+    SELECT count(*)::int AS count FROM awcms_mini_auth_providers
+    WHERE tenant_id = ${tenantId} AND deleted_at IS NULL
+  `) as { count: number }[];
+
+  if ((countRows[0]?.count ?? 0) >= limit) {
+    return { outcome: "limit_exceeded", limit };
   }
 
   let clientSecretCiphertext: string | null = null;

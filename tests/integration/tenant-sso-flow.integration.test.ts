@@ -495,6 +495,74 @@ suite("Generic tenant OIDC SSO flow (Issue #591)", () => {
     expect(list.body.data.providers[0]?.providerKey).toBe("okta");
   });
 
+  test("create is rejected once the tenant reaches AUTH_SSO_MAX_PROVIDERS_PER_TENANT (Issue #612)", async () => {
+    const owner = await bootstrapTenant();
+
+    await withEnvOverride(
+      { AUTH_SSO_MAX_PROVIDERS_PER_TENANT: "2" },
+      async () => {
+        const first = await invoke<{ data: { id: string } }>(createProvider, {
+          method: "POST",
+          path: "/api/v1/identity/sso/providers",
+          headers: authHeaders(owner),
+          body: {
+            providerKey: "okta",
+            displayName: "Okta",
+            issuerUrl: OKTA_ISSUER,
+            clientId: OKTA_CLIENT_ID,
+            clientSecretEnvVar: "OKTA_TEST_CLIENT_SECRET",
+            enabled: true
+          }
+        });
+        expect(first.status).toBe(200);
+
+        const second = await invoke<{ data: { id: string } }>(createProvider, {
+          method: "POST",
+          path: "/api/v1/identity/sso/providers",
+          headers: authHeaders(owner),
+          body: {
+            providerKey: "azure-ad",
+            displayName: "Azure AD",
+            issuerUrl: "https://login.microsoftonline.com/tenant/v2.0",
+            clientId: "azure-client-id",
+            clientSecretEnvVar: "AZURE_TEST_CLIENT_SECRET",
+            enabled: true
+          }
+        });
+        expect(second.status).toBe(200);
+
+        const third = await invoke<{ error: { code: string } }>(
+          createProvider,
+          {
+            method: "POST",
+            path: "/api/v1/identity/sso/providers",
+            headers: authHeaders(owner),
+            body: {
+              providerKey: "keycloak",
+              displayName: "Keycloak",
+              issuerUrl: "https://idp.example.com/realms/tenant",
+              clientId: "keycloak-client-id",
+              clientSecretEnvVar: "KEYCLOAK_TEST_CLIENT_SECRET",
+              enabled: true
+            }
+          }
+        );
+        expect(third.status).toBe(409);
+        expect(third.body.error.code).toBe("SSO_PROVIDER_LIMIT_EXCEEDED");
+
+        const list = await invoke<{ data: { providers: unknown[] } }>(
+          listProviders,
+          {
+            method: "GET",
+            path: "/api/v1/identity/sso/providers",
+            headers: authHeaders(owner)
+          }
+        );
+        expect(list.body.data.providers).toHaveLength(2);
+      }
+    );
+  });
+
   test("admin CRUD never returns the client secret plaintext", async () => {
     const owner = await bootstrapTenant();
     await createOktaProvider(owner, {

@@ -747,15 +747,19 @@ review:
   endpoint cloud) khusus deployment `full_online` didokumentasikan di
   `deployment-profiles.md` §Generic tenant OIDC SSO (residual yang tetap
   di luar cakupan aplikasi — tanggung jawab operator, bukan kode).
-- **Follow-up terpisah, TIDAK memblokir #610**: Issue #612 — belum ada cap
-  jumlah baris `awcms_mini_auth_providers` per tenant, jadi tenant admin
-  jahat masih bisa mendaftarkan banyak provider (masing-masing dapat
-  budget cache/breaker independen sendiri-sendiri, kini benar di-scope)
-  untuk melipatgandakan volume probing total secara linear dengan jumlah
-  baris. Ditunda sesuai konvensi repo ini (tutup yang diminta, file
-  follow-up sempit untuk yang lain) — beda dari dua temuan Critical di
-  atas yang WAJIB diperbaiki di PR yang sama karena keduanya regresi/celah
-  baru pada mekanisme yang PR ini sendiri klaim sebagai perbaikan.
+  **Follow-up — selesai (Issue #612)**: tanpa cap, tenant admin jahat bisa
+  mendaftarkan banyak baris `awcms_mini_auth_providers` (masing-masing dapat
+  budget cache/breaker independen sendiri-sendiri, sudah benar di-scope sejak
+  #610) untuk melipatgandakan volume probing total secara linear dengan
+  jumlah baris. Diperbaiki dengan cap `AUTH_SSO_MAX_PROVIDERS_PER_TENANT`
+  (default 20) di `createAuthProvider` (`auth-provider-directory.ts`) —
+  `POST /api/v1/identity/sso/providers` menolak dengan
+  `409 SSO_PROVIDER_LIMIT_EXCEEDED` begitu jumlah baris aktif (non-soft-
+  deleted) tenant mencapai batas. Hitung-lalu-insert, BUKAN atomik
+  (`SELECT ... FOR UPDATE`) dengan sengaja — ini bound probing budget, bukan
+  invariant keamanan seperti replay MFA (§MFA/TOTP di atas), jadi overshoot
+  kecil akibat create konkuren tidak berbahaya untuk apa yang mekanisme ini
+  cegah.
 
 **Kalau butuh SSRF hardening lebih ketat di masa depan** (mis. operator
 `full_online` murni SaaS yang tidak butuh IdP on-prem sama sekali): jangan

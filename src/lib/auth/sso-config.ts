@@ -59,6 +59,29 @@ export function resolveSsoDiscoveryTimeoutMs(
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_DISCOVERY_TIMEOUT_MS;
 }
 
+const DEFAULT_MAX_PROVIDERS_PER_TENANT = 20;
+
+/**
+ * Caps how many active (non-deleted) `awcms_mini_auth_providers` rows a
+ * single tenant may hold (Issue #612, follow-up from #610's own
+ * security-auditor review). Each provider row gets its own independent
+ * `${tenantId}:${providerKey}`-scoped circuit-breaker/negative-cache budget
+ * in `generic-oidc-client.ts` — without a cap, a malicious/compromised
+ * tenant admin (same threat actor already accepted for #603/#610) could
+ * register unbounded provider rows to multiply their total internal-network
+ * probing volume linearly. Falls back to 20 for an unset or non-positive
+ * value — never throws, never blocks a deployment that doesn't set it.
+ */
+export function resolveSsoMaxProvidersPerTenant(
+  env: NodeJS.ProcessEnv = process.env
+): number {
+  const raw = Number(env.AUTH_SSO_MAX_PROVIDERS_PER_TENANT);
+
+  return Number.isFinite(raw) && raw > 0
+    ? Math.floor(raw)
+    : DEFAULT_MAX_PROVIDERS_PER_TENANT;
+}
+
 const DEFAULT_REDIRECT_PATH_PREFIX = "/api/v1/auth/sso";
 
 /** Resolves this deployment's own callback redirect URI for a given provider key — always this deployment's own path under `APP_URL`, never client-supplied (open-redirect prevention), same convention as `google-oauth-client.ts`'s `resolveGoogleRedirectUri`. */

@@ -215,6 +215,9 @@ msgstr "Tenant OIDC SSO is misconfigured on this server."
 msgid "error.sso_provider_key_conflict"
 msgstr "A provider already exists for this provider key."
 
+msgid "error.sso_provider_limit_exceeded"
+msgstr "This tenant has reached its maximum number of configured SSO providers."
+
 msgid "error.break_glass_required"
 msgstr "This change requires at least one currently-active break-glass identity."
 

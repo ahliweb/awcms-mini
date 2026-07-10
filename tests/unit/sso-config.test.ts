@@ -4,6 +4,7 @@ import {
   isSsoEnabled,
   isSsoRequired,
   resolveSsoDiscoveryTimeoutMs,
+  resolveSsoMaxProvidersPerTenant,
   resolveSsoRedirectUri
 } from "../../src/lib/auth/sso-config";
 
@@ -59,6 +60,38 @@ describe("sso-config (Issue #591)", () => {
     expect(
       resolveSsoDiscoveryTimeoutMs({ AUTH_SSO_DISCOVERY_TIMEOUT_MS: "8000" })
     ).toBe(8000);
+  });
+
+  test("resolveSsoMaxProvidersPerTenant falls back to 20 for unset/invalid values", () => {
+    expect(resolveSsoMaxProvidersPerTenant({})).toBe(20);
+    expect(
+      resolveSsoMaxProvidersPerTenant({
+        AUTH_SSO_MAX_PROVIDERS_PER_TENANT: "abc"
+      })
+    ).toBe(20);
+    expect(
+      resolveSsoMaxProvidersPerTenant({
+        AUTH_SSO_MAX_PROVIDERS_PER_TENANT: "0"
+      })
+    ).toBe(20);
+    expect(
+      resolveSsoMaxProvidersPerTenant({
+        AUTH_SSO_MAX_PROVIDERS_PER_TENANT: "-5"
+      })
+    ).toBe(20);
+  });
+
+  test("resolveSsoMaxProvidersPerTenant honors a valid positive override, floored to an integer", () => {
+    expect(
+      resolveSsoMaxProvidersPerTenant({
+        AUTH_SSO_MAX_PROVIDERS_PER_TENANT: "5"
+      })
+    ).toBe(5);
+    expect(
+      resolveSsoMaxProvidersPerTenant({
+        AUTH_SSO_MAX_PROVIDERS_PER_TENANT: "5.9"
+      })
+    ).toBe(5);
   });
 
   test("resolveSsoRedirectUri builds a deployment-owned callback path per provider key, never client-supplied", () => {
