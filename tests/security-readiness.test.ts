@@ -6,6 +6,7 @@ import {
   checkGoogleOidcReady,
   checkLoginLockoutImplemented,
   checkLoginRateLimitImplemented,
+  checkNewsMediaR2PublicBaseUrlProductionSafe,
   checkOnlineAuthSecurityReady,
   checkSyncHmacSecretNotDefault,
   checkMfaReady,
@@ -20,15 +21,18 @@ import {
 
 // DB-dependent checks (`checkRlsEnabled`, `checkAuditLogTableReachable`,
 // `checkSoftDeletePermissionsSeededAndAudited`'s permission-row lookup,
-// `checkSsoBreakGlassReady` — Issue #593) are NOT unit-tested here — they
-// require a real PostgreSQL connection and can't be meaningfully faked
-// without either a real DB or a mock so heavy it would stop testing the
-// actual query. They are covered by live verification instead (`bun run
-// security:readiness` against a real migrated database, see
-// `docs/awcms-mini/production-readiness.md`) AND, for `checkSsoBreakGlassReady`
-// specifically, by `tests/integration/security-readiness-break-glass.integration.test.ts`
+// `checkSsoBreakGlassReady` — Issue #593, `checkNewsMediaR2NoStalePendingObjects`
+// — Issue #635) are NOT unit-tested here — they require a real PostgreSQL
+// connection and can't be meaningfully faked without either a real DB or a
+// mock so heavy it would stop testing the actual query. They are covered by
+// live verification instead (`bun run security:readiness` against a real
+// migrated database, see `docs/awcms-mini/production-readiness.md`) AND, for
+// `checkSsoBreakGlassReady` specifically, by
+// `tests/integration/security-readiness-break-glass.integration.test.ts`
 // (real Postgres, both the "eligible" pass case and the "deactivated after
-// save" fail case).
+// save" fail case); `checkNewsMediaR2NoStalePendingObjects` is covered the
+// same way by
+// `tests/integration/security-readiness-news-media-r2.integration.test.ts`.
 //
 // `checkSecurityHeadersPresent` (Issue #437) is likewise not unit-tested
 // here — it deliberately hits a *running* server to prove
@@ -499,5 +503,58 @@ describe("checkVisitorAnalyticsHashSaltReady", () => {
 
     expect(result.severity).toBe("warning");
     expect(result.status).toBe("pass");
+  });
+});
+
+describe("checkNewsMediaR2PublicBaseUrlProductionSafe (Issue #635)", () => {
+  test('passes when NEWS_MEDIA_R2_ENABLED is not "true"', () => {
+    const result = checkNewsMediaR2PublicBaseUrlProductionSafe({
+      APP_ENV: "production",
+      NEWS_MEDIA_R2_PUBLIC_BASE_URL: "https://pub-abc.r2.dev"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("pass");
+    expect(result.severity).toBe("critical");
+  });
+
+  test("passes for a non-production APP_ENV even with an r2.dev URL — documented separately, never weakens the production default", () => {
+    const result = checkNewsMediaR2PublicBaseUrlProductionSafe({
+      APP_ENV: "development",
+      NEWS_MEDIA_R2_ENABLED: "true",
+      NEWS_MEDIA_R2_PUBLIC_BASE_URL: "https://pub-abc.r2.dev"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("pass");
+  });
+
+  test("passes in production with a real custom domain", () => {
+    const result = checkNewsMediaR2PublicBaseUrlProductionSafe({
+      APP_ENV: "production",
+      NEWS_MEDIA_R2_ENABLED: "true",
+      NEWS_MEDIA_R2_PUBLIC_BASE_URL: "https://media.example.com"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("pass");
+  });
+
+  test("fails in production with Cloudflare's default *.r2.dev domain", () => {
+    const result = checkNewsMediaR2PublicBaseUrlProductionSafe({
+      APP_ENV: "production",
+      NEWS_MEDIA_R2_ENABLED: "true",
+      NEWS_MEDIA_R2_PUBLIC_BASE_URL: "https://pub-abc123.r2.dev"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("fail");
+    expect(result.evidence).toContain("r2.dev");
+  });
+
+  test("fails in production with a loopback host", () => {
+    const result = checkNewsMediaR2PublicBaseUrlProductionSafe({
+      APP_ENV: "production",
+      NEWS_MEDIA_R2_ENABLED: "true",
+      NEWS_MEDIA_R2_PUBLIC_BASE_URL: "http://localhost:3000"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("fail");
   });
 });

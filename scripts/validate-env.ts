@@ -193,7 +193,11 @@ import {
 } from "../src/modules/visitor-analytics/domain/visitor-analytics-config";
 import {
   findNewsMediaR2SeparationViolations,
-  NEWS_MEDIA_R2_REQUIRED_WHEN_ENABLED
+  findUnknownNewsMediaR2MimeTypes,
+  isPresignedUploadTtlTooLong,
+  NEWS_MEDIA_R2_MAX_PRESIGNED_UPLOAD_TTL_SECONDS,
+  NEWS_MEDIA_R2_REQUIRED_WHEN_ENABLED,
+  resolveNewsMediaR2Config
 } from "../src/modules/news-portal/domain/news-media-r2-config";
 import {
   isKnownNewsPortalProfile,
@@ -993,6 +997,62 @@ export function checkNewsMediaR2SeparationFromSyncR2(
   };
 }
 
+/**
+ * Issue #635: an allow-list entry the MIME sniffer (`news-media-mime-sniffer.ts`)
+ * could never recognize is a misconfiguration — every real upload claiming
+ * it would fail-safe reject at `finalize` regardless, so this is a hard
+ * error, not just a warning.
+ */
+export function checkNewsMediaR2AllowedMimeTypesKnown(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult {
+  const name = "NEWS_MEDIA_R2_ALLOWED_MIME_TYPES (known types only)";
+  const unknown = findUnknownNewsMediaR2MimeTypes(env);
+
+  if (unknown.length === 0) {
+    return {
+      name,
+      status: "pass",
+      detail:
+        env.NEWS_MEDIA_R2_ENABLED === "true"
+          ? "NEWS_MEDIA_R2_ALLOWED_MIME_TYPES contains only known image MIME types."
+          : 'NEWS_MEDIA_R2_ENABLED is not "true" — no MIME allow-list in effect.'
+    };
+  }
+
+  return {
+    name,
+    status: "fail",
+    detail: `NEWS_MEDIA_R2_ALLOWED_MIME_TYPES contains type(s) the MIME sniffer can never recognize, so uploads claiming them would always be rejected at finalize: ${unknown.join(", ")}.`
+  };
+}
+
+/** Issue #635: a presigned PUT URL is reusable for its whole TTL — an excessively long expiry undermines that mitigation (architecture doc §8). */
+export function checkNewsMediaR2PresignedTtlUpperBound(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult {
+  const name = "NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS (upper bound)";
+
+  if (isPresignedUploadTtlTooLong(env)) {
+    const ttl = resolveNewsMediaR2Config(env).presignedUploadTtlSeconds;
+
+    return {
+      name,
+      status: "fail",
+      detail: `NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS=${ttl} exceeds the maximum of ${NEWS_MEDIA_R2_MAX_PRESIGNED_UPLOAD_TTL_SECONDS}s (1 hour) — a presigned PUT URL is not single-use, so a long expiry weakens the "short-lived URL" mitigation (architecture doc §8).`
+    };
+  }
+
+  return {
+    name,
+    status: "pass",
+    detail:
+      env.NEWS_MEDIA_R2_ENABLED === "true"
+        ? `NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS is within the ${NEWS_MEDIA_R2_MAX_PRESIGNED_UPLOAD_TTL_SECONDS}s maximum.`
+        : 'NEWS_MEDIA_R2_ENABLED is not "true" — no presigned upload TTL in effect.'
+  };
+}
+
 export function runEnvValidation(
   env: NodeJS.ProcessEnv = process.env
 ): EnvCheckResult[] {
@@ -1011,7 +1071,9 @@ export function runEnvValidation(
     ...checkVisitorAnalyticsConfig(env),
     checkNewsPortalProfileConfig(env),
     ...checkNewsMediaR2Config(env),
-    checkNewsMediaR2SeparationFromSyncR2(env)
+    checkNewsMediaR2SeparationFromSyncR2(env),
+    checkNewsMediaR2AllowedMimeTypesKnown(env),
+    checkNewsMediaR2PresignedTtlUpperBound(env)
   ];
 }
 

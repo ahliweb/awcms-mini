@@ -3,6 +3,8 @@ import { describe, expect, test } from "bun:test";
 import {
   checkEmailConfig,
   checkGoogleOidcConfig,
+  checkNewsMediaR2AllowedMimeTypesKnown,
+  checkNewsMediaR2PresignedTtlUpperBound,
   checkOnlineAuthSecurityConfig,
   checkPublicRoutingConfig,
   checkR2Config,
@@ -690,6 +692,62 @@ describe("checkVisitorAnalyticsConfig", () => {
     } as NodeJS.ProcessEnv);
 
     expect(results.every((result) => result.status === "pass")).toBe(true);
+  });
+});
+
+describe("checkNewsMediaR2AllowedMimeTypesKnown (Issue #635)", () => {
+  test("passes when disabled", () => {
+    const result = checkNewsMediaR2AllowedMimeTypesKnown({
+      NEWS_MEDIA_R2_ALLOWED_MIME_TYPES: "text/html"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("pass");
+  });
+
+  test("passes for the default allow-list", () => {
+    const result = checkNewsMediaR2AllowedMimeTypesKnown({
+      NEWS_MEDIA_R2_ENABLED: "true"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("pass");
+  });
+
+  test("fails when the allow-list contains a type the MIME sniffer could never recognize", () => {
+    const result = checkNewsMediaR2AllowedMimeTypesKnown({
+      NEWS_MEDIA_R2_ENABLED: "true",
+      NEWS_MEDIA_R2_ALLOWED_MIME_TYPES: "image/jpeg,application/octet-stream"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("fail");
+    expect(result.detail).toContain("application/octet-stream");
+  });
+});
+
+describe("checkNewsMediaR2PresignedTtlUpperBound (Issue #635)", () => {
+  test("passes when disabled", () => {
+    const result = checkNewsMediaR2PresignedTtlUpperBound({
+      NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS: "999999"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("pass");
+  });
+
+  test("passes for the default TTL", () => {
+    const result = checkNewsMediaR2PresignedTtlUpperBound({
+      NEWS_MEDIA_R2_ENABLED: "true"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("pass");
+  });
+
+  test("fails when the TTL exceeds the maximum", () => {
+    const result = checkNewsMediaR2PresignedTtlUpperBound({
+      NEWS_MEDIA_R2_ENABLED: "true",
+      NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS: "7200"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("fail");
+    expect(result.detail).toContain("7200");
   });
 });
 

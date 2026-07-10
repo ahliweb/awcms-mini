@@ -49,7 +49,11 @@ import {
   checkTurnstileConfig
 } from "./validate-env";
 import { resolveVisitorAnalyticsConfig } from "../src/modules/visitor-analytics/domain/visitor-analytics-config";
-import { allowsSvgMimeType } from "../src/modules/news-portal/domain/news-media-r2-config";
+import {
+  allowsSvgMimeType,
+  findNewsMediaR2PublicBaseUrlProductionUnsafeReason,
+  resolveNewsMediaR2Config
+} from "../src/modules/news-portal/domain/news-media-r2-config";
 import { evaluateNewsPortalFullOnlineR2Readiness } from "../src/modules/news-portal/domain/news-portal-preset-readiness";
 
 export type CheckSeverity = "critical" | "warning" | "info";
@@ -1711,6 +1715,176 @@ export function checkNewsMediaR2SvgNotAllowed(
   };
 }
 
+/**
+ * Issue #635, architecture doc §11: production must use a real custom
+ * domain for `NEWS_MEDIA_R2_PUBLIC_BASE_URL`, never the `r2.dev` default
+ * (unstable for production, no caching/branding control) or a loopback
+ * host. Deliberately gated on `APP_ENV === "production"` — non-production
+ * deployments may legitimately point at a dev/staging bucket without a
+ * custom domain yet, and this check must never weaken the production
+ * default to accommodate that (Issue #635 acceptance criteria).
+ */
+export function checkNewsMediaR2PublicBaseUrlProductionSafe(
+  env: NodeJS.ProcessEnv = process.env
+): SecurityCheckResult {
+  const name = "News media R2 public base URL is production-safe";
+  const severity: CheckSeverity = "critical";
+
+  if (env.NEWS_MEDIA_R2_ENABLED !== "true") {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        'NEWS_MEDIA_R2_ENABLED is not "true" — no public base URL in effect.'
+    };
+  }
+
+  if (env.APP_ENV !== "production") {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence: `APP_ENV is "${env.APP_ENV ?? "(unset)"}", not "production" — non-production deployments may use a non-custom-domain public base URL (documented separately, Issue #635).`
+    };
+  }
+
+  const publicBaseUrl = resolveNewsMediaR2Config(env).publicBaseUrl;
+  const reason =
+    findNewsMediaR2PublicBaseUrlProductionUnsafeReason(publicBaseUrl);
+
+  if (reason === null) {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        "NEWS_MEDIA_R2_PUBLIC_BASE_URL uses a custom domain, not the r2.dev default or a loopback host."
+    };
+  }
+
+  const reasonText: Record<NonNullable<typeof reason>, string> = {
+    r2_dev_default_domain:
+      "uses Cloudflare R2's default *.r2.dev domain — map a custom domain to the bucket instead (architecture doc §11: r2.dev is not stable for production and does not support caching/branding control).",
+    loopback_host:
+      "points at a loopback host (localhost/127.0.0.1) — not reachable by real visitors in production.",
+    unparseable_url: "is not a valid absolute URL."
+  };
+
+  return {
+    name,
+    severity,
+    status: "fail",
+    evidence: `APP_ENV=production but NEWS_MEDIA_R2_PUBLIC_BASE_URL ${reasonText[reason]}`
+  };
+}
+
+/**
+ * Issue #635 (tracked as "masih terbuka" in
+ * `docs/awcms-mini/news-portal/r2-security-checklist.md` §7 after #632-634
+ * landed): `awcms_mini_news_media_objects` rows stuck in `pending_upload`
+ * past `NEWS_MEDIA_R2_PENDING_TTL_MINUTES` mean the automatic cleanup
+ * `r2-backup-lifecycle.md` §2 requires has not run — one of the layered
+ * mitigations for "a valid `pending` object_key is already publicly
+ * reachable in R2 regardless of Postgres status" (architecture doc §8) is
+ * silently not in effect. `warning`, not `critical`: this is a housekeeping
+ * gap (no cleanup job exists in this codebase yet — §2's own text notes
+ * the job itself is a separate, not-yet-implemented piece of work), not
+ * proof of an active exposure by itself.
+ *
+ * Same RLS-respecting per-tenant scan pattern as `checkSsoBreakGlassReady`
+ * above — iterates `awcms_mini_tenants` and opens one short transaction per
+ * tenant with `SET LOCAL app.current_tenant_id`, so this works correctly
+ * regardless of whether `security:readiness` runs with a privileged or
+ * least-privilege `DATABASE_URL`.
+ */
+export async function checkNewsMediaR2NoStalePendingObjects(
+  env: NodeJS.ProcessEnv = process.env
+): Promise<SecurityCheckResult> {
+  const name =
+    "No stale pending_upload news media objects past their TTL (Issue #635)";
+  const severity: CheckSeverity = "warning";
+
+  if (env.NEWS_MEDIA_R2_ENABLED !== "true") {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        'NEWS_MEDIA_R2_ENABLED is not "true" — no news media object registry in use.'
+    };
+  }
+
+  const pendingTtlMinutes = resolveNewsMediaR2Config(env).pendingTtlMinutes;
+
+  try {
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL is not set.");
+    }
+
+    const sql = getDatabaseClient();
+    const tenants = (await sql<{ id: string }[]>`
+      SELECT id FROM awcms_mini_tenants WHERE status = 'active'
+    `) as { id: string }[];
+
+    let staleCount = 0;
+    const erroredTenants: string[] = [];
+
+    for (const tenant of tenants) {
+      const tenantId = assertUuid(tenant.id);
+
+      try {
+        await sql.begin(async (tx) => {
+          await tx.unsafe(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
+
+          const rows = (await tx`
+            SELECT count(*)::int AS count
+            FROM awcms_mini_news_media_objects
+            WHERE status = 'pending_upload'
+              AND created_at < now() - (${pendingTtlMinutes} || ' minutes')::interval
+          `) as { count: number }[];
+
+          staleCount += rows[0]?.count ?? 0;
+        });
+      } catch (error) {
+        erroredTenants.push(`${tenantId} (${errorMessage(error)})`);
+      }
+    }
+
+    if (staleCount > 0 || erroredTenants.length > 0) {
+      const parts: string[] = [];
+
+      if (staleCount > 0) {
+        parts.push(
+          `${staleCount} object(s) across all tenants are still "pending_upload" past their ${pendingTtlMinutes}-minute TTL — the automatic cleanup job r2-backup-lifecycle.md §2 requires is not running (or not keeping up). These rows/objects should be reviewed and cleaned up manually until that job exists.`
+        );
+      }
+
+      if (erroredTenants.length > 0) {
+        parts.push(
+          `${erroredTenants.length} tenant(s) could not be checked: ${erroredTenants.join("; ")}.`
+        );
+      }
+
+      return { name, severity, status: "fail", evidence: parts.join(" ") };
+    }
+
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence: `No pending_upload news media objects older than ${pendingTtlMinutes} minutes across ${tenants.length} active tenant(s).`
+    };
+  } catch (error) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `Could not scan for stale pending_upload news media objects: ${errorMessage(error)}.`
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Out-of-scope items — printed as their own report section, never silently
 // dropped.
@@ -1786,6 +1960,8 @@ export async function runSecurityReadinessChecks(): Promise<
     checkVisitorAnalyticsHashSaltReady(),
     checkNewsPortalFullOnlineR2PresetReady(),
     checkNewsMediaR2SvgNotAllowed(),
+    checkNewsMediaR2PublicBaseUrlProductionSafe(),
+    await checkNewsMediaR2NoStalePendingObjects(),
     await checkErrorsDontLeakStackTraces(),
     await checkSecurityHeadersPresent(),
     checkLoginRateLimitImplemented()
