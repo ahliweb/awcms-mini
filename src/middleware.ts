@@ -110,7 +110,21 @@ async function applyCorrelationIdToApiBody(
  * existence-oracle risk the Issue #618 security audit flagged ahead of
  * time (recorded in `.claude/skills/awcms-mini-visitor-analytics/SKILL.md`).
  */
-async function collectRequestAnalytics(
+// Not unit-testable in isolation: this file imports `astro:middleware`
+// (a virtual module Astro's own build/dev pipeline provides), which
+// `bun test` cannot resolve outside that pipeline — confirmed while
+// investigating a PR #628 review request to add a middleware-level
+// regression test; any test file that imports this module at all fails
+// immediately with "Cannot find package 'astro:middleware'". Coverage
+// for this function's actual logic instead comes from
+// `collectVisitorTelemetry`'s own thorough integration tests
+// (`tests/integration/visitor-analytics-collector.integration.test.ts`,
+// which this function is a thin, directly-traceable wrapper around) plus
+// a real dev-server + Postgres manual smoke test (see README §Collector).
+// Exported anyway (harmless — Astro's page/middleware loader only looks
+// for the exports it needs) in case a future Astro test harness makes
+// this importable.
+export async function collectRequestAnalytics(
   context: APIContext,
   response: Response,
   identityId: string | null,

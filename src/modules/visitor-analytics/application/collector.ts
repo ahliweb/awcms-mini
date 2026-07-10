@@ -96,6 +96,16 @@ export type CollectVisitorTelemetryInput = {
 
 type SessionRow = { id: string; last_seen_at: string };
 
+/**
+ * Known, benign limitation (noted in PR #628's review): two concurrent
+ * requests from the same visitor that both observe "no session yet" (or
+ * both observe one that just fell outside the online window) can each
+ * `INSERT` a new row — session-count fragmentation, not a
+ * correctness/security bug (tenant isolation and RLS are unaffected,
+ * `visit_events` FK integrity holds either way). Not worth a
+ * `SELECT ... FOR UPDATE`/advisory-lock fix for an analytics table where
+ * an occasional extra session row has no functional consequence.
+ */
 async function upsertVisitorSession(
   tx: Bun.SQL,
   input: {
@@ -270,7 +280,20 @@ export async function collectVisitorTelemetry(
           )
         `;
       },
-      { workClass: "background_sync" }
+      // `queueTimeoutMs` deliberately far below `withTenant`'s own 2000ms
+      // default (post-review fix, PR #628): this collector is the first
+      // *synchronous, per-request* caller of `background_sync` in the
+      // codebase — every other user (`object-dispatch.ts`,
+      // `email-dispatch.ts`) runs from a decoupled scheduled job, never
+      // inline in the HTTP request path. Awaiting the 2000ms default here
+      // would mean every collected request could pick up up to two full
+      // seconds of added latency under pool saturation before the
+      // fail-open 503 path even triggers — exactly the "critical
+      // availability dependency" the issue's own security note forbids.
+      // 200ms bounds the worst case to something a caller of `next()`
+      // never notices, while still giving the write a fair shot under
+      // ordinary (non-saturated) load.
+      { workClass: "background_sync", queueTimeoutMs: 200 }
     );
   } catch (error) {
     log("warning", "visitor_analytics.collector.failed", {
