@@ -426,24 +426,24 @@ var-var ini; itu semua issue lanjutan di epic yang sama.
 `scripts/validate-env.ts` (`checkVisitorAnalyticsConfig`) menegakkan
 tabel ini.
 
-| Var                                           | Wajib | Default | Sensitif | Fungsi                                                                               |
-| --------------------------------------------- | ----- | ------- | -------- | ------------------------------------------------------------------------------------ |
-| `VISITOR_ANALYTICS_ENABLED`                   | –     | `true`  | –        | Master switch koleksi telemetry pengunjung                                           |
-| `VISITOR_ANALYTICS_MODE`                      | –     | `basic` | –        | `basic`/`detailed` — nilai lain gagal validasi                                       |
-| `VISITOR_ANALYTICS_COLLECT_ADMIN`             | –     | `true`  | –        | Koleksi telemetry rute `/admin/*`                                                    |
-| `VISITOR_ANALYTICS_COLLECT_PUBLIC`            | –     | `true`  | –        | Koleksi telemetry rute publik                                                        |
-| `VISITOR_ANALYTICS_COLLECT_API`               | –     | `false` | –        | Koleksi telemetry panggilan `/api/v1/*`                                              |
-| `VISITOR_ANALYTICS_DETAILED_ENABLED`          | –     | `false` | –        | Cadangan granularitas session/event mode `detailed`                                  |
-| `VISITOR_ANALYTICS_RAW_IP_ENABLED`            | –     | `false` | –        | Simpan alamat IP mentah — default aman: mati                                         |
-| `VISITOR_ANALYTICS_RAW_USER_AGENT_ENABLED`    | –     | `false` | –        | Simpan string user-agent mentah — default aman: mati                                 |
-| `VISITOR_ANALYTICS_GEO_ENABLED`               | –     | `false` | –        | Aktifkan enrichment geolokasi (Issue #623) — default aman: mati                      |
-| `VISITOR_ANALYTICS_TRUST_PROXY`               | –     | `false` | –        | Percaya header `X-Forwarded-For` dkk. — **hanya** `true` di belakang proxy tepercaya |
-| `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`          | –     | `false` | –        | Percaya header khusus Cloudflare (`CF-Connecting-IP`, `CF-IPCountry`)                |
-| `VISITOR_ANALYTICS_ONLINE_WINDOW_SECONDS`     | –     | `300`   | –        | Jendela waktu "online sekarang" — wajib integer positif bila diisi                   |
-| `VISITOR_ANALYTICS_EVENT_RETENTION_DAYS`      | –     | `90`    | –        | Retensi event — wajib integer positif bila diisi                                     |
-| `VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS` | –     | `30`    | –        | Retensi raw detail — wajib integer positif bila diisi                                |
-| `VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS`     | –     | `730`   | –        | Retensi rollup agregat — wajib integer positif bila diisi                            |
-| `VISITOR_ANALYTICS_HASH_SALT`                 | –     | `""`    | Ya       | Salt fingerprint visitor pseudonymous (Issue #619) — jangan isi nilai asli di sini   |
+| Var                                           | Wajib | Default | Sensitif | Fungsi                                                                                                                                                        |
+| --------------------------------------------- | ----- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VISITOR_ANALYTICS_ENABLED`                   | –     | `true`  | –        | Master switch koleksi telemetry pengunjung                                                                                                                    |
+| `VISITOR_ANALYTICS_MODE`                      | –     | `basic` | –        | `basic`/`detailed` — nilai lain gagal validasi                                                                                                                |
+| `VISITOR_ANALYTICS_COLLECT_ADMIN`             | –     | `true`  | –        | Koleksi telemetry rute `/admin/*`                                                                                                                             |
+| `VISITOR_ANALYTICS_COLLECT_PUBLIC`            | –     | `true`  | –        | Koleksi telemetry rute publik                                                                                                                                 |
+| `VISITOR_ANALYTICS_COLLECT_API`               | –     | `false` | –        | Koleksi telemetry panggilan `/api/v1/*`                                                                                                                       |
+| `VISITOR_ANALYTICS_DETAILED_ENABLED`          | –     | `false` | –        | Cadangan granularitas session/event mode `detailed`                                                                                                           |
+| `VISITOR_ANALYTICS_RAW_IP_ENABLED`            | –     | `false` | –        | Simpan alamat IP mentah — default aman: mati                                                                                                                  |
+| `VISITOR_ANALYTICS_RAW_USER_AGENT_ENABLED`    | –     | `false` | –        | Reserved — belum ada kolom raw user-agent (migration 039 hanya `user_agent_hash`); saat ini no-op, lihat `src/modules/visitor-analytics/README.md` §Collector |
+| `VISITOR_ANALYTICS_GEO_ENABLED`               | –     | `false` | –        | Aktifkan enrichment geolokasi (Issue #623) — default aman: mati                                                                                               |
+| `VISITOR_ANALYTICS_TRUST_PROXY`               | –     | `false` | –        | Percaya header `X-Forwarded-For` dkk. — **hanya** `true` di belakang proxy tepercaya                                                                          |
+| `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`          | –     | `false` | –        | Percaya header khusus Cloudflare (`CF-Connecting-IP`, `CF-IPCountry`)                                                                                         |
+| `VISITOR_ANALYTICS_ONLINE_WINDOW_SECONDS`     | –     | `300`   | –        | Jendela waktu "online sekarang" — wajib integer positif bila diisi                                                                                            |
+| `VISITOR_ANALYTICS_EVENT_RETENTION_DAYS`      | –     | `90`    | –        | Retensi event — wajib integer positif bila diisi                                                                                                              |
+| `VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS` | –     | `30`    | –        | Retensi raw detail — wajib integer positif bila diisi                                                                                                         |
+| `VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS`     | –     | `730`   | –        | Retensi rollup agregat — wajib integer positif bila diisi                                                                                                     |
+| `VISITOR_ANALYTICS_HASH_SALT`                 | –     | `""`    | Ya       | Salt fingerprint visitor pseudonymous (Issue #619) — jangan isi nilai asli di sini                                                                            |
 
 Aturan validasi (`checkVisitorAnalyticsConfig`): `VISITOR_ANALYTICS_MODE`
 bila diisi wajib salah satu dari `VISITOR_ANALYTICS_MODES` (`basic` |

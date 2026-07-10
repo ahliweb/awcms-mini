@@ -248,7 +248,8 @@ describe("database migration runner helpers", () => {
       "036_awcms_mini_tenant_oidc_sso_schema.sql",
       "037_awcms_mini_tenant_oidc_sso_permissions.sql",
       "038_awcms_mini_visitor_analytics_permissions.sql",
-      "039_awcms_mini_visitor_analytics_schema.sql"
+      "039_awcms_mini_visitor_analytics_schema.sql",
+      "040_awcms_mini_visitor_analytics_session_lookup_index.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
