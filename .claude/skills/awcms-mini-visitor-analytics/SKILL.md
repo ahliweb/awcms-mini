@@ -24,16 +24,16 @@ spesifik** yang menjembatani beberapa issue sekaligus.
 
 ## Status per issue (jangan bangun ulang yang sudah ada)
 
-| Issue | Scope                                                          | Status                               |
-| ----- | -------------------------------------------------------------- | ------------------------------------ |
-| #617  | Module descriptor, permission catalog, config gate             | **Selesai** — lihat §Config di bawah |
-| #618  | Visitor session/event/rollup schema + RLS                      | **Selesai** — lihat §Schema di bawah |
-| #619  | Visitor identity, user-agent, human/bot classification helpers | Belum dikerjakan                     |
-| #620  | Middleware telemetry collection (admin + public)               | Belum dikerjakan                     |
-| #621  | Analytics API + OpenAPI contract (`/api/v1/analytics`)         | Belum dikerjakan                     |
-| #623  | Trusted online geolocation enrichment                          | Belum dikerjakan                     |
-| #622  | Admin visitor analytics dashboard UI (`/admin/analytics`)      | Belum dikerjakan                     |
-| #624  | Rollup job, retention purge job, readiness checks, docs pass   | Belum dikerjakan                     |
+| Issue | Scope                                                          | Status                                       |
+| ----- | -------------------------------------------------------------- | -------------------------------------------- |
+| #617  | Module descriptor, permission catalog, config gate             | **Selesai** — lihat §Config di bawah         |
+| #618  | Visitor session/event/rollup schema + RLS                      | **Selesai** — lihat §Schema di bawah         |
+| #619  | Visitor identity, user-agent, human/bot classification helpers | **Selesai** — lihat §Domain helpers di bawah |
+| #620  | Middleware telemetry collection (admin + public)               | Belum dikerjakan                             |
+| #621  | Analytics API + OpenAPI contract (`/api/v1/analytics`)         | Belum dikerjakan                             |
+| #623  | Trusted online geolocation enrichment                          | Belum dikerjakan                             |
+| #622  | Admin visitor analytics dashboard UI (`/admin/analytics`)      | Belum dikerjakan                             |
+| #624  | Rollup job, retention purge job, readiness checks, docs pass   | Belum dikerjakan                             |
 
 Urutan dependency (dari body issue masing-masing): 617 → 618 → 619 → 620 →
 621 → 622; 623 boleh setelah 620 (paralel dengan 621/622); 624 butuh
@@ -70,8 +70,10 @@ user-agent/geolokasi yang tersimpan:
   integer positif **bila diisi**; tak diisi → default di atas, tidak
   pernah gagal validasi.
 - `VISITOR_ANALYTICS_HASH_SALT` (default `""`) — salt untuk fingerprint
-  visitor pseudonymous, dikonsumsi Issue #619 (belum ada fungsi hashing
-  apa pun yang membacanya sampai issue itu).
+  visitor pseudonymous, dikonsumsi `domain/visitor-key.ts`'s
+  `hashVisitorKey`/`hashIpAddress`/`hashUserAgent` (Issue #619) — lihat
+  §Domain helpers di bawah. Belum ada caller yang benar-benar memanggil
+  fungsi hashing ini dengan nilai request nyata sampai middleware #620.
 
 Entry point: `resolveVisitorAnalyticsConfig(env)` — SATU fungsi yang
 harus dipanggil issue lanjutan (#619 helper, #620 middleware), jangan
@@ -179,6 +181,47 @@ dalam tenant context pemanggil sendiri (tidak pernah dari raw UUID
 client yang langsung dicocokkan ke FK). Tambahkan test integrasi di #620
 yang membuktikan UUID palsu/lintas-tenant di salah satu field ditolak
 sebelum sempat menyentuh FK.
+
+### Domain helpers (Issue #619, `src/modules/visitor-analytics/domain/`)
+
+Lima file, semua pure/hampir-pure, **belum dipanggil siapa pun** —
+middleware (#620) adalah caller pertama. Jangan re-derive logic ini di
+#620; import langsung.
+
+- `visitor-key.ts` — `generateVisitorKey`/`isValidVisitorKey`/
+  `resolveVisitorKey` (cookie anonim, tolak nilai forged/non-UUID) dan
+  `hashVisitorKey`/`hashIpAddress`/`hashUserAgent` (HMAC-SHA256 di-key
+  dengan `VISITOR_ANALYTICS_HASH_SALT` — beda dari `hashIdentifier`
+  profile-identity yang sengaja unsalted, lihat file ini untuk alasan
+  lengkap).
+- `user-agent.ts` — `parseUserAgent`/`isBotUserAgent`. Tabel regex
+  ringkas (bukan dependency npm) untuk browser (Chrome/Firefox/Safari/
+  Edge/Opera/Samsung Internet/IE), OS (Windows/macOS/iOS/Android/Chrome
+  OS/Linux — **urutan cek OS penting**: iOS/Android/CrOS dicek sebelum
+  Windows/macOS/Linux karena UA iPhone/iPad selalu membawa token
+  kompatibilitas "like Mac OS X" dan UA Android/CrOS dibangun di atas
+  string kernel Linux — cek yang lebih spesifik dulu mencegah salah
+  klasifikasi), device type, dan ~30 signature bot/crawler/social-preview/
+  automation-client. **Bukan titik keputusan otorisasi/keamanan** — UA
+  bisa dipalsukan trivial.
+- `human-classifier.ts` — `classifyHumanStatus` (tri-state
+  human/bot/unknown untuk `visit_events.human_status`: bot UA selalu
+  menang; sesi terautentikasi + UA apa pun non-bot = human; request
+  anonim + UA tak dikenal = **unknown**, tidak pernah default human) dan
+  `classifySessionHumanity` (boolean `is_human`/`bot_reason` untuk
+  `visitor_sessions`, yang tidak punya kolom tri-state).
+- `path-sanitizer.ts` — `sanitizePath` (buang 11 query param sensitif
+  minimum issue: token/code/password/secret/email/phone/authorization/
+  access_token/refresh_token/reset_token/mfaChallengeToken, case-
+  insensitive) dan `isTrackablePath` (exclude static asset, `/_astro/*`,
+  favicon, endpoint health, path spec OpenAPI/AsyncAPI dari hitungan
+  pageview).
+- `referrer.ts` — `extractReferrerDomain` (hostname saja, tidak pernah
+  path/query/fragment, `null` untuk scheme non-http(s)).
+
+Test: `tests/unit/visitor-analytics-{visitor-key,user-agent,human-classifier,path-sanitizer,referrer}.test.ts`
+— `user-agent.test.ts` mencakup 20+ contoh UA nyata (desktop/mobile/
+tablet/13 signature bot/unknown).
 
 ## Prinsip yang wajib dipertahankan di setiap issue lanjutan
 
