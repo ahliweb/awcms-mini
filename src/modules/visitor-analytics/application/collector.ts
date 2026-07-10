@@ -40,6 +40,7 @@ import {
   hashUserAgent,
   hashVisitorKey
 } from "../domain/visitor-key";
+import type { GeoEnrichment } from "../domain/geo-enrichment";
 import type { VisitorAnalyticsConfig } from "../domain/visitor-analytics-config";
 
 /**
@@ -92,6 +93,8 @@ export type CollectVisitorTelemetryInput = {
   isAuthenticated: boolean;
   /** Server-derived from the caller's own authenticated session — see file header note. */
   identityId: string | null;
+  /** Resolved by the caller from trusted headers only (Issue #623's `resolveGeoEnrichment`) — always all-null when geo enrichment is disabled/untrusted. */
+  geo: GeoEnrichment;
 };
 
 type SessionRow = { id: string; last_seen_at: string };
@@ -122,6 +125,7 @@ async function upsertVisitorSession(
     isAuthenticated: boolean;
     identityId: string | null;
     onlineWindowSeconds: number;
+    geo: GeoEnrichment;
   }
 ): Promise<string> {
   const existingRows = (await tx`
@@ -157,6 +161,10 @@ async function upsertVisitorSession(
             browser_version_major = ${input.parsedUserAgent.browserVersionMajor},
             os_name = ${input.parsedUserAgent.osName},
             device_type = ${input.parsedUserAgent.deviceType},
+            country_code = ${input.geo.countryCode},
+            region = ${input.geo.region},
+            city = ${input.geo.city},
+            timezone = ${input.geo.timezone},
             updated_at = now()
         WHERE id = ${existing.id}
       `;
@@ -177,14 +185,15 @@ async function upsertVisitorSession(
       (tenant_id, visitor_key_hash, identity_id, login_identifier_snapshot,
        is_authenticated, area, current_path, ip_hash, ip_address,
        user_agent_hash, browser_name, browser_version_major, os_name,
-       device_type, is_human, bot_reason)
+       device_type, is_human, bot_reason, country_code, region, city, timezone)
     VALUES (
       ${input.tenantId}, ${input.visitorKeyHash}, ${input.identityId}, null,
       ${input.isAuthenticated}, ${input.area}, ${input.pathSanitized},
       ${input.ipHash}, ${input.rawIpAddress}, ${input.userAgentHash},
       ${input.parsedUserAgent.browserName}, ${input.parsedUserAgent.browserVersionMajor},
       ${input.parsedUserAgent.osName}, ${input.parsedUserAgent.deviceType},
-      ${input.isHuman}, ${input.botReason}
+      ${input.isHuman}, ${input.botReason}, ${input.geo.countryCode},
+      ${input.geo.region}, ${input.geo.city}, ${input.geo.timezone}
     )
     RETURNING id
   `) as { id: string }[];
@@ -216,7 +225,8 @@ export async function collectVisitorTelemetry(
     userAgent,
     referrerHeader,
     isAuthenticated,
-    identityId
+    identityId,
+    geo
   } = input;
 
   try {
@@ -258,15 +268,39 @@ export async function collectVisitorTelemetry(
           botReason: sessionHumanity.botReason,
           isAuthenticated,
           identityId,
-          onlineWindowSeconds: config.onlineWindowSeconds
+          onlineWindowSeconds: config.onlineWindowSeconds,
+          geo
         });
 
-        const userAgentParsed = JSON.stringify({
+        // Post-review fix (Issue #623): pass a plain JS object as the
+        // query parameter, never a pre-`JSON.stringify`'d string. Bun.SQL
+        // only decodes a `jsonb` column back into a parsed object on
+        // SELECT when the matching INSERT parameter was itself passed as
+        // an object (its own driver auto-serializes it and tags the
+        // round trip accordingly) — `${JSON.stringify(x)}::jsonb` stores
+        // the exact same bytes in Postgres, but every later SELECT of
+        // that column then comes back as a raw JSON **string**, not an
+        // object, breaking `VisitEventRow.user_agent_parsed`/`geo`'s own
+        // `Record<string, unknown>` type (verified empirically — see the
+        // regression tests in
+        // `tests/integration/visitor-analytics-collector.integration.test.ts`).
+        // This was a latent bug in `user_agent_parsed` since Issue #620
+        // (it happened not to matter yet — no endpoint read that column
+        // back before Issue #621's `GET /api/v1/analytics/events`, which
+        // this fix also silently repairs) and would have reproduced for
+        // `geo` the moment this issue wrote a non-empty value to it.
+        const userAgentParsed = {
           browserName: parsedUserAgent.browserName,
           browserVersionMajor: parsedUserAgent.browserVersionMajor,
           osName: parsedUserAgent.osName,
           deviceType: parsedUserAgent.deviceType
-        });
+        };
+        const geoJson = {
+          countryCode: geo.countryCode,
+          region: geo.region,
+          city: geo.city,
+          timezone: geo.timezone
+        };
 
         await tx`
           INSERT INTO awcms_mini_visit_events
@@ -276,7 +310,7 @@ export async function collectVisitorTelemetry(
           VALUES (
             ${tenantId}, ${sessionId}, ${identityId}, ${method}, ${statusCode},
             ${area}, ${pathSanitized}, ${referrerDomain}, ${ipHash}, ${userAgentHash},
-            ${userAgentParsed}::jsonb, '{}'::jsonb, ${humanStatus}, ${correlationId}
+            ${userAgentParsed}::jsonb, ${geoJson}::jsonb, ${humanStatus}, ${correlationId}
           )
         `;
       },

@@ -21,6 +21,15 @@ import {
 import { collectVisitorTelemetry } from "../../src/modules/visitor-analytics/application/collector";
 import { VISITOR_ANALYTICS_DEFAULTS } from "../../src/modules/visitor-analytics/domain/visitor-analytics-config";
 import { generateVisitorKey } from "../../src/modules/visitor-analytics/domain/visitor-key";
+import type { GeoEnrichment } from "../../src/modules/visitor-analytics/domain/geo-enrichment";
+
+/** Geo enrichment is disabled by default (Issue #623) — every existing test here predates that issue and never opted in. */
+const EMPTY_GEO: GeoEnrichment = {
+  countryCode: null,
+  region: null,
+  city: null,
+  timezone: null
+};
 
 const TENANT_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const HUMAN_UA =
@@ -81,7 +90,8 @@ suite("collectVisitorTelemetry", () => {
       userAgent: HUMAN_UA,
       referrerHeader: "https://www.google.com/search?q=x",
       isAuthenticated: false,
-      identityId: null
+      identityId: null,
+      geo: EMPTY_GEO
     });
 
     const sessions = await fetchSessions();
@@ -129,7 +139,8 @@ suite("collectVisitorTelemetry", () => {
       userAgent: HUMAN_UA,
       referrerHeader: null,
       isAuthenticated: false,
-      identityId: null
+      identityId: null,
+      geo: EMPTY_GEO
     });
 
     const events = await fetchEvents();
@@ -153,7 +164,8 @@ suite("collectVisitorTelemetry", () => {
       userAgent: BOT_UA,
       referrerHeader: null,
       isAuthenticated: false,
-      identityId: null
+      identityId: null,
+      geo: EMPTY_GEO
     });
 
     const sessions = await fetchSessions();
@@ -180,7 +192,8 @@ suite("collectVisitorTelemetry", () => {
       userAgent: HUMAN_UA,
       referrerHeader: null,
       isAuthenticated: false,
-      identityId: null
+      identityId: null,
+      geo: EMPTY_GEO
     });
 
     const sessions = await fetchSessions();
@@ -204,7 +217,8 @@ suite("collectVisitorTelemetry", () => {
       userAgent: HUMAN_UA,
       referrerHeader: null,
       isAuthenticated: false,
-      identityId: null
+      identityId: null,
+      geo: EMPTY_GEO
     });
 
     await collectVisitorTelemetry({
@@ -220,7 +234,8 @@ suite("collectVisitorTelemetry", () => {
       userAgent: HUMAN_UA,
       referrerHeader: null,
       isAuthenticated: false,
-      identityId: null
+      identityId: null,
+      geo: EMPTY_GEO
     });
 
     const sessions = await fetchSessions();
@@ -247,7 +262,8 @@ suite("collectVisitorTelemetry", () => {
       userAgent: HUMAN_UA,
       referrerHeader: null,
       isAuthenticated: false,
-      identityId: null
+      identityId: null,
+      geo: EMPTY_GEO
     });
 
     // Simulate the session going stale beyond the online window (real
@@ -274,7 +290,8 @@ suite("collectVisitorTelemetry", () => {
       userAgent: HUMAN_UA,
       referrerHeader: null,
       isAuthenticated: false,
-      identityId: null
+      identityId: null,
+      geo: EMPTY_GEO
     });
 
     const sessions = await fetchSessions();
@@ -301,7 +318,8 @@ suite("collectVisitorTelemetry", () => {
         userAgent: HUMAN_UA,
         referrerHeader: null,
         isAuthenticated: false,
-        identityId: null
+        identityId: null,
+        geo: EMPTY_GEO
       })
     ).resolves.toBeUndefined();
 
@@ -326,7 +344,8 @@ suite("collectVisitorTelemetry", () => {
         userAgent: HUMAN_UA,
         referrerHeader: null,
         isAuthenticated: false,
-        identityId: null
+        identityId: null,
+        geo: EMPTY_GEO
       })
     ).resolves.toBeUndefined();
 
@@ -369,7 +388,8 @@ suite("collectVisitorTelemetry", () => {
       userAgent: HUMAN_UA,
       referrerHeader: null,
       isAuthenticated: true,
-      identityId
+      identityId,
+      geo: EMPTY_GEO
     });
 
     const sessions = await fetchSessions();
@@ -380,5 +400,69 @@ suite("collectVisitorTelemetry", () => {
     expect(sessions[0]!.is_authenticated).toBe(true);
     expect(events[0]!.identity_id).toBe(identityId);
     expect(events[0]!.area).toBe("admin");
+  });
+
+  test("geo enrichment (Issue #623) is written to both the session and the event", async () => {
+    const sql = getTestSql();
+    const geo: GeoEnrichment = {
+      countryCode: "ID",
+      region: null,
+      city: null,
+      timezone: null
+    };
+
+    await collectVisitorTelemetry({
+      sql,
+      tenantId: TENANT_A,
+      correlationId: "corr-10",
+      config: VISITOR_ANALYTICS_DEFAULTS,
+      method: "GET",
+      rawPath: "/news",
+      statusCode: 200,
+      visitorKey: generateVisitorKey(),
+      ipAddress: "203.0.113.90",
+      userAgent: HUMAN_UA,
+      referrerHeader: null,
+      isAuthenticated: false,
+      identityId: null,
+      geo
+    });
+
+    const sessions = await fetchSessions();
+    const events = await fetchEvents();
+
+    expect(sessions[0]!.country_code).toBe("ID");
+    expect((events[0]!.geo as { countryCode: string | null }).countryCode).toBe(
+      "ID"
+    );
+  });
+
+  test("empty geo enrichment leaves session country_code null and event geo fields null", async () => {
+    const sql = getTestSql();
+
+    await collectVisitorTelemetry({
+      sql,
+      tenantId: TENANT_A,
+      correlationId: "corr-11",
+      config: VISITOR_ANALYTICS_DEFAULTS,
+      method: "GET",
+      rawPath: "/news",
+      statusCode: 200,
+      visitorKey: generateVisitorKey(),
+      ipAddress: "203.0.113.91",
+      userAgent: HUMAN_UA,
+      referrerHeader: null,
+      isAuthenticated: false,
+      identityId: null,
+      geo: EMPTY_GEO
+    });
+
+    const sessions = await fetchSessions();
+    const events = await fetchEvents();
+
+    expect(sessions[0]!.country_code).toBeNull();
+    expect(
+      (events[0]!.geo as { countryCode: string | null }).countryCode
+    ).toBeNull();
   });
 });

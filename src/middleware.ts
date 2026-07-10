@@ -16,6 +16,7 @@ import { resolveVisitorAnalyticsConfig } from "./modules/visitor-analytics/domai
 import { determineArea } from "./modules/visitor-analytics/domain/request-area";
 import { resolveVisitorKey } from "./modules/visitor-analytics/domain/visitor-key";
 import { resolveAnalyticsClientIp } from "./modules/visitor-analytics/domain/client-ip";
+import { resolveGeoEnrichment } from "./modules/visitor-analytics/domain/geo-enrichment";
 import {
   collectVisitorTelemetry,
   shouldCollectRequest
@@ -192,6 +193,10 @@ export async function collectRequestAnalytics(
       trustProxy: config.trustProxy,
       trustCloudflare: config.trustCloudflare
     });
+    const geo = resolveGeoEnrichment(context.request, {
+      geoEnabled: config.geoEnabled,
+      trustCloudflare: config.trustCloudflare
+    });
 
     await collectVisitorTelemetry({
       sql,
@@ -206,7 +211,8 @@ export async function collectRequestAnalytics(
       userAgent: context.request.headers.get("user-agent"),
       referrerHeader: context.request.headers.get("referer"),
       isAuthenticated,
-      identityId
+      identityId,
+      geo
     });
   } catch (error) {
     log("warning", "visitor_analytics.middleware.failed", {

@@ -25,6 +25,7 @@ import { GET as getRealtime } from "../../src/pages/api/v1/analytics/realtime";
 import { GET as getSummary } from "../../src/pages/api/v1/analytics/summary";
 import { GET as getSessions } from "../../src/pages/api/v1/analytics/sessions";
 import { GET as getEvents } from "../../src/pages/api/v1/analytics/events";
+import { GET as getLocations } from "../../src/pages/api/v1/analytics/locations";
 import {
   GET as getSettings,
   PATCH as patchSettings
@@ -194,20 +195,27 @@ async function seedEvent(
     area: string;
     humanStatus: string;
     pathSanitized: string;
+    geo: Record<string, unknown>;
   }> = {}
 ): Promise<void> {
   const admin = getAdminSql();
+  // Bind the plain object as the parameter (never `JSON.stringify` it
+  // first) — see [[bun-sql-jsonb-stringify-trap]]: a stringified param
+  // makes every later SELECT of this column return a raw JSON string
+  // instead of a parsed object, even though the stored bytes are
+  // identical either way.
   await admin`
     INSERT INTO awcms_mini_visit_events
       (tenant_id, visitor_session_id, method, area, path_sanitized,
-       human_status, occurred_at, user_agent_parsed)
+       human_status, occurred_at, user_agent_parsed, geo)
     VALUES (
       ${tenantId}, ${sessionId}, 'GET',
       ${overrides.area ?? "public"},
       ${overrides.pathSanitized ?? "/news/hello"},
       ${overrides.humanStatus ?? "human"},
       ${overrides.occurredAt ?? new Date()},
-      ${JSON.stringify({ browserName: "Chrome", deviceType: "desktop" })}
+      ${{ browserName: "Chrome", deviceType: "desktop" }}::jsonb,
+      ${overrides.geo ?? {}}::jsonb
     )
   `;
 }
@@ -449,6 +457,49 @@ suite("visitor analytics API (Issue #621)", () => {
     expect((result.body as { error: { code: string } }).error.code).toBe(
       "VALIDATION_ERROR"
     );
+  });
+
+  test("events/locations: geo and user_agent_parsed come back as real nested objects, not JSON strings", async () => {
+    // Regression test for [[bun-sql-jsonb-stringify-trap]] (Issue #623):
+    // proves the fix through the actual HTTP response shape, not just a
+    // direct DB read.
+    const b = await bootstrap();
+    const session = await seedSession(b.tenantId, { area: "public" });
+    await seedEvent(b.tenantId, session, {
+      geo: { countryCode: "ID", region: null, city: null, timezone: null }
+    });
+
+    const eventsResult = await invoke<{
+      data: {
+        events: {
+          geo: { countryCode: string | null };
+          userAgentParsed: { browserName: string | null };
+        }[];
+      };
+    }>(getEvents, {
+      path: "/api/v1/analytics/events",
+      headers: authHeaders(b.tenantId, b.token)
+    });
+
+    expect(eventsResult.status).toBe(200);
+    const event = eventsResult.body.data.events[0]!;
+    expect(typeof event.geo).toBe("object");
+    expect(event.geo.countryCode).toBe("ID");
+    expect(typeof event.userAgentParsed).toBe("object");
+    expect(event.userAgentParsed.browserName).toBe("Chrome");
+
+    const locationsResult = await invoke<{
+      data: { countries: { name: string; count: number }[] };
+    }>(getLocations, {
+      path: "/api/v1/analytics/locations",
+      headers: authHeaders(b.tenantId, b.token)
+    });
+
+    expect(locationsResult.status).toBe(200);
+    expect(locationsResult.body.data.countries).toContainEqual({
+      name: "ID",
+      count: 1
+    });
   });
 
   test("settings: GET returns a view even with no override yet, PATCH stores non-secret keys", async () => {
