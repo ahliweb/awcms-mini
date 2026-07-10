@@ -861,6 +861,37 @@ menutup sisanya:
 Implementor issue yang akhirnya menambah salah satu dari dua hal di atas
 **wajib** memperbarui `r2-security-checklist.md` §7 dan bagian ini lagi.
 
+### PR #665 re-review — hostname bypass di check `checkNewsMediaR2PublicBaseUrlProductionSafe`
+
+Reviewer DAN security-auditor independen sama-sama menemukan
+`findNewsMediaR2PublicBaseUrlProductionUnsafeReason` (dan helper
+`isLoopbackHost`/`isR2DevHost`) bisa dilewati:
+
+1. **Trailing-dot FQDN** — `https://pub-abc123.r2.dev./x` punya
+   `hostname` literal `"pub-abc123.r2.dev."` (titik root DNS
+   dipertahankan `new URL(...).hostname`), tidak cocok regex
+   `/\.r2\.dev$/i` yang tidak menormalisasi titik akhir — padahal DNS
+   memperlakukan `abc.r2.dev.` PERSIS sama dengan `abc.r2.dev`. Sama
+   untuk `http://localhost.`.
+2. **IPv6/`0.0.0.0` loopback tidak tercakup** (reviewer) —
+   `new URL("http://[::1]/").hostname` mengembalikan `"[::1]"`, dan
+   `new URL("http://0.0.0.0/").hostname` mengembalikan `"0.0.0.0"` —
+   keduanya tidak cocok exact-string check yang tadinya cuma
+   `"localhost"`/`"127.0.0.1"`.
+
+**Fix**: `stripTrailingDot` (helper baru) menormalisasi titik akhir
+SEBELUM kedua check berjalan; `isLoopbackHost` diperluas mencakup
+`0.0.0.0`, `::1`, `[::1]` (case-insensitive). Encouragingly, obfuscation
+IP lain (oktal/desimal/hex — `0177.0.0.1`/`2130706433`/`0x7f000001`) DAN
+homograph Unicode pada dot (`．`/`。`) sudah otomatis dinetralkan oleh
+normalisasi `URL`/IDNA bawaan Bun SEBELUM regex/exact-match berjalan
+(diverifikasi kedua agent secara independen) — bukan sesuatu yang perlu
+ditangani manual di sini. Regression test untuk kedua bypass di atas
+ditambahkan ke `tests/unit/news-media-r2-config.test.ts`. Implementor
+lanjutan yang menyentuh fungsi ini lagi **wajib** mempertahankan
+`stripTrailingDot` dan keempat variant loopback ini — jangan
+menyederhanakan balik ke exact-string match polos.
+
 ### File yang dibuat/diubah (referensi cepat)
 
 - `src/modules/news-portal/domain/news-media-r2-config.ts`: tambah
@@ -877,7 +908,7 @@ Implementor issue yang akhirnya menambah salah satu dari dua hal di atas
   `runSecurityReadinessChecks`.
 - `.env.example`, `18_configuration_env_reference.md` §News portal,
   `full-online-r2-architecture.md` §4, `r2-security-checklist.md` §7 —
-  semua diperbarui untuk kelima check baru.
+  semua diperbarui untuk keempat check baru.
 - Test: `tests/unit/news-media-r2-config.test.ts` (tambah describe
   block untuk tiga helper baru), `tests/validate-env.test.ts` (tambah
   describe block untuk dua check config:validate baru),

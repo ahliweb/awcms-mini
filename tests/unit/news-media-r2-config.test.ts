@@ -309,6 +309,32 @@ describe("findNewsMediaR2PublicBaseUrlProductionUnsafeReason (Issue #635)", () =
     ).toBe("loopback_host");
   });
 
+  test('"loopback_host" for IPv6 ::1 (bracketed URL form)', () => {
+    expect(
+      findNewsMediaR2PublicBaseUrlProductionUnsafeReason("http://[::1]")
+    ).toBe("loopback_host");
+  });
+
+  test('"loopback_host" for 0.0.0.0', () => {
+    expect(
+      findNewsMediaR2PublicBaseUrlProductionUnsafeReason("http://0.0.0.0")
+    ).toBe("loopback_host");
+  });
+
+  test('"r2_dev_default_domain" for a trailing-dot FQDN variant of *.r2.dev (reviewer + security-auditor finding, PR #665 re-review — DNS treats "abc.r2.dev." identically to "abc.r2.dev", but a naive suffix regex would not)', () => {
+    expect(
+      findNewsMediaR2PublicBaseUrlProductionUnsafeReason(
+        "https://pub-abc123.r2.dev./x"
+      )
+    ).toBe("r2_dev_default_domain");
+  });
+
+  test('"loopback_host" for a trailing-dot variant of localhost', () => {
+    expect(
+      findNewsMediaR2PublicBaseUrlProductionUnsafeReason("http://localhost.")
+    ).toBe("loopback_host");
+  });
+
   test('"unparseable_url" for a malformed value', () => {
     expect(
       findNewsMediaR2PublicBaseUrlProductionUnsafeReason("not-a-url")

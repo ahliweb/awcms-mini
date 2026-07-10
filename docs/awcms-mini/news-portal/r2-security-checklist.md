@@ -196,7 +196,7 @@ detail lengkap) — ini bukan lagi gap, karena penegakannya terjadi
 sinkron di jalur request `finalize`, bukan lewat readiness-check
 terpisah.
 
-**Update #635 (selesai)**: kelima check baru di atas menutup seluruh
+**Update #635 (selesai)**: keempat check baru di atas menutup seluruh
 acceptance criteria issue #635 yang masih relevan setelah #632-#634 —
 lihat `.claude/skills/awcms-mini-news-portal/SKILL.md` §635 untuk
 rekonsiliasi lengkap (nama var body issue vs `NEWS_MEDIA_R2_*` nyata,

@@ -283,6 +283,20 @@ export function isPresignedUploadTtlTooLong(
 }
 
 /**
+ * A trailing "." makes a hostname a fully-qualified DNS name that
+ * resolves IDENTICALLY to the same name without the dot (DNS root label —
+ * `abc.r2.dev.` and `abc.r2.dev` are the same host to any resolver/
+ * browser), but `new URL(...).hostname` preserves it literally, which
+ * would otherwise let a one-character trailing-dot variant silently slip
+ * past both the `.r2.dev` suffix check and the exact loopback-string
+ * checks below (reviewer + security-auditor finding, PR #665 re-review).
+ * Normalize it away before either check runs.
+ */
+function stripTrailingDot(hostname: string): string {
+  return hostname.endsWith(".") ? hostname.slice(0, -1) : hostname;
+}
+
+/**
  * Hostnames Cloudflare R2 assigns automatically for a bucket that has NO
  * custom domain mapped — architecture doc §11: "bukan URL `r2.dev` bawaan
  * (yang tidak stabil untuk produksi dan tidak mendukung caching/branding
@@ -292,12 +306,27 @@ export function isPresignedUploadTtlTooLong(
  * elsewhere in its path).
  */
 function isR2DevHost(hostname: string): boolean {
-  return /\.r2\.dev$/i.test(hostname);
+  return /\.r2\.dev$/i.test(stripTrailingDot(hostname));
 }
 
-/** Loopback hosts — never a legitimate production public media domain. */
+/**
+ * Loopback hosts — never a legitimate production public media domain.
+ * Covers IPv4 (`127.0.0.1`, unbracketed), IPv6 (`::1`, both bracketed
+ * `[::1]` — the form `new URL(...).hostname` actually returns for an IPv6
+ * host — and unbracketed), `0.0.0.0` (binds-to-all-interfaces, not a
+ * routable address either), and `localhost`, all case-insensitively
+ * (IPv6 literals are lowercased by `URL` already, but `localhost` is not).
+ */
 function isLoopbackHost(hostname: string): boolean {
-  return hostname === "localhost" || hostname === "127.0.0.1";
+  const normalized = stripTrailingDot(hostname).toLowerCase();
+
+  return (
+    normalized === "localhost" ||
+    normalized === "127.0.0.1" ||
+    normalized === "0.0.0.0" ||
+    normalized === "::1" ||
+    normalized === "[::1]"
+  );
 }
 
 export type NewsMediaR2PublicBaseUrlProductionUnsafeReason =
