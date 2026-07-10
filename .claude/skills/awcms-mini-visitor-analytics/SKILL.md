@@ -31,7 +31,7 @@ spesifik** yang menjembatani beberapa issue sekaligus.
 | #619  | Visitor identity, user-agent, human/bot classification helpers | **Selesai** — lihat §Domain helpers di bawah |
 | #620  | Middleware telemetry collection (admin + public)               | **Selesai** — lihat §Collector di bawah      |
 | #621  | Analytics API + OpenAPI contract (`/api/v1/analytics`)         | **Selesai** — lihat §API di bawah            |
-| #623  | Trusted online geolocation enrichment                          | Belum dikerjakan                             |
+| #623  | Trusted online geolocation enrichment                          | **Selesai** — lihat §Geo enrichment di bawah |
 | #622  | Admin visitor analytics dashboard UI (`/admin/analytics`)      | Belum dikerjakan                             |
 | #624  | Rollup job, retention purge job, readiness checks, docs pass   | Belum dikerjakan                             |
 
@@ -314,10 +314,58 @@ analytics kosong/nol diam-diam.
   (selalu kosong sampai job rollup #624 ada).
 
 Test: `tests/unit/visitor-analytics-{range,response-shaping}.test.ts`,
-`tests/integration/visitor-analytics-api.integration.test.ts` (11 test:
+`tests/integration/visitor-analytics-api.integration.test.ts` (13 test:
 auth guard, ABAC deny lintas endpoint, realtime, summary+range validation,
-raw-detail gating dua arah, keyset pagination 55-row, settings GET/PATCH +
-secret-key rejection, retention purge idempotency+delete+audit).
+raw-detail gating dua arah, keyset pagination 55-row, FK-straddle purge,
+geo/jsonb object shape lewat API nyata, settings GET/PATCH + secret-key
+rejection, retention purge idempotency+delete+audit).
+
+### Geo enrichment (Issue #623, `domain/geo-enrichment.ts`)
+
+Country code saja, dari header Cloudflare `CF-IPCountry` — **tidak
+pernah** external network call. Gate ganda: `VISITOR_ANALYTICS_GEO_ENABLED`
+**dan** `VISITOR_ANALYTICS_TRUST_CLOUDFLARE` harus `true` keduanya;
+salah satu `false` → semua field `null`. Region/city/timezone selalu
+`null` di issue ini (belum ada local GeoIP DB, out of scope).
+
+`src/middleware.ts` panggil `resolveGeoEnrichment` di samping
+`resolveAnalyticsClientIp`, hasilnya masuk `collectVisitorTelemetry`'s
+field baru `geo` (Issue #620's `collector.ts` di-extend, bukan file
+baru) — ditulis ke `visitor_sessions.country_code/region/city/timezone`
+DAN `visit_events.geo` (shape sama yang sudah dibaca
+`fetchTopCountries`, Issue #621 — `GET /api/v1/analytics/locations`
+otomatis dapat data nyata begitu geo enrichment aktif, tanpa ubah sisi
+API).
+
+**Hardening ambiguous-header** (`domain/client-ip.ts`, issue ini juga):
+`resolveAnalyticsClientIp` sekarang menolak `X-Forwarded-For`/
+`CF-Connecting-IP` yang punya >1 nilai comma-separated (anomali, log
+warning, fallback ke sumber berikutnya — sama persis pola
+`X-Forwarded-Host` di `public-host-tenant-resolver.ts`, epic
+tenant-domain-routing). Proxy tepercaya yang benar wajib **overwrite**,
+bukan **append**, header ini (kontrak sama `PUBLIC_TRUST_PROXY`, doc 18)
+— jadi proxy yang dikonfigurasi benar tidak pernah menghasilkan >1 nilai
+di sini juga.
+
+**Temuan post-review issue ini — bug jsonb laten sejak #620**:
+`collector.ts`'s `user_agent_parsed`/`geo` sebelumnya ditulis via
+`JSON.stringify(...)::jsonb` — bytes yang tersimpan identik dengan
+`${object}::jsonb`, TAPI Bun.SQL men-decode SELECT berikutnya dari
+kolom itu sebagai raw JSON **string**, bukan object ter-parse (lihat
+memory `bun-sql-jsonb-stringify-trap` untuk bukti empiris lengkap).
+Ini diam-diam memengaruhi response `GET /api/v1/analytics/events`'s
+`userAgentParsed`/`geo` sejak #621 rilis. **Wajib dipertahankan issue
+lanjutan**: selalu bind object JS polos sebagai parameter query untuk
+kolom jsonb (`${plainObject}::jsonb`), jangan pernah
+`JSON.stringify()` dulu — cek `grep -rn "JSON.stringify.*::jsonb"` di
+modul manapun yang disentuh sebelum menganggap kolom jsonb "sudah
+benar".
+
+Test: `tests/unit/visitor-analytics-{client-ip,geo-enrichment}.test.ts`,
+`tests/integration/visitor-analytics-collector.integration.test.ts`
+(geo tertulis ke session+event, geo kosong tetap null),
+`tests/integration/visitor-analytics-api.integration.test.ts` (geo/
+userAgentParsed object nyata lewat `/events` dan `/locations`).
 
 ## Prinsip yang wajib dipertahankan di setiap issue lanjutan
 

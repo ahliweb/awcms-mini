@@ -67,7 +67,15 @@ aggregates, keyset-paginated sessions/events, settings, and on-demand
 retention purge (see §API below). First issue exposing this module's data
 through authenticated APIs.
 
-Issue #623: trusted online geolocation enrichment.
+Issue #623 (`domain/geo-enrichment.ts`, hardened `domain/client-ip.ts`):
+optional country-code enrichment from Cloudflare's `CF-IPCountry` header,
+gated behind both `VISITOR_ANALYTICS_GEO_ENABLED` and
+`VISITOR_ANALYTICS_TRUST_CLOUDFLARE` — never an external network call
+(see §Geo enrichment below). Also hardens `resolveAnalyticsClientIp`
+against ambiguous multi-value forwarded headers. **First issue that
+populates `visitor_sessions.country_code`/`visit_events.geo` with a real
+value** — `/api/v1/analytics/locations` (Issue #621) has real data from
+here on for deployments that opt in.
 
 Issue #622: admin visitor analytics dashboard UI at `/admin/analytics`.
 
@@ -335,10 +343,55 @@ pagination across a 55-row page boundary + malformed-cursor rejection,
 settings GET/PATCH + secret-shaped-key rejection, retention purge
 idempotency + real deletion + audit event).
 
+## Geo enrichment (Issue #623, `domain/geo-enrichment.ts`)
+
+Country code only, from Cloudflare's `CF-IPCountry` header — never an
+external network call (binding constraint). Gated behind **both**
+`VISITOR_ANALYTICS_GEO_ENABLED` and `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`;
+either flag off returns all-null. Region/city/timezone always stay
+`null` in this issue — no local/offline GeoIP database is configured
+(out of scope: "Paid GeoIP integration"); a future issue can add one
+without changing this function's signature.
+
+`src/middleware.ts` calls `resolveGeoEnrichment` alongside
+`resolveAnalyticsClientIp` and passes the result into
+`collectVisitorTelemetry`'s new `geo` field, which
+`application/collector.ts` writes to both
+`awcms_mini_visitor_sessions.country_code`/`region`/`city`/`timezone`
+and `awcms_mini_visit_events.geo` (jsonb `{countryCode, region, city,
+timezone}` — the same shape `application/analytics-queries.ts`'s
+`fetchTopCountries` already reads via `geo->>'countryCode'`, so
+`GET /api/v1/analytics/locations` (Issue #621) starts returning real
+data the moment a deployment opts in, with no change needed on the API
+side).
+
+**Ambiguous-header hardening** (`domain/client-ip.ts`, also this issue):
+`resolveAnalyticsClientIp` now treats a forwarded header (`X-Forwarded-For`
+or `CF-Connecting-IP`) carrying more than one comma-separated value as an
+anomaly — logs a warning and falls through to the next source, exactly
+as if that trust flag were `false` for this one request, mirroring
+`lib/tenant/public-host-tenant-resolver.ts`'s `X-Forwarded-Host` handling
+in the tenant-domain-routing epic. A correctly-configured trusted proxy
+must _overwrite_, never _append to_, these headers (same operational
+contract as `PUBLIC_TRUST_PROXY`, doc 18), so a real trusted proxy never
+produces more than one value here either — this is not a functional
+regression for any correctly-configured deployment.
+
+**Post-review fix, this issue**: `application/collector.ts`'s
+`user_agent_parsed`/`geo` jsonb writes previously built the value with
+`JSON.stringify(...)` before an explicit `::jsonb` cast — this stores
+byte-identical rows, but Bun.SQL then decodes every later `SELECT` of
+that column as a raw JSON **string**, not a parsed object (a real,
+previously-undetected bug since Issue #620, silently affecting
+`GET /api/v1/analytics/events`'s `userAgentParsed`/`geo` response fields
+since Issue #621 — see the memory note `bun-sql-jsonb-stringify-trap` for
+the full empirical writeup). Fixed by binding the plain object directly
+as the query parameter instead. Regression-tested both at the collector
+level and through the real HTTP `/events`/`/locations` response shape.
+
 ## Not yet available
 
 - Admin dashboard UI (`/admin/analytics`) — Issue #622.
-- Geolocation enrichment — Issue #623.
 - Rollup job (retention purge itself already works — see §API above) — Issue #624.
 
 The `api.basePath`/navigation `path` in `module.ts` are pre-declared ahead
