@@ -259,6 +259,43 @@ ringkasan per profil:
   job aman dijalankan di profil offline/LAN sekalipun (operasi database
   lokal murni, tidak pernah memanggil provider eksternal).
 
+## News portal full-online R2-only media (opsional, Issue #631)
+
+Epic `news_portal` (Issue #631-#642, #649) menambah mode **full-online
+R2-only** untuk gambar berita — mandat "gambar hanya di Cloudflare R2,
+tidak pernah di filesystem lokal" **hanya berlaku bila mode ini
+diaktifkan secara eksplisit**. Issue #631 (dokumentasi arsitektur,
+selesai) mendefinisikan seluruh keputusan; Issue #632-#635 (implementasi
+preset/registry/upload/readiness, belum dikerjakan) yang benar-benar
+menambahkan env var `NEWS_MEDIA_R2_*` ke `.env.example`/doc 18 — lihat
+`docs/awcms-mini/news-portal/full-online-r2-architecture.md` §4 untuk
+konvensi penamaan lengkap dan
+`.claude/skills/awcms-mini-news-portal/SKILL.md` untuk status per issue.
+
+- **offline/LAN & development**: biarkan `NEWS_MEDIA_R2_ENABLED` tidak
+  di-set (default, begitu #632 mengimplementasikannya). Mode ini
+  **tidak berlaku** untuk offline/LAN — bukan sekadar default mati,
+  tapi memang di luar cakupan penggunaan mode ini sama sekali (lihat
+  `full-online-r2-architecture.md` §1).
+- **production (online)**, hanya bila operator memang menjalankan
+  portal berita publik dengan kredensial R2 aktif: aktifkan preset
+  (Issue #632) dan pastikan bucket + kredensial R2 media **berbeda**
+  dari `R2_BUCKET`/`R2_*` yang sudah dipakai `sync-storage` (§Storage di
+  atas) — ini bukan rekomendasi, tapi penegakan wajib di
+  `config:validate`/`security:readiness` begitu Issue #635 selesai
+  (lihat `docs/awcms-mini/news-portal/r2-security-checklist.md` §7).
+  Alasan pemisahan bucket: `sync-storage`'s R2 usage adalah object
+  queue **privat** untuk sinkronisasi offline/LAN, sedangkan media
+  berita **publik** by design (custom domain, CORS) — menyatukan
+  keduanya berisiko membocorkan objek sync privat lewat konfigurasi
+  publik yang ditujukan untuk media berita.
+- **Tidak ada fallback lokal**: berbeda dari `STORAGE_DRIVER=local`
+  (default base generik) yang tetap didukung penuh untuk kebutuhan lain,
+  mode R2-only news media secara eksplisit **melarang** fallback
+  filesystem lokal untuk gambar berita — kegagalan upload R2 gagal
+  secara eksplisit ke editor, bukan diam-diam ditulis ke
+  `LOCAL_STORAGE_PATH`.
+
 ## Cara menjalankan tiap profil
 
 ### development
@@ -569,3 +606,6 @@ profil non-development, termasuk offline/LAN (doc 18: "backup lokal").
 - [`visitor-analytics.md`](visitor-analytics.md) — panduan lengkap mode
   offline/LAN vs online, privacy-first default, retensi, dan pemetaan
   kepatuhan modul visitor analytics.
+- [`news-portal/full-online-r2-architecture.md`](news-portal/full-online-r2-architecture.md)
+  — arsitektur full-online R2-only media berita, SOP upload, security
+  checklist, incident response, backup/lifecycle, dan panduan editor.
