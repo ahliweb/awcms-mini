@@ -129,7 +129,11 @@ pernah** menyatukan keduanya ke bucket/kredensial yang sama:
 `NEWS_MEDIA_R2_BUCKET`/`_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY` terhadap
 `R2_BUCKET`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY` milik
 `sync-storage`, dipanggil dari `config:validate`
-(`checkNewsMediaR2SeparationFromSyncR2`, gagal boot bila sama) DAN
+(`checkNewsMediaR2SeparationFromSyncR2`, gagal `bun run config:validate`/
+gate CI-deploy bila sama — **bukan** penegakan boot-time otomatis di
+server; `config:validate`/`security:readiness` adalah script CLI mandiri
+yang tidak dipanggil dari `src/server.ts`, sama seperti seluruh keluarga
+check lain di `validate-env.ts`) DAN
 `security:readiness` (`checkNewsPortalFullOnlineR2PresetReady`, critical)
 — lihat `r2-security-checklist.md` §7 untuk kontrak lengkap dan apa yang
 masih tersisa untuk #633/#634/#635 (schema/endpoint-level checks, bukan
@@ -296,6 +300,43 @@ ia tidak boleh diimpor modul domain manapun (lihat header comment
 `module-presets.ts` sendiri) — jadi gate ini TIDAK bisa dipindah ke sana;
 ia hidup sebagai wrapper terpisah. Belum ada endpoint HTTP yang memanggil
 `applyModulePreset`/wrapper ini sama sekali (issue lanjutan/setup wizard).
+
+**PENTING untuk issue lanjutan yang menambah endpoint/setup-wizard
+pertama yang memanggil preset ini (temuan reviewer+security-auditor
+PR #651, keduanya PASS tapi dengan catatan mengikat)**:
+
+1. `applyModulePreset(tx, tenantId, actor, "news_portal_full_online_r2")`
+   dipanggil langsung (melewati wrapper) hari ini **akan** mengaktifkan
+   preset TANPA readiness gate dan TANPA audit event — generic engine-nya
+   tidak tahu preset ini butuh gate. Inert hari ini (tidak ada caller sama
+   sekali), tapi begitu issue lanjutan menambah caller apa pun ke
+   `applyModulePreset`, WAJIB memastikan literal string
+   `"news_portal_full_online_r2"` hanya pernah lewat
+   `applyNewsPortalFullOnlineR2Preset`, tidak pernah dipanggil generic
+   function-nya langsung — tambahkan test struktural (pola sama
+   `news-portal-no-local-fallback.test.ts`) yang men-grep memastikan ini,
+   jangan cuma mengandalkan disiplin code review.
+2. `applyModulePreset`/wrapper ini **tidak melakukan ABAC/permission check
+   sendiri** (by design, sama pola `enableTenantModule`/
+   `disableTenantModule` — tanggung jawab pemanggil). Issue pertama yang
+   menambah endpoint HTTP/halaman admin untuk mengaktifkan preset ini
+   WAJIB menambah `authorizeInTransaction` (skill `awcms-mini-abac-guard`)
+   dan mendaftarkan endpoint itu di OpenAPI — jangan asumsikan wrapper ini
+   "sudah aman" karena sudah ada readiness+audit, itu bukan pengganti
+   lapisan otorisasi.
+3. Readiness/audit gate ini bersifat **global per-deployment** (baca env
+   var, bukan state module per-tenant) — ia tidak memverifikasi bahwa
+   `blog_content`/`tenant_domain`/`visitor_analytics` masih benar-benar
+   `tenantEnabled=true` untuk tenant yang preset-nya sedang aktif (lihat
+   §"Kenapa modul baru... dependencies HANYA..." di atas — ini sengaja,
+   supaya `news_portal` bisa jadi leaf yang bisa di-disable). Konsekuensi:
+   seorang admin tenant bisa mengaktifkan preset ini lalu belakangan
+   men-disable `blog_content` untuk tenant itu tanpa terblokir apa pun,
+   dan readiness check tetap melaporkan "ready" walau tenant itu
+   fungsionalnya tidak bisa lagi menyajikan berita. Begitu #633/#634
+   menambah API/health nyata yang dikonsumsi operator/end-user, tambahkan
+   pemeriksaan tenant-scoped terpisah (bukan cuma env-level) sebelum
+   mengklaim tenant tersebut "ready".
 
 ### Tidak ada flag "local fallback" sungguhan
 
