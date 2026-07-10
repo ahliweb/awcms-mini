@@ -122,6 +122,7 @@ AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode sta
 | Kerjakan bagian mana pun epic blog_content (Issue #537-#543)           | `awcms-mini-blog-content`          |
 | Epic online public routing & tenant domain (Issue #556-#567)           | `awcms-mini-tenant-domain-routing` |
 | Epic visitor analytics (Issue #617-#624)                               | `awcms-mini-visitor-analytics`     |
+| Epic news_portal full-online R2-only media (Issue #631-#642, #649)     | `awcms-mini-news-portal`           |
 
 **Peningkatan (audit & hardening artefak yang sudah ada):**
 
@@ -174,6 +175,13 @@ flowchart LR
   VA --> EP
   VA --> UI2
   VA --> SD
+  II --> NP[news-portal]
+  NP --> MIG
+  NP --> EP
+  NP --> UI2
+  NP --> SD
+  NP --> INT
+  NP --> IDEM
 ```
 
 Skill merujuk `docs/awcms-mini/*` sebagai sumber kebenaran; bila standar berubah, perbarui doc **dan** skill terkait.

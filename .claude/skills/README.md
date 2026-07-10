@@ -6,39 +6,40 @@ Skill Claude Code tingkat-proyek untuk AWCMS-Mini. Setiap skill meng-encode stan
 
 ## Katalog
 
-| Skill                                                  | Kapan dipakai                                                                         | Sumber docs                    |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------ |
-| `awcms-mini-implement-issue`                           | Orkestrator: kerjakan satu issue/sprint atomic end-to-end                             | 06, 11, 12                     |
-| `awcms-mini-new-module`                                | Scaffold modul baru di `src/modules/`                                                 | 10, 11                         |
-| `awcms-mini-module-management`                         | Kelola/konsumsi sistem Module Management (registry, lifecycle, settings, health)      | module-management/README.md    |
-| `awcms-mini-new-migration`                             | Buat/ubah migration SQL (tabel, index, RLS)                                           | 04, 10                         |
-| `awcms-mini-new-endpoint`                              | Tambah/ubah endpoint REST + OpenAPI                                                   | 05, 10                         |
-| `awcms-mini-new-event`                                 | Tambah/ubah domain event + AsyncAPI                                                   | 05                             |
-| `awcms-mini-idempotency`                               | Mutation high-risk anti double-submit                                                 | 10                             |
-| `awcms-mini-abac-guard`                                | Kontrol akses default-deny + RLS                                                      | 03, 10                         |
-| `awcms-mini-audit-log`                                 | Audit aksi high-risk + redaction                                                      | 03, 10                         |
-| `awcms-mini-observability`                             | Correlation ID otomatis, retensi/purge audit log, extension point log/audit           | 10, 16, 20                     |
-| `awcms-mini-new-migration` + `awcms-mini-new-endpoint` | Soft delete/restore/purge resource deletable                                          | 04, 05, 10, 16                 |
-| `awcms-mini-sensitive-data`                            | Normalize/hash/mask identifier sensitif                                               | 04                             |
-| `awcms-mini-sync-hmac`                                 | Sync push/pull bertanda HMAC + anti-replay                                            | 08, 10                         |
-| `awcms-mini-security-review`                           | Review keamanan modul                                                                 | 12, 13                         |
-| `awcms-mini-codeql-triage`                             | Triase & perbaiki temuan CodeQL code scanning (termasuk katalog false-positive)       | 20                             |
-| `awcms-mini-pr-review`                                 | Review pull request terhadap DoD                                                      | 09, 10, 12                     |
-| `awcms-mini-testing`                                   | Tulis test berlapis (unit→security)                                                   | 07                             |
-| `awcms-mini-browser-test`                              | E2E browser sungguhan (Playwright + Bun) — puncak piramida testing                    | 07, browser-test/SKILL.md      |
-| `awcms-mini-production-preflight`                      | Preflight & go-live readiness                                                         | 07, 12                         |
-| `awcms-mini-deploy`                                    | Pilih & jalankan profil deployment (LAN-first vs registry/Coolify)                    | 18, deploy-coolify.md          |
-| `awcms-mini-ui-screen`                                 | Implementasi layar/komponen UI sesuai design system                                   | 14, 15                         |
-| `awcms-mini-wizard-form`                               | Form multi-step (reusable wizard pattern)                                             | wizard-form-pattern.md         |
-| `awcms-mini-form-drafts`                               | Server-side draft persistence (resume lintas sesi/perangkat)                          | form-drafts/README.md          |
-| `awcms-mini-email`                                     | Kirim email transaksional (provider-neutral, template management, outbox)             | email/README.md                |
-| `awcms-mini-i18n`                                      | String UI `.po` gettext & konten multi-bahasa                                         | 14, 04, 19                     |
-| `awcms-mini-release`                                   | Rilis versi via Changesets (bump, CHANGELOG, tag)                                     | 09                             |
-| `awcms-mini-legacy-migration`                          | Migrasi data legacy aman (dry-run, backfill)                                          | 07, 06                         |
-| `awcms-mini-blog-content`                              | Kerjakan bagian mana pun epic blog_content (Issue #537-#543)                          | blog-content/README.md         |
-| `awcms-mini-tenant-domain-routing`                     | Kerjakan bagian mana pun epic online public routing & tenant domain (Issue #556-#567) | tenant-domain-routing/SKILL.md |
-| `awcms-mini-auth-online-hardening`                     | Kerjakan bagian mana pun epic full-online auth security hardening (Issue #587-#593)   | auth-online-hardening/SKILL.md |
-| `awcms-mini-visitor-analytics`                         | Kerjakan bagian mana pun epic visitor analytics (Issue #617-#624)                     | visitor-analytics/SKILL.md     |
+| Skill                                                  | Kapan dipakai                                                                               | Sumber docs                    |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------ |
+| `awcms-mini-implement-issue`                           | Orkestrator: kerjakan satu issue/sprint atomic end-to-end                                   | 06, 11, 12                     |
+| `awcms-mini-new-module`                                | Scaffold modul baru di `src/modules/`                                                       | 10, 11                         |
+| `awcms-mini-module-management`                         | Kelola/konsumsi sistem Module Management (registry, lifecycle, settings, health)            | module-management/README.md    |
+| `awcms-mini-new-migration`                             | Buat/ubah migration SQL (tabel, index, RLS)                                                 | 04, 10                         |
+| `awcms-mini-new-endpoint`                              | Tambah/ubah endpoint REST + OpenAPI                                                         | 05, 10                         |
+| `awcms-mini-new-event`                                 | Tambah/ubah domain event + AsyncAPI                                                         | 05                             |
+| `awcms-mini-idempotency`                               | Mutation high-risk anti double-submit                                                       | 10                             |
+| `awcms-mini-abac-guard`                                | Kontrol akses default-deny + RLS                                                            | 03, 10                         |
+| `awcms-mini-audit-log`                                 | Audit aksi high-risk + redaction                                                            | 03, 10                         |
+| `awcms-mini-observability`                             | Correlation ID otomatis, retensi/purge audit log, extension point log/audit                 | 10, 16, 20                     |
+| `awcms-mini-new-migration` + `awcms-mini-new-endpoint` | Soft delete/restore/purge resource deletable                                                | 04, 05, 10, 16                 |
+| `awcms-mini-sensitive-data`                            | Normalize/hash/mask identifier sensitif                                                     | 04                             |
+| `awcms-mini-sync-hmac`                                 | Sync push/pull bertanda HMAC + anti-replay                                                  | 08, 10                         |
+| `awcms-mini-security-review`                           | Review keamanan modul                                                                       | 12, 13                         |
+| `awcms-mini-codeql-triage`                             | Triase & perbaiki temuan CodeQL code scanning (termasuk katalog false-positive)             | 20                             |
+| `awcms-mini-pr-review`                                 | Review pull request terhadap DoD                                                            | 09, 10, 12                     |
+| `awcms-mini-testing`                                   | Tulis test berlapis (unit→security)                                                         | 07                             |
+| `awcms-mini-browser-test`                              | E2E browser sungguhan (Playwright + Bun) — puncak piramida testing                          | 07, browser-test/SKILL.md      |
+| `awcms-mini-production-preflight`                      | Preflight & go-live readiness                                                               | 07, 12                         |
+| `awcms-mini-deploy`                                    | Pilih & jalankan profil deployment (LAN-first vs registry/Coolify)                          | 18, deploy-coolify.md          |
+| `awcms-mini-ui-screen`                                 | Implementasi layar/komponen UI sesuai design system                                         | 14, 15                         |
+| `awcms-mini-wizard-form`                               | Form multi-step (reusable wizard pattern)                                                   | wizard-form-pattern.md         |
+| `awcms-mini-form-drafts`                               | Server-side draft persistence (resume lintas sesi/perangkat)                                | form-drafts/README.md          |
+| `awcms-mini-email`                                     | Kirim email transaksional (provider-neutral, template management, outbox)                   | email/README.md                |
+| `awcms-mini-i18n`                                      | String UI `.po` gettext & konten multi-bahasa                                               | 14, 04, 19                     |
+| `awcms-mini-release`                                   | Rilis versi via Changesets (bump, CHANGELOG, tag)                                           | 09                             |
+| `awcms-mini-legacy-migration`                          | Migrasi data legacy aman (dry-run, backfill)                                                | 07, 06                         |
+| `awcms-mini-blog-content`                              | Kerjakan bagian mana pun epic blog_content (Issue #537-#543)                                | blog-content/README.md         |
+| `awcms-mini-tenant-domain-routing`                     | Kerjakan bagian mana pun epic online public routing & tenant domain (Issue #556-#567)       | tenant-domain-routing/SKILL.md |
+| `awcms-mini-auth-online-hardening`                     | Kerjakan bagian mana pun epic full-online auth security hardening (Issue #587-#593)         | auth-online-hardening/SKILL.md |
+| `awcms-mini-visitor-analytics`                         | Kerjakan bagian mana pun epic visitor analytics (Issue #617-#624)                           | visitor-analytics/SKILL.md     |
+| `awcms-mini-news-portal`                               | Kerjakan bagian mana pun epic news_portal full-online R2-only media (Issue #631-#642, #649) | news-portal/SKILL.md           |
 
 ## Katalog peningkatan (improvement/hardening)
 
