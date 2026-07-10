@@ -143,6 +143,18 @@ menunggu #635):
     `_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY` ≠ `R2_BUCKET`/`R2_ACCESS_KEY_ID`/
     `R2_SECRET_ACCESS_KEY` (§2 penegakan nyata, gagal boot bila sama —
     bukan hanya dokumentasi).
+- **`bun run config:validate`** (lanjutan, Issue #635):
+  - `checkNewsMediaR2AllowedMimeTypesKnown` — allow-list MIME wajib
+    seluruhnya berada di `NEWS_MEDIA_R2_KNOWN_MIME_TYPES` (empat tipe
+    raster yang bisa dikenali `news-media-mime-sniffer.ts` PLUS
+    `image/svg+xml`) — entri di luar itu (`text/html`,
+    `application/octet-stream`, typo, dst.) tidak pernah bisa lolos
+    sniffing di `finalize` sehingga adalah misconfiguration, ditolak
+    sebagai **fail**, bukan sekadar warning.
+  - `checkNewsMediaR2PresignedTtlUpperBound` — `NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS`
+    tidak boleh melebihi `NEWS_MEDIA_R2_MAX_PRESIGNED_UPLOAD_TTL_SECONDS`
+    (3600 detik/1 jam) — presigned PUT URL bisa dipakai ulang selama TTL
+    berlaku (§8), jadi TTL yang terlalu panjang melemahkan mitigasi itu.
 - **`bun run security:readiness`** (`scripts/security-readiness.ts`):
   - `checkNewsPortalFullOnlineR2PresetReady` (**critical**) — menilai
     kombinasi penuh syarat aktivasi preset (`NEWS_PORTAL_ENABLED`,
@@ -152,9 +164,25 @@ menunggu #635):
   - `checkNewsMediaR2SvgNotAllowed` (**warning**) — `image/svg+xml` tidak
     ada di `NEWS_MEDIA_R2_ALLOWED_MIME_TYPES` kecuali operator eksplisit
     override.
+  - `checkNewsMediaR2PublicBaseUrlProductionSafe` (**critical**, Issue
+    #635) — saat `APP_ENV=production`, `NEWS_MEDIA_R2_PUBLIC_BASE_URL`
+    wajib custom domain nyata — menolak host `*.r2.dev` bawaan Cloudflare
+    (§11: tidak stabil untuk produksi, tanpa kontrol cache/branding) dan
+    host loopback (`localhost`/`127.0.0.1`). Non-production selalu
+    **pass** (didokumentasikan terpisah, tidak pernah melemahkan default
+    production).
+  - `checkNewsMediaR2NoStalePendingObjects` (**warning**, Issue #635) —
+    scan lintas-tenant (pola sama `checkSsoBreakGlassReady`, satu
+    transaksi per tenant dengan `SET LOCAL app.current_tenant_id`) atas
+    `awcms_mini_news_media_objects` mencari baris `pending_upload` yang
+    sudah lewat `NEWS_MEDIA_R2_PENDING_TTL_MINUTES` — tanda job
+    pembersihan `r2-backup-lifecycle.md` §2 belum berjalan/belum ada.
+    Butuh `DATABASE_URL` nyata (fail bila tidak tersedia/tidak bisa
+    connect); lihat
+    `tests/integration/security-readiness-news-media-r2.integration.test.ts`.
 - **`bun run production:preflight`** — tidak butuh tahap baru (sudah
   menjalankan `config:validate` dan `security:readiness` sebagai bagian
-  urutannya, doc 18); kedua check di atas otomatis ikut terpanggil.
+  urutannya, doc 18); seluruh check di atas otomatis ikut terpanggil.
 
 **Update #634**: endpoint upload nyata sudah ada
 (`POST /api/v1/media/news-images/upload-sessions`,
@@ -168,13 +196,19 @@ detail lengkap) — ini bukan lagi gap, karena penegakannya terjadi
 sinkron di jalur request `finalize`, bukan lewat readiness-check
 terpisah.
 
-**Masih terbuka untuk #635** (di luar cakupan #632/#633/#634): tidak ada
-`config:validate`/`security:readiness`/`production:preflight` check yang
-menyentuh tabel media registry itu sendiri (objek `pending`/`failed`
-basi, orphaned object detection — `r2-backup-lifecycle.md` §2) — itu
-tetap murni operasional/lifecycle-job scope, belum ada implementasinya.
-Implementor #635 **wajib** memperbarui bagian ini lagi begitu check
-readiness baru yang relevan ditulis.
+**Update #635 (selesai)**: keempat check baru di atas menutup seluruh
+acceptance criteria issue #635 yang masih relevan setelah #632-#634 —
+lihat `.claude/skills/awcms-mini-news-portal/SKILL.md` §635 untuk
+rekonsiliasi lengkap (nama var body issue vs `NEWS_MEDIA_R2_*` nyata,
+dan kenapa "local storage enabled" tidak diimplementasikan sebagai flag
+runtime). **Belum diimplementasikan** (di luar cakupan #635, butuh
+`blog_content`/#637-#640/#642/#649 selesai lebih dulu per
+`r2-backup-lifecycle.md` §4): job pembersihan objek `pending_upload`
+basi yang nyata (§2 — `checkNewsMediaR2NoStalePendingObjects` di atas
+hanya MELAPORKAN, tidak MENGHAPUS) dan deteksi objek `confirmed`
+`orphaned` (§4, butuh daftar titik referensi lengkap dari surface yang
+belum ada). Implementor issue yang menambah job tersebut **wajib**
+memperbarui bagian ini lagi.
 
 ## 8. Monitoring & audit
 

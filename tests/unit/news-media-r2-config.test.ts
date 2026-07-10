@@ -3,9 +3,13 @@ import { describe, expect, test } from "bun:test";
 import {
   allowsSvgMimeType,
   findMissingNewsMediaR2Vars,
+  findNewsMediaR2PublicBaseUrlProductionUnsafeReason,
   findNewsMediaR2SeparationViolations,
+  findUnknownNewsMediaR2MimeTypes,
   isNewsMediaR2Enabled,
+  isPresignedUploadTtlTooLong,
   NEWS_MEDIA_R2_DEFAULTS,
+  NEWS_MEDIA_R2_MAX_PRESIGNED_UPLOAD_TTL_SECONDS,
   NEWS_MEDIA_R2_REQUIRED_WHEN_ENABLED,
   resolveNewsMediaR2Config
 } from "../../src/modules/news-portal/domain/news-media-r2-config";
@@ -186,5 +190,154 @@ describe("allowsSvgMimeType", () => {
         NEWS_MEDIA_R2_ALLOWED_MIME_TYPES: "image/jpeg,image/svg+xml"
       } as NodeJS.ProcessEnv)
     ).toBe(true);
+  });
+});
+
+describe("findUnknownNewsMediaR2MimeTypes (Issue #635)", () => {
+  test("empty when disabled, regardless of the allow-list value", () => {
+    expect(
+      findUnknownNewsMediaR2MimeTypes({
+        NEWS_MEDIA_R2_ALLOWED_MIME_TYPES: "text/html"
+      } as NodeJS.ProcessEnv)
+    ).toEqual([]);
+  });
+
+  test("empty for the default allow-list", () => {
+    expect(
+      findUnknownNewsMediaR2MimeTypes({
+        NEWS_MEDIA_R2_ENABLED: "true"
+      } as NodeJS.ProcessEnv)
+    ).toEqual([]);
+  });
+
+  test("empty when the allow-list is deliberately overridden to include image/svg+xml (a known, if disallowed-by-default, type)", () => {
+    expect(
+      findUnknownNewsMediaR2MimeTypes({
+        NEWS_MEDIA_R2_ENABLED: "true",
+        NEWS_MEDIA_R2_ALLOWED_MIME_TYPES: "image/jpeg,image/svg+xml"
+      } as NodeJS.ProcessEnv)
+    ).toEqual([]);
+  });
+
+  test("flags entries the MIME sniffer could never recognize (misconfiguration, not just unsafe)", () => {
+    expect(
+      findUnknownNewsMediaR2MimeTypes({
+        NEWS_MEDIA_R2_ENABLED: "true",
+        NEWS_MEDIA_R2_ALLOWED_MIME_TYPES:
+          "image/jpeg,text/html,application/octet-stream"
+      } as NodeJS.ProcessEnv)
+    ).toEqual(["text/html", "application/octet-stream"]);
+  });
+});
+
+describe("isPresignedUploadTtlTooLong (Issue #635)", () => {
+  test("false when disabled, regardless of the TTL value", () => {
+    expect(
+      isPresignedUploadTtlTooLong({
+        NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS: "999999"
+      } as NodeJS.ProcessEnv)
+    ).toBe(false);
+  });
+
+  test("false for the default TTL", () => {
+    expect(
+      isPresignedUploadTtlTooLong({
+        NEWS_MEDIA_R2_ENABLED: "true"
+      } as NodeJS.ProcessEnv)
+    ).toBe(false);
+  });
+
+  test("false exactly at the maximum", () => {
+    expect(
+      isPresignedUploadTtlTooLong({
+        NEWS_MEDIA_R2_ENABLED: "true",
+        NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS: String(
+          NEWS_MEDIA_R2_MAX_PRESIGNED_UPLOAD_TTL_SECONDS
+        )
+      } as NodeJS.ProcessEnv)
+    ).toBe(false);
+  });
+
+  test("true just above the maximum", () => {
+    expect(
+      isPresignedUploadTtlTooLong({
+        NEWS_MEDIA_R2_ENABLED: "true",
+        NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS: String(
+          NEWS_MEDIA_R2_MAX_PRESIGNED_UPLOAD_TTL_SECONDS + 1
+        )
+      } as NodeJS.ProcessEnv)
+    ).toBe(true);
+  });
+});
+
+describe("findNewsMediaR2PublicBaseUrlProductionUnsafeReason (Issue #635)", () => {
+  test("null for a real custom domain", () => {
+    expect(
+      findNewsMediaR2PublicBaseUrlProductionUnsafeReason(
+        "https://media.example.com"
+      )
+    ).toBeNull();
+  });
+
+  test('"r2_dev_default_domain" for Cloudflare\'s default *.r2.dev host', () => {
+    expect(
+      findNewsMediaR2PublicBaseUrlProductionUnsafeReason(
+        "https://pub-abc123.r2.dev"
+      )
+    ).toBe("r2_dev_default_domain");
+  });
+
+  test('does not false-positive on a custom domain that merely contains "r2.dev" as a substring elsewhere', () => {
+    expect(
+      findNewsMediaR2PublicBaseUrlProductionUnsafeReason(
+        "https://media.example.com/r2.dev-archive"
+      )
+    ).toBeNull();
+  });
+
+  test('"loopback_host" for localhost', () => {
+    expect(
+      findNewsMediaR2PublicBaseUrlProductionUnsafeReason(
+        "http://localhost:3000"
+      )
+    ).toBe("loopback_host");
+  });
+
+  test('"loopback_host" for 127.0.0.1', () => {
+    expect(
+      findNewsMediaR2PublicBaseUrlProductionUnsafeReason("http://127.0.0.1")
+    ).toBe("loopback_host");
+  });
+
+  test('"loopback_host" for IPv6 ::1 (bracketed URL form)', () => {
+    expect(
+      findNewsMediaR2PublicBaseUrlProductionUnsafeReason("http://[::1]")
+    ).toBe("loopback_host");
+  });
+
+  test('"loopback_host" for 0.0.0.0', () => {
+    expect(
+      findNewsMediaR2PublicBaseUrlProductionUnsafeReason("http://0.0.0.0")
+    ).toBe("loopback_host");
+  });
+
+  test('"r2_dev_default_domain" for a trailing-dot FQDN variant of *.r2.dev (reviewer + security-auditor finding, PR #665 re-review — DNS treats "abc.r2.dev." identically to "abc.r2.dev", but a naive suffix regex would not)', () => {
+    expect(
+      findNewsMediaR2PublicBaseUrlProductionUnsafeReason(
+        "https://pub-abc123.r2.dev./x"
+      )
+    ).toBe("r2_dev_default_domain");
+  });
+
+  test('"loopback_host" for a trailing-dot variant of localhost', () => {
+    expect(
+      findNewsMediaR2PublicBaseUrlProductionUnsafeReason("http://localhost.")
+    ).toBe("loopback_host");
+  });
+
+  test('"unparseable_url" for a malformed value', () => {
+    expect(
+      findNewsMediaR2PublicBaseUrlProductionUnsafeReason("not-a-url")
+    ).toBe("unparseable_url");
   });
 });

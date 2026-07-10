@@ -40,7 +40,7 @@ status + pointer, bukan menduplikasi isinya.
 | #632  | Preset `news_portal_full_online_r2` (module descriptor/config gate)                                                          | **Selesai** — lihat §632 di bawah                    |
 | #633  | Tenant-scoped R2-only media object registry (schema + migration)                                                             | **Selesai** — lihat §633 di bawah                    |
 | #634  | Direct-to-R2 presigned upload flow (endpoint upload/confirm)                                                                 | **Selesai** — lihat §634 di bawah                    |
-| #635  | Config validation + readiness checks (`config:validate`/`security:readiness`/`production:preflight`) untuk R2 image delivery | Belum dikerjakan — lihat §635 di bawah               |
+| #635  | Config validation + readiness checks (`config:validate`/`security:readiness`/`production:preflight`) untuk R2 image delivery | **Selesai** — lihat §635 di bawah                    |
 | #636  | `blog_content` wajib referensi R2 media object untuk gambar berita saat mode aktif                                           | Belum dikerjakan — lihat §636 di bawah               |
 | #637  | Editorial homepage section composer `/news` dengan render R2-only                                                            | Belum dikerjakan — lihat §637 di bawah               |
 | #638  | Preset placement iklan news portal dengan validasi gambar R2-only                                                            | Belum dikerjakan — lihat §638 di bawah               |
@@ -747,7 +747,11 @@ merah/hijau.
 - Job pembersihan objek R2 `failed`/`orphaned`/`pending` kedaluwarsa —
   finalize hanya MENANDAI baris `failed` dan mengaudit, TIDAK
   menghapus objek R2 sungguhan (`r2-backup-lifecycle.md`'s lifecycle
-  job, kemungkinan besar #635, di luar cakupan issue ini).
+  job). **Update #635**: TERNYATA bukan scope #635 juga (judul issue itu
+  "readiness checks", bukan "cleanup job") — #635 hanya menambah
+  `checkNewsMediaR2NoStalePendingObjects` yang MELAPORKAN backlog
+  sebagai warning, tidak menghapus. Job penghapusan nyata masih belum
+  ada issue yang mengklaimnya — lihat §635 di bawah.
 - Endpoint `attach` nyata (permission `news_portal.media.attach` sudah
   di-declare, tapi belum ada route yang memanggilnya) — verifikasi
   `owner_resource_id` exist+tenant-match (temuan Medium security-auditor
@@ -757,15 +761,165 @@ merah/hijau.
   (dicatat di §633), tidak disentuh issue ini (tidak ada endpoint purge
   nyata yang dirilis di sini).
 
-## §635 — Readiness checks (belum dikerjakan)
+## §635 — R2 image delivery readiness checks (Selesai)
 
-Ringkasan scope: `config:validate`, `security:readiness`,
-`production:preflight` untuk R2 image delivery. Kontrak lengkap yang
-wajib dipenuhi: `r2-security-checklist.md` §7 (termasuk penegakan
-`NEWS_MEDIA_R2_BUCKET` ≠ `R2_BUCKET`, kredensial berbeda, SVG tidak di
-allow-list kecuali override eksplisit). Implementor **wajib**
-memperbarui `r2-security-checklist.md` §7 begitu check nyata ditulis
-(ganti "belum ada" jadi nama fungsi/test).
+### Rekonsiliasi — body issue #635 pakai nama var placeholder, BUKAN `NEWS_MEDIA_R2_*` nyata
+
+Body issue #635 menulis `R2_NEWS_IMAGE_*`, `NEWS_IMAGE_STORAGE_POLICY`,
+`FILE_STORAGE_DRIVER`, `LOCAL_FILE_UPLOADS_ENABLED`,
+`LOCAL_MEDIA_STORAGE_ENABLED` — TIDAK satu pun dari var ini ada di kode
+(sama pola rekonsiliasi #632/#633/#634 di atas). Var nyata tetap
+`NEWS_MEDIA_R2_*` (§4 architecture doc, ditegakkan sejak #632). Tidak
+ada `LOCAL_FILE_UPLOADS_ENABLED`/`LOCAL_MEDIA_STORAGE_ENABLED`/
+`FILE_STORAGE_DRIVER` karena mode ini secara struktural tidak punya
+jalur upload lokal untuk didisable (Keputusan kunci #2, `Tidak ada flag
+"local fallback" sungguhan` di §632 di atas — masih berlaku sama persis
+di sini, TIDAK diimplementasikan ulang sebagai flag baru).
+
+### Scope nyata yang dikerjakan — sebagian besar acceptance criteria issue SUDAH terpenuhi #632, sisanya di sini
+
+`r2-security-checklist.md` §7 (ditulis saat #631/#632) sudah menandai
+sebagian besar acceptance criteria issue #635 selesai lebih awal lewat
+#632 (`checkNewsPortalProfileConfig`, `checkNewsMediaR2Config`,
+`checkNewsMediaR2SeparationFromSyncR2`,
+`checkNewsPortalFullOnlineR2PresetReady`,
+`checkNewsMediaR2SvgNotAllowed`) DAN menandai eksplisit apa yang
+"masih terbuka untuk #635". Issue ini menambah EMPAT check baru yang
+menutup sisanya:
+
+- **`checkNewsMediaR2AllowedMimeTypesKnown`** (`config:validate`,
+  **fail**) — `NEWS_MEDIA_R2_ALLOWED_MIME_TYPES` wajib seluruhnya berada
+  di `NEWS_MEDIA_R2_KNOWN_MIME_TYPES` (domain
+  `news-media-r2-config.ts`: empat tipe raster yang bisa disniff
+  `news-media-mime-sniffer.ts` PLUS `image/svg+xml` — svg tetap "known"
+  karena punya jalur override yang sah lewat
+  `checkNewsMediaR2SvgNotAllowed`, bukan "unknown/unsafe"). Entri lain
+  (`text/html`, `application/octet-stream`, typo) tidak pernah bisa
+  lolos sniffing di `finalize` — ini murni misconfiguration, jadi
+  **fail** hard, bukan warning.
+- **`checkNewsMediaR2PresignedTtlUpperBound`** (`config:validate`,
+  **fail**) — `NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS` tidak boleh
+  melebihi `NEWS_MEDIA_R2_MAX_PRESIGNED_UPLOAD_TTL_SECONDS` (konstanta
+  baru, 3600 detik/1 jam) — presigned PUT URL bisa dipakai ulang selama
+  TTL berlaku (architecture doc §8), jadi TTL berlebihan melemahkan
+  mitigasi itu. Angka 3600 dipilih sebagai batas atas yang longgar tapi
+  tetap bermakna — bukan dari acceptance criteria issue (yang tidak
+  memberi angka), didokumentasikan sebagai keputusan implementor.
+- **`checkNewsMediaR2PublicBaseUrlProductionSafe`** (`security:readiness`,
+  **critical**) — PERTAMA kalinya keluarga check ini (config:validate/
+  security:readiness untuk news-media R2) bercabang pada `APP_ENV`. Saat
+  `APP_ENV=production` DAN `NEWS_MEDIA_R2_ENABLED=true`: menolak host
+  `*.r2.dev` bawaan Cloudflare (regex `\.r2\.dev$` pada hostname, bukan
+  substring match — hindari false-positive terhadap domain kustom yang
+  kebetulan mengandung string itu di path) dan host loopback
+  (`localhost`/`127.0.0.1`). Non-production SELALU **pass** — issue
+  eksplisit minta "non-production/dev mode boleh didokumentasikan
+  terpisah tanpa melemahkan default production", jadi non-production
+  tidak pernah gagal di sini walau URL-nya `r2.dev`. Ini check
+  **critical** PERTAMA yang membaca `APP_ENV` di keluarga
+  `security-readiness.ts` — precedent untuk implementor lanjutan yang
+  butuh perilaku berbeda production vs non-production.
+- **`checkNewsMediaR2NoStalePendingObjects`** (`security:readiness`,
+  **warning**, ASYNC + butuh `DATABASE_URL`) — inilah yang
+  `r2-security-checklist.md` §7 versi lama tandai eksplisit "masih
+  terbuka untuk #635": check yang menyentuh TABEL REGISTRY itu sendiri,
+  bukan cuma shape env var. Scan lintas SEMUA tenant aktif untuk baris
+  `pending_upload` yang sudah lewat `NEWS_MEDIA_R2_PENDING_TTL_MINUTES`
+  — pola IDENTIK `checkSsoBreakGlassReady` (Issue #593): query
+  `awcms_mini_tenants` dulu, lalu satu `sql.begin` per tenant dengan
+  `SET LOCAL app.current_tenant_id`, supaya check ini tetap benar lewat
+  RLS terlepas dari privilege `DATABASE_URL` yang dipakai
+  `security:readiness`. **Severity `warning`, bukan `critical`** —
+  backlog objek `pending_upload` basi adalah gap housekeeping (job
+  pembersihan §2 memang belum ada sama sekali di kode ini — lihat
+  paragraf di bawah), bukan bukti eksploitasi aktif.
+
+**PENTING — apa yang TIDAK dikerjakan issue ini (sengaja, per
+`r2-backup-lifecycle.md`)**:
+
+1. **Job pembersihan objek `pending_upload` basi yang NYATA** (§2 —
+   menghapus objek R2 + baris metadata). `checkNewsMediaR2NoStalePendingObjects`
+   di atas hanya MELAPORKAN backlog, TIDAK menghapus apa pun. Job nyata
+   masih murni scope operasional/lifecycle yang belum
+   diimplementasikan siapa pun sampai sekarang (§2 sendiri menulis
+   "kemungkinan bagian dari #633/#634" — ternyata tidak, dan #635 juga
+   bukan tempatnya karena judul issue ini adalah "readiness checks",
+   bukan "cleanup job").
+2. **Deteksi objek `confirmed` `orphaned`** (§4) — SENGAJA tidak
+   diimplementasikan di issue ini karena bergantung pada daftar
+   LENGKAP titik referensi (`blog_content` featured image, block
+   `gallery`/`video_news`, `ad.imageUrl`, SEO share image) yang baru ada
+   setelah #636-#640/#642/#649 selesai (§4 eksplisit: "daftar titik
+   referensi ini wajib diperbarui setiap kali issue lanjutan menambah
+   surface baru"). Mengimplementasikan deteksi orphan SEKARANG — sebelum
+   `blog_content` bahkan mewajibkan referensi R2 (#636) — akan salah
+   menandai SEMUA objek `confirmed`/`verified` sebagai orphan (belum ada
+   satu pun surface yang benar-benar mereferensikannya), persis
+   kesalahan "jangan bangun ke depan sebelum dependency siap" yang
+   epic ini berulang kali diperingatkan hindari.
+
+Implementor issue yang akhirnya menambah salah satu dari dua hal di atas
+**wajib** memperbarui `r2-security-checklist.md` §7 dan bagian ini lagi.
+
+### PR #665 re-review — hostname bypass di check `checkNewsMediaR2PublicBaseUrlProductionSafe`
+
+Reviewer DAN security-auditor independen sama-sama menemukan
+`findNewsMediaR2PublicBaseUrlProductionUnsafeReason` (dan helper
+`isLoopbackHost`/`isR2DevHost`) bisa dilewati:
+
+1. **Trailing-dot FQDN** — `https://pub-abc123.r2.dev./x` punya
+   `hostname` literal `"pub-abc123.r2.dev."` (titik root DNS
+   dipertahankan `new URL(...).hostname`), tidak cocok regex
+   `/\.r2\.dev$/i` yang tidak menormalisasi titik akhir — padahal DNS
+   memperlakukan `abc.r2.dev.` PERSIS sama dengan `abc.r2.dev`. Sama
+   untuk `http://localhost.`.
+2. **IPv6/`0.0.0.0` loopback tidak tercakup** (reviewer) —
+   `new URL("http://[::1]/").hostname` mengembalikan `"[::1]"`, dan
+   `new URL("http://0.0.0.0/").hostname` mengembalikan `"0.0.0.0"` —
+   keduanya tidak cocok exact-string check yang tadinya cuma
+   `"localhost"`/`"127.0.0.1"`.
+
+**Fix**: `stripTrailingDot` (helper baru) menormalisasi titik akhir
+SEBELUM kedua check berjalan; `isLoopbackHost` diperluas mencakup
+`0.0.0.0`, `::1`, `[::1]` (case-insensitive). Encouragingly, obfuscation
+IP lain (oktal/desimal/hex — `0177.0.0.1`/`2130706433`/`0x7f000001`) DAN
+homograph Unicode pada dot (`．`/`。`) sudah otomatis dinetralkan oleh
+normalisasi `URL`/IDNA bawaan Bun SEBELUM regex/exact-match berjalan
+(diverifikasi kedua agent secara independen) — bukan sesuatu yang perlu
+ditangani manual di sini. Regression test untuk kedua bypass di atas
+ditambahkan ke `tests/unit/news-media-r2-config.test.ts`. Implementor
+lanjutan yang menyentuh fungsi ini lagi **wajib** mempertahankan
+`stripTrailingDot` dan keempat variant loopback ini — jangan
+menyederhanakan balik ke exact-string match polos.
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `src/modules/news-portal/domain/news-media-r2-config.ts`: tambah
+  `NEWS_MEDIA_R2_KNOWN_MIME_TYPES`,
+  `NEWS_MEDIA_R2_MAX_PRESIGNED_UPLOAD_TTL_SECONDS`,
+  `findUnknownNewsMediaR2MimeTypes`, `isPresignedUploadTtlTooLong`,
+  `findNewsMediaR2PublicBaseUrlProductionUnsafeReason`.
+- `scripts/validate-env.ts`: `checkNewsMediaR2AllowedMimeTypesKnown`,
+  `checkNewsMediaR2PresignedTtlUpperBound`, wired into
+  `runEnvValidation`.
+- `scripts/security-readiness.ts`:
+  `checkNewsMediaR2PublicBaseUrlProductionSafe`,
+  `checkNewsMediaR2NoStalePendingObjects`, wired into
+  `runSecurityReadinessChecks`.
+- `.env.example`, `18_configuration_env_reference.md` §News portal,
+  `full-online-r2-architecture.md` §4, `r2-security-checklist.md` §7 —
+  semua diperbarui untuk keempat check baru.
+- Test: `tests/unit/news-media-r2-config.test.ts` (tambah describe
+  block untuk tiga helper baru), `tests/validate-env.test.ts` (tambah
+  describe block untuk dua check config:validate baru),
+  `tests/security-readiness.test.ts` (tambah describe block untuk
+  `checkNewsMediaR2PublicBaseUrlProductionSafe`; `checkNewsMediaR2NoStalePendingObjects`
+  SENGAJA tidak di-unit-test di sini — pola sama
+  `checkSsoBreakGlassReady`, lihat komentar header file test itu),
+  `tests/integration/security-readiness-news-media-r2.integration.test.ts`
+  (baru — DB nyata untuk `checkNewsMediaR2NoStalePendingObjects`, pola
+  sama `security-readiness-break-glass.integration.test.ts`).
+- Changeset: `.changeset/news-media-r2-readiness-checks-issue-635.md`.
 
 ## §636 — `blog_content` wajib referensi R2 media (belum dikerjakan)
 

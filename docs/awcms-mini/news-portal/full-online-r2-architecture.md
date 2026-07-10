@@ -104,15 +104,20 @@ mengasumsikan akun yang sama.
 
 ## 4. Konvensi environment variable
 
-**Status: diimplementasikan oleh Issue #632.** Var di bawah sudah ada di
-`.env.example` dan `18_configuration_env_reference.md` §News portal,
-ditegakkan `scripts/validate-env.ts` (`checkNewsPortalProfileConfig`,
-`checkNewsMediaR2Config`, `checkNewsMediaR2SeparationFromSyncR2`) dan
+**Status: diimplementasikan oleh Issue #632, diperluas Issue #635.** Var
+di bawah sudah ada di `.env.example` dan
+`18_configuration_env_reference.md` §News portal, ditegakkan
+`scripts/validate-env.ts` (`checkNewsPortalProfileConfig`,
+`checkNewsMediaR2Config`, `checkNewsMediaR2SeparationFromSyncR2`,
+`checkNewsMediaR2AllowedMimeTypesKnown`,
+`checkNewsMediaR2PresignedTtlUpperBound` — dua terakhir Issue #635) dan
 `scripts/security-readiness.ts` (`checkNewsPortalFullOnlineR2PresetReady`,
-`checkNewsMediaR2SvgNotAllowed`), dan diresolusi oleh
-`src/modules/news-portal/domain/news-media-r2-config.ts`
+`checkNewsMediaR2SvgNotAllowed`,
+`checkNewsMediaR2PublicBaseUrlProductionSafe`,
+`checkNewsMediaR2NoStalePendingObjects` — dua terakhir Issue #635), dan
+diresolusi oleh `src/modules/news-portal/domain/news-media-r2-config.ts`
 (`resolveNewsMediaR2Config`). Nama di sini tetap **konvensi wajib**
-persis apa adanya untuk implementor lanjutan (#633/#634) — jangan
+persis apa adanya untuk implementor lanjutan (#633/#634/#635) — jangan
 menciptakan skema penamaan lain atau menimpakan arti baru ke `R2_*` yang
 sudah dipakai `sync-storage`.
 
@@ -126,13 +131,13 @@ Prefix **`NEWS_MEDIA_R2_`** — sengaja berbeda dari `R2_*` generik
 | `NEWS_MEDIA_R2_ACCESS_KEY_ID`                | bila enabled | –                                           | Token least-privilege terpisah dari `R2_ACCESS_KEY_ID` — **wajib** berbeda (§2, §13).                                                                                                                                                                                |
 | `NEWS_MEDIA_R2_SECRET_ACCESS_KEY`            | bila enabled | –                                           | Idem.                                                                                                                                                                                                                                                                |
 | `NEWS_MEDIA_R2_BUCKET`                       | bila enabled | –                                           | **Wajib** berbeda dari `R2_BUCKET` (§2) — divalidasi tidak sama saat `config:validate`/`security:readiness` (diimplementasikan #632, bukan #635 — #635 masih menambah check readiness lain di luar separation ini, mis. MIME sniffing/checksum runtime enforcement). |
-| `NEWS_MEDIA_R2_PUBLIC_BASE_URL`              | bila enabled | –                                           | Custom domain publik (§11), mis. `https://media.contoh-berita.id`. Harus HTTPS absolut.                                                                                                                                                                              |
-| `NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS` | –            | `300`                                       | TTL presigned PUT (§8). Bukan TTL baca — baca selalu publik lewat custom domain.                                                                                                                                                                                     |
+| `NEWS_MEDIA_R2_PUBLIC_BASE_URL`              | bila enabled | –                                           | Custom domain publik (§11), mis. `https://media.contoh-berita.id`. Harus HTTPS absolut. Saat `APP_ENV=production`, WAJIB custom domain nyata — bukan `*.r2.dev`/loopback (Issue #635, `checkNewsMediaR2PublicBaseUrlProductionSafe`).                                |
+| `NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS` | –            | `300`                                       | TTL presigned PUT (§8). Bukan TTL baca — baca selalu publik lewat custom domain. Maksimum `3600` detik (Issue #635, `NEWS_MEDIA_R2_MAX_PRESIGNED_UPLOAD_TTL_SECONDS`).                                                                                               |
 | `NEWS_MEDIA_R2_MAX_UPLOAD_BYTES`             | –            | `10485760` (10 MiB)                         | Batas ukuran per file (§9).                                                                                                                                                                                                                                          |
-| `NEWS_MEDIA_R2_ALLOWED_MIME_TYPES`           | –            | `image/jpeg,image/png,image/webp,image/gif` | Allow-list MIME (§9) — **tidak termasuk** `image/svg+xml` (§9 alasan).                                                                                                                                                                                               |
-| `NEWS_MEDIA_R2_PENDING_TTL_MINUTES`          | –            | `60`                                        | Batas usia objek `pending` sebelum dibersihkan lifecycle job (`r2-backup-lifecycle.md`).                                                                                                                                                                             |
+| `NEWS_MEDIA_R2_ALLOWED_MIME_TYPES`           | –            | `image/jpeg,image/png,image/webp,image/gif` | Allow-list MIME (§9) — **tidak termasuk** `image/svg+xml` default (§9 alasan). Entri di luar `NEWS_MEDIA_R2_KNOWN_MIME_TYPES` (kelima tipe di atas) ditolak `config:validate` (Issue #635).                                                                          |
+| `NEWS_MEDIA_R2_PENDING_TTL_MINUTES`          | –            | `60`                                        | Batas usia objek `pending_upload` sebelum dibersihkan lifecycle job (`r2-backup-lifecycle.md` §2 — job itu sendiri belum ada; `checkNewsMediaR2NoStalePendingObjects`, Issue #635, hanya melaporkan warning bila TTL terlampaui).                                    |
 
-Implementor (#632/#633/#634) wajib memakai nama ini persis — jangan
+Implementor (#632/#633/#634/#635) wajib memakai nama ini persis — jangan
 memilih nama lain "yang mirip" tanpa memperbarui tabel ini.
 
 ## 5. Model data konseptual — media registry (Issue #633, **diimplementasikan**)
