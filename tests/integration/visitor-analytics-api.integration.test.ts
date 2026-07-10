@@ -543,4 +543,51 @@ suite("visitor analytics API (Issue #621)", () => {
     `;
     expect(auditRowsAfterReplay).toHaveLength(1);
   });
+
+  // Post-review regression test (PR #629): a session's last_seen_at can
+  // trail its newest event's occurred_at by up to the collector's ~30s
+  // write-throttle window (application/collector.ts's
+  // SESSION_UPDATE_THROTTLE_MS), so a session older than the event cutoff
+  // can still have a not-yet-deleted event referencing it. This must
+  // never abort the purge with a foreign key violation — the session is
+  // simply left in place for a later purge run instead.
+  test("retention purge: a session with a newer straddling event is left in place, never a foreign-key error", async () => {
+    const b = await bootstrap();
+    const eventRetentionDays = 90; // VISITOR_ANALYTICS_DEFAULTS.eventRetentionDays
+    const straddleSession = await seedSession(b.tenantId, {
+      // Session itself is past the event-retention cutoff...
+      lastSeenAt: new Date(
+        Date.now() - (eventRetentionDays + 1) * 24 * 60 * 60 * 1000
+      )
+    });
+    await seedEvent(b.tenantId, straddleSession, {
+      // ...but it still has one event INSIDE the retention window (the
+      // collector's write-throttle can leave last_seen_at stale like
+      // this in the real system).
+      occurredAt: new Date(Date.now() - 1000)
+    });
+
+    const idempotencyKey = crypto.randomUUID();
+    const result = await invoke<{
+      data: { sessionsDeleted: number; eventsDeleted: number };
+    }>(postPurge, {
+      method: "POST",
+      path: "/api/v1/analytics/retention/purge",
+      headers: {
+        ...authHeaders(b.tenantId, b.token),
+        "idempotency-key": idempotencyKey
+      }
+    });
+
+    // No FK violation / 500 — the purge completes successfully.
+    expect(result.status).toBe(200);
+    expect(result.body.data.eventsDeleted).toBe(0);
+    expect(result.body.data.sessionsDeleted).toBe(0);
+
+    const admin = getAdminSql();
+    const remainingSessions = await admin`
+      SELECT count(*)::int AS count FROM awcms_mini_visitor_sessions WHERE tenant_id = ${b.tenantId}
+    `;
+    expect((remainingSessions as { count: number }[])[0]!.count).toBe(1);
+  });
 });

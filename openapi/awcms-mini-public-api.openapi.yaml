@@ -10271,20 +10271,20 @@ components:
         `visitor_analytics.raw_detail.read`.
       required:
         - id
-        - visitor_key_hash
-        - identity_id
-        - is_authenticated
+        - visitorKeyHash
+        - identityId
+        - isAuthenticated
         - area
-        - current_path
+        - currentPath
         - firstSeenAt
         - lastSeenAt
-        - browser_name
-        - browser_version_major
-        - os_name
-        - device_type
-        - is_human
-        - bot_reason
-        - country_code
+        - browserName
+        - browserVersionMajor
+        - osName
+        - deviceType
+        - isHuman
+        - botReason
+        - countryCode
         - region
         - city
         - timezone
@@ -10297,18 +10297,18 @@ components:
         id:
           type: string
           format: uuid
-        visitor_key_hash:
+        visitorKeyHash:
           type: string
-        identity_id:
+        identityId:
           type: string
           format: uuid
           nullable: true
-        is_authenticated:
+        isAuthenticated:
           type: boolean
         area:
           type: string
           enum: [admin, public, api, auth, setup, unknown]
-        current_path:
+        currentPath:
           type: string
           nullable: true
         firstSeenAt:
@@ -10317,25 +10317,25 @@ components:
         lastSeenAt:
           type: string
           format: date-time
-        browser_name:
+        browserName:
           type: string
           nullable: true
-        browser_version_major:
+        browserVersionMajor:
           type: string
           nullable: true
-        os_name:
+        osName:
           type: string
           nullable: true
-        device_type:
+        deviceType:
           type: string
           enum: [desktop, mobile, tablet, bot, unknown]
           nullable: true
-        is_human:
+        isHuman:
           type: boolean
-        bot_reason:
+        botReason:
           type: string
           nullable: true
-        country_code:
+        countryCode:
           type: string
           nullable: true
         region:
@@ -10380,20 +10380,20 @@ components:
         `visitor_analytics.raw_detail.read`.
       required:
         - id
-        - visitor_session_id
-        - identity_id
+        - visitorSessionId
+        - identityId
         - occurredAt
         - method
-        - status_code
+        - statusCode
         - area
-        - route_pattern
-        - path_sanitized
-        - referrer_domain
-        - duration_ms
-        - user_agent_parsed
+        - routePattern
+        - pathSanitized
+        - referrerDomain
+        - durationMs
+        - userAgentParsed
         - geo
-        - human_status
-        - correlation_id
+        - humanStatus
+        - correlationId
         - ipHash
         - userAgentHash
       additionalProperties: false
@@ -10401,11 +10401,11 @@ components:
         id:
           type: string
           format: uuid
-        visitor_session_id:
+        visitorSessionId:
           type: string
           format: uuid
           nullable: true
-        identity_id:
+        identityId:
           type: string
           format: uuid
           nullable: true
@@ -10414,31 +10414,31 @@ components:
           format: date-time
         method:
           type: string
-        status_code:
+        statusCode:
           type: integer
           nullable: true
         area:
           type: string
           enum: [admin, public, api, auth, setup, unknown]
-        route_pattern:
+        routePattern:
           type: string
           nullable: true
-        path_sanitized:
+        pathSanitized:
           type: string
-        referrer_domain:
+        referrerDomain:
           type: string
           nullable: true
-        duration_ms:
+        durationMs:
           type: integer
           nullable: true
-        user_agent_parsed:
+        userAgentParsed:
           type: object
         geo:
           type: object
-        human_status:
+        humanStatus:
           type: string
           enum: [human, bot, unknown]
-        correlation_id:
+        correlationId:
           type: string
           nullable: true
         ipHash:

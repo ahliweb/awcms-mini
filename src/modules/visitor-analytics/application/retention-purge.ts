@@ -15,14 +15,24 @@
  *      browser aggregate fields remain useful long after raw detail
  *      should be gone).
  *   3. `awcms_mini_visitor_sessions` rows older than `eventRetentionDays`
- *      — hard deleted. Safe to run *after* step 1: a session's
- *      `last_seen_at` is always >= every one of its own events'
- *      `occurred_at` (the collector bumps `last_seen_at` at the same time
- *      it inserts the triggering event, `application/collector.ts`), so
- *      once a session is older than the event cutoff, every event that
- *      referenced it (via `visit_events.visitor_session_id`) has already
- *      been deleted in step 1 — the FK (no `ON DELETE` clause, i.e.
- *      `RESTRICT`) is satisfied.
+ *      — hard deleted, but only ones with no remaining `visit_events` row
+ *      (`NOT EXISTS`, post-review fix). A session's `last_seen_at` is
+ *      *usually* >= its newest event's `occurred_at`, but not always: the
+ *      collector's own write-throttle
+ *      (`application/collector.ts`'s `SESSION_UPDATE_THROTTLE_MS`, 30s)
+ *      deliberately skips the `last_seen_at` UPDATE on rapid repeat
+ *      requests from the same visitor while still inserting a fresh
+ *      event every time — so `last_seen_at` can trail the session's
+ *      newest event by up to ~30s. Relying on "session older than cutoff
+ *      implies its events are already gone" (the original version of
+ *      this comment) is therefore not a true invariant: a purge call
+ *      landing inside that ~30s straddle window could hit
+ *      `awcms_mini_visit_events.visitor_session_id`'s FK (no `ON DELETE`
+ *      clause, i.e. `RESTRICT`) and abort the whole transaction. The
+ *      `NOT EXISTS` guard below makes the delete self-defending instead
+ *      of depending on that timing assumption — a session with any
+ *      remaining event (regardless of why) is simply left for a later
+ *      purge run, never a hard failure.
  *   4. `awcms_mini_visitor_daily_rollups` older than
  *      `rollupRetentionDays` — hard deleted (defensive; this table is
  *      always empty until Issue #624's rollup job exists, but the purge
@@ -69,8 +79,12 @@ export async function purgeVisitorAnalyticsData(
   `;
 
   const deletedSessions = await tx`
-    DELETE FROM awcms_mini_visitor_sessions
-    WHERE tenant_id = ${tenantId} AND last_seen_at < ${eventCutoff}
+    DELETE FROM awcms_mini_visitor_sessions s
+    WHERE s.tenant_id = ${tenantId} AND s.last_seen_at < ${eventCutoff}
+      AND NOT EXISTS (
+        SELECT 1 FROM awcms_mini_visit_events e
+        WHERE e.visitor_session_id = s.id
+      )
     RETURNING id
   `;
 

@@ -75,6 +75,11 @@ async function topPathCounts(
   return rows.map((row) => ({ name: row.name, count: Number(row.count) }));
 }
 
+/** The only two `jsonColumn` values `topJsonFieldCounts` may ever interpolate into SQL text. */
+const ALLOWED_JSON_COLUMNS = new Set(["user_agent_parsed", "geo"]);
+/** The only three `jsonKey` values `topJsonFieldCounts` may ever interpolate into SQL text. */
+const ALLOWED_JSON_KEYS = new Set(["browserName", "deviceType", "countryCode"]);
+
 async function topJsonFieldCounts(
   tx: Bun.SQL,
   tenantId: string,
@@ -90,6 +95,21 @@ async function topJsonFieldCounts(
   // table-name list it built itself, never from request input).
   // `tenantId`/`start`/`limit` remain real bound parameters via
   // `tx.unsafe`'s `$1`/`$2`/`$3` placeholders — never string-concatenated.
+  //
+  // Defense in depth (post-review hardening, PR #629): the TS union type
+  // above already prevents a *typed* caller from passing anything else,
+  // but a runtime assertion means a future caller that bypasses the type
+  // (a loose cast, a JS caller, a refactor that widens the parameter
+  // type) fails loudly instead of silently building unsafe SQL text.
+  if (
+    !ALLOWED_JSON_COLUMNS.has(jsonColumn) ||
+    !ALLOWED_JSON_KEYS.has(jsonKey)
+  ) {
+    throw new Error(
+      `topJsonFieldCounts: unexpected jsonColumn/jsonKey ("${jsonColumn}"/"${jsonKey}") — refusing to build SQL from an unvalidated identifier.`
+    );
+  }
+
   const rows = (await tx.unsafe(
     `SELECT ${jsonColumn}->>'${jsonKey}' AS name, count(*) AS count
      FROM awcms_mini_visit_events

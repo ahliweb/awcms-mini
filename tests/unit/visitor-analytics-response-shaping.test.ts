@@ -59,7 +59,7 @@ describe("shapeVisitorSession", () => {
     expect(dto.ipAddress).toBeNull();
     expect(dto.userAgentHash).toBeNull();
     expect(dto.loginIdentifierSnapshot).toBeNull();
-    expect(dto.browser_name).toBe("Chrome");
+    expect(dto.browserName).toBe("Chrome");
     expect(dto.area).toBe("admin");
   });
 
@@ -83,8 +83,8 @@ describe("shapeVisitEvent", () => {
     const dto = shapeVisitEvent(EVENT_ROW, false);
     expect(dto.ipHash).toBeNull();
     expect(dto.userAgentHash).toBeNull();
-    expect(dto.path_sanitized).toBe("/admin/dashboard");
-    expect(dto.human_status).toBe("human");
+    expect(dto.pathSanitized).toBe("/admin/dashboard");
+    expect(dto.humanStatus).toBe("human");
   });
 
   test("includes raw-detail fields when canSeeRawDetail is true", () => {
@@ -96,7 +96,7 @@ describe("shapeVisitEvent", () => {
   test("never omits non-raw parsed/aggregate fields regardless of raw-detail access", () => {
     const withoutRaw = shapeVisitEvent(EVENT_ROW, false);
     const withRaw = shapeVisitEvent(EVENT_ROW, true);
-    expect(withoutRaw.user_agent_parsed).toEqual(withRaw.user_agent_parsed);
+    expect(withoutRaw.userAgentParsed).toEqual(withRaw.userAgentParsed);
     expect(withoutRaw.area).toBe(withRaw.area);
   });
 });
