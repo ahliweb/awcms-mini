@@ -55,12 +55,18 @@
 -- ## `owner_resource_type`/`owner_resource_id` — generic polymorphic
 -- reference, no FK
 --
--- Deliberately a loose `(text, uuid)` pair with no foreign key, matching the
--- existing polymorphic-reference idiom already used by
+-- Deliberately a loose `(text, uuid)` pair with no foreign key, following
+-- the same PATTERN (not identical column types) as the existing
+-- polymorphic-reference idiom used by
 -- `awcms_mini_audit_events.resource_type`/`resource_id` (migration 011) and
 -- `awcms_mini_workflow_instances.resource_type`/`resource_id` (migration
--- 012) — NOT a hard FK to `awcms_mini_blog_posts` or any other specific
--- table. This lets one registry serve every consumer the objective lists
+-- 012, both `resource_id text`) — NOT a hard FK to `awcms_mini_blog_posts`
+-- or any other specific table. `owner_resource_id` here is `uuid` (every
+-- resource type this registry serves today already has a uuid primary
+-- key) and `owner_resource_type` is CHECK-constrained to a fixed enum
+-- (neither of which the two precedent tables do) — a stricter variant of
+-- the same loose-FK idiom, not a byte-for-byte match. This lets one
+-- registry serve every consumer the objective lists
 -- (blog post/page, homepage section, gallery item, ad, video thumbnail, SEO
 -- image) without a table-specific FK per consumer, and without this
 -- migration depending on `blog_content`'s schema at all (`news_portal`'s own
@@ -129,7 +135,7 @@ CREATE TABLE IF NOT EXISTS awcms_mini_news_media_objects (
   -- accepted. References this row's own `tenant_id` column, so the prefix
   -- is verified per-row, not just a fixed literal.
   CONSTRAINT awcms_mini_news_media_objects_object_key_format_check
-    CHECK (object_key ~ ('^news-media/' || tenant_id::text || '/[0-9]{4}/[0-9]{2}/[0-9a-fA-F-]{36}\.[a-z0-9]+$')),
+    CHECK (object_key ~ ('^news-media/' || tenant_id::text || '/[0-9]{4}/[0-9]{2}/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\.[a-z0-9]+$')),
   CONSTRAINT awcms_mini_news_media_objects_status_check
     CHECK (status IN (
       'pending_upload', 'uploaded', 'verified', 'attached',

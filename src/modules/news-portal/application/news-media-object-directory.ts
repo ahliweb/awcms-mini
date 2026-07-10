@@ -215,20 +215,37 @@ export async function createPendingNewsMediaObject(
   return created;
 }
 
+export type FetchNewsMediaObjectOptions = {
+  includeDeleted?: boolean;
+};
+
 export async function fetchNewsMediaObjectById(
   tx: Bun.SQL,
   tenantId: string,
-  id: string
+  id: string,
+  options: FetchNewsMediaObjectOptions = {}
 ): Promise<NewsMediaObjectView | null> {
-  const rows = (await tx`
-    SELECT id, tenant_id, module_key, owner_resource_type, owner_resource_id,
-      storage_driver, bucket_name, object_key, original_filename, public_url,
-      mime_type, size_bytes, checksum_sha256, width, height, alt_text, caption,
-      status, created_by_tenant_user_id, created_at, updated_at,
-      deleted_at, deleted_by, delete_reason, restored_at, restored_by
-    FROM awcms_mini_news_media_objects
-    WHERE tenant_id = ${tenantId} AND id = ${id}
-  `) as NewsMediaObjectRow[];
+  const rows = (
+    options.includeDeleted
+      ? await tx`
+        SELECT id, tenant_id, module_key, owner_resource_type, owner_resource_id,
+          storage_driver, bucket_name, object_key, original_filename, public_url,
+          mime_type, size_bytes, checksum_sha256, width, height, alt_text, caption,
+          status, created_by_tenant_user_id, created_at, updated_at,
+          deleted_at, deleted_by, delete_reason, restored_at, restored_by
+        FROM awcms_mini_news_media_objects
+        WHERE tenant_id = ${tenantId} AND id = ${id}
+      `
+      : await tx`
+        SELECT id, tenant_id, module_key, owner_resource_type, owner_resource_id,
+          storage_driver, bucket_name, object_key, original_filename, public_url,
+          mime_type, size_bytes, checksum_sha256, width, height, alt_text, caption,
+          status, created_by_tenant_user_id, created_at, updated_at,
+          deleted_at, deleted_by, delete_reason, restored_at, restored_by
+        FROM awcms_mini_news_media_objects
+        WHERE tenant_id = ${tenantId} AND id = ${id} AND deleted_at IS NULL
+      `
+  ) as NewsMediaObjectRow[];
 
   return rows[0] ? toView(rows[0]) : null;
 }

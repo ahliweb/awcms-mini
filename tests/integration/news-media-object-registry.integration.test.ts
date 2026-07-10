@@ -301,8 +301,17 @@ suite("news media object directory — lifecycle + audit trail", () => {
     );
     expect(deletedOk).toBe(true);
 
-    const afterDelete = await withTenant(sql, TENANT_A, (tx) =>
+    // Default read hides soft-deleted rows (fail-closed convention, same
+    // as blog-content's fetchBlogPostById).
+    const hiddenAfterDelete = await withTenant(sql, TENANT_A, (tx) =>
       fetchNewsMediaObjectById(tx, TENANT_A, created.id)
+    );
+    expect(hiddenAfterDelete).toBeNull();
+
+    const afterDelete = await withTenant(sql, TENANT_A, (tx) =>
+      fetchNewsMediaObjectById(tx, TENANT_A, created.id, {
+        includeDeleted: true
+      })
     );
     expect(afterDelete?.deletedAt).not.toBeNull();
     // status is untouched by soft delete (orthogonal, same as blog_posts).

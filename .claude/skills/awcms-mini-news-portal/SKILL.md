@@ -422,20 +422,45 @@ pernah menulis ulang `status`.
 
 ### `owner_resource_type`/`owner_resource_id` — polymorphic reference generik, TANPA FK ke `blog_content`
 
-Sengaja pasangan `(text, uuid)` longgar tanpa foreign key, meniru idiom
-yang SUDAH ADA di `awcms_mini_audit_events.resource_type`/`resource_id`
-(migration 011) dan `awcms_mini_workflow_instances.resource_type`/
-`resource_id` (migration 012) — BUKAN FK ke `awcms_mini_blog_posts` atau
-tabel spesifik lain. Ini memungkinkan satu registry melayani semua
-konsumen di objective (blog post/page, homepage section, gallery item,
-ad, video thumbnail, SEO image) tanpa FK per-konsumen, dan tanpa
-migration ini bergantung sama sekali pada skema `blog_content` — cocok
-dengan `news_portal`'s `module.ts` yang sengaja TIDAK punya hard
-dependency ke `blog_content` (lihat §"Kenapa modul baru... dependencies
-HANYA..." di atas). Kedua kolom `NULL` sampai baris mencapai
-`status='attached'` (ditegakkan `CHECK` di DB DAN oleh
+Sengaja pasangan `(text, uuid)` longgar tanpa foreign key, mengikuti POLA
+yang sama (BUKAN tipe kolom identik — koreksi post-review PR #652) dengan
+idiom yang SUDAH ADA di `awcms_mini_audit_events.resource_type`/
+`resource_id` (migration 011, `resource_id text`) dan
+`awcms_mini_workflow_instances.resource_type`/`resource_id` (migration
+012, `resource_id text` juga) — BUKAN FK ke `awcms_mini_blog_posts` atau
+tabel spesifik lain. Tabel ini memakai `owner_resource_id uuid` (bukan
+`text`) plus `CHECK` enum untuk `owner_resource_type` — varian yang lebih
+ketat dari idiom yang sama, bukan replika persis. Ini memungkinkan satu
+registry melayani semua konsumen di objective (blog post/page, homepage
+section, gallery item, ad, video thumbnail, SEO image) tanpa FK
+per-konsumen, dan tanpa migration ini bergantung sama sekali pada skema
+`blog_content` — cocok dengan `news_portal`'s `module.ts` yang sengaja
+TIDAK punya hard dependency ke `blog_content` (lihat §"Kenapa modul
+baru... dependencies HANYA..." di atas). Kedua kolom `NULL` sampai baris
+mencapai `status='attached'` (ditegakkan `CHECK` di DB DAN oleh
 `attachNewsMediaObject` yang hanya menerima transisi dari
 `status='verified'`).
+
+**WAJIB untuk #634 (temuan security-auditor PR #652, Medium, laten —
+tidak ada endpoint yang bisa dieksploitasi hari ini, tapi mengikat
+sebelum #634 merilis endpoint attach/purge nyata):**
+
+1. `attachNewsMediaObject` **tidak pernah** memverifikasi `owner_resource_id`
+   benar-benar ada DAN milik tenant yang sama — karena tidak ada FK, fungsi
+   ini akan selalu sukses meng-attach ke UUID apa pun yang diberikan
+   pemanggil, termasuk UUID resource milik tenant lain atau yang tidak
+   pernah ada sama sekali. Sebelum endpoint attach di #634 dirilis, WAJIB
+   menambah query verifikasi (`SELECT 1 FROM <tabel pemilik> WHERE id = $1
+AND tenant_id = $2`) di dalam transaksi tenant-scoped yang sama SEBELUM
+   memanggil `attachNewsMediaObject`, plus test integrasi cross-tenant
+   attach yang eksplisit menegaskan penolakan.
+2. Tidak ada mekanisme retention/legal-hold pada `purgeNewsMediaObject`/
+   `restoreNewsMediaObject` sama sekali (gap sistemik, sama seperti
+   `blog-content`'s `purgeBlogPost` — bukan regresi baru PR ini). Karena
+   media R2 punya IR khusus (`r2-incident-response.md`) yang mengandalkan
+   retensi/audit forensik, #634 (atau issue retention terpisah) WAJIB
+   menentukan mekanisme yang memblokir purge pada objek yang masih dalam
+   periode retensi wajib sebelum endpoint purge nyata dirilis.
 
 ### Object key & public URL — server-generated, divalidasi 3 lapis
 
