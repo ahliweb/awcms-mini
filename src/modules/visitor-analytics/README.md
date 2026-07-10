@@ -51,7 +51,12 @@ and referrer extraction (see §Domain helpers below). **Helpers only — not
 wired into any request path yet.** Nothing calls these until the
 middleware collector (#620).
 
-Issue #620: middleware telemetry collection (admin + public routes).
+Issue #620 (`application/collector.ts`, `domain/request-area.ts`,
+`domain/client-ip.ts`, `src/middleware.ts`): wires the domain helpers into
+the real request lifecycle — collects visitor presence/events for
+`/admin/*` and public page requests, fail-open on any error (see
+§Collector below). **First issue that actually writes to
+`awcms_mini_visitor_sessions`/`awcms_mini_visit_events`.**
 
 Issue #621: analytics API + OpenAPI contract at `/api/v1/analytics`.
 
@@ -190,9 +195,80 @@ tablet, tablet-via-Android-without-Mobile-token, 13 bot/crawler
 signatures, unknown/gibberish), `-human-classifier.test.ts`,
 `-path-sanitizer.test.ts`, `-referrer.test.ts`.
 
+## Collector (Issue #620, `application/collector.ts` + `src/middleware.ts`)
+
+The only writer of `awcms_mini_visitor_sessions`/`awcms_mini_visit_events`.
+`src/middleware.ts` calls `collectVisitorTelemetry` after `next()` resolves
+(on both its pre-admin and `/admin/*` branches), so the response status
+code is already known.
+
+- **Gate**: `shouldCollectRequest` (pure, unit-tested) — `false` unless
+  `VISITOR_ANALYTICS_ENABLED=true`, the path is trackable
+  (`isTrackablePath`), and the per-area flag is on
+  (`VISITOR_ANALYTICS_COLLECT_ADMIN` for `/admin/*`,
+  `VISITOR_ANALYTICS_COLLECT_API` for anything under `/api`,
+  `VISITOR_ANALYTICS_COLLECT_PUBLIC` for everything else, including
+  `/login` — a page render, not an API call).
+- **Area classification**: `domain/request-area.ts`'s `determineArea` —
+  `admin`/`setup`/`auth`/`api`/`public`, matching migration 039's `area`
+  CHECK constraint exactly. `setup`/`auth` are sub-classifications of API
+  space (`/api/v1/setup/*`, `/api/v1/auth/*`), both still gated by
+  `COLLECT_API`.
+- **Tenant resolution**: `/admin/*` uses `ssrContext.tenantId` (already
+  resolved by the existing auth guard). Every other area uses
+  `resolvePublicTenantFromRequest` (Issue #559) — best-effort; a request
+  whose tenant can't be resolved (unknown host, no public routing
+  configured) is simply not collected, never a hard failure.
+- **Visitor cookie**: `awcms_mini_visitor_key`, `httpOnly`/`sameSite=lax`/
+  2-year `maxAge`, set only when a request is actually collected (not on
+  every request). Value resolved via `resolveVisitorKey` (#619) — reuses
+  a valid existing cookie, mints a new one otherwise.
+- **Client IP**: `domain/client-ip.ts`'s `resolveAnalyticsClientIp` — a
+  deliberately more conservative sibling of `lib/security/rate-limit.ts`'s
+  `resolveClientIp`; only trusts `CF-Connecting-IP`/`X-Forwarded-For` when
+  `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`/`_TRUST_PROXY` are explicitly on,
+  else uses `clientAddress` (direct connection) only. Returns `null`
+  (never a fake placeholder) when nothing is resolvable.
+- **Session find-or-create**: looked up by
+  `(tenant_id, visitor_key_hash, area)` (migration 040's new lookup
+  index). A session found within `VISITOR_ANALYTICS_ONLINE_WINDOW_SECONDS`
+  of `last_seen_at` is reused — its `last_seen_at`/browser/device fields
+  are refreshed, but only if the last write was itself ≥30s ago (write
+  throttle, issue's own "Recommended write-throttle behavior"); a session
+  older than the online window starts a new row instead. The event insert
+  itself is never throttled — always one row per collected request.
+  `login_identifier_snapshot` is deliberately always `null` (nullable
+  display convenience, not populated in this issue — no functional
+  requirement forces it, and it would need an extra identities lookup on
+  every new session).
+- **Fail-open**: `collectVisitorTelemetry` never throws — every failure
+  is caught and logged as `log("warning", "visitor_analytics.collector.failed", {correlationId, tenantId, moduleKey, error})`,
+  never surfaced to the request. Uses `withTenant`'s
+  `workClass: "background_sync"` (lowest-priority DB work class, doc 16)
+  so a saturated pool serves real interactive/reporting work first.
+- **FK safety** (Issue #618 security-audit follow-up, closed here):
+  `identityId` is always the caller's own server-derived authenticated
+  identity (`ssrContext.identityId` for `/admin/*`, `null` for every
+  public request) — never a client-supplied value. `visitor_session_id`
+  is always resolved from a row this function itself just found/created
+  inside its own tenant-scoped transaction — never from a raw
+  client-supplied UUID. See the skill's §Schema entry for the full
+  cross-tenant-existence-oracle reasoning this closes.
+
+Test: `tests/unit/visitor-analytics-collector.test.ts` (`shouldCollectRequest`,
+pure), `tests/unit/visitor-analytics-request-area.test.ts`,
+`tests/unit/visitor-analytics-client-ip.test.ts`,
+`tests/integration/visitor-analytics-collector.integration.test.ts`
+(session/event creation, sensitive-param stripping, bot classification,
+raw-IP opt-in, session throttle/reuse, session-boundary rollover after the
+online window, non-trackable-path no-op, fail-open on an invalid
+tenantId, authenticated admin session). Also manually smoke-tested against
+a real dev server + Postgres (setup wizard → login → `/admin` → real
+session/event rows with correct `identity_id`/`area`; `/`→ public session;
+static asset and default-off `/api/v1/health` → no rows written).
+
 ## Not yet available
 
-- Any data collection — Issue #620 (middleware).
 - REST API (`/api/v1/analytics/*`) — Issue #621.
 - Admin dashboard UI (`/admin/analytics`) — Issue #622.
 - Geolocation enrichment — Issue #623.

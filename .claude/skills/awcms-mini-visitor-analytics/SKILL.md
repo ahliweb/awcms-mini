@@ -29,7 +29,7 @@ spesifik** yang menjembatani beberapa issue sekaligus.
 | #617  | Module descriptor, permission catalog, config gate             | **Selesai** — lihat §Config di bawah         |
 | #618  | Visitor session/event/rollup schema + RLS                      | **Selesai** — lihat §Schema di bawah         |
 | #619  | Visitor identity, user-agent, human/bot classification helpers | **Selesai** — lihat §Domain helpers di bawah |
-| #620  | Middleware telemetry collection (admin + public)               | Belum dikerjakan                             |
+| #620  | Middleware telemetry collection (admin + public)               | **Selesai** — lihat §Collector di bawah      |
 | #621  | Analytics API + OpenAPI contract (`/api/v1/analytics`)         | Belum dikerjakan                             |
 | #623  | Trusted online geolocation enrichment                          | Belum dikerjakan                             |
 | #622  | Admin visitor analytics dashboard UI (`/admin/analytics`)      | Belum dikerjakan                             |
@@ -161,8 +161,8 @@ token/cookie/authorization/request_body).
 Docs: `docs/awcms-mini/04_erd_data_dictionary.md` §Visitor Analytics
 (ERD ringkas) dan §Retention awal (dua baris retensi baru).
 
-**Temuan security-auditor Issue #618 (Medium, binding untuk Issue #620,
-bukan blocker PR #618 sendiri — schema-only, belum ada writer):** FK biasa
+**Temuan security-auditor Issue #618 (Medium, DITUTUP di Issue #620 — lihat
+§Collector di bawah):** FK biasa
 (`identity_id uuid REFERENCES awcms_mini_identities (id)`,
 `visitor_session_id uuid REFERENCES awcms_mini_visitor_sessions (id)`)
 **tidak dilindungi RLS** — constraint-check FK PostgreSQL berjalan dengan
@@ -184,9 +184,9 @@ sebelum sempat menyentuh FK.
 
 ### Domain helpers (Issue #619, `src/modules/visitor-analytics/domain/`)
 
-Lima file, semua pure/hampir-pure, **belum dipanggil siapa pun** —
-middleware (#620) adalah caller pertama. Jangan re-derive logic ini di
-#620; import langsung.
+Lima file, semua pure/hampir-pure. `application/collector.ts` (Issue
+#620) adalah caller pertama — jangan re-derive logic ini di issue
+lanjutan mana pun; import langsung.
 
 - `visitor-key.ts` — `generateVisitorKey`/`isValidVisitorKey`/
   `resolveVisitorKey` (cookie anonim, tolak nilai forged/non-UUID) dan
@@ -215,13 +215,69 @@ middleware (#620) adalah caller pertama. Jangan re-derive logic ini di
   access_token/refresh_token/reset_token/mfaChallengeToken, case-
   insensitive) dan `isTrackablePath` (exclude static asset, `/_astro/*`,
   favicon, endpoint health, path spec OpenAPI/AsyncAPI dari hitungan
-  pageview).
+  pageview). **Fail SAFE, bukan fail open** (post-review fix PR #627):
+  input yang gagal di-parse `URL()` membuang seluruh query string
+  (`rawPath.split("?")[0]`), bukan echo raw input — versi awal echo raw
+  input, yang bisa membocorkan query param sensitif yang justru gagal
+  di-parse (mis. IPv6 literal rusak).
 - `referrer.ts` — `extractReferrerDomain` (hostname saja, tidak pernah
   path/query/fragment, `null` untuk scheme non-http(s)).
 
 Test: `tests/unit/visitor-analytics-{visitor-key,user-agent,human-classifier,path-sanitizer,referrer}.test.ts`
 — `user-agent.test.ts` mencakup 20+ contoh UA nyata (desktop/mobile/
 tablet/13 signature bot/unknown).
+
+### Collector (Issue #620, `application/collector.ts` + `src/middleware.ts`)
+
+Satu-satunya writer `awcms_mini_visitor_sessions`/`awcms_mini_visit_events`.
+`src/middleware.ts` memanggilnya setelah `next()` resolve (di kedua
+cabang pre-admin dan `/admin/*`), jadi `response.status` sudah diketahui.
+
+- **Gate**: `shouldCollectRequest` (pure, unit-tested) — cek
+  `config.enabled` → `isTrackablePath` → flag per-area
+  (`COLLECT_ADMIN`/`COLLECT_API`/`COLLECT_PUBLIC`). `/login` diklasifikasi
+  `public` (page render), bukan `auth` — `auth`/`setup` khusus untuk
+  `/api/v1/auth/*`/`/api/v1/setup/*`, sama-sama digerbangi `COLLECT_API`
+  (`domain/request-area.ts`'s `determineArea`).
+- **Resolusi tenant**: `/admin/*` pakai `ssrContext.tenantId` yang sudah
+  ada (redirect guard sudah jalan lebih dulu). Area lain pakai
+  `resolvePublicTenantFromRequest` (#559) — best-effort, tenant tidak
+  resolve = tidak dikoleksi, bukan hard failure.
+- **Cookie visitor**: `awcms_mini_visitor_key`, `httpOnly`+`sameSite=lax`+
+  maxAge 2 tahun, di-set hanya saat request benar-benar dikoleksi.
+- **Session find-or-create**: lookup `(tenant_id, visitor_key_hash,
+area)` (index baru migration 040). Dalam window
+  `VISITOR_ANALYTICS_ONLINE_WINDOW_SECONDS` → reuse row, tapi UPDATE
+  hanya jika tulisan terakhir ≥30 detik lalu (write-throttle). Di luar
+  window → session baru. Event **tidak pernah** di-throttle — selalu satu
+  baris per request yang dikoleksi. `login_identifier_snapshot` sengaja
+  selalu `null` (deferred, bukan regresi — lihat README modul).
+- **Fail-open**: `collectVisitorTelemetry` tidak pernah throw — semua
+  error ditangkap, dicatat `log("warning", "visitor_analytics.collector.failed", ...)`
+  dengan `correlationId`, tidak pernah membocorkan data sensitif.
+  `withTenant` dipanggil dengan `workClass: "background_sync"` (prioritas
+  DB terendah, doc 16).
+- **FK-oracle DITUTUP** (temuan security-auditor #618 di atas):
+  `identityId` selalu dari `ssrContext.identityId` (server-derived,
+  hanya ada setelah redirect guard `/admin/*` lolos) atau `null` untuk
+  publik — tidak pernah dari input client. `visitor_session_id` selalu
+  dari row yang baru saja ditemukan/dibuat fungsi ini sendiri di dalam
+  transaksi tenant-scoped-nya sendiri — tidak pernah dari UUID mentah
+  client.
+- **Client IP**: `domain/client-ip.ts`'s `resolveAnalyticsClientIp` —
+  saudara `lib/security/rate-limit.ts`'s `resolveClientIp` yang lebih
+  konservatif; hanya percaya `CF-Connecting-IP`/`X-Forwarded-For` saat
+  `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`/`_TRUST_PROXY` eksplisit `true`.
+
+Test: `tests/unit/visitor-analytics-collector.test.ts` (`shouldCollectRequest`),
+`tests/unit/visitor-analytics-request-area.test.ts`,
+`tests/unit/visitor-analytics-client-ip.test.ts`,
+`tests/integration/visitor-analytics-collector.integration.test.ts` (9
+test: create, sanitize, bot classify, raw-IP opt-in, throttle+reuse,
+session rollover, non-trackable no-op, fail-open invalid tenant,
+authenticated admin). Juga smoke-test manual lewat dev server + Postgres
+nyata (setup wizard → login → `/admin` → row session/event benar; `/` →
+session publik; asset statis dan `/api/v1/health` default-off → nihil).
 
 ## Prinsip yang wajib dipertahankan di setiap issue lanjutan
 
