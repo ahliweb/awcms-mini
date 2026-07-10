@@ -128,6 +128,16 @@ tags:
       also gate `GET /blog/{tenantCode}/feed.xml` and
       `.../sitemap-blog.xml` (Issue #540) — disabled looks identical to an
       unknown tenant (404), no distinguishing signal leaked.
+  - name: Visitor Analytics
+    description: >-
+      Tenant-scoped visitor analytics API (epic: visitor analytics
+      #617-#624, Issue #621) — realtime presence, range-bounded summary/
+      pages/devices/locations/security aggregates, keyset-paginated
+      sessions/events, settings, and on-demand retention purge. Raw
+      detail (IP address, user-agent hash, login identifier snapshot) on
+      sessions/events is omitted unless the caller holds the separate
+      `visitor_analytics.raw_detail.read` permission, independent of
+      `sessions.read`/`events.read`.
 paths:
   /api/v1/sync/push:
     post:
@@ -7365,6 +7375,430 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/analytics/realtime:
+    get:
+      tags:
+        - Visitor Analytics
+      summary: Online-now presence counts
+      operationId: analyticsRealtime
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Presence counts within the configured online window.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AnalyticsRealtimeStats"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/analytics/summary:
+    get:
+      tags:
+        - Visitor Analytics
+      summary: Range-bounded visitor/pageview summary with top paths/browsers/devices/countries
+      operationId: analyticsSummary
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/AnalyticsRange"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Summary for the requested range.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AnalyticsSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/analytics/pages:
+    get:
+      tags:
+        - Visitor Analytics
+      summary: Top pages by human pageviews within a range
+      operationId: analyticsPages
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/AnalyticsRange"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Top pages for the requested range.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AnalyticsPagesResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/analytics/devices:
+    get:
+      tags:
+        - Visitor Analytics
+      summary: Browser and device-type breakdown within a range
+      operationId: analyticsDevices
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/AnalyticsRange"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Browser/device breakdown for the requested range.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AnalyticsDevicesResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/analytics/locations:
+    get:
+      tags:
+        - Visitor Analytics
+      summary: Country breakdown within a range
+      description: >-
+        Always empty until Issue #623 (geolocation enrichment) populates
+        `visit_events.geo` — not an error, just no data yet.
+      operationId: analyticsLocations
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/AnalyticsRange"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Country breakdown for the requested range.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AnalyticsLocationsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/analytics/security:
+    get:
+      tags:
+        - Visitor Analytics
+      summary: Bot/crawler traffic breakdown within a range
+      operationId: analyticsSecurity
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/AnalyticsRange"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Bot traffic breakdown for the requested range.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AnalyticsSecurityView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/analytics/sessions:
+    get:
+      tags:
+        - Visitor Analytics
+      summary: List visitor sessions (keyset-paginated, most recently active first)
+      description: >-
+        Raw detail (`ipHash`, `ipAddress`, `userAgentHash`,
+        `loginIdentifierSnapshot`) is `null` unless the caller also holds
+        `visitor_analytics.raw_detail.read`, independent of
+        `sessions.read`.
+      operationId: analyticsSessionsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Visitor sessions (limit 50), most recently active first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/VisitorSessionListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/analytics/events:
+    get:
+      tags:
+        - Visitor Analytics
+      summary: List page-view/API visit events (keyset-paginated, newest first)
+      description: >-
+        Raw detail (`ipHash`, `userAgentHash`) is `null` unless the caller
+        also holds `visitor_analytics.raw_detail.read`, independent of
+        `events.read`.
+      operationId: analyticsEventsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Visit events (limit 50), newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/VisitEventListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/analytics/settings:
+    get:
+      tags:
+        - Visitor Analytics
+      summary: Read effective visitor analytics module settings for this tenant
+      description: >-
+        Thin wrapper around Module Management's generic per-tenant
+        settings storage (Issue #516), gated by
+        `visitor_analytics.settings.read` instead of the generic
+        endpoint's `module_management.settings.read`.
+      operationId: analyticsSettingsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Effective settings (defaults merged with this tenant's override).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleSettingsView"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Visitor Analytics
+      summary: Update visitor analytics module settings for this tenant
+      description: >-
+        Shallow JSON-merge patch. Rejects any secret-shaped key or value
+        anywhere in the body regardless of the field's own name (`400
+        SETTINGS_SENSITIVE_KEY_REJECTED` /
+        `SETTINGS_SECRET_SHAPED_VALUE_REJECTED`) — real provider secrets
+        belong in environment variables, never tenant settings. Audited.
+      operationId: analyticsSettingsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: >-
+                Non-secret key-value pairs, shallow-merged into the
+                tenant's existing settings override.
+      responses:
+        "200":
+          description: Settings updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleSettingsView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/analytics/retention/purge:
+    post:
+      tags:
+        - Visitor Analytics
+      summary: Purge visitor analytics data past its configured retention window
+      description: >-
+        Destructive, high-risk mutation — requires `Idempotency-Key` and
+        is recorded as a `critical` audit event. Uses Issue #617's
+        `VISITOR_ANALYTICS_EVENT_RETENTION_DAYS`/`_RAW_DETAIL_RETENTION_DAYS`/
+        `_ROLLUP_RETENTION_DAYS` config as the cutoffs — no request body.
+      operationId: analyticsRetentionPurge
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Purge result (also returned unchanged on an idempotent replay).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AnalyticsRetentionPurgeResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: IDEMPOTENCY_CONFLICT — this Idempotency-Key was already used with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
 x-awcms-mini-soft-delete-pattern:
   delete:
     method: DELETE
@@ -7463,6 +7897,21 @@ components:
       description: >-
         Opaque keyset pagination cursor from a previous page's `nextCursor`.
         Omit for the first page.
+    AnalyticsRange:
+      name: range
+      in: query
+      required: false
+      schema:
+        type: string
+        enum:
+          - 24h
+          - 7d
+          - 30d
+          - 12m
+        default: 7d
+      description: >-
+        Aggregate window. An unrecognized value is a `400 VALIDATION_ERROR`,
+        never silently defaulted.
   responses:
     BadRequest:
       description: Validation or request error.
@@ -9666,6 +10115,369 @@ components:
           type: string
           format: date-time
           nullable: true
+    AnalyticsRealtimeStats:
+      type: object
+      required:
+        - onlineHumanCount
+        - onlineAdminCount
+        - onlinePublicCount
+        - onlineApiCount
+        - onlineWindowSeconds
+        - lastUpdatedAt
+      additionalProperties: false
+      properties:
+        onlineHumanCount:
+          type: integer
+        onlineAdminCount:
+          type: integer
+        onlinePublicCount:
+          type: integer
+        onlineApiCount:
+          type: integer
+        onlineWindowSeconds:
+          type: integer
+        lastUpdatedAt:
+          type: string
+          format: date-time
+    AnalyticsNamedCount:
+      type: object
+      required:
+        - name
+        - count
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        count:
+          type: integer
+    AnalyticsSummary:
+      type: object
+      required:
+        - range
+        - humanUniqueVisitors
+        - humanPageviews
+        - botPageviews
+        - adminUniqueUsers
+        - publicUniqueVisitors
+        - topPaths
+        - topBrowsers
+        - topDevices
+        - topCountries
+      additionalProperties: false
+      properties:
+        range:
+          type: string
+          enum: [24h, 7d, 30d, 12m]
+        humanUniqueVisitors:
+          type: integer
+        humanPageviews:
+          type: integer
+        botPageviews:
+          type: integer
+        adminUniqueUsers:
+          type: integer
+        publicUniqueVisitors:
+          type: integer
+        topPaths:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalyticsNamedCount"
+        topBrowsers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalyticsNamedCount"
+        topDevices:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalyticsNamedCount"
+        topCountries:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalyticsNamedCount"
+    AnalyticsPagesResponse:
+      type: object
+      required:
+        - range
+        - pages
+      additionalProperties: false
+      properties:
+        range:
+          type: string
+          enum: [24h, 7d, 30d, 12m]
+        pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalyticsNamedCount"
+    AnalyticsDevicesResponse:
+      type: object
+      required:
+        - range
+        - browsers
+        - devices
+      additionalProperties: false
+      properties:
+        range:
+          type: string
+          enum: [24h, 7d, 30d, 12m]
+        browsers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalyticsNamedCount"
+        devices:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalyticsNamedCount"
+    AnalyticsLocationsResponse:
+      type: object
+      required:
+        - range
+        - countries
+      additionalProperties: false
+      properties:
+        range:
+          type: string
+          enum: [24h, 7d, 30d, 12m]
+        countries:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalyticsNamedCount"
+    AnalyticsSecurityView:
+      type: object
+      required:
+        - range
+        - botPageviews
+        - topBotReasons
+        - botPageviewsByArea
+      additionalProperties: false
+      properties:
+        range:
+          type: string
+          enum: [24h, 7d, 30d, 12m]
+        botPageviews:
+          type: integer
+        topBotReasons:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalyticsNamedCount"
+        botPageviewsByArea:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalyticsNamedCount"
+    VisitorSessionItem:
+      type: object
+      description: >-
+        `ipHash`, `ipAddress`, `userAgentHash`, and
+        `loginIdentifierSnapshot` are `null` unless the caller holds
+        `visitor_analytics.raw_detail.read`.
+      required:
+        - id
+        - visitorKeyHash
+        - identityId
+        - isAuthenticated
+        - area
+        - currentPath
+        - firstSeenAt
+        - lastSeenAt
+        - browserName
+        - browserVersionMajor
+        - osName
+        - deviceType
+        - isHuman
+        - botReason
+        - countryCode
+        - region
+        - city
+        - timezone
+        - loginIdentifierSnapshot
+        - ipHash
+        - ipAddress
+        - userAgentHash
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        visitorKeyHash:
+          type: string
+        identityId:
+          type: string
+          format: uuid
+          nullable: true
+        isAuthenticated:
+          type: boolean
+        area:
+          type: string
+          enum: [admin, public, api, auth, setup, unknown]
+        currentPath:
+          type: string
+          nullable: true
+        firstSeenAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+        browserName:
+          type: string
+          nullable: true
+        browserVersionMajor:
+          type: string
+          nullable: true
+        osName:
+          type: string
+          nullable: true
+        deviceType:
+          type: string
+          enum: [desktop, mobile, tablet, bot, unknown]
+          nullable: true
+        isHuman:
+          type: boolean
+        botReason:
+          type: string
+          nullable: true
+        countryCode:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        timezone:
+          type: string
+          nullable: true
+        loginIdentifierSnapshot:
+          type: string
+          nullable: true
+        ipHash:
+          type: string
+          nullable: true
+        ipAddress:
+          type: string
+          nullable: true
+        userAgentHash:
+          type: string
+          nullable: true
+    VisitorSessionListResponse:
+      type: object
+      required:
+        - sessions
+        - nextCursor
+      additionalProperties: false
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/VisitorSessionItem"
+        nextCursor:
+          type: string
+          nullable: true
+    VisitEventItem:
+      type: object
+      description: >-
+        `ipHash`/`userAgentHash` are `null` unless the caller holds
+        `visitor_analytics.raw_detail.read`.
+      required:
+        - id
+        - visitorSessionId
+        - identityId
+        - occurredAt
+        - method
+        - statusCode
+        - area
+        - routePattern
+        - pathSanitized
+        - referrerDomain
+        - durationMs
+        - userAgentParsed
+        - geo
+        - humanStatus
+        - correlationId
+        - ipHash
+        - userAgentHash
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        visitorSessionId:
+          type: string
+          format: uuid
+          nullable: true
+        identityId:
+          type: string
+          format: uuid
+          nullable: true
+        occurredAt:
+          type: string
+          format: date-time
+        method:
+          type: string
+        statusCode:
+          type: integer
+          nullable: true
+        area:
+          type: string
+          enum: [admin, public, api, auth, setup, unknown]
+        routePattern:
+          type: string
+          nullable: true
+        pathSanitized:
+          type: string
+        referrerDomain:
+          type: string
+          nullable: true
+        durationMs:
+          type: integer
+          nullable: true
+        userAgentParsed:
+          type: object
+        geo:
+          type: object
+        humanStatus:
+          type: string
+          enum: [human, bot, unknown]
+        correlationId:
+          type: string
+          nullable: true
+        ipHash:
+          type: string
+          nullable: true
+        userAgentHash:
+          type: string
+          nullable: true
+    VisitEventListResponse:
+      type: object
+      required:
+        - events
+        - nextCursor
+      additionalProperties: false
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/VisitEventItem"
+        nextCursor:
+          type: string
+          nullable: true
+    AnalyticsRetentionPurgeResult:
+      type: object
+      required:
+        - eventsDeleted
+        - sessionsRawDetailCleared
+        - sessionsDeleted
+        - rollupsDeleted
+      additionalProperties: false
+      properties:
+        eventsDeleted:
+          type: integer
+        sessionsRawDetailCleared:
+          type: integer
+        sessionsDeleted:
+          type: integer
+        rollupsDeleted:
+          type: integer
     TenantDomainItem:
       type: object
       description: >-

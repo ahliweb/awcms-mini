@@ -30,7 +30,7 @@ spesifik** yang menjembatani beberapa issue sekaligus.
 | #618  | Visitor session/event/rollup schema + RLS                      | **Selesai** — lihat §Schema di bawah         |
 | #619  | Visitor identity, user-agent, human/bot classification helpers | **Selesai** — lihat §Domain helpers di bawah |
 | #620  | Middleware telemetry collection (admin + public)               | **Selesai** — lihat §Collector di bawah      |
-| #621  | Analytics API + OpenAPI contract (`/api/v1/analytics`)         | Belum dikerjakan                             |
+| #621  | Analytics API + OpenAPI contract (`/api/v1/analytics`)         | **Selesai** — lihat §API di bawah            |
 | #623  | Trusted online geolocation enrichment                          | Belum dikerjakan                             |
 | #622  | Admin visitor analytics dashboard UI (`/admin/analytics`)      | Belum dikerjakan                             |
 | #624  | Rollup job, retention purge job, readiness checks, docs pass   | Belum dikerjakan                             |
@@ -278,6 +278,46 @@ session rollover, non-trackable no-op, fail-open invalid tenant,
 authenticated admin). Juga smoke-test manual lewat dev server + Postgres
 nyata (setup wizard → login → `/admin` → row session/event benar; `/` →
 session publik; asset statis dan `/api/v1/health` default-off → nihil).
+
+### API (Issue #621, `src/pages/api/v1/analytics/*`)
+
+11 endpoint. Semua wajib bearer session + tenant context + `authorizeInTransaction`
+(ABAC default-deny) — deny selalu `403 ACCESS_DENIED`, tidak pernah data
+analytics kosong/nol diam-diam.
+
+- `GET /realtime` (`realtime.read`), `GET /summary|pages|devices|locations|security`
+  (`dashboard.read`, `range=24h|7d|30d|12m` divalidasi ketat →
+  `400 VALIDATION_ERROR` untuk nilai lain).
+- `GET /sessions` (`sessions.read`), `GET /events` (`events.read`) — keyset
+  pagination (limit 50), field raw detail (`ipHash`/`ipAddress`/
+  `userAgentHash`/`loginIdentifierSnapshot`) `null` kecuali caller **juga**
+  punya `raw_detail.read` (dicek via `auth.grantedPermissionKeys.has(...)`
+  setelah guard utama lolos — `domain/analytics-response-shaping.ts`).
+- `GET/PATCH /settings` (`settings.read`/`.update`) — **reuse langsung**
+  storage generik Module Management (`awcms_mini_module_settings`, Issue
+  #516) via `fetchModuleSettingsView`/`updateModuleSettings`, tapi
+  di-gate permission `visitor_analytics.*` sendiri (bukan
+  `module_management.settings.*` yang dipakai endpoint generiknya). Jangan
+  bangun storage settings kedua untuk modul ini.
+- `POST /retention/purge` (`retention.purge`) — wajib `Idempotency-Key`,
+  audit `critical`. Logic nyata (bukan stub) di
+  `application/retention-purge.ts`: hapus event > `EVENT_RETENTION_DAYS`,
+  clear `ip_address`/`login_identifier_snapshot` sesi > `RAW_DETAIL_RETENTION_DAYS`
+  (row tetap), hapus sesi > `EVENT_RETENTION_DAYS` (aman dijalankan
+  setelah hapus event — `last_seen_at` sesi selalu >= `occurred_at`
+  event-nya sendiri, jadi FK `visit_events.visitor_session_id` sudah
+  bersih), hapus rollup > `ROLLUP_RETENTION_DAYS`. Issue #624's scheduled
+  job (`bun run analytics:retention:purge`) akan memanggil fungsi ini
+  langsung, jangan re-derive.
+- Query agregat (`application/analytics-queries.ts`) baca langsung dari
+  `visit_events`/`visitor_sessions` mentah, **bukan** `visitor_daily_rollups`
+  (selalu kosong sampai job rollup #624 ada).
+
+Test: `tests/unit/visitor-analytics-{range,response-shaping}.test.ts`,
+`tests/integration/visitor-analytics-api.integration.test.ts` (11 test:
+auth guard, ABAC deny lintas endpoint, realtime, summary+range validation,
+raw-detail gating dua arah, keyset pagination 55-row, settings GET/PATCH +
+secret-key rejection, retention purge idempotency+delete+audit).
 
 ## Prinsip yang wajib dipertahankan di setiap issue lanjutan
 
