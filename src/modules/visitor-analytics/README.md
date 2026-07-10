@@ -37,7 +37,11 @@ registers `visitor_analytics` in the trusted code module catalog
 no dashboard UI, no geolocation enrichment, and no rollup/retention jobs
 yet** — see §Not yet available below.
 
-Issue #618: visitor session/event/rollup schema with RLS.
+Issue #618 (`sql/039_awcms_mini_visitor_analytics_schema.sql`): adds
+`awcms_mini_visitor_sessions`, `awcms_mini_visit_events`, and
+`awcms_mini_visitor_daily_rollups` — tenant-scoped, `ENABLE`+`FORCE ROW
+LEVEL SECURITY` (see §Schema below). **Schema only — no writer yet.**
+Nothing inserts into these tables until the middleware collector (#620).
 
 Issue #619: visitor identity, user-agent, and human/bot classification
 helpers.
@@ -104,9 +108,39 @@ this repo follows).
 
 No endpoints or roles are wired to these yet.
 
+## Schema (migration `039_awcms_mini_visitor_analytics_schema.sql`, Issue #618)
+
+Three tenant-scoped tables, all `ENABLE`+`FORCE ROW LEVEL SECURITY` with
+the standard `tenant_id = current_setting('app.current_tenant_id')::uuid`
+policy. None are soft-deletable (not master/config data) — lifecycle is
+retention-based purge (Issue #624's job), the same shape as
+`awcms_mini_audit_events`.
+
+- **`awcms_mini_visitor_sessions`** — one row per visitor presence
+  session (`visitor_key_hash`, `area`, `first_seen_at`/`last_seen_at`,
+  already-parsed browser/device/geo fields). `ip_address` (raw `inet`)
+  and `ip_hash`/`user_agent_hash` are all nullable — raw IP is only ever
+  populated when `VISITOR_ANALYTICS_RAW_IP_ENABLED=true`.
+  `login_identifier_snapshot` is nullable and must never be set for
+  anonymous public visitors.
+- **`awcms_mini_visit_events`** — one row per page-view/API call
+  (`method`, `status_code`, `path_sanitized`, `human_status`, plus
+  `user_agent_parsed`/`geo` `jsonb` catch-alls that only ever hold
+  parsed/derived values, never raw request data). Optional FKs to
+  `visitor_session_id`/`identity_id`.
+- **`awcms_mini_visitor_daily_rollups`** — pre-aggregated daily stats,
+  `PRIMARY KEY (tenant_id, date, area)` doubling as the future rollup
+  job's upsert target. No separate `(tenant_id, date, area)` index is
+  created — the primary key's backing index already covers it.
+
+No request body, cookie, Authorization header, password reset token,
+OAuth code, or query-string secret is ever stored in any column,
+including the two `jsonb` catch-alls. Verified by
+`tests/integration/visitor-analytics-schema.integration.test.ts`'s
+column-name scan and per-table RLS isolation/fail-closed tests.
+
 ## Not yet available
 
-- Analytics tables (session/event/rollup) — Issue #618.
 - Any data collection — Issue #620 (middleware).
 - Identity/UA/bot classification helpers — Issue #619.
 - REST API (`/api/v1/analytics/*`) — Issue #621.
