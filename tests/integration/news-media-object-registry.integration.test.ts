@@ -31,6 +31,7 @@ import {
   markNewsMediaObjectVerified,
   purgeNewsMediaObject,
   restoreNewsMediaObject,
+  revertNewsMediaObjectUploadClaim,
   softDeleteNewsMediaObject,
   UnsupportedNewsMediaMimeTypeInputError
 } from "../../src/modules/news-portal/application/news-media-object-directory";
@@ -403,6 +404,96 @@ suite("news media object directory — lifecycle + audit trail", () => {
       "news_media.object.created",
       "news_media.object.created"
     ]);
+  });
+
+  test("markNewsMediaObjectUploaded with no input claims the row atomically (WHERE status='pending_upload' guard) — a second claim attempt on the same row gets null, no audit event", async () => {
+    const sql = getDatabaseClient();
+    const created = await withTenant(sql, TENANT_A, (tx) =>
+      createPendingNewsMediaObject(tx, TENANT_A, ACTOR_ID, CONFIG, {
+        mimeType: "image/jpeg"
+      })
+    );
+
+    const firstClaim = await withTenant(sql, TENANT_A, (tx) =>
+      markNewsMediaObjectUploaded(tx, TENANT_A, created.id)
+    );
+    expect(firstClaim?.status).toBe("uploaded");
+    // No sizeBytes/checksumSha256 given at claim time — COALESCE leaves the
+    // columns untouched (NULL for a fresh row), per PR #653.
+    expect(firstClaim?.sizeBytes).toBeNull();
+    expect(firstClaim?.checksumSha256).toBeNull();
+
+    // Simulates a second concurrent `finalize` call's claim attempt losing
+    // the race — the row is no longer `pending_upload`, so this matches
+    // zero rows.
+    const secondClaim = await withTenant(sql, TENANT_A, (tx) =>
+      markNewsMediaObjectUploaded(tx, TENANT_A, created.id)
+    );
+    expect(secondClaim).toBeNull();
+
+    const auditActions = (await fetchAuditRows(TENANT_A)).map((r) => r.action);
+    expect(auditActions).toEqual(["news_media.object.created"]);
+  });
+
+  test("revertNewsMediaObjectUploadClaim: uploaded -> pending_upload, retryable via a fresh claim afterwards, no audit event", async () => {
+    const sql = getDatabaseClient();
+    const created = await withTenant(sql, TENANT_A, (tx) =>
+      createPendingNewsMediaObject(tx, TENANT_A, ACTOR_ID, CONFIG, {
+        mimeType: "image/jpeg"
+      })
+    );
+
+    await withTenant(sql, TENANT_A, (tx) =>
+      markNewsMediaObjectUploaded(tx, TENANT_A, created.id)
+    );
+
+    const reverted = await withTenant(sql, TENANT_A, (tx) =>
+      revertNewsMediaObjectUploadClaim(tx, TENANT_A, created.id)
+    );
+    expect(reverted?.status).toBe("pending_upload");
+
+    // The whole point of reverting — the session is retryable via a fresh
+    // claim, not permanently stuck.
+    const reclaimed = await withTenant(sql, TENANT_A, (tx) =>
+      markNewsMediaObjectUploaded(tx, TENANT_A, created.id)
+    );
+    expect(reclaimed?.status).toBe("uploaded");
+
+    const auditActions = (await fetchAuditRows(TENANT_A)).map((r) => r.action);
+    expect(auditActions).toEqual(["news_media.object.created"]);
+  });
+
+  test("revertNewsMediaObjectUploadClaim is a no-op (returns null) for a row not currently in 'uploaded' status", async () => {
+    const sql = getDatabaseClient();
+    const created = await withTenant(sql, TENANT_A, (tx) =>
+      createPendingNewsMediaObject(tx, TENANT_A, ACTOR_ID, CONFIG, {
+        mimeType: "image/jpeg"
+      })
+    );
+
+    // Still `pending_upload` — never claimed.
+    const revertedPending = await withTenant(sql, TENANT_A, (tx) =>
+      revertNewsMediaObjectUploadClaim(tx, TENANT_A, created.id)
+    );
+    expect(revertedPending).toBeNull();
+
+    await withTenant(sql, TENANT_A, (tx) =>
+      markNewsMediaObjectUploaded(tx, TENANT_A, created.id)
+    );
+    await withTenant(sql, TENANT_A, (tx) =>
+      markNewsMediaObjectVerified(tx, TENANT_A, ACTOR_ID, created.id, {})
+    );
+
+    // Already resolved to `verified` — reverting must not undo that.
+    const revertedVerified = await withTenant(sql, TENANT_A, (tx) =>
+      revertNewsMediaObjectUploadClaim(tx, TENANT_A, created.id)
+    );
+    expect(revertedVerified).toBeNull();
+
+    const row = await withTenant(sql, TENANT_A, (tx) =>
+      fetchNewsMediaObjectById(tx, TENANT_A, created.id)
+    );
+    expect(row?.status).toBe("verified");
   });
 
   test("a tenant A media object is invisible to tenant B's directory calls (cross-tenant rejection)", async () => {

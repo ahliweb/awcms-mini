@@ -160,8 +160,8 @@ awcms_mini_news_media_objects (tenant-scoped, RLS ENABLE+FORCE)
 - original_filename         text, nullable    -- hanya untuk tampilan, TIDAK pernah masuk object_key (§6)
 - public_url                text NOT NULL     -- dibangun server dari NEWS_MEDIA_R2_PUBLIC_BASE_URL (#632), tidak pernah dari input client
 - mime_type                 text NOT NULL     -- hasil validasi server (§9), bukan input mentah client
-- size_bytes                bigint, nullable  -- terisi saat status='uploaded'
-- checksum_sha256           text, nullable
+- size_bytes                bigint, nullable  -- terisi saat status='verified' (bukan 'uploaded' — Issue #634 PR #653: klaim atomik pending_upload->uploaded terjadi SEBELUM GET nyata, jadi nilai asli baru diketahui saat verified)
+- checksum_sha256           text, nullable    -- terisi saat status='verified', dari bytes GET nyata yang sama (lihat baris di atas)
 - width/height              integer, nullable -- terisi saat status='verified'
 - alt_text, caption         text, nullable    -- aksesibilitas (doc 14), wajib diisi sebelum publish (Issue #636/#640)
 - status                    text — pending_upload|uploaded|verified|attached|orphaned|deleted|failed (elaborasi 7-state dari sketsa pending|confirmed|orphaned|deleted semula — lihat migration 041's header comment)

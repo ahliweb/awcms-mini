@@ -244,13 +244,52 @@ export async function finalizeNewsMediaUploadSession(
   // for the same objectId until this one reverts or resolves it.
   const r2Client = createR2Client(config);
 
-  const verification = await verifyNewsMediaR2Object(r2Client, {
-    objectKey: precheck.objectKey,
-    claimedMimeType: precheck.claimedMimeType,
-    allowedMimeTypes: config.allowedMimeTypes,
-    maxUploadBytes: config.maxUploadBytes,
-    claimedChecksumSha256
-  });
+  // Reverts the claim (`uploaded -> pending_upload`) — called both for the
+  // handled `provider_error` outcome AND for any UNEXPECTED exception
+  // between the claim commit and this call's own resolution (reviewer +
+  // security-auditor feedback, PR #653 re-review): a bug, an OOM, or an
+  // unforeseen throw from `verifyNewsMediaR2Object`/the resolving
+  // transaction below would otherwise leave the row permanently stuck at
+  // `uploaded` (no client-triggerable recovery — both `finalize` and
+  // `cancel` require `pending_upload`). Best-effort: if the revert itself
+  // fails, that failure is only logged — it never masks/replaces the
+  // caller's own error path.
+  const revertClaim = async () => {
+    await withTenant(sql, tenantId, (tx) =>
+      revertNewsMediaObjectUploadClaim(tx, tenantId, precheck.objectId)
+    ).catch((revertError) => {
+      log("error", "news-portal.upload-session.finalize.revert_claim_failed", {
+        correlationId,
+        tenantId,
+        objectId: precheck.objectId,
+        error:
+          revertError instanceof Error
+            ? revertError.message
+            : String(revertError)
+      });
+    });
+  };
+
+  let verification: Awaited<ReturnType<typeof verifyNewsMediaR2Object>>;
+
+  try {
+    verification = await verifyNewsMediaR2Object(r2Client, {
+      objectKey: precheck.objectKey,
+      claimedMimeType: precheck.claimedMimeType,
+      allowedMimeTypes: config.allowedMimeTypes,
+      maxUploadBytes: config.maxUploadBytes,
+      claimedChecksumSha256
+    });
+  } catch (error) {
+    log("error", "news-portal.upload-session.finalize.unexpected_error", {
+      correlationId,
+      tenantId,
+      objectId: precheck.objectId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    await revertClaim();
+    throw error;
+  }
 
   if (verification.outcome === "provider_error") {
     log("error", "news-portal.upload-session.finalize.provider_error", {
@@ -262,9 +301,7 @@ export async function finalizeNewsMediaUploadSession(
 
     // Transient/infra failure, not a content rejection — revert the claim
     // so the session stays retryable instead of being stuck in `uploaded`.
-    await withTenant(sql, tenantId, (tx) =>
-      revertNewsMediaObjectUploadClaim(tx, tenantId, precheck.objectId)
-    );
+    await revertClaim();
 
     return fail(
       502,
@@ -273,86 +310,97 @@ export async function finalizeNewsMediaUploadSession(
     );
   }
 
-  return withTenant(sql, tenantId, async (tx) => {
-    if (verification.outcome === "rejected") {
-      await markNewsMediaObjectFailed(tx, tenantId, precheck.objectId);
-      await recordAuditEvent(tx, {
+  try {
+    return await withTenant(sql, tenantId, async (tx) => {
+      if (verification.outcome === "rejected") {
+        await markNewsMediaObjectFailed(tx, tenantId, precheck.objectId);
+        await recordAuditEvent(tx, {
+          tenantId,
+          actorTenantUserId: precheck.actorTenantUserId,
+          moduleKey: "news_portal",
+          action: "news_media.object.finalize_rejected",
+          resourceType: "news_media_object",
+          resourceId: precheck.objectId,
+          severity: "warning",
+          message: `News media finalize rejected: ${verification.reason} (${precheck.objectKey}).`,
+          attributes: {
+            objectKey: precheck.objectKey,
+            reason: verification.reason
+          },
+          correlationId
+        });
+
+        const rejectedResponse = fail(
+          422,
+          "UPLOAD_VERIFICATION_FAILED",
+          "Uploaded object failed content verification.",
+          {},
+          { reason: verification.reason }
+        );
+        const rejectedBody = await rejectedResponse.clone().json();
+
+        // Store the rejection under this Idempotency-Key too (not just the
+        // success path) — the row is now `failed`, so a same-key/same-payload
+        // retry without this would hit the status guard above instead and
+        // get a DIFFERENT ("Cannot finalize... status failed") response,
+        // breaking the "same key + same request -> replay" idempotency
+        // contract (reviewer feedback, PR #653).
+        await saveIdempotencyRecord(
+          tx,
+          tenantId,
+          IDEMPOTENCY_SCOPE,
+          idempotencyKey,
+          requestHash,
+          422,
+          rejectedBody
+        );
+
+        return rejectedResponse;
+      }
+
+      const verified = await markNewsMediaObjectVerified(
+        tx,
         tenantId,
-        actorTenantUserId: precheck.actorTenantUserId,
-        moduleKey: "news_portal",
-        action: "news_media.object.finalize_rejected",
-        resourceType: "news_media_object",
-        resourceId: precheck.objectId,
-        severity: "warning",
-        message: `News media finalize rejected: ${verification.reason} (${precheck.objectKey}).`,
-        attributes: {
-          objectKey: precheck.objectKey,
-          reason: verification.reason
+        precheck.actorTenantUserId,
+        precheck.objectId,
+        {
+          sizeBytes: verification.sizeBytes,
+          checksumSha256: verification.checksumSha256
         },
         correlationId
-      });
-
-      const rejectedResponse = fail(
-        422,
-        "UPLOAD_VERIFICATION_FAILED",
-        "Uploaded object failed content verification.",
-        {},
-        { reason: verification.reason }
       );
-      const rejectedBody = await rejectedResponse.clone().json();
 
-      // Store the rejection under this Idempotency-Key too (not just the
-      // success path) — the row is now `failed`, so a same-key/same-payload
-      // retry without this would hit the status guard above instead and
-      // get a DIFFERENT ("Cannot finalize... status failed") response,
-      // breaking the "same key + same request -> replay" idempotency
-      // contract (reviewer feedback, PR #653).
+      if (!verified) {
+        return fail(
+          409,
+          "INVALID_STATUS_TRANSITION",
+          "Upload session state changed concurrently; retry."
+        );
+      }
+
+      const successResponse = ok(verified);
+      const successBody = await successResponse.clone().json();
+
       await saveIdempotencyRecord(
         tx,
         tenantId,
         IDEMPOTENCY_SCOPE,
         idempotencyKey,
         requestHash,
-        422,
-        rejectedBody
+        200,
+        successBody
       );
 
-      return rejectedResponse;
-    }
-
-    const verified = await markNewsMediaObjectVerified(
-      tx,
+      return successResponse;
+    });
+  } catch (error) {
+    log("error", "news-portal.upload-session.finalize.unexpected_error", {
+      correlationId,
       tenantId,
-      precheck.actorTenantUserId,
-      precheck.objectId,
-      {
-        sizeBytes: verification.sizeBytes,
-        checksumSha256: verification.checksumSha256
-      },
-      correlationId
-    );
-
-    if (!verified) {
-      return fail(
-        409,
-        "INVALID_STATUS_TRANSITION",
-        "Upload session state changed concurrently; retry."
-      );
-    }
-
-    const successResponse = ok(verified);
-    const successBody = await successResponse.clone().json();
-
-    await saveIdempotencyRecord(
-      tx,
-      tenantId,
-      IDEMPOTENCY_SCOPE,
-      idempotencyKey,
-      requestHash,
-      200,
-      successBody
-    );
-
-    return successResponse;
-  });
+      objectId: precheck.objectId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    await revertClaim();
+    throw error;
+  }
 }

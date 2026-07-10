@@ -616,7 +616,9 @@ NEWS_MEDIA_PERMISSIONS constant").
 langkah 1" (create) dibandingkan di langkah finalize — tapi migration
 041 (#633, schema BEKU, tidak diubah issue ini) hanya punya SATU kolom
 `checksum_sha256`, diisi dari nilai HASIL PERHITUNGAN SERVER saat
-`markNewsMediaObjectUploaded`, bukan dari klaim client. Tidak ada kolom
+`markNewsMediaObjectVerified` (bukan `markNewsMediaObjectUploaded` —
+sejak PR #653 re-review, klaim atomik `pending_upload->uploaded` terjadi
+SEBELUM GET nyata, lihat subbagian di bawah), bukan dari klaim client. Tidak ada kolom
 untuk menyimpan klaim client terpisah dari nilai final itu. Solusi:
 `checksumSha256` opsional diterima di BODY FINALIZE (bukan create) —
 fungsional setara (klien Jalur A memegang byte yang sama persis untuk
@@ -624,6 +626,85 @@ kedua request, tidak ada kerugian menyertakan ulang di request kedua)
 tanpa perlu migration baru. `CreateNewsMediaUploadSessionRequest` di
 OpenAPI TIDAK punya field checksum sama sekali;
 `FinalizeNewsMediaUploadSessionRequest` punya `checksumSha256` opsional.
+
+### PR #653 re-review — dua temuan security-auditor ditutup, jangan diperkenalkan ulang
+
+PR #653 (issue ini) melalui SATU putaran review setelah commit awal — reviewer
+
+- security-auditor menemukan dua bug nyata pada implementasi finalize:
+
+1. **Critical (TOCTOU size-cap)**: `getObject` semula memanggil
+   `file.arrayBuffer()` — buffer SELURUH objek ke memori SEBELUM ukurannya
+   dicek. Presigned PUT URL bisa dipakai ulang, jadi penyerang bisa
+   menimpa objek dengan file raksasa DI ANTARA `headObject` (yang
+   melaporkan ukuran kecil) dan `getObject` (yang membaca byte
+   sesungguhnya) — proses bisa OOM. **Fix**: `getObject(objectKey,
+maxBytes)` sekarang membaca via `readCappedStream` (helper diekspor
+   dari `news-media-r2-client.ts`, bisa diuji langsung terhadap
+   `ReadableStream` sintetis) yang membatalkan (`reader.cancel()`) baca
+   PERSIS saat total terbaca melebihi `maxBytes`, TANPA pernah
+   mengakumulasi lebih dari `maxBytes`. `verifyNewsMediaR2Object`
+   memperlakukan `get.sizeExceeded` sebagai OTORITATIF, mengalahkan
+   `head.sizeBytes` yang mungkin basi.
+2. **High (concurrent-finalize cost amplification)**: N panggilan
+   `finalize` konkuren dengan `Idempotency-Key` BERBEDA terhadap
+   `objectId` yang SAMA dulunya masing-masing mencapai
+   `verifyNewsMediaR2Object` sendiri-sendiri (masing-masing bayar
+   `HEAD`+`GET` sendiri). **Fix**: `markNewsMediaObjectUploaded(tx,
+tenantId, objectId)` (kini `input` opsional, `COALESCE` di SQL) dipakai
+   sebagai KLAIM ATOMIK (`pending_upload -> uploaded`) DI DALAM transaksi
+   precheck, SEBELUM panggilan R2 apa pun — `WHERE status =
+'pending_upload'`-nya adalah primitif mutual-exclusion (Postgres
+   menyerialkan `UPDATE` konkuren pada baris yang sama). Pemenang lanjut
+   ke R2; yang kalah dapat `409` murah, TANPA pernah memanggil R2.
+
+**Konsekuensi desain yang WAJIB dipertahankan issue lanjutan**: klaim
+`uploaded` kini dipegang lintas satu transaksi DB TERPISAH (bukan lagi
+satu transaksi yang sama dengan resolusi `verified`/`failed`) selama
+panggilan R2 nyata berjalan. Ini butuh jalur revert eksplisit
+(`revertNewsMediaObjectUploadClaim`, `uploaded -> pending_upload`) —
+dipanggil untuk (a) outcome `provider_error` yang sudah ditangani, DAN
+(b) EXCEPTION TAK TERDUGA apa pun dari `verifyNewsMediaR2Object` atau
+transaksi resolusi (bug, OOM, dll) — lihat `try/catch` di
+`finalizeNewsMediaUploadSession`. Tanpa (b), crash di antara commit klaim
+dan resolusi meninggalkan baris macet PERMANEN di `uploaded` (baik
+`finalize` maupun `cancel` mensyaratkan `pending_upload`) — TIDAK ADA
+reaper/job pembersihan untuk baris `uploaded` basi saat ini (beda dari
+`pending_upload`, yang punya TTL check). Jangan hapus `try/catch` ini
+demi "menyederhanakan" tanpa menambahkan job rekonsiliasi sepadan
+terlebih dahulu.
+
+Perbaikan idempotency terkait: outcome `rejected` (422) kini JUGA
+menyimpan idempotency record-nya sendiri (`saveIdempotencyRecord` dengan
+status 422) — sebelumnya hanya jalur sukses (200) yang disimpan, jadi
+retry dengan `Idempotency-Key` yang sama setelah rejection akan jatuh ke
+guard status (`row.status !== "pending_upload"`) dan dapat respons
+BERBEDA ("Cannot finalize... status failed"), melanggar kontrak "key +
+request sama -> replay identik".
+
+Test yang membuktikan kedua fix + regresi: `tests/unit/news-media-r2-client.test.ts`
+(`readCappedStream` langsung + skenario objek ditukar via loopback
+server berbadan besar-tapi-terhingga — JANGAN pakai `pull()` yang
+`enqueue()` tanpa henti/tanpa `close()`, itu bug desain test yang
+menggantung runtime Bun bahkan tanpa `Bun.S3Client` sama sekali, bukan
+properti kode yang diuji), `tests/unit/news-media-r2-verification.test.ts`
+(`sizeExceeded: true` otoritatif meski `HEAD` klaim ukuran dalam batas),
+`tests/integration/news-media-object-registry.integration.test.ts`
+(`markNewsMediaObjectUploaded` tanpa argumen sebagai klaim + guard
+kedua-klaim-kalah, `revertNewsMediaObjectUploadClaim` transisi balik +
+no-op di status lain), `tests/integration/news-media-upload-session-api.integration.test.ts`
+(provider_error → 502 → klaim direvert → retry key baru sukses; 422
+di-replay identik dengan key sama, bukan jatuh ke guard status).
+
+Residual (dicatat security-auditor, BUKAN blocker go-live, untuk issue
+lanjutan): `withTimeout` (`src/lib/integration/timeout.ts`) tidak
+membatalkan stream yang sedang dibaca saat timeout tercapai — pembacaan
+`readCappedStream` di background tetap berjalan sampai selesai/di-GC
+(bounded ke `maxBytes`, jadi bukan lagi unbounded, tapi belum benar-benar
+"dihentikan"); dan belum ada test konkurensi race NYATA (dua `finalize`
+paralel sungguhan) — argumen korektnya saat ini bertumpu pada inspeksi
+semantik `READ COMMITTED` Postgres di `withTenant`, bukan test
+merah/hijau.
 
 ### File yang dibuat/diubah (referensi cepat)
 

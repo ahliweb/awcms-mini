@@ -779,4 +779,186 @@ suite("news media presigned upload session API (Issue #634)", () => {
       fake.server.stop(true);
     }
   });
+
+  test("finalize: same Idempotency-Key replays the exact 422 rejection instead of hitting the (now 'failed') status guard", async () => {
+    const owner = await bootstrap("rejectreplayco");
+    const fake = startFakeR2Server();
+
+    try {
+      const created = await invoke<{
+        data: { objectId: string; objectKey: string };
+      }>(createUploadSession, {
+        method: "POST",
+        path: "/api/v1/media/news-images/upload-sessions",
+        headers: authHeaders(owner),
+        body: {
+          mimeType: "image/jpeg",
+          byteSize: HTML_EXPLOIT_PAYLOAD.byteLength
+        }
+      });
+      fake.put(created.body.data.objectKey, HTML_EXPLOIT_PAYLOAD);
+
+      const deps = {
+        sql: getDatabaseClient(),
+        config: resolveNewsMediaR2Config(),
+        createR2Client: (config: ReturnType<typeof resolveNewsMediaR2Config>) =>
+          createNewsMediaR2Client({
+            accountId: config.accountId,
+            accessKeyId: config.accessKeyId,
+            secretAccessKey: config.secretAccessKey,
+            bucket: config.bucket,
+            endpoint: `http://127.0.0.1:${fake.server.port}`
+          })
+      };
+
+      const first = await finalizeNewsMediaUploadSession(
+        {
+          tenantId: owner.tenantId,
+          objectId: created.body.data.objectId,
+          tokenHash: hashSessionToken(owner.token),
+          idempotencyKey: "reject-replay-key-1",
+          claimedChecksumSha256: null,
+          now: new Date()
+        },
+        deps
+      );
+      expect(first.status).toBe(422);
+
+      const row = (await getAdminSql()`
+        SELECT status FROM awcms_mini_news_media_objects WHERE id = ${created.body.data.objectId}
+      `) as { status: string }[];
+      expect(row[0]!.status).toBe("failed");
+
+      // Same key, same request -> must replay the stored 422 exactly, NOT
+      // fall through to the `row.status !== "pending_upload"` guard (which
+      // would produce a DIFFERENT "Cannot finalize... status failed" 409 —
+      // breaking the idempotency replay contract, reviewer feedback PR #653).
+      const second = await finalizeNewsMediaUploadSession(
+        {
+          tenantId: owner.tenantId,
+          objectId: created.body.data.objectId,
+          tokenHash: hashSessionToken(owner.token),
+          idempotencyKey: "reject-replay-key-1",
+          claimedChecksumSha256: null,
+          now: new Date()
+        },
+        deps
+      );
+      expect(second.status).toBe(422);
+      expect(await second.json()).toEqual(await first.clone().json());
+    } finally {
+      fake.server.stop(true);
+    }
+  });
+
+  test("finalize: a transient R2 provider error (502) reverts the atomic claim — the same upload session is retryable with a fresh Idempotency-Key afterwards", async () => {
+    const owner = await bootstrap("providererrorco");
+
+    let getAttempts = 0;
+    const store = new Map<string, Uint8Array>();
+    const prefix = `/${R2_BUCKET}/`;
+    const flakyServer = Bun.serve({
+      port: 0,
+      fetch(request) {
+        const url = new URL(request.url);
+        if (!url.pathname.startsWith(prefix)) {
+          return new Response("not found", { status: 404 });
+        }
+        const key = url.pathname.slice(prefix.length);
+        const bytes = store.get(key);
+
+        if (request.method === "HEAD") {
+          if (!bytes) return new Response(null, { status: 404 });
+          return new Response(null, {
+            status: 200,
+            headers: { "content-length": String(bytes.byteLength) }
+          });
+        }
+
+        if (request.method === "GET") {
+          getAttempts += 1;
+          if (getAttempts === 1) {
+            // Simulate a transient R2 failure on the FIRST GET only — the
+            // second (post-retry) GET succeeds normally.
+            return new Response("internal error", { status: 500 });
+          }
+          if (!bytes) return new Response(null, { status: 404 });
+          const arrayBuffer = bytes.buffer.slice(
+            bytes.byteOffset,
+            bytes.byteOffset + bytes.byteLength
+          ) as ArrayBuffer;
+          return new Response(arrayBuffer, { status: 200 });
+        }
+
+        return new Response("method not supported by fake server", {
+          status: 405
+        });
+      }
+    });
+
+    try {
+      const created = await invoke<{
+        data: { objectId: string; objectKey: string };
+      }>(createUploadSession, {
+        method: "POST",
+        path: "/api/v1/media/news-images/upload-sessions",
+        headers: authHeaders(owner),
+        body: { mimeType: "image/jpeg", byteSize: REAL_JPEG_BYTES.byteLength }
+      });
+      store.set(created.body.data.objectKey, REAL_JPEG_BYTES);
+
+      const deps = {
+        sql: getDatabaseClient(),
+        config: resolveNewsMediaR2Config(),
+        createR2Client: (config: ReturnType<typeof resolveNewsMediaR2Config>) =>
+          createNewsMediaR2Client({
+            accountId: config.accountId,
+            accessKeyId: config.accessKeyId,
+            secretAccessKey: config.secretAccessKey,
+            bucket: config.bucket,
+            endpoint: `http://127.0.0.1:${flakyServer.port}`
+          })
+      };
+
+      const first = await finalizeNewsMediaUploadSession(
+        {
+          tenantId: owner.tenantId,
+          objectId: created.body.data.objectId,
+          tokenHash: hashSessionToken(owner.token),
+          idempotencyKey: "flaky-key-1",
+          claimedChecksumSha256: null,
+          now: new Date()
+        },
+        deps
+      );
+      expect(first.status).toBe(502);
+      const firstBody = (await first.json()) as { error: { code: string } };
+      expect(firstBody.error.code).toBe("PROVIDER_ERROR");
+
+      // Claim must have been reverted -> row is back to `pending_upload`,
+      // retryable with a fresh Idempotency-Key (not stuck at `uploaded`
+      // forever — PR #653 re-review).
+      const rowAfterFailure = (await getAdminSql()`
+        SELECT status FROM awcms_mini_news_media_objects WHERE id = ${created.body.data.objectId}
+      `) as { status: string }[];
+      expect(rowAfterFailure[0]!.status).toBe("pending_upload");
+
+      const second = await finalizeNewsMediaUploadSession(
+        {
+          tenantId: owner.tenantId,
+          objectId: created.body.data.objectId,
+          tokenHash: hashSessionToken(owner.token),
+          idempotencyKey: "flaky-key-2",
+          claimedChecksumSha256: null,
+          now: new Date()
+        },
+        deps
+      );
+      expect(second.status).toBe(200);
+      const secondBody = (await second.json()) as { data: { status: string } };
+      expect(secondBody.data.status).toBe("verified");
+    } finally {
+      flakyServer.stop(true);
+    }
+  });
 });
