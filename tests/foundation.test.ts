@@ -58,8 +58,8 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, and tenant_domain are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558", () => {
-    expect(listModules()).toHaveLength(12);
+  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, and visitor_analytics are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617", () => {
+    expect(listModules()).toHaveLength(13);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "active"
@@ -123,6 +123,12 @@ describe("module registry", () => {
       status: "active",
       type: "system",
       dependencies: ["tenant_admin", "identity_access"]
+    });
+    expect(getModuleByKey("visitor_analytics")).toMatchObject({
+      key: "visitor_analytics",
+      status: "active",
+      type: "system",
+      dependencies: ["tenant_admin", "identity_access", "logging", "reporting"]
     });
     expect(getModuleByKey("unknown_module")).toBeUndefined();
   });
@@ -240,7 +246,8 @@ describe("database migration runner helpers", () => {
       "034_awcms_mini_mfa_totp_schema.sql",
       "035_awcms_mini_google_oidc_schema.sql",
       "036_awcms_mini_tenant_oidc_sso_schema.sql",
-      "037_awcms_mini_tenant_oidc_sso_permissions.sql"
+      "037_awcms_mini_tenant_oidc_sso_permissions.sql",
+      "038_awcms_mini_visitor_analytics_permissions.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

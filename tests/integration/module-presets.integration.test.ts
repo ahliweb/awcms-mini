@@ -142,9 +142,18 @@ suite("tenant module preset application service", () => {
     for (const key of ["tenant_domain", "blog_content", "email", "reporting"]) {
       expect(changeByKey.has(key)).toBe(false);
     }
-    // logging/workflow/form_drafts aren't listed and nothing depends on
-    // them, so they're safely disabled to actually produce the profile.
-    for (const key of ["logging", "workflow", "form_drafts"]) {
+    // logging/workflow/form_drafts/visitor_analytics aren't listed and
+    // nothing (that stays enabled) depends on them, so they're safely
+    // disabled to actually produce the profile. visitor_analytics itself
+    // depends on logging/reporting, but nothing depends on
+    // visitor_analytics — a pure leaf — so it disables cleanly and, once
+    // it's gone, unblocks logging the same way.
+    for (const key of [
+      "logging",
+      "workflow",
+      "form_drafts",
+      "visitor_analytics"
+    ]) {
       expect(changeByKey.get(key)?.outcome).toBe("applied");
       expect(changeByKey.get(key)?.action).toBe("disabled");
     }
@@ -165,6 +174,7 @@ suite("tenant module preset application service", () => {
     expect(state.get("logging")).toBe(false);
     expect(state.get("workflow")).toBe(false);
     expect(state.get("form_drafts")).toBe(false);
+    expect(state.get("visitor_analytics")).toBe(false);
 
     const auditRows = await fetchAuditActions(owner.tenantId);
     const disabledResourceIds = auditRows
@@ -172,7 +182,7 @@ suite("tenant module preset application service", () => {
       .map((r) => r.resource_id)
       .sort();
     expect(disabledResourceIds).toEqual(
-      ["form_drafts", "logging", "workflow"].sort()
+      ["form_drafts", "logging", "workflow", "visitor_analytics"].sort()
     );
     // No audit event for modules that were already in the target state.
     expect(auditRows.some((r) => r.action === "tenant_module_enabled")).toBe(
@@ -257,7 +267,8 @@ suite("tenant module preset application service", () => {
       "sync_storage",
       "tenant_domain",
       "workflow",
-      "form_drafts"
+      "form_drafts",
+      "visitor_analytics"
     ]) {
       expect(state.get(key)).toBe(false);
     }

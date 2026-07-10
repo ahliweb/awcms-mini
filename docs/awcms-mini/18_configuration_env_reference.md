@@ -414,6 +414,45 @@ provider timeout-bounded (default 8 detik, bisa diubah lewat
 `TENANT_DOMAIN_CLOUDFLARE_TIMEOUT_MS` — security audit follow-up PR #580,
 sebelumnya hardcoded) dan dijalankan di luar transaksi DB mana pun (ADR-0006).
 
+### Visitor analytics (opsional, privacy-first — Issue #617, epic: visitor analytics #617-#624)
+
+Modul `visitor_analytics` (`src/modules/visitor-analytics/`). Setiap var
+di bawah ini opsional dengan default privacy-first — tidak di-set sama
+sekali tetap lulus `config:validate` dan tidak pernah menyimpan raw IP,
+raw user-agent, atau geolokasi. **Config-only saat Issue #617 ditulis** —
+belum ada tabel analytics (#618), middleware collector (#620), API
+(#621), dashboard (#622), atau enrichment geolokasi (#623) yang membaca
+var-var ini; itu semua issue lanjutan di epic yang sama.
+`scripts/validate-env.ts` (`checkVisitorAnalyticsConfig`) menegakkan
+tabel ini.
+
+| Var                                           | Wajib | Default | Sensitif | Fungsi                                                                               |
+| --------------------------------------------- | ----- | ------- | -------- | ------------------------------------------------------------------------------------ |
+| `VISITOR_ANALYTICS_ENABLED`                   | –     | `true`  | –        | Master switch koleksi telemetry pengunjung                                           |
+| `VISITOR_ANALYTICS_MODE`                      | –     | `basic` | –        | `basic`/`detailed` — nilai lain gagal validasi                                       |
+| `VISITOR_ANALYTICS_COLLECT_ADMIN`             | –     | `true`  | –        | Koleksi telemetry rute `/admin/*`                                                    |
+| `VISITOR_ANALYTICS_COLLECT_PUBLIC`            | –     | `true`  | –        | Koleksi telemetry rute publik                                                        |
+| `VISITOR_ANALYTICS_COLLECT_API`               | –     | `false` | –        | Koleksi telemetry panggilan `/api/v1/*`                                              |
+| `VISITOR_ANALYTICS_DETAILED_ENABLED`          | –     | `false` | –        | Cadangan granularitas session/event mode `detailed`                                  |
+| `VISITOR_ANALYTICS_RAW_IP_ENABLED`            | –     | `false` | –        | Simpan alamat IP mentah — default aman: mati                                         |
+| `VISITOR_ANALYTICS_RAW_USER_AGENT_ENABLED`    | –     | `false` | –        | Simpan string user-agent mentah — default aman: mati                                 |
+| `VISITOR_ANALYTICS_GEO_ENABLED`               | –     | `false` | –        | Aktifkan enrichment geolokasi (Issue #623) — default aman: mati                      |
+| `VISITOR_ANALYTICS_TRUST_PROXY`               | –     | `false` | –        | Percaya header `X-Forwarded-For` dkk. — **hanya** `true` di belakang proxy tepercaya |
+| `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`          | –     | `false` | –        | Percaya header khusus Cloudflare (`CF-Connecting-IP`, `CF-IPCountry`)                |
+| `VISITOR_ANALYTICS_ONLINE_WINDOW_SECONDS`     | –     | `300`   | –        | Jendela waktu "online sekarang" — wajib integer positif bila diisi                   |
+| `VISITOR_ANALYTICS_EVENT_RETENTION_DAYS`      | –     | `90`    | –        | Retensi event — wajib integer positif bila diisi                                     |
+| `VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS` | –     | `30`    | –        | Retensi raw detail — wajib integer positif bila diisi                                |
+| `VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS`     | –     | `730`   | –        | Retensi rollup agregat — wajib integer positif bila diisi                            |
+| `VISITOR_ANALYTICS_HASH_SALT`                 | –     | `""`    | Ya       | Salt fingerprint visitor pseudonymous (Issue #619) — jangan isi nilai asli di sini   |
+
+Aturan validasi (`checkVisitorAnalyticsConfig`): `VISITOR_ANALYTICS_MODE`
+bila diisi wajib salah satu dari `VISITOR_ANALYTICS_MODES` (`basic` |
+`detailed`); empat var retensi/jendela di atas bila diisi wajib integer
+positif (`parsePositiveInt`) — nilai kosong/tidak valid pada var boolean
+manapun selalu jatuh ke `false`, mengikuti konvensi var boolean lain di
+repo ini. Belum ada aturan cross-field seperti `EMAIL_PROVIDER`/
+`TENANT_DOMAIN_DNS_PROVIDER` — provider geolokasi (Issue #623) belum ada.
+
 ### Provider CRM (opsional) — contoh domain retail/POS
 
 | Var                    | Wajib      | Default | Sensitif | Fungsi             |
@@ -517,6 +556,14 @@ EMAIL_SEND_MAX_RETRIES=5
 PUBLIC_CANONICAL_BASE_PATH=/news
 PUBLIC_TRUST_PROXY=false
 
+# Visitor analytics (opsional, privacy-first — Issue #617, epic: visitor
+# analytics #617-#624). Tidak di-set sama sekali = default aman di atas.
+VISITOR_ANALYTICS_ENABLED=true
+VISITOR_ANALYTICS_MODE=basic
+VISITOR_ANALYTICS_RAW_IP_ENABLED=false
+VISITOR_ANALYTICS_RAW_USER_AGENT_ENABLED=false
+VISITOR_ANALYTICS_GEO_ENABLED=false
+
 # Provider opsional (default off) — contoh domain retail/POS
 STARSENDER_ENABLED=false
 MAILKETING_ENABLED=false
@@ -566,6 +613,12 @@ flowchart TB
   `PUBLIC_CANONICAL_BASE_PATH` bukan absolute path → gagal start (Issue #556;
   lihat §Public routing di atas). Var ini tidak di-set sama sekali tetap
   lulus (perilaku legacy offline/LAN tidak berubah).
+- `VISITOR_ANALYTICS_MODE` diisi nilai selain `basic`/`detailed`, atau
+  salah satu dari empat var retensi/jendela (`VISITOR_ANALYTICS_ONLINE_WINDOW_SECONDS`/
+  `_EVENT_RETENTION_DAYS`/`_RAW_DETAIL_RETENTION_DAYS`/`_ROLLUP_RETENTION_DAYS`)
+  diisi nilai bukan integer positif → gagal start (Issue #617; lihat
+  §Visitor analytics di atas). Semua var ini tidak di-set sama sekali
+  tetap lulus dengan default privacy-first.
 - Secret tidak pernah masuk log (redaction, doc 10).
 
 ## Acceptance criteria
