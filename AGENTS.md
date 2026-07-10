@@ -121,6 +121,7 @@ AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode sta
 | Migrasi data legacy (dry-run, backfill)                                | `awcms-mini-legacy-migration`      |
 | Kerjakan bagian mana pun epic blog_content (Issue #537-#543)           | `awcms-mini-blog-content`          |
 | Epic online public routing & tenant domain (Issue #556-#567)           | `awcms-mini-tenant-domain-routing` |
+| Epic visitor analytics (Issue #617-#624)                               | `awcms-mini-visitor-analytics`     |
 
 **Peningkatan (audit & hardening artefak yang sudah ada):**
 
@@ -167,6 +168,12 @@ flowchart LR
   II --> BLOG[blog-content]
   BLOG --> EP
   BLOG --> MIG
+  II --> VA[visitor-analytics]
+  VA --> MIG
+  VA --> NM
+  VA --> EP
+  VA --> UI2
+  VA --> SD
 ```
 
 Skill merujuk `docs/awcms-mini/*` sebagai sumber kebenaran; bila standar berubah, perbarui doc **dan** skill terkait.

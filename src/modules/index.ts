@@ -10,6 +10,7 @@ import { reportingModule } from "./reporting/module";
 import { syncStorageModule } from "./sync-storage/module";
 import { tenantAdminModule } from "./tenant-admin/module";
 import { tenantDomainModule } from "./tenant-domain/module";
+import { visitorAnalyticsModule } from "./visitor-analytics/module";
 import { workflowApprovalModule } from "./workflow-approval/module";
 
 export const modules: ModuleDescriptor[] = [
@@ -24,7 +25,8 @@ export const modules: ModuleDescriptor[] = [
   emailModule,
   moduleManagementModule,
   blogContentModule,
-  tenantDomainModule
+  tenantDomainModule,
+  visitorAnalyticsModule
 ];
 
 export function getModuleByKey(

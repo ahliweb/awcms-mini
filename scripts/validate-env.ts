@@ -119,6 +119,16 @@
  *     `resolveMfaEncryptionKey`) — not just be present. Whether MFA actually
  *     activates at runtime depends on BOTH this flag AND the #587 gate
  *     (`isMfaRequired()`), not on this validation alone.
+ * 10. Visitor analytics (Issue #617, epic: visitor analytics #617-#624):
+ *     every VISITOR_ANALYTICS_* var is optional with a privacy-first
+ *     default (`../src/modules/visitor-analytics/domain/visitor-analytics-config`) —
+ *     leaving all of them unset always passes. If
+ *     VISITOR_ANALYTICS_MODE is set, it must be one of
+ *     `VISITOR_ANALYTICS_MODES` (`basic` | `detailed`). The four retention/
+ *     window vars, if set, must each parse as a positive integer
+ *     (`parsePositiveInt`). No conditional cross-field requirement exists
+ *     yet (unlike EMAIL_PROVIDER/TENANT_DOMAIN_DNS_PROVIDER) — geolocation
+ *     enrichment provider config lands in a later issue (#623).
  *
  * Never prints actual secret values — only which variable name is
  * missing/invalid (doc 18: "Var wajib hilang → gagal start dengan pesan
@@ -156,6 +166,12 @@ import {
   SSO_REQUIRED_WHEN_ENABLED
 } from "../src/lib/auth/sso-config";
 import { resolveSsoEncryptionKey } from "../src/lib/auth/sso-credential-crypto";
+import {
+  isKnownVisitorAnalyticsMode,
+  parsePositiveInt,
+  VISITOR_ANALYTICS_MODES,
+  VISITOR_ANALYTICS_POSITIVE_INT_VARS
+} from "../src/modules/visitor-analytics/domain/visitor-analytics-config";
 
 export type EnvCheckResult = {
   name: string;
@@ -767,6 +783,70 @@ export function checkSsoConfig(
   });
 }
 
+/**
+ * Visitor analytics (Issue #617, epic: visitor analytics #617-#624). Every
+ * var is optional — unset always passes, mirroring
+ * `resolveVisitorAnalyticsConfig`'s own fall-back-to-default behavior so a
+ * deployment that never touches these vars stays privacy-first by
+ * default (see file header comment §10).
+ */
+export function checkVisitorAnalyticsConfig(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult[] {
+  const results: EnvCheckResult[] = [];
+  const rawMode = env.VISITOR_ANALYTICS_MODE;
+
+  if (!isSet(rawMode)) {
+    results.push({
+      name: "VISITOR_ANALYTICS_MODE",
+      status: "pass",
+      detail: "VISITOR_ANALYTICS_MODE is not set — defaults to basic."
+    });
+  } else if (isKnownVisitorAnalyticsMode((rawMode as string).trim())) {
+    results.push({
+      name: "VISITOR_ANALYTICS_MODE",
+      status: "pass",
+      detail: `VISITOR_ANALYTICS_MODE is a known mode (${(rawMode as string).trim()}).`
+    });
+  } else {
+    results.push({
+      name: "VISITOR_ANALYTICS_MODE",
+      status: "fail",
+      detail: `VISITOR_ANALYTICS_MODE must be one of ${VISITOR_ANALYTICS_MODES.join(", ")}; got "${(rawMode as string).trim()}".`
+    });
+  }
+
+  for (const name of VISITOR_ANALYTICS_POSITIVE_INT_VARS) {
+    const raw = env[name];
+
+    if (!isSet(raw)) {
+      results.push({
+        name,
+        status: "pass",
+        detail: `${name} is not set — a privacy-first default applies.`
+      });
+      continue;
+    }
+
+    if (parsePositiveInt(raw) !== undefined) {
+      results.push({
+        name,
+        status: "pass",
+        detail: `${name} is a positive integer.`
+      });
+      continue;
+    }
+
+    results.push({
+      name,
+      status: "fail",
+      detail: `${name} must be a positive integer when set; got "${(raw as string).trim()}".`
+    });
+  }
+
+  return results;
+}
+
 export function runEnvValidation(
   env: NodeJS.ProcessEnv = process.env
 ): EnvCheckResult[] {
@@ -781,7 +861,8 @@ export function runEnvValidation(
     ...checkMfaConfig(env),
     ...checkGoogleOidcConfig(env),
     ...checkSsoConfig(env),
-    ...checkOnlineAuthSecurityConfig(env)
+    ...checkOnlineAuthSecurityConfig(env),
+    ...checkVisitorAnalyticsConfig(env)
   ];
 }
 

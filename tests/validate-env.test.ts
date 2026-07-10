@@ -11,6 +11,7 @@ import {
   checkTenantDomainDnsConfig,
   checkMfaConfig,
   checkTurnstileConfig,
+  checkVisitorAnalyticsConfig,
   runEnvValidation
 } from "../scripts/validate-env";
 
@@ -623,6 +624,72 @@ describe("checkGoogleOidcConfig", () => {
     for (const result of results) {
       expect(result.detail).not.toContain("super-secret-google-value");
     }
+  });
+});
+
+describe("checkVisitorAnalyticsConfig", () => {
+  test("all pass when no VISITOR_ANALYTICS_* var is set (privacy-first default)", () => {
+    const results = checkVisitorAnalyticsConfig({} as NodeJS.ProcessEnv);
+
+    expect(results.every((result) => result.status === "pass")).toBe(true);
+  });
+
+  test("passes when VISITOR_ANALYTICS_MODE=basic or detailed", () => {
+    expect(
+      checkVisitorAnalyticsConfig({
+        VISITOR_ANALYTICS_MODE: "basic"
+      } as NodeJS.ProcessEnv).every((result) => result.status === "pass")
+    ).toBe(true);
+    expect(
+      checkVisitorAnalyticsConfig({
+        VISITOR_ANALYTICS_MODE: "detailed"
+      } as NodeJS.ProcessEnv).every((result) => result.status === "pass")
+    ).toBe(true);
+  });
+
+  test("fails when VISITOR_ANALYTICS_MODE is not a known mode", () => {
+    const results = checkVisitorAnalyticsConfig({
+      VISITOR_ANALYTICS_MODE: "full"
+    } as NodeJS.ProcessEnv);
+
+    const modeResult = results.find(
+      (result) => result.name === "VISITOR_ANALYTICS_MODE"
+    );
+    expect(modeResult?.status).toBe("fail");
+  });
+
+  test("fails and names each malformed retention/window var", () => {
+    const results = checkVisitorAnalyticsConfig({
+      VISITOR_ANALYTICS_ONLINE_WINDOW_SECONDS: "not-a-number",
+      VISITOR_ANALYTICS_EVENT_RETENTION_DAYS: "-1",
+      VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS: "0",
+      VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS: "730"
+    } as NodeJS.ProcessEnv);
+
+    const failedNames = results
+      .filter((result) => result.status === "fail")
+      .map((result) => result.name)
+      .sort();
+
+    expect(failedNames).toEqual(
+      [
+        "VISITOR_ANALYTICS_ONLINE_WINDOW_SECONDS",
+        "VISITOR_ANALYTICS_EVENT_RETENTION_DAYS",
+        "VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS"
+      ].sort()
+    );
+  });
+
+  test("all pass when every var is set to a valid value", () => {
+    const results = checkVisitorAnalyticsConfig({
+      VISITOR_ANALYTICS_MODE: "detailed",
+      VISITOR_ANALYTICS_ONLINE_WINDOW_SECONDS: "300",
+      VISITOR_ANALYTICS_EVENT_RETENTION_DAYS: "90",
+      VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS: "30",
+      VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS: "730"
+    } as NodeJS.ProcessEnv);
+
+    expect(results.every((result) => result.status === "pass")).toBe(true);
   });
 });
 

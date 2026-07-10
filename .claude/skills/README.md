@@ -38,6 +38,7 @@ Skill Claude Code tingkat-proyek untuk AWCMS-Mini. Setiap skill meng-encode stan
 | `awcms-mini-blog-content`                              | Kerjakan bagian mana pun epic blog_content (Issue #537-#543)                          | blog-content/README.md         |
 | `awcms-mini-tenant-domain-routing`                     | Kerjakan bagian mana pun epic online public routing & tenant domain (Issue #556-#567) | tenant-domain-routing/SKILL.md |
 | `awcms-mini-auth-online-hardening`                     | Kerjakan bagian mana pun epic full-online auth security hardening (Issue #587-#593)   | auth-online-hardening/SKILL.md |
+| `awcms-mini-visitor-analytics`                         | Kerjakan bagian mana pun epic visitor analytics (Issue #617-#624)                     | visitor-analytics/SKILL.md     |
 
 ## Katalog peningkatan (improvement/hardening)
 
@@ -102,6 +103,12 @@ flowchart TD
   AOH --> ABAC
   AOH --> AUD
   AOH --> SD
+  II --> VA[awcms-mini-visitor-analytics]
+  VA --> MIG
+  VA --> NM
+  VA --> EP
+  VA --> UI
+  VA --> SD
   II --> PR[awcms-mini-pr-review]
   PR --> SEC[awcms-mini-security-review]
   PR --> CQ[awcms-mini-codeql-triage]
