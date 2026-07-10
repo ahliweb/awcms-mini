@@ -26,6 +26,7 @@ import {
   createBlogRevision,
   fetchBlogRevisionById
 } from "../../../../../../../../modules/blog-content/application/blog-revision-directory";
+import { validateNewsMediaReferencesForFullOnlineR2Mode } from "../../../../../../../../modules/blog-content/application/news-media-reference-gate";
 
 const RESTORE_GUARD = {
   moduleKey: "blog_content",
@@ -136,6 +137,31 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
 
     if (!revision) {
       return fail(404, "RESOURCE_NOT_FOUND", "Revision not found.");
+    }
+
+    // Issue #636 (security-auditor finding, PR #666 review): a revision can
+    // predate full-online R2-only mode being turned on for this tenant, or
+    // can reference a mediaObjectId that has since become unsafe (soft-
+    // deleted/orphaned) — restoring it must be re-validated exactly like a
+    // live PATCH would be, otherwise `revisions.restore` is a silent
+    // bypass of the very validation this issue exists to enforce. Revisions
+    // never snapshot `featuredMediaId` (see blog-post-directory.ts's
+    // revision-policy exclusion list), so only `contentJson` needs
+    // re-checking here.
+    const mediaReferenceValidation =
+      await validateNewsMediaReferencesForFullOnlineR2Mode(tx, tenantId, {
+        featuredMediaId: undefined,
+        contentJson: revision.contentJson
+      });
+
+    if (!mediaReferenceValidation.valid) {
+      return fail(
+        422,
+        "NEWS_MEDIA_REFERENCE_INVALID",
+        "This revision references image(s) that are not valid R2 media objects in full-online R2-only mode and cannot be restored.",
+        {},
+        mediaReferenceValidation.errors
+      );
     }
 
     const updated = await updateBlogPost(tx, tenantId, postId, {

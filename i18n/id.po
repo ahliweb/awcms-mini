@@ -224,6 +224,9 @@ msgstr "Perubahan ini membutuhkan minimal satu identitas break-glass yang masih 
 msgid "error.password_login_disabled"
 msgstr "Login password dinonaktifkan untuk akun ini. Gunakan single sign-on."
 
+msgid "error.news_media_reference_invalid"
+msgstr "Satu atau lebih gambar bukan objek media R2 yang terverifikasi. Unggah gambar terlebih dahulu lalu pilih dari pustaka media."
+
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"
 msgstr "Tanpa role"

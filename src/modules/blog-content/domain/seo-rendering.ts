@@ -76,3 +76,28 @@ export function resolveCanonicalUrl(
 
   return isAbsoluteHttpUrl(selfUrl) ? selfUrl : null;
 }
+
+/**
+ * `og:image`/`twitter:image` source (Issue #636, epic `news_portal`
+ * §"SEO image rendering uses verified R2 media metadata only"). Takes an
+ * ALREADY-resolved public URL — resolution (looking up the post's
+ * `featuredMediaId` in the news media registry, confirming it is
+ * `verified`/`attached` and belongs to this tenant) is the caller's job
+ * (`blog-content/application/news-media-reference-gate.ts`'s
+ * `resolveVerifiedNewsMediaReferences`), never this function's, since a
+ * pure `domain` function cannot perform that database round trip.
+ * `null` in (no featured image, or one that didn't resolve to a safe R2
+ * object — e.g. full-online R2-only mode is not active for this tenant, so
+ * there is no trusted source to render from at all) means `null` out — the
+ * caller omits the `og:image`/`twitter:image` tags entirely rather than
+ * ever guessing at an unvalidated URL. Re-validates `isAbsoluteHttpUrl` as
+ * defense-in-depth (same convention `resolveCanonicalUrl` uses), even
+ * though the registry's `publicUrl` is already trusted-by-construction.
+ */
+export function resolveOgImageUrl(
+  resolvedFeaturedMediaUrl: string | null
+): string | null {
+  return resolvedFeaturedMediaUrl && isAbsoluteHttpUrl(resolvedFeaturedMediaUrl)
+    ? resolvedFeaturedMediaUrl
+    : null;
+}

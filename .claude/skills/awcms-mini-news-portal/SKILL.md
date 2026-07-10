@@ -41,7 +41,7 @@ status + pointer, bukan menduplikasi isinya.
 | #633  | Tenant-scoped R2-only media object registry (schema + migration)                                                             | **Selesai** — lihat §633 di bawah                    |
 | #634  | Direct-to-R2 presigned upload flow (endpoint upload/confirm)                                                                 | **Selesai** — lihat §634 di bawah                    |
 | #635  | Config validation + readiness checks (`config:validate`/`security:readiness`/`production:preflight`) untuk R2 image delivery | **Selesai** — lihat §635 di bawah                    |
-| #636  | `blog_content` wajib referensi R2 media object untuk gambar berita saat mode aktif                                           | Belum dikerjakan — lihat §636 di bawah               |
+| #636  | `blog_content` wajib referensi R2 media object untuk gambar berita saat mode aktif                                           | **Selesai** — lihat §636 di bawah                    |
 | #637  | Editorial homepage section composer `/news` dengan render R2-only                                                            | Belum dikerjakan — lihat §637 di bawah               |
 | #638  | Preset placement iklan news portal dengan validasi gambar R2-only                                                            | Belum dikerjakan — lihat §638 di bawah               |
 | #639  | Content block `video_news` dengan thumbnail R2 wajib                                                                         | Belum dikerjakan — lihat §639 di bawah               |
@@ -921,17 +921,262 @@ menyederhanakan balik ke exact-string match polos.
   sama `security-readiness-break-glass.integration.test.ts`).
 - Changeset: `.changeset/news-media-r2-readiness-checks-issue-635.md`.
 
-## §636 — `blog_content` wajib referensi R2 media (belum dikerjakan)
+## §636 — `blog_content` wajib referensi R2 media (Selesai)
 
-Ringkasan scope: featured image, block gallery, gambar SEO, dan
-surface gambar blog/news lain **wajib** menunjuk baris
-`status='confirmed'` di media registry (#633) ketika mode R2-only aktif
-— menerapkan Keputusan kunci #4 di atas ke `blog_content` yang sudah
-ada (yang saat ini, sebelum issue ini, memakai `featuredMediaId` sebagai
-UUID longgar tanpa FK dan URL bebas `isAbsoluteHttpUrl` untuk gallery —
-lihat `src/modules/blog-content/README.md` §Media/Gallery). Implementor
-**wajib** membaca subbagian itu untuk memahami perilaku sebelum issue
-ini (tidak ada FK, tidak ada media library nyata) yang akan diganti.
+### Rekonsiliasi — body issue #636 menyiratkan bentuk `{mediaObjectId, alt, caption}` baru; TIDAK diikuti untuk `featuredMediaId`
+
+Body issue #636 menyiratkan reference shape `{mediaObjectId, alt,
+caption}` sebagai field baru menggantikan `featuredMediaId`. **Tidak
+diikuti** — `featuredMediaId` (kolom `awcms_mini_blog_posts`/
+`awcms_mini_blog_pages`.`featured_media_id`, migration 026, TANPA FK,
+lihat §633 di atas) TETAP UUID longgar persis seperti sebelumnya;
+`alt`/`caption` SUDAH ADA sebagai kolom `alt_text`/`caption` di
+`awcms_mini_news_media_objects` itu sendiri (#633) — menduplikasinya ke
+kolom terpisah di `blog_content` akan menciptakan dua sumber kebenaran
+untuk data yang sama (persis pola "derive, don't duplicate" yang
+arsitektur doc §11 tetapkan untuk `public_url`). Yang berubah HANYA
+validasi: `featuredMediaId`, ketika ada, sekarang WAJIB menunjuk baris
+registry yang ada/`verified`/`attached`/tenant-sama — ditegakkan di
+lapisan APLIKASI (butuh DB round-trip), bukan validator murni
+(`blog-post-validation.ts`'s `validateFeaturedMediaId` TETAP shape-only,
+sama pola `termIds`/`countExistingTerms`, Issue #539).
+
+Untuk gallery block `content_json` (`GalleryItem` type,
+`content-block-rendering.ts`, Issue #542): item bertipe `mediaType:
+"image"` sekarang mendukung field baru `mediaObjectId` (di samping
+`url` yang tetap ada untuk mode non-R2-only) — persis bentuk
+`{mediaObjectId, caption}` yang diminta issue, TANPA `alt` terpisah
+(alt text tetap dari `alt_text` registry, sama alasan di atas). Item
+`mediaType: "video"` **tidak disentuh** — thumbnail R2 wajib untuk
+video adalah scope #639 (belum dikerjakan), memaksanya sekarang akan
+"membangun ke depan" sebelum dependency-nya siap.
+
+### Gate tenant+env — komponen infrastruktur baru yang belum ada sebelumnya
+
+`evaluateNewsPortalFullOnlineR2Readiness` (§632) murni env-based/global
+— TIDAK tahu apakah TENANT PEMANGGIL benar-benar mengaktifkan preset
+`news_portal_full_online_r2`. Issue ini menambah
+`src/modules/blog-content/application/news-portal-r2-mode-gate.ts`'s
+`isNewsPortalFullOnlineR2ModeActiveForTenant(tx, tenantId, env)` —
+mengomposisikan check env global TERSEBUT dengan sinyal per-tenant
+nyata bahwa tenant itu SUDAH menerapkan preset. **Sengaja runtime
+check, BUKAN `module.ts` `dependencies` entry** — `blog_content` maupun
+`news_portal` sudah SENGAJA tidak saling deklarasi dependency (lihat
+§632's "Kenapa modul baru... dependencies HANYA...") untuk menghindari
+`MODULE_REVERSE_DEPENDENCY_ACTIVE` mengunci disable salah satu modul
+selamanya — menambah dependency di sini akan membangkitkan masalah yang
+sama.
+
+**PENTING — TIGA percobaan gagal sebelum menemukan sinyal yang benar
+(tiga putaran review reviewer+security-auditor, PR #666; jangan re-derive
+dari nol, KETIGANYA dikonfirmasi gagal secara nyata — dua oleh
+integration test merah, satu oleh eksploitasi hidup yang direproduksi
+security-auditor):**
+
+1. **`fetchTenantModuleEntry(...).tenantEnabled` — GAGAL total.**
+   Fungsi ini opt-out-by-default (tidak ada baris `awcms_mini_tenant_modules`
+   berarti `tenantEnabled: true` — dokumentasinya sendiri menyatakan
+   ini): HAMPIR SETIAP tenant baca `news_portal` "enabled" entah pernah
+   menerapkan preset atau tidak (default setiap module untuk setiap
+   tenant). Memakai ini sebagai sinyal opt-in membuat seluruh
+   tenant-scoping issue ini TIDAK BEROPERASI SAMA SEKALI — begitu SATU
+   tenant mana pun membuat env var deployment-wide jadi benar,
+   VALIDASI INI AKTIF UNTUK SEMUA TENANT LAIN JUGA, persis skenario
+   yang file ini sendiri tulis untuk dicegah.
+2. **`entry.enabledAt !== null` — juga GAGAL, lebih halus.**
+   Percobaan kedua: hanya `enableTenantModule` yang pernah menulis baris
+   `awcms_mini_tenant_modules`, jadi `enabledAt: null` seharusnya berarti
+   "tidak pernah disentuh". TAPI `enableTenantModule` (dipanggil oleh
+   `applyModulePreset`/`applyNewsPortalFullOnlineR2Preset`) memvalidasi
+   state SAAT INI dulu — tenant baru SUDAH baca "enabled" (default di
+   atas), jadi validasi menolak dengan `MODULE_ALREADY_ENABLED`, yang
+   oleh `applyModulePreset` diperlakukan sebagai `already_satisfied`
+   (idempotency) — **TIDAK PERNAH menulis baris sama sekali**. Tenant
+   yang BARU SAJA menerapkan preset punya `enabledAt: null` PERSIS SAMA
+   dengan tenant yang tidak pernah menyentuhnya — dikonfirmasi gagal
+   oleh 8 test integration yang tadinya lulus tiba-tiba merah semua
+   begitu fix ini dicoba.
+3. **`awcms_mini_module_settings` (`updateModuleSettings`/
+   `fetchModuleSettingsView`) — GAGAL, dan ini yang PALING BERBAHAYA.**
+   Percobaan ketiga BENAR secara logika (berhasil membedakan "diterapkan"
+   dari "belum pernah disentuh"), TAPI tabel ini bisa ditulis langsung
+   oleh tenant lewat endpoint generik
+   `PATCH /api/v1/tenant/modules/{moduleKey}/settings`, digerbangi permission
+   generik `module_management.settings.update` (default digrant ke
+   Owner/Admin — SAMA SEKALI tidak terkait permission
+   `blog_content`/`news_portal`). Tenant pemegang permission generik itu
+   bisa `PATCH` key markernya jadi `null` dan MEMATIKAN SELURUH validasi
+   R2-only issue ini untuk dirinya sendiri — security-auditor
+   mereproduksi eksploitasi ini hidup end-to-end (PATCH 200, lalu POST
+   post dengan `featuredMediaId` mentah lolos 200 padahal seharusnya
+   422). **Verdict BLOCKED** pada re-audit kedua karena temuan ini.
+
+**Sinyal yang BENAR-BENAR bekerja (percobaan keempat, final)**: tabel
+BARU khusus, `awcms_mini_news_portal_tenant_state` (migration `043`,
+`tenant_id` PK, kolom `full_online_r2_mode_applied_at`), yang TIDAK
+PUNYA endpoint tulis generik SAMA SEKALI di mana pun. Satu-satunya kode
+yang pernah menulis ke tabel ini adalah
+`applyNewsPortalFullOnlineR2Preset`
+(`news-portal/application/apply-news-portal-preset.ts`, lewat
+`news-portal-tenant-state.ts`'s `markFullOnlineR2ModeApplied`) — satu-
+satunya jalur resmi mengaktifkan preset ini (lihat header file itu
+sendiri). `isNewsPortalFullOnlineR2ModeActiveForTenant` membaca lewat
+`isFullOnlineR2ModeAppliedForTenant` — tenant tanpa baris di tabel ini
+(mayoritas tenant hari ini) selalu `false`, fail-closed by construction,
+TIDAK ADA jalur API mana pun (baik `module_management.settings.update`
+maupun permission generik lain) yang bisa menyentuhnya.
+
+**Pelajaran untuk implementor lanjutan yang butuh sinyal per-tenant
+serupa**: JANGAN pernah menaruh sinyal keamanan/enforcement di
+mekanisme yang SUDAH punya endpoint generik tenant-writable
+(`awcms_mini_tenant_modules`, `awcms_mini_module_settings`) — keduanya
+dirancang untuk operator self-service, bukan untuk menyimpan state yang
+tidak boleh tenant itu sendiri ubah. Kalau butuh sinyal yang genuinely
+tamper-proof, buat tabel baru sempit yang HANYA disentuh oleh satu
+fungsi aplikasi yang sudah dipercaya, dan JANGAN mengekspos write path
+apa pun ke sana.
+
+Ketika mode TIDAK aktif untuk tenant (mayoritas deployment/tenant hari
+ini): seluruh validasi baru ini adalah no-op — `featuredMediaId`/URL
+gallery lama tetap berperilaku identik sebelum issue ini (backward
+compatible, bukan pengetatan blanket). Regression test
+`"R2-only mode active for tenant A does NOT leak into tenant B"` DAN
+`"the generic PATCH .../settings endpoint CANNOT disable R2-only
+validation"` di `blog-content-news-media-r2-references.integration.test.ts`
+membuktikan ini secara eksplisit — implementor lanjutan yang mengubah
+gate ini **wajib** menjaga kedua test itu tetap lulus.
+
+### Bypass jalur restore revisi — ditemukan & ditutup sebelum merge (security-auditor, PR #666 review)
+
+`POST /api/v1/blog/posts/{id}/revisions/{revisionId}/restore` (Issue
+#541) menulis `revision.contentJson` balik ke post hidup lewat
+`updateBlogPost` — jalur tulis KELIMA ke `content_json`/`featuredMediaId`
+yang TIDAK ikut ter-patch bersama keempat route handler create/update
+posts/pages ketika validasi ini pertama kali ditulis. Skenario nyata:
+revisi lama (dibuat SEBELUM mode R2-only aktif, berisi gallery `url`
+mentah yang legal saat itu) di-restore SETELAH tenant mengaktifkan mode
+R2-only — restore lolos begitu saja, mengembalikan `url` mentah ke post
+hidup TANPA validasi apa pun, langsung tampil publik di `/news`. **Fix**:
+`restore.ts` sekarang juga memanggil
+`validateNewsMediaReferencesForFullOnlineR2Mode` (hanya `contentJson`
+revisi — `featuredMediaId` memang tidak pernah ikut snapshot revisi,
+lihat §Aturan #13 blog-content skill) tepat sebelum `updateBlogPost`,
+gagal `422 NEWS_MEDIA_REFERENCE_INVALID` persis sama seperti PATCH
+biasa. Regression test:
+`"POST .../revisions/{id}/restore also enforces the same validation"` di
+file integration test yang sama. **Setiap jalur tulis baru ke
+`content_json`/`featuredMediaId` di masa depan (mis. bulk-import,
+duplicate-post) WAJIB melalui gate yang sama** — jangan asumsikan
+keempat route handler asli sudah mencakup semua jalur tulis yang ada.
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `src/modules/news-portal/application/news-media-object-directory.ts`:
+  tambah `isNewsMediaObjectSafeForPublicReference(status)` — predikat
+  bersama (`verified`/`attached` saja) dipakai `blog_content` supaya
+  daftar "status aman untuk direferensikan publik" hanya didefinisikan
+  SATU tempat.
+- `src/modules/blog-content/application/news-portal-r2-mode-gate.ts`
+  (baru) — lihat di atas.
+- `src/modules/blog-content/domain/content-block-media-references.ts`
+  (baru) — `collectGalleryImageReferences(contentJson)`, murni: mengekstrak
+  `mediaObjectId` gallery item bertipe image + melaporkan violation
+  (`raw_url_not_allowed`/`media_object_id_missing_or_malformed`) tanpa
+  DB access.
+- `src/modules/blog-content/application/news-media-reference-gate.ts`
+  (baru) — `validateNewsMediaReferencesForFullOnlineR2Mode` (dipanggil
+  route handler SETELAH validator murni, SEBELUM tulis — pola
+  `countExistingTerms`) dan `resolveVerifiedNewsMediaReferences` (dipakai
+  render-time, lihat di bawah).
+- `src/modules/blog-content/domain/content-block-rendering.ts`: `GalleryItem`
+  gains `mediaObjectId` opsional; `renderGalleryItem`/`renderGallery`/
+  `renderBlock`/`renderContentJsonToHtml` menerima `resolvedMediaUrls`
+  (default kosong — backward compatible untuk caller lama). Tambah
+  `collectRenderableGalleryMediaObjectIds` (thin re-export
+  `collectGalleryImageReferences`, satu traversal dipakai baik write-time
+  maupun render-time supaya tidak pernah drift).
+- `src/modules/blog-content/domain/seo-rendering.ts`: tambah
+  `resolveOgImageUrl` — murni, menerima URL yang SUDAH di-resolve
+  (bukan melakukan lookup sendiri).
+- `src/modules/blog-content/domain/public-page-rendering.ts`:
+  `PublicPageShellOptions` gains `ogImageUrl`/`ogImageAlt` opsional;
+  `renderPublicPageShell` mengemit `og:image`/`twitter:card`/
+  `twitter:image`/`og:image:alt` hanya bila `ogImageUrl` ada.
+- `src/modules/blog-content/application/public-blog-directory.ts`:
+  `PublicBlogPostDetail`/`fetchPublicBlogPostBySlug` SELECT sekarang ikut
+  `featured_media_id` (sebelumnya tidak pernah di-SELECT sama sekali —
+  tidak ada yang me-render-nya sebelum issue ini).
+- `src/pages/news/[slug].ts`, `src/pages/blog/[tenantCode]/[slug].ts`:
+  resolve SEMUA mediaObjectId (featured + gallery) dalam SATU bulk
+  lookup (`resolveVerifiedNewsMediaReferences`) sebelum render — id yang
+  tidak resolve (salah tenant/status tidak aman/tidak ada) diam-diam
+  tidak dirender (degrade, don't 500).
+- `src/pages/api/v1/blog/posts/index.ts`, `[id].ts`,
+  `src/pages/api/v1/blog/pages/index.ts`, `[id].ts`,
+  `src/pages/api/v1/blog/posts/[id]/revisions/[revisionId]/restore.ts`
+  (kelima route — yang terakhir ditambah setelah re-review, lihat
+  §"Bypass jalur restore revisi" di atas): panggil
+  `validateNewsMediaReferencesForFullOnlineR2Mode` setelah pure
+  validator + (untuk posts) `countExistingTerms`, sebelum
+  create/updateBlogPost/Page — gagal `422 NEWS_MEDIA_REFERENCE_INVALID`.
+- `sql/043_awcms_mini_news_portal_tenant_state_schema.sql` (baru) — tabel
+  sempit `awcms_mini_news_portal_tenant_state` (`tenant_id` PK,
+  `full_online_r2_mode_applied_at`), RLS FORCE, TANPA endpoint tulis
+  generik apa pun — lihat §"Gate tenant+env" di atas untuk kenapa ini
+  butuh migration baru (dua percobaan tanpa migration baru gagal, satu
+  di antaranya benar-benar bisa dieksploitasi).
+- `src/modules/news-portal/application/news-portal-tenant-state.ts`
+  (baru) — `markFullOnlineR2ModeApplied`/`isFullOnlineR2ModeAppliedForTenant`,
+  satu-satunya kode yang boleh menulis tabel di atas.
+- `src/modules/news-portal/application/apply-news-portal-preset.ts`:
+  setelah `applyModulePreset` sukses DAN entry `news_portal` sendiri di
+  `result.changes` tidak `rejected` (rejection modul LAIN yang dibundel
+  preset, mis. `visitor_analytics` karena `logging`-nya sendiri disabled,
+  TIDAK memblokir — hanya rejection `news_portal` sendiri yang berarti
+  tenant ini genuinely belum siap), panggil `markFullOnlineR2ModeApplied`.
+- `src/lib/i18n/error-messages.ts`, `i18n/en.po`, `i18n/id.po`: entry baru
+  `error.news_media_reference_invalid` untuk kode error di atas (admin UI
+  sudah generic-fallback ke `error.message` server tanpa ini, tapi entry
+  i18n eksplisit konsisten dengan SEMUA kode error lain di katalog).
+- `openapi/awcms-mini-public-api.openapi.yaml`: `featuredMediaId`/
+  `contentJson` schema description diperbarui (bentuk TIDAK berubah);
+  response `422` baru di kelima endpoint create/update posts/pages +
+  restore revisi.
+- `tests/foundation.test.ts`: tambah nama file migration `043` ke daftar
+  migration yang diharapkan.
+- Test: `tests/unit/content-block-media-references.test.ts` (baru),
+  `tests/blog-content-public-rendering.test.ts` (tambah describe block
+  gallery mediaObjectId + og:image + `resolveOgImageUrl`),
+  `tests/integration/blog-content-news-media-r2-references.integration.test.ts`
+  (baru — end-to-end: create/update reject, cross-tenant, status
+  unsafe, soft-deleted, gallery raw-url reject, gallery mediaObjectId
+  accept, video item tidak terpengaruh, render publik og:image+gallery
+  `<img>`, restore-revisi reject, "tenant B tidak terpengaruh aktivasi
+  tenant A", DAN "endpoint settings generik tidak bisa menonaktifkan
+  validasi" — tiga test terakhir ditambah setelah tiga putaran review).
+- Changeset: `.changeset/blog-content-news-media-r2-references-issue-636.md`.
+
+### Belum/di luar cakupan issue ini (untuk issue lanjutan)
+
+- **Deteksi objek `orphaned`** (§4 `r2-backup-lifecycle.md`) — issue ini
+  MENAMBAH titik referensi baru (`featuredMediaId`, gallery
+  `mediaObjectId`) yang WAJIB masuk daftar titik referensi deteksi
+  orphan begitu job itu akhirnya dibangun (masih belum ada issue yang
+  mengklaimnya, lihat §635's catatan).
+- **Video gallery item R2-only** — sengaja tidak disentuh, scope #639.
+- **SEO metadata lengkap** (structured data, Twitter card selain
+  `summary_large_image`, dst.) — `resolveOgImageUrl`/`og:image` di sini
+  adalah irisan MINIMAL yang memenuhi acceptance criteria #636 ("SEO
+  image rendering uses verified R2 media metadata only"); polish SEO
+  penuh tetap scope #649.
+- **Admin UI picker visual** untuk memilih media object (saat ini admin
+  tetap mengetik UUID `featuredMediaId`/`mediaObjectId` manual di form —
+  sama seperti sebelum issue ini, lihat `awcms-mini-blog-content`
+  SKILL.md). Server mengembalikan error jelas
+  (`NEWS_MEDIA_REFERENCE_INVALID`) yang sudah tampil sebagai banner
+  admin UI (fallback generic `strings.errorMessages`/`error.message`,
+  `AdminLayout.astro`'s pattern) — tapi tidak ada UI picker baru yang
+  dibangun issue ini.
 
 ## §637-#640, #642, #649 — konsumsi media registry (belum dikerjakan)
 

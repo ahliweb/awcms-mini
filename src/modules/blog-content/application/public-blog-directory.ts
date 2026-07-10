@@ -31,6 +31,8 @@ export type PublicBlogPostDetail = {
   canonicalUrl: string | null;
   locale: string;
   publishedAt: Date;
+  /** Issue #636 — added so public detail routes can resolve it to a verified R2 media object for gallery/og:image rendering (`resolveVerifiedNewsMediaReferences`). Not previously selected here since nothing rendered it before this issue. */
+  featuredMediaId: string | null;
 };
 
 type PublicBlogPostDetailRow = {
@@ -45,6 +47,7 @@ type PublicBlogPostDetailRow = {
   canonical_url: string | null;
   locale: string;
   published_at: Date;
+  featured_media_id: string | null;
 };
 
 function toDetail(row: PublicBlogPostDetailRow): PublicBlogPostDetail {
@@ -59,7 +62,8 @@ function toDetail(row: PublicBlogPostDetailRow): PublicBlogPostDetail {
     metaDescription: row.meta_description,
     canonicalUrl: row.canonical_url,
     locale: row.locale,
-    publishedAt: row.published_at
+    publishedAt: row.published_at,
+    featuredMediaId: row.featured_media_id
   };
 }
 
@@ -70,7 +74,7 @@ export async function fetchPublicBlogPostBySlug(
 ): Promise<PublicBlogPostDetail | null> {
   const rows = (await tx`
     SELECT id, title, slug, excerpt, content_json, content_text, seo_title,
-      meta_description, canonical_url, locale, published_at
+      meta_description, canonical_url, locale, published_at, featured_media_id
     FROM awcms_mini_blog_posts
     WHERE tenant_id = ${tenantId} AND slug = ${slug}
       AND status = 'published' AND visibility IN ('public', 'unlisted')

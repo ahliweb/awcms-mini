@@ -13,6 +13,7 @@ import {
   createBlogPage,
   listBlogPages
 } from "../../../../../modules/blog-content/application/blog-page-directory";
+import { validateNewsMediaReferencesForFullOnlineR2Mode } from "../../../../../modules/blog-content/application/news-media-reference-gate";
 import { validateCreateBlogPageInput } from "../../../../../modules/blog-content/domain/blog-page-validation";
 import {
   isBlogContentStatus,
@@ -172,6 +173,22 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
           "parentPageId does not reference an existing page."
         );
       }
+    }
+
+    const mediaReferenceValidation =
+      await validateNewsMediaReferencesForFullOnlineR2Mode(tx, tenantId, {
+        featuredMediaId: input.featuredMediaId,
+        contentJson: input.contentJson
+      });
+
+    if (!mediaReferenceValidation.valid) {
+      return fail(
+        422,
+        "NEWS_MEDIA_REFERENCE_INVALID",
+        "One or more image references are not valid R2 media objects in full-online R2-only mode.",
+        {},
+        mediaReferenceValidation.errors
+      );
     }
 
     let page;

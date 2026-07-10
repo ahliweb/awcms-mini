@@ -1,9 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
-import { renderContentJsonToHtml } from "../src/modules/blog-content/domain/content-block-rendering";
+import {
+  collectRenderableGalleryMediaObjectIds,
+  renderContentJsonToHtml
+} from "../src/modules/blog-content/domain/content-block-rendering";
 import {
   resolveCanonicalUrl,
   resolveMetaDescription,
+  resolveOgImageUrl,
   resolveSeoTitle
 } from "../src/modules/blog-content/domain/seo-rendering";
 import {
@@ -149,6 +153,136 @@ describe("renderContentJsonToHtml", () => {
       renderContentJsonToHtml({ blocks: [{ type: "gallery", items: [] }] })
     ).toBe("");
   });
+
+  test("Issue #636: renders an image gallery item using mediaObjectId, resolved via the resolvedMediaUrls map", () => {
+    const contentJson = {
+      blocks: [
+        {
+          type: "gallery",
+          items: [
+            {
+              mediaType: "image",
+              mediaObjectId: "11111111-1111-1111-1111-111111111111",
+              caption: "R2 image"
+            }
+          ]
+        }
+      ]
+    };
+    const resolvedMediaUrls = new Map([
+      [
+        "11111111-1111-1111-1111-111111111111",
+        "https://media.example.test/news-media/tenant/2026/07/a.jpg"
+      ]
+    ]);
+
+    const html = renderContentJsonToHtml(contentJson, resolvedMediaUrls);
+    expect(html).toContain(
+      '<img src="https://media.example.test/news-media/tenant/2026/07/a.jpg"'
+    );
+    expect(html).toContain("R2 image");
+  });
+
+  test("Issue #636: skips an image gallery item whose mediaObjectId is not in resolvedMediaUrls (unresolved/unsafe/absent — never a broken <img>)", () => {
+    const contentJson = {
+      blocks: [
+        {
+          type: "gallery",
+          items: [
+            {
+              mediaType: "image",
+              mediaObjectId: "22222222-2222-2222-2222-222222222222"
+            }
+          ]
+        }
+      ]
+    };
+
+    expect(renderContentJsonToHtml(contentJson, new Map())).toBe("");
+    expect(renderContentJsonToHtml(contentJson)).toBe("");
+  });
+
+  test("Issue #636: mediaObjectId takes precedence over url when both happen to be present", () => {
+    const contentJson = {
+      blocks: [
+        {
+          type: "gallery",
+          items: [
+            {
+              mediaType: "image",
+              mediaObjectId: "33333333-3333-3333-3333-333333333333",
+              url: "https://untrusted.example.com/a.jpg"
+            }
+          ]
+        }
+      ]
+    };
+    const resolvedMediaUrls = new Map([
+      [
+        "33333333-3333-3333-3333-333333333333",
+        "https://media.example.test/trusted.jpg"
+      ]
+    ]);
+
+    const html = renderContentJsonToHtml(contentJson, resolvedMediaUrls);
+    expect(html).toContain('src="https://media.example.test/trusted.jpg"');
+    expect(html).not.toContain("untrusted.example.com");
+  });
+});
+
+describe("collectRenderableGalleryMediaObjectIds (Issue #636)", () => {
+  test("empty for content with no gallery blocks", () => {
+    expect(
+      collectRenderableGalleryMediaObjectIds({
+        blocks: [{ type: "paragraph", text: "hi" }]
+      })
+    ).toEqual([]);
+  });
+
+  test("collects mediaObjectId from image items only, ignoring video items and url-based items", () => {
+    const ids = collectRenderableGalleryMediaObjectIds({
+      blocks: [
+        {
+          type: "gallery",
+          items: [
+            {
+              mediaType: "image",
+              mediaObjectId: "11111111-1111-1111-1111-111111111111"
+            },
+            { mediaType: "video", mediaObjectId: "should-be-ignored" },
+            { mediaType: "image", url: "https://cdn.example.com/a.jpg" }
+          ]
+        }
+      ]
+    });
+    expect(ids).toEqual(["11111111-1111-1111-1111-111111111111"]);
+  });
+
+  test("deduplicates repeated mediaObjectId references across blocks", () => {
+    const ids = collectRenderableGalleryMediaObjectIds({
+      blocks: [
+        {
+          type: "gallery",
+          items: [
+            {
+              mediaType: "image",
+              mediaObjectId: "11111111-1111-1111-1111-111111111111"
+            }
+          ]
+        },
+        {
+          type: "gallery",
+          items: [
+            {
+              mediaType: "image",
+              mediaObjectId: "11111111-1111-1111-1111-111111111111"
+            }
+          ]
+        }
+      ]
+    });
+    expect(ids).toEqual(["11111111-1111-1111-1111-111111111111"]);
+  });
 });
 
 describe("resolveSeoTitle", () => {
@@ -264,6 +398,81 @@ describe("renderPublicPageShell", () => {
       locale: "en"
     });
     expect(html).not.toContain('rel="canonical"');
+  });
+
+  test("Issue #636: omits og:image/twitter:image entirely when ogImageUrl is null/absent", () => {
+    const withoutOption = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en"
+    });
+    expect(withoutOption).not.toContain("og:image");
+    expect(withoutOption).not.toContain("twitter:image");
+
+    const withNull = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en",
+      ogImageUrl: null
+    });
+    expect(withNull).not.toContain("og:image");
+  });
+
+  test("Issue #636: emits escaped og:image/twitter:image tags when ogImageUrl is present", () => {
+    const html = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en",
+      ogImageUrl: "https://media.example.test/a.jpg?x=1&y=2",
+      ogImageAlt: "A <b>photo</b>"
+    });
+    expect(html).toContain(
+      '<meta property="og:image" content="https://media.example.test/a.jpg?x=1&amp;y=2" />'
+    );
+    expect(html).toContain(
+      '<meta name="twitter:card" content="summary_large_image" />'
+    );
+    expect(html).toContain(
+      '<meta name="twitter:image" content="https://media.example.test/a.jpg?x=1&amp;y=2" />'
+    );
+    expect(html).toContain(
+      '<meta property="og:image:alt" content="A &lt;b&gt;photo&lt;/b&gt;" />'
+    );
+  });
+
+  test("Issue #636: omits og:image:alt when ogImageAlt is not provided", () => {
+    const html = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en",
+      ogImageUrl: "https://media.example.test/a.jpg"
+    });
+    expect(html).toContain('<meta property="og:image"');
+    expect(html).not.toContain("og:image:alt");
+  });
+});
+
+describe("resolveOgImageUrl (Issue #636)", () => {
+  test("null when there is no resolved featured media URL", () => {
+    expect(resolveOgImageUrl(null)).toBeNull();
+  });
+
+  test("passes through a safe absolute http(s) URL", () => {
+    expect(resolveOgImageUrl("https://media.example.test/a.jpg")).toBe(
+      "https://media.example.test/a.jpg"
+    );
+  });
+
+  test("null for an unsafe URL (defense-in-depth even though the registry's publicUrl is already trusted)", () => {
+    expect(resolveOgImageUrl("javascript:alert(1)")).toBeNull();
   });
 });
 

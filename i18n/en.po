@@ -224,6 +224,9 @@ msgstr "This change requires at least one currently-active break-glass identity.
 msgid "error.password_login_disabled"
 msgstr "Password login is disabled for this account. Use single sign-on instead."
 
+msgid "error.news_media_reference_invalid"
+msgstr "One or more images are not verified R2 media objects. Upload the image first and select it from the media library."
+
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"
 msgstr "No role"
