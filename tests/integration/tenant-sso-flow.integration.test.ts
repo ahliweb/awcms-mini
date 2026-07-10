@@ -216,6 +216,82 @@ function authHeaders(owner: Bootstrap): Record<string, string> {
   };
 }
 
+/**
+ * `POST /setup/initialize` is a once-per-database singleton lock — it
+ * cannot be called twice to bootstrap two tenants in the same test (same
+ * constraint `blog-content-admin-ui.integration.test.ts`'s
+ * `provisionSecondTenantWithBlogPostAccess` docblock documents). A second
+ * tenant with `identity_access.sso_providers.{create,read}` is provisioned
+ * directly via `getAdminSql()` instead.
+ */
+async function provisionSecondTenantWithSsoProviderAccess(
+  tenantCode: string
+): Promise<Bootstrap> {
+  const tenantId = crypto.randomUUID();
+  const loginIdentifier = `${tenantCode}-user@example.com`;
+  const password = `integration-test-${tenantCode}-password`;
+  const admin = getAdminSql();
+
+  await admin`
+    INSERT INTO awcms_mini_tenants (id, tenant_code, tenant_name)
+    VALUES (${tenantId}, ${tenantCode}, ${`Tenant ${tenantCode}`})
+  `;
+
+  const passwordHash = await Bun.password.hash(password);
+
+  await admin.begin(async (tx) => {
+    await tx.unsafe(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
+
+    const profile = (await tx`
+      INSERT INTO awcms_mini_profiles (tenant_id, profile_type, display_name)
+      VALUES (${tenantId}, 'person', 'SSO Test User') RETURNING id
+    `) as { id: string }[];
+    const identity = (await tx`
+      INSERT INTO awcms_mini_identities (tenant_id, profile_id, login_identifier, password_hash)
+      VALUES (${tenantId}, ${profile[0]!.id}, ${loginIdentifier}, ${passwordHash})
+      RETURNING id
+    `) as { id: string }[];
+    const tenantUser = (await tx`
+      INSERT INTO awcms_mini_tenant_users (tenant_id, identity_id)
+      VALUES (${tenantId}, ${identity[0]!.id}) RETURNING id
+    `) as { id: string }[];
+    const role = (await tx`
+      INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name)
+      VALUES (${tenantId}, 'sso_provider_manager', 'SSO Provider Manager') RETURNING id
+    `) as { id: string }[];
+    const permissions = (await tx`
+      SELECT id FROM awcms_mini_permissions
+      WHERE module_key = 'identity_access' AND activity_code = 'sso_providers'
+        AND action IN ('create', 'read')
+    `) as { id: string }[];
+
+    for (const permission of permissions) {
+      await tx`
+        INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
+        VALUES (${tenantId}, ${role[0]!.id}, ${permission.id})
+      `;
+    }
+    await tx`
+      INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id)
+      VALUES (${tenantId}, ${tenantUser[0]!.id}, ${role[0]!.id})
+    `;
+  });
+
+  const login = await invoke<{ data: { token: string } }>(authLogin, {
+    method: "POST",
+    path: "/api/v1/auth/login",
+    headers: {
+      "content-type": "application/json",
+      "x-awcms-mini-tenant-id": tenantId
+    },
+    body: { loginIdentifier, password },
+    cookies: createCookieJar()
+  });
+  expect(login.status).toBe(200);
+
+  return { tenantId, token: login.body.data.token };
+}
+
 async function createOktaProvider(
   owner: Bootstrap,
   overrides: Record<string, unknown> = {}
@@ -292,39 +368,83 @@ suite("Generic tenant OIDC SSO flow (Issue #591)", () => {
     });
   });
 
-  test("start rate-limits aggregate requests to one providerKey across many DIFFERENT source IPs (Issue #610)", async () => {
-    const owner = await bootstrapTenant();
-    await createOktaProvider(owner);
+  test("CRITICAL: two DIFFERENT tenants both naming their provider 'okta' get fully independent /start behavior (Issue #610 security-auditor finding)", async () => {
+    // `provider_key` is only unique PER TENANT — two unrelated tenants
+    // both naming their provider "okta" is normal and expected. An
+    // earlier draft of this fix keyed generic-oidc-client.ts's discovery
+    // cache/circuit-breaker by `providerKey` ALONE, so tenant A's
+    // discovery result for a hostile/broken "okta" would be served
+    // straight to tenant B's real, healthy "okta" — a cross-tenant
+    // cache-poisoning bug, not just a rate-limit gap. This test drives
+    // the real `/start` route for both tenants and proves tenant B's
+    // login is completely unaffected by tenant A's failing provider.
+    const tenantA = await bootstrapTenant("tenant-a");
+    const tenantB =
+      await provisionSecondTenantWithSsoProviderAccess("tenant-b");
 
-    await withEnvOverride(FULL_ONLINE_SSO_ENV, async () => {
-      await withStubbedOkta({}, async () => {
-        // Default AUTH_SSO_PROVIDER_RATE_LIMIT_MAX is 60 — each call below
-        // uses a DIFFERENT X-Forwarded-For so the pre-existing per-source
-        // limiter (default max 20) never trips first; only the aggregate
-        // per-providerKey check should fire, proving it bounds a
-        // distributed prober rotating source IPs against one target.
-        for (let i = 0; i < 60; i += 1) {
-          const start = await invoke(ssoStart, {
-            method: "GET",
-            path: `/api/v1/auth/sso/okta/start?tenantId=${owner.tenantId}`,
-            params: { providerKey: "okta" },
-            headers: {
-              "x-forwarded-for": `10.0.${Math.floor(i / 255)}.${i % 255}`
-            }
-          });
-          expect(start.status).toBe(302);
-        }
+    const attackerIssuer = "https://attacker.example.com";
+    await createOktaProvider(tenantA, { issuerUrl: attackerIssuer });
+    await createOktaProvider(tenantB);
 
-        const oneTooMany = await invoke<{ error: { code: string } }>(ssoStart, {
-          method: "GET",
-          path: `/api/v1/auth/sso/okta/start?tenantId=${owner.tenantId}`,
-          params: { providerKey: "okta" },
-          headers: { "x-forwarded-for": "10.0.99.99" }
+    let fetchCallCount = 0;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      fetchCallCount += 1;
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url.startsWith(attackerIssuer)) {
+        return new Response("internal error", { status: 500 });
+      }
+
+      if (url === `${OKTA_ISSUER}/.well-known/openid-configuration`) {
+        return Response.json({
+          issuer: OKTA_ISSUER,
+          authorization_endpoint: `${OKTA_ISSUER}/oauth2/v1/authorize`,
+          token_endpoint: `${OKTA_ISSUER}/oauth2/v1/token`,
+          jwks_uri: `${OKTA_ISSUER}/oauth2/v1/keys`
         });
-        expect(oneTooMany.status).toBe(429);
-        expect(oneTooMany.body.error.code).toBe("RATE_LIMITED");
+      }
+
+      return originalFetch(input as never);
+    }) as typeof fetch;
+    resetGenericOidcCachesForTests();
+    resetProviderCircuitBreakersForTests();
+
+    try {
+      await withEnvOverride(FULL_ONLINE_SSO_ENV, async () => {
+        const attackerTenantStart = await invoke<{ error: { code: string } }>(
+          ssoStart,
+          {
+            method: "GET",
+            path: `/api/v1/auth/sso/okta/start?tenantId=${tenantA.tenantId}`,
+            params: { providerKey: "okta" }
+          }
+        );
+        expect(attackerTenantStart.status).toBe(502);
+        expect(attackerTenantStart.body.error.code).toBe(
+          "SSO_PROVIDER_UNAVAILABLE"
+        );
+
+        // Tenant B's "okta" must succeed — completely unaffected by tenant
+        // A's failing/hostile "okta" cache entry or circuit breaker.
+        const victimTenantStart = await invoke(ssoStart, {
+          method: "GET",
+          path: `/api/v1/auth/sso/okta/start?tenantId=${tenantB.tenantId}`,
+          params: { providerKey: "okta" }
+        });
+        expect(victimTenantStart.status).toBe(302);
+        const location = new URL(
+          victimTenantStart.response.headers.get("location")!
+        );
+        expect(location.origin).toBe(OKTA_ISSUER);
+
+        expect(fetchCallCount).toBe(2);
       });
-    });
+    } finally {
+      globalThis.fetch = originalFetch;
+      resetGenericOidcCachesForTests();
+      resetProviderCircuitBreakersForTests();
+    }
   });
 
   test("disabled mode (default): start/link/unlink all report SSO_DISABLED", async () => {

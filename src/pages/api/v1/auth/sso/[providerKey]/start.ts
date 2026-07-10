@@ -23,25 +23,6 @@ const RATE_LIMIT_WINDOW_SEC = Number(
 );
 
 /**
- * Aggregate (NOT per-source) budget for this one `providerKey`, on top of
- * the per-source+tenant limiter above (Issue #610, follow-up from the
- * Issue #603 SSRF risk-acceptance decision). The per-source limiter bounds
- * how fast any ONE client can hit this endpoint, but does nothing against
- * many different source IPs each staying under that limit while probing
- * the SAME tenant-configured `issuer_url` in aggregate — this second
- * check bounds total request volume against one specific provider
- * regardless of how many distinct sources it comes from. Default is
- * generous enough for legitimate concurrent SSO logins to a popular
- * provider within one tenant; tune down for stricter environments.
- */
-const PROVIDER_RATE_LIMIT_MAX_ATTEMPTS = Number(
-  process.env.AUTH_SSO_PROVIDER_RATE_LIMIT_MAX ?? 60
-);
-const PROVIDER_RATE_LIMIT_WINDOW_SEC = Number(
-  process.env.AUTH_SSO_PROVIDER_RATE_LIMIT_WINDOW_SEC ?? 60
-);
-
-/**
  * `GET /api/v1/auth/sso/{providerKey}/start` (Issue #591) — unauthenticated
  * entry point, same shape as Issue #590's `providers/google/start.ts`:
  * `tenantId` resolved from header/cookie/`?tenantId=` query param fallback
@@ -53,6 +34,21 @@ const PROVIDER_RATE_LIMIT_WINDOW_SEC = Number(
  * confirmed active but the provider key doesn't resolve to an enabled
  * provider for this tenant — avoids leaking a distinct signal for "gate
  * off" vs "provider key wrong" beyond what's already unavoidable.
+ *
+ * Deliberately only ONE rate limit here (per-source+tenant), not also an
+ * aggregate/shared one keyed by `providerKey` alone (Issue #610's own
+ * security-auditor review): a SHARED budget across all sources is itself
+ * a privilege-free DoS against every legitimate user of that tenant's SSO
+ * login — as few as 3 source IPs can exhaust a shared 60/60s budget and
+ * lock everyone else out, repeatedly, and the review's own test proved
+ * exactly this. The actual defense against sustained internal-network
+ * probing via a malicious `issuer_url` lives in `generic-oidc-client.ts`'s
+ * circuit breaker + negative-TTL cache instead, both now correctly scoped
+ * per `${tenantId}:${providerKey}` — they only ever throttle FAILING
+ * attempts, so they can never block a legitimate login to a healthy
+ * provider. Do not reintroduce a shared/aggregate rate limit on this
+ * endpoint without reading the full rationale in
+ * `generic-oidc-client.ts`'s top comment first.
  */
 export const GET: APIRoute = async ({
   request,
@@ -99,28 +95,6 @@ export const GET: APIRoute = async ({
       {},
       undefined,
       { "retry-after": String(rateLimit.retryAfterSec) }
-    );
-  }
-
-  // Aggregate-across-sources check (Issue #610) — deliberately a SEPARATE
-  // key/bucket from the per-source one above, so a distributed prober
-  // rotating source IPs against this one provider still gets capped.
-  const providerRateLimit = checkRateLimit(
-    `${tenantId}:${providerKey}:sso-provider-start`,
-    {
-      maxAttempts: PROVIDER_RATE_LIMIT_MAX_ATTEMPTS,
-      windowMs: PROVIDER_RATE_LIMIT_WINDOW_SEC * 1000
-    }
-  );
-
-  if (!providerRateLimit.allowed) {
-    return fail(
-      429,
-      "RATE_LIMITED",
-      "Too many requests for this provider. Try again later.",
-      {},
-      undefined,
-      { "retry-after": String(providerRateLimit.retryAfterSec) }
     );
   }
 

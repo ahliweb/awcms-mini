@@ -700,28 +700,69 @@ diterima BERSAMA keputusan utama, bukan celah yang sudah tertutup oleh
 ABAC — segmentasi jaringan level operator untuk service internal yang
 sungguh sensitif tetap jadi lapis pertahanan yang sebenarnya, bukan ABAC.
 
-**Follow-up — selesai (Issue #610)**: rate limit AGREGAT per-`providerKey`
-(`AUTH_SSO_PROVIDER_RATE_LIMIT_MAX`/`_WINDOW_SEC`, `start.ts`) di atas
-limiter per-sumber+tenant yang sudah ada — membatasi prober terdistribusi
-yang merotasi source IP terhadap SATU target regardless jumlah sumbernya.
-Negative/short-TTL cache (`NEGATIVE_CACHE_TTL_MS = 30s`,
-`discoveryFailureCache`/`jwksFailureCache` di `generic-oidc-client.ts`)
-untuk percobaan discovery/JWKS yang GAGAL — target yang tak pernah
-membalas JSON valid tidak lagi memicu fetch baru di setiap hit, hanya
-sekali per jendela 30 detik. Rekomendasi infra-layer blokir egress ke
-`169.254.169.254` (metadata endpoint cloud) khusus deployment
-`full_online` didokumentasikan di `deployment-profiles.md` §Generic
-tenant OIDC SSO (residual yang tetap di luar cakupan aplikasi — tanggung
-jawab operator, bukan kode). Regression test:
-`tests/unit/generic-oidc-client.test.ts` (negative cache) dan
-`tests/integration/tenant-sso-flow.integration.test.ts`'s "start
-rate-limits aggregate requests to one providerKey across many DIFFERENT
-source IPs" (rate limit agregat). **Kalau butuh SSRF hardening lebih
-ketat di masa depan** (mis. operator `full_online` murni SaaS yang tidak
-butuh IdP on-prem sama sekali): jangan blanket-block — tambahkan sebagai
-opt-in per-deployment (env var terpisah, default off)
-supaya skenario enterprise-IdP-via-VPN tidak pernah terkena regresi diam-diam.
-Jangan reimplementasi keputusan ini tanpa membaca rasional di atas dulu.
+**Follow-up — selesai (Issue #610)**, revisi setelah DUA putaran security
+review:
+
+- **Fix Critical, sebenarnya bug pre-existing sejak #591**: SEMUA
+  cache/circuit-breaker di `generic-oidc-client.ts`
+  (`discoveryCache`/`jwksCache`, breaker discovery/jwks/token) sebelumnya
+  di-key HANYA oleh `providerKey`. `provider_key` cuma unik PER TENANT
+  (unique index migration 036 adalah `(tenant_id, provider_key)`), jadi
+  dua tenant berbeda yang sama-sama menamai provider mereka `"okta"`
+  (sangat umum) BERBAGI entry cache/breaker yang sama — tenant admin jahat
+  bisa mendaftarkan provider dengan slug vendor umum yang `issuer_url`-nya
+  menunjuk server attacker, memicu satu fetch, dan `authorization_endpoint`/
+  `jwks_uri` attacker itu ter-serve ke tenant LAIN yang punya provider
+  `"okta"` sungguhan — bukan sekadar kebocoran ketersediaan, tapi primitif
+  pengambilalihan SSO lintas-tenant (redirect ke phishing + ID token palsu
+  yang lolos verifikasi JWKS attacker sendiri). Diperbaiki:
+  `discoverOidcConfiguration`/`fetchProviderJwks`/`exchangeAuthorizationCode`
+  kini menerima `tenantId` dan meng-key semua cache/breaker dengan
+  `${tenantId}:${providerKey}` (`scopedProviderKey`). Test:
+  `tests/unit/generic-oidc-client.test.ts`'s "CRITICAL: two DIFFERENT
+  tenants using the SAME providerKey..." dan
+  `tests/integration/tenant-sso-flow.integration.test.ts`'s "CRITICAL: two
+  DIFFERENT tenants both naming their provider 'okta'...".
+- **Koreksi desain — draft awal PR ini menambah bug baru**: draft awal
+  menambah rate limit AGREGAT (bukan per-sumber) di `start.ts`, di-key
+  `${tenantId}:${providerKey}`, untuk membatasi prober yang merotasi
+  source IP. Putaran security-auditor KEDUA menemukan budget BERSAMA ini
+  sendiri adalah vektor DoS tanpa privilege apa pun: siapa pun, dari
+  sesedikit 3 source IP, bisa menghabiskan seluruh budget dan mengunci
+  SEMUA user sah tenant itu dari login SSO selama jendela rate limit,
+  berulang — test yang ditambahkan draft awal untuk membuktikan mekanisme
+  ini justru secara tidak sengaja MEMBUKTIKAN DoS tersebut. Rate limit
+  agregat ini **dihapus total**. Pertahanan sebenarnya terhadap probing
+  berkelanjutan adalah circuit breaker (kini benar-benar di-scope
+  tenant+provider) + negative-TTL cache di bawah — keduanya HANYA
+  membatasi percobaan yang GAGAL, jadi tidak pernah bisa memblokir login
+  sah ke provider yang sehat, beda dari rate limit HTTP-level bersama yang
+  memblokir semua request regardless hasil.
+- Negative/short-TTL cache (`NEGATIVE_CACHE_TTL_MS = 30s`,
+  `discoveryFailureCache`/`jwksFailureCache` di `generic-oidc-client.ts`,
+  kini di-key `${tenantId}:${providerKey}`) untuk percobaan discovery/JWKS
+  yang GAGAL — target yang tak pernah membalas JSON valid tidak lagi
+  memicu fetch baru di setiap hit, hanya sekali per jendela 30 detik.
+- Rekomendasi infra-layer blokir egress ke `169.254.169.254` (metadata
+  endpoint cloud) khusus deployment `full_online` didokumentasikan di
+  `deployment-profiles.md` §Generic tenant OIDC SSO (residual yang tetap
+  di luar cakupan aplikasi — tanggung jawab operator, bukan kode).
+- **Follow-up terpisah, TIDAK memblokir #610**: Issue #612 — belum ada cap
+  jumlah baris `awcms_mini_auth_providers` per tenant, jadi tenant admin
+  jahat masih bisa mendaftarkan banyak provider (masing-masing dapat
+  budget cache/breaker independen sendiri-sendiri, kini benar di-scope)
+  untuk melipatgandakan volume probing total secara linear dengan jumlah
+  baris. Ditunda sesuai konvensi repo ini (tutup yang diminta, file
+  follow-up sempit untuk yang lain) — beda dari dua temuan Critical di
+  atas yang WAJIB diperbaiki di PR yang sama karena keduanya regresi/celah
+  baru pada mekanisme yang PR ini sendiri klaim sebagai perbaikan.
+
+**Kalau butuh SSRF hardening lebih ketat di masa depan** (mis. operator
+`full_online` murni SaaS yang tidak butuh IdP on-prem sama sekali): jangan
+blanket-block — tambahkan sebagai opt-in per-deployment (env var terpisah,
+default off) supaya skenario enterprise-IdP-via-VPN tidak pernah terkena
+regresi diam-diam. Jangan reimplementasi keputusan ini tanpa membaca
+rasional di atas dulu.
 
 ### Break-glass picker/data-hygiene (Issue #605, selesai)
 

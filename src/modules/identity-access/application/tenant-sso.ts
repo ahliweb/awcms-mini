@@ -192,6 +192,7 @@ export async function buildSsoAuthorizationUrl(
   env: NodeJS.ProcessEnv = process.env
 ): Promise<BuildAuthorizationUrlResult> {
   const discovery = await discoverOidcConfiguration(
+    tenantId,
     provider.provider_key,
     provider.issuer_url,
     env
@@ -221,6 +222,7 @@ export type VerifyIdTokenResult =
 
 /** Full ID token verification pipeline against a tenant-configured provider — same cryptographic approach as `google-oidc.ts`'s `verifyGoogleIdToken` (RS256 via WebCrypto, then issuer/audience/expiry/nonce claim validation), except the JWKS URI/issuer come from `discoverOidcConfiguration` rather than a hardcoded constant. */
 export async function verifyTenantOidcIdToken(
+  tenantId: string,
   provider: AuthProviderRow,
   idToken: string,
   expectedNonce: string,
@@ -228,6 +230,7 @@ export async function verifyTenantOidcIdToken(
   env: NodeJS.ProcessEnv = process.env
 ): Promise<VerifyIdTokenResult> {
   const discovery = await discoverOidcConfiguration(
+    tenantId,
     provider.provider_key,
     provider.issuer_url,
     env
@@ -250,6 +253,7 @@ export async function verifyTenantOidcIdToken(
   }
 
   const jwksResult = await fetchProviderJwks(
+    tenantId,
     provider.provider_key,
     discovery.document.jwks_uri,
     env
@@ -510,6 +514,7 @@ export async function completeTenantSsoCallback(
   }
 
   const discovery = await discoverOidcConfiguration(
+    tenantId,
     providerKey,
     provider.issuer_url,
     env
@@ -520,6 +525,7 @@ export async function completeTenantSsoCallback(
   }
 
   const exchangeResult = await exchangeAuthorizationCode({
+    tenantId,
     providerKey,
     tokenEndpoint: discovery.document.token_endpoint,
     code,
@@ -534,6 +540,7 @@ export async function completeTenantSsoCallback(
   }
 
   const verifyResult = await verifyTenantOidcIdToken(
+    tenantId,
     provider,
     exchangeResult.idToken,
     consumeResult.nonce,

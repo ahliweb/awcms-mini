@@ -1435,7 +1435,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "429":
-          description: Too many requests from this source, OR too many aggregate requests for this `providerKey` across all sources (Issue #610) — both `RATE_LIMITED`.
+          description: Too many requests from this source (`RATE_LIMITED`).
           content:
             application/json:
               schema:
