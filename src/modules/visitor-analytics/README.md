@@ -77,7 +77,10 @@ populates `visitor_sessions.country_code`/`visit_events.geo` with a real
 value** — `/api/v1/analytics/locations` (Issue #621) has real data from
 here on for deployments that opt in.
 
-Issue #622: admin visitor analytics dashboard UI at `/admin/analytics`.
+Issue #622 (`src/pages/admin/analytics.astro`,
+`domain/dashboard-view.ts`): admin visitor analytics dashboard UI at
+`/admin/analytics` — surfaces #621's endpoints only (see §Dashboard UI
+below).
 
 Issue #624: rollup job, retention purge job, readiness checks, and final
 docs pass.
@@ -321,18 +324,26 @@ after the primary guard passes, never a substitute for it.
 
 **Aggregate queries** (`application/analytics-queries.ts`) compute
 directly from raw `awcms_mini_visit_events`/`awcms_mini_visitor_sessions`
-rows, not `awcms_mini_visitor_daily_rollups` — that table is always empty
-until Issue #624's rollup job exists. Switching `fetchAnalyticsSummary` to
-read rollups for older, fully-rolled-up ranges is future work for #624,
-not required now.
+rows, not `awcms_mini_visitor_daily_rollups`. This was true by necessity
+when written (the rollup job didn't exist yet, so the table was always
+empty) and remains the deliberate choice now that Issue #624's
+`bun run analytics:rollup` populates it: raw events are always current
+for "today", while rollups only cover fully-finished past days.
+Switching `fetchAnalyticsSummary` to read rollups for older ranges (a
+performance optimization, not a correctness requirement — raw queries
+already return the right numbers) is out of scope for #624 too and
+remains open future work, not something #624's acceptance criteria asked
+for.
 
 **Retention purge** (`application/retention-purge.ts`) is a real,
 independently-callable function using Issue #617's config as cutoffs —
-not a stub. Issue #624's scheduled job (`bun run analytics:retention:purge`,
-mirroring `logs:audit:purge`) will call this exact function rather than
-re-deriving the purge rules. See that file's own doc comment for the
-three-cutoff design (event delete / raw-detail clear / session delete /
-rollup delete) and why session delete is safe to run after event delete.
+not a stub. Issue #624's scheduled job (`bun run analytics:purge`,
+`scripts/visitor-analytics-purge.ts`, mirroring `logs:audit:purge`) calls
+this exact function (via `purgeVisitorAnalyticsForAllTenants`) for every
+active tenant rather than re-deriving the purge rules. See that file's
+own doc comment for the four-cutoff design (event delete / raw-detail
+clear / session delete / rollup delete) and why session delete is safe
+to run after event delete.
 
 Test: `tests/unit/visitor-analytics-range.test.ts`,
 `-response-shaping.test.ts`,
@@ -389,11 +400,196 @@ the full empirical writeup). Fixed by binding the plain object directly
 as the query parameter instead. Regression-tested both at the collector
 level and through the real HTTP `/events`/`/locations` response shape.
 
-## Not yet available
+## Dashboard UI (Issue #622, `src/pages/admin/analytics.astro`)
 
-- Admin dashboard UI (`/admin/analytics`) — Issue #622.
-- Rollup job (retention purge itself already works — see §API above) — Issue #624.
+`/admin/analytics`, gated by `visitor_analytics.dashboard.read`
+(navigation entry pre-declared in `module.ts` since Issue #617). UI-only:
+adds no new endpoint/permission, and never queries
+`awcms_mini_visitor_sessions`/`awcms_mini_visit_events` directly — every
+number/table is loaded client-side from the real
+`GET /api/v1/analytics/*` endpoints (Issue #621) via a new `fetchJson`
+helper (`src/lib/ui/admin-form-client.ts`), deliberately NOT the
+SSR-calls-the-application-layer-directly convention
+`admin/security.astro`/`admin/sync.astro` use — server-side ABAC
+(`authorizeInTransaction`) stays the only real enforcement point.
 
-The `api.basePath`/navigation `path` in `module.ts` are pre-declared ahead
-of their landing issues (same convention `tenant_domain`'s descriptor
-followed ahead of Issue #562) — no route exists at either path yet.
+- **Sections**: online-now cluster (`realtime.read`, its own
+  permission — hidden entirely if the caller lacks it, same
+  per-section-permission convention `admin/sync.astro` established),
+  three always-shown 24h/7d/30d human-visitor summary cards (three
+  parallel `/summary` calls, independent of the range filter below), a
+  range-scoped cluster (top pages/devices/locations/security, all
+  re-fetched together on range change), and an active-sessions table
+  (`sessions.read`, its own permission).
+- **Raw-detail gating**: never re-derived here. `GET
+/api/v1/analytics/sessions` already returns `ipAddress`/`ipHash`/
+  `userAgentHash`/`loginIdentifierSnapshot` as `null` for a caller
+  without `raw_detail.read` (Issue #621's own
+  `shapeVisitorSession`) — the client script renders exactly that
+  response (`domain/dashboard-view.ts`'s `buildSessionRowCells`/
+  `displayOrPlaceholder`: a `null` renders as a placeholder dash, never
+  the literal string `"null"`). The dashboard additionally hides the
+  four raw-detail _columns_ entirely when the caller's own SSR-known
+  permission set lacks `raw_detail.read` — a presentation nicety (avoids
+  a wall of placeholder dashes), not a second security decision; it can
+  never leak a value the API did not already return. Verified live
+  against a real dev server + Postgres: an owner (has `raw_detail.read`)
+  sees a real `ipHash` value in `GET /sessions`, a caller with only
+  `dashboard.read`/`sessions.read` sees `null` for the same row from the
+  API itself, and the dashboard's rendered table has no raw-detail
+  columns at all for that caller.
+- **Filter scope — a deliberate, documented limitation**: only `range`
+  (`24h|7d|30d|12m`) is a real API query parameter (`/summary`, `/pages`,
+  `/devices`, `/locations`, `/security`). No aggregate endpoint accepts an
+  `area` or visitor-type parameter (Issue #621 as shipped never added
+  one — doing so would be an API change, out of scope for this UI-only
+  issue), so the "Area"/"Visitor type" filters instead narrow the
+  active-sessions table's already-fetched rows client-side
+  (`matchesAreaFilter`/`matchesVisitorTypeFilter`,
+  `domain/dashboard-view.ts`) — a real, useful filter, just scoped to the
+  one section that already carries per-row area/human-status data. A
+  future issue that adds `area`/visitor-type query parameters to the
+  aggregate endpoints could widen this; not done here to stay atomic to
+  this issue's own scope ("API implementation" is explicitly out of
+  scope for #622).
+- **Geolocation gate**: the Location section renders a safe "disabled"
+  `StateNotice` instead of a table when
+  `VISITOR_ANALYTICS_GEO_ENABLED && VISITOR_ANALYTICS_TRUST_CLOUDFLARE`
+  is not both `true` — read directly from
+  `resolveVisitorAnalyticsConfig()` (Issue #617, env-only, no I/O; not a
+  database access and not a second copy of a security decision, it only
+  decides whether to render/fetch a section that would otherwise always
+  come back empty).
+- **States**: loading/empty/error resolved by
+  `domain/dashboard-view.ts`'s `resolveSectionState` — a failed fetch
+  always resolves to `"error"`, never silently presented as `"empty"`.
+  Errors shown are always the same safe, translated messages every other
+  admin mutation form already uses (`buildClientErrorMessages`), never a
+  raw stack trace.
+- **Tests**: `tests/unit/visitor-analytics-dashboard-view.test.ts` (raw-
+  detail-null formatting/no-leak, section-state resolution, area/visitor-
+  type filter predicates — all pure, no browser needed) and two
+  Playwright specs, `tests/e2e/admin-analytics-access-denied.e2e.ts`
+  (no-role user sees only the denied state, dashboard markup absent from
+  the DOM) and `tests/e2e/admin-analytics-dashboard.e2e.ts` (owner sees
+  the full shell + raw-detail columns; a restricted `dashboard.read` +`sessions.read`-only viewer sees the same tenant-wide session row
+  populated with no raw-detail columns and no `sha256:`-prefixed hash
+  value anywhere in the rendered table).
+
+## Rollup job (Issue #624, `application/rollup.ts` + `scripts/visitor-analytics-rollup.ts`)
+
+`bun run analytics:rollup` aggregates `awcms_mini_visit_events` into
+`awcms_mini_visitor_daily_rollups`, one row per `(tenant, date, area)`,
+for every `active` tenant.
+
+- **Idempotent by construction**: `rollupVisitorAnalyticsForDate` fully
+  recomputes each area's totals from raw events for the requested date
+  and UPSERTs (`ON CONFLICT (tenant_id, date, area) DO UPDATE SET ... =
+EXCLUDED...`) — rerunning the same date any number of times converges on
+  the same row, it never increments an existing one.
+- **Deliberately not reusing `application/analytics-queries.ts`'s
+  top-N helpers verbatim** — those are cumulative-since-`start` (no
+  upper bound) and tenant-wide (no `area` filter), the shape the live
+  dashboard summary needs (Issue #621). Rollup needs a closed
+  `[dayStart, dayEnd)` window AND a per-`area` split (the rollup table's
+  own primary key), so `application/rollup.ts` implements its own
+  day+area-scoped top-N queries following the exact same SQL-safety
+  pattern (allow-listed jsonb column/key before any `tx.unsafe` string
+  interpolation).
+- **Columns populated**: `human_unique_visitors`, `human_pageviews`,
+  `bot_pageviews`, `authenticated_unique_users`, `public_unique_visitors`
+  (only meaningful — non-zero — for the `area='public'` row),
+  `admin_unique_users` (only meaningful for the `area='admin'` row), and
+  four top-10 arrays (`top_paths`/`top_browsers`/`top_devices`/
+  `top_countries`).
+- **An area with zero events for a date gets no row** — not a zero-value
+  row, matching the underlying `awcms_mini_visit_events` table itself.
+- **CLI**: `--date=YYYY-MM-DD` (single date), or
+  `--start-date=.../--end-date=...` (inclusive range, for backfill). No
+  argument defaults to "yesterday" (UTC) — the day a daily cron run just
+  after UTC midnight would want to finalize.
+
+Test: `tests/integration/visitor-analytics-rollup.integration.test.ts`
+(per-area aggregate + top-N correctness, idempotent rerun with a THIRD
+rerun after a new event proving this is a real recompute rather than a
+frozen cache, area-with-no-events gets no row, events outside the
+requested date excluded).
+
+## Retention purge job (Issue #624, `scripts/visitor-analytics-purge.ts`)
+
+`bun run analytics:purge` iterates every `active` tenant and calls
+`purgeVisitorAnalyticsData` (§API above) DIRECTLY via the exported
+`purgeVisitorAnalyticsForAllTenants` — never re-deriving the four
+retention cutoffs a second time, exactly as that file's own doc comment
+requires. Only a tenant where the purge actually deleted/cleared
+something gets its own `critical` `retention_purged` audit event
+(attributes: the four safe row counts only, never raw event/session
+data) — a tenant with nothing yet past retention produces no audit
+noise. No extra batching layer is added on top of what
+`purgeVisitorAnalyticsData` already does (one bounded set of statements
+per tenant, already reviewed/tested in Issue #621).
+
+Test: `tests/integration/visitor-analytics-purge.integration.test.ts` —
+deliberately does NOT re-test the four retention cutoffs themselves
+(already covered end-to-end by
+`tests/integration/visitor-analytics-api.integration.test.ts`'s
+`POST /api/v1/analytics/retention/purge` tests, which call the exact
+same `purgeVisitorAnalyticsData` function); only covers what the script
+adds — multi-tenant iteration, summed totals, and per-tenant audit
+gating (only a tenant with an actual effect gets audited).
+
+## Config and readiness checks (Issue #624, `scripts/security-readiness.ts`)
+
+`scripts/validate-env.ts`'s `checkVisitorAnalyticsConfig` (Issue #617)
+stays shape-only (enum/positive-int format) — Issue #624 adds five
+cross-field SAFETY checks to `bun run security:readiness` instead,
+following the same `validate-env.ts` (shape) vs `security-readiness.ts`
+(safety/severity judgment) split every other gated feature in this repo
+already uses (`checkOnlineAuthSecurityConfig`/`Ready`,
+`checkTurnstileConfig`/`Ready`, etc.). All five reuse
+`resolveVisitorAnalyticsConfig` — never re-read
+`process.env.VISITOR_ANALYTICS_*` directly:
+
+| Check                                             | Severity | Fails when                                                                    |
+| ------------------------------------------------- | -------- | ----------------------------------------------------------------------------- |
+| `checkVisitorAnalyticsRawIpRetentionReady`        | critical | Raw IP enabled and raw-detail retention exceeds event retention               |
+| `checkVisitorAnalyticsRawUserAgentRetentionReady` | warning  | Raw user-agent enabled (still a no-op today) and the same retention is unsafe |
+| `checkVisitorAnalyticsGeoTrustedSourceReady`      | critical | Geo enabled without `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`                      |
+| `checkVisitorAnalyticsRetentionOrderingReady`     | warning  | Raw detail retention > event retention, OR rollup retention < event retention |
+| `checkVisitorAnalyticsHashSaltReady`              | warning  | Module enabled and `VISITOR_ANALYTICS_HASH_SALT` is empty                     |
+
+Every default (privacy-first, nothing set) passes all five checks
+cleanly — only `critical` findings block `security:readiness`'s exit
+code; `warning` findings are reported but never block. Full rationale
+per check, plus a compliance mapping (UU PDP, PP PSTE, ISO/IEC
+27001/27002/27005/27701, OWASP ASVS, OWASP Logging Cheat Sheet), lives in
+`docs/awcms-mini/visitor-analytics.md`.
+
+Test: `tests/security-readiness.test.ts` (unit, one `describe` block per
+check above, both the pass/fail branches for each).
+
+## Documentation (Issue #624)
+
+- `docs/awcms-mini/visitor-analytics.md` (new) — operational guide:
+  offline/LAN vs full-online vs trusted-proxy/Cloudflare mode, retention
+  table per column, rollup/purge job behavior, config/readiness check
+  table, and the full compliance mapping.
+- `docs/awcms-mini/18_configuration_env_reference.md` §Visitor
+  analytics — documents the five new cross-field readiness rules
+  alongside the existing shape-only `config:validate` rules.
+- `docs/awcms-mini/deployment-profiles.md` — new §Visitor analytics
+  section (per-profile guidance) and two new rows in §Job registry
+  lainnya (`analytics:rollup`/`analytics:purge`).
+- `docs/awcms-mini/20_threat_model_security_architecture.md` — new
+  §Standar tambahan dipicu epic visitor analytics section.
+- `docs/awcms-mini/04_erd_data_dictionary.md` — retention table rows and
+  the module's own section updated to reflect the epic as complete
+  rather than "fast-follow Issue #624".
+
+The `api.basePath`/navigation `path` in `module.ts` were pre-declared in
+`module.ts` ahead of their landing issues (same convention
+`tenant_domain`'s descriptor followed ahead of Issue #562) — both are now
+real: the API (Issue #621) and the dashboard (Issue #622) have shipped.
+
+With Issue #624 complete, every issue in the visitor analytics epic
+(#617-#624) is now done.

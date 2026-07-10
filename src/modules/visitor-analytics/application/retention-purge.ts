@@ -1,11 +1,13 @@
 /**
  * On-demand visitor analytics retention purge (Issue #621, epic: visitor
  * analytics #617-#624), triggered via `POST /api/v1/analytics/retention/purge`.
- * The scheduled job wrapper (`bun run analytics:retention:purge`, mirroring
- * `logs:audit:purge`) is Issue #624's job — it will call this exact
- * function rather than re-deriving the purge rules a second time.
+ * The scheduled job wrapper (`bun run analytics:purge`,
+ * `scripts/visitor-analytics-purge.ts`, mirroring `logs:audit:purge`) is
+ * Issue #624's job — it calls this exact function (via
+ * `purgeVisitorAnalyticsForAllTenants`) rather than re-deriving the purge
+ * rules a second time.
  *
- * Three independent cutoffs, each from Issue #617's config
+ * Four independent cutoffs, each from Issue #617's config
  * (`VisitorAnalyticsConfig`):
  *   1. `awcms_mini_visit_events` older than `eventRetentionDays` — hard
  *      deleted.
@@ -34,9 +36,11 @@
  *      remaining event (regardless of why) is simply left for a later
  *      purge run, never a hard failure.
  *   4. `awcms_mini_visitor_daily_rollups` older than
- *      `rollupRetentionDays` — hard deleted (defensive; this table is
- *      always empty until Issue #624's rollup job exists, but the purge
- *      rule is written now so #624 doesn't need to touch this function).
+ *      `rollupRetentionDays` — hard deleted. Written when this function
+ *      was still Issue #621-only (this table was always empty back
+ *      then, since the rollup job didn't exist yet) — now that Issue
+ *      #624's `bun run analytics:rollup` populates it, this rule
+ *      applies to real rows without needing any change here.
  */
 import type { VisitorAnalyticsConfig } from "../domain/visitor-analytics-config";
 

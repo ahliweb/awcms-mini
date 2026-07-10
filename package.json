@@ -40,6 +40,8 @@
     "db:pool:health": "bun scripts/db-pool-health.ts",
     "sync:objects:dispatch": "bun scripts/object-sync-dispatch.ts",
     "logs:audit:purge": "bun scripts/audit-log-purge.ts",
+    "analytics:rollup": "bun scripts/visitor-analytics-rollup.ts",
+    "analytics:purge": "bun scripts/visitor-analytics-purge.ts",
     "form-drafts:purge": "bun scripts/form-draft-purge.ts",
     "blog:publish:scheduled": "bun scripts/blog-scheduled-publish.ts",
     "email:dispatch": "bun scripts/email-dispatch.ts",

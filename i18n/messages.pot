@@ -1686,3 +1686,203 @@ msgstr ""
 msgid "admin.blog.ads.delete_success"
 msgstr ""
 
+#. admin.layout.nav_visitor_analytics (Issue #617/#622, epic: visitor analytics #617-#624)
+msgid "admin.layout.nav_visitor_analytics"
+msgstr ""
+
+#. admin.analytics (Issue #622, epic: visitor analytics #617-#624) — dashboard /admin/analytics
+msgid "admin.analytics.heading"
+msgstr ""
+
+msgid "admin.analytics.access_denied_title"
+msgstr ""
+
+msgid "admin.analytics.access_denied_body"
+msgstr ""
+
+msgid "admin.analytics.state_loading"
+msgstr ""
+
+msgid "admin.analytics.state_empty_generic"
+msgstr ""
+
+msgid "admin.analytics.state_error_generic"
+msgstr ""
+
+msgid "admin.analytics.online_heading"
+msgstr ""
+
+msgid "admin.analytics.online_refresh_button"
+msgstr ""
+
+msgid "admin.analytics.online_human_label"
+msgstr ""
+
+msgid "admin.analytics.online_admin_label"
+msgstr ""
+
+msgid "admin.analytics.online_public_label"
+msgstr ""
+
+msgid "admin.analytics.online_api_label"
+msgstr ""
+
+msgid "admin.analytics.summary_heading"
+msgstr ""
+
+msgid "admin.analytics.summary_24h_label"
+msgstr ""
+
+msgid "admin.analytics.summary_7d_label"
+msgstr ""
+
+msgid "admin.analytics.summary_30d_label"
+msgstr ""
+
+msgid "admin.analytics.summary_pageviews_label"
+msgstr ""
+
+msgid "admin.analytics.range_filter_label"
+msgstr ""
+
+msgid "admin.analytics.range_24h"
+msgstr ""
+
+msgid "admin.analytics.range_7d"
+msgstr ""
+
+msgid "admin.analytics.range_30d"
+msgstr ""
+
+msgid "admin.analytics.range_12m"
+msgstr ""
+
+msgid "admin.analytics.pages_heading"
+msgstr ""
+
+msgid "admin.analytics.pages_column_path"
+msgstr ""
+
+msgid "admin.analytics.pages_column_views"
+msgstr ""
+
+msgid "admin.analytics.devices_heading"
+msgstr ""
+
+msgid "admin.analytics.devices_browsers_subheading"
+msgstr ""
+
+msgid "admin.analytics.devices_devices_subheading"
+msgstr ""
+
+msgid "admin.analytics.devices_column_name"
+msgstr ""
+
+msgid "admin.analytics.devices_column_count"
+msgstr ""
+
+msgid "admin.analytics.locations_heading"
+msgstr ""
+
+msgid "admin.analytics.locations_column_country"
+msgstr ""
+
+msgid "admin.analytics.locations_column_count"
+msgstr ""
+
+msgid "admin.analytics.locations_disabled_title"
+msgstr ""
+
+msgid "admin.analytics.locations_disabled_body"
+msgstr ""
+
+msgid "admin.analytics.security_heading"
+msgstr ""
+
+msgid "admin.analytics.security_total_label"
+msgstr ""
+
+msgid "admin.analytics.security_by_reason_heading"
+msgstr ""
+
+msgid "admin.analytics.security_by_area_heading"
+msgstr ""
+
+msgid "admin.analytics.sessions_heading"
+msgstr ""
+
+msgid "admin.analytics.sessions_area_filter_label"
+msgstr ""
+
+msgid "admin.analytics.sessions_type_filter_label"
+msgstr ""
+
+msgid "admin.analytics.sessions_filter_all"
+msgstr ""
+
+msgid "admin.analytics.sessions_filter_admin"
+msgstr ""
+
+msgid "admin.analytics.sessions_filter_public"
+msgstr ""
+
+msgid "admin.analytics.sessions_filter_api"
+msgstr ""
+
+msgid "admin.analytics.sessions_filter_human"
+msgstr ""
+
+msgid "admin.analytics.sessions_filter_bot"
+msgstr ""
+
+msgid "admin.analytics.sessions_column_area"
+msgstr ""
+
+msgid "admin.analytics.sessions_column_path"
+msgstr ""
+
+msgid "admin.analytics.sessions_column_browser"
+msgstr ""
+
+msgid "admin.analytics.sessions_column_os"
+msgstr ""
+
+msgid "admin.analytics.sessions_column_device"
+msgstr ""
+
+msgid "admin.analytics.sessions_column_type"
+msgstr ""
+
+msgid "admin.analytics.sessions_column_country"
+msgstr ""
+
+msgid "admin.analytics.sessions_column_last_seen"
+msgstr ""
+
+msgid "admin.analytics.sessions_column_ip"
+msgstr ""
+
+msgid "admin.analytics.sessions_column_ip_hash"
+msgstr ""
+
+msgid "admin.analytics.sessions_column_user_agent_hash"
+msgstr ""
+
+msgid "admin.analytics.sessions_column_login_identifier"
+msgstr ""
+
+msgid "admin.analytics.sessions_value_human"
+msgstr ""
+
+msgid "admin.analytics.sessions_value_bot"
+msgstr ""
+
+msgid "admin.analytics.sessions_load_more_button"
+msgstr ""
+
+msgid "admin.analytics.sessions_empty"
+msgstr ""
+
+msgid "admin.analytics.sessions_filtered_empty"
+msgstr ""
+

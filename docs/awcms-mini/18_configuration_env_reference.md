@@ -473,8 +473,37 @@ bila diisi wajib salah satu dari `VISITOR_ANALYTICS_MODES` (`basic` |
 `detailed`); empat var retensi/jendela di atas bila diisi wajib integer
 positif (`parsePositiveInt`) — nilai kosong/tidak valid pada var boolean
 manapun selalu jatuh ke `false`, mengikuti konvensi var boolean lain di
-repo ini. Belum ada aturan cross-field seperti `EMAIL_PROVIDER`/
-`TENANT_DOMAIN_DNS_PROVIDER` — provider geolokasi (Issue #623) belum ada.
+repo ini. Belum ada aturan cross-field FORMAT di sini (`checkVisitorAnalyticsConfig`
+tetap shape-only) — provider geolokasi (Issue #623) tidak menambah var
+baru di layer ini.
+
+**Aturan cross-field SAFETY (Issue #624, `bun run security:readiness`,
+bukan `config:validate`)** — lima check baru yang menilai KOMBINASI var
+di atas, bukan format satu var (detail penuh + tabel severity:
+`docs/awcms-mini/visitor-analytics.md` §Config dan readiness checks):
+
+- `VISITOR_ANALYTICS_RAW_IP_ENABLED=true` dengan
+  `VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS` melebihi
+  `VISITOR_ANALYTICS_EVENT_RETENTION_DAYS` → **critical**, gagal
+  `security:readiness`.
+- `VISITOR_ANALYTICS_RAW_USER_AGENT_ENABLED=true` dengan retensi yang
+  sama tidak aman → **warning** (flag ini sendiri masih no-op — lihat
+  baris di atas).
+- `VISITOR_ANALYTICS_GEO_ENABLED=true` tanpa
+  `VISITOR_ANALYTICS_TRUST_CLOUDFLARE=true` → **critical**.
+- `VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS` melebihi
+  `VISITOR_ANALYTICS_EVENT_RETENTION_DAYS`, ATAU
+  `VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS` lebih pendek dari
+  `VISITOR_ANALYTICS_EVENT_RETENTION_DAYS` (independen dari flag raw
+  IP/UA) → **warning**.
+- `VISITOR_ANALYTICS_HASH_SALT` kosong saat modul aktif → **warning**
+  (hash tetap valid secara fungsional tanpa salt, hanya lebih rentan
+  korelasi lintas-deployment).
+
+Semua lima check di atas reuse `resolveVisitorAnalyticsConfig` (tidak
+pernah baca `process.env.VISITOR_ANALYTICS_*` langsung) dan lulus
+BERSIH pada konfigurasi default (semua var tidak di-set) — hanya
+`critical` yang memblokir go-live.
 
 ### Provider CRM (opsional) — contoh domain retail/POS
 

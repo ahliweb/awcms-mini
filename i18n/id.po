@@ -2225,3 +2225,203 @@ msgstr "Isi paling banyak salah satu: nilai client secret atau nama environment 
 
 msgid "admin.security.invalid_create_secret_choice"
 msgstr "Isi tepat salah satu: nilai client secret atau nama environment variable."
+
+#. admin.layout.nav_visitor_analytics (Issue #617/#622, epic: visitor analytics #617-#624)
+msgid "admin.layout.nav_visitor_analytics"
+msgstr "Analitik Pengunjung"
+
+#. admin.analytics (Issue #622, epic: visitor analytics #617-#624) — dashboard /admin/analytics
+msgid "admin.analytics.heading"
+msgstr "Analitik Pengunjung"
+
+msgid "admin.analytics.access_denied_title"
+msgstr "Akses ditolak"
+
+msgid "admin.analytics.access_denied_body"
+msgstr "Anda tidak memiliki izin untuk melihat dashboard analitik pengunjung."
+
+msgid "admin.analytics.state_loading"
+msgstr "Memuat…"
+
+msgid "admin.analytics.state_empty_generic"
+msgstr "Belum ada data analitik untuk periode ini."
+
+msgid "admin.analytics.state_error_generic"
+msgstr "Bagian ini gagal dimuat. Coba lagi nanti."
+
+msgid "admin.analytics.online_heading"
+msgstr "Yang sedang online"
+
+msgid "admin.analytics.online_refresh_button"
+msgstr "Segarkan"
+
+msgid "admin.analytics.online_human_label"
+msgstr "Pengunjung manusia online"
+
+msgid "admin.analytics.online_admin_label"
+msgstr "Halaman admin"
+
+msgid "admin.analytics.online_public_label"
+msgstr "Halaman publik"
+
+msgid "admin.analytics.online_api_label"
+msgstr "API / lainnya"
+
+msgid "admin.analytics.summary_heading"
+msgstr "Pengunjung manusia"
+
+msgid "admin.analytics.summary_24h_label"
+msgstr "24 jam terakhir"
+
+msgid "admin.analytics.summary_7d_label"
+msgstr "7 hari terakhir"
+
+msgid "admin.analytics.summary_30d_label"
+msgstr "30 hari terakhir"
+
+msgid "admin.analytics.summary_pageviews_label"
+msgstr "tampilan halaman"
+
+msgid "admin.analytics.range_filter_label"
+msgstr "Rentang"
+
+msgid "admin.analytics.range_24h"
+msgstr "24 jam terakhir"
+
+msgid "admin.analytics.range_7d"
+msgstr "7 hari terakhir"
+
+msgid "admin.analytics.range_30d"
+msgstr "30 hari terakhir"
+
+msgid "admin.analytics.range_12m"
+msgstr "12 bulan terakhir"
+
+msgid "admin.analytics.pages_heading"
+msgstr "Halaman teratas"
+
+msgid "admin.analytics.pages_column_path"
+msgstr "Path"
+
+msgid "admin.analytics.pages_column_views"
+msgstr "Tampilan"
+
+msgid "admin.analytics.devices_heading"
+msgstr "Perangkat & browser"
+
+msgid "admin.analytics.devices_browsers_subheading"
+msgstr "Browser teratas"
+
+msgid "admin.analytics.devices_devices_subheading"
+msgstr "Jenis perangkat"
+
+msgid "admin.analytics.devices_column_name"
+msgstr "Nama"
+
+msgid "admin.analytics.devices_column_count"
+msgstr "Jumlah"
+
+msgid "admin.analytics.locations_heading"
+msgstr "Lokasi"
+
+msgid "admin.analytics.locations_column_country"
+msgstr "Negara"
+
+msgid "admin.analytics.locations_column_count"
+msgstr "Kunjungan"
+
+msgid "admin.analytics.locations_disabled_title"
+msgstr "Pelacakan lokasi dinonaktifkan"
+
+msgid "admin.analytics.locations_disabled_body"
+msgstr "Aktifkan geolokasi pada konfigurasi deployment tenant ini untuk melihat data pengunjung per negara."
+
+msgid "admin.analytics.security_heading"
+msgstr "Lalu lintas bot & mencurigakan"
+
+msgid "admin.analytics.security_total_label"
+msgstr "Tampilan halaman oleh bot"
+
+msgid "admin.analytics.security_by_reason_heading"
+msgstr "Berdasarkan alasan"
+
+msgid "admin.analytics.security_by_area_heading"
+msgstr "Berdasarkan area"
+
+msgid "admin.analytics.sessions_heading"
+msgstr "Sesi aktif"
+
+msgid "admin.analytics.sessions_area_filter_label"
+msgstr "Area"
+
+msgid "admin.analytics.sessions_type_filter_label"
+msgstr "Jenis pengunjung"
+
+msgid "admin.analytics.sessions_filter_all"
+msgstr "Semua"
+
+msgid "admin.analytics.sessions_filter_admin"
+msgstr "Admin"
+
+msgid "admin.analytics.sessions_filter_public"
+msgstr "Publik"
+
+msgid "admin.analytics.sessions_filter_api"
+msgstr "API"
+
+msgid "admin.analytics.sessions_filter_human"
+msgstr "Manusia"
+
+msgid "admin.analytics.sessions_filter_bot"
+msgstr "Bot"
+
+msgid "admin.analytics.sessions_column_area"
+msgstr "Area"
+
+msgid "admin.analytics.sessions_column_path"
+msgstr "Path saat ini"
+
+msgid "admin.analytics.sessions_column_browser"
+msgstr "Browser"
+
+msgid "admin.analytics.sessions_column_os"
+msgstr "OS"
+
+msgid "admin.analytics.sessions_column_device"
+msgstr "Perangkat"
+
+msgid "admin.analytics.sessions_column_type"
+msgstr "Jenis"
+
+msgid "admin.analytics.sessions_column_country"
+msgstr "Negara"
+
+msgid "admin.analytics.sessions_column_last_seen"
+msgstr "Terakhir terlihat"
+
+msgid "admin.analytics.sessions_column_ip"
+msgstr "Alamat IP"
+
+msgid "admin.analytics.sessions_column_ip_hash"
+msgstr "Hash IP"
+
+msgid "admin.analytics.sessions_column_user_agent_hash"
+msgstr "Hash user-agent"
+
+msgid "admin.analytics.sessions_column_login_identifier"
+msgstr "Identifier login"
+
+msgid "admin.analytics.sessions_value_human"
+msgstr "Manusia"
+
+msgid "admin.analytics.sessions_value_bot"
+msgstr "Bot"
+
+msgid "admin.analytics.sessions_load_more_button"
+msgstr "Muat lagi"
+
+msgid "admin.analytics.sessions_empty"
+msgstr "Tidak ada sesi aktif pada jendela waktu saat ini."
+
+msgid "admin.analytics.sessions_filtered_empty"
+msgstr "Tidak ada sesi yang cocok dengan filter yang dipilih."

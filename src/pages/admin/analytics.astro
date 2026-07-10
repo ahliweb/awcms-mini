@@ -1,0 +1,1122 @@
+---
+/**
+ * Visitor analytics dashboard (Issue #622, epic: visitor analytics
+ * #617-#624). Surfaces #621's already-shipped `GET /api/v1/analytics/*`
+ * endpoints — this page adds no new endpoint, no new permission, and
+ * never queries `awcms_mini_visitor_sessions`/`awcms_mini_visit_events`
+ * directly. Every number/table on this page comes from a real client-side
+ * `fetch` to the existing HTTP API (`fetchJson`,
+ * `src/lib/ui/admin-form-client.ts`) — deliberately NOT the
+ * SSR-calls-the-application-layer-directly convention
+ * `admin/security.astro`/`admin/sync.astro`/`admin/settings.astro` use,
+ * per this issue's own scope note ("dashboard ini HANYA memanggil API
+ * yang sudah ada... tidak akses DB langsung dari UI"). Server-side ABAC
+ * (`authorizeInTransaction`, #621) remains the only real enforcement
+ * point; every permission check in this file's frontmatter is a second,
+ * UI-only convenience layer that can only ever be MORE restrictive than
+ * the API, never less (doc 10 guardrail, and this issue's own security
+ * note: "The UI must not be the only enforcement point").
+ *
+ * Raw-detail gating (`visitor_analytics.raw_detail.read`, separate from
+ * `dashboard.read`): this page does not re-derive that decision at all.
+ * `GET /api/v1/analytics/sessions` already returns `ipAddress`/`ipHash`/
+ * `userAgentHash`/`loginIdentifierSnapshot` as `null` for a caller who
+ * lacks the permission (`domain/analytics-response-shaping.ts`'s
+ * `shapeVisitorSession`) — the client script below renders exactly what
+ * the API sent back (`domain/dashboard-view.ts`'s `buildSessionRowCells`/
+ * `displayOrPlaceholder`), and only additionally hides the four
+ * raw-detail *columns* entirely when the caller's own SSR-known
+ * permission set lacks `raw_detail.read` (`showRawDetailColumns` below) —
+ * a presentation nicety (avoids a wall of dashes for a caller who will
+ * never see a real value there), not a second security decision; see
+ * `dashboard-view.ts`'s own header comment for why this can never leak.
+ *
+ * Filter scope (issue's own filters: area / visitor type / range): only
+ * `range` (`24h|7d|30d|12m`) is a real query parameter the API accepts
+ * (`/summary`, `/pages`, `/devices`, `/locations`, `/security`) — changing
+ * it re-fetches those range-scoped sections. `area`/"visitor type" have
+ * no server-side equivalent on any aggregate endpoint (Issue #621 as
+ * shipped never added one — adding one would be an API change, out of
+ * scope for this UI-only issue), so both filters instead narrow the
+ * active-sessions table's already-fetched rows client-side
+ * (`matchesAreaFilter`/`matchesVisitorTypeFilter`, `dashboard-view.ts`) —
+ * a real, useful filter, just scoped to the one section that already
+ * carries per-row area/human-status data in its response. The three
+ * fixed "human visitors" cards (24h/7d/30d) are independent of the range
+ * selector — they always show all three windows at once, per the issue's
+ * own section list (items 4-6), fetched as three parallel `/summary`
+ * calls.
+ *
+ * Geolocation gate: the Location section is hidden with a safe "disabled"
+ * notice, decided from `resolveVisitorAnalyticsConfig()` (Issue #617,
+ * env-only, no I/O) — the exact same double gate
+ * `domain/geo-enrichment.ts` itself enforces
+ * (`VISITOR_ANALYTICS_GEO_ENABLED` AND `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`
+ * both `true`). Reading this env-derived config directly is not a
+ * database access and not a second copy of a security decision — it only
+ * decides whether this page bothers to render/fetch a section that would
+ * otherwise always come back empty.
+ */
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import StateNotice from "../../components/ui/StateNotice.astro";
+import { permissionKey } from "../../modules/identity-access/domain/access-control";
+import { resolveVisitorAnalyticsConfig } from "../../modules/visitor-analytics/domain/visitor-analytics-config";
+import { createTranslator } from "../../lib/i18n/translate";
+import { buildClientErrorMessages } from "../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/analytics.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const locale = Astro.locals.locale;
+const t = await createTranslator(locale);
+
+const CAN_VIEW_DASHBOARD = context.permissions.has(
+  permissionKey("visitor_analytics", "dashboard", "read")
+);
+const CAN_VIEW_REALTIME = context.permissions.has(
+  permissionKey("visitor_analytics", "realtime", "read")
+);
+const CAN_VIEW_SESSIONS = context.permissions.has(
+  permissionKey("visitor_analytics", "sessions", "read")
+);
+const CAN_VIEW_RAW_DETAIL = context.permissions.has(
+  permissionKey("visitor_analytics", "raw_detail", "read")
+);
+
+const analyticsConfig = resolveVisitorAnalyticsConfig();
+const geoActive = analyticsConfig.geoEnabled && analyticsConfig.trustCloudflare;
+
+const clientStrings = {
+  networkError: t("common.network_error"),
+  errorMessages: buildClientErrorMessages(t),
+  humanLabel: t("admin.analytics.sessions_value_human"),
+  botLabel: t("admin.analytics.sessions_value_bot"),
+  stateLoading: t("admin.analytics.state_loading"),
+  stateEmptyGeneric: t("admin.analytics.state_empty_generic"),
+  stateErrorGeneric: t("admin.analytics.state_error_generic"),
+  sessionsEmpty: t("admin.analytics.sessions_empty"),
+  sessionsFilteredEmpty: t("admin.analytics.sessions_filtered_empty")
+};
+
+const pageConfig = {
+  canViewRealtime: CAN_VIEW_REALTIME,
+  canViewSessions: CAN_VIEW_SESSIONS,
+  showRawDetailColumns: CAN_VIEW_RAW_DETAIL,
+  geoActive,
+  locale
+};
+---
+
+<AdminLayout title={t("admin.layout.nav_visitor_analytics")}>
+  <h1>{t("admin.analytics.heading")}</h1>
+
+  {
+    !CAN_VIEW_DASHBOARD && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.analytics.access_denied_title")}
+        body={t("admin.analytics.access_denied_body")}
+      />
+    )
+  }
+
+  {
+    CAN_VIEW_DASHBOARD && (
+      <div class="analytics-dashboard">
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+        <script
+          type="application/json"
+          id="analytics-page-config"
+          set:html={JSON.stringify(pageConfig)}
+        />
+
+        {CAN_VIEW_REALTIME && (
+          <section
+            class="analytics-section"
+            aria-labelledby="realtime-legend"
+            data-section="realtime"
+          >
+            <div class="section-header">
+              <h2 id="realtime-legend">
+                {t("admin.analytics.online_heading")}
+              </h2>
+              <button
+                type="button"
+                id="realtime-refresh-button"
+                class="ghost-button"
+              >
+                {t("admin.analytics.online_refresh_button")}
+              </button>
+            </div>
+            <div class="stat-grid">
+              <div class="stat-tile">
+                <span class="stat-value" data-field="onlineHumanCount">
+                  –
+                </span>
+                <span class="stat-label">
+                  {t("admin.analytics.online_human_label")}
+                </span>
+              </div>
+              <div class="stat-tile">
+                <span class="stat-value" data-field="onlineAdminCount">
+                  –
+                </span>
+                <span class="stat-label">
+                  {t("admin.analytics.online_admin_label")}
+                </span>
+              </div>
+              <div class="stat-tile">
+                <span class="stat-value" data-field="onlinePublicCount">
+                  –
+                </span>
+                <span class="stat-label">
+                  {t("admin.analytics.online_public_label")}
+                </span>
+              </div>
+              <div class="stat-tile">
+                <span class="stat-value" data-field="onlineApiCount">
+                  –
+                </span>
+                <span class="stat-label">
+                  {t("admin.analytics.online_api_label")}
+                </span>
+              </div>
+            </div>
+            <p class="section-hint" data-role="realtime-updated-at" />
+            <p
+              class="section-state"
+              data-role="realtime-state"
+              aria-live="polite"
+            >
+              {t("admin.analytics.state_loading")}
+            </p>
+          </section>
+        )}
+
+        <section
+          class="analytics-section"
+          aria-labelledby="summary-legend"
+          data-section="summary"
+        >
+          <h2 id="summary-legend">{t("admin.analytics.summary_heading")}</h2>
+          <div class="stat-grid">
+            <div class="stat-tile" data-summary-range="24h">
+              <span class="stat-value" data-field="humanUniqueVisitors">
+                –
+              </span>
+              <span class="stat-label">
+                {t("admin.analytics.summary_24h_label")}
+              </span>
+              <span class="stat-sub">
+                <span data-field="humanPageviews">–</span>{" "}
+                {t("admin.analytics.summary_pageviews_label")}
+              </span>
+            </div>
+            <div class="stat-tile" data-summary-range="7d">
+              <span class="stat-value" data-field="humanUniqueVisitors">
+                –
+              </span>
+              <span class="stat-label">
+                {t("admin.analytics.summary_7d_label")}
+              </span>
+              <span class="stat-sub">
+                <span data-field="humanPageviews">–</span>{" "}
+                {t("admin.analytics.summary_pageviews_label")}
+              </span>
+            </div>
+            <div class="stat-tile" data-summary-range="30d">
+              <span class="stat-value" data-field="humanUniqueVisitors">
+                –
+              </span>
+              <span class="stat-label">
+                {t("admin.analytics.summary_30d_label")}
+              </span>
+              <span class="stat-sub">
+                <span data-field="humanPageviews">–</span>{" "}
+                {t("admin.analytics.summary_pageviews_label")}
+              </span>
+            </div>
+          </div>
+          <p class="section-state" data-role="summary-state" aria-live="polite">
+            {t("admin.analytics.state_loading")}
+          </p>
+        </section>
+
+        <div class="analytics-toolbar">
+          <label for="range-select">
+            {t("admin.analytics.range_filter_label")}
+          </label>
+          <select id="range-select">
+            <option value="24h">{t("admin.analytics.range_24h")}</option>
+            <option value="7d" selected>
+              {t("admin.analytics.range_7d")}
+            </option>
+            <option value="30d">{t("admin.analytics.range_30d")}</option>
+            <option value="12m">{t("admin.analytics.range_12m")}</option>
+          </select>
+        </div>
+
+        <section
+          class="analytics-section"
+          aria-labelledby="pages-legend"
+          data-section="pages"
+        >
+          <h2 id="pages-legend">{t("admin.analytics.pages_heading")}</h2>
+          <div class="table-scroll">
+            <table class="analytics-table" data-role="pages-table">
+              <thead>
+                <tr>
+                  <th>{t("admin.analytics.pages_column_path")}</th>
+                  <th>{t("admin.analytics.pages_column_views")}</th>
+                </tr>
+              </thead>
+              <tbody />
+            </table>
+          </div>
+          <p class="section-state" data-role="pages-state" aria-live="polite">
+            {t("admin.analytics.state_loading")}
+          </p>
+        </section>
+
+        <section
+          class="analytics-section"
+          aria-labelledby="devices-legend"
+          data-section="devices"
+        >
+          <h2 id="devices-legend">{t("admin.analytics.devices_heading")}</h2>
+          <div class="devices-grid">
+            <div>
+              <h3>{t("admin.analytics.devices_browsers_subheading")}</h3>
+              <div class="table-scroll">
+                <table class="analytics-table" data-role="browsers-table">
+                  <thead>
+                    <tr>
+                      <th>{t("admin.analytics.devices_column_name")}</th>
+                      <th>{t("admin.analytics.devices_column_count")}</th>
+                    </tr>
+                  </thead>
+                  <tbody />
+                </table>
+              </div>
+            </div>
+            <div>
+              <h3>{t("admin.analytics.devices_devices_subheading")}</h3>
+              <div class="table-scroll">
+                <table class="analytics-table" data-role="devices-table">
+                  <thead>
+                    <tr>
+                      <th>{t("admin.analytics.devices_column_name")}</th>
+                      <th>{t("admin.analytics.devices_column_count")}</th>
+                    </tr>
+                  </thead>
+                  <tbody />
+                </table>
+              </div>
+            </div>
+          </div>
+          <p class="section-state" data-role="devices-state" aria-live="polite">
+            {t("admin.analytics.state_loading")}
+          </p>
+        </section>
+
+        {geoActive ? (
+          <section
+            class="analytics-section"
+            aria-labelledby="locations-legend"
+            data-section="locations"
+          >
+            <h2 id="locations-legend">
+              {t("admin.analytics.locations_heading")}
+            </h2>
+            <div class="table-scroll">
+              <table class="analytics-table" data-role="locations-table">
+                <thead>
+                  <tr>
+                    <th>{t("admin.analytics.locations_column_country")}</th>
+                    <th>{t("admin.analytics.locations_column_count")}</th>
+                  </tr>
+                </thead>
+                <tbody />
+              </table>
+            </div>
+            <p
+              class="section-state"
+              data-role="locations-state"
+              aria-live="polite"
+            >
+              {t("admin.analytics.state_loading")}
+            </p>
+          </section>
+        ) : (
+          <section class="analytics-section" aria-labelledby="locations-legend">
+            <h2 id="locations-legend">
+              {t("admin.analytics.locations_heading")}
+            </h2>
+            <StateNotice
+              kind="info"
+              title={t("admin.analytics.locations_disabled_title")}
+              body={t("admin.analytics.locations_disabled_body")}
+            />
+          </section>
+        )}
+
+        <section
+          class="analytics-section"
+          aria-labelledby="security-legend"
+          data-section="security"
+        >
+          <h2 id="security-legend">{t("admin.analytics.security_heading")}</h2>
+          <div class="stat-grid stat-grid-single">
+            <div class="stat-tile">
+              <span class="stat-value" data-field="botPageviews">
+                –
+              </span>
+              <span class="stat-label">
+                {t("admin.analytics.security_total_label")}
+              </span>
+            </div>
+          </div>
+          <div class="devices-grid">
+            <div>
+              <h3>{t("admin.analytics.security_by_reason_heading")}</h3>
+              <div class="table-scroll">
+                <table class="analytics-table" data-role="bot-reasons-table">
+                  <thead>
+                    <tr>
+                      <th>{t("admin.analytics.devices_column_name")}</th>
+                      <th>{t("admin.analytics.devices_column_count")}</th>
+                    </tr>
+                  </thead>
+                  <tbody />
+                </table>
+              </div>
+            </div>
+            <div>
+              <h3>{t("admin.analytics.security_by_area_heading")}</h3>
+              <div class="table-scroll">
+                <table class="analytics-table" data-role="bot-areas-table">
+                  <thead>
+                    <tr>
+                      <th>{t("admin.analytics.devices_column_name")}</th>
+                      <th>{t("admin.analytics.devices_column_count")}</th>
+                    </tr>
+                  </thead>
+                  <tbody />
+                </table>
+              </div>
+            </div>
+          </div>
+          <p
+            class="section-state"
+            data-role="security-state"
+            aria-live="polite"
+          >
+            {t("admin.analytics.state_loading")}
+          </p>
+        </section>
+
+        {CAN_VIEW_SESSIONS && (
+          <section
+            class="analytics-section"
+            aria-labelledby="sessions-legend"
+            data-section="sessions"
+          >
+            <h2 id="sessions-legend">
+              {t("admin.analytics.sessions_heading")}
+            </h2>
+            <div class="analytics-toolbar">
+              <label for="sessions-area-filter">
+                {t("admin.analytics.sessions_area_filter_label")}
+              </label>
+              <select id="sessions-area-filter">
+                <option value="all">
+                  {t("admin.analytics.sessions_filter_all")}
+                </option>
+                <option value="admin">
+                  {t("admin.analytics.sessions_filter_admin")}
+                </option>
+                <option value="public">
+                  {t("admin.analytics.sessions_filter_public")}
+                </option>
+                <option value="api">
+                  {t("admin.analytics.sessions_filter_api")}
+                </option>
+              </select>
+              <label for="sessions-type-filter">
+                {t("admin.analytics.sessions_type_filter_label")}
+              </label>
+              <select id="sessions-type-filter">
+                <option value="all">
+                  {t("admin.analytics.sessions_filter_all")}
+                </option>
+                <option value="human">
+                  {t("admin.analytics.sessions_filter_human")}
+                </option>
+                <option value="bot">
+                  {t("admin.analytics.sessions_filter_bot")}
+                </option>
+              </select>
+            </div>
+            <div class="table-scroll">
+              <table class="analytics-table" data-role="sessions-table">
+                <thead>
+                  <tr>
+                    <th>{t("admin.analytics.sessions_column_area")}</th>
+                    <th>{t("admin.analytics.sessions_column_path")}</th>
+                    <th>{t("admin.analytics.sessions_column_browser")}</th>
+                    <th>{t("admin.analytics.sessions_column_os")}</th>
+                    <th>{t("admin.analytics.sessions_column_device")}</th>
+                    <th>{t("admin.analytics.sessions_column_type")}</th>
+                    <th>{t("admin.analytics.sessions_column_country")}</th>
+                    <th>{t("admin.analytics.sessions_column_last_seen")}</th>
+                    {CAN_VIEW_RAW_DETAIL && (
+                      <Fragment>
+                        <th>{t("admin.analytics.sessions_column_ip")}</th>
+                        <th>{t("admin.analytics.sessions_column_ip_hash")}</th>
+                        <th>
+                          {t("admin.analytics.sessions_column_user_agent_hash")}
+                        </th>
+                        <th>
+                          {t(
+                            "admin.analytics.sessions_column_login_identifier"
+                          )}
+                        </th>
+                      </Fragment>
+                    )}
+                  </tr>
+                </thead>
+                <tbody />
+              </table>
+            </div>
+            <p
+              class="section-state"
+              data-role="sessions-state"
+              aria-live="polite"
+            >
+              {t("admin.analytics.state_loading")}
+            </p>
+            <button
+              type="button"
+              id="sessions-load-more-button"
+              class="ghost-button"
+              hidden
+            >
+              {t("admin.analytics.sessions_load_more_button")}
+            </button>
+          </section>
+        )}
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .analytics-dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-5);
+  }
+
+  .analytics-section {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+
+  .analytics-section h2 {
+    margin: 0;
+    font-size: var(--fs-md);
+  }
+
+  .analytics-section h3 {
+    margin: 0 0 var(--sp-2);
+    font-size: var(--fs-sm);
+    color: var(--color-text-muted);
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+  }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--sp-3);
+  }
+
+  .stat-grid-single {
+    grid-template-columns: minmax(160px, 240px);
+  }
+
+  .stat-tile {
+    background: var(--color-surface-2);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+  }
+
+  .stat-value {
+    font-size: var(--fs-2xl);
+    font-weight: 700;
+    line-height: 1.1;
+  }
+
+  .stat-label {
+    font-size: var(--fs-sm);
+    color: var(--color-text-muted);
+  }
+
+  .stat-sub {
+    font-size: var(--fs-xs);
+    color: var(--color-text-muted);
+  }
+
+  .section-hint {
+    margin: 0;
+    font-size: var(--fs-xs);
+    color: var(--color-text-muted);
+  }
+
+  .section-state {
+    margin: 0;
+    font-size: var(--fs-sm);
+    color: var(--color-text-muted);
+  }
+
+  .section-state:empty {
+    display: none;
+  }
+
+  .analytics-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
+    font-size: var(--fs-sm);
+  }
+
+  .analytics-toolbar select {
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    min-height: 44px;
+  }
+
+  .devices-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--sp-4);
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+  }
+
+  .analytics-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fs-sm);
+  }
+
+  .analytics-table th,
+  .analytics-table td {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+  }
+
+  .ghost-button {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-3);
+    min-height: 44px;
+    cursor: pointer;
+    color: var(--color-text);
+  }
+
+  .ghost-button:hover {
+    background: var(--color-surface-2);
+  }
+
+  @media (max-width: 768px) {
+    .analytics-toolbar select,
+    .ghost-button {
+      min-height: 44px;
+    }
+  }
+</style>
+
+<script>
+  import { fetchJson, readClientStrings } from "../../lib/ui/admin-form-client";
+  import { formatDateTime, formatNumber } from "../../lib/i18n/format";
+  import type { SupportedLocale } from "../../lib/i18n/locale";
+  import {
+    buildSessionRowCells,
+    isNamedCountListEmpty,
+    isRealtimeAllZero,
+    isSecurityViewEmpty,
+    isSummaryEmpty,
+    matchesAreaFilter,
+    matchesVisitorTypeFilter,
+    resolveSectionState,
+    type AnalyticsAreaFilter,
+    type AnalyticsVisitorTypeFilter,
+    type SessionRowLike
+  } from "../../modules/visitor-analytics/domain/dashboard-view";
+
+  interface PageConfig {
+    canViewRealtime: boolean;
+    canViewSessions: boolean;
+    showRawDetailColumns: boolean;
+    geoActive: boolean;
+    locale: SupportedLocale;
+  }
+
+  interface AnalyticsStrings {
+    networkError: string;
+    errorMessages?: Record<string, string>;
+    humanLabel: string;
+    botLabel: string;
+    stateLoading: string;
+    stateEmptyGeneric: string;
+    stateErrorGeneric: string;
+    sessionsEmpty: string;
+    sessionsFilteredEmpty: string;
+  }
+
+  function readPageConfig(): PageConfig {
+    const fallback: PageConfig = {
+      canViewRealtime: false,
+      canViewSessions: false,
+      showRawDetailColumns: false,
+      geoActive: false,
+      locale: "en"
+    };
+    try {
+      const raw = document.getElementById("analytics-page-config")?.textContent;
+      return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  const config = readPageConfig();
+  const strings = readClientStrings<AnalyticsStrings>("i18n-strings");
+
+  function sectionStateEl(role: string): HTMLElement | null {
+    return document.querySelector(`[data-role="${role}-state"]`);
+  }
+
+  /** Renders one of doc 14's four mandated widget states as this section's own status line — "ready" clears it, "empty"/"error" show a message (issue guardrail: an error is never presented as if it were merely "no data yet"). */
+  function setSectionState(
+    role: string,
+    state: "ready" | "empty" | "error",
+    message?: string
+  ): void {
+    const el = sectionStateEl(role);
+    if (!el) return;
+    if (state === "ready") {
+      el.textContent = "";
+      return;
+    }
+    el.textContent =
+      message ??
+      (state === "empty"
+        ? strings.stateEmptyGeneric
+        : strings.stateErrorGeneric);
+  }
+
+  function setTileValue(
+    scopeSelector: string,
+    field: string,
+    value: string
+  ): void {
+    const scope = document.querySelector(scopeSelector);
+    const el = scope?.querySelector(`[data-field="${field}"]`);
+    if (el) el.textContent = value;
+  }
+
+  function renderNamedCountTable(
+    role: string,
+    rows: { name: string; count: number }[]
+  ): void {
+    const tbody = document.querySelector(`[data-role="${role}"] tbody`);
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    for (const row of rows) {
+      const tr = document.createElement("tr");
+      const nameTd = document.createElement("td");
+      nameTd.textContent = row.name;
+      const countTd = document.createElement("td");
+      countTd.textContent = formatNumber(row.count, config.locale);
+      tr.append(nameTd, countTd);
+      tbody.append(tr);
+    }
+  }
+
+  async function loadRealtime(): Promise<void> {
+    if (!config.canViewRealtime) return;
+    const result = await fetchJson<{
+      onlineHumanCount: number;
+      onlineAdminCount: number;
+      onlinePublicCount: number;
+      onlineApiCount: number;
+      lastUpdatedAt: string;
+    }>("/api/v1/analytics/realtime", strings);
+
+    const state = resolveSectionState(
+      result.ok,
+      result.data,
+      isRealtimeAllZero
+    );
+    const stats = result.data;
+    const scope = '[data-section="realtime"]';
+    setTileValue(
+      scope,
+      "onlineHumanCount",
+      stats ? formatNumber(stats.onlineHumanCount, config.locale) : "–"
+    );
+    setTileValue(
+      scope,
+      "onlineAdminCount",
+      stats ? formatNumber(stats.onlineAdminCount, config.locale) : "–"
+    );
+    setTileValue(
+      scope,
+      "onlinePublicCount",
+      stats ? formatNumber(stats.onlinePublicCount, config.locale) : "–"
+    );
+    setTileValue(
+      scope,
+      "onlineApiCount",
+      stats ? formatNumber(stats.onlineApiCount, config.locale) : "–"
+    );
+    const updatedEl = document.querySelector(
+      '[data-role="realtime-updated-at"]'
+    );
+    if (updatedEl && stats) {
+      updatedEl.textContent = formatDateTime(
+        new Date(stats.lastUpdatedAt),
+        config.locale
+      );
+    }
+    setSectionState(
+      "realtime",
+      state === "ready" ? "ready" : state,
+      state === "error" ? result.message : undefined
+    );
+  }
+
+  async function loadSummary(): Promise<void> {
+    const ranges: { range: string; scope: string }[] = [
+      { range: "24h", scope: '[data-summary-range="24h"]' },
+      { range: "7d", scope: '[data-summary-range="7d"]' },
+      { range: "30d", scope: '[data-summary-range="30d"]' }
+    ];
+
+    const results = await Promise.all(
+      ranges.map(({ range }) =>
+        fetchJson<{
+          humanUniqueVisitors: number;
+          humanPageviews: number;
+          botPageviews: number;
+        }>(`/api/v1/analytics/summary?range=${range}`, strings)
+      )
+    );
+
+    let anyError = false;
+    let allEmpty = true;
+    let firstErrorMessage: string | undefined;
+
+    results.forEach((result, index) => {
+      const scope = ranges[index]!.scope;
+      const state = resolveSectionState(result.ok, result.data, isSummaryEmpty);
+      if (state === "error") {
+        anyError = true;
+        firstErrorMessage ??= result.message;
+      }
+      if (state !== "empty") allEmpty = false;
+
+      setTileValue(
+        scope,
+        "humanUniqueVisitors",
+        result.data
+          ? formatNumber(result.data.humanUniqueVisitors, config.locale)
+          : "–"
+      );
+      setTileValue(
+        scope,
+        "humanPageviews",
+        result.data
+          ? formatNumber(result.data.humanPageviews, config.locale)
+          : "–"
+      );
+    });
+
+    setSectionState(
+      "summary",
+      anyError ? "error" : allEmpty ? "empty" : "ready",
+      anyError ? firstErrorMessage : undefined
+    );
+  }
+
+  async function loadPages(range: string): Promise<void> {
+    const result = await fetchJson<{
+      pages: { name: string; count: number }[];
+    }>(`/api/v1/analytics/pages?range=${range}`, strings);
+    const list = result.data?.pages ?? null;
+    const state = resolveSectionState(result.ok, list, isNamedCountListEmpty);
+    renderNamedCountTable("pages-table", state === "ready" ? list! : []);
+    setSectionState(
+      "pages",
+      state,
+      state === "error" ? result.message : undefined
+    );
+  }
+
+  async function loadDevices(range: string): Promise<void> {
+    const result = await fetchJson<{
+      browsers: { name: string; count: number }[];
+      devices: { name: string; count: number }[];
+    }>(`/api/v1/analytics/devices?range=${range}`, strings);
+    const data = result.data;
+    const state = resolveSectionState(
+      result.ok,
+      data,
+      (d) =>
+        isNamedCountListEmpty(d.browsers) && isNamedCountListEmpty(d.devices)
+    );
+    renderNamedCountTable(
+      "browsers-table",
+      state === "ready" ? data!.browsers : []
+    );
+    renderNamedCountTable(
+      "devices-table",
+      state === "ready" ? data!.devices : []
+    );
+    setSectionState(
+      "devices",
+      state,
+      state === "error" ? result.message : undefined
+    );
+  }
+
+  async function loadLocations(range: string): Promise<void> {
+    if (!config.geoActive) return;
+    const result = await fetchJson<{
+      countries: { name: string; count: number }[];
+    }>(`/api/v1/analytics/locations?range=${range}`, strings);
+    const list = result.data?.countries ?? null;
+    const state = resolveSectionState(result.ok, list, isNamedCountListEmpty);
+    renderNamedCountTable("locations-table", state === "ready" ? list! : []);
+    setSectionState(
+      "locations",
+      state,
+      state === "error" ? result.message : undefined
+    );
+  }
+
+  async function loadSecurity(range: string): Promise<void> {
+    const result = await fetchJson<{
+      botPageviews: number;
+      topBotReasons: { name: string; count: number }[];
+      botPageviewsByArea: { name: string; count: number }[];
+    }>(`/api/v1/analytics/security?range=${range}`, strings);
+    const data = result.data;
+    const state = resolveSectionState(result.ok, data, isSecurityViewEmpty);
+    setTileValue(
+      '[data-section="security"]',
+      "botPageviews",
+      data ? formatNumber(data.botPageviews, config.locale) : "–"
+    );
+    renderNamedCountTable(
+      "bot-reasons-table",
+      state === "ready" ? data!.topBotReasons : []
+    );
+    renderNamedCountTable(
+      "bot-areas-table",
+      state === "ready" ? data!.botPageviewsByArea : []
+    );
+    setSectionState(
+      "security",
+      state,
+      state === "error" ? result.message : undefined
+    );
+  }
+
+  async function loadRangeScopedSections(range: string): Promise<void> {
+    await Promise.all([
+      loadPages(range),
+      loadDevices(range),
+      loadLocations(range),
+      loadSecurity(range)
+    ]);
+  }
+
+  type SessionWithLastSeen = SessionRowLike & { lastSeenAt: string };
+
+  let sessionsRaw: SessionWithLastSeen[] = [];
+  let sessionsNextCursor: string | null = null;
+
+  function currentSessionFilters(): {
+    area: AnalyticsAreaFilter;
+    type: AnalyticsVisitorTypeFilter;
+  } {
+    const areaSelect = document.getElementById(
+      "sessions-area-filter"
+    ) as HTMLSelectElement | null;
+    const typeSelect = document.getElementById(
+      "sessions-type-filter"
+    ) as HTMLSelectElement | null;
+    return {
+      area: (areaSelect?.value ?? "all") as AnalyticsAreaFilter,
+      type: (typeSelect?.value ?? "all") as AnalyticsVisitorTypeFilter
+    };
+  }
+
+  function renderSessionsTable(): void {
+    const tbody = document.querySelector('[data-role="sessions-table"] tbody');
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    if (sessionsRaw.length === 0) {
+      setSectionState("sessions", "empty", strings.sessionsEmpty);
+      return;
+    }
+
+    const { area, type } = currentSessionFilters();
+    const filtered = sessionsRaw.filter(
+      (session) =>
+        matchesAreaFilter(session.area, area) &&
+        matchesVisitorTypeFilter(session.isHuman, type)
+    );
+
+    if (filtered.length === 0) {
+      setSectionState("sessions", "empty", strings.sessionsFilteredEmpty);
+      return;
+    }
+
+    setSectionState("sessions", "ready");
+
+    for (const session of filtered) {
+      const cells = buildSessionRowCells(session, {
+        showRawDetailColumns: config.showRawDetailColumns,
+        humanLabel: strings.humanLabel,
+        botLabel: strings.botLabel
+      });
+
+      const values = [
+        cells.area,
+        cells.currentPath,
+        cells.browser,
+        cells.os,
+        cells.device,
+        cells.visitorType,
+        cells.country,
+        formatDateTime(new Date(session.lastSeenAt), config.locale)
+      ];
+
+      if (cells.raw) {
+        values.push(
+          cells.raw.ipAddress,
+          cells.raw.ipHash,
+          cells.raw.userAgentHash,
+          cells.raw.loginIdentifier
+        );
+      }
+
+      const tr = document.createElement("tr");
+      for (const value of values) {
+        const td = document.createElement("td");
+        td.textContent = value;
+        tr.append(td);
+      }
+      tbody.append(tr);
+    }
+  }
+
+  async function loadSessionsPage(cursor: string | null): Promise<void> {
+    if (!config.canViewSessions) return;
+    const url = cursor
+      ? `/api/v1/analytics/sessions?cursor=${encodeURIComponent(cursor)}`
+      : "/api/v1/analytics/sessions";
+    const result = await fetchJson<{
+      sessions: SessionWithLastSeen[];
+      nextCursor: string | null;
+    }>(url, strings);
+
+    if (!result.ok || !result.data) {
+      setSectionState("sessions", "error", result.message);
+      return;
+    }
+
+    sessionsRaw = cursor
+      ? sessionsRaw.concat(result.data.sessions)
+      : result.data.sessions;
+    sessionsNextCursor = result.data.nextCursor;
+
+    const loadMoreButton = document.getElementById(
+      "sessions-load-more-button"
+    ) as HTMLButtonElement | null;
+    if (loadMoreButton) loadMoreButton.hidden = !sessionsNextCursor;
+
+    renderSessionsTable();
+  }
+
+  document
+    .getElementById("realtime-refresh-button")
+    ?.addEventListener("click", () => {
+      void loadRealtime();
+    });
+
+  document
+    .getElementById("range-select")
+    ?.addEventListener("change", (event) => {
+      const value = (event.target as HTMLSelectElement).value;
+      void loadRangeScopedSections(value);
+    });
+
+  document
+    .getElementById("sessions-area-filter")
+    ?.addEventListener("change", renderSessionsTable);
+  document
+    .getElementById("sessions-type-filter")
+    ?.addEventListener("change", renderSessionsTable);
+  document
+    .getElementById("sessions-load-more-button")
+    ?.addEventListener("click", () => {
+      if (sessionsNextCursor) void loadSessionsPage(sessionsNextCursor);
+    });
+
+  const initialRangeSelect = document.getElementById(
+    "range-select"
+  ) as HTMLSelectElement | null;
+  const initialRange = initialRangeSelect?.value ?? "7d";
+
+  void loadRealtime();
+  void loadSummary();
+  void loadRangeScopedSections(initialRange);
+  void loadSessionsPage(null);
+</script>
