@@ -39,7 +39,7 @@ status + pointer, bukan menduplikasi isinya.
 | #631  | Dokumentasi arsitektur full-online R2-only + SOP + security + IR + backup + user guide                                       | **Selesai** — lihat §Dokumen yang sudah ada di bawah |
 | #632  | Preset `news_portal_full_online_r2` (module descriptor/config gate)                                                          | **Selesai** — lihat §632 di bawah                    |
 | #633  | Tenant-scoped R2-only media object registry (schema + migration)                                                             | **Selesai** — lihat §633 di bawah                    |
-| #634  | Direct-to-R2 presigned upload flow (endpoint upload/confirm)                                                                 | Belum dikerjakan — lihat §634 di bawah               |
+| #634  | Direct-to-R2 presigned upload flow (endpoint upload/confirm)                                                                 | **Selesai** — lihat §634 di bawah                    |
 | #635  | Config validation + readiness checks (`config:validate`/`security:readiness`/`production:preflight`) untuk R2 image delivery | Belum dikerjakan — lihat §635 di bawah               |
 | #636  | `blog_content` wajib referensi R2 media object untuk gambar berita saat mode aktif                                           | Belum dikerjakan — lihat §636 di bawah               |
 | #637  | Editorial homepage section composer `/news` dengan render R2-only                                                            | Belum dikerjakan — lihat §637 di bawah               |
@@ -508,27 +508,173 @@ array dan memanggil `authorizeInTransaction` (skill
 - Docs: `full-online-r2-architecture.md` §5/§6/§16 (status diperbarui),
   `04_erd_data_dictionary.md` (§News Portal baru ditambah).
 
-## §634 — Direct-to-R2 presigned upload flow (belum dikerjakan)
+## §634 — Direct-to-R2 presigned upload flow (Selesai)
 
-Ringkasan scope: endpoint upload presigned + confirm (Jalur A) dan/atau
-server-streaming (Jalur B) sesuai `r2-upload-sop.md` §2/§3. Implementor
-**wajib**: `Idempotency-Key` untuk langkah `confirm` (skill
-`awcms-mini-idempotency`), audit event formal untuk `confirm`
-sukses/gagal (skill `awcms-mini-audit-log`, bukan sekadar correlation-ID
-logging), panggilan R2 di luar DB transaction (ADR-0006), circuit
-breaker + timeout (pola sama `object-storage` breaker `sync-storage`
-sudah pakai), validasi berlapis persis urutan
-`full-online-r2-architecture.md` §9. **Titik paling kritis (temuan
-security-auditor #631, sudah diperbaiki di dokumen arsitektur)**:
-langkah `confirm` Jalur A HARUS melakukan `GET` penuh objek dari R2
-(bukan `HEAD` saja) untuk menjalankan MIME sniffing dari magic bytes
-dan menghitung checksum server-side dari isi objek — `HEAD` hanya
-membuktikan sesuatu ter-upload, bukan apa yang ter-upload, dan
-membandingkan checksum aktual dari `HEAD`/ETag terhadap klaim client
-adalah pemeriksaan self-referential yang tidak menutup upload konten
-berbahaya berkedok gambar. Tambahkan test integrasi yang meng-upload
-payload HTML/JS berkedok `.jpg` dan membuktikan `confirm` menolaknya
-sebelum menganggap implementasi ini benar.
+Implementasi lengkap Jalur A (`r2-upload-sop.md` §2) — tiga endpoint:
+`POST /api/v1/media/news-images/upload-sessions` (create),
+`POST .../{id}/finalize`, `POST .../{id}/cancel`. Jalur B (server-
+streaming, §3) **tidak** diimplementasikan — di luar cakupan issue ini,
+Jalur A sudah mencukupi acceptance criteria.
+
+### KONFIRMASI KRUSIAL — finalize melakukan GET penuh + magic-byte sniffing + checksum server-side, BUKAN HEAD-only
+
+Body issue #634 di GitHub menulis "Server verifies object existence and
+metadata via R2 HEAD/metadata" — kalimat itu SENGAJA TIDAK diikuti
+karena sudah usang dibanding keputusan arsitektur pasca-review (temuan
+Critical security-auditor #631) di `full-online-r2-architecture.md` §9
+dan `r2-upload-sop.md` §2 langkah 5. Implementasi nyata:
+`src/modules/news-portal/application/news-media-r2-verification.ts`'s
+`verifyNewsMediaR2Object` — urutan PERSIS: (1) `client.headObject()`
+(cek cepat eksistensi + `Content-Length` real, short-circuit sebelum
+`GET` kalau objek tidak ada atau kelebihan ukuran — hemat bandwidth
+sesuai §9 poin 1), (2) `client.getObject()` = `S3File.arrayBuffer()`
+(GET PENUH, bukan ranged/partial), (3) `sniffNewsMediaMimeType(bytes)`
+(`domain/news-media-mime-sniffer.ts`, magic-byte allow-list JPEG/PNG/
+WebP/GIF — payload apa pun yang tidak cocok, termasuk HTML/JS berkedok
+`.jpg`, sniff ke `undefined`), (4) `Bun.CryptoHasher("sha256")` dihitung
+dari BYTE YANG SAMA yang dibaca di langkah 2 (bukan hash ulang beberapa
+byte pertama), (5) `decideNewsMediaFinalizeOutcome`
+(`domain/news-media-finalize-decision.ts`) — keputusan MIME/konten
+SELALU dari hasil sniffing; checksum klaim client (opsional, di body
+finalize request, BUKAN create — lihat Rekonsiliasi checksum di bawah)
+HANYA dibandingkan sebagai deteksi korupsi transport, tidak pernah
+menggantikan sniffing. `HEAD` (langkah 1) TIDAK PERNAH sendirian
+menaikkan status — bila objek tidak ada atau kelebihan ukuran, request
+ditolak SEBELUM `GET` sama sekali dipanggil (defense-in-depth, tapi
+tetap lewat urutan HEAD-lalu-GET, bukan HEAD-saja).
+
+Route (`pages/api/v1/media/news-images/upload-sessions/[id]/finalize.ts`)
+hanya parsing/validasi HTTP tipis — logika nyata ada di
+`application/news-media-finalize-upload-session.ts`'s
+`finalizeNewsMediaUploadSession` (dua transaksi `withTenant` terpisah
+mengapit panggilan R2 di tengah, ADR-0006 — precheck row/TTL/idempotency
+di tx pertama, commit, panggil R2 di luar transaksi, lalu tx kedua
+menulis hasil `verified`/`failed`). Test yang membuktikan HTML/JS
+berkedok gambar ditolak:
+`tests/integration/news-media-upload-session-api.integration.test.ts`'s
+"HTML/JS payload disguised as a .jpg (Issue #631 exploit scenario) is
+REJECTED" — meng-upload byte HTML/`<script>` sungguhan ke objek R2 palsu
+(fake in-memory S3 server, `Bun.serve`, path-style `/{bucket}/{key}`,
+dikonfirmasi empiris cocok dengan request nyata `Bun.S3Client`) yang
+key/claimed-mime-type-nya bilang `image/jpeg`, lalu memastikan
+`finalize` mengembalikan `422 UPLOAD_VERIFICATION_FAILED` dengan
+`reason: "mime_not_recognized"`, baris tetap `failed` (bukan
+`verified`), dan audit event `news_media.object.finalize_rejected`
+tercatat. Test serupa di level unit (tanpa DB):
+`tests/unit/news-media-mime-sniffer.test.ts`,
+`tests/unit/news-media-finalize-decision.test.ts`,
+`tests/unit/news-media-r2-verification.test.ts`.
+
+### Kenapa test R2-dependent tidak lewat route HTTP langsung
+
+Route Astro punya signature tetap `(context) => Response`, tidak ada
+seam untuk inject R2 client palsu ke test. `finalizeNewsMediaUploadSession`
+diekstrak ke `application/news-media-finalize-upload-session.ts` persis
+supaya punya `deps.createR2Client` yang bisa di-override test (pola sama
+`dispatchObjectSyncQueue`'s `resolveUploader` option di `sync-storage`,
+diterapkan satu layer lebih dalam karena di situlah seam-nya nyata ada).
+Skenario yang TIDAK butuh R2 nyata (auth/tenant/ABAC, validasi shape,
+idempotency-required, not-found, wrong-status, expired-session — semua
+diputuskan dari state DB semata sebelum R2 dipanggil sama sekali) tetap
+di-test lewat route asli (`invoke()`). Skenario yang butuh R2 (accept,
+object-not-found, mime-mismatch/exploit, checksum-mismatch) memanggil
+`finalizeNewsMediaUploadSession` langsung dengan `Bun.S3Client` sungguhan
+menunjuk ke fake server lokal.
+
+### Rekonsiliasi permission — pakai `news_portal.media.*` dari #633, BUKAN `media_objects.news_images.*` dari body issue #634
+
+Body issue #634 menyarankan
+`media_objects.news_images.{upload,read,attach,delete}`. TIDAK diikuti —
+`news-media-permissions.ts` (#633) sudah membekukan
+`news_portal.media.{create,read,verify,attach,detach,delete,restore,purge}`
+lebih dulu, dan file itu sendiri sudah menulis eksplisit "#634 WAJIB
+pakai persis konstanta ini". Verifikasi dilakukan: tidak ada modul lain
+di repo ini bernama `media_objects` atau pattern permission generik
+serupa (`grep` tidak menemukan apa pun) — jadi tidak ada konflik nyata
+untuk direkonsiliasi selain penamaan itu sendiri. Pemetaan endpoint →
+permission: create session → `news_portal.media.create` (action
+`"create"`, sudah ada di `AccessAction` union); finalize → `news_portal.media.verify`
+(action `"verify"`, sudah ada); cancel → permission BARU
+`news_portal.media.cancel` (action `"cancel"`, sudah ada duluan di
+`AccessAction` union untuk keperluan sync/POS — direuse, bukan
+ditambah). `cancel` ditambahkan ke `NEWS_MEDIA_PERMISSIONS` karena #633
+tidak pernah menganggarkan konsep "upload session" sama sekali (registry
+saat itu hanya berpikir dalam status lifecycle objek, bukan sesi
+presigned) — ini ekstensi aditif, bukan kontradiksi terhadap set #633.
+Migration `042_awcms_mini_news_media_permissions.sql` menyeed sembilan
+baris (delapan dari #633 + `cancel` baru) ke `awcms_mini_permissions`,
+dan `module.ts`'s `permissions` array (BARU dideklarasikan issue ini,
+sebelumnya sengaja `undefined`) menyalin PERSIS sembilan action yang
+sama — diverifikasi test
+(`tests/modules/news-portal-module.test.ts`'s "every declared
+permission's activityCode/action reproduces exactly one
+NEWS_MEDIA_PERMISSIONS constant").
+
+### Rekonsiliasi checksum klaim client — di body FINALIZE, bukan di body CREATE seperti tersirat SOP
+
+`r2-upload-sop.md` §2 langkah 5 menulis "checksum yang diklaim di
+langkah 1" (create) dibandingkan di langkah finalize — tapi migration
+041 (#633, schema BEKU, tidak diubah issue ini) hanya punya SATU kolom
+`checksum_sha256`, diisi dari nilai HASIL PERHITUNGAN SERVER saat
+`markNewsMediaObjectUploaded`, bukan dari klaim client. Tidak ada kolom
+untuk menyimpan klaim client terpisah dari nilai final itu. Solusi:
+`checksumSha256` opsional diterima di BODY FINALIZE (bukan create) —
+fungsional setara (klien Jalur A memegang byte yang sama persis untuk
+kedua request, tidak ada kerugian menyertakan ulang di request kedua)
+tanpa perlu migration baru. `CreateNewsMediaUploadSessionRequest` di
+OpenAPI TIDAK punya field checksum sama sekali;
+`FinalizeNewsMediaUploadSessionRequest` punya `checksumSha256` opsional.
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `sql/042_awcms_mini_news_media_permissions.sql`.
+- `src/modules/news-portal/domain/news-media-mime-sniffer.ts`,
+  `domain/news-media-finalize-decision.ts`,
+  `domain/news-media-upload-session-validation.ts`; diperbarui:
+  `domain/news-media-permissions.ts` (tambah `cancel`).
+- `src/modules/news-portal/infrastructure/news-media-r2-client.ts`
+  (`Bun.S3Client` wrapper: presign/HEAD/GET, circuit breaker
+  `"news-media-r2"`, timeout — pola sama `object-storage-uploader.ts`).
+- `src/modules/news-portal/application/news-media-r2-verification.ts`
+  (orkestrasi HEAD→GET→sniff→checksum→decision, tanpa `tx`, murni R2 +
+  domain), `application/news-media-finalize-upload-session.ts`
+  (orkestrasi finalize penuh: precheck tx → R2 verify → outcome tx,
+  `deps.createR2Client` injectable untuk test).
+- `src/pages/api/v1/media/news-images/upload-sessions/index.ts` (create),
+  `.../[id]/finalize.ts`, `.../[id]/cancel.ts` — route tipis.
+- Diperbarui: `src/modules/news-portal/module.ts` (`permissions`, `api`
+  baru dideklarasikan, versi 0.1.0→0.2.0).
+- `openapi/awcms-mini-public-api.openapi.yaml` (tag "News Media", tiga
+  path, lima schema baru).
+- Test: `tests/unit/news-media-mime-sniffer.test.ts`,
+  `tests/unit/news-media-finalize-decision.test.ts`,
+  `tests/unit/news-media-upload-session-validation.test.ts`,
+  `tests/unit/news-media-r2-client.test.ts`,
+  `tests/unit/news-media-r2-verification.test.ts`,
+  `tests/integration/news-media-upload-session-api.integration.test.ts`;
+  diperbarui: `tests/unit/news-media-permissions.test.ts` (9 keys,
+  module.ts kini deklarasikan permissions),
+  `tests/modules/news-portal-module.test.ts`,
+  `tests/unit/news-portal-no-local-fallback.test.ts` (extend scan ke
+  `src/pages/api/v1/media/news-images`), `tests/foundation.test.ts`
+  (migration list 042).
+- Changeset: `.changeset/news-media-presigned-upload-issue-634.md`.
+
+### Belum/di luar cakupan issue ini (untuk issue lanjutan)
+
+- Jalur B (server-streaming) — tidak diimplementasikan.
+- Job pembersihan objek R2 `failed`/`orphaned`/`pending` kedaluwarsa —
+  finalize hanya MENANDAI baris `failed` dan mengaudit, TIDAK
+  menghapus objek R2 sungguhan (`r2-backup-lifecycle.md`'s lifecycle
+  job, kemungkinan besar #635, di luar cakupan issue ini).
+- Endpoint `attach` nyata (permission `news_portal.media.attach` sudah
+  di-declare, tapi belum ada route yang memanggilnya) — verifikasi
+  `owner_resource_id` exist+tenant-match (temuan Medium security-auditor
+  PR #652, dicatat di §633 di atas) masih WAJIB ditegakkan issue yang
+  menambah endpoint attach nyata, BUKAN issue ini.
+- Retention/legal-hold pada purge — masih gap sistemik yang sama
+  (dicatat di §633), tidak disentuh issue ini (tidak ada endpoint purge
+  nyata yang dirilis di sini).
 
 ## §635 — Readiness checks (belum dikerjakan)
 

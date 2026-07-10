@@ -1,0 +1,308 @@
+/**
+ * Finalize orchestration for the direct-to-R2 presigned upload flow (Issue
+ * #634). Extracted out of the route handler
+ * (`pages/api/v1/media/news-images/upload-sessions/[id]/finalize.ts`) so
+ * the route stays thin (`awcms-mini-new-endpoint` skill: "route hanya
+ * orkestrasi") and so integration tests can exercise this exact logic
+ * against a real database with an INJECTED R2 client (a real
+ * `Bun.S3Client` pointed at a local fake HTTP server, same convention
+ * `tests/integration/object-dispatch.integration.test.ts` already
+ * established for `sync-storage`) — the route itself does not expose a
+ * seam for that, but a plain async function does, via `deps.createR2Client`.
+ *
+ * THIS is the function that closes the security-auditor Critical finding
+ * on Issue #631: it never promotes a row past `HEAD` alone.
+ * `verifyNewsMediaR2Object` (called below, between two separate
+ * `withTenant` transactions) performs a full `GET` + magic-byte MIME
+ * sniffing + server-side SHA-256 checksum before any acceptance decision
+ * is made (ADR-0006: the R2 calls happen strictly outside any DB
+ * transaction).
+ */
+import { fail, jsonResponse, ok } from "../../_shared/api-response";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { authorizeInTransaction } from "../../identity-access/application/access-guard";
+import { log } from "../../../lib/logging/logger";
+import { recordAuditEvent } from "../../logging/application/audit-log";
+import {
+  computeRequestHash,
+  findIdempotencyRecord,
+  saveIdempotencyRecord
+} from "../../_shared/idempotency";
+import type { NewsMediaR2Config } from "../domain/news-media-r2-config";
+import {
+  fetchNewsMediaObjectById,
+  markNewsMediaObjectFailed,
+  markNewsMediaObjectUploaded,
+  markNewsMediaObjectVerified
+} from "./news-media-object-directory";
+import {
+  createNewsMediaR2Client,
+  type NewsMediaR2Client
+} from "../infrastructure/news-media-r2-client";
+import { verifyNewsMediaR2Object } from "./news-media-r2-verification";
+
+const VERIFY_GUARD = {
+  moduleKey: "news_portal",
+  activityCode: "media",
+  action: "verify" as const
+};
+
+const IDEMPOTENCY_SCOPE = "news_media_upload_session_finalize";
+
+type PrecheckResult =
+  | { kind: "response"; response: Response }
+  | {
+      kind: "proceed";
+      objectId: string;
+      objectKey: string;
+      claimedMimeType: string;
+      actorTenantUserId: string;
+    };
+
+export type FinalizeNewsMediaUploadSessionInput = {
+  tenantId: string;
+  objectId: string;
+  tokenHash: string;
+  idempotencyKey: string;
+  claimedChecksumSha256: string | null;
+  now: Date;
+  correlationId?: string;
+};
+
+export type FinalizeNewsMediaUploadSessionDeps = {
+  sql: Bun.SQL;
+  config: NewsMediaR2Config;
+  /** Test-only injection point — defaults to a real `Bun.S3Client`-backed client built from `deps.config`. */
+  createR2Client?: (config: NewsMediaR2Config) => NewsMediaR2Client;
+};
+
+function defaultR2ClientFactory(config: NewsMediaR2Config): NewsMediaR2Client {
+  return createNewsMediaR2Client({
+    accountId: config.accountId,
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    bucket: config.bucket
+  });
+}
+
+export async function finalizeNewsMediaUploadSession(
+  input: FinalizeNewsMediaUploadSessionInput,
+  deps: FinalizeNewsMediaUploadSessionDeps
+): Promise<Response> {
+  const { tenantId, objectId, tokenHash, idempotencyKey, now, correlationId } =
+    input;
+  const claimedChecksumSha256 = input.claimedChecksumSha256;
+  const requestHash = computeRequestHash({ objectId, claimedChecksumSha256 });
+  const { sql, config } = deps;
+  const createR2Client = deps.createR2Client ?? defaultR2ClientFactory;
+
+  const precheck = await withTenant<PrecheckResult>(
+    sql,
+    tenantId,
+    async (tx) => {
+      const auth = await authorizeInTransaction(
+        tx,
+        tenantId,
+        tokenHash,
+        now,
+        VERIFY_GUARD
+      );
+
+      if (!auth.allowed) {
+        return { kind: "response", response: auth.denied };
+      }
+
+      const existingIdempotency = await findIdempotencyRecord(
+        tx,
+        tenantId,
+        IDEMPOTENCY_SCOPE,
+        idempotencyKey
+      );
+
+      if (existingIdempotency) {
+        if (existingIdempotency.requestHash !== requestHash) {
+          return {
+            kind: "response",
+            response: fail(
+              409,
+              "IDEMPOTENCY_CONFLICT",
+              "Idempotency-Key was already used with a different request."
+            )
+          };
+        }
+
+        return {
+          kind: "response",
+          response: jsonResponse(existingIdempotency.responseBody, {
+            status: existingIdempotency.responseStatus
+          })
+        };
+      }
+
+      const row = await fetchNewsMediaObjectById(tx, tenantId, objectId);
+
+      if (!row) {
+        return {
+          kind: "response",
+          response: fail(404, "RESOURCE_NOT_FOUND", "Upload session not found.")
+        };
+      }
+
+      if (row.status !== "pending_upload") {
+        return {
+          kind: "response",
+          response: fail(
+            409,
+            "INVALID_STATUS_TRANSITION",
+            `Cannot finalize an upload session in status "${row.status}".`
+          )
+        };
+      }
+
+      const expiresAtMs =
+        row.createdAt.getTime() + config.presignedUploadTtlSeconds * 1000;
+
+      if (now.getTime() > expiresAtMs) {
+        await markNewsMediaObjectFailed(tx, tenantId, objectId);
+        await recordAuditEvent(tx, {
+          tenantId,
+          actorTenantUserId: auth.context.tenantUserId,
+          moduleKey: "news_portal",
+          action: "news_media.object.finalize_rejected",
+          resourceType: "news_media_object",
+          resourceId: objectId,
+          severity: "warning",
+          message: `News media finalize rejected: upload session expired (${row.objectKey}).`,
+          attributes: { objectKey: row.objectKey, reason: "session_expired" },
+          correlationId
+        });
+
+        return {
+          kind: "response",
+          response: fail(
+            409,
+            "UPLOAD_SESSION_EXPIRED",
+            "Upload session has expired; start a new upload session."
+          )
+        };
+      }
+
+      return {
+        kind: "proceed",
+        objectId: row.id,
+        objectKey: row.objectKey,
+        claimedMimeType: row.mimeType,
+        actorTenantUserId: auth.context.tenantUserId
+      };
+    }
+  );
+
+  if (precheck.kind === "response") {
+    return precheck.response;
+  }
+
+  // Strictly outside any DB transaction (ADR-0006) — real R2 network calls.
+  const r2Client = createR2Client(config);
+
+  const verification = await verifyNewsMediaR2Object(r2Client, {
+    objectKey: precheck.objectKey,
+    claimedMimeType: precheck.claimedMimeType,
+    allowedMimeTypes: config.allowedMimeTypes,
+    maxUploadBytes: config.maxUploadBytes,
+    claimedChecksumSha256
+  });
+
+  if (verification.outcome === "provider_error") {
+    log("error", "news-portal.upload-session.finalize.provider_error", {
+      correlationId,
+      tenantId,
+      objectId: precheck.objectId,
+      error: verification.error
+    });
+
+    return fail(
+      502,
+      "PROVIDER_ERROR",
+      "Unable to verify the uploaded object right now. Try again shortly."
+    );
+  }
+
+  return withTenant(sql, tenantId, async (tx) => {
+    if (verification.outcome === "rejected") {
+      await markNewsMediaObjectFailed(tx, tenantId, precheck.objectId);
+      await recordAuditEvent(tx, {
+        tenantId,
+        actorTenantUserId: precheck.actorTenantUserId,
+        moduleKey: "news_portal",
+        action: "news_media.object.finalize_rejected",
+        resourceType: "news_media_object",
+        resourceId: precheck.objectId,
+        severity: "warning",
+        message: `News media finalize rejected: ${verification.reason} (${precheck.objectKey}).`,
+        attributes: {
+          objectKey: precheck.objectKey,
+          reason: verification.reason
+        },
+        correlationId
+      });
+
+      return fail(
+        422,
+        "UPLOAD_VERIFICATION_FAILED",
+        "Uploaded object failed content verification.",
+        {},
+        { reason: verification.reason }
+      );
+    }
+
+    const uploaded = await markNewsMediaObjectUploaded(
+      tx,
+      tenantId,
+      precheck.objectId,
+      {
+        sizeBytes: verification.sizeBytes,
+        checksumSha256: verification.checksumSha256
+      }
+    );
+
+    if (!uploaded) {
+      return fail(
+        409,
+        "INVALID_STATUS_TRANSITION",
+        "Upload session state changed concurrently; retry."
+      );
+    }
+
+    const verified = await markNewsMediaObjectVerified(
+      tx,
+      tenantId,
+      precheck.actorTenantUserId,
+      precheck.objectId,
+      {},
+      correlationId
+    );
+
+    if (!verified) {
+      return fail(
+        409,
+        "INVALID_STATUS_TRANSITION",
+        "Upload session state changed concurrently; retry."
+      );
+    }
+
+    const successResponse = ok(verified);
+    const successBody = await successResponse.clone().json();
+
+    await saveIdempotencyRecord(
+      tx,
+      tenantId,
+      IDEMPOTENCY_SCOPE,
+      idempotencyKey,
+      requestHash,
+      200,
+      successBody
+    );
+
+    return successResponse;
+  });
+}

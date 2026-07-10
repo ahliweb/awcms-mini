@@ -27,11 +27,11 @@
 export const NEWS_MEDIA_PERMISSION_ACTIVITY_CODE = "media";
 
 export const NEWS_MEDIA_PERMISSIONS = {
-  /** Create a pending media object metadata record. */
+  /** Create a pending media object metadata record (also gates starting a presigned upload session, Issue #634). */
   create: "news_portal.media.create",
   /** Read media object metadata (list/detail). */
   read: "news_portal.media.read",
-  /** Mark an uploaded object verified (MIME/checksum/dimension check passed). */
+  /** Mark an uploaded object verified (MIME/checksum/dimension check passed) — also gates the finalize endpoint, Issue #634. */
   verify: "news_portal.media.verify",
   /** Attach a verified media object to an owning blog/news resource. */
   attach: "news_portal.media.attach",
@@ -42,7 +42,19 @@ export const NEWS_MEDIA_PERMISSIONS = {
   /** Restore a soft-deleted media object. */
   restore: "news_portal.media.restore",
   /** Hard purge an already soft-deleted media object. */
-  purge: "news_portal.media.purge"
+  purge: "news_portal.media.purge",
+  /**
+   * Abort one's own not-yet-uploaded upload session (Issue #634). New in
+   * this issue — #633's original set (create/read/verify/attach/detach/
+   * delete/restore/purge) had no "cancel" concept yet because no upload
+   * session existed. Reuses the existing `AccessAction` union member
+   * `"cancel"` (`identity-access/domain/access-control.ts`, already used by
+   * sync/POS cancel flows) — a distinct permission from `delete` because
+   * cancelling a `pending_upload` session (nothing was ever verified/
+   * attached) is a materially lower-risk action than soft-deleting a real,
+   * previously-verified media object.
+   */
+  cancel: "news_portal.media.cancel"
 } as const;
 
 export type NewsMediaPermissionKey = keyof typeof NEWS_MEDIA_PERMISSIONS;

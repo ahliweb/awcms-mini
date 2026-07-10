@@ -138,6 +138,16 @@ tags:
       sessions/events is omitted unless the caller holds the separate
       `visitor_analytics.raw_detail.read` permission, independent of
       `sessions.read`/`events.read`.
+  - name: News Media
+    description: >-
+      Direct-to-R2 presigned upload flow for news images (epic
+      `news_portal` #631-#642/#649, Issue #634) — create an upload
+      session (server-generated object key + short-lived presigned `PUT`
+      URL), finalize (real R2 `GET` + magic-byte MIME sniffing +
+      server-side SHA-256 checksum — never a bare `HEAD`, per the
+      security-auditor Critical finding on Issue #631), and cancel a
+      still-`pending_upload` session. R2 credentials are never exposed to
+      the browser; only a scoped, expiring presigned URL is returned.
 paths:
   /api/v1/sync/push:
     post:
@@ -7799,6 +7809,191 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/media/news-images/upload-sessions:
+    post:
+      tags:
+        - News Media
+      summary: Create a direct-to-R2 presigned upload session for a news image
+      operationId: newsMediaUploadSessionsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNewsMediaUploadSessionRequest"
+      responses:
+        "200":
+          description: >-
+            Upload session created — a `pending_upload` metadata row plus a
+            short-lived presigned PUT URL scoped to exactly one
+            server-generated object key. Never includes raw R2 credentials.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NewsMediaUploadSessionCreated"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "502":
+          description: News media R2 storage is not configured/enabled for this deployment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/media/news-images/upload-sessions/{id}/finalize:
+    post:
+      tags:
+        - News Media
+      summary: >-
+        Finalize an upload session — real R2 GET + magic-byte MIME sniffing +
+        server-side SHA-256 checksum (never a bare HEAD)
+      description: >-
+        Verifies the object actually uploaded to R2 by performing a HEAD
+        (existence + real size) followed by a FULL GET, sniffing the MIME
+        type from the object's actual magic bytes, and computing a SHA-256
+        checksum server-side from the bytes read. A client-claimed
+        `checksumSha256` (if supplied) is compared only as a transport-
+        corruption check — it is never a substitute for the MIME sniff. This
+        closes the security-auditor Critical finding on Issue #631: `HEAD`
+        alone can never promote a media object to `verified`.
+      operationId: newsMediaUploadSessionsFinalize
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinalizeNewsMediaUploadSessionRequest"
+      responses:
+        "200":
+          description: Object verified — media object status is now `verified`.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NewsMediaObjectItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: >-
+            Upload session is not `pending_upload`, has expired
+            (`UPLOAD_SESSION_EXPIRED`), or the Idempotency-Key was reused
+            with a different request (`IDEMPOTENCY_CONFLICT`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: >-
+            Uploaded object failed content verification
+            (`UPLOAD_VERIFICATION_FAILED`) — MIME sniff did not match the
+            allow-list/claimed mime type, checksum mismatch, size exceeded,
+            or the object does not exist in R2. `error.details.reason` is
+            one of `object_not_found`, `size_exceeded`,
+            `mime_not_recognized`, `mime_not_allowed`, `mime_mismatch`,
+            `checksum_mismatch`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "502":
+          description: Unable to verify the uploaded object right now (R2 provider error/circuit breaker open) — retry shortly.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/media/news-images/upload-sessions/{id}/cancel:
+    post:
+      tags:
+        - News Media
+      summary: Cancel a still-pending-upload session
+      operationId: newsMediaUploadSessionsCancel
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Upload session cancelled (status `failed`).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NewsMediaObjectItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Upload session is not `pending_upload` (already uploaded/verified/attached/failed).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
 x-awcms-mini-soft-delete-pattern:
   delete:
     method: DELETE
@@ -12595,6 +12790,160 @@ components:
         nextCursor:
           type: string
           nullable: true
+    CreateNewsMediaUploadSessionRequest:
+      type: object
+      required:
+        - mimeType
+        - byteSize
+      additionalProperties: false
+      properties:
+        mimeType:
+          type: string
+          description: >-
+            Must be one of the deployment's configured
+            NEWS_MEDIA_R2_ALLOWED_MIME_TYPES (default: image/jpeg,
+            image/png, image/webp, image/gif — image/svg+xml is never
+            allowed by default).
+          example: image/jpeg
+        byteSize:
+          type: integer
+          minimum: 1
+          description: Claimed size in bytes — shape-only check against NEWS_MEDIA_R2_MAX_UPLOAD_BYTES; the real size is re-checked from R2 itself at finalize time.
+        originalFilename:
+          type: string
+          nullable: true
+          description: Stored as display-only metadata — never part of the server-generated object key.
+        altText:
+          type: string
+          nullable: true
+        caption:
+          type: string
+          nullable: true
+    NewsMediaUploadSessionCreated:
+      type: object
+      required:
+        - objectId
+        - objectKey
+        - presignedUrl
+        - expiresAt
+      additionalProperties: false
+      properties:
+        objectId:
+          type: string
+          format: uuid
+        objectKey:
+          type: string
+          description: Server-generated — news-media/{tenantId}/{yyyy}/{mm}/{uuid}.{ext}. Never derived from client input.
+          example: news-media/3fa85f64-5717-4562-b3fc-2c963f66afa6/2026/07/1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed.jpg
+        presignedUrl:
+          type: string
+          format: uri
+          description: Short-lived presigned PUT URL scoped to exactly one object key. Never includes raw R2 credentials.
+        expiresAt:
+          type: string
+          format: date-time
+    FinalizeNewsMediaUploadSessionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        checksumSha256:
+          type: string
+          nullable: true
+          description: >-
+            Optional. When supplied, compared against the checksum computed
+            server-side from the bytes actually read from R2 — this is a
+            transport-corruption check only, never a substitute for the
+            server-side MIME sniff.
+          pattern: "^[0-9a-fA-F]{64}$"
+          example: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    NewsMediaObjectItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - objectKey
+        - publicUrl
+        - mimeType
+        - status
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        moduleKey:
+          type: string
+        ownerResourceType:
+          type: string
+          nullable: true
+          enum:
+            [
+              blog_post,
+              blog_page,
+              homepage_section,
+              gallery_item,
+              ad,
+              video_thumbnail,
+              seo_image,
+              null
+            ]
+        ownerResourceId:
+          type: string
+          format: uuid
+          nullable: true
+        storageDriver:
+          type: string
+          enum: [cloudflare_r2]
+        objectKey:
+          type: string
+        originalFilename:
+          type: string
+          nullable: true
+        publicUrl:
+          type: string
+          format: uri
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+          nullable: true
+        checksumSha256:
+          type: string
+          nullable: true
+        width:
+          type: integer
+          nullable: true
+        height:
+          type: integer
+          nullable: true
+        altText:
+          type: string
+          nullable: true
+        caption:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+            [
+              pending_upload,
+              uploaded,
+              verified,
+              attached,
+              orphaned,
+              deleted,
+              failed
+            ]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
 security:
   - bearerAuth: []
     tenantHeader: []
