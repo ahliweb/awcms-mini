@@ -151,9 +151,13 @@ export async function createAuthProvider(
 
   // Count-then-insert, not atomic (no SELECT ... FOR UPDATE): this bounds a
   // tenant's total probing budget (Issue #612), it isn't a security
-  // invariant like MFA replay — a handful of concurrent creates could land
-  // one or two rows past `limit`, which is harmless for what this defends
-  // against.
+  // invariant like MFA replay. A concurrent burst CAN land more rows than
+  // `limit` (measured overshoot under load equals the shared "interactive"
+  // work-class semaphore's cap, see `work-class.ts`'s WORK_CLASS_MAX — not
+  // "one or two"), but each subsequent create still re-reads the
+  // already-committed count and is correctly rejected, so this is a single
+  // bounded overshoot, not an unbounded/repeatable bypass — harmless for
+  // what this defends against.
   const limit = resolveSsoMaxProvidersPerTenant(env);
   const countRows = (await tx`
     SELECT count(*)::int AS count FROM awcms_mini_auth_providers

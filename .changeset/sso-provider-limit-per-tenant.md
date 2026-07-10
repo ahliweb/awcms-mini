@@ -21,5 +21,11 @@ target, to multiply their total internal-network probing volume linearly.
 (default 20, `resolveSsoMaxProvidersPerTenant` in `src/lib/auth/sso-config.ts`).
 The count-then-insert check in `createAuthProvider` is deliberately not made
 atomic (no `SELECT ... FOR UPDATE`) — this bounds a probing budget, it is
-not a security invariant like MFA replay prevention, so a small overshoot
-from concurrent creates is harmless for what it defends against.
+not a security invariant like MFA replay prevention. A security-auditor
+pass empirically load-tested this with concurrent bursts against a real
+Postgres instance: a single burst can land more rows than `limit` (bounded
+by the app's shared "interactive" work-class concurrency semaphore, not
+merely "one or two"), but the overshoot does not compound across repeated
+bursts — every later create re-reads the already-committed count and is
+correctly rejected. A single bounded overshoot, not an unbounded or
+repeatable bypass, so it remains harmless for what this defends against.
