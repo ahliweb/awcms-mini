@@ -159,6 +159,27 @@ token/cookie/authorization/request_body).
 Docs: `docs/awcms-mini/04_erd_data_dictionary.md` §Visitor Analytics
 (ERD ringkas) dan §Retention awal (dua baris retensi baru).
 
+**Temuan security-auditor Issue #618 (Medium, binding untuk Issue #620,
+bukan blocker PR #618 sendiri — schema-only, belum ada writer):** FK biasa
+(`identity_id uuid REFERENCES awcms_mini_identities (id)`,
+`visitor_session_id uuid REFERENCES awcms_mini_visitor_sessions (id)`)
+**tidak dilindungi RLS** — constraint-check FK PostgreSQL berjalan dengan
+privilege owner tabel, bukan role pemanggil (dokumentasi resmi
+`CREATE POLICY`: "foreign key references are not restricted by row
+security"). Kalau nilai `identity_id`/`visitor_session_id` yang ditulis
+Issue #620 pernah berasal dari input yang dikontrol client (bukan
+di-derive dari session/tenant context di server), ini jadi **existence
+oracle lintas tenant** (attacker bisa binary-search UUID buat tahu
+"row ini ada di suatu tenant" vs "row ini tidak ada sama sekali", lepas
+dari RLS). **Wajib dipertahankan Issue #620**: `identity_id` selalu
+di-derive dari identity sesi terautentikasi milik request itu sendiri
+(tidak pernah dari field yang bisa diisi client), `visitor_session_id`
+selalu di-resolve server-side dari cookie/token opaque yang di-lookup di
+dalam tenant context pemanggil sendiri (tidak pernah dari raw UUID
+client yang langsung dicocokkan ke FK). Tambahkan test integrasi di #620
+yang membuktikan UUID palsu/lintas-tenant di salah satu field ditolak
+sebelum sempat menyentuh FK.
+
 ## Prinsip yang wajib dipertahankan di setiap issue lanjutan
 
 1. **Privacy-first default** — raw IP, raw user-agent, geolokasi selalu
