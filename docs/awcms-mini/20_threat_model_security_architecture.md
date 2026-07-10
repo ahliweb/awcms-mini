@@ -402,20 +402,49 @@ sekali — `APP_ENV=production` **bukan** proxy untuk gate ini (lihat
   KEDUANYA TIDAK membatasi siapa yang bisa MEMICU fetch keluar
   setelahnya. `GET /api/v1/auth/sso/{providerKey}/start` yang memicu
   `discoverOidcConfiguration`/dst. bersifat **tanpa autentikasi**,
-  hanya dibatasi rate limit per-sumber+tenant (`start.ts`) — bukan
-  per-`providerKey`, dan cache discovery hanya mengisi pada request
-  SUKSES, sehingga target internal yang tidak pernah membalas JSON OIDC
-  valid tidak pernah di-cache, membiarkan probe berulang tanpa batas
-  lewat endpoint publik ini. Risiko residual ini SENGAJA diterima
-  bersama keputusan utama (tidak menambah IP blocking), tapi dicatat
-  eksplisit di sini alih-alih dianggap sudah tertutup oleh ABAC.
-  Follow-up (rate limit per-`providerKey`, negative-cache percobaan
-  gagal, rekomendasi infra-layer blokir egress `169.254.169.254` untuk
-  deployment `full_online`) dicatat di skill
-  `awcms-mini-auth-online-hardening` §SSRF/`issuer_url`, belum
-  diimplementasi (bukan bagian keputusan #603, follow-up terpisah bila
-  dibutuhkan). Tidak ada perubahan kode dari keputusan #603 sendiri —
-  murni dokumentasi risiko yang diterima secara eksplisit.
+  hanya dibatasi rate limit per-sumber+tenant (`start.ts`). Risiko
+  residual ini SENGAJA diterima bersama keputusan utama (tidak menambah
+  IP blocking), tapi dicatat eksplisit di sini alih-alih dianggap sudah
+  tertutup oleh ABAC. Tidak ada perubahan kode dari keputusan #603
+  sendiri — murni dokumentasi risiko yang diterima secara eksplisit.
+
+  **Hardening tambahan — Issue #610, selesai setelah DUA putaran security
+  review** (menyempitkan, bukan menghilangkan, residual di atas — tidak
+  membuka ulang keputusan "tanpa IP blocking"):
+
+  - **Bug Critical yang ditemukan sekaligus diperbaiki (pre-existing sejak
+    #591)**: setiap cache/circuit-breaker di `generic-oidc-client.ts`
+    sebelumnya di-key HANYA oleh `providerKey`, padahal `provider_key`
+    cuma unik PER TENANT — dua tenant berbeda yang menamai provider mereka
+    sama (mis. `"okta"`) berbagi entry cache/breaker yang sama. Tenant
+    admin jahat bisa mendaftarkan provider bernama umum menunjuk server
+    attacker, memicu satu fetch, dan attacker's `authorization_endpoint`/
+    `jwks_uri` ter-serve ke tenant LAIN yang punya provider senama —
+    primitif pengambilalihan SSO lintas-tenant, bukan sekadar residual
+    probing. Diperbaiki: semua cache/breaker kini di-key
+    `${tenantId}:${providerKey}`.
+  - **Draft awal PR ini sempat menambah rate limit agregat (bukan
+    per-sumber) di `start.ts`** untuk membatasi prober lintas-IP — putaran
+    review KEDUA menemukan budget bersama ini sendiri adalah DoS tanpa
+    privilege (≥3 source IP cukup mengunci semua user sah tenant dari
+    login SSO). Dihapus total; pertahanan sebenarnya adalah circuit
+    breaker (kini benar di-scope tenant+provider) + negative-TTL cache di
+    bawah, yang HANYA membatasi percobaan gagal, tak pernah bisa
+    memblokir login sah.
+  - `generic-oidc-client.ts` kini meng-cache percobaan discovery/JWKS yang
+    GAGAL selama 30 detik (`discoveryFailureCache`/`jwksFailureCache`,
+    di-key sama) — target yang tak pernah membalas JSON valid tidak lagi
+    memicu fetch baru di setiap hit.
+  - Rekomendasi infra-layer blokir egress `169.254.169.254` untuk
+    deployment `full_online` didokumentasikan di `deployment-profiles.md`
+    §Generic tenant OIDC SSO (tetap tanggung jawab operator, di luar
+    cakupan aplikasi).
+  - **Follow-up terpisah (Issue #612, tidak memblokir #610)**: belum ada
+    cap jumlah provider per tenant, jadi total volume probing masih bisa
+    dilipatgandakan dengan mendaftarkan banyak provider row.
+
+  Detail lengkap: skill `awcms-mini-auth-online-hardening`
+  §SSRF/`issuer_url`.
 
 - **Circuit breaker exclusion untuk SQLSTATE class 22** — Issue #601,
   **selesai** (`isPostgresClientInputError` di `tenant-context.ts` kini

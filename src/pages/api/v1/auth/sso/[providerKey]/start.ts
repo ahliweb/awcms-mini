@@ -34,6 +34,21 @@ const RATE_LIMIT_WINDOW_SEC = Number(
  * confirmed active but the provider key doesn't resolve to an enabled
  * provider for this tenant — avoids leaking a distinct signal for "gate
  * off" vs "provider key wrong" beyond what's already unavoidable.
+ *
+ * Deliberately only ONE rate limit here (per-source+tenant), not also an
+ * aggregate/shared one keyed by `providerKey` alone (Issue #610's own
+ * security-auditor review): a SHARED budget across all sources is itself
+ * a privilege-free DoS against every legitimate user of that tenant's SSO
+ * login — as few as 3 source IPs can exhaust a shared 60/60s budget and
+ * lock everyone else out, repeatedly, and the review's own test proved
+ * exactly this. The actual defense against sustained internal-network
+ * probing via a malicious `issuer_url` lives in `generic-oidc-client.ts`'s
+ * circuit breaker + negative-TTL cache instead, both now correctly scoped
+ * per `${tenantId}:${providerKey}` — they only ever throttle FAILING
+ * attempts, so they can never block a legitimate login to a healthy
+ * provider. Do not reintroduce a shared/aggregate rate limit on this
+ * endpoint without reading the full rationale in
+ * `generic-oidc-client.ts`'s top comment first.
  */
 export const GET: APIRoute = async ({
   request,
