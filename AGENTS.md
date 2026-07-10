@@ -235,6 +235,8 @@ bun run email:dispatch           # job terjadwal: dispatch outbox email
 bun run email:templates:seed-defaults # seed template email default
 bun run form-drafts:purge        # job terjadwal: purge form draft kedaluwarsa
 bun run blog:publish:scheduled   # job terjadwal: publish blog post scheduled yang sudah due
+bun run analytics:rollup         # job terjadwal: rollup visitor analytics harian per tenant/area
+bun run analytics:purge          # job terjadwal: purge/anonymisasi visitor analytics kedaluwarsa
 bun run modules:sync             # sinkronisasi descriptor modul ke awcms_mini_modules
 bun run github:snapshot:refresh  # refresh docs/awcms-mini/github/ dari state GitHub live
 ```
