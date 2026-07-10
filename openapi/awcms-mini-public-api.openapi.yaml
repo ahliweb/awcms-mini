@@ -1734,7 +1734,11 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
         "409":
-          description: A provider already exists for this `providerKey` (`SSO_PROVIDER_KEY_CONFLICT`).
+          description: >-
+            A provider already exists for this `providerKey`
+            (`SSO_PROVIDER_KEY_CONFLICT`), or the tenant has reached its
+            configured provider limit (`SSO_PROVIDER_LIMIT_EXCEEDED`, default
+            20, `AUTH_SSO_MAX_PROVIDERS_PER_TENANT`).
           content:
             application/json:
               schema:

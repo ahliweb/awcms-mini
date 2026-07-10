@@ -131,6 +131,14 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       );
     }
 
+    if (result.outcome === "limit_exceeded") {
+      return fail(
+        409,
+        "SSO_PROVIDER_LIMIT_EXCEEDED",
+        `This tenant already has the maximum of ${result.limit} configured SSO providers.`
+      );
+    }
+
     if (result.outcome === "misconfigured") {
       return fail(
         500,

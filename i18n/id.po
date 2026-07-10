@@ -215,6 +215,9 @@ msgstr "SSO OIDC tenant salah konfigurasi di server ini."
 msgid "error.sso_provider_key_conflict"
 msgstr "Provider dengan kunci ini sudah ada."
 
+msgid "error.sso_provider_limit_exceeded"
+msgstr "Tenant ini sudah mencapai jumlah maksimum provider SSO yang dikonfigurasi."
+
 msgid "error.break_glass_required"
 msgstr "Perubahan ini membutuhkan minimal satu identitas break-glass yang masih aktif."
 

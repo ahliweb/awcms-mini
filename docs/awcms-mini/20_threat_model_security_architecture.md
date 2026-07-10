@@ -439,9 +439,11 @@ sekali — `APP_ENV=production` **bukan** proxy untuk gate ini (lihat
     deployment `full_online` didokumentasikan di `deployment-profiles.md`
     §Generic tenant OIDC SSO (tetap tanggung jawab operator, di luar
     cakupan aplikasi).
-  - **Follow-up terpisah (Issue #612, tidak memblokir #610)**: belum ada
-    cap jumlah provider per tenant, jadi total volume probing masih bisa
-    dilipatgandakan dengan mendaftarkan banyak provider row.
+  - **Follow-up — selesai (Issue #612)**: `AUTH_SSO_MAX_PROVIDERS_PER_TENANT`
+    (default 20) membatasi jumlah baris `awcms_mini_auth_providers` aktif
+    per tenant (`createAuthProvider` → `409 SSO_PROVIDER_LIMIT_EXCEEDED`),
+    supaya total volume probing tenant tidak lagi bisa dilipatgandakan tanpa
+    batas dengan mendaftarkan banyak provider row.
 
   Detail lengkap: skill `awcms-mini-auth-online-hardening`
   §SSRF/`issuer_url`.

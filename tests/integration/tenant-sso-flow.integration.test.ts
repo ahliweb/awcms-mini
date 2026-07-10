@@ -39,6 +39,7 @@ import {
   GET as listProviders,
   POST as createProvider
 } from "../../src/pages/api/v1/identity/sso/providers/index";
+import { DELETE as deleteProvider } from "../../src/pages/api/v1/identity/sso/providers/[id]";
 import {
   GET as getPolicy,
   PATCH as updatePolicy
@@ -493,6 +494,170 @@ suite("Generic tenant OIDC SSO flow (Issue #591)", () => {
     expect(list.status).toBe(200);
     expect(list.body.data.providers).toHaveLength(1);
     expect(list.body.data.providers[0]?.providerKey).toBe("okta");
+  });
+
+  test("create is rejected once the tenant reaches AUTH_SSO_MAX_PROVIDERS_PER_TENANT (Issue #612)", async () => {
+    const owner = await bootstrapTenant();
+
+    await withEnvOverride(
+      { AUTH_SSO_MAX_PROVIDERS_PER_TENANT: "2" },
+      async () => {
+        const first = await invoke<{ data: { id: string } }>(createProvider, {
+          method: "POST",
+          path: "/api/v1/identity/sso/providers",
+          headers: authHeaders(owner),
+          body: {
+            providerKey: "okta",
+            displayName: "Okta",
+            issuerUrl: OKTA_ISSUER,
+            clientId: OKTA_CLIENT_ID,
+            clientSecretEnvVar: "OKTA_TEST_CLIENT_SECRET",
+            enabled: true
+          }
+        });
+        expect(first.status).toBe(200);
+
+        const second = await invoke<{ data: { id: string } }>(createProvider, {
+          method: "POST",
+          path: "/api/v1/identity/sso/providers",
+          headers: authHeaders(owner),
+          body: {
+            providerKey: "azure-ad",
+            displayName: "Azure AD",
+            issuerUrl: "https://login.microsoftonline.com/tenant/v2.0",
+            clientId: "azure-client-id",
+            clientSecretEnvVar: "AZURE_TEST_CLIENT_SECRET",
+            enabled: true
+          }
+        });
+        expect(second.status).toBe(200);
+
+        const third = await invoke<{ error: { code: string } }>(
+          createProvider,
+          {
+            method: "POST",
+            path: "/api/v1/identity/sso/providers",
+            headers: authHeaders(owner),
+            body: {
+              providerKey: "keycloak",
+              displayName: "Keycloak",
+              issuerUrl: "https://idp.example.com/realms/tenant",
+              clientId: "keycloak-client-id",
+              clientSecretEnvVar: "KEYCLOAK_TEST_CLIENT_SECRET",
+              enabled: true
+            }
+          }
+        );
+        expect(third.status).toBe(409);
+        expect(third.body.error.code).toBe("SSO_PROVIDER_LIMIT_EXCEEDED");
+
+        const list = await invoke<{ data: { providers: unknown[] } }>(
+          listProviders,
+          {
+            method: "GET",
+            path: "/api/v1/identity/sso/providers",
+            headers: authHeaders(owner)
+          }
+        );
+        expect(list.body.data.providers).toHaveLength(2);
+      }
+    );
+  });
+
+  test("soft-deleting a provider frees a slot under AUTH_SSO_MAX_PROVIDERS_PER_TENANT (Issue #612)", async () => {
+    const owner = await bootstrapTenant();
+
+    await withEnvOverride(
+      { AUTH_SSO_MAX_PROVIDERS_PER_TENANT: "2" },
+      async () => {
+        const first = await invoke<{ data: { id: string } }>(createProvider, {
+          method: "POST",
+          path: "/api/v1/identity/sso/providers",
+          headers: authHeaders(owner),
+          body: {
+            providerKey: "okta",
+            displayName: "Okta",
+            issuerUrl: OKTA_ISSUER,
+            clientId: OKTA_CLIENT_ID,
+            clientSecretEnvVar: "OKTA_TEST_CLIENT_SECRET",
+            enabled: true
+          }
+        });
+        expect(first.status).toBe(200);
+
+        const second = await invoke<{ data: { id: string } }>(createProvider, {
+          method: "POST",
+          path: "/api/v1/identity/sso/providers",
+          headers: authHeaders(owner),
+          body: {
+            providerKey: "azure-ad",
+            displayName: "Azure AD",
+            issuerUrl: "https://login.microsoftonline.com/tenant/v2.0",
+            clientId: "azure-client-id",
+            clientSecretEnvVar: "AZURE_TEST_CLIENT_SECRET",
+            enabled: true
+          }
+        });
+        expect(second.status).toBe(200);
+
+        const blocked = await invoke<{ error: { code: string } }>(
+          createProvider,
+          {
+            method: "POST",
+            path: "/api/v1/identity/sso/providers",
+            headers: authHeaders(owner),
+            body: {
+              providerKey: "keycloak",
+              displayName: "Keycloak",
+              issuerUrl: "https://idp.example.com/realms/tenant",
+              clientId: "keycloak-client-id",
+              clientSecretEnvVar: "KEYCLOAK_TEST_CLIENT_SECRET",
+              enabled: true
+            }
+          }
+        );
+        expect(blocked.status).toBe(409);
+
+        const deleted = await invoke(deleteProvider, {
+          method: "DELETE",
+          path: `/api/v1/identity/sso/providers/${second.body.data.id}`,
+          headers: authHeaders(owner),
+          params: { id: second.body.data.id },
+          body: { reason: "replacing with a different provider" }
+        });
+        expect(deleted.status).toBe(200);
+
+        const afterDelete = await invoke<{ data: { id: string } }>(
+          createProvider,
+          {
+            method: "POST",
+            path: "/api/v1/identity/sso/providers",
+            headers: authHeaders(owner),
+            body: {
+              providerKey: "keycloak",
+              displayName: "Keycloak",
+              issuerUrl: "https://idp.example.com/realms/tenant",
+              clientId: "keycloak-client-id",
+              clientSecretEnvVar: "KEYCLOAK_TEST_CLIENT_SECRET",
+              enabled: true
+            }
+          }
+        );
+        expect(afterDelete.status).toBe(200);
+
+        const list = await invoke<{
+          data: { providers: { providerKey: string }[] };
+        }>(listProviders, {
+          method: "GET",
+          path: "/api/v1/identity/sso/providers",
+          headers: authHeaders(owner)
+        });
+        expect(list.body.data.providers).toHaveLength(2);
+        expect(
+          list.body.data.providers.map((p) => p.providerKey).sort()
+        ).toEqual(["keycloak", "okta"]);
+      }
+    );
   });
 
   test("admin CRUD never returns the client secret plaintext", async () => {

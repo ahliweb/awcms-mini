@@ -98,6 +98,7 @@ Legenda: Wajib = perlu untuk boot; Sensitif = jangan bocor ke log/response.
 | `AUTH_SSO_ENABLED`                          | –              | `false`                                  | –        | Generic tenant OIDC SSO (Issue #591) — lihat §Full-online auth security hardening di bawah              |
 | `AUTH_SSO_CREDENTIAL_ENCRYPTION_KEY`        | bila SSO       | –                                        | Ya       | Key AES-256-GCM (base64, 32 byte) untuk enkripsi-at-rest client secret provider — beda dari key MFA     |
 | `AUTH_SSO_DISCOVERY_TIMEOUT_MS`             | –              | `5000`                                   | –        | Timeout discovery/JWKS/token-exchange OIDC provider tenant (ms)                                         |
+| `AUTH_SSO_MAX_PROVIDERS_PER_TENANT`         | –              | `20`                                     | –        | Batas jumlah baris provider aktif per tenant (Issue #612) — membatasi total budget probing tenant       |
 
 ### Full-online auth security hardening (opsional, Issue #587-#593)
 
@@ -207,9 +208,17 @@ online-only ini (lihat `deployment-profiles.md`).
   (dilindungi ABAC, migration 037). OIDC discovery
   (`.well-known/openid-configuration`) dan JWKS di-fetch per provider (beda
   dari Google yang hardcode endpoint) — timeout `AUTH_SSO_DISCOVERY_TIMEOUT_MS`,
-  circuit breaker PER PROVIDER KEY (`sso-oidc-discovery:<key>`/
-  `sso-oidc-jwks:<key>`/`sso-oidc-token:<key>`), hanya trip pada kegagalan
-  transport genuine (bukan respons 4xx valid dari provider). **Break-glass
+  circuit breaker PER TENANT+PROVIDER KEY (`sso-oidc-discovery:<tenantId>:<key>`/
+  `sso-oidc-jwks:<tenantId>:<key>`/`sso-oidc-token:<tenantId>:<key>`, dikoreksi
+  Issue #610 setelah security-auditor menemukan versi awal keying-nya hanya
+  per `providerKey`, yang bisa bocor lintas tenant kalau dua tenant memakai
+  `providerKey` sama), hanya trip pada kegagalan transport genuine (bukan
+  respons 4xx valid dari provider), plus negative-TTL failure cache 30 detik
+  (per tenant+provider key juga) yang meredam probing berulang tanpa
+  memblokir login sah — lihat `generic-oidc-client.ts`. `AUTH_SSO_MAX_PROVIDERS_PER_TENANT`
+  (Issue #612) membatasi jumlah baris provider aktif per tenant, supaya
+  admin tenant jahat tidak bisa melipatgandakan total budget probing-nya
+  dengan mendaftarkan banyak provider. **Break-glass
   enforcement**: `sso_required=true` atau `password_login_enabled=false`
   tidak bisa disimpan (`PATCH .../policy` → `409 BREAK_GLASS_REQUIRED`)
   kecuali minimal satu `break_glass_identity_ids` adalah identity yang saat
@@ -482,6 +491,7 @@ AUTH_GOOGLE_LOGIN_ENABLED=false
 AUTH_GOOGLE_REDIRECT_PATH=/api/v1/auth/providers/google/callback
 AUTH_SSO_ENABLED=false
 AUTH_SSO_DISCOVERY_TIMEOUT_MS=5000
+AUTH_SSO_MAX_PROVIDERS_PER_TENANT=20
 
 # Sync
 AWCMS_MINI_NODE_ID=local-dev-node
