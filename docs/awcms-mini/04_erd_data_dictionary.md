@@ -264,6 +264,42 @@ Permission seed: 8 permission (`038_awcms_mini_visitor_analytics_permissions.sql
 
 Epic lengkap (#617-#624): middleware collector (#620), UA parser (#619), API + dashboard (#621/#622), enrichment geolokasi (#623), dan job rollup/retensi + readiness checks + dokumentasi kepatuhan (#624) semuanya selesai — lihat `docs/awcms-mini/visitor-analytics.md` untuk panduan operasional lengkap (mode offline/LAN vs online, retensi, pemetaan kepatuhan UU PDP/PP PSTE/ISO 27001-27002-27005-27701/OWASP ASVS/Logging Cheat Sheet).
 
+### News Portal — media object registry (Issue #633, epic `news_portal` #631-#642/#649, `sql/041`)
+
+R2-only, tenant-scoped media metadata registry for news images — lihat
+`docs/awcms-mini/news-portal/full-online-r2-architecture.md` §5/§6 dan
+`.claude/skills/awcms-mini-news-portal/SKILL.md` §633 untuk detail
+lengkap kolom/keputusan rekonsiliasi. Berbeda dari
+`awcms_mini_blog_content`'s `featuredMediaId`/`gallery` (URL bebas,
+tanpa tabel media): tabel ini adalah sumber kebenaran metadata gambar
+saat preset `news_portal_full_online_r2` (#632) aktif; binary tetap di
+Cloudflare R2, tidak pernah di Postgres.
+
+- **`awcms_mini_news_media_objects`** — satu baris per objek media.
+  `storage_driver` di-`CHECK` `= 'cloudflare_r2'` (satu-satunya driver
+  didukung untuk registry ini). `object_key` di-`CHECK` mengikuti format
+  `news-media/{tenant_id}/{yyyy}/{mm}/{uuid}.{ext}` (arsitektur doc §6)
+  — server-generated, `{ext}` diturunkan dari `mime_type` tervalidasi,
+  tidak pernah dari nama file client. `owner_resource_type`/
+  `owner_resource_id` adalah polymorphic reference generik tanpa FK
+  (pola sama `awcms_mini_audit_events.resource_type`/`resource_id`),
+  keduanya `NULL` kecuali `status='attached'` (`CHECK` menegakkan
+  konsistensi ini). `status` (`pending_upload → uploaded → verified →
+attached`, plus `orphaned`/`deleted`/`failed`) **ortogonal** terhadap
+  soft delete (`deleted_at`) — pola sama `awcms_mini_blog_posts`, hapus/
+  restore tidak menulis ulang `status`. `module_key` di-`CHECK`
+  `= 'news_portal'` untuk saat ini (lebar hanya bila modul lain benar-benar
+  reuse skema ini). Soft-deletable (`deleted_at`/`deleted_by`/
+  `delete_reason`/`restored_at`/`restored_by`); purge hanya dari baris
+  yang sudah soft-deleted. RLS `ENABLE`+`FORCE`.
+
+Permission key untuk endpoint upload/confirm mendatang (Issue #634)
+sudah disiapkan sebagai konstanta (`news_portal.media.{create,read,
+verify,attach,detach,delete,restore,purge}`,
+`domain/news-media-permissions.ts`) — **belum** dideklarasikan di
+`module.ts`'s `permissions` array (belum ada endpoint yang
+menegakkannya).
+
 ## Konten multi-bahasa (translatable content)
 
 Berbeda dari **string UI statis** (label/tombol/pesan error) yang memakai katalog `.po` gettext di sisi aplikasi (doc 14 §i18n), **data input pengguna** yang perlu tampil multi-bahasa disimpan **di database, satu nilai per bahasa aktif**. Base generik sudah punya satu contoh nyata (`awcms_mini_email_templates.subject_template`/`text_body_template`/`html_body_template`, `sql/021`, Issue #498 — lihat §Email di atas) — bukan lagi sekadar konvensi belum-terpakai; ini **standar** yang wajib diikuti aplikasi turunan (mis. modul domain seperti `blog_content`, epic #536) saat menambah field konten translatable baru.

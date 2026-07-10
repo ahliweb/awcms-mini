@@ -38,7 +38,7 @@ status + pointer, bukan menduplikasi isinya.
 | ----- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 | #631  | Dokumentasi arsitektur full-online R2-only + SOP + security + IR + backup + user guide                                       | **Selesai** — lihat §Dokumen yang sudah ada di bawah |
 | #632  | Preset `news_portal_full_online_r2` (module descriptor/config gate)                                                          | **Selesai** — lihat §632 di bawah                    |
-| #633  | Tenant-scoped R2-only media object registry (schema + migration)                                                             | Belum dikerjakan — lihat §633 di bawah               |
+| #633  | Tenant-scoped R2-only media object registry (schema + migration)                                                             | **Selesai** — lihat §633 di bawah                    |
 | #634  | Direct-to-R2 presigned upload flow (endpoint upload/confirm)                                                                 | Belum dikerjakan — lihat §634 di bawah               |
 | #635  | Config validation + readiness checks (`config:validate`/`security:readiness`/`production:preflight`) untuk R2 image delivery | Belum dikerjakan — lihat §635 di bawah               |
 | #636  | `blog_content` wajib referensi R2 media object untuk gambar berita saat mode aktif                                           | Belum dikerjakan — lihat §636 di bawah               |
@@ -377,15 +377,111 @@ PR manapun (#634 khususnya) menambah jalur itu.
   `tests/integration/module-presets.integration.test.ts`,
   `tests/foundation.test.ts` (module count 13→14).
 
-## §633 — Media object registry (belum dikerjakan)
+## §633 — Media object registry (Selesai)
 
-Ringkasan scope: tabel tenant-scoped R2-only media registry dipakai
-`blog_content`, homepage section, galeri, ads, gambar SEO, thumbnail
-video. Implementor **wajib** mengikuti bentuk konseptual
-`full-online-r2-architecture.md` §5 (kolom, tidak ada binary),
-konvensi object key §6, dan migration lewat skill
-`awcms-mini-new-migration` (RLS `ENABLE`+`FORCE`, pola sama tabel
-tenant-scoped lain).
+Implementasi lengkap: migration
+`sql/041_awcms_mini_news_media_object_registry_schema.sql`, domain
+`src/modules/news-portal/domain/news-media-object-key.ts` (object key
+build/validate, trusted public URL) + `domain/news-media-permissions.ts`
+(permission constants for #634, not wired yet), application
+`application/news-media-object-directory.ts` (full CRUD + lifecycle).
+Two rekonsiliasi below **mengikat** issue #634+ lanjutan — jangan
+investigasi ulang.
+
+### Rekonsiliasi #1 — nama tabel `awcms_mini_news_media_objects`, BUKAN `awcms_mini_media_objects` dari body issue #633
+
+Body issue #633 menulis `awcms_mini_media_objects`. TIDAK diikuti — nama
+ini sudah dipilih lebih dulu oleh
+`full-online-r2-architecture.md` §5 ("rencana untuk Issue #633", ditulis
+saat Issue #631, sebelum #633 mulai) yang merupakan sumber kebenaran
+epic ini per header skill ini sendiri. Selain itu, nama generik
+`awcms_mini_media_objects` terbaca seolah "media library umum aplikasi"
+padahal tabel ini sengaja SEMPIT — hard-`CHECK`-constrained ke
+`storage_driver = 'cloudflare_r2'` dan hanya relevan saat preset
+full-online-R2-only (#632) aktif. Nama generik berisiko bentrok makna
+dengan sistem media benar-benar umum di masa depan (avatar, gambar
+produk, dll) yang mungkin ingin nama tanpa prefix itu untuk dirinya
+sendiri. Detail lengkap ada di migration 041's header comment.
+
+### Rekonsiliasi #2 — status enum 7-state, elaborasi dari sketsa 4-state §5 semula
+
+`full-online-r2-architecture.md` §5 (ditulis sebelum #633) mensketsa
+`pending|confirmed|orphaned|deleted`. Migration 041 memakai 7-state dari
+body issue #633 sendiri:
+`pending_upload|uploaded|verified|attached|orphaned|deleted|failed` —
+ini ELABORASI, bukan kontradiksi: `pending_upload` = `pending`;
+`uploaded`+`verified` memecah `confirmed` tunggal jadi "R2 PUT sukses"
+vs "MIME/checksum/dimensi sudah diverifikasi server" (cocok dengan alur
+dua-langkah Jalur A di §7 — #634 akan butuh kedua state ini untuk
+merepresentasikan celah antara HEAD sukses dan verifikasi konten
+penuh); `attached` baru (media benar-benar dirujuk resource pemilik,
+bukan sekadar verified-tapi-menganggur); `orphaned`/`deleted` tidak
+berubah; `failed` baru. **Soft delete (`deleted_at`) ortogonal terhadap
+`status`** (pola sama `awcms_mini_blog_posts`) — hapus/restore tidak
+pernah menulis ulang `status`.
+
+### `owner_resource_type`/`owner_resource_id` — polymorphic reference generik, TANPA FK ke `blog_content`
+
+Sengaja pasangan `(text, uuid)` longgar tanpa foreign key, meniru idiom
+yang SUDAH ADA di `awcms_mini_audit_events.resource_type`/`resource_id`
+(migration 011) dan `awcms_mini_workflow_instances.resource_type`/
+`resource_id` (migration 012) — BUKAN FK ke `awcms_mini_blog_posts` atau
+tabel spesifik lain. Ini memungkinkan satu registry melayani semua
+konsumen di objective (blog post/page, homepage section, gallery item,
+ad, video thumbnail, SEO image) tanpa FK per-konsumen, dan tanpa
+migration ini bergantung sama sekali pada skema `blog_content` — cocok
+dengan `news_portal`'s `module.ts` yang sengaja TIDAK punya hard
+dependency ke `blog_content` (lihat §"Kenapa modul baru... dependencies
+HANYA..." di atas). Kedua kolom `NULL` sampai baris mencapai
+`status='attached'` (ditegakkan `CHECK` di DB DAN oleh
+`attachNewsMediaObject` yang hanya menerima transisi dari
+`status='verified'`).
+
+### Object key & public URL — server-generated, divalidasi 3 lapis
+
+`buildNewsMediaObjectKey`/`isValidNewsMediaObjectKey`
+(`domain/news-media-object-key.ts`) menerapkan §6 persis:
+`news-media/{tenantId}/{yyyy}/{mm}/{uuid}.{ext}`, `{ext}` diturunkan
+dari `mime_type` tervalidasi (map eksplisit 4 tipe default, BUKAN
+`mime.split("/")[1]` generik — mime type di luar map melempar error
+loud, bukan menebak ekstensi). Divalidasi 3 lapis: (1) application layer
+saat generate, (2) `CHECK` constraint di Postgres sendiri
+(`awcms_mini_news_media_objects_object_key_format_check`,
+mereferensi kolom `tenant_id` baris yang sama — pertahanan bila ada
+INSERT langsung yang melewati helper), (3) unit test structural.
+`buildNewsMediaPublicUrl` membangun public URL HANYA dari
+`NEWS_MEDIA_R2_PUBLIC_BASE_URL` tepercaya (config #632) + object key
+server-generated — menolak base URL non-https/malformed
+(`UntrustedNewsMediaPublicBaseUrlError`), tidak pernah menerima input
+client.
+
+### Permission key untuk #634 — disiapkan sebagai konstanta, BELUM dideklarasikan di `module.ts`
+
+`domain/news-media-permissions.ts` mengekspor
+`NEWS_MEDIA_PERMISSIONS.{create,read,verify,attach,detach,delete,restore,purge}`
+(nilai `news_portal.media.<action>`) — dokumentasi/konstanta MURNI,
+belum disinkronkan ke `awcms_mini_permissions` (tidak ada baris DB, tidak
+ada perubahan `module.ts`'s `permissions` array). Alasan: `news_portal`
+sengaja meninggalkan `permissions` undeclared sampai endpoint nyata ada
+(pola sama `visitor_analytics`, lihat §"Kenapa modul baru..." di atas) —
+#633 hanya menambah domain/application helper, belum ada HTTP endpoint
+yang menegakkannya. **Wajib untuk #634**: pakai persis konstanta ini
+(jangan buat nama baru) saat mendeklarasikan `module.ts`'s `permissions`
+array dan memanggil `authorizeInTransaction` (skill
+`awcms-mini-abac-guard`).
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `sql/041_awcms_mini_news_media_object_registry_schema.sql`.
+- `src/modules/news-portal/domain/news-media-object-key.ts`,
+  `domain/news-media-permissions.ts`,
+  `application/news-media-object-directory.ts`.
+- Test: `tests/unit/news-media-object-key.test.ts`,
+  `tests/unit/news-media-permissions.test.ts`,
+  `tests/integration/news-media-object-registry.integration.test.ts`;
+  diperbarui: `tests/foundation.test.ts` (migration list).
+- Docs: `full-online-r2-architecture.md` §5/§6/§16 (status diperbarui),
+  `04_erd_data_dictionary.md` (§News Portal baru ditambah).
 
 ## §634 — Direct-to-R2 presigned upload flow (belum dikerjakan)
 
