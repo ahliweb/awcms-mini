@@ -58,7 +58,14 @@ the real request lifecycle — collects visitor presence/events for
 §Collector below). **First issue that actually writes to
 `awcms_mini_visitor_sessions`/`awcms_mini_visit_events`.**
 
-Issue #621: analytics API + OpenAPI contract at `/api/v1/analytics`.
+Issue #621 (`src/pages/api/v1/analytics/*`, `application/analytics-queries.ts`,
+`application/session-directory.ts`, `application/event-directory.ts`,
+`application/retention-purge.ts`, `domain/analytics-range.ts`,
+`domain/analytics-response-shaping.ts`): eleven REST endpoints — realtime
+presence, range-bounded summary/pages/devices/locations/security
+aggregates, keyset-paginated sessions/events, settings, and on-demand
+retention purge (see §API below). First issue exposing this module's data
+through authenticated APIs.
 
 Issue #623: trusted online geolocation enrichment.
 
@@ -276,12 +283,63 @@ a real dev server + Postgres (setup wizard → login → `/admin` → real
 session/event rows with correct `identity_id`/`area`; `/`→ public session;
 static asset and default-off `/api/v1/health` → no rows written).
 
+## API (Issue #621, `src/pages/api/v1/analytics/*`)
+
+All eleven endpoints require a bearer session + tenant context and run
+`authorizeInTransaction` (ABAC default-deny) before touching any data —
+denial is always `403 ACCESS_DENIED`, never empty/zeroed analytics data.
+
+| Method    | Path                                | Guard                                 | Notes                                                                                                                                               |
+| --------- | ----------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET       | `/api/v1/analytics/realtime`        | `realtime.read`                       | Online-now counts by area/human, `VISITOR_ANALYTICS_ONLINE_WINDOW_SECONDS` window.                                                                  |
+| GET       | `/api/v1/analytics/summary`         | `dashboard.read`                      | `range=24h\|7d\|30d\|12m` (default `7d`), strictly validated (`400 VALIDATION_ERROR`).                                                              |
+| GET       | `/api/v1/analytics/pages`           | `dashboard.read`                      | Top paths by human pageviews.                                                                                                                       |
+| GET       | `/api/v1/analytics/devices`         | `dashboard.read`                      | Browser + device-type breakdown.                                                                                                                    |
+| GET       | `/api/v1/analytics/locations`       | `dashboard.read`                      | Country breakdown — empty until Issue #623 populates `geo`.                                                                                         |
+| GET       | `/api/v1/analytics/security`        | `dashboard.read`                      | Bot/crawler traffic breakdown (by `bot_reason`, by area).                                                                                           |
+| GET       | `/api/v1/analytics/sessions`        | `sessions.read` (+ `raw_detail.read`) | Keyset-paginated (limit 50, `last_seen_at DESC`).                                                                                                   |
+| GET       | `/api/v1/analytics/events`          | `events.read` (+ `raw_detail.read`)   | Keyset-paginated (limit 50, `occurred_at DESC`).                                                                                                    |
+| GET/PATCH | `/api/v1/analytics/settings`        | `settings.read`/`.update`             | Reuses Module Management's generic settings storage (Issue #516), gated by this module's own permissions instead of `module_management.settings.*`. |
+| POST      | `/api/v1/analytics/retention/purge` | `retention.purge`                     | Requires `Idempotency-Key`; `critical`-severity audit event.                                                                                        |
+
+**Raw-detail gating** (`domain/analytics-response-shaping.ts`): `sessions`/
+`events` always include non-raw fields (browser/device/OS, area,
+`human_status`, timestamps) for anyone with `sessions.read`/`events.read`
+alone. `ipHash`/`ipAddress`/`userAgentHash`/`loginIdentifierSnapshot`
+are `null` unless the caller _also_ holds
+`visitor_analytics.raw_detail.read` — checked via
+`auth.grantedPermissionKeys.has("visitor_analytics.raw_detail.read")`
+after the primary guard passes, never a substitute for it.
+
+**Aggregate queries** (`application/analytics-queries.ts`) compute
+directly from raw `awcms_mini_visit_events`/`awcms_mini_visitor_sessions`
+rows, not `awcms_mini_visitor_daily_rollups` — that table is always empty
+until Issue #624's rollup job exists. Switching `fetchAnalyticsSummary` to
+read rollups for older, fully-rolled-up ranges is future work for #624,
+not required now.
+
+**Retention purge** (`application/retention-purge.ts`) is a real,
+independently-callable function using Issue #617's config as cutoffs —
+not a stub. Issue #624's scheduled job (`bun run analytics:retention:purge`,
+mirroring `logs:audit:purge`) will call this exact function rather than
+re-deriving the purge rules. See that file's own doc comment for the
+three-cutoff design (event delete / raw-detail clear / session delete /
+rollup delete) and why session delete is safe to run after event delete.
+
+Test: `tests/unit/visitor-analytics-range.test.ts`,
+`-response-shaping.test.ts`,
+`tests/integration/visitor-analytics-api.integration.test.ts` (auth guard,
+ABAC deny across every guarded endpoint, realtime counts, summary
+aggregation + range validation, raw-detail gating both ways, keyset
+pagination across a 55-row page boundary + malformed-cursor rejection,
+settings GET/PATCH + secret-shaped-key rejection, retention purge
+idempotency + real deletion + audit event).
+
 ## Not yet available
 
-- REST API (`/api/v1/analytics/*`) — Issue #621.
 - Admin dashboard UI (`/admin/analytics`) — Issue #622.
 - Geolocation enrichment — Issue #623.
-- Rollup/retention purge jobs — Issue #624.
+- Rollup job (retention purge itself already works — see §API above) — Issue #624.
 
 The `api.basePath`/navigation `path` in `module.ts` are pre-declared ahead
 of their landing issues (same convention `tenant_domain`'s descriptor
