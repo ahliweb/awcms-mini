@@ -393,7 +393,7 @@ suite("Generic tenant OIDC SSO flow (Issue #591)", () => {
       fetchCallCount += 1;
       const url = typeof input === "string" ? input : input.toString();
 
-      if (url.startsWith(attackerIssuer)) {
+      if (new URL(url).origin === new URL(attackerIssuer).origin) {
         return new Response("internal error", { status: 500 });
       }
 

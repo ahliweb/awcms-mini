@@ -1,6 +1,6 @@
 ---
 name: awcms-mini-codeql-triage
-description: Triase dan perbaiki temuan CodeQL code scanning AWCMS-Mini (github.com/ahliweb/awcms-mini/security/code-scanning). Gunakan saat diminta "analisis code scanning"/"perbaiki CodeQL", saat sebuah PR gagal check CodeQL, atau saat menemukan alert baru. Mendokumentasikan dua false-positive nyata yang sudah ditemukan (name-heuristic password, incompatible-types typeof/null) supaya tidak diinvestigasi ulang dari nol.
+description: Triase dan perbaiki temuan CodeQL code scanning AWCMS-Mini (github.com/ahliweb/awcms-mini/security/code-scanning). Gunakan saat diminta "analisis code scanning"/"perbaiki CodeQL", saat sebuah PR gagal check CodeQL, atau saat menemukan alert baru. Mendokumentasikan tiga false-positive nyata yang sudah ditemukan (name-heuristic password, incompatible-types typeof/null, URL substring-sanitization di test mock) supaya tidak diinvestigasi ulang dari nol.
 ---
 
 # AWCMS-Mini — Triase CodeQL Code Scanning
@@ -63,6 +63,41 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 ```
 
 **Pencegahan**: saat menulis helper "is non-null object" baru, pakai urutan `value === null` dulu, baru `typeof`.
+
+### 3. `js/incomplete-url-substring-sanitization` — `startsWith(<literal origin>)` di test mock fetch
+
+Ditemukan 2026-07-10 (alert #19, #20) di `tests/unit/generic-oidc-client.test.ts` dan
+`tests/integration/tenant-sso-flow.integration.test.ts` — kedua test menyuntik
+`globalThis.fetch` palsu yang mencocokkan URL dengan
+`url.startsWith("https://attacker.example.com")` untuk memutuskan kapan
+membalas kegagalan simulasi. Rule ini didesain untuk kode PRODUKSI yang
+memutuskan APAKAH SEBUAH URL DIPERCAYA berdasarkan awalan string (rawan
+bypass `https://trusted.com.evil.com`) — di sini pemakaiannya justru
+terbalik (mencocokkan URL mock test untuk MENOLAK, bukan mempercayai) dan
+kedua sisi perbandingan sepenuhnya dikontrol test itu sendiri, jadi bukan
+kerentanan sungguhan. Tetap diperbaiki dengan kode minimal alih-alih
+suppress, karena `startsWith` juga secara tidak sengaja lebih longgar dari
+yang dimaksud (cocok untuk origin manapun yang KEBETULAN diawali string
+yang sama).
+
+**Fix**: bandingkan `new URL(url).origin` dengan origin target secara
+exact, bukan `startsWith` pada string mentah — perilaku test tetap sama
+(masih cocok untuk semua path di bawah origin itu), tapi sekarang presisi
+origin-level, bukan substring-level:
+
+```ts
+// Sebelum (kena false positive, dan sedikit longgar):
+if (url.startsWith("https://attacker.example.com")) { ... }
+
+// Sesudah (perilaku sama untuk kasus nyata, presisi origin):
+if (new URL(url).origin === "https://attacker.example.com") { ... }
+```
+
+**Pencegahan**: saat menulis mock fetch di test yang mencocokkan URL
+berdasarkan host/origin, pakai `new URL(url).origin === <origin>` alih-alih
+`startsWith(<origin>)` — sama presisinya untuk niat aslinya (cocok semua
+path di origin itu), tapi tidak memicu heuristik CodeQL yang menyasar pola
+"substring sanitization" di kode produksi.
 
 ## Verifikasi
 
