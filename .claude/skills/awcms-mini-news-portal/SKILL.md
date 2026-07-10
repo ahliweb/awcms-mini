@@ -958,21 +958,87 @@ video adalah scope #639 (belum dikerjakan), memaksanya sekarang akan
 `news_portal_full_online_r2`. Issue ini menambah
 `src/modules/blog-content/application/news-portal-r2-mode-gate.ts`'s
 `isNewsPortalFullOnlineR2ModeActiveForTenant(tx, tenantId, env)` —
-mengomposisikan check env global TERSEBUT dengan
-`fetchTenantModuleEntry(tx, tenantId, "news_portal")` (pola PERSIS
-`public-news-tenant-resolution.ts`'s `checkBlogContentAndRouteGate`,
-diterapkan ke module key `news_portal`). **Sengaja runtime check, BUKAN
-`module.ts` `dependencies` entry** — `blog_content` maupun `news_portal`
-sudah SENGAJA tidak saling deklarasi dependency (lihat §632's "Kenapa
-modul baru... dependencies HANYA...") untuk menghindari
+mengomposisikan check env global TERSEBUT dengan sinyal per-tenant
+nyata bahwa tenant itu SUDAH menerapkan preset. **Sengaja runtime
+check, BUKAN `module.ts` `dependencies` entry** — `blog_content` maupun
+`news_portal` sudah SENGAJA tidak saling deklarasi dependency (lihat
+§632's "Kenapa modul baru... dependencies HANYA...") untuk menghindari
 `MODULE_REVERSE_DEPENDENCY_ACTIVE` mengunci disable salah satu modul
 selamanya — menambah dependency di sini akan membangkitkan masalah yang
 sama.
 
+**PENTING — DUA percobaan gagal sebelum menemukan sinyal yang benar
+(reviewer + security-auditor, PR #666 re-review; jangan re-derive dari
+nol, keduanya BUKAN cuma teori — dikonfirmasi gagal oleh integration
+test nyata):**
+
+1. **`fetchTenantModuleEntry(...).tenantEnabled` — GAGAL total.**
+   Fungsi ini opt-out-by-default (tidak ada baris `awcms_mini_tenant_modules`
+   berarti `tenantEnabled: true` — dokumentasinya sendiri menyatakan
+   ini): HAMPIR SETIAP tenant baca `news_portal` "enabled" entah pernah
+   menerapkan preset atau tidak (default setiap module untuk setiap
+   tenant). Memakai ini sebagai sinyal opt-in membuat seluruh
+   tenant-scoping issue ini TIDAK BEROPERASI SAMA SEKALI — begitu SATU
+   tenant mana pun membuat env var deployment-wide jadi benar,
+   VALIDASI INI AKTIF UNTUK SEMUA TENANT LAIN JUGA, persis skenario
+   yang file ini sendiri tulis untuk dicegah.
+2. **`entry.enabledAt !== null` — juga GAGAL, lebih halus.**
+   Percobaan kedua: hanya `enableTenantModule` yang pernah menulis baris
+   `awcms_mini_tenant_modules`, jadi `enabledAt: null` seharusnya berarti
+   "tidak pernah disentuh". TAPI `enableTenantModule` (dipanggil oleh
+   `applyModulePreset`/`applyNewsPortalFullOnlineR2Preset`) memvalidasi
+   state SAAT INI dulu — tenant baru SUDAH baca "enabled" (default di
+   atas), jadi validasi menolak dengan `MODULE_ALREADY_ENABLED`, yang
+   oleh `applyModulePreset` diperlakukan sebagai `already_satisfied`
+   (idempotency) — **TIDAK PERNAH menulis baris sama sekali**. Tenant
+   yang BARU SAJA menerapkan preset punya `enabledAt: null` PERSIS SAMA
+   dengan tenant yang tidak pernah menyentuhnya — dikonfirmasi gagal
+   oleh 8 test integration yang tadinya lulus tiba-tiba merah semua
+   begitu fix ini dicoba.
+
+**Sinyal yang BENAR-BENAR bekerja**: `applyNewsPortalFullOnlineR2Preset`
+(`news-portal/application/apply-news-portal-preset.ts`) sekarang menulis
+timestamp eksplisit `fullOnlineR2ModeAppliedAt` ke **module settings**
+per-tenant (`awcms_mini_module_settings`, via `updateModuleSettings` —
+mekanisme generik yang SAMA dipakai `blog_content`'s `publicRouteMode`
+sendiri, TIDAK butuh migration baru) setiap kali preset berhasil
+diterapkan. `isNewsPortalFullOnlineR2ModeActiveForTenant` membaca key
+ini lewat `fetchModuleSettingsView(tx, tenantId, "news_portal")` —
+tenant yang tidak pernah menerapkan preset tidak punya key ini sama
+sekali, sinyal yang benar-benar unambiguous, tidak seperti dua percobaan
+di atas.
+
 Ketika mode TIDAK aktif untuk tenant (mayoritas deployment/tenant hari
 ini): seluruh validasi baru ini adalah no-op — `featuredMediaId`/URL
 gallery lama tetap berperilaku identik sebelum issue ini (backward
-compatible, bukan pengetatan blanket).
+compatible, bukan pengetatan blanket). Regression test
+`"R2-only mode active for tenant A does NOT leak into tenant B"` di
+`blog-content-news-media-r2-references.integration.test.ts` membuktikan
+ini secara eksplisit — implementor lanjutan yang mengubah gate ini
+**wajib** menjaga test itu tetap lulus.
+
+### Bypass jalur restore revisi — ditemukan & ditutup sebelum merge (security-auditor, PR #666 review)
+
+`POST /api/v1/blog/posts/{id}/revisions/{revisionId}/restore` (Issue
+#541) menulis `revision.contentJson` balik ke post hidup lewat
+`updateBlogPost` — jalur tulis KELIMA ke `content_json`/`featuredMediaId`
+yang TIDAK ikut ter-patch bersama keempat route handler create/update
+posts/pages ketika validasi ini pertama kali ditulis. Skenario nyata:
+revisi lama (dibuat SEBELUM mode R2-only aktif, berisi gallery `url`
+mentah yang legal saat itu) di-restore SETELAH tenant mengaktifkan mode
+R2-only — restore lolos begitu saja, mengembalikan `url` mentah ke post
+hidup TANPA validasi apa pun, langsung tampil publik di `/news`. **Fix**:
+`restore.ts` sekarang juga memanggil
+`validateNewsMediaReferencesForFullOnlineR2Mode` (hanya `contentJson`
+revisi — `featuredMediaId` memang tidak pernah ikut snapshot revisi,
+lihat §Aturan #13 blog-content skill) tepat sebelum `updateBlogPost`,
+gagal `422 NEWS_MEDIA_REFERENCE_INVALID` persis sama seperti PATCH
+biasa. Regression test:
+`"POST .../revisions/{id}/restore also enforces the same validation"` di
+file integration test yang sama. **Setiap jalur tulis baru ke
+`content_json`/`featuredMediaId` di masa depan (mis. bulk-import,
+duplicate-post) WAJIB melalui gate yang sama** — jangan asumsikan
+keempat route handler asli sudah mencakup semua jalur tulis yang ada.
 
 ### File yang dibuat/diubah (referensi cepat)
 
@@ -1017,10 +1083,19 @@ compatible, bukan pengetatan blanket).
   tidak resolve (salah tenant/status tidak aman/tidak ada) diam-diam
   tidak dirender (degrade, don't 500).
 - `src/pages/api/v1/blog/posts/index.ts`, `[id].ts`,
-  `src/pages/api/v1/blog/pages/index.ts`, `[id].ts`: panggil
+  `src/pages/api/v1/blog/pages/index.ts`, `[id].ts`,
+  `src/pages/api/v1/blog/posts/[id]/revisions/[revisionId]/restore.ts`
+  (kelima route — yang terakhir ditambah setelah re-review, lihat
+  §"Bypass jalur restore revisi" di atas): panggil
   `validateNewsMediaReferencesForFullOnlineR2Mode` setelah pure
   validator + (untuk posts) `countExistingTerms`, sebelum
   create/updateBlogPost/Page — gagal `422 NEWS_MEDIA_REFERENCE_INVALID`.
+- `src/modules/news-portal/application/apply-news-portal-preset.ts`:
+  setelah `applyModulePreset` sukses, menulis
+  `fullOnlineR2ModeAppliedAt` ke module settings tenant lewat
+  `updateModuleSettings` — lihat §"Gate tenant+env" di atas untuk alasan
+  lengkap kenapa sinyal ini (bukan `awcms_mini_tenant_modules`) yang
+  benar.
 - `src/lib/i18n/error-messages.ts`, `i18n/en.po`, `i18n/id.po`: entry baru
   `error.news_media_reference_invalid` untuk kode error di atas (admin UI
   sudah generic-fallback ke `error.message` server tanpa ini, tapi entry
@@ -1035,7 +1110,8 @@ compatible, bukan pengetatan blanket).
   (baru — end-to-end: create/update reject, cross-tenant, status
   unsafe, soft-deleted, gallery raw-url reject, gallery mediaObjectId
   accept, video item tidak terpengaruh, render publik og:image+gallery
-  `<img>`).
+  `<img>`, restore-revisi reject, DAN "tenant B tidak terpengaruh
+  aktivasi tenant A" — dua test terakhir ditambah setelah re-review).
 - Changeset: `.changeset/blog-content-news-media-r2-references-issue-636.md`.
 
 ### Belum/di luar cakupan issue ini (untuk issue lanjutan)

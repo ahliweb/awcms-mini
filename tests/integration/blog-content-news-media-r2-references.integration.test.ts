@@ -36,6 +36,7 @@ import { POST as authLogin } from "../../src/pages/api/v1/auth/login";
 import { POST as createPost } from "../../src/pages/api/v1/blog/posts/index";
 import { PATCH as updatePost } from "../../src/pages/api/v1/blog/posts/[id]";
 import { POST as publishPost } from "../../src/pages/api/v1/blog/posts/[id]/publish";
+import { POST as restorePostRevision } from "../../src/pages/api/v1/blog/posts/[id]/revisions/[revisionId]/restore";
 import { GET as getNewsDetail } from "../../src/pages/news/[slug]";
 import { getDatabaseClient } from "../../src/lib/database/client";
 import { withTenant } from "../../src/lib/database/tenant-context";
@@ -152,6 +153,84 @@ function authHeaders(b: Bootstrap): Record<string, string> {
     "x-awcms-mini-tenant-id": b.tenantId,
     authorization: `Bearer ${b.token}`
   };
+}
+
+/**
+ * A SECOND fully-authenticated tenant (own login, own `blog_content.posts.create`
+ * permission), built via direct SQL + `POST /api/v1/auth/login` — never via
+ * `/setup/initialize` (one-time wizard, see `seedRawTenant`'s docblock).
+ * Needed for the "tenant B never applied the preset" regression test below,
+ * which requires B to actually make an authenticated write request, not just
+ * own a media object.
+ */
+async function seedSecondTenantWithCreateAccess(
+  tenantCode: string
+): Promise<Bootstrap> {
+  const tenantId = crypto.randomUUID();
+  const loginIdentifier = `${tenantCode}-${OWNER_LOGIN}`;
+  const password = "integration-test-tenant-b-password";
+  const admin = getAdminSql();
+
+  await admin`
+    INSERT INTO awcms_mini_tenants
+      (id, tenant_code, tenant_name, legal_name, status, default_locale, default_theme)
+    VALUES
+      (${tenantId}, ${tenantCode}, ${tenantCode}, ${tenantCode}, 'active', 'en', 'light')
+  `;
+
+  const passwordHash = await Bun.password.hash(password);
+  let tenantUserId = "";
+
+  await admin.begin(async (tx) => {
+    await tx.unsafe(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
+
+    const profile = (await tx`
+      INSERT INTO awcms_mini_profiles (tenant_id, profile_type, display_name)
+      VALUES (${tenantId}, 'person', 'Tenant B User') RETURNING id
+    `) as { id: string }[];
+    const identity = (await tx`
+      INSERT INTO awcms_mini_identities (tenant_id, profile_id, login_identifier, password_hash)
+      VALUES (${tenantId}, ${profile[0]!.id}, ${loginIdentifier}, ${passwordHash})
+      RETURNING id
+    `) as { id: string }[];
+    const tenantUser = (await tx`
+      INSERT INTO awcms_mini_tenant_users (tenant_id, identity_id)
+      VALUES (${tenantId}, ${identity[0]!.id}) RETURNING id
+    `) as { id: string }[];
+    const role = (await tx`
+      INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name)
+      VALUES (${tenantId}, 'post_creator', 'Post Creator') RETURNING id
+    `) as { id: string }[];
+    const permission = (await tx`
+      SELECT id FROM awcms_mini_permissions
+      WHERE module_key = 'blog_content' AND activity_code = 'posts' AND action = 'create'
+    `) as { id: string }[];
+
+    await tx`
+      INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
+      VALUES (${tenantId}, ${role[0]!.id}, ${permission[0]!.id})
+    `;
+    await tx`
+      INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id)
+      VALUES (${tenantId}, ${tenantUser[0]!.id}, ${role[0]!.id})
+    `;
+
+    tenantUserId = tenantUser[0]!.id;
+  });
+
+  const login = await invoke<{ data: { token: string } }>(authLogin, {
+    method: "POST",
+    path: "/api/v1/auth/login",
+    headers: {
+      "content-type": "application/json",
+      "x-awcms-mini-tenant-id": tenantId
+    },
+    body: { loginIdentifier, password },
+    cookies: createCookieJar()
+  });
+  expect(login.status).toBe(200);
+
+  return { tenantId, token: login.body.data.token, tenantUserId };
 }
 
 /**
@@ -272,6 +351,30 @@ suite("blog_content news media R2 reference validation (Issue #636)", () => {
       method: "POST",
       path: "/api/v1/blog/posts",
       headers: authHeaders(owner),
+      body: validCreatePostBody({
+        featuredMediaId: "99999999-9999-9999-9999-999999999999"
+      })
+    });
+
+    expect(response.status).toBe(200);
+  });
+
+  test("R2-only mode active for tenant A does NOT leak into tenant B, which never applied the preset (reviewer finding, PR #666 review — env is process-wide, so the tenant-scoping here must come entirely from the explicit-enable-record check, not from env alone)", async () => {
+    const tenantA = await bootstrap("modeleaktesta");
+    await activateFullOnlineR2Mode(tenantA);
+
+    // Tenant B never calls activateFullOnlineR2Mode/applyNewsPortalFullOnlineR2Preset
+    // — it should behave exactly as if full-online R2-only mode did not
+    // exist, even though process.env now has every NEWS_MEDIA_R2_*/
+    // NEWS_PORTAL_* var set globally (mutated by tenant A's activation
+    // above) — the ONLY thing that must matter is tenant B's own
+    // awcms_mini_tenant_modules state (or lack thereof) for news_portal.
+    const tenantB = await seedSecondTenantWithCreateAccess("modeleaktestb");
+
+    const response = await invoke(createPost, {
+      method: "POST",
+      path: "/api/v1/blog/posts",
+      headers: authHeaders(tenantB),
       body: validCreatePostBody({
         featuredMediaId: "99999999-9999-9999-9999-999999999999"
       })
@@ -498,6 +601,100 @@ suite("blog_content news media R2 reference validation (Issue #636)", () => {
     });
 
     expect(response.status).toBe(422);
+  });
+
+  test("R2-only mode active: POST .../revisions/{id}/restore also enforces the same validation (security-auditor finding, PR #666 review) — cannot silently reintroduce a stale raw-url gallery reference from before the mode was activated", async () => {
+    const owner = await bootstrap();
+    const admin = getAdminSql();
+
+    const created = await invoke<{ data: { id: string } }>(createPost, {
+      method: "POST",
+      path: "/api/v1/blog/posts",
+      headers: authHeaders(owner),
+      body: validCreatePostBody()
+    });
+    const postId = created.body.data.id;
+
+    // Step 1 (BEFORE R2-only mode is active — legal at the time): a
+    // significant-content-change PATCH to a raw-url gallery item snapshots
+    // the POST-patch state as revision #1 (this codebase's revision
+    // convention: `createBlogRevision` captures `updated`, i.e. AFTER the
+    // patch is applied, not before).
+    const rawUrlContentJson = {
+      blocks: [
+        {
+          type: "gallery",
+          items: [
+            {
+              mediaType: "image",
+              url: "https://untrusted.example.com/old-pre-r2-mode.jpg"
+            }
+          ]
+        }
+      ]
+    };
+    const patchToRawUrl = await invoke(updatePost, {
+      method: "PATCH",
+      path: `/api/v1/blog/posts/${postId}`,
+      headers: authHeaders(owner),
+      params: { id: postId },
+      body: { contentJson: rawUrlContentJson }
+    });
+    expect(patchToRawUrl.status).toBe(200);
+
+    const revisionRows = (await admin`
+      SELECT id FROM awcms_mini_blog_revisions
+      WHERE tenant_id = ${owner.tenantId} AND resource_type = 'post' AND resource_id = ${postId}
+      ORDER BY revision_number ASC LIMIT 1
+    `) as { id: string }[];
+    const staleRevisionId = revisionRows[0]!.id;
+
+    // Step 2 (still BEFORE R2-only mode): edit the post AGAIN to benign
+    // content — the live post no longer has the raw url anywhere, only the
+    // now-superseded revision #1 does.
+    const patchToBenign = await invoke(updatePost, {
+      method: "PATCH",
+      path: `/api/v1/blog/posts/${postId}`,
+      headers: authHeaders(owner),
+      params: { id: postId },
+      body: {
+        contentJson: { blocks: [{ type: "paragraph", text: "Benign body" }] }
+      }
+    });
+    expect(patchToBenign.status).toBe(200);
+
+    // Step 3: NOW activate R2-only mode for this tenant.
+    await activateFullOnlineR2Mode(owner);
+
+    // Step 4: restoring the stale revision must be rejected — the live
+    // post's current (benign) content must remain untouched, never
+    // silently overwritten with the stale raw-url gallery content.
+    const restoreResponse = await invoke(restorePostRevision, {
+      method: "POST",
+      path: `/api/v1/blog/posts/${postId}/revisions/${staleRevisionId}/restore`,
+      headers: { ...authHeaders(owner), "idempotency-key": "restore-key-1" },
+      params: { id: postId, revisionId: staleRevisionId }
+    });
+
+    expect(restoreResponse.status).toBe(422);
+    const restoreBody = restoreResponse.body as { error: { code: string } };
+    expect(restoreBody.error.code).toBe("NEWS_MEDIA_REFERENCE_INVALID");
+
+    const postRow = (await admin`
+      SELECT content_json FROM awcms_mini_blog_posts WHERE id = ${postId}
+    `) as { content_json: unknown }[];
+    expect(JSON.stringify(postRow[0]!.content_json)).not.toContain(
+      "untrusted.example.com"
+    );
+    expect(JSON.stringify(postRow[0]!.content_json)).toContain("Benign body");
+
+    // No new "Restored from revision N" revision should have been created
+    // either — the restore never reached that point.
+    const revisionCountRows = (await admin`
+      SELECT count(*)::int AS count FROM awcms_mini_blog_revisions
+      WHERE tenant_id = ${owner.tenantId} AND resource_type = 'post' AND resource_id = ${postId}
+    `) as { count: number }[];
+    expect(revisionCountRows[0]!.count).toBe(2);
   });
 
   test("public detail route (/news/{slug}) renders og:image + gallery <img> from resolved, verified R2 media metadata only", async () => {

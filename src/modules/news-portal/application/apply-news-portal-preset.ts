@@ -23,10 +23,26 @@
 import { recordAuditEvent } from "../../logging/application/audit-log";
 import { applyModulePreset } from "../../module-management/application/module-presets";
 import type { ApplyModulePresetResult } from "../../module-management/application/module-presets";
+import { updateModuleSettings } from "../../module-management/application/module-settings";
 import { evaluateNewsPortalFullOnlineR2Readiness } from "../domain/news-portal-preset-readiness";
 
 export const NEWS_PORTAL_FULL_ONLINE_R2_PRESET_NAME =
   "news_portal_full_online_r2";
+
+/**
+ * `awcms_mini_module_settings.settings` key persisting that THIS tenant
+ * has genuinely applied this preset (Issue #636, `blog_content`'s
+ * `news-portal-r2-mode-gate.ts` reads it back). Deliberately NOT inferred
+ * from `news_portal`'s tenant-module `enabled` state: every module in this
+ * repo is opt-out-by-default (`fetchTenantModuleEntry`'s own docblock — no
+ * row means enabled), so `enableTenantModule("news_portal")` on a tenant
+ * that never touched it is rejected as `MODULE_ALREADY_ENABLED` by the
+ * underlying lifecycle validation and writes NO row at all — there is no
+ * way to derive "did this tenant actually apply the preset" from module-
+ * enabled state alone. A dedicated settings key is the only reliable
+ * signal.
+ */
+const FULL_ONLINE_R2_MODE_APPLIED_SETTING_KEY = "fullOnlineR2ModeAppliedAt";
 
 export type ApplyNewsPortalFullOnlineR2PresetResult =
   | ({ outcome: "applied" } & Omit<
@@ -99,6 +115,20 @@ export async function applyNewsPortalFullOnlineR2Preset(
   );
 
   if (result.outcome === "applied") {
+    // Persist the genuine "this tenant applied the preset" signal — see
+    // this file's header for why `news_portal`'s module-enabled state
+    // alone cannot represent this. Set unconditionally on every successful
+    // application (including a re-application that finds every module
+    // already `already_satisfied`) so the timestamp always reflects the
+    // most recent confirmed-ready activation.
+    await updateModuleSettings(
+      tx,
+      tenantId,
+      "news_portal",
+      { [FULL_ONLINE_R2_MODE_APPLIED_SETTING_KEY]: new Date().toISOString() },
+      actorTenantUserId
+    );
+
     await recordAuditEvent(tx, {
       tenantId,
       actorTenantUserId,
