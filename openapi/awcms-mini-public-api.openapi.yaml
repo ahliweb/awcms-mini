@@ -5150,6 +5150,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "422":
+          description: >-
+            NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only
+            news portal mode is active for this tenant and featuredMediaId
+            or a contentJson image gallery item does not reference an
+            existing, same-tenant, verified/attached R2 media object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/blog/posts/{id}:
@@ -5250,6 +5260,17 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           description: A post already exists for this slug in this locale.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: >-
+            NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only
+            news portal mode is active for this tenant and a submitted
+            featuredMediaId or contentJson image gallery item does not
+            reference an existing, same-tenant, verified/attached R2 media
+            object.
           content:
             application/json:
               schema:
@@ -5905,6 +5926,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "422":
+          description: >-
+            NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only
+            news portal mode is active for this tenant and featuredMediaId
+            or a contentJson image gallery item does not reference an
+            existing, same-tenant, verified/attached R2 media object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/blog/pages/{id}:
@@ -6005,6 +6036,17 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           description: A page already exists for this slug in this locale.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: >-
+            NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only
+            news portal mode is active for this tenant and a submitted
+            featuredMediaId or contentJson image gallery item does not
+            reference an existing, same-tenant, verified/attached R2 media
+            object.
           content:
             application/json:
               schema:
@@ -11633,7 +11675,14 @@ components:
           nullable: true
         contentJson:
           type: object
-          description: Structured content (e.g. block/rich-text tree). Opaque to the API.
+          description: >-
+            Structured content (e.g. block/rich-text tree). Opaque to the
+            API. When full-online R2-only news portal mode is active for
+            this tenant (Issue #636), an image gallery block item
+            (mediaType image) must use mediaObjectId referencing a
+            verified/attached same-tenant media object, never a raw url —
+            a non-conforming reference is rejected with 422
+            NEWS_MEDIA_REFERENCE_INVALID.
         contentText:
           type: string
           description: Plain-text extraction of contentJson, used for search.
@@ -11647,6 +11696,13 @@ components:
           type: string
           format: uuid
           nullable: true
+          description: >-
+            When full-online R2-only news portal mode is active for this
+            tenant (Issue #636), must reference an existing, same-tenant
+            media object (Issue #633) with status verified or attached —
+            never a local path or arbitrary external URL. A non-conforming
+            reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID.
+            Outside that mode, only the UUID shape is validated.
         seoTitle:
           type: string
           nullable: true
@@ -12257,6 +12313,11 @@ components:
           nullable: true
         contentJson:
           type: object
+          description: >-
+            When full-online R2-only news portal mode is active for this
+            tenant (Issue #636), an image gallery block item (mediaType
+            image) must use mediaObjectId referencing a verified/attached
+            same-tenant media object, never a raw url.
         contentText:
           type: string
         locale:
@@ -12268,6 +12329,13 @@ components:
           type: string
           format: uuid
           nullable: true
+          description: >-
+            When full-online R2-only news portal mode is active for this
+            tenant (Issue #636), must reference an existing, same-tenant
+            media object (Issue #633) with status verified or attached —
+            never a local path or arbitrary external URL. A non-conforming
+            reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID.
+            Outside that mode, only the UUID shape is validated.
         seoTitle:
           type: string
           maxLength: 70
@@ -12301,6 +12369,11 @@ components:
           nullable: true
         contentJson:
           type: object
+          description: >-
+            When full-online R2-only news portal mode is active for this
+            tenant (Issue #636), an image gallery block item (mediaType
+            image) must use mediaObjectId referencing a verified/attached
+            same-tenant media object, never a raw url.
         contentText:
           type: string
         locale:
@@ -12312,6 +12385,13 @@ components:
           type: string
           format: uuid
           nullable: true
+          description: >-
+            When full-online R2-only news portal mode is active for this
+            tenant (Issue #636), must reference an existing, same-tenant
+            media object (Issue #633) with status verified or attached —
+            never a local path or arbitrary external URL. A non-conforming
+            reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID.
+            Outside that mode, only the UUID shape is validated.
         seoTitle:
           type: string
           maxLength: 70
@@ -12390,6 +12470,11 @@ components:
           nullable: true
         contentJson:
           type: object
+          description: >-
+            When full-online R2-only news portal mode is active for this
+            tenant (Issue #636), an image gallery block item (mediaType
+            image) must use mediaObjectId referencing a verified/attached
+            same-tenant media object, never a raw url.
         contentText:
           type: string
         status:
@@ -12402,6 +12487,13 @@ components:
           type: string
           format: uuid
           nullable: true
+          description: >-
+            When full-online R2-only news portal mode is active for this
+            tenant (Issue #636), must reference an existing, same-tenant
+            media object (Issue #633) with status verified or attached —
+            never a local path or arbitrary external URL. A non-conforming
+            reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID.
+            Outside that mode, only the UUID shape is validated.
         seoTitle:
           type: string
           nullable: true
@@ -12537,6 +12629,11 @@ components:
           nullable: true
         contentJson:
           type: object
+          description: >-
+            When full-online R2-only news portal mode is active for this
+            tenant (Issue #636), an image gallery block item (mediaType
+            image) must use mediaObjectId referencing a verified/attached
+            same-tenant media object, never a raw url.
         contentText:
           type: string
         locale:
@@ -12548,6 +12645,13 @@ components:
           type: string
           format: uuid
           nullable: true
+          description: >-
+            When full-online R2-only news portal mode is active for this
+            tenant (Issue #636), must reference an existing, same-tenant
+            media object (Issue #633) with status verified or attached —
+            never a local path or arbitrary external URL. A non-conforming
+            reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID.
+            Outside that mode, only the UUID shape is validated.
         seoTitle:
           type: string
           maxLength: 70
@@ -12585,6 +12689,11 @@ components:
           nullable: true
         contentJson:
           type: object
+          description: >-
+            When full-online R2-only news portal mode is active for this
+            tenant (Issue #636), an image gallery block item (mediaType
+            image) must use mediaObjectId referencing a verified/attached
+            same-tenant media object, never a raw url.
         contentText:
           type: string
         locale:
@@ -12596,6 +12705,13 @@ components:
           type: string
           format: uuid
           nullable: true
+          description: >-
+            When full-online R2-only news portal mode is active for this
+            tenant (Issue #636), must reference an existing, same-tenant
+            media object (Issue #633) with status verified or attached —
+            never a local path or arbitrary external URL. A non-conforming
+            reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID.
+            Outside that mode, only the UUID shape is validated.
         seoTitle:
           type: string
           maxLength: 70

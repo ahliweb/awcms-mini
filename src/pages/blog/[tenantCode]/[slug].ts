@@ -11,10 +11,15 @@ import {
 import { log } from "../../../lib/logging/logger";
 import { fetchPublicBlogPostBySlug } from "../../../modules/blog-content/application/public-blog-directory";
 import { isLegacyTenantRouteEnabled } from "../../../modules/blog-content/application/public-route-settings";
-import { renderContentJsonToHtml } from "../../../modules/blog-content/domain/content-block-rendering";
+import { resolveVerifiedNewsMediaReferences } from "../../../modules/blog-content/application/news-media-reference-gate";
+import {
+  collectRenderableGalleryMediaObjectIds,
+  renderContentJsonToHtml
+} from "../../../modules/blog-content/domain/content-block-rendering";
 import {
   resolveCanonicalUrl,
   resolveMetaDescription,
+  resolveOgImageUrl,
   resolveSeoTitle
 } from "../../../modules/blog-content/domain/seo-rendering";
 import { renderPublicPageShell } from "../../../modules/blog-content/domain/public-page-rendering";
@@ -59,7 +64,33 @@ export const GET: APIRoute = async ({ params, url }) => {
       const seoTitle = resolveSeoTitle(post);
       const metaDescription = resolveMetaDescription(post);
       const canonicalUrl = resolveCanonicalUrl(post, selfUrl);
-      const contentHtml = renderContentJsonToHtml(post.contentJson);
+
+      // Issue #636 — see `/news/[slug].ts`'s identical comment: bulk-resolve
+      // every referenced mediaObjectId (featured image + gallery) to
+      // verified R2 media metadata in one lookup, feed both the gallery
+      // renderer and the og:image tags from it.
+      const galleryMediaObjectIds = collectRenderableGalleryMediaObjectIds(
+        post.contentJson
+      );
+      const referencedMediaObjectIds = post.featuredMediaId
+        ? [post.featuredMediaId, ...galleryMediaObjectIds]
+        : galleryMediaObjectIds;
+      const resolvedMedia = await resolveVerifiedNewsMediaReferences(
+        tx,
+        tenant.tenantId,
+        referencedMediaObjectIds
+      );
+      const resolvedGalleryUrls = new Map(
+        [...resolvedMedia].map(([id, media]) => [id, media.publicUrl])
+      );
+      const featuredMedia = post.featuredMediaId
+        ? (resolvedMedia.get(post.featuredMediaId) ?? null)
+        : null;
+
+      const contentHtml = renderContentJsonToHtml(
+        post.contentJson,
+        resolvedGalleryUrls
+      );
 
       const bodyHtml = `<article>
   <h1>${escapeHtml(post.title)}</h1>
@@ -73,7 +104,9 @@ export const GET: APIRoute = async ({ params, url }) => {
         description: metaDescription,
         canonicalUrl,
         bodyHtml,
-        locale: post.locale
+        locale: post.locale,
+        ogImageUrl: resolveOgImageUrl(featuredMedia?.publicUrl ?? null),
+        ogImageAlt: featuredMedia?.altText ?? null
       });
 
       return new Response(html, {

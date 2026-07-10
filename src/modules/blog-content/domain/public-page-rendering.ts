@@ -24,11 +24,29 @@ export type PublicPageShellOptions = {
   canonicalUrl: string | null;
   bodyHtml: string;
   locale: string;
+  /**
+   * Issue #636 — an already-resolved, verified R2 media object public URL
+   * (`seo-rendering.ts`'s `resolveOgImageUrl`), or `null` to omit
+   * `og:image`/`twitter:image` entirely. Never a raw/unvalidated URL.
+   */
+  ogImageUrl?: string | null;
+  /** Alt text for the `og:image`, from the same verified media object (`altText`) — omitted if there is no image or no alt text set. */
+  ogImageAlt?: string | null;
 };
 
 export function renderPublicPageShell(options: PublicPageShellOptions): string {
   const canonicalTag = options.canonicalUrl
     ? `<link rel="canonical" href="${escapeHtml(options.canonicalUrl)}" />`
+    : "";
+
+  const ogTags = options.ogImageUrl
+    ? `<meta property="og:image" content="${escapeHtml(options.ogImageUrl)}" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="${escapeHtml(options.ogImageUrl)}" />${
+        options.ogImageAlt
+          ? `\n<meta property="og:image:alt" content="${escapeHtml(options.ogImageAlt)}" />`
+          : ""
+      }`
     : "";
 
   return `<!doctype html>
@@ -39,6 +57,7 @@ export function renderPublicPageShell(options: PublicPageShellOptions): string {
 <title>${escapeHtml(options.title)}</title>
 <meta name="description" content="${escapeHtml(options.description)}" />
 ${canonicalTag}
+${ogTags}
 </head>
 <body>
 ${options.bodyHtml}

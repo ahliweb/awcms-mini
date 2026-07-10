@@ -19,6 +19,7 @@ import {
   syncPostTermAssignments
 } from "../../../../../modules/blog-content/application/blog-taxonomy-directory";
 import { setPostTranslationGroup } from "../../../../../modules/blog-content/application/localized-content-directory";
+import { validateNewsMediaReferencesForFullOnlineR2Mode } from "../../../../../modules/blog-content/application/news-media-reference-gate";
 import { validateCreateBlogPostInput } from "../../../../../modules/blog-content/domain/blog-post-validation";
 import {
   isBlogContentStatus,
@@ -159,6 +160,22 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
           "termIds contains an id that does not exist for this tenant."
         );
       }
+    }
+
+    const mediaReferenceValidation =
+      await validateNewsMediaReferencesForFullOnlineR2Mode(tx, tenantId, {
+        featuredMediaId: input.featuredMediaId,
+        contentJson: input.contentJson
+      });
+
+    if (!mediaReferenceValidation.valid) {
+      return fail(
+        422,
+        "NEWS_MEDIA_REFERENCE_INVALID",
+        "One or more image references are not valid R2 media objects in full-online R2-only mode.",
+        {},
+        mediaReferenceValidation.errors
+      );
     }
 
     let post;

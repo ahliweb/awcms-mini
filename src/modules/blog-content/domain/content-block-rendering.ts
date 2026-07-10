@@ -1,5 +1,6 @@
 import { escapeHtml } from "../../../lib/html/escape";
 import { isAbsoluteHttpUrl } from "./seo-validation";
+import { collectGalleryImageReferences } from "./content-block-media-references";
 
 /**
  * Safe, whitelist-based renderer for `content_json` (Issue #540 §Content
@@ -29,9 +30,15 @@ import { isAbsoluteHttpUrl } from "./seo-validation";
  */
 export type GalleryItem = {
   mediaType: "image" | "video";
-  url: string;
+  /** Legacy/non-R2-only-mode shape — a raw absolute URL. Mutually exclusive with `mediaObjectId` in practice (Issue #636 write-time validation rejects both being used together in full-online R2-only mode), but this renderer tolerates either being present. */
+  url?: string;
+  /** Issue #636 (full-online R2-only mode) shape — a verified news media registry object id. Resolved to a public URL via `resolvedMediaUrls` at render time; unresolved (or resolver not provided) silently skips the item, same "degrade, don't 500" convention as every other malformed item here. */
+  mediaObjectId?: string;
   caption?: string;
 };
+
+/** `mediaObjectId -> public URL` for gallery items using the Issue #636 R2-only-mode reference shape — built by the caller (`resolveVerifiedNewsMediaReferences`, `blog-content/application/news-media-reference-gate.ts`) BEFORE rendering, since resolving a registry id requires a database round trip this renderer deliberately never performs itself (kept pure, same as every other function in this file). */
+export type ResolvedGalleryMediaUrls = ReadonlyMap<string, string>;
 
 export type ContentBlock =
   | { type: "paragraph"; text: string }
@@ -98,30 +105,49 @@ function renderQuote(text: unknown): string | null {
 
 /**
  * Gallery block (Issue #542 §Media/Gallery: "Support image and video
- * gallery display. Validate allowed file/media references."). Every item's
- * `url` is re-validated `isAbsoluteHttpUrl` at render time (same
- * defense-in-depth convention `resolveCanonicalUrl` uses) — an item that
- * fails is silently skipped, not thrown, same "degrade, don't 500"
- * convention every other block here follows. `<img>`/`<video controls>`
- * only — no `<iframe>`/embed, so a gallery item can never become an
- * arbitrary-origin embed.
+ * gallery display. Validate allowed file/media references."). Two mutually
+ * exclusive image sources, both defense-in-depth re-checked at render time
+ * (never trusting write-time validation alone):
+ *
+ * - `url` (legacy/non-R2-only-mode shape) — re-validated `isAbsoluteHttpUrl`
+ *   (same defense-in-depth convention `resolveCanonicalUrl` uses).
+ * - `mediaObjectId` (Issue #636, full-online R2-only mode) — looked up in
+ *   `resolvedMediaUrls`, which the CALLER must have already populated via
+ *   `resolveVerifiedNewsMediaReferences` (a real, `verified`/`attached`,
+ *   same-tenant registry row) — an id absent from that map (never resolved,
+ *   or resolved to an unsafe status) renders nothing for this item, the
+ *   same "degrade, don't 500" convention every other block here follows.
+ *
+ * `<img>`/`<video controls>` only — no `<iframe>`/embed, so a gallery item
+ * can never become an arbitrary-origin embed.
  */
-function renderGalleryItem(item: unknown): string | null {
+function renderGalleryItem(
+  item: unknown,
+  resolvedMediaUrls: ResolvedGalleryMediaUrls
+): string | null {
   if (typeof item !== "object" || item === null || Array.isArray(item)) {
     return null;
   }
 
   const record = item as Record<string, unknown>;
 
-  if (
-    (record.mediaType !== "image" && record.mediaType !== "video") ||
-    typeof record.url !== "string" ||
-    !isAbsoluteHttpUrl(record.url)
-  ) {
+  if (record.mediaType !== "image" && record.mediaType !== "video") {
     return null;
   }
 
-  const url = escapeHtml(record.url);
+  let resolvedUrl: string | null = null;
+
+  if (typeof record.mediaObjectId === "string") {
+    resolvedUrl = resolvedMediaUrls.get(record.mediaObjectId) ?? null;
+  } else if (typeof record.url === "string" && isAbsoluteHttpUrl(record.url)) {
+    resolvedUrl = record.url;
+  }
+
+  if (resolvedUrl === null) {
+    return null;
+  }
+
+  const url = escapeHtml(resolvedUrl);
   const caption =
     typeof record.caption === "string" && record.caption.trim().length > 0
       ? `<figcaption>${escapeHtml(record.caption)}</figcaption>`
@@ -134,13 +160,16 @@ function renderGalleryItem(item: unknown): string | null {
   return `<figure>${media}${caption}</figure>`;
 }
 
-function renderGallery(items: unknown): string | null {
+function renderGallery(
+  items: unknown,
+  resolvedMediaUrls: ResolvedGalleryMediaUrls
+): string | null {
   if (!Array.isArray(items) || items.length === 0) {
     return null;
   }
 
   const rendered = items
-    .map((item) => renderGalleryItem(item))
+    .map((item) => renderGalleryItem(item, resolvedMediaUrls))
     .filter((html): html is string => html !== null);
 
   if (rendered.length === 0) {
@@ -150,7 +179,10 @@ function renderGallery(items: unknown): string | null {
   return `<div class="gallery">${rendered.join("\n")}</div>`;
 }
 
-function renderBlock(block: unknown): string | null {
+function renderBlock(
+  block: unknown,
+  resolvedMediaUrls: ResolvedGalleryMediaUrls
+): string | null {
   if (!isRecord(block)) {
     return null;
   }
@@ -165,15 +197,29 @@ function renderBlock(block: unknown): string | null {
     case "quote":
       return renderQuote(block.text);
     case "gallery":
-      return renderGallery(block.items);
+      return renderGallery(block.items, resolvedMediaUrls);
     default:
       return null;
   }
 }
 
-/** Renders `contentJson.blocks` to a safe HTML string. Malformed/unknown blocks are silently skipped, never thrown — a corrupt or unexpected shape must degrade to "renders less", not a 500 with a stack trace (doc issue #540: "Error output must not expose stack traces"). */
+const EMPTY_RESOLVED_MEDIA_URLS: ResolvedGalleryMediaUrls = new Map();
+
+/**
+ * Renders `contentJson.blocks` to a safe HTML string. Malformed/unknown
+ * blocks are silently skipped, never thrown — a corrupt or unexpected
+ * shape must degrade to "renders less", not a 500 with a stack trace (doc
+ * issue #540: "Error output must not expose stack traces").
+ *
+ * `resolvedMediaUrls` (Issue #636) defaults to empty, which is the correct
+ * behavior for every existing call site that hasn't been updated to
+ * resolve `mediaObjectId`-based gallery items — those items simply render
+ * nothing (never a broken `<img>` tag), while `url`-based items are
+ * entirely unaffected either way.
+ */
 export function renderContentJsonToHtml(
-  contentJson: Record<string, unknown>
+  contentJson: Record<string, unknown>,
+  resolvedMediaUrls: ResolvedGalleryMediaUrls = EMPTY_RESOLVED_MEDIA_URLS
 ): string {
   const blocks = contentJson.blocks;
 
@@ -182,7 +228,27 @@ export function renderContentJsonToHtml(
   }
 
   return blocks
-    .map((block) => renderBlock(block))
+    .map((block) => renderBlock(block, resolvedMediaUrls))
     .filter((html): html is string => html !== null)
     .join("\n");
+}
+
+/**
+ * Extracts every well-formed `mediaObjectId` an image gallery item
+ * references, so a caller can resolve them
+ * (`resolveVerifiedNewsMediaReferences`) BEFORE calling
+ * `renderContentJsonToHtml` — this renderer is synchronous/pure and cannot
+ * itself perform the database round trip resolution requires. Thin
+ * re-export of `content-block-media-references.ts`'s
+ * `collectGalleryImageReferences` (its write-time violation list is
+ * irrelevant here — already-written content is trusted to have passed
+ * write-time validation — only the id list matters for render-time
+ * resolution), kept as one traversal instead of two so the definition of
+ * "which gallery items reference a media object" can never drift between
+ * write-time validation and render-time resolution.
+ */
+export function collectRenderableGalleryMediaObjectIds(
+  contentJson: Record<string, unknown>
+): string[] {
+  return collectGalleryImageReferences(contentJson).mediaObjectIds;
 }

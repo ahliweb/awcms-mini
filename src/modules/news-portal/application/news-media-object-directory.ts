@@ -45,6 +45,28 @@ export type NewsMediaOwnerResourceType =
   | "video_thumbnail"
   | "seo_image";
 
+/**
+ * `true` for exactly the statuses safe to reference from public content
+ * (Issue #636, epic `news_portal`): `verified` (passed the full `finalize`
+ * MIME-sniff/checksum pipeline, not yet attached to anything) and
+ * `attached` (verified AND currently in use by a resource). Every other
+ * status is unsafe to expose publicly: `pending_upload`/`uploaded` never
+ * completed content verification (Issue #631's Critical finding — a bare
+ * `HEAD`/upload-in-progress row could be anything), `failed` explicitly
+ * rejected content verification, `orphaned` was verified but no longer
+ * referenced by anything (a dangling reference pointing at it is exactly
+ * the bug this predicate exists to catch), and `deleted` is soft-deleted.
+ * Consumers outside this module (`blog-content`'s #636 R2-only-mode
+ * validation) MUST use this predicate rather than re-deriving the "which
+ * statuses are safe" list themselves, so the status model can only ever
+ * change in one place.
+ */
+export function isNewsMediaObjectSafeForPublicReference(
+  status: NewsMediaObjectStatus
+): boolean {
+  return status === "verified" || status === "attached";
+}
+
 export type NewsMediaObjectView = {
   id: string;
   tenantId: string;

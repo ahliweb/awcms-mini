@@ -42,6 +42,21 @@ publik `/news` untuk detail resolusi tenant lintas-mode. `/blog/{tenantCode}`
 (ADR-0009, epic #536) **tetap ada, tidak berubah** — `/news` adalah rute
 tambahan, bukan pengganti.
 
+**Juga di luar epic #536**: Issue #636 (epic `news_portal` #631-#642/#649)
+menambah validasi KONDISIONAL — hanya aktif ketika full-online R2-only
+mode aktif UNTUK TENANT PEMANGGIL (`isNewsPortalFullOnlineR2ModeActiveForTenant`,
+`application/news-portal-r2-mode-gate.ts`) — yang mewajibkan
+`featuredMediaId` dan item gallery bertipe image mereferensikan baris
+`verified`/`attached` di media registry `news_portal` (#633), bukan lagi
+UUID/URL bebas TANPA verifikasi. **Rule #18 di bawah ("tidak ada base
+media library") TETAP BENAR untuk mode non-R2-only** (mayoritas
+deployment hari ini) — hanya mode R2-only yang menambah lapisan
+verifikasi di atasnya, bukan mengganti aturan itu. Detail teknis lengkap
+(file baru, og:image, resolusi render-time) ada di
+`.claude/skills/awcms-mini-news-portal/SKILL.md` §636 — baca DI SANA
+sebelum menyentuh `featuredMediaId`/gallery lagi, jangan re-derive di
+sini.
+
 ## Yang sudah ada — pakai ulang, jangan re-derive
 
 - **Tabel** (migration `026_awcms_mini_blog_content_schema.sql`): `awcms_mini_blog_posts`, `_pages`, `_terms`, `_post_terms`, `_revisions` (append-only), `_redirects`, `_settings` (1 row/tenant, `tenant_id` = PK). Semua `ENABLE`+`FORCE ROW LEVEL SECURITY`, tanpa `GRANT` eksplisit (migration 013's `ALTER DEFAULT PRIVILEGES` sudah meng-cover). Migration `028` (Issue #539) mengubah `search_vector` di posts/pages jadi `GENERATED ALWAYS ... STORED` (weighted title/excerpt/content_text, config `simple`) — PostgreSQL sendiri yang menjaganya sinkron, tidak ada trigger/application code. Migration `029` (Issue #542) menambah `awcms_mini_blog_templates`, `_menus`+`_menu_items`, `_widgets`, `_ads`+`_ad_placements`, `_theme_settings` (semua RLS FORCE juga) plus kolom `translation_group_id` di posts/pages — lihat README §Presentation extensions untuk detail tiap tabel.
@@ -77,7 +92,7 @@ tambahan, bukan pengganti.
 15. **Master/config data admin (templates/menus/widgets/ads/theme) pakai satu permission `configure`** untuk create+update+delete, bukan permission per-aksi seperti posts — pola sama `taxonomies.configure`. Jangan tambah `templates.create`/`templates.delete` terpisah tanpa alasan baru yang kuat.
 16. **`/news` (Issue #560, epic #555) me-reuse rute publik `/blog/{tenantCode}` apa adanya** — jangan tulis ulang query/rendering/predikat visibilitas untuk `/news`; satu-satunya kode baru yang boleh ditambah adalah lapisan resolusi tenant (`withNewsTenant`, `application/public-news-tenant-resolution.ts`) dan basePath link building (`renderPostSummaryListHtmlAtBasePath` di `public-page-rendering.ts`, `/blog/{tenantCode}`'s wrapper lama tetap byte-for-byte sama). Perubahan pada `/blog/{tenantCode}` existing untuk mendukung `/news` wajib nol-behavior-change (pure refactor/extraction saja) — lihat skill `awcms-mini-tenant-domain-routing`'s §Rute publik `/news` untuk detail lengkap termasuk cek module-disabled yang `/news` punya tapi `/blog/{tenantCode}` belum.
 17. **Sub-resource full-replace butuh `id` client-supplied kalau ada hierarki/self-reference dalam satu payload** (`menu items`' `parentItemId`, lihat `menu-directory.ts`'s `syncMenuItems` docblock) — karena `DELETE`-lalu-`INSERT` membuang id lama sebelum baris baru ditulis, referensi ke sibling di payload yang sama HANYA bisa diselesaikan kalau klien sendiri yang menyuplai id-nya (bukan `gen_random_uuid()` DB). Sub-resource _tanpa_ hierarki (ad placements) tetap boleh pakai id DB-generated biasa.
-18. **Tidak ada base media library** — jangan bangun tabel/endpoint media baru untuk kebutuhan galeri/attachment. Tambahkan tipe block baru di `content-block-rendering.ts`'s whitelist (pola `gallery`, Issue #542) atau simpan sebagai UUID/URL longgar (pola `featuredMediaId`), tergantung kebutuhan — jangan re-derive konsep "media library" dari nol.
+18. **Tidak ada base media library** — jangan bangun tabel/endpoint media baru untuk kebutuhan galeri/attachment. Tambahkan tipe block baru di `content-block-rendering.ts`'s whitelist (pola `gallery`, Issue #542) atau simpan sebagai UUID/URL longgar (pola `featuredMediaId`), tergantung kebutuhan — jangan re-derive konsep "media library" dari nol. **Sejak Issue #636** (lihat catatan "Di luar epic #536" di atas): saat full-online R2-only mode aktif untuk tenant, UUID/URL longgar itu WAJIB divalidasi menunjuk baris registry `news_portal` (#633) yang aman — tetap bukan media library baru di `blog_content` sendiri, hanya validasi referensi ke registry modul lain.
 19. **Theme mode adalah override, bukan engine baru** — `awcms_mini_tenants.default_theme` (migration 002) tetap satu-satunya sumber default. Tabel/endpoint theme modul manapun (blog atau modul lain di masa depan) harus fallback ke situ saat tidak ada override, sama seperti `theme-settings-directory.ts`'s `fetchBlogThemeSettings`.
 
 ## Belum ada — jangan asumsikan sudah dikerjakan
