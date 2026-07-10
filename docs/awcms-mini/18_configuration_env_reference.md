@@ -445,6 +445,29 @@ tabel ini.
 | `VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS`     | –     | `730`   | –        | Retensi rollup agregat — wajib integer positif bila diisi                                                                                                     |
 | `VISITOR_ANALYTICS_HASH_SALT`                 | –     | `""`    | Ya       | Salt fingerprint visitor pseudonymous (Issue #619) — jangan isi nilai asli di sini                                                                            |
 
+> **Peringatan operasional — `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`:** hanya
+> nyalakan flag ini bila deployment benar-benar **hanya** bisa dijangkau
+> lewat edge Cloudflare (mis. origin di-firewall ke rentang IP
+> Cloudflare). Flag ini mempercayai `CF-Connecting-IP` **dan**
+> `CF-IPCountry` sekaligus — kalau origin masih bisa diakses langsung,
+> klien mana pun bisa memalsukan kedua header itu dan meracuni data IP
+> serta geolokasi di analytics. Sama seperti `VISITOR_ANALYTICS_TRUST_PROXY`,
+> ini adalah asumsi operasional/infrastruktur, bukan sesuatu yang bisa
+> divalidasi dari kode aplikasi.
+
+**Kontrak operasional `VISITOR_ANALYTICS_TRUST_PROXY` /
+`VISITOR_ANALYTICS_TRUST_CLOUDFLARE`** mengikuti kontrak yang sama
+dengan `PUBLIC_TRUST_PROXY`/`X-Forwarded-Host` di atas: proxy tepercaya
+**wajib menimpa (overwrite)** header `X-Forwarded-For`/`CF-Connecting-IP`/
+`CF-IPCountry` secara penuh di setiap request, tidak pernah
+append/forward nilai dari klien. `resolveAnalyticsClientIp`
+(`src/modules/visitor-analytics/domain/client-ip.ts`) secara sengaja
+**tidak** menebak-nebak mana yang tepercaya kalau salah satu header itu
+berisi beberapa nilai comma-separated saat runtime — kejadian itu
+dicatat sebagai anomali (log warning) dan gagal aman (fallback ke
+sumber berikutnya / `null`), persis seperti perilaku resolver Issue
+#559 untuk `X-Forwarded-Host`.
+
 Aturan validasi (`checkVisitorAnalyticsConfig`): `VISITOR_ANALYTICS_MODE`
 bila diisi wajib salah satu dari `VISITOR_ANALYTICS_MODES` (`basic` |
 `detailed`); empat var retensi/jendela di atas bila diisi wajib integer
