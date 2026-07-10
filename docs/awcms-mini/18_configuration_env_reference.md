@@ -505,6 +505,56 @@ pernah baca `process.env.VISITOR_ANALYTICS_*` langsung) dan lulus
 BERSIH pada konfigurasi default (semua var tidak di-set) — hanya
 `critical` yang memblokir go-live.
 
+### News portal — full-online R2-only preset (opsional, Issue #632, epic `news_portal` #631-#642/#649)
+
+Modul `news_portal` (`src/modules/news-portal/`). Preset tenant module
+`news_portal_full_online_r2` (`module-management/domain/module-presets.ts`)
+mengaktifkan `blog_content`+`tenant_domain`+`visitor_analytics`+`news_portal`
+untuk profil news portal full-online, gambar berita **hanya** di Cloudflare
+R2. Aktivasi WAJIB lewat `applyNewsPortalFullOnlineR2Preset`
+(`news-portal/application/apply-news-portal-preset.ts`), yang menegakkan
+readiness gate di bawah sebelum menjalankan `applyModulePreset` generik —
+lihat `.claude/skills/awcms-mini-news-portal/SKILL.md` §632 untuk keputusan
+arsitektur lengkap (termasuk kenapa TIDAK ada var `DEPLOYMENT_PROFILE`/
+`BLOG_PUBLIC_ROUTE_MODE`/`BLOG_PUBLIC_BASE_PATH` baru — dua yang terakhir
+sudah ada sebagai konsep lain: `blog_content`'s per-tenant module setting
+`publicRouteMode` dan `PUBLIC_CANONICAL_BASE_PATH` di atas).
+
+| Var                                          | Wajib        | Default                                     | Sensitif | Fungsi                                                                                        |
+| -------------------------------------------- | ------------ | ------------------------------------------- | -------- | --------------------------------------------------------------------------------------------- |
+| `NEWS_PORTAL_ENABLED`                        | –            | `false`                                     | –        | Master switch preset `news_portal_full_online_r2` itu sendiri                                 |
+| `NEWS_PORTAL_PROFILE`                        | bila enabled | –                                           | –        | Wajib `full_online_r2` (satu-satunya nilai valid hari ini)                                    |
+| `NEWS_MEDIA_R2_ENABLED`                      | –            | `false`                                     | –        | Master switch mode R2-only news media                                                         |
+| `NEWS_MEDIA_R2_ACCOUNT_ID`                   | bila enabled | –                                           | –        | Boleh sama dengan `R2_ACCOUNT_ID` (satu akun Cloudflare) atau berbeda                         |
+| `NEWS_MEDIA_R2_ACCESS_KEY_ID`                | bila enabled | –                                           | Ya       | WAJIB berbeda dari `R2_ACCESS_KEY_ID` — ditegakkan `config:validate`/`security:readiness`     |
+| `NEWS_MEDIA_R2_SECRET_ACCESS_KEY`            | bila enabled | –                                           | Ya       | WAJIB berbeda dari `R2_SECRET_ACCESS_KEY` — ditegakkan `config:validate`/`security:readiness` |
+| `NEWS_MEDIA_R2_BUCKET`                       | bila enabled | –                                           | –        | WAJIB berbeda dari `R2_BUCKET` — ditegakkan `config:validate`/`security:readiness`            |
+| `NEWS_MEDIA_R2_PUBLIC_BASE_URL`              | bila enabled | –                                           | –        | Custom domain publik (HTTPS absolut), mis. `https://media.contoh-berita.id`                   |
+| `NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS` | –            | `300`                                       | –        | TTL presigned PUT upload (bukan TTL baca — baca selalu publik)                                |
+| `NEWS_MEDIA_R2_MAX_UPLOAD_BYTES`             | –            | `10485760` (10 MiB)                         | –        | Batas ukuran per file                                                                         |
+| `NEWS_MEDIA_R2_ALLOWED_MIME_TYPES`           | –            | `image/jpeg,image/png,image/webp,image/gif` | –        | Allow-list MIME — `image/svg+xml` sengaja tidak termasuk default (risiko XSS)                 |
+| `NEWS_MEDIA_R2_PENDING_TTL_MINUTES`          | –            | `60`                                        | –        | Batas usia objek `pending` sebelum dibersihkan lifecycle job (Issue #633 lanjutan)            |
+
+`bun run config:validate` (`checkNewsPortalProfileConfig`,
+`checkNewsMediaR2Config`, `checkNewsMediaR2SeparationFromSyncR2`) menolak
+boot bila `NEWS_PORTAL_PROFILE` bukan nilai yang dikenal, bila
+`NEWS_MEDIA_R2_ENABLED=true` tapi var wajib di atas hilang, ATAU bila
+`NEWS_MEDIA_R2_BUCKET`/`_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY` sama persis
+dengan `R2_BUCKET`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY` milik
+sync-storage (Issue #631 architecture doc §2). `bun run security:readiness`
+(`checkNewsPortalFullOnlineR2PresetReady`, critical;
+`checkNewsMediaR2SvgNotAllowed`, warning) menilai kombinasi penuh syarat
+aktivasi preset dan memperingatkan bila allow-list MIME di-override untuk
+mengizinkan `image/svg+xml`.
+
+Tidak ada var `FILE_STORAGE_DRIVER`/`LOCAL_FILE_UPLOADS_ENABLED`/
+`LOCAL_MEDIA_STORAGE_ENABLED` di sini — mode ini secara struktural tidak
+punya opsi fallback filesystem lokal untuk gambar berita sama sekali
+(bukan flag yang di-set `false`, karena tidak ada kode jalur upload
+lokal untuk media berita yang perlu dimatikan — lihat
+`tests/unit/news-portal-no-local-fallback.test.ts` dan architecture doc
+§3.3-3.4).
+
 ### Provider CRM (opsional) — contoh domain retail/POS
 
 | Var                    | Wajib      | Default | Sensitif | Fungsi             |
@@ -615,6 +665,11 @@ VISITOR_ANALYTICS_MODE=basic
 VISITOR_ANALYTICS_RAW_IP_ENABLED=false
 VISITOR_ANALYTICS_RAW_USER_AGENT_ENABLED=false
 VISITOR_ANALYTICS_GEO_ENABLED=false
+
+# News portal — full-online R2-only preset (opsional — Issue #632, epic
+# `news_portal`). Tidak di-set sama sekali = preset tidak aktif.
+NEWS_PORTAL_ENABLED=false
+NEWS_MEDIA_R2_ENABLED=false
 
 # Provider opsional (default off) — contoh domain retail/POS
 STARSENDER_ENABLED=false

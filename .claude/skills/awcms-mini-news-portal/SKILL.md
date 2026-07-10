@@ -37,7 +37,7 @@ status + pointer, bukan menduplikasi isinya.
 | Issue | Scope                                                                                                                        | Status                                               |
 | ----- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 | #631  | Dokumentasi arsitektur full-online R2-only + SOP + security + IR + backup + user guide                                       | **Selesai** — lihat §Dokumen yang sudah ada di bawah |
-| #632  | Preset `news_portal_full_online_r2` (module descriptor/config gate)                                                          | Belum dikerjakan — lihat §632 di bawah               |
+| #632  | Preset `news_portal_full_online_r2` (module descriptor/config gate)                                                          | **Selesai** — lihat §632 di bawah                    |
 | #633  | Tenant-scoped R2-only media object registry (schema + migration)                                                             | Belum dikerjakan — lihat §633 di bawah               |
 | #634  | Direct-to-R2 presigned upload flow (endpoint upload/confirm)                                                                 | Belum dikerjakan — lihat §634 di bawah               |
 | #635  | Config validation + readiness checks (`config:validate`/`security:readiness`/`production:preflight`) untuk R2 image delivery | Belum dikerjakan — lihat §635 di bawah               |
@@ -68,8 +68,9 @@ issue ini):
   ruang lingkup full-online-only (§1), keputusan **bucket R2 terpisah
   dari `sync-storage`** (§2 — lihat §Keputusan kunci di bawah), lima
   prinsip inti tidak bisa dinegosiasi (§3), konvensi env var
-  `NEWS_MEDIA_R2_*` (§4, **belum** ada di `.env.example`/doc 18 — itu
-  tugas #632/#633), model data konseptual media registry (§5), konvensi
+  `NEWS_MEDIA_R2_*` (§4 — **diimplementasikan Issue #632**: sudah ada di
+  `.env.example`/doc 18/`scripts/validate-env.ts`), model data konseptual
+  media registry (§5), konvensi
   object key (§6), dua diagram alur upload (§7), lifecycle presigned
   URL (§8), urutan validasi MIME/ekstensi/checksum (§9), CORS (§10),
   custom domain (§11), Cache-Control (§12), rotasi kredensial (§13),
@@ -82,10 +83,10 @@ issue ini):
 - **`r2-security-checklist.md`** — checklist siap-pakai (validasi,
   object key, presigned URL, CORS, custom domain/cache, kredensial,
   readiness gates, monitoring) + contoh kebijakan API token R2
-  least-privilege. §7 checklist ini eksplisit menyatakan **belum ada**
-  check nyata di `config:validate`/`security:readiness` untuk news
-  media sampai #635 mengimplementasikannya — jangan klaim readiness
-  sudah ditegakkan sebelum #635 selesai.
+  least-privilege. §7 checklist ini awalnya menyatakan belum ada check
+  nyata sampai #635 — **diperbarui**: shape/separation/SVG checks sudah
+  landed lewat Issue #632 (lebih awal dari rencana semula); sisa untuk
+  #633/#634/#635 hanya check level schema registry/endpoint upload.
 - **`r2-incident-response.md`** — runbook Detect/Contain/Eradicate/
   Recover/Post-incident untuk tiga skenario: presigned URL bocor,
   object exposure publik, upload berbahaya.
@@ -122,11 +123,17 @@ pernah** menyatukan keduanya ke bucket/kredensial yang sama:
 - Cloudflare **account** boleh sama (satu akun, dua bucket) — yang
   wajib terpisah adalah bucket dan API token, bukan akun.
 
-Issue #632/#633 **wajib** menambahkan validasi eksplisit bahwa
-`NEWS_MEDIA_R2_BUCKET` ≠ `R2_BUCKET` (dan kredensial keduanya berbeda)
-di `config:validate`/`security:readiness` — jangan hanya
-mendokumentasikan tanpa menegakkan (lihat `r2-security-checklist.md` §7
-untuk kontrak lengkap yang wajib dipenuhi #635).
+**Ditegakkan (bukan hanya didokumentasikan) sejak Issue #632**:
+`findNewsMediaR2SeparationViolations`
+(`news-portal/domain/news-media-r2-config.ts`) membandingkan
+`NEWS_MEDIA_R2_BUCKET`/`_ACCESS_KEY_ID`/`_SECRET_ACCESS_KEY` terhadap
+`R2_BUCKET`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY` milik
+`sync-storage`, dipanggil dari `config:validate`
+(`checkNewsMediaR2SeparationFromSyncR2`, gagal boot bila sama) DAN
+`security:readiness` (`checkNewsPortalFullOnlineR2PresetReady`, critical)
+— lihat `r2-security-checklist.md` §7 untuk kontrak lengkap dan apa yang
+masih tersisa untuk #633/#634/#635 (schema/endpoint-level checks, bukan
+shape/separation ini).
 
 ### Keputusan kunci #2 — tidak ada fallback lokal, tidak ada temp file
 
@@ -174,23 +181,160 @@ termasuk karena risiko XSS (script tersemat). Mengizinkannya butuh
 pipeline sanitasi khusus dan keputusan terpisah — bukan sekadar
 menambah ke allow-list di issue mana pun.
 
-## §632 — Preset `news_portal_full_online_r2` (belum dikerjakan)
+## §632 — Preset `news_portal_full_online_r2` (Selesai)
 
-Ringkasan scope dari objective issue: menambah preset yang
-mengkonfigurasi AWCMS-Mini untuk news portal full-online, gambar
-hanya di R2. Implementor **wajib**:
+Implementasi lengkap: `src/modules/news-portal/` (module baru, minimal —
+lihat "Kenapa modul baru" di bawah), preset
+`news_portal_full_online_r2` di `module-management/domain/module-presets.ts`,
+readiness gate di `application/apply-news-portal-preset.ts`,
+`.env.example`, `18_configuration_env_reference.md` §News portal,
+`scripts/validate-env.ts`, `scripts/security-readiness.ts`. Tiga
+rekonsiliasi penamaan berikut **mengikat** issue #633-#649 lanjutan —
+jangan investigasi ulang, jangan pakai nama lain dari body issue #632
+yang sudah dilihat bertentangan berikut ini.
 
-- Memakai env var persis sesuai `full-online-r2-architecture.md` §4
-  (`NEWS_MEDIA_R2_*`), menambahkannya ke `.env.example` dan
-  `18_configuration_env_reference.md` (belum ada di kedua tempat itu
-  sampai issue ini).
-- Preset ini **tidak** mengubah default deployment offline/LAN/base
-  generik apa pun — hanya aktif untuk tenant/deployment yang eksplisit
-  mengaktifkannya (§1 arsitektur).
-- Perbarui baris status tabel di atas menjadi **Selesai** dan tambahkan
-  subbagian `### §632 — ...` (pola sama subbagian lain di bawah) begitu
-  selesai — jangan hanya mengubah kata "Belum dikerjakan" tanpa
-  merangkum keputusan konkret yang dibuat.
+### Rekonsiliasi #1 — env var R2 pakai `NEWS_MEDIA_R2_*`, BUKAN nama dari body issue #632
+
+Body issue #632 menulis `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`/
+`CLOUDFLARE_ACCOUNT_ID`/`R2_NEWS_IMAGE_*` — ini SENGAJA tidak diikuti.
+`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY` adalah nama PERSIS yang sudah
+dipakai `sync-storage` (Issue #436); mengikutinya akan membuat dua fitur
+berbagi kredensial yang sama, tepat risiko yang Keputusan kunci #1 (di
+atas) dirancang mencegah. Dipakai sebagai gantinya: konvensi
+`NEWS_MEDIA_R2_*` PERSIS sesuai `full-online-r2-architecture.md` §4 —
+`NEWS_MEDIA_R2_ENABLED`, `_ACCOUNT_ID`, `_ACCESS_KEY_ID`,
+`_SECRET_ACCESS_KEY`, `_BUCKET`, `_PUBLIC_BASE_URL`,
+`_PRESIGNED_UPLOAD_TTL_SECONDS`, `_MAX_UPLOAD_BYTES`,
+`_ALLOWED_MIME_TYPES`, `_PENDING_TTL_MINUTES`. **Catatan**: dokumen §4
+TIDAK punya `NEWS_MEDIA_R2_CUSTOM_DOMAIN` terpisah (§11-nya menyatakan
+`_PUBLIC_BASE_URL` SUDAH mencakup custom domain) — implementor #633/#634
+jangan menambah var `_CUSTOM_DOMAIN` terpisah tanpa keputusan eksplisit
+baru. Resolver: `src/modules/news-portal/domain/news-media-r2-config.ts`
+(`resolveNewsMediaR2Config`, `findMissingNewsMediaR2Vars`,
+`findNewsMediaR2SeparationViolations`, `allowsSvgMimeType`).
+
+### Rekonsiliasi #2 — tidak ada `DEPLOYMENT_PROFILE`/`BLOG_PUBLIC_ROUTE_MODE`/`BLOG_PUBLIC_BASE_PATH` baru
+
+Body issue #632 menulis ketiga var ini seolah baru. Investigasi
+membuktikan:
+
+- `DEPLOYMENT_PROFILE` **tidak ada di kode sama sekali** (hanya narasi
+  `deployment-profiles.md`) — TIDAK ditambahkan. Konvensi repo ini adalah
+  flag independen per-fitur (`R2_ENABLED`, `EMAIL_ENABLED`,
+  `VISITOR_ANALYTICS_ENABLED`, dst), bukan satu enum sentral. "Full-online"
+  untuk preset ini dinyatakan lewat **dua var baru yang sempit**:
+  `NEWS_PORTAL_ENABLED` (master switch preset ini sendiri) dan
+  `NEWS_PORTAL_PROFILE` (saat ini hanya nilai valid `full_online_r2`) —
+  digabung dengan `NEWS_MEDIA_R2_ENABLED` yang sudah ada. Tiga flag
+  independen yang harus SEKALIGUS `true`/cocok, bukan satu master switch.
+- `BLOG_PUBLIC_ROUTE_MODE=domain_default` di body issue **bukan** env var
+  baru — string `"domain_default"` itu adalah nilai `PUBLIC_ROUTE_MODES`
+  yang SUDAH ADA di `blog_content`'s per-tenant module setting
+  `publicRouteMode` (`blog-content/application/public-route-settings.ts`,
+  Issue #564), sudah default ke situ untuk setiap tenant hari ini. TIDAK
+  ditambahkan env var baru untuk ini — preset #632 hanya
+  MEREKOMENDASIKAN (dokumentasi, bukan mekanisme baru) tenant
+  membiarkannya di default `"domain_default"` dan mengatur kolom
+  `route_mode` (`canonical`/`legacy_blog`) milik
+  `awcms_mini_tenant_domains` (Issue #557, per-domain, BUKAN per-tenant
+  global) ke `"canonical"` lewat API tenant-domain yang sudah ada
+  (#562) untuk domain yang dipakai news portal.
+- `BLOG_PUBLIC_BASE_PATH` di body issue juga bukan var baru — itu
+  `PUBLIC_CANONICAL_BASE_PATH` (Issue #556) yang sudah ada, default
+  `/news`. TIDAK ditambahkan var baru.
+
+Detail lengkap ada di komentar header
+`src/modules/news-portal/domain/news-portal-preset-readiness.ts`.
+
+### Rekonsiliasi #3 — preset name BUKAN reuse dari preset `news_portal` yang sudah ada
+
+`module-management/domain/module-presets.ts` SUDAH punya preset bernama
+`"news_portal"` (Issue #565, epic #555 — "online website + editorial
+approval workflow", TIDAK terkait R2/media sama sekali). Preset baru
+issue ini bernama **`news_portal_full_online_r2`** — nama yang BERBEDA,
+BUKAN rename/merge dari yang sudah ada. Keduanya hidup berdampingan di
+`MODULE_PRESETS`; lihat komentar `// NOTE:` tepat di atas entry
+`news_portal_full_online_r2` di file itu.
+
+### Kenapa modul baru `news_portal` diregistrasi sekarang (bukan ditunda)
+
+`src/modules/news-portal/module.ts` — module baru, minimal (tanpa
+`permissions`/`navigation`/`api`/`settings`/`jobs`/`health`, sama pola
+`visitor_analytics` sebelum fitur nyatanya ada). Diregistrasi sekarang
+karena preset butuh module key nyata untuk enable/disable (pola sama
+`tenant_domain`, Issue #558, register descriptor duluan sebelum
+resolver/routes/admin UI). **PENTING**: `dependencies` HANYA
+`["tenant_admin", "identity_access"]` — SENGAJA TIDAK menyertakan
+`blog_content`/`tenant_domain`/`visitor_analytics` walau hubungan
+konseptual "layer di atas" itu benar (dijelaskan di `description`
+descriptor). Percobaan pertama menambahkan mereka sebagai
+`dependencies` nyata memecahkan 3 test integrasi yang sudah ada
+(`blog-content-public-news.integration.test.ts` disable blog_content
+gagal 409, `module-presets.integration.test.ts`'s online_website test)
+karena setiap tenant baru punya SEMUA module enabled by default —
+`news_portal` yang enabled-by-default lalu memblokir disable
+blog_content/tenant_domain/visitor_analytics SELAMANYA lewat
+`MODULE_REVERSE_DEPENDENCY_ACTIVE`. Implementor #633+ **jangan**
+menambahkan dependency itu lagi tanpa memikirkan ulang konsekuensi ini —
+urutan enable di dalam SATU preset application sudah cukup dijamin oleh
+`enabledModuleKeys`'s urutan + `planEnableOrder`, tidak perlu dependency
+permanen di graph.
+
+### Readiness gate — WAJIB lewat `applyNewsPortalFullOnlineR2Preset`
+
+`src/modules/news-portal/application/apply-news-portal-preset.ts`
+adalah SATU-SATUNYA jalur yang sah untuk mengaktifkan preset ini — ia
+menjalankan `evaluateNewsPortalFullOnlineR2Readiness` (env: harus
+`NEWS_PORTAL_ENABLED=true`, `NEWS_PORTAL_PROFILE=full_online_r2`,
+`NEWS_MEDIA_R2_*` lengkap DAN terpisah dari `R2_*` sync-storage) sebelum
+memanggil `applyModulePreset` generik, dan mengaudit baik penolakan
+(`news_portal_preset_activation_rejected`, warning) maupun keberhasilan
+(`news_portal_preset_activated`, info) — keduanya via
+`recordAuditEvent`, `moduleKey: "news_portal"`. Generic
+`applyModulePreset` module-management **tidak tahu apa-apa** soal R2 —
+ia tidak boleh diimpor modul domain manapun (lihat header comment
+`module-presets.ts` sendiri) — jadi gate ini TIDAK bisa dipindah ke sana;
+ia hidup sebagai wrapper terpisah. Belum ada endpoint HTTP yang memanggil
+`applyModulePreset`/wrapper ini sama sekali (issue lanjutan/setup wizard).
+
+### Tidak ada flag "local fallback" sungguhan
+
+Acceptance criteria issue minta "readiness gagal bila local upload
+diaktifkan" — TIDAK diimplementasikan sebagai flag runtime
+(`NEWS_MEDIA_LOCAL_FALLBACK_ENABLED` dkk) karena mode ini secara
+struktural tidak punya jalur local-upload untuk didisable. Sebagai
+gantinya: `tests/unit/news-portal-no-local-fallback.test.ts` — test
+struktural yang grep seluruh `src/modules/news-portal/**` mencari
+`Bun.write`/`fs.writeFile`/`LOCAL_STORAGE_PATH`/dst, gagal loud begitu
+PR manapun (#634 khususnya) menambah jalur itu.
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `src/modules/news-portal/module.ts`, `domain/news-media-r2-config.ts`,
+  `domain/news-portal-preset-readiness.ts`,
+  `application/apply-news-portal-preset.ts`.
+- `src/modules/index.ts`,
+  `src/modules/module-management/domain/module-presets.ts` (preset entry
+  - `ModulePresetName` union).
+- `scripts/validate-env.ts`
+  (`checkNewsPortalProfileConfig`/`checkNewsMediaR2Config`/
+  `checkNewsMediaR2SeparationFromSyncR2`/`isHttpsAbsoluteUrl`),
+  `scripts/security-readiness.ts`
+  (`checkNewsPortalFullOnlineR2PresetReady`/`checkNewsMediaR2SvgNotAllowed`).
+- `.env.example`, `18_configuration_env_reference.md` §News portal,
+  `full-online-r2-architecture.md` §4 (status diperbarui),
+  `r2-security-checklist.md` §7 (status diperbarui — sebagian besar
+  kontrak yang tadinya dijadwalkan #635 sudah terpenuhi #632; sisa untuk
+  #633/#634/#635 hanya check yang butuh tabel registry/endpoint upload
+  nyata).
+- Test: `tests/unit/news-media-r2-config.test.ts`,
+  `tests/unit/news-portal-preset-readiness.test.ts`,
+  `tests/unit/news-portal-no-local-fallback.test.ts`,
+  `tests/modules/news-portal-module.test.ts`,
+  `tests/integration/news-portal-preset.integration.test.ts`; diperbarui:
+  `tests/unit/module-presets.test.ts`,
+  `tests/integration/module-presets.integration.test.ts`,
+  `tests/foundation.test.ts` (module count 13→14).
 
 ## §633 — Media object registry (belum dikerjakan)
 

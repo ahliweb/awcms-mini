@@ -5,6 +5,7 @@ import { formDraftsModule } from "./form-drafts/module";
 import { identityAccessModule } from "./identity-access/module";
 import { loggingModule } from "./logging/module";
 import { moduleManagementModule } from "./module-management/module";
+import { newsPortalModule } from "./news-portal/module";
 import { profileIdentityModule } from "./profile-identity/module";
 import { reportingModule } from "./reporting/module";
 import { syncStorageModule } from "./sync-storage/module";
@@ -26,7 +27,8 @@ export const modules: ModuleDescriptor[] = [
   moduleManagementModule,
   blogContentModule,
   tenantDomainModule,
-  visitorAnalyticsModule
+  visitorAnalyticsModule,
+  newsPortalModule
 ];
 
 export function getModuleByKey(

@@ -105,6 +105,25 @@ describe("MODULE_PRESETS / findModulePreset", () => {
   test("minimal preset's own enabledModuleKeys list is empty (core-only by construction)", () => {
     expect(findModulePreset("minimal")?.enabledModuleKeys).toEqual([]);
   });
+
+  test("news_portal_full_online_r2 (Issue #632) is a distinct preset from news_portal, listing blog_content/tenant_domain/visitor_analytics/module_management/identity_access/news_portal", () => {
+    const preset = findModulePreset("news_portal_full_online_r2");
+
+    expect(preset).not.toBeNull();
+    expect(preset?.enabledModuleKeys).toEqual([
+      "blog_content",
+      "tenant_domain",
+      "visitor_analytics",
+      "module_management",
+      "identity_access",
+      "news_portal"
+    ]);
+    // Genuinely a different preset from the pre-existing "news_portal" one
+    // (Issue #565) — not a rename/merge.
+    expect(findModulePreset("news_portal")?.enabledModuleKeys).not.toEqual(
+      preset?.enabledModuleKeys
+    );
+  });
 });
 
 describe("resolveProtectedModuleKeys", () => {

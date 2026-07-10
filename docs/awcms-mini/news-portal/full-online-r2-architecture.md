@@ -102,31 +102,35 @@ mengasumsikan akun yang sama.
    direferensikan editorial (post, gallery, ads, video thumbnail) hanya
    boleh menunjuk media berstatus `confirmed`.
 
-## 4. Konvensi environment variable (rencana penamaan, belum diimplementasikan)
+## 4. Konvensi environment variable
 
-**Penting:** var di bawah **belum ada** di `.env.example`/
-`18_configuration_env_reference.md` — issue ini murni dokumentasi.
-Issue #632 (preset) dan #633 (registry) adalah yang benar-benar
-menambahkannya ke `.env.example`/doc 18/`scripts/validate-env.ts`. Nama
-di sini adalah **konvensi yang wajib diikuti** implementasi supaya tidak
-ada issue lanjutan yang menciptakan skema penamaan lain atau (lebih
-buruk) menimpakan arti baru ke `R2_*` yang sudah dipakai `sync-storage`.
+**Status: diimplementasikan oleh Issue #632.** Var di bawah sudah ada di
+`.env.example` dan `18_configuration_env_reference.md` §News portal,
+ditegakkan `scripts/validate-env.ts` (`checkNewsPortalProfileConfig`,
+`checkNewsMediaR2Config`, `checkNewsMediaR2SeparationFromSyncR2`) dan
+`scripts/security-readiness.ts` (`checkNewsPortalFullOnlineR2PresetReady`,
+`checkNewsMediaR2SvgNotAllowed`), dan diresolusi oleh
+`src/modules/news-portal/domain/news-media-r2-config.ts`
+(`resolveNewsMediaR2Config`). Nama di sini tetap **konvensi wajib**
+persis apa adanya untuk implementor lanjutan (#633/#634) — jangan
+menciptakan skema penamaan lain atau menimpakan arti baru ke `R2_*` yang
+sudah dipakai `sync-storage`.
 
 Prefix **`NEWS_MEDIA_R2_`** — sengaja berbeda dari `R2_*` generik
 (§2, disambiguasi eksplisit dari bucket sync):
 
-| Var (rencana)                                | Wajib bila   | Default                                     | Catatan                                                                                        |
-| -------------------------------------------- | ------------ | ------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `NEWS_MEDIA_R2_ENABLED`                      | –            | `false`                                     | Master switch mode R2-only news media. Bagian dari preset #632.                                |
-| `NEWS_MEDIA_R2_ACCOUNT_ID`                   | bila enabled | –                                           | Boleh sama dengan `R2_ACCOUNT_ID` (satu akun Cloudflare) atau berbeda (§2).                    |
-| `NEWS_MEDIA_R2_ACCESS_KEY_ID`                | bila enabled | –                                           | Token least-privilege terpisah dari `R2_ACCESS_KEY_ID` — **wajib** berbeda (§2, §13).          |
-| `NEWS_MEDIA_R2_SECRET_ACCESS_KEY`            | bila enabled | –                                           | Idem.                                                                                          |
-| `NEWS_MEDIA_R2_BUCKET`                       | bila enabled | –                                           | **Wajib** berbeda dari `R2_BUCKET` (§2) — divalidasi tidak sama saat `config:validate` (#635). |
-| `NEWS_MEDIA_R2_PUBLIC_BASE_URL`              | bila enabled | –                                           | Custom domain publik (§11), mis. `https://media.contoh-berita.id`. Harus HTTPS absolut.        |
-| `NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS` | –            | `300`                                       | TTL presigned PUT (§8). Bukan TTL baca — baca selalu publik lewat custom domain.               |
-| `NEWS_MEDIA_R2_MAX_UPLOAD_BYTES`             | –            | `10485760` (10 MiB)                         | Batas ukuran per file (§9).                                                                    |
-| `NEWS_MEDIA_R2_ALLOWED_MIME_TYPES`           | –            | `image/jpeg,image/png,image/webp,image/gif` | Allow-list MIME (§9) — **tidak termasuk** `image/svg+xml` (§9 alasan).                         |
-| `NEWS_MEDIA_R2_PENDING_TTL_MINUTES`          | –            | `60`                                        | Batas usia objek `pending` sebelum dibersihkan lifecycle job (`r2-backup-lifecycle.md`).       |
+| Var                                          | Wajib bila   | Default                                     | Catatan                                                                                                                                                                                                                                                              |
+| -------------------------------------------- | ------------ | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEWS_MEDIA_R2_ENABLED`                      | –            | `false`                                     | Master switch mode R2-only news media. Bagian dari preset #632.                                                                                                                                                                                                      |
+| `NEWS_MEDIA_R2_ACCOUNT_ID`                   | bila enabled | –                                           | Boleh sama dengan `R2_ACCOUNT_ID` (satu akun Cloudflare) atau berbeda (§2).                                                                                                                                                                                          |
+| `NEWS_MEDIA_R2_ACCESS_KEY_ID`                | bila enabled | –                                           | Token least-privilege terpisah dari `R2_ACCESS_KEY_ID` — **wajib** berbeda (§2, §13).                                                                                                                                                                                |
+| `NEWS_MEDIA_R2_SECRET_ACCESS_KEY`            | bila enabled | –                                           | Idem.                                                                                                                                                                                                                                                                |
+| `NEWS_MEDIA_R2_BUCKET`                       | bila enabled | –                                           | **Wajib** berbeda dari `R2_BUCKET` (§2) — divalidasi tidak sama saat `config:validate`/`security:readiness` (diimplementasikan #632, bukan #635 — #635 masih menambah check readiness lain di luar separation ini, mis. MIME sniffing/checksum runtime enforcement). |
+| `NEWS_MEDIA_R2_PUBLIC_BASE_URL`              | bila enabled | –                                           | Custom domain publik (§11), mis. `https://media.contoh-berita.id`. Harus HTTPS absolut.                                                                                                                                                                              |
+| `NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS` | –            | `300`                                       | TTL presigned PUT (§8). Bukan TTL baca — baca selalu publik lewat custom domain.                                                                                                                                                                                     |
+| `NEWS_MEDIA_R2_MAX_UPLOAD_BYTES`             | –            | `10485760` (10 MiB)                         | Batas ukuran per file (§9).                                                                                                                                                                                                                                          |
+| `NEWS_MEDIA_R2_ALLOWED_MIME_TYPES`           | –            | `image/jpeg,image/png,image/webp,image/gif` | Allow-list MIME (§9) — **tidak termasuk** `image/svg+xml` (§9 alasan).                                                                                                                                                                                               |
+| `NEWS_MEDIA_R2_PENDING_TTL_MINUTES`          | –            | `60`                                        | Batas usia objek `pending` sebelum dibersihkan lifecycle job (`r2-backup-lifecycle.md`).                                                                                                                                                                             |
 
 Implementor (#632/#633/#634) wajib memakai nama ini persis — jangan
 memilih nama lain "yang mirip" tanpa memperbarui tabel ini.
