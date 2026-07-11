@@ -785,6 +785,22 @@ flowchart LR
   JSON, opsional ke file (pola `--json-output=<path>` yang sama dengan
   `scripts/production-preflight.ts`, Issue #684).
   `parseJobCliArgs(argv)` mem-parse `--dry-run`/`--json-output=<path>`.
+  **Pelepasan lock pada timeout/terminasi (diperbaiki di PR #713, temuan
+  High security-auditor)**: `runJob` MENGEMBALIKAN hasilnya SEGERA (`status:
+"timeout"`/`"terminated"`) tanpa menunggu handler benar-benar berhenti —
+  TAPI lock TIDAK dilepas pada saat itu juga. Review keamanan menemukan versi
+  awal melepas lock serentak dengan return, sehingga tick/instance kedua bisa
+  mengklaim lock yang "sudah bebas" itu dan benar-benar berjalan tumpang
+  tindih dengan instance pertama yang masih aktif di background — persis
+  skenario yang seharusnya dicegah mutual exclusion. Sekarang, pelepasan lock
+  ditunda lewat continuation terpisah (`scheduleBackgroundLockRelease`,
+  tidak di-`await` oleh return `runJob` sendiri) yang menunggu SALAH SATU
+  dari: handler benar-benar selesai, ATAU `lockReleaseGraceMs` (default
+  `DEFAULT_LOCK_RELEASE_GRACE_MS`, 30 detik, bisa dioverride per
+  `JobDefinition`) habis — mana yang lebih dulu. Job yang dibangun di atas
+  `iterateTenantsInBatches`/`runBoundedBatches` (mengecek `ctx.signal` di
+  antara pass/tenant) biasanya berhenti jauh di bawah batas grace period ini
+  begitu abort terjadi.
 - `src/lib/jobs/advisory-lock.ts` — `acquireAdvisoryLock(sql, jobName)`:
   generalisasi `pg_advisory_lock`/`pg_advisory_unlock` yang sudah dipakai
   `scripts/db-migrate.ts` untuk migration lock, TAPI session-level (bukan
@@ -797,6 +813,23 @@ flowchart LR
   **per nama job, bukan lock global tunggal** yang membuat semua job saling
   block. Reserved connection terpisah dari koneksi yang dipakai handler,
   jadi handler yang macet tidak pernah memblokir pelepasan lock-nya sendiri.
+  **Kematian proses vs kematian host (diperjelas di PR #713, temuan Medium
+  security-auditor)**: proses yang mati di host yang masih hidup (`kill -9`,
+  crash tak tertangani) melepas lock PROMPT — diverifikasi live, ~2-5ms dari
+  `kill -9` sampai lock terlihat bebas di `pg_locks`, karena OS mengirim
+  TCP FIN/RST saat proses berakhir. TAPI host crash atau network partition
+  (tidak ada FIN/RST sama sekali) TIDAK prompt — Postgres hanya bisa
+  mendeteksinya lewat TCP keepalive probe, dan repo ini tidak meng-override
+  default OS/Postgres di manapun (`docker-compose*.yml`, `deploy/`, `sql/`,
+  `src/lib/database/client.ts`); default Linux `tcp_keepalives_idle` adalah
+  7200 detik (2 jam) sebelum probe pertama terkirim — jadi skenario terburuk
+  (host mati total) lock bisa "terlihat" tertahan sampai ~2 jam. Tuning
+  `tcp_keepalives_idle` lebih pendek untuk role `awcms_mini_worker` adalah
+  follow-up yang disarankan, belum diimplementasikan (perubahan infra
+  terpisah, di luar scope perbaikan ini). **Pool minimum**:
+  `acquireAdvisoryLock` mereservasi satu koneksi dari pool yang sama dengan
+  yang dipakai handler — job yang pakai `runJob` butuh pool size minimal 2
+  (pool size 1 akan deadlock: koneksi lock sendirian menghabiskan pool).
 - `src/lib/jobs/batching.ts` — `iterateTenantsInBatches`/
   `runBoundedBatches`: generalisasi loop `MAX_PASSES_PER_TENANT` yang sudah
   ada di beberapa script existing (`audit-log-purge.ts` dulu,
@@ -804,6 +837,15 @@ flowchart LR
   `count: 0`, atau begitu `maxPasses` (default 50) tercapai (safety bound).
   Batas item per pass tetap milik fungsi domain masing-masing (mis.
   `purgeExpiredAuditEvents`'s `batchLimit`), bukan diklaim ulang di sini.
+  **Cancellation kooperatif (ditambah di PR #713, bagian dari perbaikan
+  temuan High)**: kedua fungsi ini sekarang menerima `signal?: AbortSignal`
+  opsional, dicek di awal setiap pass/tenant — begitu `signal.aborted`,
+  loop berhenti SEBELUM memulai pass/tenant berikutnya (pass yang SEDANG
+  berjalan tetap selesai — jendela yang disengaja dan terbatas, bukan bug).
+  `scripts/audit-log-purge.ts` sudah meneruskan `ctx.signal` ke sini;
+  `scripts/modules-sync.ts` TIDAK punya loop internal untuk dikaitkan sinyal
+  (single-pass, lihat komentar file-nya) — job itu mengandalkan sepenuhnya
+  pada mekanisme grace-period `runJob` di atas.
 - `src/lib/jobs/retry-classification.ts` — `classifyError(error)`:
   `"retryable"` (koneksi terputus, `40001` serialization_failure, `40P01`
   deadlock_detected, dsb — aman dicoba ulang di tick berikutnya) vs

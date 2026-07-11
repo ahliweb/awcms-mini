@@ -86,6 +86,56 @@ describe("runBoundedBatches (Issue #697)", () => {
     }
     expect(outcome.hitPassLimit).toBe(false);
   });
+
+  test("PR #713 fix (Option A, security-auditor High finding): stops BEFORE starting the next pass once `signal` is aborted, without starting a new pass — cooperative cancellation", async () => {
+    const controller = new AbortController();
+    let calls = 0;
+
+    const outcome = await runBoundedBatches(
+      async () => {
+        calls += 1;
+        if (calls === 2) {
+          // Abort fires WHILE this pass is already in flight — the CURRENT
+          // pass still completes (documented, bounded window), but the loop
+          // must not start pass 3.
+          controller.abort();
+        }
+        return { count: 10 };
+      },
+      { signal: controller.signal, maxPasses: 50 }
+    );
+
+    expect(calls).toBe(2);
+    expect(outcome.aborted).toBe(true);
+    expect(outcome.hitPassLimit).toBe(false);
+  });
+
+  test("an already-aborted signal makes zero passes run at all", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    let calls = 0;
+
+    const outcome = await runBoundedBatches(
+      async () => {
+        calls += 1;
+        return { count: 10 };
+      },
+      { signal: controller.signal }
+    );
+
+    expect(calls).toBe(0);
+    expect(outcome.aborted).toBe(true);
+    expect(outcome.totalCount).toBe(0);
+  });
+
+  test("a signal that never aborts behaves identically to not passing one at all", async () => {
+    const controller = new AbortController();
+    const outcome = await runBoundedBatches(async () => ({ count: 0 }), {
+      signal: controller.signal
+    });
+
+    expect(outcome.aborted).toBe(false);
+  });
 });
 
 describe("iterateTenantsInBatches (Issue #697)", () => {
@@ -124,5 +174,32 @@ describe("iterateTenantsInBatches (Issue #697)", () => {
     expect(result.tenants).toEqual([]);
     expect(result.totalCount).toBe(0);
     expect(result.perTenant.size).toBe(0);
+  });
+
+  test("PR #713 fix (Option A): stops iterating further tenants once `signal` is aborted, mid-tenant-loop", async () => {
+    const tenants: TenantRow[] = [
+      { id: "tenant-a" },
+      { id: "tenant-b" },
+      { id: "tenant-c" }
+    ];
+    const controller = new AbortController();
+    const processedTenants: string[] = [];
+
+    const result = await iterateTenantsInBatches(
+      {} as unknown as Bun.SQL,
+      async (tenantId) => {
+        processedTenants.push(tenantId);
+        if (tenantId === "tenant-a") {
+          controller.abort();
+        }
+        return { count: 0 };
+      },
+      { tenants, signal: controller.signal }
+    );
+
+    // tenant-a's own (already in-flight) pass completes; tenant-b/tenant-c
+    // are never started once the abort is observed.
+    expect(processedTenants).toEqual(["tenant-a"]);
+    expect(result.aborted).toBe(true);
   });
 });

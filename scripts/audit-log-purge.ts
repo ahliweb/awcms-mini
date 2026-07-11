@@ -38,6 +38,21 @@
  * Retention is configurable per run, in this priority order: `--retention-
  * days=<n>` CLI flag, then `AUDIT_LOG_RETENTION_DAYS` env var (doc 18), then
  * `AUDIT_EVENT_DEFAULT_RETENTION_DAYS` (730 days / 2 years).
+ *
+ * PR #713 security review follow-up (Issue #697):
+ * - `iterateTenantsInBatches` is now given `ctx.signal`, so a timeout/
+ *   SIGTERM/SIGINT stops this job's tenant loop promptly (before the NEXT
+ *   pass/tenant starts) instead of running to full completion in the
+ *   background — see `src/lib/jobs/batching.ts`'s file header and
+ *   `job-runner.ts`'s `runJob` doc comment for the full cancellation model
+ *   (this cooperative check narrows, but `runJob`'s own grace-period-bound
+ *   lock hold is what actually closes, the mutual-exclusion gap).
+ * - A tenant that hits the pass-count safety bound (`hitPassLimit`,
+ *   `batching.ts`) — meaning its backlog was NOT fully drained this run —
+ *   is now surfaced in `AuditLogPurgeResult.tenantsHitPassLimit` and makes
+ *   the job report `status: "partial"` instead of `"success"`, so an
+ *   operator's telemetry/monitoring actually sees it, rather than it being
+ *   silently swallowed.
  */
 import { getWorkerDatabaseClient } from "../src/lib/database/client";
 import { withTenant } from "../src/lib/database/tenant-context";
@@ -91,12 +106,16 @@ export type AuditLogPurgeOptions = {
   now?: Date;
   /** Forwarded to `purgeExpiredAuditEvents`'s own `batchLimit` (defaults to `AUDIT_EVENT_PURGE_BATCH_LIMIT`). Exposed here so tests can force a small per-pass limit and assert `iterateTenantsInBatches` correctly loops multiple bounded passes — not a new CLI flag, the production default is unchanged. */
   batchLimit?: number;
+  /** Forwarded to `iterateTenantsInBatches`'s own `maxPasses` (defaults to `DEFAULT_MAX_PASSES`, 50). Exposed here so tests can force `hitPassLimit`/`status: "partial"` deterministically with a tiny seed, without needing tens of thousands of rows — not a new CLI flag, the production default is unchanged. */
+  maxPasses?: number;
 };
 
 export type AuditLogPurgeResult = {
   tenantsChecked: number;
   totalPurged: number;
   cutoffIso: string;
+  /** Tenant ids whose backlog was NOT fully drained this run (hit `batching.ts`'s pass-count safety bound) — PR #713 review follow-up, previously computed but silently discarded. Non-empty makes the job report `status: "partial"`. */
+  tenantsHitPassLimit: string[];
 };
 
 /**
@@ -138,7 +157,8 @@ async function countPurgeableForTenant(
  */
 export async function runAuditLogPurge(
   sql: Bun.SQL,
-  ctx: Pick<JobContext, "dryRun" | "correlationId">,
+  ctx: Pick<JobContext, "dryRun" | "correlationId"> &
+    Partial<Pick<JobContext, "signal">>,
   options: AuditLogPurgeOptions = {}
 ): Promise<AuditLogPurgeResult> {
   const retentionDays = options.retentionDays ?? resolveRetentionDays();
@@ -150,19 +170,23 @@ export async function runAuditLogPurge(
     let totalWouldPurge = 0;
 
     for (const tenant of tenants) {
+      if (ctx.signal?.aborted) {
+        break;
+      }
       totalWouldPurge += await countPurgeableForTenant(sql, tenant.id, cutoff);
     }
 
     return {
       tenantsChecked: tenants.length,
       totalPurged: totalWouldPurge,
-      cutoffIso: cutoff.toISOString()
+      cutoffIso: cutoff.toISOString(),
+      tenantsHitPassLimit: []
     };
   }
 
   let cutoffIso = cutoff.toISOString();
 
-  const { tenants, totalCount } = await iterateTenantsInBatches(
+  const { tenants, totalCount, perTenant } = await iterateTenantsInBatches(
     sql,
     async (tenantId) => {
       const result = await purgeExpiredAuditEvents(sql, tenantId, {
@@ -174,16 +198,31 @@ export async function runAuditLogPurge(
 
       cutoffIso = result.cutoff.toISOString();
       return { count: result.purgedCount };
-    }
+    },
+    { signal: ctx.signal, maxPasses: options.maxPasses }
   );
 
-  return { tenantsChecked: tenants.length, totalPurged: totalCount, cutoffIso };
+  const tenantsHitPassLimit = [...perTenant.entries()]
+    .filter(([, outcome]) => outcome.hitPassLimit)
+    .map(([tenantId]) => tenantId);
+
+  return {
+    tenantsChecked: tenants.length,
+    totalPurged: totalCount,
+    cutoffIso,
+    tenantsHitPassLimit
+  };
 }
 
 async function main() {
   // Issue #683 (epic #679): `awcms_mini_worker` role — see migration 045.
   const sql = getWorkerDatabaseClient();
   const cliOptions = parseJobCliArgs(process.argv.slice(2));
+  // Resolved once here (not inside runAuditLogPurge's default) purely so
+  // the completion log line below can print it — restores parity with the
+  // pre-migration script's own `retentionDays=${retentionDays}` log field
+  // (PR #713 review follow-up).
+  const retentionDays = resolveRetentionDays();
 
   try {
     const result = await runJob(
@@ -192,20 +231,31 @@ async function main() {
         description:
           "Purges awcms_mini_audit_events rows past retention for every active tenant.",
         handler: async (ctx) => {
-          const purgeResult = await runAuditLogPurge(sql, ctx);
+          const purgeResult = await runAuditLogPurge(sql, ctx, {
+            retentionDays
+          });
+          const hitPassLimit = purgeResult.tenantsHitPassLimit.length > 0;
 
           console.log(
             `logs:audit:purge complete — correlationId=${ctx.correlationId} ` +
-              `cutoff=${purgeResult.cutoffIso} tenants=${purgeResult.tenantsChecked} ` +
-              `purged=${purgeResult.totalPurged}` +
-              (ctx.dryRun ? " (dry-run: nothing was deleted)" : "")
+              `retentionDays=${retentionDays} cutoff=${purgeResult.cutoffIso} ` +
+              `tenants=${purgeResult.tenantsChecked} purged=${purgeResult.totalPurged}` +
+              (ctx.dryRun ? " (dry-run: nothing was deleted)" : "") +
+              (hitPassLimit
+                ? ` (WARNING: ${purgeResult.tenantsHitPassLimit.length} tenant(s) still had backlog remaining after the pass-count safety bound)`
+                : "")
           );
 
           return {
+            status: hitPassLimit ? "partial" : "success",
             itemCounts: {
               tenantsChecked: purgeResult.tenantsChecked,
-              purged: purgeResult.totalPurged
-            }
+              purged: purgeResult.totalPurged,
+              tenantsHitPassLimit: purgeResult.tenantsHitPassLimit.length
+            },
+            detail: hitPassLimit
+              ? `Backlog not fully drained for: ${purgeResult.tenantsHitPassLimit.join(", ")}`
+              : undefined
           };
         }
       },

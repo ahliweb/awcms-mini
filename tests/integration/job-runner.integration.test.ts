@@ -214,7 +214,7 @@ suite(
       }
     });
 
-    test("runJob: releases the lock after a real timeout (handler never resolves), proven by an immediate next run succeeding (not skipping)", async () => {
+    test("PR #713 fix (security-auditor High finding): a real timeout (handler never resolves, never checks signal) keeps the lock held — an immediate retry is skipped, not allowed to overlap — until the grace period elapses", async () => {
       const sql = new Bun.SQL(getAdminDatabaseUrl(), { max: 4 });
       const jobName = uniqueJobName("timeout-release");
 
@@ -224,13 +224,16 @@ suite(
             name: jobName,
             description: "test",
             timeoutMs: 50,
+            lockReleaseGraceMs: 150,
             handler: () => new Promise(() => {})
           },
           { sql }
         );
         expect(timedOut.status).toBe("timeout");
 
-        const second = await runJob(
+        // Immediately after runJob's own promise resolved, the (forever)
+        // still-running handler must still hold the lock.
+        const immediateRetry = await runJob(
           {
             name: jobName,
             description: "test",
@@ -238,7 +241,82 @@ suite(
           },
           { sql }
         );
-        expect(second.status).toBe("success");
+        expect(immediateRetry.status).toBe("skipped");
+
+        // Once the grace period elapses, the detached background release
+        // fires and the lock becomes available again.
+        await new Promise((resolve) => setTimeout(resolve, 250));
+
+        const afterGrace = await runJob(
+          {
+            name: jobName,
+            description: "test",
+            handler: async () => ({ itemCounts: { ok: 1 } })
+          },
+          { sql }
+        );
+        expect(afterGrace.status).toBe("success");
+      } finally {
+        await sql.close({ timeout: 1 });
+      }
+    }, 10_000);
+
+    test("PR #713 REGRESSION FIX — the auditor's exact scenario: timeout fires while the handler is still genuinely mid-execution; a second acquireAdvisoryLock attempt is REJECTED for as long as the first handler is actually still running, not just until runJob returns its timeout result", async () => {
+      const sql = new Bun.SQL(getAdminDatabaseUrl(), { max: 4 });
+      const jobName = uniqueJobName("mid-handler-timeout");
+      const HANDLER_REAL_DURATION_MS = 300;
+
+      try {
+        let handlerFinished = false;
+
+        const timedOut = await runJob(
+          {
+            name: jobName,
+            description: "test",
+            timeoutMs: 30,
+            lockReleaseGraceMs: 5_000,
+            handler: async () => {
+              // Simulates real, already-in-flight work (e.g. one
+              // statement/transaction of a tenant loop) that genuinely
+              // outlives the timeout — does NOT check the signal, the
+              // worst case for cooperative cancellation.
+              await new Promise((resolve) =>
+                setTimeout(resolve, HANDLER_REAL_DURATION_MS)
+              );
+              handlerFinished = true;
+              return {};
+            }
+          },
+          { sql }
+        );
+
+        expect(timedOut.status).toBe("timeout");
+        // runJob returned promptly, well before the handler's own 300ms
+        // completes.
+        expect(handlerFinished).toBe(false);
+
+        // THE AUDITOR'S EXACT SCENARIO: immediately after runJob's own
+        // promise resolves, attempt to acquire the SAME job's lock again —
+        // it must be rejected while the first handler is genuinely still
+        // running. Before the fix, this would have succeeded here (the
+        // lock was released synchronously in the timeout branch),
+        // allowing a second overlapping execution while the first
+        // handler's real work was still in flight.
+        const immediateRetry = await acquireAdvisoryLock(sql, jobName);
+        expect(immediateRetry).toBeNull();
+        expect(handlerFinished).toBe(false);
+
+        // Wait past the handler's own real completion, with margin.
+        await new Promise((resolve) =>
+          setTimeout(resolve, HANDLER_REAL_DURATION_MS + 200)
+        );
+        expect(handlerFinished).toBe(true);
+
+        // Only NOW — after the handler has actually stopped — is the lock
+        // acquirable again.
+        const afterHandlerSettled = await acquireAdvisoryLock(sql, jobName);
+        expect(afterHandlerSettled).not.toBeNull();
+        await afterHandlerSettled?.release();
       } finally {
         await sql.close({ timeout: 1 });
       }

@@ -35,6 +35,21 @@
  *   anything.
  * - **`--json-output=<path>`**: structured run telemetry, same pattern as
  *   `scripts/production-preflight.ts`.
+ *
+ * PR #713 security review follow-up (Issue #697): unlike `audit-log-
+ * purge.ts`, this job has no internal multi-pass/multi-tenant loop to check
+ * `ctx.signal` between iterations — `syncModuleDescriptors` is a single,
+ * already-bounded call (a handful of modules, no tenant loop, no external
+ * I/O) with no natural mid-run checkpoint; adding one would mean threading
+ * an `AbortSignal` into `descriptor-sync.ts` itself, which is also called
+ * directly by the live `POST /api/v1/modules/sync` endpoint — a larger,
+ * riskier change than this fix warrants for a job whose entire run is
+ * normally milliseconds. This job's mutual-exclusion protection against a
+ * stuck run therefore relies ENTIRELY on `runJob`'s own grace-period-bound
+ * lock hold (`job-runner.ts`'s `scheduleBackgroundLockRelease`), not on
+ * cooperative cancellation — an explicit, documented tradeoff, not an
+ * oversight. Only the trivial "don't even start if already aborted" check
+ * below is added, for the degenerate near-zero-timeout case.
  */
 import { getDatabaseClient } from "../src/lib/database/client";
 import {
@@ -79,6 +94,14 @@ async function main() {
         description:
           "Syncs the trusted code module registry (listModules()) into awcms_mini_modules.",
         handler: async (ctx) => {
+          if (ctx.signal.aborted) {
+            return {
+              status: "partial",
+              detail:
+                "Aborted before starting (timeout/termination fired immediately)."
+            };
+          }
+
           if (ctx.dryRun) {
             const existingRows = await fetchExistingModules(sql);
             const plan = planModuleSync(listModules(), existingRows);

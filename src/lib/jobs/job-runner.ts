@@ -27,7 +27,7 @@
  * plus `../logging/error-sanitizer.ts` (Issue #687) for redaction. No new
  * redaction/log-masking mechanism is added here.
  */
-import { acquireAdvisoryLock } from "./advisory-lock";
+import { acquireAdvisoryLock, type AdvisoryLockHandle } from "./advisory-lock";
 import {
   classifyError,
   type RetryClassification
@@ -64,6 +64,8 @@ export type JobDefinition = {
   description: string;
   /** Defaults to `DEFAULT_JOB_TIMEOUT_MS` (15 minutes). */
   timeoutMs?: number;
+  /** Defaults to `DEFAULT_LOCK_RELEASE_GRACE_MS` (30s). Only relevant on a timeout/termination: the maximum extra time the advisory lock is kept held AFTER `runJob` has already returned its `"timeout"`/`"terminated"` result, waiting for `handler` to actually stop, before releasing anyway. See `runJob`'s doc comment §Cancellation model. */
+  lockReleaseGraceMs?: number;
   handler: (ctx: JobContext) => Promise<JobHandlerResult | void>;
 };
 
@@ -84,8 +86,22 @@ export type JobResult = {
 
 export const DEFAULT_JOB_TIMEOUT_MS = 15 * 60 * 1000;
 
+/**
+ * PR #713 security review follow-up (Issue #697, security-auditor High
+ * finding). Default bound for how long a timed-out/terminated `runJob` call
+ * keeps the advisory lock held IN THE BACKGROUND, after already having
+ * returned its `"timeout"`/`"terminated"` `JobResult` to the caller, waiting
+ * for `handler` to actually stop before releasing. 30s is generous enough
+ * for a well-behaved handler built on `iterateTenantsInBatches` (which
+ * checks `signal.aborted` between passes/tenants, see `batching.ts`) to
+ * notice the abort and unwind within at most one in-flight
+ * pass/statement's duration, while still bounded (never "forever") for a
+ * handler that ignores the signal entirely.
+ */
+export const DEFAULT_LOCK_RELEASE_GRACE_MS = 30_000;
+
 export type RunJobOptions = {
-  /** Pool used to reserve the advisory-lock connection (`sql.reserve()`) — typically `getWorkerDatabaseClient()`. The handler receives its OWN `sql`/tenant-scoped clients via closure, not through this option; this `sql` is used for locking only. */
+  /** Pool used to reserve the advisory-lock connection (`sql.reserve()`) — typically `getWorkerDatabaseClient()`. The handler receives its OWN `sql`/tenant-scoped clients via closure, not through this option; this `sql` is used for locking only. Needs a pool size of at least 2 (see `./advisory-lock.ts` §Minimum pool size) — the reserved lock connection alone would exhaust a pool of 1, deadlocking the handler's own first query. */
   sql: Bun.SQL;
   correlationId?: string;
   dryRun?: boolean;
@@ -130,12 +146,35 @@ function buildResult(
  * never rejects (a thrown handler error becomes `status: "failed"` with a
  * sanitized `error`), so callers always get a result to log/exit on.
  *
- * Lock release is guaranteed on every path (success, thrown error, timeout,
- * termination signal) by a single `finally` block calling
- * `lockHandle.release()` — see `./advisory-lock.ts` for why this is safe
- * even if the handler itself is still running in the background after a
- * timeout/termination (the lock's reserved connection is independent of
- * whatever connection(s) the handler uses).
+ * Lock release, precisely:
+ * - **Success or a thrown handler error** — the handler has, by definition,
+ *   already fully stopped running by the time `runJob` observes either
+ *   outcome, so the lock is released SYNCHRONOUSLY in the same `finally`
+ *   block that returns the result. No gap here at all.
+ * - **Timeout or termination signal** — `runJob` returns its
+ *   `"timeout"`/`"terminated"` result PROMPTLY (never blocks the caller/cron
+ *   tick waiting for the handler), but the lock is deliberately NOT released
+ *   in that same moment. PR #713's security review found the earlier
+ *   version released the lock immediately here, while `handler` (e.g. a
+ *   multi-tenant loop inside `iterateTenantsInBatches`) was often still
+ *   actively running in the background on its own connections — letting a
+ *   second scheduled tick acquire the now-"free" lock and start a genuinely
+ *   overlapping second execution of the SAME job, exactly the failure mode
+ *   mutual exclusion exists to prevent. Instead, a detached background
+ *   continuation (`scheduleBackgroundLockRelease`, decoupled from this
+ *   function's own return) keeps the lock held until EITHER `handler`
+ *   actually settles OR `lockReleaseGraceMs` (default
+ *   `DEFAULT_LOCK_RELEASE_GRACE_MS`, 30s) elapses, whichever comes first,
+ *   then releases it. A handler built on `iterateTenantsInBatches`/
+ *   `runBoundedBatches` (which check `ctx.signal` between passes/tenants,
+ *   see `batching.ts`) typically stops within about one in-flight
+ *   statement's duration of the abort firing — well inside the default
+ *   grace window in practice. A handler that never checks the signal at
+ *   all is still bounded: the lock is held for at most `lockReleaseGraceMs`
+ *   longer than before, not indefinitely (preserving "never block a cron
+ *   tick forever" — the CALLER was never blocked either way; only the
+ *   lock's OWN release is delayed, in a fire-and-forget task this function
+ *   does not await).
  *
  * Cancellation model: `timeoutMs` and the termination signals both call the
  * same `AbortController.abort()` — this only *signals* the handler via
@@ -145,9 +184,12 @@ function buildResult(
  * separate OS process per job, which would turn this into the orchestration
  * platform the issue explicitly says not to build). What IS guaranteed
  * regardless of handler cooperation is: (a) `runJob` returns promptly with
- * `status: "timeout"`/`"terminated"` instead of hanging forever, and (b) the
- * advisory lock is released promptly, so the NEXT run is never blocked by a
- * stuck previous one.
+ * `status: "timeout"`/`"terminated"` instead of hanging forever, and (b) a
+ * SECOND `runJob`/`acquireAdvisoryLock` call for the SAME job name is
+ * rejected/skipped for as long as the first handler is genuinely still
+ * running (bounded by `lockReleaseGraceMs`), not just until `runJob`'s own
+ * promise resolves — see `tests/integration/job-runner.integration.test.ts`
+ * for the exact regression scenario this closes.
  */
 export async function runJob(
   definition: JobDefinition,
@@ -157,6 +199,8 @@ export async function runJob(
   const correlationId = options.correlationId ?? crypto.randomUUID();
   const dryRun = options.dryRun ?? false;
   const timeoutMs = definition.timeoutMs ?? DEFAULT_JOB_TIMEOUT_MS;
+  const graceMs =
+    definition.lockReleaseGraceMs ?? DEFAULT_LOCK_RELEASE_GRACE_MS;
   const startedAt = new Date();
 
   let lockHandle;
@@ -217,6 +261,12 @@ export async function runJob(
     registeredSignalHandlers.push([signalName, handler]);
   }
 
+  // Set to `true` on the timeout/termination path below, once lock release
+  // has been handed off to the detached background continuation — the
+  // outer `finally` must NOT also release synchronously in that case (the
+  // continuation owns the single, idempotent `release()` call instead).
+  let releaseScheduledInBackground = false;
+
   try {
     const abortedPromise = new Promise<"aborted">((resolve) => {
       if (controller.signal.aborted) {
@@ -247,6 +297,14 @@ export async function runJob(
 
     if (race === "aborted") {
       const status: JobStatus = terminatedBy ? "terminated" : "timeout";
+
+      // Do NOT release the lock here — `handler` may still be genuinely
+      // running in the background (see this function's doc comment). Hand
+      // release off to a detached continuation that waits for `handler` to
+      // actually settle, bounded by `graceMs`, WITHOUT making this
+      // function's own return wait for it.
+      releaseScheduledInBackground = true;
+      scheduleBackgroundLockRelease(handlerPromise, lockHandle, graceMs);
 
       return buildResult(
         definition,
@@ -295,8 +353,50 @@ export async function runJob(
     for (const [signalName, handler] of registeredSignalHandlers) {
       process.off(signalName, handler);
     }
-    await lockHandle.release();
+    if (!releaseScheduledInBackground) {
+      await lockHandle.release();
+    }
   }
+}
+
+/**
+ * PR #713 security review follow-up (Issue #697, security-auditor High
+ * finding). Keeps `lockHandle` held until EITHER `handlerPromise` settles
+ * (fulfills or rejects — the outcome itself doesn't matter here, `runJob`
+ * already captured/returned it, or abandoned it, before this was called)
+ * OR `graceMs` elapses, THEN releases — decoupled from (not awaited by)
+ * `runJob`'s own return, so the caller/cron tick is never blocked waiting
+ * for this. `lockHandle.release()` is idempotent (`./advisory-lock.ts`), so
+ * this can never double-release even if something else also called it.
+ *
+ * The grace timer is `unref()`'d so it can never, by itself, keep an
+ * otherwise-idle process alive for the full `graceMs` — if `handler` is
+ * genuinely still doing real work (open DB connections, pending I/O), that
+ * work's own event-loop references keep the process alive for as long as
+ * it actually takes, which is the correct behavior (this bookkeeping timer
+ * should never be the ONE thing forcing a longer-than-necessary process
+ * lifetime).
+ */
+function scheduleBackgroundLockRelease(
+  handlerPromise: Promise<unknown>,
+  lockHandle: AdvisoryLockHandle,
+  graceMs: number
+): void {
+  const handlerSettled = handlerPromise.then(
+    () => undefined,
+    () => undefined
+  );
+
+  let graceTimer: ReturnType<typeof setTimeout> | undefined;
+  const graceElapsed = new Promise<void>((resolve) => {
+    graceTimer = setTimeout(resolve, graceMs);
+    graceTimer.unref?.();
+  });
+
+  void Promise.race([handlerSettled, graceElapsed]).finally(() => {
+    clearTimeout(graceTimer);
+    void lockHandle.release();
+  });
 }
 
 /** `true` for `"success"`/`"skipped"` — mirrors the exit-code contract every migrated script's `main()` applies via `process.exitCode`. */

@@ -173,7 +173,7 @@ describe("runJob (Issue #697)", () => {
     expect(handlerRan).toBe(true);
   });
 
-  test("a handler that never resolves is cut off by timeoutMs -> status: timeout, AND the lock is released (proven by a following run succeeding)", async () => {
+  test("PR #713 fix (security-auditor High finding): a handler that never resolves is cut off by timeoutMs -> status: timeout, but the lock STAYS held (an immediate retry is skipped, NOT allowed to run overlapping the still-running first handler) until the grace period elapses", async () => {
     const sql = createFakeLockSql();
     const jobName = "test:job:timeout-release";
 
@@ -181,7 +181,8 @@ describe("runJob (Issue #697)", () => {
       definition({
         name: jobName,
         timeoutMs: 25,
-        handler: () => new Promise(() => {}) // never resolves
+        lockReleaseGraceMs: 80,
+        handler: () => new Promise(() => {}) // never resolves, never checks signal
       }),
       { sql }
     );
@@ -190,18 +191,84 @@ describe("runJob (Issue #697)", () => {
     expect(timedOut.detail).toContain("timeout");
     expect(isJobResultOk(timedOut)).toBe(false);
 
-    const secondRun = await runJob(
+    // THE CORE REGRESSION PROOF: immediately after runJob's own promise
+    // resolved, the first handler is still (forever) "running" — a second
+    // attempt for the SAME job name must be rejected/skipped, not allowed
+    // to start a genuinely overlapping execution. The pre-fix
+    // implementation released the lock synchronously here, so this
+    // assertion would have failed (gotten "success") before the fix.
+    const immediateRetry = await runJob(
       definition({
         name: jobName,
         handler: async () => ({ itemCounts: { ok: 1 } })
       }),
       { sql }
     );
+    expect(immediateRetry.status).toBe("skipped");
 
-    expect(secondRun.status).toBe("success");
+    // Once the (short, test-only) grace period has elapsed, the detached
+    // background continuation releases the lock even though this
+    // handler never itself settled — bounding the worst case.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    const afterGrace = await runJob(
+      definition({
+        name: jobName,
+        handler: async () => ({ itemCounts: { ok: 1 } })
+      }),
+      { sql }
+    );
+    expect(afterGrace.status).toBe("success");
   });
 
-  test("SIGTERM during a run produces status: terminated, AND releases the lock (proven by a following run succeeding) — not just the happy path", async () => {
+  test("PR #713 fix: if the handler settles (cooperatively) shortly after the abort fires, the lock releases as soon as it settles — NOT the full grace period", async () => {
+    const sql = createFakeLockSql();
+    const jobName = "test:job:cooperative-release";
+    let handlerSettled = false;
+
+    const timedOut = await runJob(
+      definition({
+        name: jobName,
+        timeoutMs: 20,
+        lockReleaseGraceMs: 5_000, // deliberately large — must NOT need to wait this long
+        handler: (ctx) =>
+          new Promise<void>((resolve) => {
+            ctx.signal.addEventListener("abort", () => {
+              setTimeout(() => {
+                handlerSettled = true;
+                resolve();
+              }, 30); // simulates a brief, cooperative wind-down after noticing the abort
+            });
+          })
+      }),
+      { sql }
+    );
+
+    expect(timedOut.status).toBe("timeout");
+
+    // Poll for the lock to free up. It must do so shortly after the
+    // handler's own ~30ms wind-down, nowhere near the 5000ms grace bound —
+    // proving "whichever comes first" (handler settling vs. grace elapsing).
+    const pollStart = Date.now();
+    let acquiredAt = -1;
+    while (Date.now() - pollStart < 2_000) {
+      const attempt = await runJob(
+        definition({ name: jobName, handler: async () => ({}) }),
+        { sql }
+      );
+      if (attempt.status === "success") {
+        acquiredAt = Date.now();
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    expect(acquiredAt).toBeGreaterThan(0);
+    expect(handlerSettled).toBe(true);
+    expect(acquiredAt - pollStart).toBeLessThan(1_000);
+  });
+
+  test("SIGTERM during a run produces status: terminated; the lock stays held (immediate retry skipped) until the grace period elapses — not just the happy path", async () => {
     const sql = createFakeLockSql();
     const jobName = "test:job:sigterm-release";
 
@@ -209,7 +276,8 @@ describe("runJob (Issue #697)", () => {
       definition({
         name: jobName,
         timeoutMs: 60_000,
-        handler: () => new Promise(() => {}) // never resolves on its own
+        lockReleaseGraceMs: 80,
+        handler: () => new Promise(() => {}) // never resolves on its own, ignores signal
       }),
       { sql }
     );
@@ -224,15 +292,28 @@ describe("runJob (Issue #697)", () => {
     expect(terminated.detail).toContain("SIGTERM");
     expect(isJobResultOk(terminated)).toBe(false);
 
-    const secondRun = await runJob(
+    // Immediately after: the first handler is still (forever) "running" —
+    // a second attempt must be rejected/skipped, proving the lock did not
+    // release the instant runJob's own promise resolved.
+    const immediateRetry = await runJob(
       definition({
         name: jobName,
         handler: async () => ({ itemCounts: { ok: 1 } })
       }),
       { sql }
     );
+    expect(immediateRetry.status).toBe("skipped");
 
-    expect(secondRun.status).toBe("success");
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    const afterGrace = await runJob(
+      definition({
+        name: jobName,
+        handler: async () => ({ itemCounts: { ok: 1 } })
+      }),
+      { sql }
+    );
+    expect(afterGrace.status).toBe("success");
   });
 
   test("SIGINT is also treated as a graceful termination signal", async () => {
@@ -243,6 +324,7 @@ describe("runJob (Issue #697)", () => {
       definition({
         name: jobName,
         timeoutMs: 60_000,
+        lockReleaseGraceMs: 50,
         handler: () => new Promise(() => {})
       }),
       { sql }

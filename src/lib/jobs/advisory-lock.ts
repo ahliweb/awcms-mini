@@ -38,14 +38,52 @@
  * namespace can never collide with the migration lock's key space.
  *
  * Because a session-level advisory lock is automatically released by
- * PostgreSQL the moment the session/connection that holds it ends (crash,
- * `pg_terminate_backend`, or a clean `close()`), even a hard process kill
- * that skips `AdvisoryLockHandle.release()` entirely still cannot leave the
- * lock stuck forever — the reserved connection dies with the process, and
- * Postgres reclaims the lock. `job-runner.ts` still calls `release()`
- * explicitly on every path (success, error, timeout, SIGTERM/SIGINT) so the
- * *next* run of the same process doesn't have to wait for a TCP-level
- * connection-drop detection.
+ * PostgreSQL the moment the session/connection that holds it ends, even a
+ * process that skips `AdvisoryLockHandle.release()` entirely does not leave
+ * the lock stuck FOREVER — but PR #713's security review (Medium finding)
+ * found the original wording here overclaimed how PROMPTLY that recovery
+ * happens, treating every "the process died" scenario as equally fast. It
+ * is not — two genuinely different cases:
+ *
+ * - **Process death on an otherwise-live host** (`kill -9`, an uncaught
+ *   fatal error crashing the Bun process, `pg_terminate_backend`, a clean
+ *   `close()`) — PROMPT. The OS tears down the process's sockets as part of
+ *   normal process exit, sending a TCP FIN/RST that PostgreSQL's own
+ *   connection handling notices immediately (empirically verified: ~2ms
+ *   from `kill -9` to the session's advisory locks showing as released in
+ *   `pg_locks`, live against this repo's dev Postgres).
+ * - **Host crash or network partition** (the server the worker runs on
+ *   loses power / panics, or a network link between the worker and
+ *   Postgres drops silently, with NO FIN/RST ever sent) — NOT prompt.
+ *   PostgreSQL can only detect this via TCP keepalive probes on that
+ *   connection, and this repo does not override the OS/Postgres keepalive
+ *   defaults anywhere (`docker-compose*.yml`, `deploy/`, `sql/`,
+ *   `src/lib/database/client.ts`) — on Linux, `tcp_keepalives_idle`
+ *   defaults to 7200s (2 hours) before the first probe is even sent, so
+ *   worst case the lock can appear "held" for up to ~2 hours after the
+ *   host/network actually died. `job-runner.ts`'s explicit `release()` call
+ *   on every path (success, error, timeout, SIGTERM/SIGINT — see its own
+ *   doc comment) is what makes the COMMON case (the process is still
+ *   alive, just cancelled) prompt; it is this TCP-keepalive path, not
+ *   explicit `release()`, that eventually reclaims the lock in the
+ *   genuinely-rare "entire host disappeared mid-run" case.
+ *
+ * Follow-up worth considering (not implemented here — a larger, separate
+ * infra change): a shorter `tcp_keepalives_idle` specifically for the
+ * connection(s) `acquireAdvisoryLock` reserves (or for the whole
+ * `awcms_mini_worker` role) would bound the host-crash case too, at the
+ * cost of slightly more keepalive traffic. Flagged as a suggested follow-up,
+ * not a requirement of this fix.
+ *
+ * **Minimum pool size**: `acquireAdvisoryLock` reserves ONE connection
+ * (`sql.reserve()`) from the SAME pool (`sql`) the job's own handler
+ * typically draws from (e.g. via `withTenant`). Not an issue at this
+ * repo's pool defaults (`DATABASE_POOL_MAX` / `WORKER_DATABASE_URL`'s pool,
+ * default 20) — but an operator who configures a pool size of exactly 1 for
+ * a `runJob`-based job would deadlock: the reserved lock connection alone
+ * exhausts the pool, so the handler's own first query blocks until
+ * `timeoutMs` (then the job times out, never having done any work). Jobs
+ * using `runJob` need a pool size of at least 2.
  */
 import { createHash } from "node:crypto";
 

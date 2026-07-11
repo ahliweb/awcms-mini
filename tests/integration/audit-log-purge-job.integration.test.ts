@@ -174,4 +174,45 @@ suite("runAuditLogPurge (migrated to shared worker runner, Issue #697)", () => {
 
     expect(result.totalPurged).toBe(1);
   });
+
+  test("PR #713 fix (reviewer Low finding): a tenant hitting the pass-count safety bound is surfaced in tenantsHitPassLimit, not silently discarded", async () => {
+    for (let i = 0; i < 5; i += 1) {
+      await seedAuditEvent(TENANT_ID, 800, `old-${i}`);
+    }
+
+    // maxPasses: 1 + batchLimit: 2 forces the loop to stop after a single
+    // non-empty pass, well before the 5-row backlog is drained.
+    const result = await runAuditLogPurge(
+      getWorkerTestSql(),
+      { dryRun: false, correlationId: crypto.randomUUID() },
+      { batchLimit: 2, maxPasses: 1 }
+    );
+
+    expect(result.totalPurged).toBe(2);
+    expect(result.tenantsHitPassLimit).toEqual([TENANT_ID]);
+  });
+
+  test("PR #713 fix (Option A): threading ctx.signal stops the tenant loop promptly once aborted, before the next tenant starts", async () => {
+    await seedTenant(TENANT_B_ID, "job-purge-tenant-b");
+    await seedAuditEvent(TENANT_ID, 800, "tenant-a-old");
+    await seedAuditEvent(TENANT_B_ID, 800, "tenant-b-old");
+
+    const controller = new AbortController();
+    controller.abort(); // already aborted — the loop must not process ANY tenant
+
+    const result = await runAuditLogPurge(getWorkerTestSql(), {
+      dryRun: false,
+      correlationId: crypto.randomUUID(),
+      signal: controller.signal
+    });
+
+    expect(result.totalPurged).toBe(0);
+
+    // Neither tenant's expired row was touched — the loop stopped before
+    // even the first tenant's pass started.
+    const tenantAActions = await fetchAuditActions(TENANT_ID);
+    expect(tenantAActions).toContain("tenant-a-old");
+    const tenantBActions = await fetchAuditActions(TENANT_B_ID);
+    expect(tenantBActions).toContain("tenant-b-old");
+  });
 });
