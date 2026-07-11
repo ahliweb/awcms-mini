@@ -70,6 +70,42 @@ describe("sanitizeErrorForLog", () => {
     expect(detail.cause?.cause?.message).toBe("root cause: token=[REDACTED]");
   });
 
+  // PR #712 follow-up (security review, item 8) — locks in that a genuine
+  // circular `.cause` chain (a real possibility: nothing in the language
+  // prevents `a.cause = b; b.cause = a;`) terminates in bounded time
+  // instead of hanging forever. The implementation was already correct
+  // (the walk is bounded by a depth COUNTER, not by novelty-tracking a
+  // visited set), this test just proves the scenario the code's own doc
+  // comment claims to defend against.
+  test("terminates in bounded time on a genuine circular .cause chain", () => {
+    const a = new Error("a");
+    const b = new Error("b", { cause: a });
+    // `cause` is normally set once at construction, but nothing in the
+    // language (or its type, `unknown`) prevents reassigning it after the
+    // fact to create a genuine cycle.
+    a.cause = b;
+
+    const detail = sanitizeErrorForLog(a);
+
+    // Must return promptly (bun test's own default timeout would fail this
+    // test if the walk ever looped unboundedly) and with a finite,
+    // bounded-depth cause chain — never `undefined`/never throws.
+    expect(detail.message).toBe("a");
+    expect(detail.cause?.message).toBe("b");
+
+    let depth = 0;
+    let node: typeof detail | undefined = detail;
+    while (node?.cause && depth < 100) {
+      node = node.cause;
+      depth += 1;
+    }
+
+    // Bounded by MAX_CAUSE_DEPTH (5) inside sanitizeErrorForLog — well
+    // under the depth<100 escape valve above, proving the walk actually
+    // stopped on its own rather than merely being cut off by this test.
+    expect(depth).toBeLessThan(10);
+  });
+
   test("a non-Error thrown value is still sanitized safely", () => {
     const detail = sanitizeErrorForLog("plain string with password=hunter2");
 

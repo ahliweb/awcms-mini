@@ -1,4 +1,5 @@
 import { redactSensitiveAttributes } from "../../modules/_shared/redaction";
+import { safeErrorDetail } from "./error-sanitizer";
 
 /**
  * Structured JSON logger (Issue 10.1, doc 10 §Logger redaction). Independent
@@ -103,10 +104,15 @@ export function log(
     try {
       registeredSink(entry);
     } catch (error) {
-      // A derived app's sink is never allowed to break core logging.
+      // A derived app's sink is never allowed to break core logging. Issue
+      // #687 follow-up (PR #712 security review): this used to print
+      // `error.message` raw — a broken sink could easily be one built
+      // around a secret-bearing config (a webhook URL with an embedded
+      // token, a SIEM API key), so its own thrown error text needs the
+      // same redaction as every other caught exception in this codebase.
       console.error(
         "Log sink threw — ignoring (Issue #447 extension point):",
-        error instanceof Error ? error.message : String(error)
+        safeErrorDetail(error)
       );
     }
   }

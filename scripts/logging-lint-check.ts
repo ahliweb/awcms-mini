@@ -1,18 +1,19 @@
 /**
  * logging-lint-check.ts — `bun run logging:lint:check`.
  *
- * Issue #687 (epic #679, platform-hardening) regression gate. That issue
- * replaced every raw exception-to-console pattern in
+ * Issue #687 (epic #679, platform-hardening) regression gate, hardened by
+ * the PR #712 follow-up (security review — see items below marked "#712").
+ * That issue replaced every raw exception-to-console pattern in
  * `src/pages/admin/**\/*.astro`, `src/pages/api/v1/**\/*.ts`, and
  * `scripts/**\/*.ts` with the two call-site helpers in
  * `src/lib/logging/error-log.ts` (`logAdminPageError`/`logScriptFailure`)
  * built on `src/lib/logging/error-sanitizer.ts` (`safeErrorDetail`/
  * `sanitizeErrorForLog`) — this script makes sure the old pattern doesn't
- * creep back into those three scanned roots in a future change. Two
- * independent checks, both text/regex based (no TypeScript AST — matches
- * this repo's existing doc-parity/contract gates, `config-docs-check.ts`
- * and `i18n-parity-check.ts`, rather than pulling in a parser dependency for
- * a lint rule this narrow):
+ * creep back into those scanned roots in a future change. Two independent
+ * checks, both text/regex based (no TypeScript AST — matches this repo's
+ * existing doc-parity/contract gates, `config-docs-check.ts` and
+ * `i18n-parity-check.ts`, rather than pulling in a parser dependency for a
+ * lint rule this narrow):
  *
  * 1. A caught value's own message being hand-extracted with the old
  *    branch-on-`instanceof Error`-with-a-`String(...)`-fallback pattern,
@@ -25,9 +26,22 @@
  *    (never logged, never returned raw to a client) and would otherwise be
  *    a false positive.
  * 2. Any `console.error(...)`/`console.warn(...)` call that either passes a
- *    bare `error`/`err` identifier directly as an argument, or accesses
- *    `.message`/`.stack` on an `error`/`err`-named identifier inline —
- *    unless that same call also invokes one of `ALLOWED_SANITIZER_CALLS`.
+ *    bare caught-value-shaped identifier directly as an argument (as the
+ *    sole argument too — #712), or accesses `.message`/`.stack` on such an
+ *    identifier inline — unless that same call also invokes one of
+ *    `ALLOWED_SANITIZER_CALLS`. `CAUGHT_VALUE_NAMES` below (#712) widens
+ *    the recognized spellings past `error`/`err` to also cover `catch (e)`/
+ *    `catch (ex)`/`catch (exc)`/`catch (exception)` — still purely
+ *    NAME-based, not truly catch-clause-aware (a value bound to some other
+ *    identifier name still isn't caught by check 2, only by check 1 if it
+ *    also goes through the hand-rolled extraction idiom).
+ *
+ * `SCAN_ROOTS` (#712) also now covers `src/lib/**` and `src/modules/**`,
+ * not only the three original directories — a real raw console-based leak
+ * in `src/lib/logging/logger.ts` predating this issue was invisible to the
+ * gate before this widening (see that file's sink-error handler). Doc 20
+ * §Standar tambahan Issue #687 must not overclaim which directories this
+ * gate actually covers — keep it in sync with `SCAN_ROOTS` below.
  *
  * Exemption escape hatch (mirrors `CONFIG_EXEMPTIONS`/
  * `DYNAMIC_KEY_FAMILIES`/`ROUTE_PARITY_EXEMPTIONS` elsewhere in this repo):
@@ -47,7 +61,18 @@ export type LoggingLintProblem = {
 const SCAN_ROOTS: ReadonlyArray<{ dir: string; extensions: string[] }> = [
   { dir: "src/pages/admin", extensions: [".astro"] },
   { dir: "src/pages/api/v1", extensions: [".ts"] },
-  { dir: "scripts", extensions: [".ts"] }
+  { dir: "scripts", extensions: [".ts"] },
+  // Added in the PR #712 follow-up (security review, epic #679): a real
+  // raw console-based leak of a caught value's own message
+  // (`src/lib/logging/logger.ts`'s sink-error handler, predating this
+  // issue) was invisible to the gate because neither `src/lib/**` nor
+  // `src/modules/**` were scanned. `src/modules/**` currently has ZERO
+  // console-based error logging of any kind (verified before adding it —
+  // grep for the literal console call prefix across that tree), so
+  // adding it costs nothing and closes the same class of blind spot for
+  // any module code written later.
+  { dir: "src/lib", extensions: [".ts"] },
+  { dir: "src/modules", extensions: [".ts"] }
 ];
 
 /** See file header §Exemption escape hatch. */
@@ -146,8 +171,25 @@ export function findConsoleErrorWarnCalls(source: string): ConsoleCall[] {
   return calls;
 }
 
-const RAW_ERROR_ARGUMENT = /,\s*(?:error|err)\s*[,)]/;
-const RAW_ERROR_PROPERTY_ACCESS = /\b(?:error|err)\.(?:message|stack)\b/;
+/**
+ * Recognized catch-clause-variable names (PR #712 follow-up, security
+ * review). Deliberately still NAME-based, not truly catch-clause-aware —
+ * a proper fix would track which identifier an enclosing `catch (X)`
+ * actually bound and flag exactly that name, regardless of spelling; this
+ * is the cheaper mitigation the review explicitly allowed: widen the
+ * hardcoded name list to cover the other common non-adversarial spellings
+ * (`catch (e)`, `catch (ex)`, `catch (exc)`) in addition to `error`/`err`.
+ * A caught value bound to some OTHER uncommon name still bypasses this —
+ * see `LOGGING_LINT_EXEMPTIONS`/this comment as the documented residual
+ * gap, not a silently assumed one.
+ */
+const CAUGHT_VALUE_NAMES = "error|err|exception|exc|ex|e";
+const RAW_ERROR_ARGUMENT = new RegExp(
+  `[(,]\\s*(?:${CAUGHT_VALUE_NAMES})\\s*[,)]`
+);
+const RAW_ERROR_PROPERTY_ACCESS = new RegExp(
+  `\\b(?:${CAUGHT_VALUE_NAMES})\\.(?:message|stack)\\b`
+);
 
 /**
  * Returns a human-readable reason a `console.error`/`console.warn` call is
@@ -164,11 +206,11 @@ export function isDangerousConsoleCall(callText: string): string | null {
   }
 
   if (RAW_ERROR_ARGUMENT.test(callText)) {
-    return "passes a raw error/err value directly as an argument";
+    return "passes a raw caught value (error/err/exception/exc/ex/e) directly as an argument";
   }
 
   if (RAW_ERROR_PROPERTY_ACCESS.test(callText)) {
-    return "reads .message/.stack off an error/err-named value inline, with no reviewed sanitizer in the same call";
+    return "reads .message/.stack off a caught-value-named identifier (error/err/exception/exc/ex/e) inline, with no reviewed sanitizer in the same call";
   }
 
   return null;
@@ -287,7 +329,7 @@ if (import.meta.main) {
 
     console.error(
       `\nlogging:lint:check GAGAL — ${problems.length} temuan pola logging error tidak aman ` +
-        "di src/pages/admin, src/pages/api/v1, atau scripts/. Ganti dengan " +
+        "di src/pages/admin, src/pages/api/v1, scripts/, src/lib, atau src/modules. Ganti dengan " +
         "logAdminPageError()/logScriptFailure() (src/lib/logging/error-log.ts) atau " +
         "safeErrorDetail()/sanitizeErrorForLog() (src/lib/logging/error-sanitizer.ts). Bila ini " +
         'false-positive nyata, tambahkan "path:line" ke LOGGING_LINT_EXEMPTIONS di ' +
@@ -297,7 +339,7 @@ if (import.meta.main) {
   } else {
     console.log(
       "logging:lint:check OK — tidak ada pola raw error/console.error tidak aman di " +
-        "src/pages/admin, src/pages/api/v1, dan scripts/."
+        "src/pages/admin, src/pages/api/v1, scripts/, src/lib, dan src/modules."
     );
   }
 }

@@ -157,11 +157,23 @@ export function findSensitiveKeys(
  * gap the key-name check can't, not every adversarial exfiltration path.
  */
 const SECRET_VALUE_PATTERNS: readonly RegExp[] = [
-  /^eyJ[a-zA-Z0-9_-]{5,}\.[a-zA-Z0-9_-]{5,}\.[a-zA-Z0-9_-]{5,}$/,
+  // Third (signature) segment deliberately unbounded (`*`, not `{5,}`) —
+  // PR #712 follow-up (security review): a truncated/short-signature JWT
+  // (e.g. from a log line cut off mid-token) still leaks its header/payload
+  // claims (`sub`/`tenant_id`/`roles`, etc) and must still be flagged.
+  /^eyJ[a-zA-Z0-9_-]{5,}\.[a-zA-Z0-9_-]{5,}\.[a-zA-Z0-9_-]*$/,
   /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
   /^AKIA[0-9A-Z]{16}$/,
   /^(Bearer|Basic)\s+\S+/i,
-  /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^:@/\s]+:[^:@/\s]+@/
+  // Password character class deliberately excludes only `/` and whitespace
+  // (not `:`/`@`, which are extremely common password characters) — PR
+  // #712 follow-up (security review): the previous `[^:@/\s]+` class made
+  // this pattern fail to match at all when the password itself contained
+  // `:`, and truncate mid-password when it contained `@`. Relying on the
+  // greedy `+` backtracking to the LAST `@` in the run (not the first) is
+  // what correctly separates "password" from "host" when both `:` and `@`
+  // appear inside the password itself.
+  /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^:@/\s]+:[^/\s]+@/
 ];
 
 function isSecretShapedValue(value: unknown): boolean {
@@ -251,7 +263,23 @@ const TEXT_SECRET_PATTERNS: ReadonlyArray<{
     replacement: "[REDACTED_PRIVATE_KEY]"
   },
   {
-    pattern: /eyJ[a-zA-Z0-9_-]{5,}\.[a-zA-Z0-9_-]{5,}\.[a-zA-Z0-9_-]{5,}/g,
+    // Fallback for a TRUNCATED PEM block with no matching END marker (a log
+    // line cut off by a buffer/provider limit before the key finished) —
+    // PR #712 follow-up (security review): without this, the paired
+    // pattern above never matches at all in that case, and the entire raw
+    // base64 key body passes through unredacted. Runs after the paired
+    // pattern (which already consumed/replaced every well-formed block),
+    // so it only ever finds a genuinely-unterminated one. Deliberately
+    // over-redacts any trailing non-key text following a lone BEGIN marker
+    // in this edge case — the safe direction, unlike leaving a key
+    // unredacted.
+    pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*$/g,
+    replacement: "[REDACTED_PRIVATE_KEY]"
+  },
+  {
+    // Third (signature) segment deliberately unbounded — see the matching
+    // comment on `SECRET_VALUE_PATTERNS` above (PR #712 follow-up).
+    pattern: /eyJ[a-zA-Z0-9_-]{5,}\.[a-zA-Z0-9_-]{5,}\.[a-zA-Z0-9_-]*/g,
     replacement: "[REDACTED_JWT]"
   },
   {
@@ -259,7 +287,11 @@ const TEXT_SECRET_PATTERNS: ReadonlyArray<{
     replacement: "[REDACTED_AWS_KEY]"
   },
   {
-    pattern: /([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)[^:@/\s]+:[^:@/\s]+@/g,
+    // Password character class deliberately excludes only `/` and
+    // whitespace — see the matching comment on `SECRET_VALUE_PATTERNS`
+    // above (PR #712 follow-up) for why `:`/`@` must be allowed inside it
+    // and why the greedy `+` (backtracking to the LAST `@`) is required.
+    pattern: /([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)[^:@/\s]+:[^/\s]+@/g,
     replacement: "$1[REDACTED]@"
   },
   {

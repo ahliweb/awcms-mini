@@ -63,6 +63,56 @@ describe("isDangerousConsoleCall", () => {
 
     expect(reason).toBeNull();
   });
+
+  // PR #712 follow-up (security review, item 6/HIGH) — a bare single
+  // argument (no label, no comma) used to bypass `RAW_ERROR_ARGUMENT`
+  // entirely because that regex required a leading comma.
+  test("flags a bare single-argument console.error(error) call (no label)", () => {
+    expect(isDangerousConsoleCall("console.error(error)")).not.toBeNull();
+  });
+
+  test("flags a bare single-argument console.warn(err) call (no label)", () => {
+    expect(isDangerousConsoleCall("console.warn(err)")).not.toBeNull();
+  });
+
+  // PR #712 follow-up (security review, item 5/HIGH) — catch-clause
+  // variable names other than error/err (e, ex, exc) used to bypass
+  // detection entirely; this is still purely name-based (documented
+  // limitation), not truly catch-clause-aware.
+  test("flags catch (e) { console.error(label, e) } — a common non-adversarial spelling", () => {
+    expect(
+      isDangerousConsoleCall('console.error("worker: failed", e)')
+    ).not.toBeNull();
+  });
+
+  test("flags catch (ex) { console.error(label, ex) }", () => {
+    expect(
+      isDangerousConsoleCall('console.error("worker: failed", ex)')
+    ).not.toBeNull();
+  });
+
+  test("flags catch (exc) { console.error(label, exc) }", () => {
+    expect(
+      isDangerousConsoleCall('console.error("worker: failed", exc)')
+    ).not.toBeNull();
+  });
+
+  test("flags inline e.message interpolation with no sanitizer", () => {
+    expect(
+      isDangerousConsoleCall("console.error(`FAILED — ${e.message}`)")
+    ).not.toBeNull();
+  });
+
+  // Guards against the widened name list over-matching ordinary
+  // identifiers that merely start with a recognized short name.
+  test("does not flag an unrelated identifier like 'expected' or 'exportName'", () => {
+    expect(
+      isDangerousConsoleCall('console.error("mismatch", expected)')
+    ).toBeNull();
+    expect(
+      isDangerousConsoleCall('console.error("mismatch", exportName)')
+    ).toBeNull();
+  });
 });
 
 describe("findRawIdiomAssignments", () => {
@@ -100,6 +150,34 @@ describe("scanSourceForLoggingProblems — fixture: unsafe raw pattern", () => {
     const problems = scanSourceForLoggingProblems("scripts/fixture.ts", source);
 
     expect(problems.length).toBeGreaterThan(0);
+  });
+
+  test("a bare console.error(error) with no label fails the check", () => {
+    const source = [
+      "try {",
+      "  doWork();",
+      "} catch (error) {",
+      "  console.error(error);",
+      "}"
+    ].join("\n");
+
+    expect(
+      scanSourceForLoggingProblems("scripts/fixture.ts", source).length
+    ).toBeGreaterThan(0);
+  });
+
+  test("catch (e) { console.error(label, e) } fails the check", () => {
+    const source = [
+      "try {",
+      "  doWork();",
+      "} catch (e) {",
+      '  console.error("worker: failed", e);',
+      "}"
+    ].join("\n");
+
+    expect(
+      scanSourceForLoggingProblems("scripts/fixture.ts", source).length
+    ).toBeGreaterThan(0);
   });
 
   test("the hand-rolled extraction idiom flowing into console.error fails the check", () => {

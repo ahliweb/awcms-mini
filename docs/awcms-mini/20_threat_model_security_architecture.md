@@ -682,25 +682,98 @@ semuanya cocok). Sebagai gantinya `"ip"` dan sinonim nyatanya
 
 Gate baru `bun run logging:lint:check`
 (`scripts/logging-lint-check.ts`, bagian dari `bun run check`) mencegah
-pola lama muncul kembali di tiga direktori tercakup: (1) ekstraksi
-`instanceof Error`/`String(...)` yang variabelnya lalu mengalir ke
-`console.error`/`console.warn` — sengaja TIDAK melarang pola ekstraksi
-itu sendiri di mana pun (`src/pages/api/v1/**` punya 11 pemakaian sah
-untuk mencocokkan nama constraint DB secara internal, tidak pernah
-dicetak/dikembalikan mentah, yang akan jadi false positive kalau
-dilarang total); (2) panggilan `console.error`/`console.warn` yang
-menerima objek error mentah langsung atau mengakses `.message`/`.stack`
-inline tanpa melalui salah satu fungsi sanitasi yang direview
-(`ALLOWED_SANITIZER_CALLS` di skrip itu).
+pola lama muncul kembali di direktori yang tercakup —
+**`src/pages/admin/**`, `src/pages/api/v1/**`, `scripts/**`, `src/lib/**`,
+dan `src/modules/**`** (lihat `SCAN_ROOTS` di skrip itu untuk daftar
+pasti; JANGAN anggap ini lengkap tanpa mengecek konstanta itu langsung —
+cakupan bisa berubah): (1) ekstraksi `instanceof Error`/`String(...)`
+yang variabelnya lalu mengalir ke `console.error`/`console.warn` —
+sengaja TIDAK melarang pola ekstraksi itu sendiri di mana pun
+(`src/pages/api/v1/**` punya 11 pemakaian sah untuk mencocokkan nama
+constraint DB secara internal, tidak pernah dicetak/dikembalikan mentah,
+yang akan jadi false positive kalau dilarang total); (2) panggilan
+`console.error`/`console.warn` yang menerima objek error mentah langsung
+(termasuk sebagai satu-satunya argumen, tanpa label) atau mengakses
+`.message`/`.stack` inline tanpa melalui salah satu fungsi sanitasi yang
+direview (`ALLOWED_SANITIZER_CALLS` di skrip itu). Nama variabel
+tertangkap oleh nama, bukan analisis `catch`-clause sungguhan —
+`error`/`err`/`exception`/`exc`/`ex`/`e` (`CAUGHT_VALUE_NAMES`) yang
+dikenali; sebuah nama lain yang tidak lazim tetap lolos dari check (2)
+ini (masih tertangkap check (1) kalau juga memakai idiom ekstraksi
+mentah).
+
+### PR #712 follow-up (security review sebelum merge — CRITICAL/HIGH yang diperbaiki)
+
+Review keamanan atas PR #712 (Issue #687) menemukan beberapa celah nyata
+sebelum merge, semuanya sudah diperbaiki di branch yang sama:
+
+- **DSN dengan `:`/`@` di dalam password** — regex redaksi connection
+  string sebelumnya (`[^:@/\s]+` untuk bagian password) GAGAL total
+  mencocokkan bila password mengandung `:` (tidak ter-redak sama sekali),
+  dan salah memilih `@` PERTAMA (bukan TERAKHIR) bila password
+  mengandung `@` (sebagian besar password asli bocor mentah setelah tag
+  `[REDACTED]`). Diperbaiki: kelas karakter password sekarang hanya
+  mengecualikan `/` dan whitespace (`[^/\s]+`), dan sifat _greedy_ regex
+  secara alami mundur (backtrack) ke `@` TERAKHIR yang valid — baik di
+  `redactSecretsInText` (`_shared/redaction.ts`) maupun kembarannya
+  `findSecretShapedValues`'s `SECRET_VALUE_PATTERNS`.
+- **Blok PEM private key terpotong (tanpa marker END)** — pola
+  BEGIN...END berpasangan gagal cocok sama sekali kalau teks
+  error/stack terpotong sebelum mencapai marker END (batas
+  buffer/provider), sehingga SELURUH body key mentah lolos tanpa
+  redaksi. Diperbaiki: pola fallback baru meredaksi dari marker BEGIN
+  sampai akhir teks kalau tidak ada END yang cocok di teks yang sama —
+  sengaja bisa over-redact teks tidak terkait setelahnya di skenario
+  langka ini (arah yang aman, bukan meninggalkan key mentah).
+- **JWT dengan signature pendek/kosong** — segmen ketiga (signature)
+  sebelumnya wajib >= 5 karakter, sehingga JWT yang terpotong (baris log
+  terpotong) lolos redaksi meski header/payload-nya (sering memuat
+  klaim `sub`/`tenant_id`/`roles`) tetap bocor. Diperbaiki: segmen ketiga
+  sekarang `*` (nol atau lebih).
+- **`logging:lint:check` tidak menjangkau `src/lib`/`src/modules`** —
+  instance nyata `console.error` dengan `error.message` mentah di
+  `src/lib/logging/logger.ts` (sink-error handler, sejak Issue #447,
+  tidak disentuh PR #687) lolos dari gate karena `SCAN_ROOTS` awal hanya
+  tiga direktori. Diperbaiki: instance itu sendiri sekarang memakai
+  `safeErrorDetail`, DAN `SCAN_ROOTS` diperluas mencakup `src/lib/**` dan
+  `src/modules/**` (yang terakhir nol pemakaian `console.error`/`warn`
+  saat diperiksa, jadi penambahannya tidak menimbulkan false positive).
+- **Nama variabel catch selain `error`/`err`** — `catch (e)`/`catch
+(ex)`/`catch (exc)` sebelumnya lolos total dari check (2) karena
+  regex hanya mengenali `error`/`err`. Diperbaiki: daftar nama yang
+  dikenali diperluas (lihat paragraf di atas) — masih berbasis nama,
+  bukan analisis catch-clause sungguhan, didokumentasikan sebagai
+  keterbatasan yang disengaja, bukan diam-diam diasumsikan aman.
+- **`console.error(error)` tanpa label** — argumen tunggal (tanpa koma)
+  sebelumnya lolos dari `RAW_ERROR_ARGUMENT` karena regex mensyaratkan
+  koma di depan. Diperbaiki: regex sekarang menerima `(` ATAU `,`
+  sebelum nama yang dikenali.
+
+Test regresi untuk setiap temuan di atas ada di `tests/audit-log.test.ts`,
+`tests/unit/error-sanitizer.test.ts`, dan
+`tests/unit/logging-lint-check.test.ts`.
 
 ### Troubleshooting operator-safe
 
 Operator yang membaca output `bun run <script>` atau baris log JSON
-`log()` (stdout, `{"level":"error",...}`) TIDAK PERNAH melihat nilai
+`log()` (stdout, `{"level":"error",...}`) TIDAK seharusnya melihat nilai
 password/token/cookie/authorization header/connection-string/JWT mentah
-— nilai itu sudah diganti `[REDACTED]`/`[REDACTED_JWT]`/
-`[REDACTED_PRIVATE_KEY]`/`[REDACTED_AWS_KEY]` sebelum baris dicetak.
-Kalau pesan error tidak cukup jelas untuk mendiagnosis:
+untuk setiap bentuk secret yang tercakup pola `redactSecretsInText`/
+`isSensitiveKey` (`src/modules/_shared/redaction.ts`) — nilai itu diganti
+`[REDACTED]`/`[REDACTED_JWT]`/`[REDACTED_PRIVATE_KEY]`/
+`[REDACTED_AWS_KEY]` sebelum baris dicetak. **Ini heuristik berbasis
+pola, BUKAN DLP (data loss prevention) menyeluruh** — sama seperti
+disclaimer eksplisit `SECRET_VALUE_PATTERNS`/`redactSecretsInText`'s
+sendiri di `_shared/redaction.ts`: trivial dilewati oleh siapa pun yang
+sengaja ingin menyelundupkan secret (memecah JWT jadi beberapa field,
+membungkusnya dengan teks/encoding lain, memberi spasi di tengah pola),
+dan hanya menutup kasus "secret ikut kebawa tanpa sengaja", bukan setiap
+jalur eksfiltrasi yang disengaja. PR #712 (security review) menemukan
+dan memperbaiki beberapa celah nyata pada pola-pola ini (DSN dengan
+`:`/`@` di password, PEM terpotong, JWT signature pendek — lihat
+§"PR #712 follow-up" di atas); anggap redaksi ini defense-in-depth yang
+kuat untuk kasus jujur, bukan jaminan absolut untuk setiap kemungkinan
+bentuk secret. Kalau pesan error tidak cukup jelas untuk mendiagnosis:
 
 1. **Cari `correlationId`-nya** — setiap baris `log()` dari admin page
    dan setiap respons `/api/*` membawa `correlationId` yang sama
