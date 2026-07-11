@@ -605,6 +605,18 @@ Doc 18 §Prinsip konfigurasi #5: "Konfigurasi tervalidasi saat boot; nilai
 wajib yang hilang menghentikan start dengan pesan jelas." Issue 12.2
 menambahkan `scripts/validate-env.ts` (`bun run config:validate`):
 
+**Config registry & deprecated vars (Issue #689, epic #679
+platform-hardening)**: `src/lib/config/registry.ts` adalah sumber
+kebenaran terstruktur untuk setiap variabel di bawah — lihat doc 18
+§Config registry untuk field lengkap (type/required/owner/sensitivity/
+profiles/deprecation) dan tabel enam variabel yang ditandai `deprecated`
+(termasuk `AUTH_JWT_SECRET` yang masih disebut di §"production (online) —
+image registry" dan §"Secrets via deployment references" di bawah — masih
+WAJIB diisi untuk rilis ini demi kompatibilitas, meski sudah diverifikasi
+tidak pernah dibaca kode apa pun karena sesi memakai token opaque, bukan
+JWT). `bun run config:docs:check` (bagian dari `bun run check`) menjaga
+registry ini, `.env.example`, dan doc 18 tetap sinkron.
+
 - Wajib non-kosong: `APP_ENV`, `APP_URL`, `APP_TIMEZONE`, `DATABASE_URL`,
   `AUTH_JWT_SECRET`.
 - Kondisional: bila `AWCMS_MINI_SYNC_ENABLED=true`, maka

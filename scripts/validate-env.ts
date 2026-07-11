@@ -154,6 +154,21 @@
  * jelas (tanpa membocorkan nilai)"). Exits non-zero on any failure. None of
  * the public-routing vars above are secrets, but they follow the same
  * name-only reporting style for consistency.
+ *
+ * Issue #689 (epic #679, platform-hardening): `src/lib/config/registry.ts`
+ * is now the structured metadata source of truth for every var referenced
+ * above (type/required/owner/sensitivity/profiles/default/deprecation) —
+ * see that file's header for why its relationship to the ~30 `checkXxxConfig`
+ * functions here is deliberately additive (registry = metadata + a
+ * `validatorGroup` name pointing at the function below that governs each
+ * var, not a replacement for these already-tested functions). The only
+ * runtime behavior this file gains from the registry is
+ * `collectDeprecationNotices`/`printDeprecationNotices` near the bottom —
+ * an informational-only section, appended to the CLI report, that never
+ * changes `runEnvValidation`'s return value or this script's exit code.
+ * `bun run config:docs:check` (`scripts/config-docs-check.ts`) is the
+ * companion CI gate keeping the registry, `.env.example`, and doc 18 in
+ * sync.
  */
 import { checkSyncHmacSecretNotDefault } from "./security-readiness";
 import {
@@ -203,6 +218,7 @@ import {
   isKnownNewsPortalProfile,
   NEWS_PORTAL_PROFILES
 } from "../src/modules/news-portal/domain/news-portal-preset-readiness";
+import { CONFIG_REGISTRY } from "../src/lib/config/registry";
 
 export type EnvCheckResult = {
   name: string;
@@ -1123,6 +1139,28 @@ export function runEnvValidation(
   ];
 }
 
+/**
+ * Deprecation notices (Issue #689, epic #679 platform-hardening) — driven
+ * by `src/lib/config/registry.ts`'s `deprecated` field, purely additive to
+ * the pass/fail checks above: a deprecated variable that is currently SET
+ * only ever produces an informational notice here, never an `EnvCheckResult`
+ * `"fail"`. This deliberately keeps `runEnvValidation`'s return shape/length
+ * untouched (existing tests import and assert against it directly) — the
+ * CLI report below prints these as a separate section instead. Never prints
+ * the variable's actual value, only its name and the registry's own
+ * `guidance` text (which never contains a real secret/example value either).
+ */
+function collectDeprecationNotices(
+  env: NodeJS.ProcessEnv = process.env
+): string[] {
+  return CONFIG_REGISTRY.filter(
+    (entry) => entry.deprecated !== undefined && isSet(env[entry.name])
+  ).map((entry) => {
+    const { since, removalVersion, guidance } = entry.deprecated!;
+    return `${entry.name} is deprecated since ${since} (planned removal in ${removalVersion}): ${guidance}`;
+  });
+}
+
 function printReport(results: EnvCheckResult[]): boolean {
   console.log("config:validate — environment variable validation (doc 18)");
   console.log("");
@@ -1149,9 +1187,26 @@ function printReport(results: EnvCheckResult[]): boolean {
   return true;
 }
 
+function printDeprecationNotices(notices: string[]): void {
+  if (notices.length === 0) {
+    return;
+  }
+
+  console.log("");
+  console.log(
+    `config:validate — ${notices.length} deprecation notice(s) (informational, does not fail this check — src/lib/config/registry.ts):`
+  );
+
+  for (const notice of notices) {
+    console.log(`[DEPRECATED] ${notice}`);
+  }
+}
+
 async function main() {
   const results = runEnvValidation();
   const passed = printReport(results);
+
+  printDeprecationNotices(collectDeprecationNotices());
 
   if (!passed) {
     process.exitCode = 1;
