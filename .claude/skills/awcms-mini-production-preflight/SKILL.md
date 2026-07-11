@@ -91,5 +91,5 @@ untuk urutan lengkap (dump → restore-test → catat evidence).
 
 Laporan production readiness: status tiap gate, temuan (severity), rollback plan, keputusan go/no-go. Critical control fail **memblokir** go-live.
 `--json-output=<path>` (opsional, Issue #684) menulis hasil terstruktur
-(`{ go, results, plan, applied }`) ke file — untuk arsip evidence deploy,
+(`{ go, failedStages, blockingSkips, results, plan, applied }`) ke file — untuk arsip evidence deploy,
 tidak mengubah output stdout default.

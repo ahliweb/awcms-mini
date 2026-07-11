@@ -235,7 +235,7 @@ bun run changeset:tag            # tag rilis dari changeset
 bun run db:pool:health           # cek kesehatan pool DB
 bun run security:readiness       # cek security readiness
 bun run config:validate          # validasi env/config sebelum apapun jalan
-bun run production:preflight     # preflight sebelum go-live (config -> migrate -> spec -> test -> build -> pool -> security)
+bun run production:preflight     # preflight read-only sebelum go-live (config -> security -> connectivity -> spec -> test -> build -> pool -> migration:plan); apply migrasi terpisah & bergerbang (--apply-migrations --backup-verified --acknowledge-target=<APP_ENV>, Issue #684)
 bun run email:provider:health    # cek kesehatan provider email (Mailketing)
 bun run sync:objects:dispatch    # job terjadwal: dispatch antrian sync object R2
 bun run logs:audit:purge         # job terjadwal: purge audit log kedaluwarsa

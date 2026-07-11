@@ -218,6 +218,51 @@ const REQUIRED_NON_EMPTY_VARS = [
   "AUTH_JWT_SECRET"
 ] as const;
 
+/**
+ * doc 18 §Referensi environment variable's own documented value set
+ * (`development`/`staging`/`production`) — previously only checked for
+ * non-emptiness (`checkRequiredVars`), never validated against this list.
+ * Security-auditor review of PR #705 (Issue #684, epic #679) flagged this
+ * as a foundation gap: `scripts/production-preflight.ts`'s new
+ * `APP_ENV=production` blocking-skip rule (a skipped `db:pool:health`
+ * blocks go-live) and its `--acknowledge-target=<APP_ENV value>` mutation
+ * gate both compare against `APP_ENV` verbatim — an unvalidated typo/
+ * casing variant (e.g. `Production`, `prod`) would silently opt an
+ * operator OUT of that production-only safety net without any error
+ * surfaced anywhere, since `--acknowledge-target` would still "match"
+ * whatever wrong value `APP_ENV` happened to hold.
+ */
+const KNOWN_APP_ENV_VALUES = ["development", "staging", "production"] as const;
+
+export function checkAppEnvValue(env: NodeJS.ProcessEnv): EnvCheckResult {
+  const name = "APP_ENV (known value)";
+  const raw = env.APP_ENV;
+
+  if (!isSet(raw)) {
+    return {
+      name,
+      status: "pass",
+      detail: "APP_ENV is not set — covered by the required-vars check above."
+    };
+  }
+
+  const value = (raw as string).trim();
+
+  if ((KNOWN_APP_ENV_VALUES as readonly string[]).includes(value)) {
+    return {
+      name,
+      status: "pass",
+      detail: `APP_ENV="${value}" is a known value.`
+    };
+  }
+
+  return {
+    name,
+    status: "fail",
+    detail: `APP_ENV="${value}" is not one of ${KNOWN_APP_ENV_VALUES.join("/")} — a typo or unexpected casing here would silently weaken production-only safety checks (e.g. scripts/production-preflight.ts's db:pool:health blocking-skip rule).`
+  };
+}
+
 const R2_REQUIRED_WHEN_ENABLED = [
   "R2_ACCOUNT_ID",
   "R2_ACCESS_KEY_ID",
@@ -1058,6 +1103,7 @@ export function runEnvValidation(
 ): EnvCheckResult[] {
   return [
     ...checkRequiredVars(env),
+    checkAppEnvValue(env),
     checkSyncConfig(env),
     ...checkR2Config(env),
     ...checkEmailConfig(env),

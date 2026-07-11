@@ -62,13 +62,14 @@
  *     the wrong `--acknowledge-target` value gets a hard refusal instead
  *     of a silent mutation of the wrong database.
  *   - `--json-output=<path>` (optional, either mode) writes the full
- *     structured `{ go, results, plan, applied }` result to a file — the
+ *     structured `{ go, failedStages, blockingSkips, results, plan, applied }` result to a file — the
  *     "structured machine-readable result" the issue's scope asks for,
  *     without changing the default human-readable stdout output anyone
  *     already depends on.
  */
 import {
   discoverMigrationFiles,
+  redactDatabaseUrl,
   validateAppliedChecksums,
   type AppliedMigration,
   type MigrationFile
@@ -170,7 +171,8 @@ async function checkDatabaseConnectivity(): Promise<StageResult> {
       durationMs: performance.now() - start
     };
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const rawMessage = error instanceof Error ? error.message : String(error);
+    const detail = redactDatabaseUrl(rawMessage, databaseUrl);
     console.log(`FAIL — ${detail}`);
     return {
       name: "db:connectivity",
@@ -261,7 +263,8 @@ async function planMigrations(): Promise<
       plan
     };
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const rawMessage = error instanceof Error ? error.message : String(error);
+    const detail = redactDatabaseUrl(rawMessage, databaseUrl);
     console.log(`FAIL — ${detail}`);
     return {
       name: "migration:plan",
