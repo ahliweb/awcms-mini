@@ -215,7 +215,7 @@ berjalan, bukan target/rencana:
 
 ```bash
 bun install
-bun run check                    # gate lengkap: lint + check:docs + api:spec:check + modules:dag:check + i18n:parity:check + config:docs:check + typecheck + test + build
+bun run check                    # gate lengkap: lint + check:docs + api:spec:check + modules:dag:check + i18n:pot:check + i18n:parity:check + config:docs:check + typecheck + test + build
 bun run dev                      # bun --bun astro dev
 bun run build                    # bun --bun astro build
 bun run preview                  # bun --bun astro preview
@@ -248,7 +248,9 @@ bun run analytics:rollup         # job terjadwal: rollup visitor analytics haria
 bun run analytics:purge          # job terjadwal: purge/anonymisasi visitor analytics kedaluwarsa
 bun run modules:sync             # sinkronisasi descriptor modul ke awcms_mini_modules
 bun run modules:dag:check        # validasi seluruh registry adalah DAG valid (bagian dari `bun run check`)
-bun run i18n:parity:check        # validasi key en.po/id.po/messages.pot sinkron (bagian dari `bun run check`, Issue #685)
+bun run i18n:extract             # generate ulang i18n/messages.pot dari scan t("...") di src/ (mutasi file, TIDAK di `bun run check` — Issue #694)
+bun run i18n:pot:check           # validasi i18n/messages.pot identik dengan hasil i18n:extract (read-only, bagian dari `bun run check`, Issue #694)
+bun run i18n:parity:check        # validasi key + placeholder en.po/id.po/messages.pot sinkron, plus guard msgid_plural belum didukung (bagian dari `bun run check`, Issue #685/#694)
 bun run github:snapshot:refresh  # refresh docs/awcms-mini/github/ dari state GitHub live
 ```
 
