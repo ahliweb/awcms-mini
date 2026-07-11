@@ -1,20 +1,30 @@
 import { escapeHtml } from "../../../lib/html/escape";
 import {
-  renderContentJsonToHtml,
+  renderGalleryBlockHtml,
   type ResolvedGalleryMediaUrls
-} from "../../blog-content/domain/content-block-rendering";
+} from "../../_shared/rendering/gallery-block-renderer";
 
 /**
  * Whitelist-based HTML renderer for editorial homepage sections (Issue
  * #637). Every function here only ever emits text through `escapeHtml` (or
- * delegates to `content-block-rendering.ts`'s already-whitelisted gallery
- * renderer for `gallery_block`) — there is no raw-HTML field on any section
- * `config`, so this renderer cannot emit a `<script>`/`<iframe>`/`<embed>`
- * tag no matter what a section's `config_json` contains. Same "degrade,
- * don't 500" convention as `content-block-rendering.ts`/
+ * delegates to `_shared/rendering/gallery-block-renderer.ts`'s
+ * already-whitelisted gallery renderer for `gallery_block`) — there is no
+ * raw-HTML field on any section `config`, so this renderer cannot emit a
+ * `<script>`/`<iframe>`/`<embed>` tag no matter what a section's
+ * `config_json` contains. Same "degrade, don't 500" convention as
+ * `blog-content/domain/content-block-rendering.ts`/
  * `public-page-rendering.ts`: a section whose curated references have since
  * become unpublished/unverified renders its configured empty state, never
  * a broken link or a thrown error.
+ *
+ * Issue #681 (epic #679) — this file used to call
+ * `blog-content/domain/content-block-rendering.ts`'s
+ * `renderContentJsonToHtml` directly (wrapping media ids in a synthetic
+ * `{blocks: [{type: "gallery", items: [...]}]}` shape purely to reuse its
+ * gallery renderer), a genuine domain-to-domain cross-module import. Now
+ * calls the shared, neutral `renderGalleryBlockHtml` directly — no
+ * synthetic wrapping needed, and no import of `blog-content` anywhere in
+ * this module's `domain`/`application` tree.
  */
 export type HomepageSectionPostCard = {
   title: string;
@@ -79,26 +89,19 @@ ${groups
 </div>`;
 }
 
-/** `gallery_block` — reuses `content-block-rendering.ts`'s already-whitelisted gallery renderer verbatim (same code path a post's own gallery block uses) rather than emitting `<img>` tags independently here, so there is exactly one place in the codebase that decides how a gallery of `mediaObjectId`s becomes HTML. */
+/** `gallery_block` — reuses the shared, neutral gallery renderer verbatim (same code path a post's own gallery block uses) rather than emitting `<img>` tags independently here, so there is exactly one place in the codebase that decides how a gallery of `mediaObjectId`s becomes HTML. */
 export function renderGalleryBlockSectionHtml(
   mediaObjectIds: readonly string[],
   caption: string | null,
   resolvedMediaUrls: ResolvedGalleryMediaUrls,
   emptyMessage: string
 ): string {
-  const html = renderContentJsonToHtml(
-    {
-      blocks: [
-        {
-          type: "gallery",
-          items: mediaObjectIds.map((mediaObjectId) => ({
-            mediaType: "image",
-            mediaObjectId,
-            caption: caption ?? undefined
-          }))
-        }
-      ]
-    },
+  const html = renderGalleryBlockHtml(
+    mediaObjectIds.map((mediaObjectId) => ({
+      mediaType: "image" as const,
+      mediaObjectId,
+      caption: caption ?? undefined
+    })),
     resolvedMediaUrls
   );
 

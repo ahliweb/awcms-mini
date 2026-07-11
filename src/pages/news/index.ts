@@ -18,6 +18,8 @@ import {
   renderPublicPageShell
 } from "../../modules/blog-content/domain/public-page-rendering";
 import { composeHomepageSectionsHtml } from "../../modules/news-portal/application/homepage-section-composer";
+import { publicContentPortAdapter } from "../../modules/blog-content/application/public-content-port-adapter";
+import { newsMediaPortAdapter } from "../../modules/news-portal/application/news-media-port-adapter";
 
 /**
  * `GET /news` (Issue #560, epic #555) — public blog index, tenant-code-free
@@ -59,7 +61,13 @@ export const GET: APIRoute = async ({ request, url }) => {
 
         const composedSections =
           page === 1
-            ? await composeHomepageSectionsHtml(tx, tenant.tenantId, basePath)
+            ? await composeHomepageSectionsHtml(
+                tx,
+                tenant.tenantId,
+                basePath,
+                publicContentPortAdapter,
+                newsMediaPortAdapter
+              )
             : { hasSections: false, html: "" };
 
         const bodyHtml = `<h1>${escapeHtml(tenant.tenantName)} ${escapeHtml(routeSettings.publicLabel)}</h1>

@@ -11,7 +11,7 @@ import {
 import { log } from "../../../lib/logging/logger";
 import { fetchPublicBlogPostBySlug } from "../../../modules/blog-content/application/public-blog-directory";
 import { isLegacyTenantRouteEnabled } from "../../../modules/blog-content/application/public-route-settings";
-import { resolveVerifiedNewsMediaReferences } from "../../../modules/blog-content/application/news-media-reference-gate";
+import { newsMediaPortAdapter } from "../../../modules/news-portal/application/news-media-port-adapter";
 import {
   collectRenderableGalleryMediaObjectIds,
   renderContentJsonToHtml
@@ -75,7 +75,7 @@ export const GET: APIRoute = async ({ params, url }) => {
       const referencedMediaObjectIds = post.featuredMediaId
         ? [post.featuredMediaId, ...galleryMediaObjectIds]
         : galleryMediaObjectIds;
-      const resolvedMedia = await resolveVerifiedNewsMediaReferences(
+      const resolvedMedia = await newsMediaPortAdapter.resolveMediaReferences(
         tx,
         tenant.tenantId,
         referencedMediaObjectIds

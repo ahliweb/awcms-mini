@@ -1,11 +1,8 @@
-import {
-  fetchPublicBlogPostSummariesByIds,
-  fetchPublicTermBySlug,
-  listPublicBlogPosts,
-  listPublicBlogPostsByTermId,
-  type PublicBlogPostSummary
-} from "../../blog-content/application/public-blog-directory";
-import { resolveVerifiedNewsMediaReferences } from "../../blog-content/application/news-media-reference-gate";
+import type {
+  PublicContentPort,
+  PublicContentPostSummaryDTO
+} from "../../_shared/ports/public-content-port";
+import type { NewsMediaPort } from "../../_shared/ports/news-media-port";
 import {
   renderCategoryGridSectionHtml,
   renderGalleryBlockSectionHtml,
@@ -37,11 +34,21 @@ import type {
  * This is the only place in the module that turns a `HomepageSectionView`
  * into rendered HTML; `/news/index.ts` calls only
  * `composeHomepageSectionsHtml`, never the per-type renderers directly.
+ *
+ * Issue #681 (epic #679, platform-hardening) — `contentPort`/`mediaPort`
+ * are caller-injected (`_shared/ports/public-content-port.ts`/
+ * `news-media-port.ts`) rather than this file importing `blog-content`'s
+ * application layer directly (as it did before this issue, for post/term
+ * queries AND for `resolveVerifiedNewsMediaReferences`, which — before
+ * this issue — lived in `blog-content` despite being purely a
+ * `news_portal` media-registry concern). The route handler
+ * (`/news/index.ts`) is the composition root: it imports the concrete
+ * `blog-content`/`news-portal` adapters and passes them in here.
  */
 const EMPTY_MESSAGE = "No content available yet.";
 
 function toPostCard(
-  post: PublicBlogPostSummary,
+  post: PublicContentPostSummaryDTO,
   media: ReadonlyMap<string, { publicUrl: string; altText: string | null }>
 ): HomepageSectionPostCard {
   const resolved = post.featuredMediaId
@@ -60,22 +67,24 @@ function toPostCard(
 async function resolveMediaForPosts(
   tx: Bun.SQL,
   tenantId: string,
-  posts: readonly PublicBlogPostSummary[]
+  posts: readonly PublicContentPostSummaryDTO[],
+  mediaPort: NewsMediaPort
 ) {
   const mediaObjectIds = posts
     .map((post) => post.featuredMediaId)
     .filter((id): id is string => id !== null);
 
-  return resolveVerifiedNewsMediaReferences(tx, tenantId, mediaObjectIds);
+  return mediaPort.resolveMediaReferences(tx, tenantId, mediaObjectIds);
 }
 
 async function renderPostCards(
   tx: Bun.SQL,
   tenantId: string,
   basePath: string,
-  posts: readonly PublicBlogPostSummary[]
+  posts: readonly PublicContentPostSummaryDTO[],
+  mediaPort: NewsMediaPort
 ): Promise<string> {
-  const media = await resolveMediaForPosts(tx, tenantId, posts);
+  const media = await resolveMediaForPosts(tx, tenantId, posts, mediaPort);
   return renderPostCardListHtml(
     basePath,
     posts.map((post) => toPostCard(post, media)),
@@ -87,53 +96,59 @@ async function renderSectionBody(
   tx: Bun.SQL,
   tenantId: string,
   basePath: string,
-  section: HomepageSectionView
+  section: HomepageSectionView,
+  contentPort: PublicContentPort,
+  mediaPort: NewsMediaPort
 ): Promise<string> {
   switch (section.sectionType) {
     case "headline": {
       const config = section.config as HeadlineSectionConfig;
-      const posts = await fetchPublicBlogPostSummariesByIds(tx, tenantId, [
+      const posts = await contentPort.fetchPostSummariesByIds(tx, tenantId, [
         config.postId
       ]);
-      return renderPostCards(tx, tenantId, basePath, posts);
+      return renderPostCards(tx, tenantId, basePath, posts, mediaPort);
     }
 
     case "latest_posts": {
       const config = section.config as LatestPostsSectionConfig;
-      let posts: PublicBlogPostSummary[];
+      let posts: PublicContentPostSummaryDTO[];
 
       if (config.categorySlug) {
-        const term = await fetchPublicTermBySlug(
+        const category = await contentPort.fetchCategoryBySlug(
           tx,
           tenantId,
-          "category",
           config.categorySlug
         );
-        posts = term
+        posts = category
           ? (
-              await listPublicBlogPostsByTermId(tx, tenantId, term.id, {
-                pageSize: config.limit
-              })
-            ).items
+              await contentPort.listPostsByCategoryId(
+                tx,
+                tenantId,
+                category.id,
+                { pageSize: config.limit }
+              )
+            ).items.slice()
           : [];
       } else {
         posts = (
-          await listPublicBlogPosts(tx, tenantId, { pageSize: config.limit })
-        ).items;
+          await contentPort.listPosts(tx, tenantId, {
+            pageSize: config.limit
+          })
+        ).items.slice();
       }
 
-      return renderPostCards(tx, tenantId, basePath, posts);
+      return renderPostCards(tx, tenantId, basePath, posts, mediaPort);
     }
 
     case "featured_posts":
     case "editor_picks": {
       const config = section.config as CuratedPostsSectionConfig;
-      const posts = await fetchPublicBlogPostSummariesByIds(
+      const posts = await contentPort.fetchPostSummariesByIds(
         tx,
         tenantId,
         config.postIds
       );
-      return renderPostCards(tx, tenantId, basePath, posts);
+      return renderPostCards(tx, tenantId, basePath, posts, mediaPort);
     }
 
     case "category_grid": {
@@ -141,27 +156,31 @@ async function renderSectionBody(
       const groups: HomepageSectionCategoryGroup[] = [];
 
       for (const categorySlug of config.categorySlugs) {
-        const term = await fetchPublicTermBySlug(
+        const category = await contentPort.fetchCategoryBySlug(
           tx,
           tenantId,
-          "category",
           categorySlug
         );
 
-        if (!term) {
+        if (!category) {
           continue;
         }
 
         const posts = (
-          await listPublicBlogPostsByTermId(tx, tenantId, term.id, {
+          await contentPort.listPostsByCategoryId(tx, tenantId, category.id, {
             pageSize: config.postsPerCategory
           })
         ).items;
-        const media = await resolveMediaForPosts(tx, tenantId, posts);
+        const media = await resolveMediaForPosts(
+          tx,
+          tenantId,
+          posts,
+          mediaPort
+        );
 
         groups.push({
-          categoryName: term.name,
-          categorySlug: term.slug,
+          categoryName: category.name,
+          categorySlug: category.slug,
           posts: posts.map((post) => toPostCard(post, media))
         });
       }
@@ -171,7 +190,7 @@ async function renderSectionBody(
 
     case "gallery_block": {
       const config = section.config as GalleryBlockSectionConfig;
-      const media = await resolveVerifiedNewsMediaReferences(
+      const media = await mediaPort.resolveMediaReferences(
         tx,
         tenantId,
         config.mediaObjectIds
@@ -202,6 +221,8 @@ export async function composeHomepageSectionsHtml(
   tx: Bun.SQL,
   tenantId: string,
   basePath: string,
+  contentPort: PublicContentPort,
+  mediaPort: NewsMediaPort,
   now: Date = new Date()
 ): Promise<ComposedHomepageSections> {
   const sections = await listActiveHomepageSectionsForRendering(
@@ -217,7 +238,14 @@ export async function composeHomepageSectionsHtml(
   const rendered: RenderedHomepageSection[] = [];
 
   for (const section of sections) {
-    const bodyHtml = await renderSectionBody(tx, tenantId, basePath, section);
+    const bodyHtml = await renderSectionBody(
+      tx,
+      tenantId,
+      basePath,
+      section,
+      contentPort,
+      mediaPort
+    );
     rendered.push({
       sectionKey: section.sectionKey,
       sectionType: section.sectionType,

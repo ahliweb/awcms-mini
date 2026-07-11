@@ -16,6 +16,7 @@ import {
   updateHomepageSection
 } from "../../../../../modules/news-portal/application/homepage-section-directory";
 import { validateHomepageSectionReferences } from "../../../../../modules/news-portal/application/homepage-section-reference-validation";
+import { publicContentPortAdapter } from "../../../../../modules/blog-content/application/public-content-port-adapter";
 import { validateUpdateHomepageSectionInput } from "../../../../../modules/news-portal/domain/homepage-section-policy";
 import { validateDeleteReasonInput } from "../../../../../modules/blog-content/domain/content-validation";
 
@@ -93,7 +94,8 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
         tx,
         tenantId,
         existing.sectionType,
-        input.config
+        input.config,
+        publicContentPortAdapter
       );
 
       if (!referenceValidation.valid) {

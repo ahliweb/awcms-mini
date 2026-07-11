@@ -81,6 +81,42 @@ export type ModuleCompatibilityContract = {
   minAppVersion?: string;
 };
 
+/**
+ * One capability this module's application/domain code consumes from
+ * ANOTHER module, via a port (Issue #681, epic #679 platform-hardening) —
+ * `_shared/ports/*.ts` defines the actual TypeScript interface;
+ * `providedBy` names the module whose adapter (`<module>/application/
+ * *-port-adapter.ts`) implements it, wired at the composition root (route
+ * handlers), never a direct cross-module import inside `application`/
+ * `domain`. Deliberately separate from `dependencies` above, which governs
+ * enable/disable LIFECYCLE ORDERING only and is checked by
+ * `domain/tenant-module-lifecycle.ts` — `capabilities` is documentation of
+ * a SOURCE-LEVEL relationship (enforced by the structural boundary test,
+ * `tests/unit/module-boundary.test.ts`), not a lifecycle constraint; a
+ * module can consume another's capability while still declaring `[]`
+ * `dependencies` on it (exactly the case for `blog_content`/`news_portal`
+ * — see both modules' own `module.ts` for why a hard `dependencies` edge
+ * between them was rejected back in Issue #632).
+ *
+ * `optional: true` means the CONSUMING module's own feature degrades
+ * safely (documented per call site) when the capability resolves to "not
+ * applicable" for a given tenant/request — not "the code can run without
+ * the other module's source present" (this is a monolith; all modules'
+ * code always ships together, only per-tenant DB-backed enable state
+ * varies).
+ */
+export type ModuleCapabilityDependency = {
+  capability: string;
+  providedBy: string;
+  optional?: boolean;
+};
+
+export type ModuleCapabilityContract = {
+  /** Capability names THIS module provides an adapter for (matches a port defined in `_shared/ports/`), for other modules to declare in their own `consumes`. */
+  provides?: string[];
+  consumes?: ModuleCapabilityDependency[];
+};
+
 export type ModuleDescriptor = {
   key: string;
   name: string;
@@ -98,6 +134,7 @@ export type ModuleDescriptor = {
   jobs?: ModuleJobDescriptor[];
   health?: ModuleHealthContract;
   compatibility?: ModuleCompatibilityContract;
+  capabilities?: ModuleCapabilityContract;
   maintainers?: string[];
 };
 

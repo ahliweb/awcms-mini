@@ -22,6 +22,7 @@ import {
 } from "../../../../../modules/blog-content/application/blog-page-directory";
 import { createBlogRevision } from "../../../../../modules/blog-content/application/blog-revision-directory";
 import { validateNewsMediaReferencesForFullOnlineR2Mode } from "../../../../../modules/blog-content/application/news-media-reference-gate";
+import { newsMediaPortAdapter } from "../../../../../modules/news-portal/application/news-media-port-adapter";
 import {
   validateSoftDeleteBlogPageInput,
   validateUpdateBlogPageInput
@@ -210,10 +211,15 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
     }
 
     const mediaReferenceValidation =
-      await validateNewsMediaReferencesForFullOnlineR2Mode(tx, tenantId, {
-        featuredMediaId: input.featuredMediaId,
-        contentJson: input.contentJson
-      });
+      await validateNewsMediaReferencesForFullOnlineR2Mode(
+        tx,
+        tenantId,
+        {
+          featuredMediaId: input.featuredMediaId,
+          contentJson: input.contentJson
+        },
+        newsMediaPortAdapter
+      );
 
     if (!mediaReferenceValidation.valid) {
       return fail(
