@@ -10,18 +10,29 @@
 # undesirable: slower cold start, and the image should be immutable once
 # built rather than re-installing/rebuilding from a live bind mount.
 #
-# Bun-only (AGENTS.md rule 14): base image is `oven/bun:1`, never `node`.
+# Bun-only (AGENTS.md rule 14): base image is `oven/bun:1.3.14` (pinned —
+# Issue #682, epic #679, platform-hardening; was the floating `oven/bun:1`
+# tag), never `node`. Bump this version deliberately (all 4 `FROM` lines
+# below, plus `docker-compose.yml`'s `app`/`migrate` services) rather than
+# silently drifting onto whatever `:1` resolves to on a given build day.
 #
 # Usage:
 #   docker build -f Dockerfile.production -t awcms-mini:prod .
 #   docker run -d --name awcms-mini \
 #     -p 4321:4321 \
+#     --cap-drop=ALL --security-opt=no-new-privileges:true \
 #     -e DATABASE_URL=postgres://awcms_mini_app:<password>@<db-host>:5432/awcms-mini \
 #     -e AUTH_JWT_SECRET=<secret> \
 #     -e AUTH_COOKIE_SECURE=true \
 #     -e APP_ENV=production \
 #     awcms-mini:prod
 #   curl http://localhost:4321/api/v1/health
+#
+# `--cap-drop=ALL` (Issue #682) is safe here — live-verified against
+# `docker-compose.yml`'s equivalent `app`/`migrate` services: neither
+# installing dependencies, building, nor running the built server needs
+# any Linux capability. No `--cap-add` needed (unlike a Postgres
+# container, which needs a handful for its own entrypoint).
 #
 # Secrets (DATABASE_URL, AUTH_JWT_SECRET, AWCMS_MINI_SYNC_HMAC_SECRET, R2
 # credentials, etc.) are supplied at `docker run`/orchestrator level
@@ -36,12 +47,12 @@
 # privileged DATABASE_URL, or plain `bun run db:migrate` from a checkout)
 # before starting this container against a fresh database.
 
-FROM oven/bun:1 AS deps
+FROM oven/bun:1.3.14 AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
-FROM oven/bun:1 AS build
+FROM oven/bun:1.3.14 AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -50,12 +61,12 @@ RUN bun run build
 # Fresh production-only install — keeps devDependencies (typescript,
 # prettier, changesets, etc.) out of the final image entirely, rather than
 # copying the `deps` stage's full node_modules forward.
-FROM oven/bun:1 AS prod-deps
+FROM oven/bun:1.3.14 AS prod-deps
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
 
-FROM oven/bun:1 AS runtime
+FROM oven/bun:1.3.14 AS runtime
 WORKDIR /app
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
@@ -67,5 +78,10 @@ USER bun
 
 EXPOSE 4321
 ENV HOST=0.0.0.0 PORT=4321
+
+# No curl/wget in this debian-based image — Bun's own fetch works fine
+# (same pattern as docker-compose.yml's `app` service healthcheck).
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
+  CMD ["bun", "-e", "fetch('http://localhost:4321/api/v1/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 
 CMD ["bun", "./dist/server/entry.mjs"]

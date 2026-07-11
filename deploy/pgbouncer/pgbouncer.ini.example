@@ -22,6 +22,24 @@
 ; docs/awcms-mini/database-pooling.md §1), which are unsafe under PgBouncer
 ; transaction mode because a prepared statement can be reused on a
 ; different backend connection between transactions.
+;
+; auth_type = scram-sha-256 (Issue #682, epic #679, platform-hardening —
+; was `md5`). Matches PostgreSQL 18's own default password hashing
+; (`password_encryption = scram-sha-256`), so a role created with a plain
+; `CREATE ROLE ... PASSWORD '...'` on this repo's Postgres already has a
+; SCRAM verifier stored server-side — no extra step there. `userlist.txt`
+; needs that verifier string, not the plaintext password:
+;
+;   psql -tAc "SELECT rolpassword FROM pg_authid WHERE rolname = 'awcms_mini_app'" \
+;     | xargs -I{} echo '"awcms_mini_app" "{}"' >> /etc/pgbouncer/userlist.txt
+;
+; (repeat per role you route through this PgBouncer — e.g.
+; `awcms_mini_worker`/`awcms_mini_setup` from sql/045 if those connect via
+; PgBouncer too). `pg_authid` is superuser-only to read — run this as the
+; same privileged role `bun run db:migrate` already uses, never as the
+; least-privilege app role. `userlist.txt` itself is a secret (never
+; committed) — see docker-compose.yml's pgbouncer service comment for how
+; it's mounted in the Compose profile.
 
 [databases]
 awcms-mini = host=127.0.0.1 port=5432 dbname=awcms-mini
@@ -29,7 +47,8 @@ awcms-mini = host=127.0.0.1 port=5432 dbname=awcms-mini
 [pgbouncer]
 listen_addr = 0.0.0.0
 listen_port = 6432
-auth_type = md5
+auth_type = scram-sha-256
+auth_file = /etc/pgbouncer/userlist.txt
 pool_mode = transaction
 ; max_client_conn menampung banyak koneksi pendek dari edge/serverless;
 ; default_pool_size selaras dengan DATABASE_POOL_MAX aplikasi ini.

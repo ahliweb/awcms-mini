@@ -15,6 +15,7 @@ flowchart TD
   A{Topologi target?} -->|LAN-first satu server,\noperator git pull in-place| B[docker-compose.yml]
   A -->|Registry/CI-push,\norkestrator container| C[Dockerfile.production]
   C --> D{Orkestrator?}
+  D -->|Docker Compose langsung| G[docker-compose.prod.yml]
   D -->|Coolify| E[deploy-coolify.md]
   D -->|k8s/ECS/lain| F[Adaptasi pola Dockerfile.production yang sama]
 ```
@@ -22,7 +23,24 @@ flowchart TD
 `docker-compose.yml` tetap jalur yang **direkomendasikan** untuk
 LAN-first/offline satu server — jangan beralih ke `Dockerfile.production`
 kecuali orkestrator memang mengharapkan image siap-pakai (build-saat-startup
-tidak diinginkan).
+tidak diinginkan). Untuk registry-based via Compose (bukan Coolify/k8s),
+pakai `docker-compose.prod.yml` (Issue #682) — standalone, bukan override
+`docker-compose.yml`.
+
+**Container hardening (Issue #682, berlaku di kedua compose file)**:
+`db`/`pgbouncer` tidak publish port host secara default (salin
+`docker-compose.override.yml.example` untuk akses lokal opsional);
+`cap_drop: [ALL]` di semua service (`db` dapat `cap_add` minimal untuk
+entrypoint-nya sendiri); image Bun/Postgres/PgBouncer dipin ke versi
+eksplisit, bukan tag mengambang; healthcheck di setiap service;
+`docker-compose.prod.yml`'s `app` jalan `read_only: true` (image
+registry-based tidak pernah menulis ke filesystem-nya sendiri saat
+runtime). PgBouncer's `deploy/pgbouncer/pgbouncer.ini.example` memakai
+`auth_type = scram-sha-256` (bukan `md5`) — lihat berkas itu untuk
+perintah generate `userlist.txt` dari `pg_authid`. CI
+(`.github/workflows/ci.yml`) menjalankan `docker compose config -q` untuk
+kedua compose file di setiap PR — jangan biarkan salah satu file punya
+syntax error/env var yang tidak resolve sampai lolos ke deploy.
 
 ## Command inti (semua profil)
 

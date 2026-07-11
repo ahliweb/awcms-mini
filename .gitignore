@@ -6,6 +6,11 @@ node_modules/
 .env.*
 !.env.example
 
+# Local dev-only Docker Compose overrides (Issue #682) — auto-loaded by
+# `docker compose`, never committed (each operator's own local port/volume
+# preferences, not shared config). See docker-compose.override.yml.example.
+docker-compose.override.yml
+
 # Build output
 dist/
 .astro/

@@ -326,10 +326,10 @@ langsung di `http://<ip-server-lan>:4321`.
 ### staging / production / offline-LAN — container (docker-compose.yml)
 
 `docker-compose.yml` di root repo menjalankan stack LAN-first default:
-`app` (image `oven/bun:1` — bukan `node`, sesuai doc 18 §Runtime & tooling)
-dan `db` (`postgres:18.4`). PgBouncer tersedia sebagai service opsional
-`pgbouncer`, digerbangi Compose `profiles` sehingga tidak pernah otomatis
-aktif:
+`app` (image `oven/bun:1.3.14` — pinned, Issue #682, bukan `node`, sesuai
+doc 18 §Runtime & tooling) dan `db` (`postgres:18.4`). PgBouncer tersedia
+sebagai service opsional `pgbouncer`, digerbangi Compose `profiles`
+sehingga tidak pernah otomatis aktif:
 
 ```bash
 cp .env.example .env
@@ -338,6 +338,23 @@ docker compose up --build           # app + db saja
 docker compose --profile pgbouncer up   # ikutkan pgbouncer opsional
 curl http://localhost:4321/api/v1/health
 ```
+
+**Container hardening (Issue #682)**: `db` dan `pgbouncer` tidak lagi
+mempublikasikan port host secara default — hanya `app`'s `4321:4321`
+tetap terbuka (satu-satunya kebutuhan topologi yang nyata). Untuk akses
+`psql`/GUI client lokal dari host, salin
+`docker-compose.override.yml.example` ke `docker-compose.override.yml`
+(auto-loaded, sudah di-`.gitignore`) — mengikat kedua port ke
+`127.0.0.1` saja. Semua service (`db`/`migrate`/`app`/`pgbouncer`) juga
+menjalankan `cap_drop: [ALL]` (plus `cap_add` minimal untuk `db`'s
+entrypoint sendiri: `CHOWN`/`FOWNER`/`SETUID`/`SETGID`/`DAC_OVERRIDE`,
+live-verified sebagai set minimum yang dibutuhkan `postgres:18.4`),
+`security_opt: no-new-privileges:true`, healthcheck, dan starting-point
+`deploy.resources.limits` (disesuaikan per hardware operator, bukan
+kebutuhan keras aplikasi). PgBouncer's `pgbouncer.ini.example` memakai
+`auth_type = scram-sha-256` (bukan `md5`) — lihat
+`deploy/pgbouncer/pgbouncer.ini.example`'s header comment untuk perintah
+`userlist.txt` generation dari `pg_authid`.
 
 `export APP_UID/APP_GID` wajib — tanpanya, `app` berjalan sebagai root di
 dalam container dan `bun install`/`bun run build` menulis berkas
@@ -361,34 +378,60 @@ sebagai peran least-privilege — jadi `docker compose up` mengurut sendiri:
 `db` init membuat peran → `migrate` menerapkan skema + FORCE RLS + grant →
 `app` mulai.
 
-### production (online) — image registry (`Dockerfile.production`, opsional)
+### production (online) — image registry (`Dockerfile.production` + `docker-compose.prod.yml`, opsional)
 
 `docker-compose.yml` di atas **tetap jadi jalur yang direkomendasikan**
 untuk topologi LAN-first satu-server (bind-mount + `bun install && bun run
 build` saat container start — praktis untuk operator yang `git
 pull`/rebuild in-place, lihat komentar header berkas itu). `Dockerfile.production`
-adalah jalur **opsional lain**, untuk deployment berbasis image registry
-(build sekali di CI, push image, pull+run identik di tiap environment) —
-dipakai saat build-saat-startup tidak diinginkan (cold start lebih lambat,
-image ingin immutable) atau saat orkestrator (Coolify, k8s, ECS, dsb.)
-mengharapkan image siap-pakai, bukan bind-mount sumber.
+(dipakai lewat `docker-compose.prod.yml` — Issue #682 — atau `docker
+build`/`docker run` manual) adalah jalur **opsional lain**, untuk
+deployment berbasis image registry (build sekali di CI, push image,
+pull+run identik di tiap environment) — dipakai saat build-saat-startup
+tidak diinginkan (cold start lebih lambat, image ingin immutable) atau
+saat orkestrator (Coolify, k8s, ECS, dsb.) mengharapkan image siap-pakai,
+bukan bind-mount sumber.
 
 Perbedaan kunci vs `docker-compose.yml`'s `app` service:
 
-| Aspek       | `docker-compose.yml` (`app`)                                | `Dockerfile.production`                                                    |
-| ----------- | ----------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Sumber kode | Bind-mount repo langsung (`volumes: - .:/app`)              | `COPY` ke dalam image saat build — immutable setelah dibuat                |
-| Build       | Saat container start (`bun install && bun run build`)       | Saat `docker build` (multi-stage) — start container jadi instan            |
-| User        | Host user (`APP_UID`/`APP_GID`) — perlu bind-mount writable | User bawaan image `oven/bun:1`, `bun` (non-root, uid 1000)                 |
-| Migration   | Service `migrate` terpisah dalam compose yang sama          | Tidak disertakan — jalankan `bun run db:migrate` terpisah (lihat di bawah) |
-| Cocok untuk | LAN-first satu server, operator `git pull` in-place         | Registry/CI-push, orkestrator container (Coolify/k8s/ECS)                  |
+| Aspek       | `docker-compose.yml` (`app`)                                | `docker-compose.prod.yml` (`app`) / `Dockerfile.production`                            |
+| ----------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Sumber kode | Bind-mount repo langsung (`volumes: - .:/app`)              | `COPY` ke dalam image saat build — immutable setelah dibuat                            |
+| Build       | Saat container start (`bun install && bun run build`)       | Saat `docker build` (multi-stage) — start container jadi instan                        |
+| User        | Host user (`APP_UID`/`APP_GID`) — perlu bind-mount writable | User bawaan image `oven/bun:1.3.14`, `bun` (non-root, uid 1000)                        |
+| Filesystem  | Writable (bind mount + install/build di dalamnya)           | `read_only: true` + `tmpfs: [/tmp]` — live-verified aman, tidak ada tulis runtime lain |
+| Migration   | Service `migrate` terpisah dalam compose yang sama          | Tidak disertakan — jalankan `bun run db:migrate` terpisah (lihat di bawah)             |
+| Cocok untuk | LAN-first satu server, operator `git pull` in-place         | Registry/CI-push, orkestrator container (Coolify/k8s/ECS)                              |
 
-Build dan jalankan:
+Dua cara menjalankan image ini — pilih salah satu:
+
+**1. `docker-compose.prod.yml` (disarankan, Issue #682)** — stack
+standalone (bukan override `docker-compose.yml`) yang membangun `app`
+dari `Dockerfile.production` dan menjalankan `db` dengan hardening yang
+sama seperti `docker-compose.yml`'s `db`:
+
+```bash
+cp .env.example .env
+bun run db:migrate   # atau docker run sekali pakai, lihat di bawah — jalankan SEBELUM app start
+docker compose -f docker-compose.prod.yml up -d --build
+curl http://localhost:4321/api/v1/health
+```
+
+`app` di sini berjalan `read_only: true` (`tmpfs: [/tmp]`) — live-verified
+aman karena image ini tidak pernah menulis ke filesystem-nya sendiri saat
+runtime (tidak ada bind-mount install/build seperti `docker-compose.yml`).
+Untuk deploy dari image yang sudah di-push ke registry (bukan build
+lokal), ganti blok `build:` pada `app` di `docker-compose.prod.yml`
+dengan `image: <registry>/awcms-mini:<tag>` langsung.
+
+**2. `docker build`/`docker run` manual** — untuk orkestrator yang tidak
+memakai Compose (Coolify, k8s, ECS, dst., lihat [`deploy-coolify.md`](deploy-coolify.md)):
 
 ```bash
 docker build -f Dockerfile.production -t awcms-mini:prod .
 docker run -d --name awcms-mini \
   -p 4321:4321 \
+  --cap-drop=ALL --security-opt=no-new-privileges:true \
   -e DATABASE_URL=postgres://awcms_mini_app:<password>@<db-host>:5432/awcms-mini \
   -e AUTH_JWT_SECRET=<secret> \
   -e AUTH_COOKIE_SECURE=true \
@@ -397,11 +440,23 @@ docker run -d --name awcms-mini \
 curl http://localhost:4321/api/v1/health
 ```
 
+`--cap-drop=ALL --security-opt=no-new-privileges:true` (Issue #682) —
+live-verified safe, no `--cap-add` needed for the running app.
+
 Secret (`DATABASE_URL`, `AUTH_JWT_SECRET`, HMAC sync, kredensial R2, dst.)
 **selalu** disuntikkan saat `docker run`/lewat orkestrator (env var, secret
 store, atau `--env-file`) — **tidak pernah** dibakar ke dalam image.
 `.dockerignore` mengecualikan `.env`/`.env.*` dari build context sehingga
-`.env` lokal operator tidak mungkin ikut ter-cache di satu layer.
+`.env` lokal operator tidak mungkin ikut ter-cache di satu layer. Untuk
+orkestrator yang mendukung file secret (Docker Swarm secrets, Kubernetes
+Secrets sebagai volume mount, dsb.), pola `_FILE` suffix (baca path dari
+`AUTH_JWT_SECRET_FILE` alih-alih nilai plaintext `AUTH_JWT_SECRET`) adalah
+alternatif standar industri — **belum diimplementasikan di kode aplikasi
+ini** (`src/lib/config` membaca env var biasa, bukan `_FILE` variants);
+operator yang butuh ini hari ini bisa mem-bridge di level orkestrator
+(mis. entrypoint script yang membaca file secret lalu `export`
+env var biasa sebelum `exec bun ...`) tanpa mengubah image. Lihat
+§Secrets via deployment references di bawah untuk detail.
 
 Image ini **tidak** menjalankan migration — peran runtime-nya
 (`awcms_mini_app`, least-privilege) tidak punya hak DDL/GRANT yang
@@ -409,6 +464,78 @@ migration butuhkan (model dua-peran di bawah). Jalankan `bun run
 db:migrate` sebagai langkah terpisah (job CI, atau `docker run` sekali
 pakai dengan `DATABASE_URL` privileged) terhadap database baru sebelum
 container ini pertama kali dijalankan.
+
+## TLS/trust boundaries (Issue #682)
+
+Aplikasi ini **tidak pernah** melakukan terminasi TLS sendiri (tidak ada
+kode HTTPS listener) — di setiap topologi, TLS (bila ada) adalah
+tanggung jawab lapisan **di depan** aplikasi:
+
+| Topologi                                                                            | Di mana TLS berhenti                                                                                                   | Trust boundary                                                                                                                                                                                 |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **offline/LAN**                                                                     | Tidak ada TLS — `http://` langsung ke port 4321                                                                        | Batas kepercayaan = jaringan LAN itu sendiri (fisik/WiFi tepercaya); tidak ada eksposur internet, doc 07 "PostgreSQL tidak public" berlaku sama untuk app port ini                             |
+| **production (online), bare-metal**                                                 | `deploy/nginx/awcms-mini.conf.example` (reverse proxy TLS termination)                                                 | Publik ↔ nginx = batas TLS; nginx ↔ app (`localhost:4321`) = plaintext HTTP di **dalam** mesin yang sama, tidak melewati jaringan                                                              |
+| **production (online), container (`docker-compose.yml`/`docker-compose.prod.yml`)** | Reverse proxy di **luar** compose stack (nginx/Caddy/Coolify's built-in proxy) — compose sendiri tidak menyediakan TLS | Publik ↔ reverse proxy = batas TLS; reverse proxy ↔ `app` container = plaintext HTTP dalam Docker network bawaan compose (nama proyek + `_default`), tidak pernah exposed ke internet langsung |
+| **PostgreSQL (`db`)/PgBouncer**                                                     | Tidak ada TLS by default (`sslmode` tidak dipaksa) — koneksi Postgres dalam Docker network internal                    | Trust boundary = Docker network compose itu sendiri (Issue #682: `db`/`pgbouncer` tidak publish port host, jadi tidak reachable dari luar mesin sama sekali)                                   |
+
+Implikasi operasional:
+
+- **Jangan pernah** expose `app`'s port 4321 langsung ke internet publik
+  tanpa reverse proxy TLS di depannya — `AUTH_COOKIE_SECURE=true` (wajib
+  untuk profil online, lihat `.env.example`) mengasumsikan klien browser
+  benar-benar bicara HTTPS ke suatu titik; tanpa TLS termination, cookie
+  secure dikirim lewat kanal plaintext, membatalkan proteksinya.
+- `PUBLIC_TRUST_PROXY`/`VISITOR_ANALYTICS_TRUST_PROXY` (lihat §Profil
+  online dan §Visitor analytics di atas) HANYA aman di-set `true` tepat
+  pada topologi baris "production (online)" di tabel ini — reverse proxy
+  TLS yang menimpa (bukan menambahkan) `X-Forwarded-*` adalah prasyarat,
+  bukan opsional.
+- Koneksi `app`↔`db`/`pgbouncer` plaintext-dalam-Docker-network diterima
+  sebagai batas kepercayaan yang memadai **karena** #682 memastikan
+  jaringan itu tidak pernah reachable dari luar mesin (tidak ada host
+  port publish default) — bila operator menjalankan `db` di mesin
+  terpisah dari `app` (topologi multi-server, di luar cakupan
+  `docker-compose.yml`/`docker-compose.prod.yml` bawaan), TLS Postgres
+  (`sslmode=require` pada `DATABASE_URL` + sertifikat server Postgres)
+  menjadi tanggung jawab operator — tidak disediakan otomatis oleh
+  compose file mana pun di repo ini.
+
+## Secrets via deployment references (Issue #682)
+
+Konvensi default repo ini (doc 10/18 "secret hanya dari environment"):
+env var langsung (`${VAR:-default}` substitution di compose,
+`environment:`/`env_file:` di container, atau variabel shell/systemd
+`EnvironmentFile=` di bare-metal) — **tidak pernah** hardcode ke file
+yang di-commit. Ini tetap jalur yang didukung penuh dan direkomendasikan
+untuk topologi LAN-first/single-server di repo ini.
+
+Untuk orkestrator yang menyediakan mekanisme secret-at-rest terenkripsi
+sendiri (Docker Swarm `secrets:`, Kubernetes `Secret` sebagai volume
+mount, Coolify's secret manager, HashiCorp Vault, dsb.), env var biasa
+tetap bisa dipakai — orkestrator-orkestrator ini pada praktiknya
+menyuntikkan secret **sebagai** env var runtime (bukan file) ke
+container, jadi tidak ada perubahan yang dibutuhkan pada sisi aplikasi.
+Untuk orkestrator yang secara spesifik mewajibkan pola **file-based**
+(mis. Docker Swarm secrets di-mount sebagai file di
+`/run/secrets/<name>`, bukan env var) — aplikasi ini **belum**
+mengimplementasikan pembacaan `_FILE`-suffixed env var (`AUTH_JWT_SECRET_FILE`,
+dsb.) secara native. Operator pada topologi ini punya dua opsi:
+
+1. **Bridge di entrypoint** (disarankan, tidak perlu ubah image/kode
+   aplikasi): tulis skrip entrypoint kecil yang membaca file secret dari
+   `/run/secrets/*`, `export` sebagai env var biasa, lalu `exec` command
+   aslinya — dijalankan sebagai override `command:`/`entrypoint:` di
+   level orkestrator, bukan dibakar ke `Dockerfile.production`.
+2. **Env var langsung dari secret store orkestrator** (paling sederhana
+   bila orkestratornya mendukung, mis. Coolify/k8s `Secret` sebagai env
+   var, bukan volume) — tidak butuh perubahan apa pun.
+
+Tidak ada rencana menambah `_FILE` variant generik untuk semua secret di
+kode aplikasi kecuali ada kebutuhan orkestrator konkret yang tidak bisa
+dipenuhi kedua opsi di atas — menghindari permukaan konfigurasi ganda
+(env var biasa DAN `_FILE` variant untuk setiap secret) yang harus
+dijaga tetap konsisten tanpa manfaat nyata untuk topologi yang benar-benar
+dipakai repo ini hari ini.
 
 ## Model dua-peran basis data (RLS enforcement)
 
@@ -620,3 +747,9 @@ profil non-development, termasuk offline/LAN (doc 18: "backup lokal").
 - [`news-portal/full-online-r2-architecture.md`](news-portal/full-online-r2-architecture.md)
   — arsitektur full-online R2-only media berita, SOP upload, security
   checklist, incident response, backup/lifecycle, dan panduan editor.
+- `docker-compose.prod.yml` (Issue #682) — topologi registry-based/
+  immutable-image alternatif, header berkas menjelaskan penggunaan
+  lengkap dan perbedaannya dari `docker-compose.yml`.
+- `docker-compose.override.yml.example` (Issue #682) — pola host-port
+  opt-in untuk akses `psql`/GUI client lokal (dev-only, tidak pernah
+  dipakai di produksi).
