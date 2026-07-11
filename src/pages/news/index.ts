@@ -17,6 +17,7 @@ import {
   renderPostSummaryListHtmlAtBasePath,
   renderPublicPageShell
 } from "../../modules/blog-content/domain/public-page-rendering";
+import { composeHomepageSectionsHtml } from "../../modules/news-portal/application/homepage-section-composer";
 
 /**
  * `GET /news` (Issue #560, epic #555) — public blog index, tenant-code-free
@@ -29,6 +30,15 @@ import {
  * disabled gate that function also enforces (an explicit Issue #560
  * acceptance criterion that does not exist yet for the legacy route — see
  * `src/modules/blog-content/README.md` §Rute publik `/news`).
+ *
+ * Issue #637 — the editorial homepage section composer renders ABOVE the
+ * plain chronological listing, page 1 only (sections are a curated
+ * "front page", pagination past page 1 is just the chronological archive
+ * — mixing the two there would be confusing). A tenant that has never
+ * configured any section (`composeHomepageSectionsHtml`'s
+ * `hasSections: false`, the overwhelming majority today) sees byte-for-byte
+ * the same page as before this issue — purely additive, never a
+ * replacement for the plain list.
  */
 export const GET: APIRoute = async ({ request, url }) => {
   try {
@@ -47,7 +57,13 @@ export const GET: APIRoute = async ({ request, url }) => {
         });
         const basePath = routeSettings.publicBasePath;
 
+        const composedSections =
+          page === 1
+            ? await composeHomepageSectionsHtml(tx, tenant.tenantId, basePath)
+            : { hasSections: false, html: "" };
+
         const bodyHtml = `<h1>${escapeHtml(tenant.tenantName)} ${escapeHtml(routeSettings.publicLabel)}</h1>
+${composedSections.hasSections ? composedSections.html : ""}
 <div class="posts">${renderPostSummaryListHtmlAtBasePath(basePath, posts.items, "No posts yet.")}</div>
 ${renderPaginationNavHtml(page, posts.hasNextPage, basePath)}`;
 

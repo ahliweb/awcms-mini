@@ -42,7 +42,7 @@ status + pointer, bukan menduplikasi isinya.
 | #634  | Direct-to-R2 presigned upload flow (endpoint upload/confirm)                                                                 | **Selesai** — lihat §634 di bawah                    |
 | #635  | Config validation + readiness checks (`config:validate`/`security:readiness`/`production:preflight`) untuk R2 image delivery | **Selesai** — lihat §635 di bawah                    |
 | #636  | `blog_content` wajib referensi R2 media object untuk gambar berita saat mode aktif                                           | **Selesai** — lihat §636 di bawah                    |
-| #637  | Editorial homepage section composer `/news` dengan render R2-only                                                            | Belum dikerjakan — lihat §637 di bawah               |
+| #637  | Editorial homepage section composer `/news` dengan render R2-only                                                            | **Selesai** — lihat §637 di bawah                    |
 | #638  | Preset placement iklan news portal dengan validasi gambar R2-only                                                            | Belum dikerjakan — lihat §638 di bawah               |
 | #639  | Content block `video_news` dengan thumbnail R2 wajib                                                                         | Belum dikerjakan — lihat §639 di bawah               |
 | #640  | Content quality checklist publishing dengan syarat gambar R2                                                                 | Belum dikerjakan — lihat §640 di bawah               |
@@ -1178,21 +1178,149 @@ keempat route handler asli sudah mencakup semua jalur tulis yang ada.
   `AdminLayout.astro`'s pattern) — tapi tidak ada UI picker baru yang
   dibangun issue ini.
 
-## §637-#640, #642, #649 — konsumsi media registry (belum dikerjakan)
+## §637 — Editorial homepage section composer (Selesai)
+
+Implementasi lengkap: migration `044_awcms_mini_news_portal_homepage_sections_schema.sql`
+(tabel `awcms_mini_news_portal_homepage_sections`, RLS ENABLE+FORCE, sama
+idiom `awcms_mini_blog_ads`), domain `news-portal/domain/homepage-section-policy.ts`
+(whitelist enam `sectionType` + validator `config_json` per tipe, diskriminasi
+ketat), application `news-portal/application/homepage-section-directory.ts`
+(CRUD tenant-scoped), `homepage-section-reference-validation.ts` (existence/
+ownership check untuk setiap id/slug di `config`), `homepage-section-composer.ts`
+(orkestrasi render-time: resolve referensi live lalu panggil renderer),
+domain `homepage-section-rendering.ts` (renderer whitelist murni), endpoint
+admin `POST/GET /api/v1/news-portal/homepage-sections`,
+`PATCH/DELETE .../{id}`, admin UI `admin/news-portal/homepage-sections.astro`,
+dan wiring publik di `src/pages/news/index.ts` (halaman 1 saja).
+
+### Rekonsiliasi — enam `sectionType` diimplementasikan, EMPAT dari daftar "such as" issue TIDAK
+
+Body issue #637 menyarankan sepuluh tipe section
+(`headline, latest_posts, featured_posts, editor_picks, category_grid,
+video_block, gallery_block, ad_slot, static_page_block, custom_widget_block`)
+sebagai contoh ("such as"), BUKAN acceptance criteria wajib berbentuk daftar
+tertutup. Diimplementasikan: `headline`, `latest_posts`, `featured_posts`,
+`editor_picks`, `category_grid`, `gallery_block` — enam tipe yang SEMUANYA
+bisa dipenuhi acceptance criteria "setiap gambar yang dirender section wajib
+dari objek R2 media terverifikasi" memakai infrastruktur yang SUDAH ADA
+(post `featured_media_id`, sudah R2-gated sejak #636; registry media #633).
+EMPAT tipe berikut **sengaja tidak diimplementasikan issue ini**, didokumentasikan
+di migration 044's header comment:
+
+- **`video_block`** — butuh Issue #639 (content block `video_news` dengan
+  thumbnail R2 wajib) yang BELUM ada. Membangunnya sekarang berarti
+  "membangun ke depan sebelum dependency siap" — pola kesalahan yang epic
+  ini berulang kali diperingatkan hindari (lihat §635's catatan soal deteksi
+  orphan).
+- **`ad_slot`** — butuh Issue #638 (preset placement iklan R2-only) yang
+  BELUM ada. `awcms_mini_blog_ads`'s `image_url` HARI INI masih URL bebas
+  (lihat `blog-content` README §Ads) — merender iklan lewat homepage
+  composer sekarang akan MELANGGAR acceptance criteria issue ini sendiri
+  ("semua gambar section wajib R2 terverifikasi").
+- **`custom_widget_block`** — **eksplisit di luar cakupan** per body issue
+  sendiri ("Arbitrary HTML widgets" ada di §Out of scope).
+- **`static_page_block`** — dipertimbangkan lalu di-drop: TIDAK ADA route
+  publik yang me-render `awcms_mini_blog_pages` sama sekali di repo ini
+  hari ini (hanya `blog-page-directory.ts` sisi admin) — membangun rute
+  publik page-detail baru bukan efek samping issue homepage composer,
+  itu keputusan terpisah.
+
+Implementor #638/#639 yang akhirnya membangun dependency di atas **wajib**
+menambah `sectionType` baru ke whitelist (`homepage-section-policy.ts`,
+migration `CHECK` constraint-nya, OpenAPI enum) — bukan mengubah tipe yang
+sudah ada.
+
+### Reference validation — TANPA GERBANG mode R2-only, berbeda dari #636
+
+`homepage-section-reference-validation.ts` memvalidasi SETIAP referensi
+(`postId`/`postIds`/`categorySlugs`/`mediaObjectIds`) SETIAP KALI, TANPA
+gerbang `isNewsPortalFullOnlineR2ModeActiveForTenant` yang #636 pakai.
+Ini BUKAN kealpaan — tabel `awcms_mini_news_portal_homepage_sections`
+adalah tabel BARU dengan NOL baris pra-eksisting; tidak ada "bentuk lama"
+yang perlu dijaga kompatibel (beda dengan `featuredMediaId`/gallery
+`content_json` #636 yang sudah dipakai jutaan post sebelum R2-only mode
+ada). Implementor lanjutan JANGAN menambahkan gerbang mode di sini tanpa
+alasan baru — sengaja unconditional by design.
+
+### `sectionType` immutable setelah dibuat
+
+`validateUpdateHomepageSectionInput(body, currentSectionType)` menerima
+`currentSectionType` dari row yang SUDAH ADA (di-fetch pemanggil dulu) —
+`config` pada request update SELALU divalidasi terhadap tipe SAAT INI,
+BUKAN tipe baru yang mungkin diminta client. Request yang mencoba mengubah
+`sectionType` ditolak `400`. Alasan: mengizinkan ganti tipe berarti bentuk
+`config_json` lama (misal `postId` milik `headline`) jadi sampah tak
+tervalidasi untuk tipe baru (misal `gallery_block` yang butuh
+`mediaObjectIds`) — lebih sederhana & aman mewajibkan hapus+buat ulang
+daripada membangun migrasi bentuk config in-place.
+
+### Reorder — TIDAK ada endpoint bulk-reorder terpisah
+
+Repo ini TIDAK punya preseden endpoint "PATCH array of ids in order" atau
+"reorder" khusus di manapun (`grep -rn "reorder"` nihil hasil relevan
+sebelum issue ini) — konvensi yang ada (`widget-directory.ts`'s
+`updateWidget`) memperlakukan `sort_order` sebagai field yang di-PATCH
+satu-per-row seperti field lain. Issue ini mengikuti PERSIS pola itu:
+admin "reorder" dengan mem-PATCH `sortOrder` tiap section satu per satu
+lewat form edit yang sudah ada — TIDAK menambah endpoint baru untuk itu.
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `sql/044_awcms_mini_news_portal_homepage_sections_schema.sql` (baru).
+- `src/modules/news-portal/domain/homepage-section-policy.ts`,
+  `domain/homepage-section-rendering.ts`,
+  `application/homepage-section-directory.ts`,
+  `application/homepage-section-reference-validation.ts`,
+  `application/homepage-section-composer.ts` (semua baru).
+- `src/modules/blog-content/application/public-blog-directory.ts`: tambah
+  `featuredMediaId` ke `PublicBlogPostSummary`/`toSummary` (sebelumnya
+  hanya di `PublicBlogPostDetail`, #636) + `fetchPublicBlogPostSummariesByIds`
+  baru (mempertahankan urutan permintaan pemanggil untuk konten kurasi,
+  BUKAN `published_at DESC`).
+- `src/pages/api/v1/news-portal/homepage-sections/index.ts` (create/list),
+  `.../[id].ts` (update/delete) — baru.
+- `src/pages/admin/news-portal/homepage-sections.astro` — baru, pola sama
+  `admin/blog/ads.astro` (JSON textarea untuk `config`, state
+  loading/empty/error/ready via `StateNotice`).
+- `src/pages/news/index.ts`: panggil `composeHomepageSectionsHtml` di atas
+  daftar post polos, HANYA `page === 1` — tenant tanpa section (mayoritas
+  hari ini) melihat halaman byte-identik dengan sebelum issue ini.
+- Diperbarui: `src/modules/news-portal/module.ts` (permissions
+  `homepage_sections.{read,configure}`, `navigation` baru dideklarasikan
+  — screen admin pertama modul ini, version 0.2.0→0.3.0),
+  `src/lib/i18n/error-messages.ts` (`HOMEPAGE_SECTION_REFERENCE_INVALID`/
+  `HOMEPAGE_SECTION_KEY_CONFLICT`), `i18n/en.po`/`i18n/id.po`.
+- `openapi/awcms-mini-public-api.openapi.yaml`: tag "News Portal Homepage
+  Sections" baru, tiga path, empat schema baru.
+- Test: `tests/unit/homepage-section-policy.test.ts`,
+  `tests/unit/homepage-section-rendering.test.ts`,
+  `tests/integration/news-portal-homepage-sections.integration.test.ts`
+  (baru — CRUD, reference validation per tipe, cross-tenant 404 (RLS,
+  bukan 403), ABAC 403 tanpa permission, render publik enabled/disabled/
+  degrade-saat-unpublish/gallery); diperbarui:
+  `tests/unit/news-media-permissions.test.ts`,
+  `tests/modules/news-portal-module.test.ts` (keduanya di-filter per
+  `activityCode` supaya jumlah permission `media` yang lama tidak
+  tercampur dengan `homepage_sections` yang baru),
+  `tests/foundation.test.ts` (migration list 044).
+- Changeset: `.changeset/news-portal-homepage-sections-issue-637.md`.
+
+## §638-#640, #642, #649 — konsumsi media registry lanjutan (belum dikerjakan)
 
 Ringkasan objective per issue (detail lengkap ada di body issue
 GitHub masing-masing, cek `gh issue view <n>` bila butuh acceptance
 criteria penuh):
 
-- **#637** — homepage section composer `/news` dengan render R2-only
-  (gambar section harus dari media registry, bukan URL bebas).
 - **#638** — preset placement iklan dengan validasi gambar R2-only
   (memperluas `awcms_mini_blog_ads`'s `image_url` yang saat ini bebas
-  URL http(s) — lihat `blog-content` README §Ads).
+  URL http(s) — lihat `blog-content` README §Ads). **Setelah ini selesai**,
+  `homepage-section-policy.ts`'s whitelist WAJIB diperluas dengan
+  `ad_slot` (lihat §637's "Rekonsiliasi" di atas).
 - **#639** — content block `video_news` baru dengan thumbnail R2 wajib
   (thumbnail, bukan video itu sendiri, yang wajib R2 — video hosting
   eksternal seperti YouTube/embed kemungkinan tetap di luar cakupan R2,
-  cek body issue untuk detail persis sebelum implementasi).
+  cek body issue untuk detail persis sebelum implementasi). **Setelah ini
+  selesai**, tambahkan `video_block` ke whitelist yang sama.
 - **#640** — content quality checklist publishing dengan syarat gambar
   R2 (mis. featured image wajib ada + confirmed sebelum status
   `published` diizinkan).

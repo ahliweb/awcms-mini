@@ -26,12 +26,11 @@ describe("news_portal module descriptor (Issue #632, extended #634)", () => {
     ]);
   });
 
-  test("Issue #634 declares permissions + api now that a real HTTP surface exists, but still leaves navigation/settings/jobs/health undeclared", () => {
-    // navigation/settings/jobs/health still have no real feature backing
-    // them (no admin UI page, no per-tenant setting, no background job, no
-    // health check) — same "only claim a capability once it genuinely
-    // exists" convention visitor_analytics established (Issue #617).
-    expect(newsPortalModule.navigation).toBeUndefined();
+  test("Issue #634 declares permissions + api now that a real HTTP surface exists; Issue #637 adds navigation (one admin page) but still leaves settings/jobs/health undeclared", () => {
+    // settings/jobs/health still have no real feature backing them (no
+    // per-tenant setting, no background job, no health check) — same
+    // "only claim a capability once it genuinely exists" convention
+    // visitor_analytics established (Issue #617).
     expect(newsPortalModule.settings).toBeUndefined();
     expect(newsPortalModule.jobs).toBeUndefined();
     expect(newsPortalModule.health).toBeUndefined();
@@ -41,11 +40,22 @@ describe("news_portal module descriptor (Issue #632, extended #634)", () => {
       basePath: "/api/v1/media/news-images"
     });
 
+    expect(newsPortalModule.navigation).toEqual([
+      {
+        labelKey: "admin.layout.nav_news_portal_homepage_sections",
+        path: "/admin/news-portal/homepage-sections",
+        order: 80,
+        requiredPermission: "news_portal.homepage_sections.read"
+      }
+    ]);
+
     expect(newsPortalModule.permissions).toBeDefined();
   });
 
-  test("every declared permission's activityCode/action reproduces exactly one NEWS_MEDIA_PERMISSIONS constant from #633/#634 — no invented/duplicated/orphaned permission key", () => {
-    const permissions = newsPortalModule.permissions ?? [];
+  test("every declared `media` activityCode permission reproduces exactly one NEWS_MEDIA_PERMISSIONS constant from #633/#634 — no invented/duplicated/orphaned permission key", () => {
+    const permissions = (newsPortalModule.permissions ?? []).filter(
+      (p) => p.activityCode === "media"
+    );
     const expectedKeys = new Set(Object.values(NEWS_MEDIA_PERMISSIONS));
 
     expect(permissions.length).toBe(expectedKeys.size);
@@ -59,7 +69,21 @@ describe("news_portal module descriptor (Issue #632, extended #634)", () => {
     expect(declaredKeys.length).toBe(new Set(declaredKeys).size);
 
     for (const permission of permissions) {
-      expect(permission.activityCode).toBe("media");
+      expect(permission.description.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("Issue #637 declares exactly the homepage_sections read/configure permission pair", () => {
+    const permissions = (newsPortalModule.permissions ?? []).filter(
+      (p) => p.activityCode === "homepage_sections"
+    );
+
+    expect(permissions.map((p) => p.action).sort()).toEqual([
+      "configure",
+      "read"
+    ]);
+
+    for (const permission of permissions) {
       expect(permission.description.length).toBeGreaterThan(0);
     }
   });

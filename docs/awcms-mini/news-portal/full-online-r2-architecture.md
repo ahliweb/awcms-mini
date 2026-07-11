@@ -667,7 +667,8 @@ auth-online-hardening di dokumen yang sama).
 | #634                  | §7 alur upload, §8 presigned URL, §9 validasi — **diimplementasikan** (lihat `.claude/skills/awcms-mini-news-portal/SKILL.md` §634) |
 | #635                  | §13 readiness (`config:validate`/`security:readiness`/`production:preflight`)                                                       |
 | #636                  | §5 "konten editorial wajib menunjuk media confirmed" diterapkan ke `blog_content`                                                   |
-| #637-#640, #642, #649 | Konsumsi media registry untuk fitur editorial spesifik (lihat skill untuk ringkasan per issue)                                      |
+| #637                  | Homepage section composer `/news` mengonsumsi §5 registry + post `featured_media_id` — **diimplementasikan** (lihat skill §637)     |
+| #638-#640, #642, #649 | Konsumsi media registry untuk fitur editorial spesifik lanjutan (lihat skill untuk ringkasan per issue)                             |
 
 ## 17. Referensi
 
