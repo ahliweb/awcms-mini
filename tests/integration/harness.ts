@@ -25,13 +25,22 @@
  */
 import type { APIContext, APIRoute } from "astro";
 
-import { getDatabaseClient } from "../../src/lib/database/client";
+import {
+  getDatabaseClient,
+  getSetupDatabaseClient,
+  getWorkerDatabaseClient
+} from "../../src/lib/database/client";
 
 // Captured at module load, before provisionAppRole() repoints DATABASE_URL.
 const ADMIN_DATABASE_URL = process.env.DATABASE_URL ?? "";
 
 // Non-secret fixture password for the least-privilege app role in tests.
 const APP_ROLE_TEST_PASSWORD = "integration_app_role_password";
+// Issue #683 (epic #679): fixture passwords for the two new least-privilege
+// roles migration 045 creates (NOLOGIN by default, same as awcms_mini_app
+// before provisionAppRole() activates it).
+const WORKER_ROLE_TEST_PASSWORD = "integration_worker_role_password";
+const SETUP_ROLE_TEST_PASSWORD = "integration_setup_role_password";
 
 export const integrationEnabled = ADMIN_DATABASE_URL.length > 0;
 
@@ -56,6 +65,26 @@ export function getAdminSql(): Bun.SQL {
  */
 export function getTestSql(): Bun.SQL {
   return getDatabaseClient();
+}
+
+/**
+ * Issue #683 (epic #679): the client the 7 background worker scripts use —
+ * the least-privilege `awcms_mini_worker` role after `provisionWorkerRole()`
+ * has repointed `WORKER_DATABASE_URL`. Shares the scripts' own lazy
+ * singleton, same pattern as `getTestSql()`.
+ */
+export function getWorkerTestSql(): Bun.SQL {
+  return getWorkerDatabaseClient();
+}
+
+/**
+ * Issue #683 (epic #679): the client `POST /api/v1/setup/initialize` uses —
+ * the least-privilege `awcms_mini_setup` role after `provisionSetupRole()`
+ * has repointed `SETUP_DATABASE_URL`. Shares that route's own lazy
+ * singleton, same pattern as `getTestSql()`.
+ */
+export function getSetupTestSql(): Bun.SQL {
+  return getSetupDatabaseClient();
 }
 
 /**
@@ -96,6 +125,45 @@ export async function provisionAppRole(): Promise<void> {
   appUrl.username = "awcms_mini_app";
   appUrl.password = APP_ROLE_TEST_PASSWORD;
   process.env.DATABASE_URL = appUrl.toString();
+}
+
+/**
+ * Issue #683 (epic #679): mirrors `provisionAppRole()` exactly, for the
+ * `awcms_mini_worker` role — activates its LOGIN with a test password, then
+ * repoints `WORKER_DATABASE_URL` so `getWorkerDatabaseClient()` (and thus
+ * every worker script under test) connects as the least-privilege worker
+ * role instead of falling back to `DATABASE_URL`/the app role. Must run
+ * after `applyMigrations()` and before the first worker-script call.
+ */
+export async function provisionWorkerRole(): Promise<void> {
+  await getAdminSql().unsafe(
+    `ALTER ROLE awcms_mini_worker WITH LOGIN PASSWORD '${WORKER_ROLE_TEST_PASSWORD}'`
+  );
+
+  const workerUrl = new URL(ADMIN_DATABASE_URL);
+  workerUrl.username = "awcms_mini_worker";
+  workerUrl.password = WORKER_ROLE_TEST_PASSWORD;
+  process.env.WORKER_DATABASE_URL = workerUrl.toString();
+}
+
+/**
+ * Issue #683 (epic #679): mirrors `provisionAppRole()` exactly, for the
+ * `awcms_mini_setup` role — activates its LOGIN with a test password, then
+ * repoints `SETUP_DATABASE_URL` so `getSetupDatabaseClient()` (and thus
+ * `POST /api/v1/setup/initialize` under test) connects as the least-
+ * privilege setup role instead of falling back to `DATABASE_URL`/the app
+ * role. Must run after `applyMigrations()` and before the first setup-route
+ * call.
+ */
+export async function provisionSetupRole(): Promise<void> {
+  await getAdminSql().unsafe(
+    `ALTER ROLE awcms_mini_setup WITH LOGIN PASSWORD '${SETUP_ROLE_TEST_PASSWORD}'`
+  );
+
+  const setupUrl = new URL(ADMIN_DATABASE_URL);
+  setupUrl.username = "awcms_mini_setup";
+  setupUrl.password = SETUP_ROLE_TEST_PASSWORD;
+  process.env.SETUP_DATABASE_URL = setupUrl.toString();
 }
 
 /**

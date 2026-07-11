@@ -14,9 +14,11 @@ import {
   applyMigrations,
   createCookieJar,
   getAdminSql,
+  getWorkerTestSql,
   integrationEnabled,
   invoke,
   provisionAppRole,
+  provisionWorkerRole,
   resetDatabase
 } from "./harness";
 
@@ -120,6 +122,7 @@ suite("Form Drafts API (real Postgres)", () => {
   beforeAll(async () => {
     await applyMigrations();
     await provisionAppRole();
+    await provisionWorkerRole();
   });
 
   beforeEach(async () => {
@@ -471,5 +474,31 @@ suite("Form Drafts API (real Postgres)", () => {
       SELECT id FROM awcms_mini_form_drafts WHERE id = ${draft.id}
     `) as { id: string }[];
     expect(rows).toHaveLength(1);
+  });
+
+  test("expireOverdueFormDrafts runs successfully under the real awcms_mini_worker role (Issue #683, epic #679)", async () => {
+    const b = await bootstrap();
+    const draft = await createTestDraft(b);
+
+    const admin = getAdminSql();
+    await admin`
+      UPDATE awcms_mini_form_drafts
+      SET expires_at = now() - interval '1 hour'
+      WHERE id = ${draft.id}
+    `;
+
+    // PR #703 review caught this live: without UPDATE on
+    // awcms_mini_form_drafts, this call fails with "permission denied" —
+    // the app-role-only tests above never exercise the real worker role.
+    const result = await expireOverdueFormDrafts(
+      getWorkerTestSql(),
+      b.tenantId
+    );
+    expect(result.expiredCount).toBe(1);
+
+    const rows = (await admin`
+      SELECT status FROM awcms_mini_form_drafts WHERE id = ${draft.id}
+    `) as { status: string }[];
+    expect(rows[0]!.status).toBe("expired");
   });
 });

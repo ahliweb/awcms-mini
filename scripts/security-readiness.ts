@@ -535,6 +535,137 @@ export async function checkAppDbUserNotSuperuser(): Promise<SecurityCheckResult>
   }
 }
 
+/**
+ * Issue #683 (epic #679) — the exact approved grant matrix from
+ * `sql/045_awcms_mini_db_role_separation.sql`'s header, restricted to the 9
+ * GLOBAL (non-RLS) tables in `RLS_FREE_TABLES` above. Tenant-scoped tables
+ * are deliberately out of scope here — RLS/FORCE RLS is the real boundary
+ * for those (see `checkRlsEnabled`), and the existing `ALTER DEFAULT
+ * PRIVILEGES` convenience is meant to auto-grant `awcms_mini_app` on every
+ * FUTURE tenant-scoped table without a matching migration edit each time.
+ * This allowlist exists specifically to catch the failure mode that
+ * convenience doesn't cover: a future migration adding a new NON-RLS global
+ * table that inherits the same blanket default-privileges grant.
+ */
+const ALLOWED_GLOBAL_TABLE_GRANTS: Record<string, Record<string, string[]>> = {
+  awcms_mini_permissions: {
+    awcms_mini_app: ["SELECT"],
+    awcms_mini_setup: ["SELECT"]
+  },
+  awcms_mini_schema_migrations: {
+    awcms_mini_app: ["SELECT"]
+  },
+  awcms_mini_setup_state: {
+    // INSERT/UPDATE (not just SELECT) stay on awcms_mini_app: the setup
+    // route falls back to this role when SETUP_DATABASE_URL isn't
+    // configured (src/lib/database/client.ts) — see sql/045's header note
+    // on role 2 for the full trade-off. Only DELETE is narrowed (nothing,
+    // dedicated role or fallback, ever deletes this singleton row).
+    awcms_mini_app: ["SELECT", "INSERT", "UPDATE"],
+    awcms_mini_setup: ["SELECT", "INSERT", "UPDATE"]
+  },
+  awcms_mini_tenants: {
+    // Same fallback reasoning as awcms_mini_setup_state above — INSERT is
+    // kept alongside the pre-existing UPDATE (PATCH /api/v1/settings).
+    awcms_mini_app: ["SELECT", "INSERT", "UPDATE"],
+    awcms_mini_worker: ["SELECT"],
+    // SELECT is required alongside INSERT because bootstrapPlatformTenant's
+    // INSERT ... RETURNING id needs it (Postgres requires SELECT on a
+    // column for it to appear in RETURNING) — see sql/045's header.
+    awcms_mini_setup: ["INSERT", "SELECT"]
+  },
+  awcms_mini_modules: {
+    awcms_mini_app: ["SELECT", "INSERT", "UPDATE", "DELETE"]
+  },
+  awcms_mini_module_dependencies: {
+    awcms_mini_app: ["SELECT", "INSERT", "UPDATE", "DELETE"]
+  },
+  awcms_mini_module_navigation: {
+    awcms_mini_app: ["SELECT", "INSERT", "UPDATE", "DELETE"]
+  },
+  awcms_mini_module_jobs: {
+    awcms_mini_app: ["SELECT", "INSERT", "UPDATE", "DELETE"]
+  },
+  awcms_mini_module_health_checks: {
+    awcms_mini_app: ["SELECT", "INSERT", "UPDATE", "DELETE"]
+  }
+};
+
+/**
+ * Reads the REAL grants (`pg_class.relacl` via `aclexplode`, not a static
+ * assumption) for `awcms_mini_app`/`awcms_mini_worker`/`awcms_mini_setup` on
+ * every `awcms_mini_%` table, keeps only the 9 global (non-RLS) ones, and
+ * flags any grant not in `ALLOWED_GLOBAL_TABLE_GRANTS` above. `pg_class` is
+ * readable by any role (same reasoning `checkRlsEnabled` already relies on),
+ * so this works whichever role `DATABASE_URL` connects as — it does not
+ * require a privileged/owner connection to see other roles' grants, unlike
+ * `information_schema.role_table_grants` (which only shows grants where the
+ * connected role is grantor/grantee/a member of the grantee role).
+ */
+export async function checkRuntimeRoleGlobalTableGrants(): Promise<SecurityCheckResult> {
+  const name =
+    "Runtime roles (app/worker/setup) have no unexpected grants on global tables";
+  const severity: CheckSeverity = "critical";
+
+  try {
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL is not set.");
+    }
+
+    const sql = getDatabaseClient();
+    const rows = await sql<
+      { table_name: string; grantee: string; privilege: string }[]
+    >`
+      SELECT c.relname AS table_name, a.rolname AS grantee, p.privilege_type AS privilege
+      FROM pg_class c
+      CROSS JOIN LATERAL aclexplode(c.relacl) AS p
+      JOIN pg_roles a ON a.oid = p.grantee
+      WHERE c.relname LIKE 'awcms_mini_%' AND c.relkind = 'r'
+        AND a.rolname IN ('awcms_mini_app', 'awcms_mini_worker', 'awcms_mini_setup')
+      ORDER BY c.relname, a.rolname, p.privilege_type
+    `;
+
+    const globalRows = rows.filter((row) =>
+      RLS_FREE_TABLES.has(row.table_name)
+    );
+    const unexpected: string[] = [];
+
+    for (const row of globalRows) {
+      const allowedForTable = ALLOWED_GLOBAL_TABLE_GRANTS[row.table_name] ?? {};
+      const allowedForRole = allowedForTable[row.grantee] ?? [];
+
+      if (!allowedForRole.includes(row.privilege)) {
+        unexpected.push(
+          `${row.grantee} has unexpected ${row.privilege} on ${row.table_name}`
+        );
+      }
+    }
+
+    if (unexpected.length > 0) {
+      return {
+        name,
+        severity,
+        status: "fail",
+        evidence: `Unexpected grant(s) on global (non-RLS) table(s) — see sql/045_awcms_mini_db_role_separation.sql's header for the approved matrix: ${unexpected.join("; ")}.`
+      };
+    }
+
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence: `Checked ${globalRows.length} grant(s) across ${RLS_FREE_TABLES.size} global table(s) for awcms_mini_app/awcms_mini_worker/awcms_mini_setup — all match the approved allowlist (sql/045_awcms_mini_db_role_separation.sql).`
+    };
+  } catch (error) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `Could not verify runtime role grants on global tables: ${errorMessage(error)}.`
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 6. ABAC default-deny works (critical)
 // ---------------------------------------------------------------------------
@@ -1942,6 +2073,7 @@ export async function runSecurityReadinessChecks(): Promise<
     checkLoginLockoutImplemented(),
     await checkRlsEnabled(),
     await checkAppDbUserNotSuperuser(),
+    await checkRuntimeRoleGlobalTableGrants(),
     checkAbacDefaultDeny(),
     await checkAuditLogTableReachable(),
     await checkSoftDeletePermissionsSeededAndAudited(),

@@ -56,12 +56,57 @@ Legenda: Wajib = perlu untuk boot; Sensitif = jangan bocor ke log/response.
 
 ### Database & pool
 
-| Var                             | Wajib | Default | Sensitif | Fungsi                       |
-| ------------------------------- | ----- | ------- | -------- | ---------------------------- |
-| `DATABASE_URL`                  | Ya    | –       | Ya       | Koneksi PostgreSQL           |
-| `DATABASE_POOL_MAX`             | –     | `20`    | –        | Maks koneksi pool            |
-| `DATABASE_STATEMENT_TIMEOUT_MS` | –     | `15000` | –        | Timeout statement            |
-| `DATABASE_PGBOUNCER`            | –     | `false` | –        | Mode PgBouncer (transaction) |
+| Var                             | Wajib | Default                    | Sensitif | Fungsi                                                            |
+| ------------------------------- | ----- | -------------------------- | -------- | ----------------------------------------------------------------- |
+| `DATABASE_URL`                  | Ya    | –                          | Ya       | Koneksi PostgreSQL (role `awcms_mini_app`)                        |
+| `DATABASE_POOL_MAX`             | –     | `20`                       | –        | Maks koneksi pool                                                 |
+| `DATABASE_STATEMENT_TIMEOUT_MS` | –     | `15000`                    | –        | Timeout statement                                                 |
+| `DATABASE_PGBOUNCER`            | –     | `false`                    | –        | Mode PgBouncer (transaction)                                      |
+| `WORKER_DATABASE_URL`           | –     | fallback ke `DATABASE_URL` | Ya       | Koneksi role `awcms_mini_worker` (7 background script)            |
+| `SETUP_DATABASE_URL`            | –     | fallback ke `DATABASE_URL` | Ya       | Koneksi role `awcms_mini_setup` (`POST /api/v1/setup/initialize`) |
+
+#### Model role database (Issue #683, epic #679, platform-hardening)
+
+Sejak migration `sql/045_awcms_mini_db_role_separation.sql`, ada **empat**
+role Postgres, bukan dua:
+
+1. **Migration owner** (superuser/owner) — dipakai `bun run db:migrate`
+   saja, lewat `DATABASE_URL` yang di-override di command line (lihat
+   contoh di §Database & pool atas). Satu-satunya role yang bisa
+   `ALTER`/`DROP`/`CREATE`/`GRANT`.
+2. **`awcms_mini_app`** ("web runtime", `DATABASE_URL`) — melayani setiap
+   HTTP request biasa. DML penuh di tabel tenant-scoped (RLS FORCE'd —
+   itu batas keamanan sesungguhnya, ADR-0003). Di 9 tabel global
+   (non-RLS: `awcms_mini_permissions`, `awcms_mini_schema_migrations`,
+   `awcms_mini_setup_state`, `awcms_mini_tenants`, `awcms_mini_modules` +
+   4 tabel turunannya) hanya diberi hak yang benar-benar dipakai jalur
+   request — lihat header `sql/045...sql` untuk matriks lengkap per
+   tabel.
+3. **`awcms_mini_worker`** ("background worker", `WORKER_DATABASE_URL`,
+   BARU) — 7 script cron/systemd-timer tanpa endpoint HTTP
+   (`analytics:rollup`, `analytics:purge`, `logs:audit:purge`,
+   `sync:objects:dispatch`, `email:dispatch`, `blog:publish:scheduled`,
+   `form-drafts:purge`). Nol akses ke 9 tabel global kecuali `SELECT` di
+   `awcms_mini_tenants` (untuk iterasi tenant aktif).
+4. **`awcms_mini_setup`** ("bootstrap/setup", `SETUP_DATABASE_URL`, BARU)
+   — hanya `POST /api/v1/setup/initialize` (wizard setup sekali-jalan).
+   Defense-in-depth di atas kunci singleton `awcms_mini_setup_state` yang
+   sudah ada — bukan pengganti kunci itu.
+
+`WORKER_DATABASE_URL`/`SETUP_DATABASE_URL` **opsional**:
+`src/lib/database/client.ts`'s `getWorkerDatabaseClient()`/
+`getSetupDatabaseClient()` fallback ke `DATABASE_URL` (role
+`awcms_mini_app`) bila keduanya tidak di-set — deployment kecil/offline
+yang tidak ingin mengelola 4 connection string tetap jalan lewat satu
+role `awcms_mini_app` yang sudah dipersempit di migration 045 (tetap
+lebih aman dari sebelumnya, hanya kehilangan lapisan defense-in-depth
+tambahan). `AWCMS_MINI_WORKER_DB_PASSWORD`/`AWCMS_MINI_SETUP_DB_PASSWORD`
+(dipakai `deploy/postgres/11-create-worker-setup-roles.sh` untuk
+mengaktifkan LOGIN role tersebut di docker-compose) juga opsional dengan
+alasan yang sama. `bun run security:readiness`'s
+`checkRuntimeRoleGlobalTableGrants` adalah regression guard-nya —
+menolak (critical) migration masa depan yang tanpa sengaja memberi grant
+tambahan di salah satu dari 9 tabel global tersebut.
 
 ### Auth & keamanan
 

@@ -21,7 +21,7 @@
  *      UPSERTs each `(tenant, date, area)` row, it never increments an
  *      existing one.
  */
-import { getDatabaseClient } from "../src/lib/database/client";
+import { getWorkerDatabaseClient } from "../src/lib/database/client";
 import { withTenant } from "../src/lib/database/tenant-context";
 import { rollupVisitorAnalyticsForDate } from "../src/modules/visitor-analytics/application/rollup";
 
@@ -96,7 +96,8 @@ export function resolveDatesToRollup(argv: string[], now: Date): string[] {
 }
 
 async function main() {
-  const sql = getDatabaseClient();
+  // Issue #683 (epic #679): `awcms_mini_worker` role — see migration 045.
+  const sql = getWorkerDatabaseClient();
   const correlationId = crypto.randomUUID();
   const now = new Date();
   const dates = resolveDatesToRollup(process.argv.slice(2), now);

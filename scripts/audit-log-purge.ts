@@ -22,7 +22,7 @@
  * days=<n>` CLI flag, then `AUDIT_LOG_RETENTION_DAYS` env var (doc 18), then
  * `AUDIT_EVENT_DEFAULT_RETENTION_DAYS` (730 days / 2 years).
  */
-import { getDatabaseClient } from "../src/lib/database/client";
+import { getWorkerDatabaseClient } from "../src/lib/database/client";
 import {
   AUDIT_EVENT_DEFAULT_RETENTION_DAYS,
   purgeExpiredAuditEvents
@@ -57,7 +57,8 @@ function resolveRetentionDays(): number {
 }
 
 async function main() {
-  const sql = getDatabaseClient();
+  // Issue #683 (epic #679): `awcms_mini_worker` role — see migration 045.
+  const sql = getWorkerDatabaseClient();
   const correlationId = crypto.randomUUID();
   const retentionDays = resolveRetentionDays();
 

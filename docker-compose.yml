@@ -45,6 +45,16 @@ services:
       # dev default keeps a fresh `docker compose up` working out of the box;
       # override it (and app's DATABASE_URL below) for any real deployment.
       AWCMS_MINI_APP_DB_PASSWORD: ${AWCMS_MINI_APP_DB_PASSWORD:-awcms_mini_app_password}
+      # Issue #683 (epic #679): consumed once, at first-cluster-init, by
+      # deploy/postgres/11-create-worker-setup-roles.sh to grant LOGIN to the
+      # `awcms_mini_worker`/`awcms_mini_setup` roles migration 045 creates
+      # (NOLOGIN by default). Unlike AWCMS_MINI_APP_DB_PASSWORD, these are
+      # genuinely optional — leaving either unset keeps that role NOLOGIN,
+      # and WORKER_DATABASE_URL/SETUP_DATABASE_URL below fall back to
+      # DATABASE_URL (the app role) when unset, so a default `docker compose
+      # up` still works with zero role-separation config.
+      AWCMS_MINI_WORKER_DB_PASSWORD: ${AWCMS_MINI_WORKER_DB_PASSWORD:-}
+      AWCMS_MINI_SETUP_DB_PASSWORD: ${AWCMS_MINI_SETUP_DB_PASSWORD:-}
     volumes:
       # Mount at /var/lib/postgresql (NOT /var/lib/postgresql/data): the
       # postgres:18+ images store data in a major-version subdirectory
@@ -143,6 +153,17 @@ services:
       # superuser/owner bypasses RLS). `.env.example`'s default DATABASE_URL
       # uses `localhost` + the app role for the non-container/systemd case.
       DATABASE_URL: postgres://awcms_mini_app:${AWCMS_MINI_APP_DB_PASSWORD:-awcms_mini_app_password}@db:5432/${POSTGRES_DB:-awcms-mini}
+      # Issue #683 (epic #679): only meaningful when AWCMS_MINI_WORKER_DB_PASSWORD/
+      # AWCMS_MINI_SETUP_DB_PASSWORD above are also set (that role must have
+      # LOGIN or these URLs simply won't authenticate). Left as the literal
+      # empty string otherwise, which src/lib/database/client.ts's
+      # getWorkerDatabaseClient()/getSetupDatabaseClient() treat the same as
+      # "unset" and fall back to DATABASE_URL. The 7 unattended worker
+      # scripts run via `docker compose exec app bun run <script>` in this
+      # repo's deployment model (no separate worker service), so they need
+      # this on the `app` service's environment, not a new service.
+      WORKER_DATABASE_URL: ${AWCMS_MINI_WORKER_DB_PASSWORD:+postgres://awcms_mini_worker:${AWCMS_MINI_WORKER_DB_PASSWORD}@db:5432/${POSTGRES_DB:-awcms-mini}}
+      SETUP_DATABASE_URL: ${AWCMS_MINI_SETUP_DB_PASSWORD:+postgres://awcms_mini_setup:${AWCMS_MINI_SETUP_DB_PASSWORD}@db:5432/${POSTGRES_DB:-awcms-mini}}
       HOST: "0.0.0.0"
       PORT: "4321"
       HOME: /tmp

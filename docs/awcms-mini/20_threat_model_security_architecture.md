@@ -139,7 +139,7 @@ Audit kepatuhan yang memetakan kontrol proyek ke kerangka standar industri untuk
 | --------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A.5.15 Access control             | ✅     | ABAC default-deny + RLS FORCE (lihat A01/V4).                                                                                                                                                                                                                                                        |
 | A.5.17 Authentication information | ✅     | Password hash argon2id, tak pernah disimpan/di-log mentah; token sesi hash-only.                                                                                                                                                                                                                     |
-| A.8.2 Privileged access rights    | ✅     | Role DB `awcms_mini_app` least-privilege, bukan superuser/owner (`sql/013`, `checkAppDbUserNotSuperuser`).                                                                                                                                                                                           |
+| A.8.2 Privileged access rights    | ✅     | Empat role DB terpisah, semua least-privilege, tak satupun superuser/owner (`sql/013`, `sql/045` — Issue #683, epic #679; `checkAppDbUserNotSuperuser`, `checkRuntimeRoleGlobalTableGrants`). Lihat §Standar tambahan dipicu epic platform-hardening di bawah.                                       |
 | A.8.5 Secure authentication       | ✅     | Lockout + rate limit (baru) + hashing modern + CSRF checkOrigin.                                                                                                                                                                                                                                     |
 | A.8.12 Data leakage prevention    | ✅     | Masking/redaction identifier sensitif (doc 04) + `redaction.ts` untuk log/audit.                                                                                                                                                                                                                     |
 | A.8.15 Logging                    | ✅     | Audit trail append-only + decision log + correlation ID berstruktur JSON — sejak Issue #447, `ApiMeta.correlationId` konsisten di seluruh respons `/api/*` (bukan satu endpoint demo), dan `awcms_mini_audit_events` punya retensi eksplisit + purge terjadwal (`bun run logs:audit:purge`, doc 04). |
@@ -503,3 +503,64 @@ sudah berlaku sama di sini.
   deployment lewat tabel precompute; menaikkan ini ke critical akan
   menggagalkan setiap deployment default yang sudah ada tanpa manfaat
   keamanan yang proporsional.
+
+## Standar tambahan dipicu epic platform-hardening (Issue #683, epic #679)
+
+Migration 013 memberi `awcms_mini_app` DML penuh (`SELECT/INSERT/UPDATE/
+DELETE`) di SEMUA tabel `public.awcms_mini_*` — benar untuk ~76 tabel
+tenant-scoped (RLS FORCE'd, itu batas keamanan sesungguhnya, ADR-0003),
+tapi juga menjangkau 9 tabel GLOBAL (non-RLS): katalog permission,
+ledger migrasi, kunci setup singleton, tabel root tenant, dan registry
+modul + 4 turunannya. Satu role yang sama yang melayani setiap request
+tenant biasa punya akses tulis penuh ke data yang seharusnya hanya
+ditulis oleh migration/setup wizard.
+
+`sql/045_awcms_mini_db_role_separation.sql` memisahkan menjadi EMPAT
+role, masing-masing hanya diberi hak yang benar-benar dipakai jalur
+kodenya (diverifikasi per-jalur lewat grep, bukan diasumsikan — lihat
+header migration untuk evidence lengkap):
+
+| Role                | Env var               | Dipakai oleh                                                                                                             |
+| ------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Migration owner     | `DATABASE_URL` (CLI)  | `bun run db:migrate` saja — satu-satunya yang bisa `ALTER`/`DROP`/`GRANT`.                                               |
+| `awcms_mini_app`    | `DATABASE_URL`        | Setiap HTTP request biasa. Dipersempit di 9 tabel global (lihat matriks di header migration).                            |
+| `awcms_mini_worker` | `WORKER_DATABASE_URL` | 7 script cron/systemd-timer tanpa endpoint HTTP. Nol akses ke 9 tabel global kecuali `SELECT` di `awcms_mini_tenants`.   |
+| `awcms_mini_setup`  | `SETUP_DATABASE_URL`  | Hanya `POST /api/v1/setup/initialize`. Defense-in-depth di atas kunci singleton `awcms_mini_setup_state` yang sudah ada. |
+
+`WORKER_DATABASE_URL`/`SETUP_DATABASE_URL` opsional — fallback ke
+`DATABASE_URL` (`awcms_mini_app`, sudah dipersempit) bila tidak di-set,
+jadi deployment yang tidak ingin mengelola 4 connection string tetap
+lebih aman dari sebelumnya, hanya kehilangan lapisan isolasi tambahan.
+
+Regression guard: `bun run security:readiness`'s
+`checkRuntimeRoleGlobalTableGrants` (critical) membaca grant nyata dari
+`pg_class.relacl` untuk ketiga role runtime dan menolak migration masa
+depan yang tanpa sengaja memberi grant tambahan di salah satu dari 9
+tabel global tersebut — melengkapi (bukan mengganti) `checkRlsEnabled`/
+`checkAppDbUserNotSuperuser` yang sudah ada untuk tabel tenant-scoped.
+Dibuktikan hidup lewat
+`tests/integration/db-role-separation.integration.test.ts` — koneksi
+nyata sebagai ketiga role, memverifikasi statement yang seharusnya
+ditolak Postgres BENAR ditolak (`permission denied`, bukan hanya
+diasumsikan dari metadata grant).
+
+### Batasan yang dicatat, bukan diabaikan (platform-hardening — DB role separation)
+
+- **`RETURNING id` butuh `SELECT`, bukan cuma `INSERT`** — ditemukan
+  langsung lewat integration test di atas sebelum pernah di-deploy:
+  Postgres menolak `INSERT ... RETURNING <kolom>` bila role hanya
+  punya `INSERT` tanpa `SELECT` pada kolom itu. `awcms_mini_setup`
+  karena itu diberi `SELECT` (bukan cuma `INSERT`) di setiap tabel yang
+  ditulis `bootstrapPlatformTenant` DENGAN `RETURNING id`
+  (`awcms_mini_tenants`/`_offices`/`_profiles`/`_identities`/
+  `_tenant_users`/`_roles`) — RLS tetap membatasi `SELECT` itu hanya ke
+  satu tenant yang baru dibuat dalam transaksi yang sama, bukan
+  pelonggaran akses baca yang lebih luas.
+- **Tabel tenant-scoped TIDAK ikut dipersempit** — `ALTER DEFAULT
+PRIVILEGES` yang sudah ada (migration 013) tetap otomatis memberi
+  `awcms_mini_app` DML penuh di setiap tabel tenant-scoped BARU di masa
+  depan, sengaja dipertahankan karena RLS FORCE adalah batas keamanan
+  sesungguhnya di sana (ADR-0003) — mempersempit grant DB di lapisan
+  itu tidak menambah keamanan nyata, hanya menambah beban migrasi
+  setiap tabel baru. Yang tidak tercakup convenience ini justru 9 tabel
+  GLOBAL (non-RLS) — itulah yang dijaga `checkRuntimeRoleGlobalTableGrants`.

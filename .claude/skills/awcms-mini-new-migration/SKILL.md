@@ -29,6 +29,18 @@ sql/NNN_awcms_mini_<area>_<description>.sql
 8. Bungkus dengan `BEGIN; ... COMMIT;`.
 9. **Tidak** menyimpan password/API key/secret plaintext.
 10. Tabel master/config/draft yang deletable wajib soft delete (`deleted_at`, `deleted_by`, `delete_reason`) + index/partial unique aktif.
+11. Tabel BARU tanpa `tenant_id`/RLS (global, dibaca/ditulis lintas
+    tenant — mis. katalog konfigurasi, registry) **tidak** ikut
+    `ALTER DEFAULT PRIVILEGES` di migration 013 yang otomatis meng-grant
+    tabel tenant-scoped ke `awcms_mini_app` (Issue #683, epic #679, lihat
+    `sql/045_awcms_mini_db_role_separation.sql`'s header) — grant
+    eksplisit di migration ANDA sendiri, hanya hak yang benar-benar
+    dipakai jalur kode (jangan blanket `SELECT/INSERT/UPDATE/DELETE`),
+    dan tambahkan tabel itu ke `RLS_FREE_TABLES` DAN
+    `ALLOWED_GLOBAL_TABLE_GRANTS` di `scripts/security-readiness.ts` —
+    tanpa keduanya, `checkRuntimeRoleGlobalTableGrants` akan GAGAL
+    (critical, blocking go-live) begitu migration Anda memberi grant apa
+    pun ke tabel itu tanpa terdaftar di allowlist.
 
 ## Template
 

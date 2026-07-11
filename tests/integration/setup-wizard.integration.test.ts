@@ -22,6 +22,7 @@ import {
   integrationEnabled,
   invoke,
   provisionAppRole,
+  provisionSetupRole,
   resetDatabase
 } from "./harness";
 
@@ -45,6 +46,11 @@ suite(
     beforeAll(async () => {
       await applyMigrations();
       await provisionAppRole();
+      // Issue #683 (epic #679): exercises the real awcms_mini_setup role
+      // (src/pages/api/v1/setup/initialize.ts now uses
+      // getSetupDatabaseClient()) instead of silently falling back to the
+      // app-role DATABASE_URL.
+      await provisionSetupRole();
     });
 
     beforeEach(async () => {

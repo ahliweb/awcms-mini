@@ -1,11 +1,24 @@
 import type { APIRoute } from "astro";
 import { fail, ok } from "../../../../modules/_shared/api-response";
-import { getDatabaseClient } from "../../../../lib/database/client";
+import { getSetupDatabaseClient } from "../../../../lib/database/client";
 import { resolveClientIp } from "../../../../lib/security/rate-limit";
 import { enforceTurnstileIfRequired } from "../../../../lib/security/turnstile";
 import { validateSetupInitializeInput } from "../../../../modules/tenant-admin/domain/setup-validation";
 import { bootstrapPlatformTenant } from "../../../../modules/tenant-admin/application/platform-bootstrap";
 
+/**
+ * Uses `getSetupDatabaseClient()` (Issue #683, epic #679) — the dedicated
+ * `awcms_mini_setup` role, not the ordinary `awcms_mini_app` web-runtime
+ * connection every other route uses. This is the ONLY route in the
+ * codebase that creates a tenant/office/owner from scratch; giving it its
+ * own narrower-in-a-different-way role (write access to `awcms_mini_tenants`/
+ * `awcms_mini_setup_state`/the bootstrap tables, nothing `awcms_mini_app`
+ * doesn't ALSO need elsewhere) means a compromised ordinary web-runtime
+ * credential can never create a rogue tenant, even if this endpoint's own
+ * setup-once lock (`awcms_mini_setup_state`'s singleton claim) were ever
+ * bypassed by a future bug. See `sql/045_awcms_mini_db_role_separation.sql`'s
+ * header for the full role matrix.
+ */
 export const POST: APIRoute = async ({ request, clientAddress }) => {
   const body = await request.json().catch(() => null);
   const validation = validateSetupInitializeInput(body);
@@ -43,7 +56,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   }
 
   const input = validation.value;
-  const sql = getDatabaseClient();
+  const sql = getSetupDatabaseClient();
 
   return sql.begin(async (tx) => {
     const result = await bootstrapPlatformTenant(tx, input);

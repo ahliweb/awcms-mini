@@ -17,7 +17,7 @@
  * days=<n>` CLI flag, then `FORM_DRAFT_RETENTION_DAYS` env var, then
  * `FORM_DRAFT_DEFAULT_RETENTION_DAYS` (30 days).
  */
-import { getDatabaseClient } from "../src/lib/database/client";
+import { getWorkerDatabaseClient } from "../src/lib/database/client";
 import {
   FORM_DRAFT_DEFAULT_RETENTION_DAYS,
   expireOverdueFormDrafts,
@@ -53,7 +53,8 @@ function resolveRetentionDays(): number {
 }
 
 async function main() {
-  const sql = getDatabaseClient();
+  // Issue #683 (epic #679): `awcms_mini_worker` role — see migration 045.
+  const sql = getWorkerDatabaseClient();
   const correlationId = crypto.randomUUID();
   const retentionDays = resolveRetentionDays();
 

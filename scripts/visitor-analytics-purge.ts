@@ -28,7 +28,7 @@
  * same shape the on-demand endpoint records) — attributes are the four
  * safe row counts only, never any raw event/session data.
  */
-import { getDatabaseClient } from "../src/lib/database/client";
+import { getWorkerDatabaseClient } from "../src/lib/database/client";
 import { withTenant } from "../src/lib/database/tenant-context";
 import { recordAuditEvent } from "../src/modules/logging/application/audit-log";
 import {
@@ -150,7 +150,8 @@ export async function purgeVisitorAnalyticsForAllTenants(
 }
 
 async function main() {
-  const sql = getDatabaseClient();
+  // Issue #683 (epic #679): `awcms_mini_worker` role — see migration 045.
+  const sql = getWorkerDatabaseClient();
   const correlationId = crypto.randomUUID();
 
   try {

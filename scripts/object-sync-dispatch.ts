@@ -16,7 +16,7 @@
  * breaker) or `MAX_PASSES_PER_TENANT` is hit — a safety bound so one huge
  * backlog cannot make a single scheduled run run forever.
  */
-import { getDatabaseClient } from "../src/lib/database/client";
+import { getWorkerDatabaseClient } from "../src/lib/database/client";
 import { dispatchObjectSyncQueue } from "../src/modules/sync-storage/application/object-dispatch";
 
 const MAX_PASSES_PER_TENANT = 20;
@@ -24,7 +24,8 @@ const MAX_PASSES_PER_TENANT = 20;
 type TenantRow = { id: string };
 
 async function main() {
-  const sql = getDatabaseClient();
+  // Issue #683 (epic #679): `awcms_mini_worker` role — see migration 045.
+  const sql = getWorkerDatabaseClient();
   const correlationId = crypto.randomUUID();
 
   try {
