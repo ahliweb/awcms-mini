@@ -738,4 +738,95 @@ suite("news_portal homepage sections (Issue #637)", () => {
     expect(response.text).toContain("media.example.test");
     expect(response.text).toContain("Gallery Caption");
   });
+
+  test("a section with a future startsAt or a past endsAt is hidden from /news (schedule window)", async () => {
+    const owner = await bootstrap();
+    const futurePost = await createAndPublishPost(owner, {
+      slug: "future-section-post"
+    });
+    const expiredPost = await createAndPublishPost(owner, {
+      slug: "expired-section-post"
+    });
+
+    await invoke(createSection, {
+      method: "POST",
+      path: "/api/v1/news-portal/homepage-sections",
+      headers: authHeaders(owner),
+      body: {
+        sectionKey: "front-page-future",
+        sectionType: "headline",
+        config: { postId: futurePost.id },
+        startsAt: "2099-01-01T00:00:00.000Z"
+      }
+    });
+
+    await invoke(createSection, {
+      method: "POST",
+      path: "/api/v1/news-portal/homepage-sections",
+      headers: authHeaders(owner),
+      body: {
+        sectionKey: "front-page-expired",
+        sectionType: "headline",
+        config: { postId: expiredPost.id },
+        endsAt: "2000-01-01T00:00:00.000Z"
+      }
+    });
+
+    const response = await invokeRaw(newsIndex, {
+      method: "GET",
+      path: "/news"
+    });
+    expect(response.status).toBe(200);
+    // Both posts remain reachable via the plain chronological list below the
+    // (empty, since neither section is in-window) composed section area —
+    // the schedule window only hides the SECTION wrapper, not the post
+    // itself. Absence of the section markup is what this test proves.
+    expect(response.text).not.toContain("homepage-section-headline");
+  });
+
+  test("sort_order controls the rendered order of multiple simultaneously-active sections on /news", async () => {
+    const owner = await bootstrap();
+    const firstPost = await createAndPublishPost(owner, {
+      slug: "first-section-post"
+    });
+    const secondPost = await createAndPublishPost(owner, {
+      slug: "second-section-post"
+    });
+
+    // Created out of visual order on purpose — sortOrder, not creation
+    // order, must determine render order.
+    await invoke(createSection, {
+      method: "POST",
+      path: "/api/v1/news-portal/homepage-sections",
+      headers: authHeaders(owner),
+      body: {
+        sectionKey: "front-page-second",
+        sectionType: "headline",
+        config: { postId: secondPost.id },
+        sortOrder: 2
+      }
+    });
+    await invoke(createSection, {
+      method: "POST",
+      path: "/api/v1/news-portal/homepage-sections",
+      headers: authHeaders(owner),
+      body: {
+        sectionKey: "front-page-first",
+        sectionType: "headline",
+        config: { postId: firstPost.id },
+        sortOrder: 1
+      }
+    });
+
+    const response = await invokeRaw(newsIndex, {
+      method: "GET",
+      path: "/news"
+    });
+    expect(response.status).toBe(200);
+    const firstIndex = response.text.indexOf("first-section-post");
+    const secondIndex = response.text.indexOf("second-section-post");
+    expect(firstIndex).toBeGreaterThan(-1);
+    expect(secondIndex).toBeGreaterThan(-1);
+    expect(firstIndex).toBeLessThan(secondIndex);
+  });
 });
