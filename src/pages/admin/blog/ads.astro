@@ -20,6 +20,7 @@ import {
   listAds
 } from "../../../modules/blog-content/application/ads-directory";
 import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
 import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
 
 const context = Astro.locals.ssrContext;
@@ -88,7 +89,9 @@ if (CAN_READ_ADS) {
       }
     );
   } catch (error) {
-    console.error("admin/blog/ads.astro: failed to load ads", error);
+    logAdminPageError("admin/blog/ads.astro: failed to load ads", error, {
+      correlationId: Astro.locals.correlationId
+    });
     loadError = true;
   }
 }

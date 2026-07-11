@@ -37,6 +37,7 @@ import {
   type PermissionCatalogEntry
 } from "../../modules/identity-access/application/user-directory";
 import { createTranslator } from "../../lib/i18n/translate";
+import { logAdminPageError } from "../../lib/logging/error-log";
 import { buildClientErrorMessages } from "../../lib/i18n/error-messages";
 
 const context = Astro.locals.ssrContext;
@@ -116,7 +117,9 @@ if (hasAnyAccess) {
       })
     );
   } catch (error) {
-    console.error("admin/access-users.astro: failed to load data", error);
+    logAdminPageError("admin/access-users.astro: failed to load data", error, {
+      correlationId: Astro.locals.correlationId
+    });
     loadError = true;
   }
 }

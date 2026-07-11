@@ -17,6 +17,7 @@
  *   silent pass just because there was nothing to parse.
  */
 import { resolveAppBaseUrl } from "./lib/app-url";
+import { safeErrorDetail } from "../src/lib/logging/error-sanitizer";
 
 export type PoolHealthOutcome = {
   ok: boolean;
@@ -56,7 +57,7 @@ async function main() {
   try {
     response = await fetch(url);
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = safeErrorDetail(error);
     console.error(
       `db:pool:health FAIL — could not reach ${url}: ${detail}\n` +
         "Is the server running? Start it with `bun run preview` (after `bun run build`) " +
@@ -71,7 +72,7 @@ async function main() {
   try {
     body = await response.json();
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = safeErrorDetail(error);
     console.error(
       `db:pool:health FAIL — response from ${url} was not valid JSON: ${detail}`
     );

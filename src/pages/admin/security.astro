@@ -67,6 +67,7 @@ import {
 } from "../../modules/identity-access/application/auth-provider-directory";
 import { fetchTenantUsersWithRoles } from "../../modules/identity-access/application/user-directory";
 import { createTranslator } from "../../lib/i18n/translate";
+import { logAdminPageError } from "../../lib/logging/error-log";
 import { buildClientErrorMessages } from "../../lib/i18n/error-messages";
 
 const context = Astro.locals.ssrContext;
@@ -155,7 +156,11 @@ if (statusSummary.gateActive && CAN_READ_ANYTHING) {
       }
     });
   } catch (error) {
-    console.error("admin/security.astro: failed to load security data", error);
+    logAdminPageError(
+      "admin/security.astro: failed to load security data",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
     loadError = true;
   }
 }

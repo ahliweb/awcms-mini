@@ -9,7 +9,7 @@ Folder `src/lib/` berisi helper lintas-modul (base generik selesai, v0.23.5 — 
 - `files/` — helper file/storage lokal.
 - `i18n/` — parser `.po`, catalog loader, `createTranslator`/`t()`, formatter locale-aware (Issue #433; skill `awcms-mini-i18n`).
 - `integration/` — `timeout.ts` (`withTimeout` untuk panggilan keluar, Issue #436; skill `awcms-mini-integration`).
-- `logging/` — `logger.ts` (JSON terstruktur + `setLogSink`), `correlation-response.ts` (propagasi `meta.correlationId`, Issue #447; skill `awcms-mini-observability`).
+- `logging/` — `logger.ts` (JSON terstruktur + `setLogSink`), `correlation-response.ts` (propagasi `meta.correlationId`, Issue #447; skill `awcms-mini-observability`), `error-sanitizer.ts` (`sanitizeErrorForLog`/`safeErrorDetail` — redaksi pesan/`.stack`/rantai `.cause` sebuah exception sebelum di-log), `error-log.ts` (`logAdminPageError`/`logScriptFailure` — call-site helper untuk admin SSR page dan CLI worker, Issue #687).
 - `security/` — `security-headers.ts`, `rate-limit.ts`, `theme-init-script.ts` (Issue #437; skill `awcms-mini-security-hardening`).
 - `ui/` — `admin-form-client.ts` (`submitJson`/`showBanner`/`lockElement`, Issue #434).
 

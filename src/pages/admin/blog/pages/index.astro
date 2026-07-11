@@ -24,6 +24,7 @@ import {
   isPageType
 } from "../../../../modules/blog-content/domain/page-type";
 import { createTranslator } from "../../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../../lib/logging/error-log";
 import { formatDateTime } from "../../../../lib/i18n/format";
 
 const context = Astro.locals.ssrContext;
@@ -67,7 +68,11 @@ if (CAN_READ_PAGES) {
       })
     );
   } catch (error) {
-    console.error("admin/blog/pages/index.astro: failed to load pages", error);
+    logAdminPageError(
+      "admin/blog/pages/index.astro: failed to load pages",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
     loadError = true;
   }
 }

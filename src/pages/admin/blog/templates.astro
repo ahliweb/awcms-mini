@@ -15,6 +15,7 @@ import { withTenant } from "../../../lib/database/tenant-context";
 import { permissionKey } from "../../../modules/identity-access/domain/access-control";
 import { listTemplates } from "../../../modules/blog-content/application/template-directory";
 import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
 import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
 
 const context = Astro.locals.ssrContext;
@@ -54,9 +55,10 @@ if (CAN_READ_TEMPLATES) {
       listTemplates(tx, context.tenantId)
     );
   } catch (error) {
-    console.error(
+    logAdminPageError(
       "admin/blog/templates.astro: failed to load templates",
-      error
+      error,
+      { correlationId: Astro.locals.correlationId }
     );
     loadError = true;
   }

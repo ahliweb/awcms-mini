@@ -17,6 +17,7 @@
  * "system user" placeholder in this codebase; the operator supplies one.
  */
 import { getDatabaseClient } from "../src/lib/database/client";
+import { logScriptFailure } from "../src/lib/logging/error-log";
 import { withTenant } from "../src/lib/database/tenant-context";
 import { recordAuditEvent } from "../src/modules/logging/application/audit-log";
 import { DEFAULT_EMAIL_TEMPLATES } from "../src/modules/email/domain/email-default-templates";
@@ -72,9 +73,7 @@ async function main() {
         `tenant=${tenantId} created=${result.created} skipped=${result.skipped}`
     );
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    console.error(`email:templates:seed-defaults FAILED — ${detail}`);
-    process.exitCode = 1;
+    logScriptFailure("email:templates:seed-defaults FAILED", error);
   } finally {
     await sql.close({ timeout: 1 });
   }

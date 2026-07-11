@@ -14,6 +14,7 @@ import { permissionKey } from "../../../modules/identity-access/domain/access-co
 import { listWidgets } from "../../../modules/blog-content/application/widget-directory";
 import { WIDGET_POSITIONS } from "../../../modules/blog-content/domain/widget-policy";
 import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
 import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
 
 const context = Astro.locals.ssrContext;
@@ -53,7 +54,11 @@ if (CAN_READ_WIDGETS) {
       listWidgets(tx, context.tenantId)
     );
   } catch (error) {
-    console.error("admin/blog/widgets.astro: failed to load widgets", error);
+    logAdminPageError(
+      "admin/blog/widgets.astro: failed to load widgets",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
     loadError = true;
   }
 }

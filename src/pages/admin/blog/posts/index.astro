@@ -33,6 +33,7 @@ import {
   isBlogContentStatus
 } from "../../../../modules/blog-content/domain/post-status";
 import { createTranslator } from "../../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../../lib/logging/error-log";
 import { formatDateTime } from "../../../../lib/i18n/format";
 
 const context = Astro.locals.ssrContext;
@@ -96,7 +97,11 @@ if (CAN_READ_POSTS) {
       }
     );
   } catch (error) {
-    console.error("admin/blog/posts/index.astro: failed to load posts", error);
+    logAdminPageError(
+      "admin/blog/posts/index.astro: failed to load posts",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
     loadError = true;
   }
 }

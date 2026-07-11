@@ -17,6 +17,7 @@
  * backlog cannot make a single scheduled run run forever.
  */
 import { getWorkerDatabaseClient } from "../src/lib/database/client";
+import { logScriptFailure } from "../src/lib/logging/error-log";
 import { dispatchObjectSyncQueue } from "../src/modules/sync-storage/application/object-dispatch";
 
 const MAX_PASSES_PER_TENANT = 20;
@@ -61,9 +62,7 @@ async function main() {
         `retried=${totalRetried} failed=${totalFailed}`
     );
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    console.error(`sync:objects:dispatch FAILED — ${detail}`);
-    process.exitCode = 1;
+    logScriptFailure("sync:objects:dispatch FAILED", error);
   } finally {
     await sql.close({ timeout: 1 });
   }

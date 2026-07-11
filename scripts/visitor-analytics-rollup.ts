@@ -22,6 +22,7 @@
  *      existing one.
  */
 import { getWorkerDatabaseClient } from "../src/lib/database/client";
+import { logScriptFailure } from "../src/lib/logging/error-log";
 import { withTenant } from "../src/lib/database/tenant-context";
 import { rollupVisitorAnalyticsForDate } from "../src/modules/visitor-analytics/application/rollup";
 
@@ -128,9 +129,7 @@ async function main() {
         `areaRowsUpserted=${totalAreaRowsUpserted}`
     );
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    console.error(`analytics:rollup FAILED — ${detail}`);
-    process.exitCode = 1;
+    logScriptFailure("analytics:rollup FAILED", error);
   } finally {
     await sql.close({ timeout: 1 });
   }

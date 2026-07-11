@@ -20,6 +20,7 @@ import { fetchAccessAuditReport } from "../../modules/reporting/application/acce
 import { fetchSyncHealthReport } from "../../modules/reporting/application/sync-health-report";
 import { fetchModuleUsageReport } from "../../modules/reporting/application/module-usage-report";
 import { createTranslator } from "../../lib/i18n/translate";
+import { logAdminPageError } from "../../lib/logging/error-log";
 
 const context = Astro.locals.ssrContext;
 
@@ -66,7 +67,9 @@ if (hasDashboardAccess) {
       })
     );
   } catch (error) {
-    console.error("admin/index.astro: failed to load dashboard", error);
+    logAdminPageError("admin/index.astro: failed to load dashboard", error, {
+      correlationId: Astro.locals.correlationId
+    });
     loadError = true;
   }
 }

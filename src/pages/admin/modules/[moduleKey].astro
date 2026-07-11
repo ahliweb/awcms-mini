@@ -39,6 +39,7 @@ import { fetchModuleJobs } from "../../../modules/module-management/application/
 import { fetchModuleHealthReport } from "../../../modules/module-management/application/health-registry";
 import { fetchModuleAuditSummary } from "../../../modules/module-management/application/module-audit-summary";
 import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
 import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
 import { formatDateTime } from "../../../lib/i18n/format";
 
@@ -183,9 +184,10 @@ if (CAN_READ_MODULES) {
       notFound = true;
     }
   } catch (error) {
-    console.error(
+    logAdminPageError(
       "admin/modules/[moduleKey].astro: failed to load module detail",
-      error
+      error,
+      { correlationId: Astro.locals.correlationId }
     );
     loadError = true;
   }

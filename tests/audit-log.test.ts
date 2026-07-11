@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
   findSecretShapedValues,
   findSensitiveKeys,
+  redactSecretsInText,
   redactSensitiveAttributes
 } from "../src/modules/_shared/redaction";
 import {
@@ -123,6 +124,107 @@ describe("redactSensitiveAttributes", () => {
       credential: "[REDACTED]"
     });
   });
+
+  // Issue #687 — extending REDACTION_KEYS with "cookie" and an IP-address
+  // synonym set (credentials/tokens/cookies/authorization headers/DSNs/
+  // email/IP per the issue's own acceptance criteria).
+  test("redacts cookie-named keys (substring match, like the other keys above)", () => {
+    expect(
+      redactSensitiveAttributes({
+        cookie: "session=abc123",
+        setCookie: "session=abc123",
+        cookies: ["a", "b"]
+      })
+    ).toEqual({
+      cookie: "[REDACTED]",
+      setCookie: "[REDACTED]",
+      cookies: "[REDACTED]"
+    });
+  });
+
+  // PR #712 follow-up (security review, item 7) — the same over-match
+  // concern raised for "ip" (a 2-character substring matching inside many
+  // unrelated words) does NOT apply the same way to "cookie": it's a
+  // 6-character substring, and a repo-wide grep for
+  // `[a-zA-Z_]*[Cc]ookie[a-zA-Z_]*` across `src/` (before writing this
+  // test) found only genuinely cookie-related identifiers
+  // (`cookieLocale`, `cookieName`, `cookieOptions`, `cookies`,
+  // `AstroCookies`) — no unrelated English word in this codebase happens
+  // to contain "cookie" as an accidental substring the way "shipping"/
+  // "recipient" contain "ip". This test locks in that the existing
+  // substring approach (not an exact-match allowlist like "ip" needed)
+  // stays intentional, not an oversight.
+  test("cookie-adjacent, non-secret field names in this codebase are all legitimately cookie-related", () => {
+    // `cookieLocale`/`cookieName`/`cookieOptions` are real field/parameter
+    // names in this codebase (`src/lib/i18n/*`, `src/middleware.ts`) — none
+    // of them are secrets themselves, but redacting them as a side effect
+    // of the substring match is the safe direction (over-inclusive, not
+    // an information leak), unlike "ip" which had genuine unrelated-word
+    // false positives to guard against.
+    expect(
+      redactSensitiveAttributes({
+        cookieLocale: "en",
+        cookieName: "awcms_mini_session",
+        reason: "unrelated, must stay untouched"
+      })
+    ).toEqual({
+      cookieLocale: "[REDACTED]",
+      cookieName: "[REDACTED]",
+      reason: "unrelated, must stay untouched"
+    });
+  });
+
+  test("redacts every real IP-address key shape (exact-match synonyms, not substring)", () => {
+    expect(
+      redactSensitiveAttributes({
+        ip: "203.0.113.5",
+        ipAddress: "203.0.113.5",
+        ip_address: "203.0.113.5",
+        clientIp: "203.0.113.5",
+        client_ip: "203.0.113.5",
+        remoteAddr: "203.0.113.5",
+        remote_address: "203.0.113.5",
+        "x-forwarded-for": "203.0.113.5",
+        xForwardedFor: "203.0.113.5"
+      })
+    ).toEqual({
+      ip: "[REDACTED]",
+      ipAddress: "[REDACTED]",
+      ip_address: "[REDACTED]",
+      clientIp: "[REDACTED]",
+      client_ip: "[REDACTED]",
+      remoteAddr: "[REDACTED]",
+      remote_address: "[REDACTED]",
+      "x-forwarded-for": "[REDACTED]",
+      xForwardedFor: "[REDACTED]"
+    });
+  });
+
+  // Issue #687 — the over-match finding: a plain substring check for "ip"
+  // (mirroring how the other REDACTION_KEYS entries work) would also catch
+  // every key that merely *contains* the letters "ip" consecutively.
+  // Verified before shipping the "ip" addition — these keys must NOT be
+  // redacted, so "ip" is an exact-match synonym allowlist, not a
+  // REDACTION_KEYS substring entry.
+  test("does NOT redact keys that merely contain the substring 'ip' (over-match check)", () => {
+    expect(
+      redactSensitiveAttributes({
+        description: "a package description",
+        shipping: "flat rate",
+        recipient: "Jane Doe",
+        equipment: "POS terminal",
+        membership: "gold tier",
+        principal: "site owner"
+      })
+    ).toEqual({
+      description: "a package description",
+      shipping: "flat rate",
+      recipient: "Jane Doe",
+      equipment: "POS terminal",
+      membership: "gold tier",
+      principal: "site owner"
+    });
+  });
 });
 
 describe("findSensitiveKeys", () => {
@@ -170,12 +272,15 @@ describe("findSecretShapedValues", () => {
   test("finds a JWT-shaped value under an innocently-named key", () => {
     expect(
       findSecretShapedValues({
-        // The canonical public example token from jwt.io's own debugger
-        // (used verbatim in virtually every JWT tutorial) — a recognizable
-        // non-secret, same convention as AWS's own "AKIA...EXAMPLE" key id
-        // below, chosen so this fixture doesn't read as a real leaked token.
+        // Deliberately fabricated, not the well-known jwt.io canonical
+        // example token — that exact string previously tripped GitGuardian's
+        // scanner on this PR despite being public test data (structural
+        // JWT-pattern matching doesn't distinguish "famous example" from
+        // "real secret"). This fixture only needs to be JWT-*shaped* (three
+        // base64url segments prefixed `eyJ`) to exercise the same regex, so
+        // a fabricated, non-canonical value works equally well as a test.
         publicLabel:
-          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+          "eyJub3RfYV9yZWFsX2p3dF9maXh0dXJl.eyJqdXN0X3Rlc3RfZGF0YV9oZXJl.bm90YV9yZWFsX3NpZ25hdHVyZQ"
       })
     ).toEqual(["publicLabel"]);
   });
@@ -208,6 +313,40 @@ describe("findSecretShapedValues", () => {
     ).toEqual(["webhookUrl"]);
   });
 
+  // PR #712 follow-up (security review, CRITICAL) — the password character
+  // class used to exclude `:` and `@`, so a connection string whose
+  // password itself contains either character bypassed detection entirely
+  // (`:`) or matched the wrong `@` and produced a garbled result (`@`).
+  test("finds a connection string whose password itself contains a colon", () => {
+    expect(
+      findSecretShapedValues({
+        webhookUrl:
+          "postgres://appuser:my:pass@db.internal.example.com:5432/awcms"
+      })
+    ).toEqual(["webhookUrl"]);
+  });
+
+  test("finds a connection string whose password itself contains an at-sign", () => {
+    expect(
+      findSecretShapedValues({
+        webhookUrl:
+          "postgres://appuser:p@ss!w0rd@db.internal.example.com:5432/awcms"
+      })
+    ).toEqual(["webhookUrl"]);
+  });
+
+  // PR #712 follow-up (security review, HIGH) — the JWT pattern used to
+  // require the signature segment to be at least 5 characters, so a
+  // truncated/empty-signature JWT bypassed detection even though its
+  // header/payload (often containing `sub`/`tenant_id`/`roles`) still leak.
+  test("finds a JWT-shaped value with an empty signature segment", () => {
+    expect(
+      findSecretShapedValues({
+        note: "eyJhbGciOiJub25lIn0.eyJzdWIiOiIxMjM0NTY3ODkwIn0."
+      })
+    ).toEqual(["note"]);
+  });
+
   test("finds a secret-shaped value nested inside an object", () => {
     expect(
       findSecretShapedValues({
@@ -225,6 +364,140 @@ describe("findSecretShapedValues", () => {
         ]
       })
     ).toEqual(["webhooks[1].label"]);
+  });
+});
+
+// Issue #687 — free-text complement to `redactSensitiveAttributes`, used by
+// `src/lib/logging/error-sanitizer.ts` to sanitize a caught exception's own
+// message/stack (unstructured prose, no object key to check by name).
+describe("redactSecretsInText", () => {
+  test("leaves text with no secret-shaped content untouched", () => {
+    expect(redactSecretsInText("connection refused")).toBe(
+      "connection refused"
+    );
+  });
+
+  test("redacts a password=value pair", () => {
+    expect(redactSecretsInText("login failed: password=hunter2")).toBe(
+      "login failed: password=[REDACTED]"
+    );
+  });
+
+  test("redacts a quoted key: value secret pair", () => {
+    expect(redactSecretsInText('config error: apiKey: "abc123"')).toBe(
+      "config error: apiKey: [REDACTED]"
+    );
+  });
+
+  test("redacts an embedded JWT", () => {
+    const jwt =
+      "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dQw4w9WgXcQ_dGVzdF9zaWduYXR1cmU";
+
+    // Deliberately no "token:"/"password:"-shaped prefix immediately before
+    // the JWT here — that's a separate, still-safe overlap case (the
+    // key=value pattern would also match "token: <value>" and win with the
+    // generic `[REDACTED]` tag instead of `[REDACTED_JWT]`; the secret is
+    // still fully redacted either way, only the tag differs).
+    expect(redactSecretsInText(`unexpected value: ${jwt}`)).toBe(
+      "unexpected value: [REDACTED_JWT]"
+    );
+  });
+
+  test("redacts a connection-string credential (DSN)", () => {
+    expect(
+      redactSecretsInText(
+        "could not connect to postgres://appuser:s3cr3t@db.internal:5432/awcms"
+      )
+    ).toBe("could not connect to postgres://[REDACTED]@db.internal:5432/awcms");
+  });
+
+  // PR #712 follow-up (security review, CRITICAL) — regression tests for
+  // the exact two empirical failure scenarios the security auditor found:
+  // a DSN password containing `:` (previously not redacted AT ALL — the
+  // regex failed to match), and a DSN password containing `@` (previously
+  // matched the WRONG `@`, leaking most of the real password after the
+  // `[REDACTED]` tag).
+  test("redacts a DSN whose password itself contains a colon (was: not redacted at all)", () => {
+    expect(
+      redactSecretsInText(
+        "postgres://appuser:my:pass@db.internal.example.com:5432/awcms"
+      )
+    ).toBe("postgres://[REDACTED]@db.internal.example.com:5432/awcms");
+  });
+
+  test("redacts a DSN whose password itself contains an at-sign (was: partially leaked)", () => {
+    const output = redactSecretsInText(
+      "postgres://appuser:p@ss!w0rd@db.internal.example.com:5432/awcms"
+    );
+
+    expect(output).toBe(
+      "postgres://[REDACTED]@db.internal.example.com:5432/awcms"
+    );
+    expect(output).not.toContain("ss!w0rd");
+  });
+
+  // PR #712 follow-up (security review, HIGH) — a truncated/short-signature
+  // JWT (e.g. a log line cut off mid-token) used to bypass redaction
+  // entirely because the third segment required >= 5 characters.
+  test("redacts a JWT with an empty signature segment (truncated log line)", () => {
+    expect(
+      redactSecretsInText(
+        "bad token seen: eyJhbGciOiJub25lIn0.eyJzdWIiOiIxMjM0NTY3ODkwIn0."
+      )
+    ).toBe("bad token seen: [REDACTED_JWT]");
+  });
+
+  test("redacts a JWT with a short (but non-empty) signature segment", () => {
+    expect(
+      redactSecretsInText(
+        "bad token seen: eyJhbGciOiJub25lIn0.eyJzdWIiOiIxMjM0NTY3ODkwIn0.ab"
+      )
+    ).toBe("bad token seen: [REDACTED_JWT]");
+  });
+
+  // PR #712 follow-up (security review, CRITICAL) — the paired
+  // BEGIN...END PEM pattern never matches at all when a stack trace/error
+  // message is truncated before the END marker is reached (buffer limits,
+  // a provider truncating its own error response) — previously the ENTIRE
+  // raw key body (base64) passed through completely unredacted.
+  test("redacts a truncated PEM private key block with no END marker", () => {
+    const truncated =
+      "-----BEGIN PRIVATE KEY-----\nMIIBVgIBADANBgkqhkiG9w0BAQEFAASCAWMwggFf";
+
+    const output = redactSecretsInText(`key dump: ${truncated}`);
+
+    expect(output).toBe("key dump: [REDACTED_PRIVATE_KEY]");
+    expect(output).not.toContain("MIIBVgIBADANBgkqhkiG9w0BAQEFAASCAWMwggFf");
+  });
+
+  test("a well-formed (non-truncated) PEM block still redacts to a single tag", () => {
+    const pem =
+      "-----BEGIN PRIVATE KEY-----\nMIIBVgIBADANBgkqhkiG9w0BAQ\n-----END PRIVATE KEY-----";
+
+    expect(redactSecretsInText(`key: ${pem} trailing text`)).toBe(
+      "key: [REDACTED_PRIVATE_KEY] trailing text"
+    );
+  });
+
+  test("redacts a Bearer authorization header value", () => {
+    expect(
+      redactSecretsInText("request failed — Authorization: Bearer abc.def.ghi")
+    ).toBe("request failed — Authorization: Bearer [REDACTED]");
+  });
+
+  test("redacts a PEM private key block", () => {
+    const pem =
+      "-----BEGIN PRIVATE KEY-----\nMIIBVgIBADANBgkqhkiG9w0BAQ\n-----END PRIVATE KEY-----";
+
+    expect(redactSecretsInText(`key: ${pem}`)).toBe(
+      "key: [REDACTED_PRIVATE_KEY]"
+    );
+  });
+
+  test("redacts an AWS access key id", () => {
+    expect(
+      redactSecretsInText("using key AKIAIOSFODNN7EXAMPLE for upload")
+    ).toBe("using key [REDACTED_AWS_KEY] for upload");
   });
 });
 

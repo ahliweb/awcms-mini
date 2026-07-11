@@ -15,6 +15,7 @@
  * rule).
  */
 import { resolveEmailProvider } from "../src/modules/email/infrastructure/email-provider-resolver";
+import { safeErrorDetail } from "../src/lib/logging/error-sanitizer";
 
 async function main() {
   if (process.env.EMAIL_ENABLED !== "true") {
@@ -26,7 +27,13 @@ async function main() {
   const result = await provider.healthCheck();
 
   if (!result.ok) {
-    console.error(`email:provider:health FAILED — ${result.error}`);
+    // `result.error` is already-truncated provider-response text (see
+    // `MailketingProvider.healthCheck`), but not yet run through this
+    // repo's shared secret-pattern redaction — `safeErrorDetail` is
+    // idempotent-safe to apply here regardless of the input shape.
+    console.error(
+      `email:provider:health FAILED — ${safeErrorDetail(result.error)}`
+    );
     process.exitCode = 1;
     return;
   }

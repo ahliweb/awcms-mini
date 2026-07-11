@@ -4,6 +4,7 @@ import { parseDocument } from "yaml";
 
 import { listModules } from "../src/modules";
 import { bundleOpenApi } from "./openapi-bundle";
+import { safeErrorDetail } from "../src/lib/logging/error-sanitizer";
 
 type Problem = {
   file: string;
@@ -795,7 +796,7 @@ export async function checkBundleFreshness(
   try {
     fresh = await bundleOpenApi(rootDir);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = safeErrorDetail(error);
 
     return [
       {
@@ -905,7 +906,7 @@ async function readYamlFile(
 
     return document.toJSON();
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = safeErrorDetail(error);
 
     problems.push({ file: displayPath, message });
     return undefined;

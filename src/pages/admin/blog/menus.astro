@@ -23,6 +23,7 @@ import {
   listMenus
 } from "../../../modules/blog-content/application/menu-directory";
 import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
 import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
 
 const context = Astro.locals.ssrContext;
@@ -90,7 +91,9 @@ if (CAN_READ_MENUS) {
       }
     );
   } catch (error) {
-    console.error("admin/blog/menus.astro: failed to load menus", error);
+    logAdminPageError("admin/blog/menus.astro: failed to load menus", error, {
+      correlationId: Astro.locals.correlationId
+    });
     loadError = true;
   }
 }

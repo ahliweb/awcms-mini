@@ -26,6 +26,7 @@ import { fetchBlogThemeSettings } from "../../../modules/blog-content/applicatio
 import { BLOG_CONTENT_VISIBILITIES } from "../../../modules/blog-content/domain/post-status";
 import { BLOG_THEME_MODES } from "../../../modules/blog-content/domain/theme-policy";
 import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
 import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
 
 const context = Astro.locals.ssrContext;
@@ -74,7 +75,11 @@ if (CAN_READ_SETTINGS || CAN_READ_THEME) {
       }
     });
   } catch (error) {
-    console.error("admin/blog/settings.astro: failed to load settings", error);
+    logAdminPageError(
+      "admin/blog/settings.astro: failed to load settings",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
     loadError = true;
   }
 }

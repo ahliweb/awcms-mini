@@ -55,6 +55,7 @@ import {
   TENANT_DOMAIN_VERIFICATION_METHODS
 } from "../../../modules/tenant-domain/domain/tenant-domain-validation";
 import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
 import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
 import { formatDateTime } from "../../../lib/i18n/format";
 
@@ -122,9 +123,10 @@ if (CAN_READ) {
       listTenantDomains(tx, context.tenantId)
     );
   } catch (error) {
-    console.error(
+    logAdminPageError(
       "admin/tenant/domains.astro: failed to load tenant domains",
-      error
+      error,
+      { correlationId: Astro.locals.correlationId }
     );
     loadError = true;
   }

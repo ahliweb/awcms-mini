@@ -628,3 +628,171 @@ upload-sessions/*` tetap di tier `default` (128 KiB) karena byte
   jalur presigned R2 (Keputusan kunci #2, skill `awcms-mini-news-portal`)
   sudah lebih dulu memastikan itu; body JSON kecil (kunci objek,
   checksum) di endpoint ini tidak butuh tier lebih besar.
+
+## Standar tambahan dipicu epic platform-hardening (Issue #687, epic #679)
+
+Remediasi NARROW, bukan pengganti fondasi structured-logging/audit-trail
+Issue 10.1/#403/#447 (`src/lib/logging/logger.ts`,
+`src/modules/logging/application/audit-log.ts`). Evidence sebelum issue
+ini: banyak halaman admin Astro (`src/pages/admin/**/*.astro`, 24 file)
+dan script worker (`scripts/*.ts`, termasuk `scripts/api-spec-check.ts`
+yang lolos dari inventarisasi awal) memanggil `console.error(label,
+error)` mentah atau meng-ekstrak `error.message` dengan tangan
+(`error instanceof Error ? error.message : String(error)`) lalu
+mencetaknya langsung — kanal kebocoran yang berbeda dari yang sudah
+ditutup `redactSensitiveAttributes` (yang hanya bekerja pada KEY objek,
+bukan teks bebas seperti pesan exception).
+
+Dua helper baru, satu jalur konsisten menggantikan ~40 titik panggil
+bespoke:
+
+- `logAdminPageError(label, error, context)`
+  (`src/lib/logging/error-log.ts`) — dipakai setiap SSR admin page
+  frontmatter; meneruskan `Astro.locals.correlationId` (sudah tersedia
+  sejak Issue 10.1/#447) sehingga kegagalan tetap correlation-aware,
+  lalu memanggil `log("error", ...)` dengan detail exception yang sudah
+  disanitasi.
+- `logScriptFailure(label, error)` (`src/lib/logging/error-log.ts`) —
+  dipakai setiap `catch` di CLI worker (`scripts/*.ts`); mempertahankan
+  bentuk pesan operator persis sama (`"<script> FAILED — <detail>"`) dan
+  `process.exitCode = 1`, hanya detailnya sekarang sudah disanitasi.
+
+Keduanya dibangun di atas `src/lib/logging/error-sanitizer.ts`:
+`sanitizeErrorForLog` (representasi terstruktur, termasuk rantai
+`.cause` bertingkat, dibatasi 5 level) dan `safeErrorDetail` (ringkasan
+satu baris untuk output CLI) — keduanya memanggil
+`redactSecretsInText` (`src/modules/_shared/redaction.ts`) baru:
+pelengkap teks-bebas dari `redactSensitiveAttributes` yang berbasis
+KEY, untuk pola BENTUK NILAI (JWT, blok PEM private key, AWS access
+key, `Bearer`/`Basic` auth header, connection-string dengan kredensial
+`user:pass@`, dan pasangan `key=value`/`key: value` yang key-nya
+credential-shaped) di dalam `.message`/`.stack` exception itu sendiri.
+
+`REDACTION_KEYS` (redaksi berbasis key object) diperluas dengan
+`"cookie"`. **Temuan penting**: `"ip"` TIDAK bisa masuk daftar itu
+sebagai substring biasa — pengecekan `.includes()` yang sudah ada akan
+ikut meredaksi setiap key yang sekadar MENGANDUNG huruf "ip" berurutan
+(`description`, `shipping`, `recipient`, `equipment`, `membership`
+semuanya cocok). Sebagai gantinya `"ip"` dan sinonim nyatanya
+(`ipAddress`, `ip_address`, `clientIp`, `remoteAddr`,
+`x-forwarded-for`, dst.) masuk allowlist EXACT-MATCH terpisah
+(dibandingkan setelah karakter non-alfanumerik dibuang) — lihat
+`tests/audit-log.test.ts`'s fixture negatif (`description`/`shipping`/
+`recipient` TIDAK boleh ter-redact) sebagai regression guard.
+
+Gate baru `bun run logging:lint:check`
+(`scripts/logging-lint-check.ts`, bagian dari `bun run check`) mencegah
+pola lama muncul kembali di direktori yang tercakup —
+**`src/pages/admin/**`, `src/pages/api/v1/**`, `scripts/**`, `src/lib/**`,
+dan `src/modules/**`** (lihat `SCAN_ROOTS` di skrip itu untuk daftar
+pasti; JANGAN anggap ini lengkap tanpa mengecek konstanta itu langsung —
+cakupan bisa berubah): (1) ekstraksi `instanceof Error`/`String(...)`
+yang variabelnya lalu mengalir ke `console.error`/`console.warn` —
+sengaja TIDAK melarang pola ekstraksi itu sendiri di mana pun
+(`src/pages/api/v1/**` punya 11 pemakaian sah untuk mencocokkan nama
+constraint DB secara internal, tidak pernah dicetak/dikembalikan mentah,
+yang akan jadi false positive kalau dilarang total); (2) panggilan
+`console.error`/`console.warn` yang menerima objek error mentah langsung
+(termasuk sebagai satu-satunya argumen, tanpa label) atau mengakses
+`.message`/`.stack` inline tanpa melalui salah satu fungsi sanitasi yang
+direview (`ALLOWED_SANITIZER_CALLS` di skrip itu). Nama variabel
+tertangkap oleh nama, bukan analisis `catch`-clause sungguhan —
+`error`/`err`/`exception`/`exc`/`ex`/`e` (`CAUGHT_VALUE_NAMES`) yang
+dikenali; sebuah nama lain yang tidak lazim tetap lolos dari check (2)
+ini (masih tertangkap check (1) kalau juga memakai idiom ekstraksi
+mentah).
+
+### PR #712 follow-up (security review sebelum merge — CRITICAL/HIGH yang diperbaiki)
+
+Review keamanan atas PR #712 (Issue #687) menemukan beberapa celah nyata
+sebelum merge, semuanya sudah diperbaiki di branch yang sama:
+
+- **DSN dengan `:`/`@` di dalam password** — regex redaksi connection
+  string sebelumnya (`[^:@/\s]+` untuk bagian password) GAGAL total
+  mencocokkan bila password mengandung `:` (tidak ter-redak sama sekali),
+  dan salah memilih `@` PERTAMA (bukan TERAKHIR) bila password
+  mengandung `@` (sebagian besar password asli bocor mentah setelah tag
+  `[REDACTED]`). Diperbaiki: kelas karakter password sekarang hanya
+  mengecualikan `/` dan whitespace (`[^/\s]+`), dan sifat _greedy_ regex
+  secara alami mundur (backtrack) ke `@` TERAKHIR yang valid — baik di
+  `redactSecretsInText` (`_shared/redaction.ts`) maupun kembarannya
+  `findSecretShapedValues`'s `SECRET_VALUE_PATTERNS`.
+- **Blok PEM private key terpotong (tanpa marker END)** — pola
+  BEGIN...END berpasangan gagal cocok sama sekali kalau teks
+  error/stack terpotong sebelum mencapai marker END (batas
+  buffer/provider), sehingga SELURUH body key mentah lolos tanpa
+  redaksi. Diperbaiki: pola fallback baru meredaksi dari marker BEGIN
+  sampai akhir teks kalau tidak ada END yang cocok di teks yang sama —
+  sengaja bisa over-redact teks tidak terkait setelahnya di skenario
+  langka ini (arah yang aman, bukan meninggalkan key mentah).
+- **JWT dengan signature pendek/kosong** — segmen ketiga (signature)
+  sebelumnya wajib >= 5 karakter, sehingga JWT yang terpotong (baris log
+  terpotong) lolos redaksi meski header/payload-nya (sering memuat
+  klaim `sub`/`tenant_id`/`roles`) tetap bocor. Diperbaiki: segmen ketiga
+  sekarang `*` (nol atau lebih).
+- **`logging:lint:check` tidak menjangkau `src/lib`/`src/modules`** —
+  instance nyata `console.error` dengan `error.message` mentah di
+  `src/lib/logging/logger.ts` (sink-error handler, sejak Issue #447,
+  tidak disentuh PR #687) lolos dari gate karena `SCAN_ROOTS` awal hanya
+  tiga direktori. Diperbaiki: instance itu sendiri sekarang memakai
+  `safeErrorDetail`, DAN `SCAN_ROOTS` diperluas mencakup `src/lib/**` dan
+  `src/modules/**` (yang terakhir nol pemakaian `console.error`/`warn`
+  saat diperiksa, jadi penambahannya tidak menimbulkan false positive).
+- **Nama variabel catch selain `error`/`err`** — `catch (e)`/`catch
+(ex)`/`catch (exc)` sebelumnya lolos total dari check (2) karena
+  regex hanya mengenali `error`/`err`. Diperbaiki: daftar nama yang
+  dikenali diperluas (lihat paragraf di atas) — masih berbasis nama,
+  bukan analisis catch-clause sungguhan, didokumentasikan sebagai
+  keterbatasan yang disengaja, bukan diam-diam diasumsikan aman.
+- **`console.error(error)` tanpa label** — argumen tunggal (tanpa koma)
+  sebelumnya lolos dari `RAW_ERROR_ARGUMENT` karena regex mensyaratkan
+  koma di depan. Diperbaiki: regex sekarang menerima `(` ATAU `,`
+  sebelum nama yang dikenali.
+
+Test regresi untuk setiap temuan di atas ada di `tests/audit-log.test.ts`,
+`tests/unit/error-sanitizer.test.ts`, dan
+`tests/unit/logging-lint-check.test.ts`.
+
+### Troubleshooting operator-safe
+
+Operator yang membaca output `bun run <script>` atau baris log JSON
+`log()` (stdout, `{"level":"error",...}`) TIDAK seharusnya melihat nilai
+password/token/cookie/authorization header/connection-string/JWT mentah
+untuk setiap bentuk secret yang tercakup pola `redactSecretsInText`/
+`isSensitiveKey` (`src/modules/_shared/redaction.ts`) — nilai itu diganti
+`[REDACTED]`/`[REDACTED_JWT]`/`[REDACTED_PRIVATE_KEY]`/
+`[REDACTED_AWS_KEY]` sebelum baris dicetak. **Ini heuristik berbasis
+pola, BUKAN DLP (data loss prevention) menyeluruh** — sama seperti
+disclaimer eksplisit `SECRET_VALUE_PATTERNS`/`redactSecretsInText`'s
+sendiri di `_shared/redaction.ts`: trivial dilewati oleh siapa pun yang
+sengaja ingin menyelundupkan secret (memecah JWT jadi beberapa field,
+membungkusnya dengan teks/encoding lain, memberi spasi di tengah pola),
+dan hanya menutup kasus "secret ikut kebawa tanpa sengaja", bukan setiap
+jalur eksfiltrasi yang disengaja. PR #712 (security review) menemukan
+dan memperbaiki beberapa celah nyata pada pola-pola ini (DSN dengan
+`:`/`@` di password, PEM terpotong, JWT signature pendek — lihat
+§"PR #712 follow-up" di atas); anggap redaksi ini defense-in-depth yang
+kuat untuk kasus jujur, bukan jaminan absolut untuk setiap kemungkinan
+bentuk secret. Kalau pesan error tidak cukup jelas untuk mendiagnosis:
+
+1. **Cari `correlationId`-nya** — setiap baris `log()` dari admin page
+   dan setiap respons `/api/*` membawa `correlationId` yang sama
+   (header `X-Correlation-ID` dan `meta.correlationId`); cocokkan
+   dengan `GET /logs/audit` (skill `awcms-mini-observability`) untuk
+   melihat aksi/aktor yang terkait request yang sama.
+2. **Rantai `.cause` tetap ada, hanya disanitasi per level** —
+   `sanitizeErrorForLog` tidak membuang informasi struktural (error
+   asli -> penyebab -> penyebab lebih dalam), hanya nilai secret-shaped
+   di tiap level yang diganti. Nama file/baris di `.stack` tetap utuh
+   kecuali kebetulan cocok pola secret.
+3. **Detail lengkap TIDAK PERNAH hilang, hanya tidak pernah ada di
+   response HTTP publik** — response API (`fail()`) tidak pernah
+   membawa `error.message`/`error.stack` mentah (diverifikasi tidak ada
+   celah, lihat inventarisasi Issue #687); detail lengkap ada di baris
+   `log()` server-side, yang aksesnya sudah dibatasi ke operator
+   (bukan di kanal yang bisa dilihat client/publik).
+4. **False positive `bun run logging:lint:check`** — kalau menemukan
+   kasus nyata yang tidak bisa ditulis ulang untuk lolos gate ini,
+   tambahkan `"relative/path:line"` ke `LOGGING_LINT_EXEMPTIONS` di
+   `scripts/logging-lint-check.ts` dengan alasan tercatat di komentar,
+   jangan hapus/lemahkan pattern generiknya.

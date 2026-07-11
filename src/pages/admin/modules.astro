@@ -22,6 +22,7 @@ import { permissionKey } from "../../modules/identity-access/domain/access-contr
 import { fetchModuleCatalog } from "../../modules/module-management/application/module-catalog";
 import { fetchModuleHealthReport } from "../../modules/module-management/application/health-registry";
 import { createTranslator } from "../../lib/i18n/translate";
+import { logAdminPageError } from "../../lib/logging/error-log";
 
 const context = Astro.locals.ssrContext;
 
@@ -75,7 +76,11 @@ if (CAN_READ_MODULES) {
       }
     );
   } catch (error) {
-    console.error("admin/modules.astro: failed to load module catalog", error);
+    logAdminPageError(
+      "admin/modules.astro: failed to load module catalog",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
     loadError = true;
   }
 }

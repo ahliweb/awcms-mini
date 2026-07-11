@@ -39,7 +39,7 @@ Login failed/success · access assignment · profile merge · product price chan
 
 ## Redaction keys
 
-`password`, `passwordHash`, `token`, `accessToken`, `refreshToken`, `apiKey`, `secret`, `credential`, `authorization`, `npwp`, `nik`, `phone`, `whatsapp`, `email`.
+`password`, `passwordHash`, `token`, `accessToken`, `refreshToken`, `apiKey`, `secret`, `credential`, `authorization`, `npwp`, `nik`, `phone`, `whatsapp`, `email`, `cookie` (Issue #687), plus allowlist exact-match untuk key IP address (`ip`, `ipAddress`, `clientIp`, `remoteAddr`, `x-forwarded-for`, dst — sengaja BUKAN substring seperti key lain di atas, lihat `src/modules/_shared/redaction.ts` untuk kenapa: substring `"ip"` akan ikut meredaksi `description`/`shipping`/`recipient`).
 
 ## Verifikasi
 
@@ -47,6 +47,23 @@ Login failed/success · access assignment · profile merge · product price chan
 - Soft delete, restore, dan purge menghasilkan audit event terpisah.
 - Tidak ada secret/PII mentah di kolom attributes.
 - Retention audit: 1–5 tahun sesuai kebutuhan — mekanisme purge nyata (`purgeExpiredAuditEvents`, default 730 hari, `bun run logs:audit:purge`) sudah tersedia sejak Issue #447, JANGAN buat mekanisme purge baru untuk `awcms_mini_audit_events`, lihat `awcms-mini-observability`.
+
+## console.error/console.warn dengan raw exception — DILARANG (Issue #687)
+
+`redactSensitiveAttributes` di atas hanya bekerja pada KEY objek — pesan
+exception (`.message`/`.stack`, termasuk rantai `.cause`) adalah teks bebas
+tanpa key, dan bisa saja mengandung secret (connection string, token) yang
+lolos dari redaksi berbasis key. **Jangan** pernah menulis
+`console.error(label, error)` mentah atau
+`error instanceof Error ? error.message : String(error)` lalu mencetaknya
+langsung di `src/pages/admin/**`, `src/pages/api/v1/**`, atau `scripts/*.ts`
+— pakai `logAdminPageError`/`logScriptFailure`
+(`src/lib/logging/error-log.ts`, dibangun di atas `sanitizeErrorForLog`/
+`safeErrorDetail` di `src/lib/logging/error-sanitizer.ts`, yang keduanya
+memanggil `redactSecretsInText` baru). Gate `bun run logging:lint:check`
+(`scripts/logging-lint-check.ts`, bagian dari `bun run check`) menolak pola
+lama ini secara otomatis — lihat doc 20 §Standar tambahan Issue #687 untuk
+detail lengkap dan panduan troubleshooting operator-safe.
 
 ## Correlation ID & extension point
 

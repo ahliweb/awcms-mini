@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
+import { redactSecretsInText } from "../src/modules/_shared/redaction";
+
 export type MigrationFile = {
   name: string;
   path: string;
@@ -219,7 +221,12 @@ function getDatabaseUrl(): string {
 function safeErrorMessage(error: unknown, databaseUrl: string): string {
   const message = error instanceof Error ? error.message : String(error);
 
-  return redactDatabaseUrl(message, databaseUrl);
+  // Issue #687 — `redactDatabaseUrl` only ever masked *this run's own*
+  // `DATABASE_URL` value; `redactSecretsInText` additionally catches any
+  // other credential-shaped substring a driver error might echo back (a
+  // JWT, a different connection string, a `password=`-style fragment)
+  // that isn't literally this process's own `databaseUrl`.
+  return redactSecretsInText(redactDatabaseUrl(message, databaseUrl));
 }
 
 async function main() {

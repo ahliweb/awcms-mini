@@ -25,6 +25,7 @@ import { withTenant } from "../../../lib/database/tenant-context";
 import { permissionKey } from "../../../modules/identity-access/domain/access-control";
 import { listBlogPosts } from "../../../modules/blog-content/application/blog-post-directory";
 import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
 import { formatDateTime } from "../../../lib/i18n/format";
 
 const context = Astro.locals.ssrContext;
@@ -122,7 +123,11 @@ if (hasAnyAccess) {
       }
     );
   } catch (error) {
-    console.error("admin/blog/index.astro: failed to load dashboard", error);
+    logAdminPageError(
+      "admin/blog/index.astro: failed to load dashboard",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
     loadError = true;
   }
 }

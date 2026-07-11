@@ -30,6 +30,7 @@ import { listBlogTerms } from "../../../../modules/blog-content/application/blog
 import { fetchBlogSettings } from "../../../../modules/blog-content/application/blog-settings-directory";
 import { BLOG_CONTENT_VISIBILITIES } from "../../../../modules/blog-content/domain/post-status";
 import { createTranslator } from "../../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../../lib/logging/error-log";
 import { buildClientErrorMessages } from "../../../../lib/i18n/error-messages";
 
 const context = Astro.locals.ssrContext;
@@ -66,9 +67,10 @@ if (CAN_CREATE_POSTS) {
       defaultLocale = settings.defaultLocale;
     });
   } catch (error) {
-    console.error(
+    logAdminPageError(
       "admin/blog/posts/new.astro: failed to load form data",
-      error
+      error,
+      { correlationId: Astro.locals.correlationId }
     );
     loadError = true;
   }
