@@ -50,7 +50,13 @@ variable yang dibaca aplikasi/tooling deployment repo ini: satu entry per
 variabel dengan field `type` (string/boolean/integer/url/enum/path/csv/
 uuid), `required` (`required`/`optional`/`conditional` — mencerminkan
 penegakan `scripts/validate-env.ts` HARI INI), `ownerModule`, `sensitivity`
-(`secret`/`non-secret` — untuk redaction), `profiles` (development/staging/
+(`secret`/`non-secret` — metadata DESKRIPTIF, bukan mekanisme redaction
+otomatis; jaminan "secret tidak bocor ke output validasi" berasal dari
+setiap fungsi `checkXxxConfig` di `validate-env.ts` yang memang tidak
+pernah menyisipkan nilai env mentah ke pesan `detail`-nya, diverifikasi
+`tests/unit/config-registry.test.ts`'s marker-injection test — bukan dari
+field `sensitivity` ini secara struktural menegakkannya; lihat PR #709
+review untuk detail), `profiles` (development/staging/
 production/offline-lan mana yang relevan), `default`, dan opsional
 `deprecated` (`since`/`removalVersion`/`guidance`). Tabel-tabel di bawah
 tetap tabel prosa yang sama seperti sebelumnya (readable Markdown untuk
@@ -393,16 +399,16 @@ nginx sama sekali).
 
 ### Storage
 
-| Var                             | Wajib   | Default     | Sensitif | Fungsi                                                                                                                                     |
-| ------------------------------- | ------- | ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `STORAGE_DRIVER`                | –       | `local`     | –        | **DEPRECATED** (Issue #689, target hapus `1.0.0`) — tidak pernah dibaca; switch lokal/R2 sesungguhnya `R2_ENABLED`; lihat §Config registry |
-| `LOCAL_STORAGE_PATH`            | –       | `./storage` | –        | **DEPRECATED** (Issue #689, target hapus `1.0.0`) — tidak pernah dibaca; lihat §Config registry                                            |
-| `R2_ENABLED`                    | –       | `false`     | –        | Aktifkan R2                                                                                                                                |
-| `R2_ACCOUNT_ID`                 | bila R2 | –           | Ya       | Akun R2                                                                                                                                    |
-| `R2_ACCESS_KEY_ID`              | bila R2 | –           | Ya       | Kredensial R2                                                                                                                              |
-| `R2_SECRET_ACCESS_KEY`          | bila R2 | –           | Ya       | Kredensial R2                                                                                                                              |
-| `R2_BUCKET`                     | bila R2 | –           | –        | Bucket                                                                                                                                     |
-| `OBJECT_SYNC_UPLOAD_TIMEOUT_MS` | –       | `10000`     | –        | Timeout upload dispatcher (Issue #436, `bun run sync:objects:dispatch`)                                                                    |
+| Var                             | Wajib   | Default     | Sensitif | Fungsi                                                                                                                                                                  |
+| ------------------------------- | ------- | ----------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STORAGE_DRIVER`                | –       | `local`     | –        | **DEPRECATED** (Issue #689, target hapus `1.0.0`) — tidak pernah dibaca; switch lokal/R2 sesungguhnya `R2_ENABLED`; lihat §Config registry                              |
+| `LOCAL_STORAGE_PATH`            | –       | `./storage` | –        | **DEPRECATED** (Issue #689, target hapus `1.0.0`) — tidak pernah dibaca; lihat §Config registry                                                                         |
+| `R2_ENABLED`                    | –       | `false`     | –        | Aktifkan R2                                                                                                                                                             |
+| `R2_ACCOUNT_ID`                 | bila R2 | –           | –        | Akun R2 (identifier, bukan kredensial — kredensial sesungguhnya `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`; disamakan dengan `NEWS_MEDIA_R2_ACCOUNT_ID`, PR #709 review) |
+| `R2_ACCESS_KEY_ID`              | bila R2 | –           | Ya       | Kredensial R2                                                                                                                                                           |
+| `R2_SECRET_ACCESS_KEY`          | bila R2 | –           | Ya       | Kredensial R2                                                                                                                                                           |
+| `R2_BUCKET`                     | bila R2 | –           | –        | Bucket                                                                                                                                                                  |
+| `OBJECT_SYNC_UPLOAD_TIMEOUT_MS` | –       | `10000`     | –        | Timeout upload dispatcher (Issue #436, `bun run sync:objects:dispatch`)                                                                                                 |
 
 ### Email (base — Issue #493-#495, epic #492)
 

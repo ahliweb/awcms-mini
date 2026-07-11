@@ -770,9 +770,10 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
     type: "string",
     required: "conditional",
     ownerModule: "sync-storage",
-    sensitivity: "secret",
+    sensitivity: "non-secret",
     profiles: ALL_PROFILES,
-    description: "Cloudflare R2 account id — required when R2_ENABLED=true.",
+    description:
+      "Cloudflare R2 account id — required when R2_ENABLED=true. An account identifier, not a credential by itself (R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY are the actual secrets) — matches NEWS_MEDIA_R2_ACCOUNT_ID's classification (PR #709 review).",
     validatorGroup: "checkR2Config"
   },
   {
