@@ -1,0 +1,343 @@
+# Source fragment for the "News Portal Homepage Sections" module/tag (Issue #695, epic #679).
+#
+# Owns every path tagged "News Portal Homepage Sections" and every schema referenced ONLY by this
+# tag's operations. Schemas shared with another module/tag live in the root
+# file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/news-portal/homepage-sections:
+    get:
+      tags:
+        - News Portal Homepage Sections
+      summary: List this tenant's homepage sections (admin view)
+      operationId: newsPortalHomepageSectionsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Homepage sections.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - sections
+                        properties:
+                          sections:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/HomepageSectionItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - News Portal Homepage Sections
+      summary: Create a homepage section
+      operationId: newsPortalHomepageSectionsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HomepageSectionCreateRequest"
+      responses:
+        "200":
+          description: Homepage section created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/HomepageSectionItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: sectionKey is already in use for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          description: config references content that does not exist, does not belong to this tenant, or (for gallery_block) is not a verified R2 media object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/news-portal/homepage-sections/{id}:
+    patch:
+      tags:
+        - News Portal Homepage Sections
+      summary: Update a homepage section (title/config/sortOrder/isEnabled/schedule) — sectionType is immutable
+      operationId: newsPortalHomepageSectionsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HomepageSectionUpdateRequest"
+      responses:
+        "200":
+          description: Homepage section updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/HomepageSectionItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          description: config references content that does not exist, does not belong to this tenant, or (for gallery_block) is not a verified R2 media object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - News Portal Homepage Sections
+      summary: Soft-delete a homepage section
+      operationId: newsPortalHomepageSectionsDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Homepage section deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - id
+                          - deleted
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    HomepageSectionConfig:
+      description: "Shape depends on sectionType — headline: {postId}; latest_posts: {limit?, categorySlug?}; featured_posts/editor_picks: {postIds: []}; category_grid: {categorySlugs: [], postsPerCategory?}; gallery_block: {mediaObjectIds: [], caption?}. Validated server-side per sectionType (`homepage-section-policy.ts`); every id/slug must already exist for the same tenant (`homepage-section-reference- validation.ts`), and gallery_block's mediaObjectIds must each be a verified R2 media object."
+      type: object
+      additionalProperties: true
+    HomepageSectionCreateRequest:
+      type: object
+      required:
+        - sectionKey
+        - sectionType
+        - config
+      properties:
+        sectionKey:
+          type: string
+          pattern: ^[a-z0-9][a-z0-9_-]{0,63}$
+        sectionType:
+          type: string
+          enum:
+            - headline
+            - latest_posts
+            - featured_posts
+            - editor_picks
+            - category_grid
+            - gallery_block
+        title:
+          type: string
+          nullable: true
+        config:
+          $ref: "#/components/schemas/HomepageSectionConfig"
+        sortOrder:
+          type: integer
+        isEnabled:
+          type: boolean
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+    HomepageSectionItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - sectionKey
+        - sectionType
+        - config
+        - sortOrder
+        - isEnabled
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        sectionKey:
+          type: string
+        sectionType:
+          type: string
+          enum:
+            - headline
+            - latest_posts
+            - featured_posts
+            - editor_picks
+            - category_grid
+            - gallery_block
+        title:
+          type: string
+          nullable: true
+        config:
+          $ref: "#/components/schemas/HomepageSectionConfig"
+        sortOrder:
+          type: integer
+        isEnabled:
+          type: boolean
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    HomepageSectionUpdateRequest:
+      description: sectionType cannot be changed after creation — omit it, do not send the old or a new value.
+      type: object
+      properties:
+        title:
+          type: string
+          nullable: true
+        config:
+          $ref: "#/components/schemas/HomepageSectionConfig"
+        sortOrder:
+          type: integer
+        isEnabled:
+          type: boolean
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true

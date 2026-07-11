@@ -1,0 +1,2618 @@
+# Source fragment for the "Identity & Access" module/tag (Issue #695, epic #679).
+#
+# Owns every path tagged "Identity & Access" and every schema referenced ONLY by this
+# tag's operations. Schemas shared with another module/tag live in the root
+# file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/access/assignments:
+    post:
+      tags:
+        - Identity & Access
+      summary: Assign a role to a tenant user
+      operationId: accessCreateAssignment
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessAssignmentRequest"
+      responses:
+        "200":
+          description: Role assignment created or already present (idempotent).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AccessAssignmentResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Identity & Access
+      summary: Remove a role assignment from a tenant user
+      operationId: accessDeleteAssignment
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessAssignmentRequest"
+      responses:
+        "200":
+          description: Assignment removed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - unassigned
+                        additionalProperties: false
+                        properties:
+                          unassigned:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/access/decision-logs:
+    get:
+      tags:
+        - Identity & Access
+      summary: List recent ABAC decision log entries for the tenant
+      operationId: accessListDecisionLogs
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Recent decision log entries, newest first (limit 50).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/DecisionLogListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/access/evaluate:
+    post:
+      tags:
+        - Identity & Access
+      summary: Evaluate an ABAC access request for the caller
+      operationId: accessEvaluate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessEvaluateRequest"
+      responses:
+        "200":
+          description: Access decision. Always recorded in the decision log.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AccessEvaluateResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/access/modules:
+    get:
+      tags:
+        - Identity & Access
+      summary: List the module/activity/action permission registry
+      operationId: accessListModules
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Permission registry.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleRegistryResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Identity & Access
+      summary: Authenticate an identity and issue a session token
+      description: |-
+        When full-online auth security hardening is active (`AUTH_ONLINE_SECURITY_ENABLED=true` and `AUTH_ONLINE_SECURITY_PROFILE=full_online`) AND `TURNSTILE_ENABLED=true` (Issue #588), `turnstileToken` is verified before any password check: missing -> `400 TURNSTILE_REQUIRED`, invalid -> `400 TURNSTILE_INVALID`. Absent entirely for every local/offline/LAN deployment.
+
+        When the same gate is active AND `AUTH_MFA_ENABLED=true` (Issue #589) AND the identity has an active TOTP factor enrolled, a password-valid login does NOT create a session — it returns `401 MFA_REQUIRED` with `error.details.mfaChallengeToken` instead (see `LoginMfaRequiredResponse`). Complete the login by calling `POST /auth/mfa/totp/verify` with that token and a TOTP/recovery code. Identities that have never enrolled MFA are unaffected even when the feature is enabled (opt-in per identity, not tenant-wide).
+      operationId: authLogin
+      security:
+        - tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/AcceptLanguage"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Session issued.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LoginResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: "Invalid credentials (`AUTH_INVALID_CREDENTIALS`), OR password was valid but MFA/TOTP (Issue #589) must be completed before a session is issued (`MFA_REQUIRED`, `LoginMfaRequiredResponse`)."
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ApiError"
+                  - $ref: "#/components/schemas/LoginMfaRequiredResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - Identity & Access
+      summary: Revoke the caller's active session
+      operationId: authLogout
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Session revoked.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LogoutResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/me:
+    get:
+      tags:
+        - Identity & Access
+      summary: Get the caller's active identity
+      operationId: authMe
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Active identity for the current session.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/MeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/mfa/recovery-codes/regenerate:
+    post:
+      tags:
+        - Identity & Access
+      summary: Invalidate existing recovery codes and issue a fresh set (high-risk, audited)
+      description: "Full-online-only (Issue #589). Requires an active MFA factor. Every previously issued recovery code stops working immediately; the 10 fresh codes are shown exactly once in the response. Audited (`mfa_recovery_codes_regenerated`)."
+      operationId: authMfaRecoveryCodesRegenerate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Recovery codes regenerated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/MfaRecoveryCodesResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Multi-factor authentication is not enabled for this deployment (`MFA_DISABLED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: No MFA factor is currently active for this account (`MFA_NOT_ACTIVE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/mfa/status:
+    get:
+      tags:
+        - Identity & Access
+      summary: Get the caller's own MFA enrollment status
+      description: "Full-online-only (Issue #589) — `403 MFA_DISABLED` unless the #587 gate AND `AUTH_MFA_ENABLED=true` are both active. Reports the caller's own enrollment only (self-service; no admin-on-behalf-of view in this issue)."
+      operationId: authMfaStatus
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Current MFA enrollment status.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/MfaStatusResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Multi-factor authentication is not enabled for this deployment (`MFA_DISABLED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/mfa/totp/disable:
+    post:
+      tags:
+        - Identity & Access
+      summary: Disable the caller's own MFA (high-risk, audited)
+      description: "Full-online-only (Issue #589). Self-service: requires an already-valid session (for an identity with active MFA, only obtainable by already passing an MFA challenge). Deletes the factor's recovery codes too. Audited (`mfa_disabled`)."
+      operationId: authMfaTotpDisable
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: MFA disabled.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/MfaDisableResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Multi-factor authentication is not enabled for this deployment (`MFA_DISABLED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: No MFA factor is currently active for this account (`MFA_NOT_ACTIVE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/mfa/totp/enroll/start:
+    post:
+      tags:
+        - Identity & Access
+      summary: Generate a new pending TOTP secret for the caller to confirm
+      description: "Full-online-only (Issue #589). Returns the plaintext secret/QR URI ONLY here, at enrollment start — never again afterward. The factor is `pending` (unusable for login) until confirmed via `POST /auth/mfa/totp/enroll/verify`. Rejects with `409 MFA_ALREADY_ACTIVE` if the caller already has an active factor — re-enrollment must go through `disable` first."
+      operationId: authMfaTotpEnrollStart
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Pending TOTP factor created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/MfaEnrollStartResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Multi-factor authentication is not enabled for this deployment (`MFA_DISABLED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: An MFA factor is already active for this account (`MFA_ALREADY_ACTIVE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/mfa/totp/enroll/verify:
+    post:
+      tags:
+        - Identity & Access
+      summary: Confirm a pending TOTP enrollment with a live code
+      description: "Full-online-only (Issue #589). Activates the pending factor from `enroll/start` and returns 10 single-use recovery codes shown exactly once (never retrievable again — only `recovery-codes/regenerate` can produce a fresh set afterward)."
+      operationId: authMfaTotpEnrollVerify
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MfaEnrollVerifyRequest"
+      responses:
+        "200":
+          description: MFA activated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/MfaEnrollVerifyResponse"
+        "400":
+          description: Validation error, or the code is invalid (`MFA_INVALID_CODE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Multi-factor authentication is not enabled for this deployment (`MFA_DISABLED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No pending MFA enrollment found (`MFA_ENROLLMENT_NOT_FOUND`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/mfa/totp/verify:
+    post:
+      tags:
+        - Identity & Access
+      summary: Complete a login paused by 401 MFA_REQUIRED
+      description: "Full-online-only (Issue #589). Deliberately NOT authenticated via a session — authenticated instead by possession of `mfaChallengeToken` from `POST /auth/login`'s `MFA_REQUIRED` response, exactly like `password/reset` is authenticated by possession of a reset token. Exactly one of `code` (TOTP) or `recoveryCode` must be provided. On success, creates the real AWCMS-Mini session — same response shape as `POST /auth/login`'s 200. Rate-limited both by source+tenant (`AUTH_MFA_RATE_LIMIT_MAX`/`_WINDOW_SEC`) and by a per-challenge failed-attempt counter."
+      operationId: authMfaTotpVerify
+      security:
+        - tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MfaChallengeVerifyRequest"
+      responses:
+        "200":
+          description: Challenge verified; session issued.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LoginResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: The challenge is invalid, expired, already used, or the code/recovery code is wrong (deliberately not distinguished — anti-enumeration, same principle as `password/reset` — `MFA_CHALLENGE_INVALID`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "429":
+          description: Too many verification attempts from this source.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/password/forgot:
+    post:
+      tags:
+        - Identity & Access
+      summary: Request a password reset email; always returns a generic response regardless of whether the identifier matches an account
+      description: "When full-online auth security hardening AND `TURNSTILE_ENABLED=true` are both active (Issue #588), `turnstileToken` is verified before the reset-token DB write/email enqueue: missing -> `400 TURNSTILE_REQUIRED`, invalid -> `400 TURNSTILE_INVALID`."
+      operationId: authPasswordForgot
+      security:
+        - tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: Generic acknowledgement — does not reveal whether the account exists.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ForgotPasswordResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "429":
+          description: Too many password reset requests from this source.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/password/reset:
+    post:
+      tags:
+        - Identity & Access
+      summary: Complete a password reset with a valid one-time token
+      description: "When full-online auth security hardening AND `TURNSTILE_ENABLED=true` are both active (Issue #588), `turnstileToken` is verified before the token lookup/password update: missing -> `400 TURNSTILE_REQUIRED`, invalid -> `400 TURNSTILE_INVALID`."
+      operationId: authPasswordReset
+      security:
+        - tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Password reset; all active sessions for the identity are revoked.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ResetPasswordResponse"
+        "400":
+          description: Validation error, or the token is invalid/expired/already used (deliberately not distinguished in the response — anti- enumeration, doc 20 §A07 Identification & Auth Failures).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "429":
+          description: Too many password reset attempts from this source.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/providers/google/callback:
+    get:
+      tags:
+        - Identity & Access
+      summary: Google's OAuth redirect target — completes login or link
+      description: "Full-online-only (Issue #590). A plain top-level browser navigation, never a `fetch()` call — Google redirects here with `code`+`state` (or `error` if the user cancelled consent). Validates `state` (CSRF/replay defense) and the ID token's signature, issuer, audience, expiry, and nonce cryptographically before trusting any claim. For a `login`-purpose request: creates the existing AWCMS-Mini session type (or, if Issue #589's MFA gate is active and the identity has an active factor, returns `401 MFA_REQUIRED` exactly like `POST /auth/login` — Google login never bypasses MFA). For a `link`-purpose request (from `POST .../link`): attaches the verified Google account to the identity captured server-side at link-initiation time."
+      operationId: authGoogleCallback
+      security:
+        - tenantHeader: []
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: error
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Present when the user cancelled/denied consent at Google.
+      responses:
+        "302":
+          description: Login or link succeeded; redirects to `/admin`.
+        "400":
+          description: Missing or malformed `state` (`GOOGLE_OAUTH_STATE_INVALID`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: The state/nonce/ID token could not be verified (`GOOGLE_OAUTH_STATE_INVALID`/`GOOGLE_TOKEN_EXCHANGE_FAILED`/ `GOOGLE_ID_TOKEN_INVALID`/`GOOGLE_ACCOUNT_NOT_LINKED`), or MFA must be completed first (`MFA_REQUIRED`, `LoginMfaRequiredResponse`).
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ApiError"
+                  - $ref: "#/components/schemas/LoginMfaRequiredResponse"
+        "403":
+          description: Google login is not enabled for this deployment (`GOOGLE_LOGIN_DISABLED`), or the resolved identity/tenant is not active (`ACCESS_DENIED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This Google subject is already linked to a different identity (`GOOGLE_ALREADY_LINKED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/providers/google/link:
+    post:
+      tags:
+        - Identity & Access
+      summary: Start linking the caller's own identity to a Google account
+      description: "Full-online-only (Issue #590). Authenticated: creates a `link`-purpose OAuth request bound to the caller's own identity (captured server-side, never trusted from the callback request) and returns the Google authorization URL as JSON — invoked via `fetch()` from an authenticated context, so the client navigates itself (`window.location = data.authorizationUrl`) rather than receiving a redirect."
+      operationId: authGoogleLink
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Link-purpose OAuth request created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/GoogleLinkStartResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Google login is not enabled for this deployment (`GOOGLE_LOGIN_DISABLED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/providers/google/start:
+    get:
+      tags:
+        - Identity & Access
+      summary: Redirect to Google's OAuth Authorization Code endpoint (login)
+      description: 'Full-online-only (Issue #590) — `403 GOOGLE_LOGIN_DISABLED` unless the #587 gate AND `AUTH_GOOGLE_LOGIN_ENABLED=true` are both active. Unauthenticated entry point reached from the "Continue with Google" button on `/login`. Accepts `tenantId` via the `X-AWCMS-Mini-Tenant-ID` header, the tenant cookie, or a `?tenantId=` query param (the login page has no tenant cookie yet, and a plain browser navigation can''t set a custom header). Always a `login` intent — see `POST .../link` for the authenticated linking flow.'
+      operationId: authGoogleStart
+      security:
+        - tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Fallback tenant id when neither the header nor cookie is present.
+      responses:
+        "302":
+          description: Redirect to Google's authorization endpoint.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          description: Google login is not enabled for this deployment (`GOOGLE_LOGIN_DISABLED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/providers/google/unlink:
+    post:
+      tags:
+        - Identity & Access
+      summary: Unlink the caller's own Google account
+      description: "Full-online-only (Issue #590). High-risk, audited (`google_account_unlinked`). Never touches local password login — removing a Google link cannot lock an identity out of its own account."
+      operationId: authGoogleUnlink
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Google account unlinked.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/GoogleUnlinkResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Google login is not enabled for this deployment (`GOOGLE_LOGIN_DISABLED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: No Google account is currently linked (`GOOGLE_NOT_LINKED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/sso/{providerKey}/callback:
+    get:
+      tags:
+        - Identity & Access
+      summary: Tenant OIDC provider's redirect target — completes login or link
+      description: "Full-online-only (Issue #591). A plain top-level browser navigation, never a `fetch()` call — the provider redirects here with `code`+`state` (or `error` if the user cancelled consent). Validates `state` (CSRF/replay defense) and the ID token's signature, issuer, audience, expiry, and nonce cryptographically before trusting any claim — same verification depth as Issue #590's Google callback. For a `login`-purpose request: creates the existing AWCMS-Mini session type (or, if Issue #589's MFA gate is active and the identity has an active factor, returns `401 MFA_REQUIRED` exactly like `POST /auth/login`/Google login — SSO login never bypasses MFA). For a `link`-purpose request (from `POST .../link`): attaches the verified provider account to the identity captured server-side at link-initiation time."
+      operationId: authSsoCallback
+      security:
+        - tenantHeader: []
+      parameters:
+        - name: providerKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: error
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Present when the user cancelled/denied consent at the provider.
+      responses:
+        "302":
+          description: Login or link succeeded; redirects to `/admin`.
+        "400":
+          description: Missing or malformed `state` (`SSO_OAUTH_STATE_INVALID`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: The state/nonce/ID token could not be verified (`SSO_OAUTH_STATE_INVALID`/`SSO_TOKEN_EXCHANGE_FAILED`/ `SSO_ID_TOKEN_INVALID`/`SSO_ACCOUNT_NOT_LINKED`), or MFA must be completed first (`MFA_REQUIRED`, `LoginMfaRequiredResponse`).
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ApiError"
+                  - $ref: "#/components/schemas/LoginMfaRequiredResponse"
+        "403":
+          description: Tenant OIDC SSO is not enabled for this deployment (`SSO_DISABLED`), this provider is disabled (`SSO_PROVIDER_DISABLED`), or the resolved identity/tenant is not active (`ACCESS_DENIED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: This provider subject is already linked to a different identity (`SSO_ALREADY_LINKED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "502":
+          description: The SSO provider could not be reached (`SSO_PROVIDER_UNAVAILABLE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v1/auth/sso/{providerKey}/link:
+    post:
+      tags:
+        - Identity & Access
+      summary: Start linking the caller's own identity to a tenant-configured OIDC provider account
+      description: "Full-online-only (Issue #591). Authenticated: creates a `link`-purpose OAuth request bound to the caller's own identity (captured server-side, never trusted from the callback request) and returns the provider's authorization URL as JSON — same shape as Issue #590's Google `link`."
+      operationId: authSsoLink
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: providerKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Link-purpose OAuth request created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SsoLinkStartResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Tenant OIDC SSO is not enabled for this deployment (`SSO_DISABLED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No enabled SSO provider matches this key (`SSO_PROVIDER_NOT_FOUND`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "502":
+          description: The SSO provider's discovery endpoint could not be reached (`SSO_PROVIDER_UNAVAILABLE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v1/auth/sso/{providerKey}/start:
+    get:
+      tags:
+        - Identity & Access
+      summary: Redirect to a tenant-configured OIDC provider's authorization endpoint (login)
+      description: "Full-online-only (Issue #591) — `403 SSO_DISABLED` unless the #587 gate AND `AUTH_SSO_ENABLED=true` are both active. Generalizes Issue #590's Google login to a tenant-configured provider (`awcms_mini_auth_providers`); Google's own `/auth/providers/google/*` endpoints are unaffected. `providerKey` must resolve to an `enabled` provider for this tenant, else `404 SSO_PROVIDER_NOT_FOUND`. Tenant resolved from the `X-AWCMS-Mini-Tenant-ID` header, the tenant cookie, or a `?tenantId=` query param fallback, same as Google's own `start`."
+      operationId: authSsoStart
+      security:
+        - tenantHeader: []
+      parameters:
+        - name: providerKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenantId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Fallback tenant id when neither the header nor cookie is present.
+      responses:
+        "302":
+          description: Redirect to the provider's authorization endpoint.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          description: Tenant OIDC SSO is not enabled for this deployment (`SSO_DISABLED`), or the tenant is not active (`ACCESS_DENIED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No enabled SSO provider matches this key (`SSO_PROVIDER_NOT_FOUND`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "429":
+          description: Too many requests from this source (`RATE_LIMITED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "502":
+          description: The SSO provider's discovery endpoint could not be reached (`SSO_PROVIDER_UNAVAILABLE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v1/auth/sso/{providerKey}/unlink:
+    post:
+      tags:
+        - Identity & Access
+      summary: Unlink the caller's own tenant-configured OIDC provider account
+      description: "Full-online-only (Issue #591). High-risk, audited (`sso_account_unlinked`). Never touches local password login — unlinking a provider cannot lock an identity out of its own account (that guarantee is the tenant policy's `sso_required` + break-glass enforcement's job instead)."
+      operationId: authSsoUnlink
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: providerKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: SSO account unlinked.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SsoUnlinkResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Tenant OIDC SSO is not enabled for this deployment (`SSO_DISABLED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: No SSO account is currently linked (`SSO_NOT_LINKED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/identity/sso/policy:
+    get:
+      tags:
+        - Identity & Access
+      summary: Read this tenant's authentication policy
+      description: "Admin CRUD (Issue #591), protected by ABAC (`identity_access.sso_policy.read`). Falls back to the safe default (password login enabled, SSO disabled) when never configured."
+      operationId: identitySsoPolicyGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Tenant authentication policy.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantAuthPolicyView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Identity & Access
+      summary: Update this tenant's authentication policy
+      description: "Admin CRUD (Issue #591), protected by ABAC (`identity_access.sso_policy.update`). High-risk, audited (`sso_policy_updated`). Server-side break-glass enforcement: `sso_required=true` or `password_login_enabled=false` is rejected (`409 BREAK_GLASS_REQUIRED`) unless at least one currently-active break-glass identity with an active tenant membership is configured."
+      operationId: identitySsoPolicyUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTenantAuthPolicyRequest"
+      responses:
+        "200":
+          description: Tenant authentication policy updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantAuthPolicyView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Break-glass requirement not satisfied (`BREAK_GLASS_REQUIRED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/identity/sso/providers:
+    get:
+      tags:
+        - Identity & Access
+      summary: List this tenant's configured OIDC SSO providers
+      description: "Admin CRUD (Issue #591), protected by ABAC (`identity_access.sso_providers.read`). Never returns a provider's client secret plaintext — see `AuthProviderView`'s `secretSource`."
+      operationId: identitySsoProvidersList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: SSO providers listed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AuthProviderListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Identity & Access
+      summary: Add a tenant OIDC SSO provider
+      description: "Admin CRUD (Issue #591), protected by ABAC (`identity_access.sso_providers.create`). High-risk: audited (`sso_provider_created`). Exactly one of `clientSecret`/ `clientSecretEnvVar` must be provided; the secret is encrypted at rest (AES-256-GCM, `AUTH_SSO_CREDENTIAL_ENCRYPTION_KEY`) or stored as an environment variable name reference — never plaintext."
+      operationId: identitySsoProvidersCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAuthProviderRequest"
+      responses:
+        "200":
+          description: SSO provider created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AuthProviderView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: A provider already exists for this `providerKey` (`SSO_PROVIDER_KEY_CONFLICT`), or the tenant has reached its configured provider limit (`SSO_PROVIDER_LIMIT_EXCEEDED`, default 20, `AUTH_SSO_MAX_PROVIDERS_PER_TENANT`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          description: Internal error, or `AUTH_SSO_CREDENTIAL_ENCRYPTION_KEY` is not configured on this server (`SSO_MISCONFIGURED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /api/v1/identity/sso/providers/{id}:
+    get:
+      tags:
+        - Identity & Access
+      summary: Read one tenant OIDC SSO provider
+      operationId: identitySsoProvidersGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: SSO provider found.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AuthProviderView"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Identity & Access
+      summary: Update a tenant OIDC SSO provider
+      description: "Admin CRUD (Issue #591), protected by ABAC (`identity_access.sso_providers.update`). Partial update; high-risk, audited (`sso_provider_updated`)."
+      operationId: identitySsoProvidersUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAuthProviderRequest"
+      responses:
+        "200":
+          description: SSO provider updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AuthProviderView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          description: Internal error, or `AUTH_SSO_CREDENTIAL_ENCRYPTION_KEY` is not configured on this server (`SSO_MISCONFIGURED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    delete:
+      tags:
+        - Identity & Access
+      summary: Soft-delete a tenant OIDC SSO provider
+      description: "Admin CRUD (Issue #591), protected by ABAC (`identity_access.sso_providers.delete`). High-risk, audited (`sso_provider_deleted`)."
+      operationId: identitySsoProvidersDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+      responses:
+        "200":
+          description: SSO provider deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - id
+                          - deleted
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/permissions:
+    get:
+      tags:
+        - Identity & Access
+      summary: List the global permission catalog
+      operationId: accessListPermissions
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Full permission catalog (module_key, activity_code, action).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PermissionListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/roles:
+    get:
+      tags:
+        - Identity & Access
+      summary: List tenant roles with their permission ids and assigned user count
+      operationId: rolesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: All non-deleted roles for the tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/RoleListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Identity & Access
+      summary: Create a role with an initial permission set
+      operationId: rolesCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleRequest"
+      responses:
+        "200":
+          description: Role created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CreateRoleResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: A role with that role_code already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/roles/{id}:
+    patch:
+      tags:
+        - Identity & Access
+      summary: Rename a role and/or replace its permission set
+      description: System roles (is_system=true, e.g. the owner role seeded at setup) reject permissionIds changes with 409 — renaming is still allowed.
+      operationId: rolesUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleRequest"
+      responses:
+        "200":
+          description: Role updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Cannot modify the permissions of a system role.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Identity & Access
+      summary: Soft-delete a role
+      description: Rejects with 409 if the role is a system role, or if it is still assigned to one or more tenant users (unassign first).
+      operationId: rolesDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleDeleteRequest"
+      responses:
+        "200":
+          description: Role soft-deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Role is a system role, or still assigned to a tenant user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/users:
+    get:
+      tags:
+        - Identity & Access
+      summary: List tenant users and their assigned roles
+      operationId: usersList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: All tenant users for the tenant, with their assigned roles.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UserListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Identity & Access
+      summary: Create a tenant user (identity + profile + optional role assignment)
+      operationId: usersCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "200":
+          description: User created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CreateUserResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: A user with that login identifier already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/users/{id}:
+    patch:
+      tags:
+        - Identity & Access
+      summary: Update a tenant user's display name and/or active status
+      operationId: usersUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: User updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    AccessAssignmentRequest:
+      type: object
+      required:
+        - tenantUserId
+        - roleId
+      additionalProperties: false
+      properties:
+        tenantUserId:
+          type: string
+          format: uuid
+        roleId:
+          type: string
+          format: uuid
+    AccessAssignmentResponse:
+      type: object
+      required:
+        - assignmentId
+      additionalProperties: false
+      properties:
+        assignmentId:
+          type: string
+          format: uuid
+    AccessEvaluateRequest:
+      type: object
+      required:
+        - moduleKey
+        - activityCode
+        - action
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        activityCode:
+          type: string
+        action:
+          type: string
+          enum:
+            - read
+            - create
+            - update
+            - delete
+            - post
+            - cancel
+            - approve
+            - export
+            - send
+            - configure
+            - analyze
+            - assign
+        resourceType:
+          type: string
+        resourceId:
+          type: string
+        resourceAttributes:
+          type: object
+          additionalProperties: true
+        environmentAttributes:
+          type: object
+          additionalProperties: true
+    AccessEvaluateResponse:
+      type: object
+      required:
+        - allowed
+        - reason
+      additionalProperties: false
+      properties:
+        allowed:
+          type: boolean
+        reason:
+          type: string
+        matchedPolicy:
+          type: string
+    AuthProviderListResponse:
+      type: object
+      required:
+        - providers
+      additionalProperties: false
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuthProviderView"
+    AuthProviderView:
+      type: object
+      required:
+        - id
+        - providerKey
+        - providerType
+        - displayName
+        - issuerUrl
+        - clientId
+        - secretSource
+        - clientSecretEnvVar
+        - scopes
+        - allowedEmailDomains
+        - enabled
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        providerKey:
+          type: string
+        providerType:
+          type: string
+          enum:
+            - oidc
+        displayName:
+          type: string
+        issuerUrl:
+          type: string
+        clientId:
+          type: string
+        secretSource:
+          type: string
+          enum:
+            - encrypted
+            - env
+          description: Never the secret itself — `encrypted` means a client secret is stored encrypted at rest (AES-256-GCM); `env` means the secret is read from the named environment variable (`clientSecretEnvVar`) at OAuth-call time.
+        clientSecretEnvVar:
+          type: string
+          nullable: true
+          description: The environment variable NAME (never a secret value) when `secretSource` is `env`.
+        scopes:
+          type: string
+        allowedEmailDomains:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateAuthProviderRequest:
+      type: object
+      required:
+        - providerKey
+        - displayName
+        - issuerUrl
+        - clientId
+      additionalProperties: false
+      properties:
+        providerKey:
+          type: string
+          pattern: ^[a-z0-9][a-z0-9_-]*$
+        displayName:
+          type: string
+          maxLength: 120
+        issuerUrl:
+          type: string
+          description: Must be an `https://` URL.
+        clientId:
+          type: string
+          maxLength: 255
+        clientSecret:
+          type: string
+          description: Plaintext secret, encrypted at rest immediately — never returned by any endpoint. Exactly one of `clientSecret`/`clientSecretEnvVar` must be provided.
+        clientSecretEnvVar:
+          type: string
+          description: Name of an environment variable holding the secret. Exactly one of `clientSecret`/`clientSecretEnvVar` must be provided.
+        scopes:
+          type: string
+          default: openid email profile
+        allowedEmailDomains:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+          default: false
+    CreateRoleRequest:
+      type: object
+      required:
+        - roleCode
+        - roleName
+      additionalProperties: false
+      properties:
+        roleCode:
+          type: string
+          pattern: ^[a-z][a-z0-9_]*$
+        roleName:
+          type: string
+          minLength: 1
+        permissionIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+    CreateRoleResponse:
+      type: object
+      required:
+        - roleId
+      additionalProperties: false
+      properties:
+        roleId:
+          type: string
+          format: uuid
+    CreateUserRequest:
+      type: object
+      required:
+        - displayName
+        - loginIdentifier
+        - password
+      additionalProperties: false
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+        loginIdentifier:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 8
+        roleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Roles to assign immediately at creation (optional).
+    CreateUserResponse:
+      type: object
+      required:
+        - tenantUserId
+        - identityId
+        - profileId
+      additionalProperties: false
+      properties:
+        tenantUserId:
+          type: string
+          format: uuid
+        identityId:
+          type: string
+          format: uuid
+        profileId:
+          type: string
+          format: uuid
+    DecisionLogEntry:
+      type: object
+      required:
+        - id
+        - moduleKey
+        - activityCode
+        - action
+        - decision
+        - reason
+        - createdAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantUserId:
+          type: string
+          format: uuid
+        moduleKey:
+          type: string
+        activityCode:
+          type: string
+        action:
+          type: string
+        decision:
+          type: string
+          enum:
+            - allow
+            - deny
+        reason:
+          type: string
+        matchedPolicy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    DecisionLogListResponse:
+      type: object
+      required:
+        - decisionLogs
+        - nextCursor
+      additionalProperties: false
+      properties:
+        decisionLogs:
+          type: array
+          items:
+            $ref: "#/components/schemas/DecisionLogEntry"
+        nextCursor:
+          type: string
+          nullable: true
+          description: Opaque keyset pagination cursor; pass back as the `cursor` query parameter to fetch the next page. `null` when this is the last page.
+    ForgotPasswordRequest:
+      type: object
+      required:
+        - loginIdentifier
+      additionalProperties: false
+      properties:
+        loginIdentifier:
+          type: string
+          minLength: 1
+        turnstileToken:
+          type: string
+          description: "Cloudflare Turnstile response token (Issue #588). Required only when full-online auth security hardening AND `TURNSTILE_ENABLED=true` are both active — see `LoginRequest`'s `turnstileToken` for the full gating rule."
+    ForgotPasswordResponse:
+      type: object
+      required:
+        - requested
+        - message
+      additionalProperties: false
+      properties:
+        requested:
+          type: boolean
+        message:
+          type: string
+          description: Generic text — never indicates whether loginIdentifier matched an account.
+    GoogleLinkStartResponse:
+      type: object
+      required:
+        - authorizationUrl
+      additionalProperties: false
+      properties:
+        authorizationUrl:
+          type: string
+          description: Google's authorization URL — the client navigates itself here (`window.location = authorizationUrl`).
+    GoogleUnlinkResponse:
+      type: object
+      required:
+        - unlinked
+      additionalProperties: false
+      properties:
+        unlinked:
+          type: boolean
+    LoginMfaRequiredResponse:
+      type: object
+      description: '`POST /auth/login`''s 401 response shape specifically for `error.code === "MFA_REQUIRED"` (Issue #589) — deliberately NOT the generic `ApiError` shape (`error.details` here is a structured object, not an `ErrorDetail[]` array), since a real payload (`mfaChallengeToken`) must be returned to let the client complete the login via `POST /auth/mfa/totp/verify`.'
+      required:
+        - success
+        - error
+        - meta
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          const: false
+        error:
+          type: object
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: false
+          properties:
+            code:
+              type: string
+              enum:
+                - MFA_REQUIRED
+            message:
+              type: string
+            details:
+              type: object
+              required:
+                - mfaChallengeToken
+                - expiresAt
+              additionalProperties: false
+              properties:
+                mfaChallengeToken:
+                  type: string
+                  description: Opaque, single-use token to pass as `mfaChallengeToken` to `POST /auth/mfa/totp/verify` along with a TOTP or recovery code.
+                expiresAt:
+                  type: string
+                  format: date-time
+        meta:
+          $ref: "#/components/schemas/ApiMeta"
+    LoginRequest:
+      type: object
+      required:
+        - loginIdentifier
+        - password
+      additionalProperties: false
+      properties:
+        loginIdentifier:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+          writeOnly: true
+        turnstileToken:
+          type: string
+          description: "Cloudflare Turnstile response token (Issue #588). Required only when full-online auth security hardening is active (`AUTH_ONLINE_SECURITY_ENABLED=true` and `AUTH_ONLINE_SECURITY_PROFILE=full_online`) AND `TURNSTILE_ENABLED=true` — absent entirely for every local/offline/LAN deployment. Missing when required -> `400 TURNSTILE_REQUIRED`; invalid -> `400 TURNSTILE_INVALID`."
+    LoginResponse:
+      type: object
+      required:
+        - token
+        - expiresAt
+      additionalProperties: false
+      properties:
+        token:
+          type: string
+          description: Opaque bearer session token. Shown only once, at login.
+        expiresAt:
+          type: string
+          format: date-time
+    LogoutResponse:
+      type: object
+      required:
+        - loggedOut
+      additionalProperties: false
+      properties:
+        loggedOut:
+          type: boolean
+    MeResponse:
+      type: object
+      required:
+        - identityId
+        - loginIdentifier
+        - profileId
+        - status
+        - lastLoginAt
+      additionalProperties: false
+      properties:
+        identityId:
+          type: string
+          format: uuid
+        loginIdentifier:
+          type: string
+        profileId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+            - locked
+        lastLoginAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+    MfaChallengeVerifyRequest:
+      type: object
+      required:
+        - mfaChallengeToken
+      additionalProperties: false
+      properties:
+        mfaChallengeToken:
+          type: string
+          description: From `POST /auth/login`'s `MFA_REQUIRED` response.
+        code:
+          type: string
+          description: Current TOTP code — exactly one of `code`/`recoveryCode` is required.
+        recoveryCode:
+          type: string
+          description: A single-use recovery code — exactly one of `code`/`recoveryCode` is required.
+    MfaDisableResponse:
+      type: object
+      required:
+        - disabled
+      additionalProperties: false
+      properties:
+        disabled:
+          type: boolean
+    MfaEnrollStartResponse:
+      type: object
+      required:
+        - secret
+        - otpauthUri
+      additionalProperties: false
+      properties:
+        secret:
+          type: string
+          description: Base32-encoded TOTP secret, shown ONLY here — manual-entry fallback for authenticator apps that can't scan a QR code.
+        otpauthUri:
+          type: string
+          description: "`otpauth://totp/...` URI — render as a QR code for the authenticator app to scan."
+    MfaEnrollVerifyRequest:
+      type: object
+      required:
+        - code
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          description: Current TOTP code from the authenticator app.
+    MfaEnrollVerifyResponse:
+      type: object
+      required:
+        - activated
+        - recoveryCodes
+      additionalProperties: false
+      properties:
+        activated:
+          type: boolean
+        recoveryCodes:
+          type: array
+          items:
+            type: string
+          description: 10 single-use recovery codes, shown exactly once. Store them securely — they cannot be retrieved again (only `recovery-codes/regenerate` can issue a fresh set, invalidating these).
+    MfaRecoveryCodesResponse:
+      type: object
+      required:
+        - recoveryCodes
+      additionalProperties: false
+      properties:
+        recoveryCodes:
+          type: array
+          items:
+            type: string
+          description: 10 fresh single-use recovery codes, shown exactly once — every previously issued code stops working immediately.
+    MfaStatusResponse:
+      type: object
+      required:
+        - enabled
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
+        factorType:
+          type: string
+          enum:
+            - totp
+        activatedAt:
+          type: string
+          format: date-time
+    ModuleRegistryEntry:
+      type: object
+      required:
+        - moduleKey
+        - activityCode
+        - action
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        activityCode:
+          type: string
+        action:
+          type: string
+        description:
+          type: string
+    ModuleRegistryResponse:
+      type: object
+      required:
+        - modules
+      additionalProperties: false
+      properties:
+        modules:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModuleRegistryEntry"
+    PermissionEntry:
+      type: object
+      required:
+        - permissionId
+        - moduleKey
+        - activityCode
+        - action
+        - key
+      additionalProperties: false
+      properties:
+        permissionId:
+          type: string
+          format: uuid
+        moduleKey:
+          type: string
+        activityCode:
+          type: string
+        action:
+          type: string
+        key:
+          type: string
+          description: moduleKey.activityCode.action
+        description:
+          type: string
+          nullable: true
+    PermissionListResponse:
+      type: object
+      required:
+        - permissions
+      additionalProperties: false
+      properties:
+        permissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PermissionEntry"
+    ResetPasswordRequest:
+      type: object
+      required:
+        - token
+        - newPassword
+      additionalProperties: false
+      properties:
+        token:
+          type: string
+          minLength: 1
+          writeOnly: true
+        newPassword:
+          type: string
+          minLength: 8
+          writeOnly: true
+        turnstileToken:
+          type: string
+          description: "Cloudflare Turnstile response token (Issue #588). Required only when full-online auth security hardening AND `TURNSTILE_ENABLED=true` are both active — see `LoginRequest`'s `turnstileToken` for the full gating rule."
+    ResetPasswordResponse:
+      type: object
+      required:
+        - reset
+      additionalProperties: false
+      properties:
+        reset:
+          type: boolean
+          const: true
+    RoleDeleteRequest:
+      type: object
+      required:
+        - reason
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          description: Audit-safe reason for soft delete; becomes delete_reason.
+    RoleListEntry:
+      type: object
+      required:
+        - roleId
+        - roleCode
+        - roleName
+        - isSystem
+        - permissionIds
+        - assignedUserCount
+        - createdAt
+      additionalProperties: false
+      properties:
+        roleId:
+          type: string
+          format: uuid
+        roleCode:
+          type: string
+        roleName:
+          type: string
+        isSystem:
+          type: boolean
+          description: System roles (seeded at setup, e.g. owner) cannot have their permissions edited or be deleted.
+        permissionIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        assignedUserCount:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+    RoleListResponse:
+      type: object
+      required:
+        - roles
+      additionalProperties: false
+      properties:
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleListEntry"
+    RoleSummary:
+      type: object
+      required:
+        - roleId
+        - roleCode
+        - roleName
+      additionalProperties: false
+      properties:
+        roleId:
+          type: string
+          format: uuid
+        roleCode:
+          type: string
+        roleName:
+          type: string
+    SsoLinkStartResponse:
+      type: object
+      required:
+        - authorizationUrl
+      additionalProperties: false
+      properties:
+        authorizationUrl:
+          type: string
+          description: The tenant-configured provider's authorization URL — the client navigates itself here (`window.location = authorizationUrl`).
+    SsoUnlinkResponse:
+      type: object
+      required:
+        - unlinked
+      additionalProperties: false
+      properties:
+        unlinked:
+          type: boolean
+    TenantAuthPolicyView:
+      type: object
+      required:
+        - tenantId
+        - passwordLoginEnabled
+        - ssoEnabled
+        - ssoRequired
+        - autoLinkVerifiedEmail
+        - allowedEmailDomains
+        - breakGlassIdentityIds
+        - mfaRequired
+        - updatedAt
+      additionalProperties: false
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        passwordLoginEnabled:
+          type: boolean
+        ssoEnabled:
+          type: boolean
+        ssoRequired:
+          type: boolean
+        autoLinkVerifiedEmail:
+          type: boolean
+        allowedEmailDomains:
+          type: array
+          items:
+            type: string
+        breakGlassIdentityIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        mfaRequired:
+          type: boolean
+          description: Reserved for future compatibility with Issue
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    TenantUserEntry:
+      type: object
+      required:
+        - tenantUserId
+        - identityId
+        - profileId
+        - displayName
+        - loginIdentifier
+        - status
+        - identityStatus
+        - roles
+      additionalProperties: false
+      properties:
+        tenantUserId:
+          type: string
+          format: uuid
+        identityId:
+          type: string
+          format: uuid
+        profileId:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        loginIdentifier:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+        identityStatus:
+          type: string
+          enum:
+            - active
+            - inactive
+            - locked
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleSummary"
+    UpdateAuthProviderRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        displayName:
+          type: string
+          maxLength: 120
+        issuerUrl:
+          type: string
+        clientId:
+          type: string
+          maxLength: 255
+        clientSecret:
+          type: string
+        clientSecretEnvVar:
+          type: string
+        scopes:
+          type: string
+        allowedEmailDomains:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+    UpdateRoleRequest:
+      type: object
+      description: At least one of roleName or permissionIds is required.
+      additionalProperties: false
+      properties:
+        roleName:
+          type: string
+          minLength: 1
+        permissionIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Replaces the role's entire permission set. Rejected with 409 for system roles.
+    UpdateTenantAuthPolicyRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        passwordLoginEnabled:
+          type: boolean
+        ssoEnabled:
+          type: boolean
+        ssoRequired:
+          type: boolean
+        autoLinkVerifiedEmail:
+          type: boolean
+        allowedEmailDomains:
+          type: array
+          items:
+            type: string
+        breakGlassIdentityIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+    UpdateUserRequest:
+      type: object
+      description: At least one of displayName or status is required.
+      additionalProperties: false
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+    UserListResponse:
+      type: object
+      required:
+        - users
+      additionalProperties: false
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/TenantUserEntry"

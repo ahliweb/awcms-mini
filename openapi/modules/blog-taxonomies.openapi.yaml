@@ -1,0 +1,351 @@
+# Source fragment for the "Blog Taxonomies" module/tag (Issue #695, epic #679).
+#
+# Owns every path tagged "Blog Taxonomies" and every schema referenced ONLY by this
+# tag's operations. Schemas shared with another module/tag live in the root
+# file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/blog/terms:
+    get:
+      tags:
+        - Blog Taxonomies
+      summary: List this tenant's non-deleted categories/tags
+      operationId: blogTermsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: taxonomyType
+          in: query
+          schema:
+            type: string
+            enum:
+              - category
+              - tag
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Terms for the caller's tenant (limit 100, name ascending).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogTermListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Blog Taxonomies
+      summary: Create a category or tag
+      operationId: blogTermsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBlogTermRequest"
+      responses:
+        "200":
+          description: Term created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogTermItem"
+        "400":
+          description: Validation error, including a tag with a non-null parentId.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: A term already exists for this slug in this taxonomy type.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/terms/{id}:
+    patch:
+      tags:
+        - Blog Taxonomies
+      summary: Update a category or tag
+      operationId: blogTermsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBlogTermRequest"
+      responses:
+        "200":
+          description: Term updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogTermItem"
+        "400":
+          description: Validation error, including a tag with a non-null parentId.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: A term already exists for this slug in this taxonomy type.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Blog Taxonomies
+      summary: Soft-delete a category or tag
+      operationId: blogTermsDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+      responses:
+        "200":
+          description: Term deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - id
+                          - deleted
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    BlogTermItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - taxonomyType
+        - parentId
+        - name
+        - slug
+        - description
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - deletedBy
+        - deleteReason
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        taxonomyType:
+          type: string
+          enum:
+            - category
+            - tag
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletedBy:
+          type: string
+          format: uuid
+          nullable: true
+        deleteReason:
+          type: string
+          nullable: true
+    BlogTermListResponse:
+      type: object
+      required:
+        - terms
+      additionalProperties: false
+      properties:
+        terms:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlogTermItem"
+    CreateBlogTermRequest:
+      type: object
+      required:
+        - taxonomyType
+        - name
+        - slug
+      additionalProperties: false
+      properties:
+        taxonomyType:
+          type: string
+          enum:
+            - category
+            - tag
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Must be null for a tag.
+        name:
+          type: string
+          maxLength: 100
+        slug:
+          type: string
+          pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+    UpdateBlogTermRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        taxonomyType:
+          type: string
+          enum:
+            - category
+            - tag
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Must be null for a tag.
+        name:
+          type: string
+          maxLength: 100
+        slug:
+          type: string
+          pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
+        description:
+          type: string
+          maxLength: 500
+          nullable: true

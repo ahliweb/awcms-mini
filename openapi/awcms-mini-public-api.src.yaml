@@ -1,0 +1,482 @@
+# Root OpenAPI source fragment (Issue #695, epic #679).
+#
+# Contains everything shared across every module: openapi/info/servers/tags/
+# security, and components.securitySchemes/parameters/responses/schemas (only
+# the schemas genuinely shared by 2+ modules, plus schemas not referenced by
+# any path -- see openapi/README.md).
+#
+# This file is NOT the published contract by itself and is NOT independently
+# valid OpenAPI (it has no `paths`, and some schemas here are referenced only
+# by module fragments in openapi/modules/*.yaml). It is merged with every
+# openapi/modules/*.yaml fragment by `bun run openapi:bundle` (scripts/
+# openapi-bundle.ts) into the single published artifact,
+# openapi/awcms-mini-public-api.openapi.yaml -- edit sources here and in
+# openapi/modules/*.yaml, never the generated bundle directly.
+openapi: 3.1.0
+info:
+  title: AWCMS-Mini Public API
+  version: 1.0.0
+  description: |-
+    Stable REST contract for the AWCMS-Mini modular monolith base (ADR-0008 — contract version is independent of the package release version; bumped only when the contract shape itself changes).
+
+    **Request body size limits** (Issue #686, epic #679): every endpoint that accepts a body enforces an application-level size cap, independent of any reverse-proxy limit — most endpoints allow up to 128 KiB; content-heavy endpoints (blog posts/pages/templates/theme, email templates/announcements, news-portal homepage sections, sync push and object-enqueue batches) allow up to 5 MiB. A body over the limit — whether declared via `Content-Length` or discovered while streaming a chunked/ unlabeled body — is rejected with `413 Payload Too Large` and error code `PAYLOAD_TOO_LARGE`, using the same envelope as every other error response in this contract. No endpoint accepts a body larger than 10 MiB.
+servers:
+  - url: http://localhost:4321
+    description: Local development
+tags:
+  - name: Foundation
+    description: Foundation and platform endpoints.
+  - name: Tenant Admin
+    description: Tenant, office, and the one-time setup wizard.
+  - name: Tenant Domains
+    description: "Tenant-scoped hostname/subdomain -> tenant mapping admin API (epic #555, Issue #562) -- list/create/update/delete/verify/set-primary for awcms_mini_tenant_domains. Consumed by the public host-based tenant resolver (#559); the optional Cloudflare DNS adapter (#567) is not wired into any route. Pre-existing gap found by Issue #695's OpenAPI split: operations already used this tag, but it was never declared in this top-level list -- fixed here as a documentation-only addition (no path/schema/security change)."
+  - name: Identity & Access
+    description: Login identity, session authentication, and tenant user membership.
+  - name: Sync Storage
+    description: Offline-first sync node registration and HMAC-signed push/pull.
+  - name: Management Reporting
+    description: Generic read-aggregation reporting views (tenant activity, access/audit summary, sync health, module usage). Live aggregation over existing tables; no dedicated reporting tables, worker, or cache.
+  - name: Logging & Audit
+    description: Cross-module audit trail (awcms_mini_audit_events) and its read API. Complements, not replaces, domain events and structured logs.
+  - name: Profile Identity
+    description: Profile lifecycle (soft delete/restore/purge) demonstrating the audit trail end-to-end. Full profile CRUD (create/update/list) remains out of scope/backlog.
+  - name: Database Connectivity
+    description: Connection pool config, work-class backpressure gate, and circuit breaker health (Issue 10.2, doc 16 §Connection pooling dan backpressure).
+  - name: Workflow Approval
+    description: Generic multi-step approval engine (definitions, instances, tasks, decisions). Only the decision API is public (doc 17 seed grants no create/configure action for workflow.approval) — no create-definition/start-instance endpoint by design.
+  - name: Form Drafts
+    description: "Generic, domain-agnostic server-side draft store for the reusable wizard pattern (Issue #484) — create/update/read/submit/delete a tenant-scoped JSONB payload. No domain-specific meaning; a derived module decides what a draft's payload contains."
+  - name: Email Templates
+    description: "Tenant email template CRUD, soft-delete/restore, per-category variable allowlists, i18n locale variants, and admin preview (Issue #498)."
+  - name: Email Announcements
+    description: "Bulk announcement/notification enqueue and dry-run preview, targeting an explicit user list, a role, or the whole tenant with two-tier ABAC (Issue #497)."
+  - name: Email Messages
+    description: "Admin queue diagnostics (queue health, failed messages, retry backlog) and cancel-before-send for still-queued messages (Issue #499)."
+  - name: Email Suppressions
+    description: "Manual suppression list read/create/delete — recipients excluded from future sends (bounce/complaint/manual/unsubscribed), Issue #499."
+  - name: Module Management
+    description: "Database-backed module catalog and descriptor sync (epic #510). Read the module registry, inspect a single module's detail, and trigger a sync of trusted code descriptors into the database — distinct from `GET /api/v1/access/modules`'s permission catalog."
+  - name: Blog Posts
+    description: "Tenant-scoped blog post admin API (epic #536, Issue #538) — CRUD plus lifecycle actions (submit for review, publish, schedule, archive, restore, purge). Builds on the `blog_content` schema/permission foundation from Issue #537; pages, taxonomies, and public routes are separate issues. Revision history is a distinct tag, see Blog Revisions."
+  - name: Blog Pages
+    description: "Tenant-scoped static page admin API (epic #536, Issue #539) — plain CRUD only (no publish/schedule/archive/restore/purge lifecycle actions in this issue, unlike Blog Posts). Supports `pageType` (standard/landing/legal/system), `parentPageId`, and `menuOrder`."
+  - name: Blog Taxonomies
+    description: "Tenant-scoped category/tag admin API (epic #536, Issue #539). Categories support parent-child hierarchy; tags must not have a parent. No restore/purge — soft-delete only."
+  - name: Blog Search
+    description: "Tenant-scoped PostgreSQL full-text admin search across posts and pages (epic #536, Issue #539), keyset-paginated. May return content of any status per the caller's `blog_content.search.read` grant. The public-safe search predicate (published + public content only) is a backend helper only in this issue — no public route yet (Issue #540)."
+  - name: Blog Revisions
+    description: "Append-only revision history for blog posts (epic #536, Issue #541). List/read revisions, restore a revision (never overwrites history — restoring appends a new revision with the restored content). `awcms_mini_blog_revisions` also stores page revisions, but only post revision routes are exposed in this issue."
+  - name: Blog Presentation
+    description: "Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templates (whitelisted layout config), hierarchical navigation menus, position-based widgets, and advertisements (placement targeting + scheduling), plus a per-tenant blog theme mode override. Per doc issue #542's own Scope Control, none of this rebuilds the base media library, tenant system, RBAC/ABAC, audit, or theme engine — the blog theme endpoint overrides `awcms_mini_tenants.default_theme`, it does not replace it."
+  - name: Blog Settings
+    description: "Tenant-scoped blog settings admin API (epic #536, Issue #543) — one row per tenant (`awcms_mini_blog_settings`, schema present since Issue #537 but unwired until this issue). Blog title/description and RSS/sitemap enabled flags live in the row's catch-all `settings` jsonb column; default locale/visibility and SEO title/description defaults have their own typed columns. `rssEnabled`/`sitemapEnabled` also gate `GET /blog/{tenantCode}/feed.xml` and `.../sitemap-blog.xml` (Issue #540) — disabled looks identical to an unknown tenant (404), no distinguishing signal leaked."
+  - name: Visitor Analytics
+    description: "Tenant-scoped visitor analytics API (epic: visitor analytics #617-#624, Issue #621) — realtime presence, range-bounded summary/ pages/devices/locations/security aggregates, keyset-paginated sessions/events, settings, and on-demand retention purge. Raw detail (IP address, user-agent hash, login identifier snapshot) on sessions/events is omitted unless the caller holds the separate `visitor_analytics.raw_detail.read` permission, independent of `sessions.read`/`events.read`."
+  - name: News Media
+    description: "Direct-to-R2 presigned upload flow for news images (epic `news_portal` #631-#642/#649, Issue #634) — create an upload session (server-generated object key + short-lived presigned `PUT` URL), finalize (real R2 `GET` + magic-byte MIME sniffing + server-side SHA-256 checksum — never a bare `HEAD`, per the security-auditor Critical finding on Issue #631), and cancel a still-`pending_upload` session. R2 credentials are never exposed to the browser; only a scoped, expiring presigned URL is returned."
+  - name: News Portal Homepage Sections
+    description: "Editorial homepage section composer for `/news` (epic `news_portal` #631-#642/#649, Issue #637) — tenant-scoped, RLS-protected CRUD for configurable homepage sections (headline, latest_posts, featured_posts, editor_picks, category_grid, gallery_block). `config` shape is validated per `sectionType` server-side; every post/category/media reference in `config` must already exist for the same tenant, and (for `gallery_block`) be a verified R2 media object. `sectionType` is immutable after creation. Reordering is just another patchable field (`sortOrder`) — there is no separate bulk-reorder endpoint."
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Standard authenticated API access.
+    tenantHeader:
+      type: apiKey
+      in: header
+      name: X-AWCMS-Mini-Tenant-ID
+      description: Active tenant context for tenant-scoped API.
+    syncHmac:
+      type: apiKey
+      in: header
+      name: X-AWCMS-Mini-Signature
+      description: HMAC signature for sync endpoints with node and timestamp headers.
+  parameters:
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 128
+      description: Optional server-side trace correlation ID.
+    RequestId:
+      name: X-Request-ID
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 128
+      description: Optional client-generated request trace ID.
+    AcceptLanguage:
+      name: Accept-Language
+      in: header
+      required: false
+      schema:
+        type: string
+        example: id
+      description: Preferred response locale.
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+      description: Required for high-risk mutations.
+    SyncNodeId:
+      name: X-AWCMS-Mini-Node-ID
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 3
+        maxLength: 128
+      description: Sync node identifier.
+    SyncTimestamp:
+      name: X-AWCMS-Mini-Timestamp
+      in: header
+      required: true
+      schema:
+        type: string
+        format: date-time
+      description: Request timestamp used for anti-replay checks.
+    SyncSignature:
+      name: X-AWCMS-Mini-Signature
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 32
+      description: HMAC signature over the sync request.
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+      description: Opaque keyset pagination cursor from a previous page's `nextCursor`. Omit for the first page.
+    AnalyticsRange:
+      name: range
+      in: query
+      required: false
+      schema:
+        type: string
+        enum:
+          - 24h
+          - 7d
+          - 30d
+          - 12m
+        default: 7d
+      description: Aggregate window. An unrecognized value is a `400 VALIDATION_ERROR`, never silently defaulted.
+  responses:
+    BadRequest:
+      description: Validation or request error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    Unauthorized:
+      description: Authentication required or expired.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    Forbidden:
+      description: Access denied by RBAC, ABAC, or tenant policy.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    NotFound:
+      description: Resource not found or hidden by soft-delete policy.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    InternalError:
+      description: Internal server error without stack trace.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    PayloadTooLarge:
+      description: "Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+  schemas:
+    ApiError:
+      type: object
+      required:
+        - success
+        - error
+        - meta
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          const: false
+        error:
+          type: object
+          required:
+            - code
+            - message
+          additionalProperties: false
+          properties:
+            code:
+              $ref: "#/components/schemas/ErrorCode"
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                $ref: "#/components/schemas/ErrorDetail"
+        meta:
+          $ref: "#/components/schemas/ApiMeta"
+    ApiMeta:
+      type: object
+      additionalProperties: false
+      properties:
+        correlationId:
+          type: string
+        requestId:
+          type: string
+    ApiSuccess:
+      type: object
+      required:
+        - success
+        - data
+        - meta
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          description: Response payload.
+        meta:
+          $ref: "#/components/schemas/ApiMeta"
+    BlogPostItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - authorTenantUserId
+        - title
+        - slug
+        - excerpt
+        - contentJson
+        - contentText
+        - status
+        - visibility
+        - featuredMediaId
+        - seoTitle
+        - metaDescription
+        - canonicalUrl
+        - locale
+        - publishedAt
+        - scheduledAt
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - deletedBy
+        - deleteReason
+        - restoredAt
+        - restoredBy
+        - version
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        authorTenantUserId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        slug:
+          type: string
+        excerpt:
+          type: string
+          nullable: true
+        contentJson:
+          type: object
+          description: "Structured content (e.g. block/rich-text tree). Opaque to the API. When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url — a non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID."
+        contentText:
+          type: string
+          description: Plain-text extraction of contentJson, used for search.
+        status:
+          type: string
+          enum:
+            - draft
+            - review
+            - scheduled
+            - published
+            - archived
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+            - unlisted
+        featuredMediaId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), must reference an existing, same-tenant media object (Issue #633) with status verified or attached — never a local path or arbitrary external URL. A non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID. Outside that mode, only the UUID shape is validated."
+        seoTitle:
+          type: string
+          nullable: true
+        metaDescription:
+          type: string
+          nullable: true
+        canonicalUrl:
+          type: string
+          nullable: true
+        locale:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletedBy:
+          type: string
+          format: uuid
+          nullable: true
+        deleteReason:
+          type: string
+          nullable: true
+        restoredAt:
+          type: string
+          format: date-time
+          nullable: true
+        restoredBy:
+          type: string
+          format: uuid
+          nullable: true
+        version:
+          type: integer
+          minimum: 1
+        termIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: "Category/tag ids currently assigned to this post (Issue #539). Only present on responses from endpoints that compute it (create/update/get detail), not on the list endpoint."
+    ErrorCode:
+      type: string
+      enum:
+        - VALIDATION_ERROR
+        - AUTH_REQUIRED
+        - AUTH_INVALID_CREDENTIALS
+        - TOKEN_EXPIRED
+        - ACCESS_DENIED
+        - TENANT_REQUIRED
+        - RESOURCE_NOT_FOUND
+        - RESOURCE_DELETED
+        - IDEMPOTENCY_REQUIRED
+        - IDEMPOTENCY_CONFLICT
+        - WORKFLOW_APPROVAL_REQUIRED
+        - SYNC_CONFLICT
+        - DATABASE_BUSY
+        - PROVIDER_ERROR
+        - INTERNAL_ERROR
+    ErrorDetail:
+      type: object
+      additionalProperties: false
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+    ModuleSettingsView:
+      type: object
+      required:
+        - moduleKey
+        - schemaVersion
+        - defaults
+        - tenantOverride
+        - effective
+        - updatedAt
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        schemaVersion:
+          type: integer
+        defaults:
+          type: object
+          description: The module's own code-declared default settings.
+        tenantOverride:
+          type: object
+          description: Only the keys this tenant has explicitly set — never includes secret-shaped keys (rejected at write time).
+        effective:
+          type: object
+          description: defaults with tenantOverride applied on top.
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    SoftDeleteQuery:
+      type: object
+      additionalProperties: false
+      properties:
+        includeDeleted:
+          type: boolean
+          default: false
+          description: Include archived records when caller has explicit permission.
+        onlyDeleted:
+          type: boolean
+          default: false
+          description: List only archived records when caller has explicit permission.
+    SoftDeleteRequest:
+      type: object
+      required:
+        - delete_reason
+      additionalProperties: false
+      properties:
+        delete_reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+          description: Audit-safe reason for soft delete.
+x-awcms-mini-soft-delete-pattern:
+  delete:
+    method: DELETE
+    pathPattern: /api/v1/{resources}/{id}
+    behavior: Soft delete using deleted_at, deleted_by, and delete_reason.
+  restore:
+    method: POST
+    pathPattern: /api/v1/{resources}/{id}/restore
+    behavior: Restore with ABAC, unique-key conflict validation, and audit.
+  purgeRequest:
+    method: POST
+    pathPattern: /api/v1/{resources}/{id}/purge-request
+    behavior: Retention or legal workflow request, never direct physical delete.
+security:
+  - bearerAuth: []
+    tenantHeader: []

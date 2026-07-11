@@ -1,0 +1,350 @@
+# Source fragment for the "Management Reporting" module/tag (Issue #695, epic #679).
+#
+# Owns every path tagged "Management Reporting" and every schema referenced ONLY by this
+# tag's operations. Schemas shared with another module/tag live in the root
+# file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/reports/access-audit:
+    get:
+      tags:
+        - Management Reporting
+      summary: Access/audit summary (ABAC decision counts, profile audit log count)
+      operationId: reportsGetAccessAudit
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Access/audit summary for the caller's tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AccessAuditReport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/email-health:
+    get:
+      tags:
+        - Management Reporting
+      summary: Email queue health summary (queued/retry/failed/suppressed counts, healthy flag)
+      operationId: reportsGetEmailHealth
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Email queue health summary for the caller's tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/EmailHealthReport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/module-usage:
+    get:
+      tags:
+        - Management Reporting
+      summary: Module usage summary (one row-count signal per registered module)
+      operationId: reportsGetModuleUsage
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Module usage summary for the caller's tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleUsageReportResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/sync-health:
+    get:
+      tags:
+        - Management Reporting
+      summary: Sync health summary (node/conflict/object-queue counts, healthy flag)
+      operationId: reportsGetSyncHealth
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Sync health summary for the caller's tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SyncHealthReport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/tenant-activity:
+    get:
+      tags:
+        - Management Reporting
+      summary: Tenant activity summary (tenant, active users/offices, most recent login)
+      operationId: reportsGetTenantActivity
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Tenant activity summary for the caller's tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantActivityReport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    AccessAuditReport:
+      type: object
+      required:
+        - decisionWindowDays
+        - allowCount
+        - denyCount
+        - totalDecisionCount
+        - profileAuditLogCount
+      additionalProperties: false
+      properties:
+        decisionWindowDays:
+          type: integer
+          minimum: 1
+          description: Window (in days) covered by allowCount/denyCount.
+        allowCount:
+          type: integer
+          minimum: 0
+        denyCount:
+          type: integer
+          minimum: 0
+        totalDecisionCount:
+          type: integer
+          minimum: 0
+          description: All-time ABAC decision log count (not windowed).
+        profileAuditLogCount:
+          type: integer
+          minimum: 0
+          description: All-time profile audit log entry count, a generic audit-activity proxy.
+    EmailHealthReport:
+      type: object
+      required:
+        - queuedCount
+        - retryWaitCount
+        - failedCount
+        - suppressedCount
+        - sentLast24hCount
+        - hasFailedMessages
+        - hasRetryBacklog
+        - isHealthy
+        - emailEnabled
+      additionalProperties: false
+      properties:
+        queuedCount:
+          type: integer
+          minimum: 0
+        retryWaitCount:
+          type: integer
+          minimum: 0
+        failedCount:
+          type: integer
+          minimum: 0
+        suppressedCount:
+          type: integer
+          minimum: 0
+        sentLast24hCount:
+          type: integer
+          minimum: 0
+        hasFailedMessages:
+          type: boolean
+        hasRetryBacklog:
+          type: boolean
+        isHealthy:
+          type: boolean
+          description: No failed messages and no retry backlog.
+        oldestQueuedAt:
+          type: string
+          format: date-time
+          nullable: true
+        mostRecentSentAt:
+          type: string
+          format: date-time
+          nullable: true
+        emailEnabled:
+          type: boolean
+        provider:
+          type: string
+          nullable: true
+    ModuleUsageEntry:
+      type: object
+      required:
+        - moduleKey
+        - moduleName
+        - metricLabel
+        - recordCount
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        moduleName:
+          type: string
+        metricLabel:
+          type: string
+        recordCount:
+          type: integer
+          minimum: 0
+    ModuleUsageReportResponse:
+      type: object
+      required:
+        - modules
+      additionalProperties: false
+      properties:
+        modules:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModuleUsageEntry"
+    SyncHealthReport:
+      type: object
+      required:
+        - totalNodeCount
+        - activeNodeCount
+        - openConflictCount
+        - pendingObjectCount
+        - failedObjectCount
+        - hasOpenConflicts
+        - hasFailedObjects
+        - isHealthy
+      additionalProperties: false
+      properties:
+        totalNodeCount:
+          type: integer
+          minimum: 0
+        activeNodeCount:
+          type: integer
+          minimum: 0
+        openConflictCount:
+          type: integer
+          minimum: 0
+        pendingObjectCount:
+          type: integer
+          minimum: 0
+        failedObjectCount:
+          type: integer
+          minimum: 0
+        hasOpenConflicts:
+          type: boolean
+        hasFailedObjects:
+          type: boolean
+        isHealthy:
+          type: boolean
+          description: activeNodeCount > 0 and no open conflicts and no failed objects.
+        mostRecentPushedAt:
+          type: string
+          format: date-time
+          nullable: true
+        mostRecentPulledAt:
+          type: string
+          format: date-time
+          nullable: true
+    TenantActivityReport:
+      type: object
+      required:
+        - tenantName
+        - tenantStatus
+        - tenantCreatedAt
+        - activeUserCount
+        - activeOfficeCount
+      additionalProperties: false
+      properties:
+        tenantName:
+          type: string
+        tenantStatus:
+          type: string
+        tenantCreatedAt:
+          type: string
+          format: date-time
+        activeUserCount:
+          type: integer
+          minimum: 0
+        activeOfficeCount:
+          type: integer
+          minimum: 0
+        mostRecentLoginAt:
+          type: string
+          format: date-time
+          nullable: true

@@ -43,7 +43,7 @@ flowchart LR
 6. Mutation high-risk → `awcms-mini-idempotency` (`Idempotency-Key`).
 7. Data sensitif keluar lewat mapper (`awcms-mini-sensitive-data`); jangan return row mentah.
 8. DELETE resource deletable berarti soft delete; restore/purge butuh ABAC, audit, OpenAPI, dan idempotency bila high-risk.
-9. **Update OpenAPI** (`openapi/`) untuk setiap perubahan; jalankan `api:spec:check`.
+9. **Update OpenAPI** — sejak Issue #695 (epic #679) `openapi/awcms-mini-public-api.openapi.yaml` adalah artefak GENERATED, jangan diedit langsung. Edit fragment sumbernya: `openapi/modules/<module-key>.openapi.yaml` (path/operation/schema milik modul itu) atau `openapi/awcms-mini-public-api.src.yaml` (info/servers/tags/security/securitySchemes/parameters/responses/schema yang genuinely dipakai 2+ modul). Lalu jalankan `bun run openapi:bundle` untuk regenerate file bundle, dan `bun run api:spec:check` untuk validasi (route parity, operationId unik, path parameter, standard error schema, security metadata, bundle freshness). Commit fragment sumber DAN file bundle hasil regenerate dalam PR yang sama — lihat `openapi/README.md`.
 10. Endpoint publik/mahal (tanpa auth, atau operasi berat) → pertimbangkan rate limiting sumber (`checkRateLimit`, `src/lib/security/rate-limit.ts`, reuse — jangan bikin limiter baru), lihat `awcms-mini-integration`.
 
 ## Response helper
@@ -61,6 +61,7 @@ Sukses `{ success:true, data, meta }`; error `{ success:false, error:{ code, mes
 ## Verifikasi
 
 ```bash
+bun run openapi:bundle
 bun run api:spec:check
 bun test
 ```

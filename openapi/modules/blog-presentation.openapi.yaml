@@ -1,0 +1,1339 @@
+# Source fragment for the "Blog Presentation" module/tag (Issue #695, epic #679).
+#
+# Owns every path tagged "Blog Presentation" and every schema referenced ONLY by this
+# tag's operations. Schemas shared with another module/tag live in the root
+# file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/blog/ads:
+    get:
+      tags:
+        - Blog Presentation
+      summary: List this tenant's advertisements
+      operationId: blogAdsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Ads.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - ads
+                        properties:
+                          ads:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/BlogAdItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Blog Presentation
+      summary: Create an advertisement, optionally with its initial placements
+      operationId: blogAdsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - imageUrl
+              properties:
+                name:
+                  type: string
+                imageUrl:
+                  type: string
+                linkUrl:
+                  type: string
+                  nullable: true
+                isActive:
+                  type: boolean
+                startsAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                endsAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                placements:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/BlogAdPlacementEntryInput"
+      responses:
+        "200":
+          description: Ad created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogAdItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/ads/{id}:
+    patch:
+      tags:
+        - Blog Presentation
+      summary: Update an advertisement and/or fully replace its placements
+      operationId: blogAdsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                imageUrl:
+                  type: string
+                linkUrl:
+                  type: string
+                  nullable: true
+                isActive:
+                  type: boolean
+                startsAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                endsAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                placements:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/BlogAdPlacementEntryInput"
+      responses:
+        "200":
+          description: Ad updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogAdItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Blog Presentation
+      summary: Soft-delete an advertisement
+      operationId: blogAdsDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Ad deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - id
+                          - deleted
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/menus:
+    get:
+      tags:
+        - Blog Presentation
+      summary: List this tenant's navigation menus (with items)
+      operationId: blogMenusList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Menus, each with its item tree.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - menus
+                        properties:
+                          menus:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/BlogMenuItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Blog Presentation
+      summary: Create a navigation menu, optionally with its initial item tree
+      operationId: blogMenusCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - key
+                - name
+              properties:
+                key:
+                  type: string
+                name:
+                  type: string
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/BlogMenuItemEntryInput"
+      responses:
+        "200":
+          description: Menu created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogMenuItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: A menu already exists for this key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/menus/{id}:
+    patch:
+      tags:
+        - Blog Presentation
+      summary: Update a menu and/or fully replace its item tree
+      operationId: blogMenusUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/BlogMenuItemEntryInput"
+      responses:
+        "200":
+          description: Menu updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogMenuItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Blog Presentation
+      summary: Soft-delete a navigation menu
+      operationId: blogMenusDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Menu deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - id
+                          - deleted
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/templates:
+    get:
+      tags:
+        - Blog Presentation
+      summary: List this tenant's presentation templates
+      operationId: blogTemplatesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Templates.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - templates
+                        properties:
+                          templates:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/BlogTemplateItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Blog Presentation
+      summary: Create a presentation template
+      operationId: blogTemplatesCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - key
+                - name
+                - layoutJson
+              properties:
+                key:
+                  type: string
+                name:
+                  type: string
+                layoutJson:
+                  $ref: "#/components/schemas/BlogTemplateLayout"
+                isActive:
+                  type: boolean
+      responses:
+        "200":
+          description: Template created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogTemplateItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: A template already exists for this key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/templates/{id}:
+    patch:
+      tags:
+        - Blog Presentation
+      summary: Update a presentation template
+      operationId: blogTemplatesUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                layoutJson:
+                  $ref: "#/components/schemas/BlogTemplateLayout"
+                isActive:
+                  type: boolean
+      responses:
+        "200":
+          description: Template updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogTemplateItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Blog Presentation
+      summary: Soft-delete a presentation template
+      operationId: blogTemplatesDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Template deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - id
+                          - deleted
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/theme:
+    get:
+      tags:
+        - Blog Presentation
+      summary: Read this tenant's blog theme mode
+      operationId: blogThemeGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Theme settings.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogThemeSettings"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Blog Presentation
+      summary: Set this tenant's blog theme mode override
+      operationId: blogThemeUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - mode
+              properties:
+                mode:
+                  type: string
+                  enum:
+                    - light
+                    - dark
+                    - system
+      responses:
+        "200":
+          description: Theme settings updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogThemeSettings"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/widgets:
+    get:
+      tags:
+        - Blog Presentation
+      summary: List this tenant's widgets
+      operationId: blogWidgetsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: position
+          in: query
+          schema:
+            type: string
+            enum:
+              - header
+              - sidebar
+              - footer
+              - content_before
+              - content_after
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Widgets.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - widgets
+                        properties:
+                          widgets:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/BlogWidgetItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Blog Presentation
+      summary: Create a widget
+      operationId: blogWidgetsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - position
+                - title
+              properties:
+                position:
+                  type: string
+                  enum:
+                    - header
+                    - sidebar
+                    - footer
+                    - content_before
+                    - content_after
+                title:
+                  type: string
+                bodyText:
+                  type: string
+                isActive:
+                  type: boolean
+                sortOrder:
+                  type: integer
+      responses:
+        "200":
+          description: Widget created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogWidgetItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/widgets/{id}:
+    patch:
+      tags:
+        - Blog Presentation
+      summary: Update a widget
+      operationId: blogWidgetsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                position:
+                  type: string
+                  enum:
+                    - header
+                    - sidebar
+                    - footer
+                    - content_before
+                    - content_after
+                title:
+                  type: string
+                bodyText:
+                  type: string
+                isActive:
+                  type: boolean
+                sortOrder:
+                  type: integer
+      responses:
+        "200":
+          description: Widget updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogWidgetItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Blog Presentation
+      summary: Soft-delete a widget
+      operationId: blogWidgetsDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Widget deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - id
+                          - deleted
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    BlogAdItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - name
+        - imageUrl
+        - linkUrl
+        - isActive
+        - startsAt
+        - endsAt
+        - createdAt
+        - updatedAt
+        - placements
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        imageUrl:
+          type: string
+        linkUrl:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        placements:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlogAdPlacementEntry"
+    BlogAdPlacementEntry:
+      type: object
+      required:
+        - id
+        - tenantId
+        - adId
+        - placementType
+        - targetId
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        adId:
+          type: string
+          format: uuid
+        placementType:
+          type: string
+          enum:
+            - global
+            - widget
+            - post
+            - page
+        targetId:
+          type: string
+          format: uuid
+          nullable: true
+    BlogAdPlacementEntryInput:
+      type: object
+      required:
+        - placementType
+      properties:
+        placementType:
+          type: string
+          enum:
+            - global
+            - widget
+            - post
+            - page
+        targetId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Required for widget/post/page placements, omitted for global.
+    BlogMenuItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - key
+        - name
+        - createdAt
+        - updatedAt
+        - items
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        key:
+          type: string
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlogMenuItemEntry"
+    BlogMenuItemEntry:
+      type: object
+      required:
+        - id
+        - tenantId
+        - menuId
+        - parentItemId
+        - label
+        - linkType
+        - targetId
+        - url
+        - sortOrder
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        menuId:
+          type: string
+          format: uuid
+        parentItemId:
+          type: string
+          format: uuid
+          nullable: true
+        label:
+          type: string
+        linkType:
+          type: string
+          enum:
+            - post
+            - page
+            - url
+        targetId:
+          type: string
+          format: uuid
+          nullable: true
+        url:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+    BlogMenuItemEntryInput:
+      type: object
+      description: One menu item in a create/update payload — `id` is client-supplied (full-replace semantics, Issue
+      required:
+        - id
+        - label
+        - linkType
+      properties:
+        id:
+          type: string
+          format: uuid
+        parentItemId:
+          type: string
+          format: uuid
+          nullable: true
+        label:
+          type: string
+        linkType:
+          type: string
+          enum:
+            - post
+            - page
+            - url
+        targetId:
+          type: string
+          format: uuid
+          nullable: true
+        url:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+    BlogTemplateItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - key
+        - name
+        - layoutJson
+        - isActive
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        key:
+          type: string
+        name:
+          type: string
+        layoutJson:
+          $ref: "#/components/schemas/BlogTemplateLayout"
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    BlogTemplateLayout:
+      type: object
+      description: Whitelisted layout shape (Issue
+      required:
+        - columns
+        - sidebarPosition
+      additionalProperties: false
+      properties:
+        columns:
+          type: integer
+          enum:
+            - 1
+            - 2
+            - 3
+        sidebarPosition:
+          type: string
+          enum:
+            - left
+            - right
+            - none
+    BlogThemeSettings:
+      type: object
+      required:
+        - mode
+        - isOverride
+      additionalProperties: false
+      properties:
+        mode:
+          type: string
+          enum:
+            - light
+            - dark
+            - system
+        isOverride:
+          type: boolean
+          description: false means this is the tenant's inherited default_theme, not a blog-specific override.
+    BlogWidgetItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - position
+        - title
+        - bodyText
+        - isActive
+        - sortOrder
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        position:
+          type: string
+          enum:
+            - header
+            - sidebar
+            - footer
+            - content_before
+            - content_after
+        title:
+          type: string
+        bodyText:
+          type: string
+        isActive:
+          type: boolean
+        sortOrder:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time

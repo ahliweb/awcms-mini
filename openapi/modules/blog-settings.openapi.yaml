@@ -1,0 +1,176 @@
+# Source fragment for the "Blog Settings" module/tag (Issue #695, epic #679).
+#
+# Owns every path tagged "Blog Settings" and every schema referenced ONLY by this
+# tag's operations. Schemas shared with another module/tag live in the root
+# file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/blog/settings:
+    get:
+      tags:
+        - Blog Settings
+      summary: Read this tenant's blog settings
+      operationId: blogSettingsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Blog settings, falling back to schema/domain defaults when never configured.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogSettingsView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Blog Settings
+      summary: Update this tenant's blog settings
+      operationId: blogSettingsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBlogSettingsInput"
+      responses:
+        "200":
+          description: Blog settings updated (partial update — only fields present in the request body are changed).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogSettingsView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    BlogSettingsView:
+      type: object
+      required:
+        - tenantId
+        - blogTitle
+        - blogDescription
+        - postsPerPage
+        - rssEnabled
+        - sitemapEnabled
+        - defaultLocale
+        - defaultVisibility
+        - seoDefaultTitle
+        - seoDefaultDescription
+        - updatedAt
+      additionalProperties: false
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        blogTitle:
+          type: string
+        blogDescription:
+          type: string
+          nullable: true
+        postsPerPage:
+          type: integer
+          minimum: 1
+          maximum: 100
+        rssEnabled:
+          type: boolean
+        sitemapEnabled:
+          type: boolean
+        defaultLocale:
+          type: string
+        defaultVisibility:
+          type: string
+          enum:
+            - public
+            - private
+            - unlisted
+        seoDefaultTitle:
+          type: string
+          nullable: true
+        seoDefaultDescription:
+          type: string
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    UpdateBlogSettingsInput:
+      type: object
+      description: Partial update — only fields present are validated/changed. blogTitle/blogDescription/rssEnabled/sitemapEnabled live in the row's catch-all `settings` jsonb column; the rest have their own typed columns.
+      additionalProperties: false
+      properties:
+        blogTitle:
+          type: string
+          maxLength: 200
+        blogDescription:
+          type: string
+          maxLength: 500
+          nullable: true
+        postsPerPage:
+          type: integer
+          minimum: 1
+          maximum: 100
+        rssEnabled:
+          type: boolean
+        sitemapEnabled:
+          type: boolean
+        defaultLocale:
+          type: string
+        defaultVisibility:
+          type: string
+          enum:
+            - public
+            - private
+            - unlisted
+        seoDefaultTitle:
+          type: string
+          maxLength: 200
+          nullable: true
+        seoDefaultDescription:
+          type: string
+          maxLength: 300
+          nullable: true

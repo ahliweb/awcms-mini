@@ -52,7 +52,7 @@ flowchart TD
 1. **Baca dulu** README, `docs/awcms-mini/`, `package.json`, `sql/`, `src/modules/`, `openapi/`, `asyncapi/` sebelum mengedit.
 2. **Atomic** — kerjakan satu issue/sprint; jangan ubah file yang tidak berkaitan.
 3. **Migration** — setiap perubahan schema harus migration SQL baru yang berurutan (tidak me-rename migration lama yang sudah rilis).
-4. **OpenAPI** — setiap API baru/berubah harus diperbarui di `openapi/`.
+4. **OpenAPI** — setiap API baru/berubah harus diperbarui di `openapi/`. Sejak Issue #695, `openapi/awcms-mini-public-api.openapi.yaml` adalah artefak GENERATED (jangan edit langsung) — edit fragment sumber (`openapi/awcms-mini-public-api.src.yaml` + `openapi/modules/*.yaml`), jalankan `bun run openapi:bundle`, lalu commit fragment DAN hasil bundle bersamaan; lihat `openapi/README.md`.
 5. **AsyncAPI** — setiap domain event baru/berubah harus diperbarui di `asyncapi/`.
 6. **Idempotency** — mutation high-risk wajib `Idempotency-Key` (lihat daftar di doc 05 & 10).
 7. **Tenant safety** — data tenant-scoped wajib tenant context + ABAC + RLS.
@@ -221,7 +221,8 @@ bun run build                    # bun --bun astro build
 bun run preview                  # bun --bun astro preview
 bun run start                    # bun ./dist/server/entry.mjs (SSR di atas Bun)
 bun run db:migrate               # Bun.SQL PostgreSQL migration runner
-bun run api:spec:check           # validasi OpenAPI/AsyncAPI baseline
+bun run api:spec:check           # validasi OpenAPI/AsyncAPI baseline (route parity, operationId unik, path parameter, standard error schema, security metadata, bundle freshness)
+bun run openapi:bundle           # generate openapi/awcms-mini-public-api.openapi.yaml dari fragment openapi/awcms-mini-public-api.src.yaml + openapi/modules/*.yaml (Issue #695) — jalankan sebelum commit tiap kali fragment sumber berubah
 bun run lint                     # prettier --check
 bun run format                   # prettier --write
 bun run check:docs               # validasi mermaid, tautan internal, penamaan
@@ -287,7 +288,7 @@ awcms-mini/
 │   └── pages/               # api/v1, admin
 ├── sql/                     # migration NNN_awcms_mini_<area>_<desc>.sql
 ├── scripts/                 # db-migrate, api-spec-check, dst.
-├── openapi/                 # kontrak REST
+├── openapi/                 # kontrak REST (src.yaml + modules/*.yaml = sumber; awcms-mini-public-api.openapi.yaml = bundle GENERATED, Issue #695)
 ├── asyncapi/                # kontrak event
 ├── docs/awcms-mini/         # paket dokumen 01–20
 ├── docs/adr/                # architecture decision records

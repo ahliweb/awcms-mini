@@ -1,0 +1,511 @@
+# Source fragment for the "Email Templates" module/tag (Issue #695, epic #679).
+#
+# Owns every path tagged "Email Templates" and every schema referenced ONLY by this
+# tag's operations. Schemas shared with another module/tag live in the root
+# file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/email/templates:
+    get:
+      tags:
+        - Email Templates
+      summary: List the caller's tenant's email templates
+      operationId: emailTemplatesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: includeInactive
+          in: query
+          schema:
+            type: boolean
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Email templates for the caller's tenant (limit 100, newest first).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/EmailTemplateListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Email Templates
+      summary: Create an email template
+      operationId: emailTemplatesCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmailTemplateRequest"
+      responses:
+        "200":
+          description: Email template created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/EmailTemplateItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: An active template already exists for this templateKey.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/email/templates/{id}:
+    get:
+      tags:
+        - Email Templates
+      summary: Read one email template
+      operationId: emailTemplatesGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The requested email template.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/EmailTemplateItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Email Templates
+      summary: Update an email template
+      operationId: emailTemplatesUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmailTemplateRequest"
+      responses:
+        "200":
+          description: Email template updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/EmailTemplateItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Email Templates
+      summary: Soft-delete an email template
+      operationId: emailTemplatesDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+      responses:
+        "200":
+          description: Email template deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - id
+                          - deleted
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/email/templates/{id}/preview:
+    post:
+      tags:
+        - Email Templates
+      summary: Preview a rendered template with synthetic sample data (never real recipient data)
+      operationId: emailTemplatesPreview
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                locale:
+                  type: string
+                variables:
+                  type: object
+                  description: Optional sample value overrides; still filtered through the template category's variable allowlist.
+      responses:
+        "200":
+          description: Rendered preview.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/EmailTemplatePreviewResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/email/templates/{id}/restore:
+    post:
+      tags:
+        - Email Templates
+      summary: Restore a soft-deleted email template
+      operationId: emailTemplatesRestore
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Email template restored.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/EmailTemplateItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Template not found or not currently soft-deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    CreateEmailTemplateRequest:
+      type: object
+      required:
+        - templateKey
+        - name
+        - subjectTemplate
+      additionalProperties: false
+      properties:
+        templateKey:
+          type: string
+          pattern: ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$
+          description: Must be a recognized base category or a registered "derived.*" category.
+        name:
+          type: string
+          maxLength: 128
+        subjectTemplate:
+          $ref: "#/components/schemas/LocalizedTemplateText"
+        textBodyTemplate:
+          $ref: "#/components/schemas/LocalizedTemplateText"
+        htmlBodyTemplate:
+          $ref: "#/components/schemas/LocalizedTemplateText"
+        isActive:
+          type: boolean
+    EmailTemplateItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - templateKey
+        - name
+        - subjectTemplate
+        - textBodyTemplate
+        - htmlBodyTemplate
+        - isActive
+        - createdBy
+        - updatedBy
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - deletedBy
+        - deleteReason
+        - restoredAt
+        - restoredBy
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        templateKey:
+          type: string
+          description: Dot-separated category key, e.g. "auth.password_reset" — also the category used for the render-time variable allowlist.
+        name:
+          type: string
+        subjectTemplate:
+          $ref: "#/components/schemas/LocalizedTemplateText"
+        textBodyTemplate:
+          allOf:
+            - $ref: "#/components/schemas/LocalizedTemplateText"
+          nullable: true
+        htmlBodyTemplate:
+          allOf:
+            - $ref: "#/components/schemas/LocalizedTemplateText"
+          nullable: true
+        isActive:
+          type: boolean
+        createdBy:
+          type: string
+          format: uuid
+        updatedBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletedBy:
+          type: string
+          format: uuid
+          nullable: true
+        deleteReason:
+          type: string
+          nullable: true
+        restoredAt:
+          type: string
+          format: date-time
+          nullable: true
+        restoredBy:
+          type: string
+          format: uuid
+          nullable: true
+    EmailTemplateListResponse:
+      type: object
+      required:
+        - templates
+      additionalProperties: false
+      properties:
+        templates:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmailTemplateItem"
+    EmailTemplatePreviewResponse:
+      type: object
+      required:
+        - locale
+        - subject
+      additionalProperties: false
+      properties:
+        locale:
+          type: string
+        subject:
+          type: string
+        textBody:
+          type: string
+        htmlBody:
+          type: string
+    LocalizedTemplateText:
+      type: object
+      description: Locale code (2-letter, e.g. "en", "id") to string. Must include an "en" entry.
+      additionalProperties:
+        type: string
+      example:
+        en: Reset your password
+        id: Atur ulang kata sandi Anda
+    UpdateEmailTemplateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          maxLength: 128
+        subjectTemplate:
+          $ref: "#/components/schemas/LocalizedTemplateText"
+        textBodyTemplate:
+          allOf:
+            - $ref: "#/components/schemas/LocalizedTemplateText"
+          nullable: true
+        htmlBodyTemplate:
+          allOf:
+            - $ref: "#/components/schemas/LocalizedTemplateText"
+          nullable: true
+        isActive:
+          type: boolean

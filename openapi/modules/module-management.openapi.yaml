@@ -1,0 +1,812 @@
+# Source fragment for the "Module Management" module/tag (Issue #695, epic #679).
+#
+# Owns every path tagged "Module Management" and every schema referenced ONLY by this
+# tag's operations. Schemas shared with another module/tag live in the root
+# file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/modules:
+    get:
+      tags:
+        - Module Management
+      summary: List the module catalog — every module currently registered in code, merged with its database-tracked lifecycle state
+      description: Distinct from `GET /api/v1/access/modules` (Issue 12.1's permission catalog grouped by module) — that endpoint's behavior is unchanged by this one.
+      operationId: modulesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Module catalog.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleCatalogListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/modules/{moduleKey}:
+    get:
+      tags:
+        - Module Management
+      summary: Module catalog detail
+      operationId: modulesGetDetail
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Module catalog entry.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleCatalogEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/modules/{moduleKey}/health:
+    get:
+      tags:
+        - Module Management
+      summary: Module health/readiness (fast, bounded)
+      description: Fast, bounded readiness signals (descriptor registered, DB registry synced, migrations applied, permission catalog synced, settings valid, jobs documented, OpenAPI/AsyncAPI documented). Never runs a live provider/network check — that's the explicit `POST .../health/check` action only.
+      operationId: modulesGetHealth
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Health/readiness report for the module.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleHealthReport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/modules/{moduleKey}/health/check:
+    post:
+      tags:
+        - Module Management
+      summary: Trigger an explicit module health check
+      description: Same generic signals as `GET .../health`, plus a real, bounded, network-calling provider health check where one exists (`email` only today). Deliberately a separate action/permission from the passive `GET` — never invoked automatically from a business transaction path. Audited.
+      operationId: modulesRunHealthCheck
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Health/readiness report for the module, including the live provider check where applicable.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleHealthReport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/modules/{moduleKey}/jobs:
+    get:
+      tags:
+        - Module Management
+      summary: Module job/command registry
+      description: The module's declared operational commands (`command`, `purpose`, `recommendedSchedule`, `environmentNotes`, `safeInOfflineLan`). Documentation only — there is no corresponding endpoint to execute a job; running arbitrary commands from a web UI is explicitly out of scope.
+      operationId: modulesGetJobs
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Job registry entries for the module.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleJobsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/modules/{moduleKey}/permissions:
+    get:
+      tags:
+        - Module Management
+      summary: Module permission sync/status
+      description: Compares the module's descriptor-declared `permissions` against the `awcms_mini_permissions` catalog and classifies each one `synced`, `missing`, `orphaned`, or `mismatched_description`. Read-only — never writes to the catalog, never changes a role's assigned permissions.
+      operationId: modulesGetPermissionSync
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Permission sync report for the module.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModulePermissionSyncReport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/modules/sync:
+    post:
+      tags:
+        - Module Management
+      summary: Sync trusted code descriptors into the database registry
+      description: Naturally idempotent — no `Idempotency-Key` required. Running it repeatedly is always safe and reports the same result each time when nothing has changed.
+      operationId: modulesSync
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Sync result.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleSyncResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant/modules:
+    get:
+      tags:
+        - Module Management
+      summary: List every registered module's enablement state for the caller's tenant
+      description: "A module with no explicit state (`tenantEnabled: true`, no `enabledAt`/`disabledAt`) has never been toggled — available by default (backward-compatible with pre-epic behavior)."
+      operationId: tenantModulesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Tenant module enablement state.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantModuleListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant/modules/{moduleKey}/disable:
+    post:
+      tags:
+        - Module Management
+      summary: Disable a module for the caller's tenant
+      description: "`reason` required. Never deletes tenant data — only writes `awcms_mini_tenant_modules`. Rejected with `409` if the module is core/system, already disabled, or another still-enabled module depends on it."
+      operationId: tenantModulesDisable
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              additionalProperties: false
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Module disabled for the tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantModuleMutationResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Dependency validation failed (see `error.code`: `MODULE_ALREADY_DISABLED`, `CORE_MODULE_CANNOT_BE_DISABLED`, `MODULE_REVERSE_DEPENDENCY_ACTIVE`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant/modules/{moduleKey}/enable:
+    post:
+      tags:
+        - Module Management
+      summary: Enable a module for the caller's tenant
+      description: Tenant-level availability only, never a runtime code load. Server-side dependency validation rejects the request with `409` if a direct dependency is missing/disabled, the module is part of a dependency cycle, or the module declares an incompatible `minAppVersion`. `404` only for an unknown/globally-disabled module key.
+      operationId: tenantModulesEnable
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Module enabled for the tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantModuleMutationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Dependency validation failed (see `error.code`: `MODULE_ALREADY_ENABLED`, `MODULE_DEPENDENCY_MISSING`, `MODULE_DEPENDENCY_DISABLED`, `MODULE_DEPENDENCY_CYCLE`, `MODULE_VERSION_INCOMPATIBLE`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant/modules/{moduleKey}/settings:
+    get:
+      tags:
+        - Module Management
+      summary: Read effective tenant module settings
+      description: Effective settings = the module's own code-declared defaults with the tenant's stored override applied on top. A module with no override row yet still returns a view (defaults-only `effective`), not a `404` — only an unknown `moduleKey` is `404`.
+      operationId: tenantModuleSettingsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Effective module settings for the tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleSettingsView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Module Management
+      summary: Update tenant module settings
+      description: Merges the body into the tenant's existing settings override (shallow, top-level JSON-merge-patch — omitted keys are left untouched). Rejected with `400 SETTINGS_SENSITIVE_KEY_REJECTED` if any key anywhere in the body looks secret-shaped (matches the shared redaction key list), or `400 SETTINGS_SECRET_SHAPED_VALUE_REJECTED` if any string value anywhere in the body looks credential-shaped regardless of its key's own name (a JWT, a PEM private key block, an AWS access key id, a raw `Bearer`/`Basic` header value, or a connection string with an embedded `user:pass@` credential) — provider secrets belong in environment variables or a secret manager, never tenant-writable settings. Audited with safe diff metadata (changed key names only, never values).
+      operationId: tenantModuleSettingsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: moduleKey
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Arbitrary non-secret JSON object; merged into the tenant's existing override.
+      responses:
+        "200":
+          description: Module settings updated for the tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ModuleSettingsView"
+        "400":
+          description: "Validation failed (see `error.code`: `VALIDATION_ERROR`, `SETTINGS_SENSITIVE_KEY_REJECTED`, `SETTINGS_SECRET_SHAPED_VALUE_REJECTED`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    JobRegistryEntry:
+      type: object
+      required:
+        - moduleKey
+        - command
+        - purpose
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        command:
+          type: string
+          description: Always "bun run <script>" — this repo is Bun-only.
+        purpose:
+          type: string
+        recommendedSchedule:
+          type: string
+        environmentNotes:
+          type: string
+        safeInOfflineLan:
+          type: boolean
+    ModuleApiContractInfo:
+      type: object
+      required:
+        - openApiPath
+        - basePath
+      additionalProperties: false
+      properties:
+        openApiPath:
+          type: string
+        basePath:
+          type: string
+    ModuleCatalogEntry:
+      type: object
+      required:
+        - moduleKey
+        - name
+        - version
+        - description
+        - status
+        - isCore
+        - dependencies
+        - lastSyncedAt
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - experimental
+            - deprecated
+            - maintenance
+            - disabled
+        type:
+          type: string
+          nullable: true
+          enum:
+            - base
+            - system
+            - domain
+            - integration
+            - derived
+        isCore:
+          type: boolean
+        dependencies:
+          type: array
+          items:
+            type: string
+        api:
+          $ref: "#/components/schemas/ModuleApiContractInfo"
+        events:
+          $ref: "#/components/schemas/ModuleEventContractInfo"
+        lastSyncedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Null if `bun run modules:sync`/`POST /api/v1/modules/sync` has never been run since this module was registered in code.
+    ModuleCatalogListResponse:
+      type: object
+      required:
+        - modules
+      additionalProperties: false
+      properties:
+        modules:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModuleCatalogEntry"
+    ModuleEventContractInfo:
+      type: object
+      additionalProperties: false
+      properties:
+        asyncApiPath:
+          type: string
+        publishes:
+          type: array
+          items:
+            type: string
+        subscribes:
+          type: array
+          items:
+            type: string
+    ModuleHealthReport:
+      type: object
+      required:
+        - moduleKey
+        - status
+        - signals
+        - generatedAt
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        status:
+          type: string
+          enum:
+            - healthy
+            - degraded
+            - failed
+            - unknown
+        signals:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReadinessSignal"
+        generatedAt:
+          type: string
+          format: date-time
+    ModuleJobsResponse:
+      type: object
+      required:
+        - moduleKey
+        - jobs
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobRegistryEntry"
+    ModulePermissionSyncReport:
+      type: object
+      required:
+        - moduleKey
+        - entries
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/PermissionSyncEntry"
+    ModuleSyncResponse:
+      type: object
+      required:
+        - created
+        - updated
+        - unchanged
+        - orphaned
+      additionalProperties: false
+      properties:
+        created:
+          type: array
+          items:
+            type: string
+        updated:
+          type: array
+          items:
+            type: string
+        unchanged:
+          type: array
+          items:
+            type: string
+        orphaned:
+          type: array
+          items:
+            type: string
+          description: Module keys present in the database registry but no longer in `listModules()` — marked `disabled`, never deleted.
+    PermissionSyncEntry:
+      type: object
+      required:
+        - moduleKey
+        - activityCode
+        - action
+        - status
+        - descriptorDescription
+        - catalogDescription
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        activityCode:
+          type: string
+        action:
+          type: string
+        status:
+          type: string
+          enum:
+            - synced
+            - missing
+            - orphaned
+            - mismatched_description
+        descriptorDescription:
+          type: string
+          nullable: true
+          description: Description declared in the module's own code descriptor; `null` when `status` is `orphaned`.
+        catalogDescription:
+          type: string
+          nullable: true
+          description: Description stored in `awcms_mini_permissions`; `null` when `status` is `missing`.
+    ReadinessSignal:
+      type: object
+      required:
+        - name
+        - status
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+            - pass
+            - fail
+            - not_applicable
+        detail:
+          type: string
+          description: Safe, generic text only — never a raw error message, stack trace, or env/secret value.
+    TenantModuleEntry:
+      type: object
+      required:
+        - moduleKey
+        - name
+        - version
+        - isCore
+        - tenantEnabled
+        - enabledAt
+        - disabledAt
+        - disableReason
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        isCore:
+          type: boolean
+        tenantEnabled:
+          type: boolean
+        enabledAt:
+          type: string
+          format: date-time
+          nullable: true
+        disabledAt:
+          type: string
+          format: date-time
+          nullable: true
+        disableReason:
+          type: string
+          nullable: true
+    TenantModuleListResponse:
+      type: object
+      required:
+        - modules
+      additionalProperties: false
+      properties:
+        modules:
+          type: array
+          items:
+            $ref: "#/components/schemas/TenantModuleEntry"
+    TenantModuleMutationResponse:
+      type: object
+      required:
+        - moduleKey
+        - tenantEnabled
+      additionalProperties: false
+      properties:
+        moduleKey:
+          type: string
+        tenantEnabled:
+          type: boolean
