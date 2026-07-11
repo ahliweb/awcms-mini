@@ -36,7 +36,11 @@ import { test, expect } from "@playwright/test";
 
 import { seedOwnerTenant } from "./helpers/seed-owner-tenant";
 
-test.describe("admin/security — full-online gate enabled", () => {
+// Tagged `@full-online-gate` (Issue #685) — ci.yml's `e2e-smoke` job
+// selects/excludes this spec by that stable tag, not by matching this
+// title's prose, so renaming the title alone can't silently desync CI's
+// two-phase server-lifecycle selector. See .github/workflows/ci.yml.
+test.describe("admin/security — full-online gate enabled @full-online-gate", () => {
   test("renders the status summary plus policy and create-provider forms", async ({
     page
   }) => {
