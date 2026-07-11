@@ -146,7 +146,13 @@ REVOKE DELETE ON awcms_mini_tenants FROM awcms_mini_app;
 -- calls). No grant at all on any of the 9 global tables.
 GRANT SELECT ON awcms_mini_tenants TO awcms_mini_worker;
 GRANT SELECT, DELETE ON awcms_mini_visit_events TO awcms_mini_worker;
-GRANT SELECT, DELETE ON awcms_mini_visitor_sessions TO awcms_mini_worker;
+-- UPDATE is required, not just SELECT/DELETE: purgeVisitorAnalyticsData's
+-- raw-detail-clear step (retention-purge.ts) does
+-- `UPDATE awcms_mini_visitor_sessions SET ip_address = NULL, ... RETURNING id`
+-- before the later DELETE step — caught live by PR #703 review (reproduced
+-- against real Postgres: without UPDATE, the whole per-tenant purge
+-- transaction rolled back, silently defeating the PII-retention job).
+GRANT SELECT, UPDATE, DELETE ON awcms_mini_visitor_sessions TO awcms_mini_worker;
 GRANT SELECT, INSERT, UPDATE, DELETE ON awcms_mini_visitor_daily_rollups TO awcms_mini_worker;
 GRANT SELECT, INSERT, DELETE ON awcms_mini_audit_events TO awcms_mini_worker;
 GRANT SELECT, UPDATE ON awcms_mini_object_sync_queue TO awcms_mini_worker;
@@ -154,7 +160,12 @@ GRANT SELECT, UPDATE ON awcms_mini_email_messages TO awcms_mini_worker;
 GRANT SELECT, INSERT ON awcms_mini_email_delivery_attempts TO awcms_mini_worker;
 GRANT SELECT ON awcms_mini_email_suppression_list TO awcms_mini_worker;
 GRANT SELECT, UPDATE ON awcms_mini_blog_posts TO awcms_mini_worker;
-GRANT SELECT, DELETE ON awcms_mini_form_drafts TO awcms_mini_worker;
+-- UPDATE is required, not just SELECT/DELETE: expireOverdueFormDrafts
+-- (form-draft-purge.ts, step 1) does
+-- `UPDATE awcms_mini_form_drafts SET status = 'expired' ... RETURNING id`
+-- before purgeExpiredFormDrafts' later DELETE step — same class of bug as
+-- awcms_mini_visitor_sessions above, caught by the same PR #703 review pass.
+GRANT SELECT, UPDATE, DELETE ON awcms_mini_form_drafts TO awcms_mini_worker;
 
 -- 4. `awcms_mini_setup` — exactly what `bootstrapPlatformTenant` writes.
 -- SELECT is added alongside INSERT on every table it inserts into WITH a

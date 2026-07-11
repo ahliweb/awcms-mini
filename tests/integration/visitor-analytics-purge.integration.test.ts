@@ -22,8 +22,10 @@ import {
   applyMigrations,
   getAdminSql,
   getTestSql,
+  getWorkerTestSql,
   integrationEnabled,
   provisionAppRole,
+  provisionWorkerRole,
   resetDatabase
 } from "./harness";
 
@@ -60,6 +62,24 @@ async function seedSession(
   return rows[0]!.id;
 }
 
+async function seedSessionWithIp(
+  tenantId: string,
+  lastSeenAt: Date
+): Promise<string> {
+  const admin = getAdminSql();
+  const rows = (await admin`
+    INSERT INTO awcms_mini_visitor_sessions
+      (tenant_id, visitor_key_hash, area, last_seen_at, ip_address, ip_hash, user_agent_hash)
+    VALUES (
+      ${tenantId}, ${`sha256:${crypto.randomUUID()}`}, 'public', ${lastSeenAt},
+      '203.0.113.9', 'sha256:iphash', 'sha256:uahash'
+    )
+    RETURNING id
+  `) as { id: string }[];
+
+  return rows[0]!.id;
+}
+
 async function seedEvent(
   tenantId: string,
   sessionId: string,
@@ -89,6 +109,7 @@ suite("purgeVisitorAnalyticsForAllTenants (Issue #624)", () => {
   beforeAll(async () => {
     await applyMigrations();
     await provisionAppRole();
+    await provisionWorkerRole();
   });
 
   beforeEach(async () => {
@@ -159,5 +180,26 @@ suite("purgeVisitorAnalyticsForAllTenants (Issue #624)", () => {
 
     expect(result.tenantsPurged).toBe(1);
     expect(result.totals.eventsDeleted).toBe(1);
+  });
+
+  test("runs successfully under the real awcms_mini_worker role, including the raw-detail UPDATE step (Issue #683, epic #679)", async () => {
+    const now = new Date();
+    // Older than rawDetailRetentionDays (30) but younger than
+    // eventRetentionDays (90): only the UPDATE (raw-detail clear) step
+    // fires, not the session/event DELETE — isolates the exact statement a
+    // missing awcms_mini_worker UPDATE grant would break (PR #703 review
+    // caught this live: without UPDATE on awcms_mini_visitor_sessions, this
+    // whole transaction rolled back with "permission denied").
+    const staleAt = new Date(now.getTime() - 40 * 24 * 60 * 60 * 1000);
+    const session = await seedSessionWithIp(TENANT_STALE, staleAt);
+    await seedEvent(TENANT_STALE, session, staleAt);
+
+    const result = await purgeVisitorAnalyticsForAllTenants(
+      getWorkerTestSql(),
+      { now }
+    );
+
+    expect(result.tenantsPurged).toBe(1);
+    expect(result.totals.sessionsRawDetailCleared).toBe(1);
   });
 });
