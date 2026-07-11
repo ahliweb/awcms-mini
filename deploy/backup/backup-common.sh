@@ -10,6 +10,8 @@
 #
 # Meant to be `source`d, not executed directly.
 
+BACKUP_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # ---------------------------------------------------------------------------
 # Secret-from-file loading
 #
@@ -21,6 +23,12 @@
 # `/proc/<pid>/environ` and can leak via core dumps, `docker inspect`, process
 # supervisors that log environments, etc. A path is not a secret, so it is
 # fine for this to appear in argv/logs.
+#
+# A minimum size (32 bytes) is enforced as defense-in-depth against an
+# operator typing a short passphrase directly into the key file instead of
+# generating one (`openssl rand -base64 48`, as README.md instructs) — PBKDF2
+# stretching (used for the encryption key) and HMAC (used for the manifest
+# key) are only as strong as the key material's actual entropy.
 # ---------------------------------------------------------------------------
 
 require_secret_file() {
@@ -35,8 +43,30 @@ require_secret_file() {
     echo "$(basename "$0"): ${var_name}=${value} does not exist — refusing to run." >&2
     exit 1
   fi
-  if [[ ! -s "$value" ]]; then
-    echo "$(basename "$0"): ${var_name}=${value} is empty — refusing to run." >&2
+  local size
+  size="$(stat -c%s "$value")"
+  if (( size < 32 )); then
+    echo "$(basename "$0"): ${var_name}=${value} is only ${size} byte(s) (minimum 32) — refusing to run. This looks like a low-entropy passphrase rather than a generated key; use e.g. \`openssl rand -base64 48 > ${value}\`." >&2
+    exit 1
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Key-confusion guard (PR #708 review) — nothing about the two-key design
+# (confidentiality key vs. authenticity key) is enforced by the tools
+# themselves unless we check for it: an operator pointing both
+# BACKUP_ENCRYPTION_KEY_FILE and BACKUP_HMAC_KEY_FILE at the same file would
+# silently defeat the point of having two separate keys. Compare by content
+# (sha256), not by path, so two different paths that happen to contain
+# identical bytes are still caught.
+# ---------------------------------------------------------------------------
+
+assert_distinct_keys() {
+  local encryption_key_file="$1"
+  local hmac_key_file="$2"
+
+  if [[ "$(sha256_file "$encryption_key_file")" == "$(sha256_file "$hmac_key_file")" ]]; then
+    echo "$(basename "$0"): BACKUP_ENCRYPTION_KEY_FILE and BACKUP_HMAC_KEY_FILE must not be the same key (or two files with identical content) — refusing to run. Generate two separate keys (see deploy/backup/README.md)." >&2
     exit 1
   fi
 }
@@ -73,8 +103,16 @@ acquire_lock() {
 # ---------------------------------------------------------------------------
 
 url_decode() {
-  local data="${1//+/ }"
-  printf '%b' "${data//%/\\x}"
+  # Percent-decoding only. Do NOT also translate `+` to space here — that is
+  # an `application/x-www-form-urlencoded` (query-string) convention, not
+  # valid for a URI's userinfo/host/path components per RFC 3986, where `+`
+  # is a legal literal character. A password generator commonly produces
+  # `+`; unconditionally decoding it to space would silently corrupt
+  # PGPASSWORD (and PGUSER/PGHOST/PGDATABASE) with no obvious cause (PR #708
+  # review). None of this project's query-string parsing (`sslmode` below)
+  # currently needs `+`-as-space decoding either, so it is simply removed,
+  # not relocated.
+  printf '%b' "${1//%/\\x}"
 }
 
 parse_database_url() {
@@ -154,16 +192,14 @@ validate_db_identifier() {
 # 10) — reused here rather than inventing a new scheme, just with the
 # manifest's canonical fields standing in for "<body>".
 #
-# Residual risk (documented, not silently accepted): the HMAC key's bytes
-# are read into a shell variable and passed to `openssl dgst -hmac`, so they
-# appear briefly in that one child process's argv (visible via
-# /proc/<pid>/cmdline to the same user/root only, for the duration of that
-# single call). This is a materially smaller exposure than the issue this
-# ticket fixes (a full DATABASE_URL sitting in `pg_dump`/`pg_restore`/`psql`
-# argv for the whole dump/restore duration, plus shell history/cron logs) —
-# openssl's HMAC-via-CLI has no file-based key option (unlike `-pass file:`
-# for `enc`), and hand-rolling HMAC's key-padding/XOR construction in bash to
-# avoid it would add untested bespoke crypto code, which is a worse trade.
+# HMAC-SHA256 is computed by `hmac-sha256.ts` (Bun; already a hard project
+# dependency per AGENTS.md rule 14), not `openssl dgst -hmac` — openssl's
+# HMAC-via-CLI has no file-based key option (unlike `enc`'s `-pass file:`),
+# so it would require the raw key bytes as a literal CLI argument, visible
+# via `ps`/`/proc/<pid>/cmdline` for that call's duration (PR #708 review).
+# `hmac-sha256.ts` reads the key directly from the given file path (a path
+# is not a secret) and the message via stdin, so the key bytes never touch
+# argv or an env var at all.
 # ---------------------------------------------------------------------------
 
 sha256_file() {
@@ -173,7 +209,5 @@ sha256_file() {
 hmac_sha256_string() {
   local key_file="$1"
   local message="$2"
-  local key
-  key="$(cat "$key_file")"
-  printf '%s' "$message" | openssl dgst -sha256 -hmac "$key" -r | awk '{print $1}'
+  printf '%s' "$message" | bun "${BACKUP_COMMON_DIR}/hmac-sha256.ts" "$key_file"
 }

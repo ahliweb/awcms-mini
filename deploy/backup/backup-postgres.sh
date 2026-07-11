@@ -66,6 +66,7 @@ fi
 
 require_secret_file BACKUP_ENCRYPTION_KEY_FILE
 require_secret_file BACKUP_HMAC_KEY_FILE
+assert_distinct_keys "$BACKUP_ENCRYPTION_KEY_FILE" "$BACKUP_HMAC_KEY_FILE"
 
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/awcms-mini}"
 BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
@@ -80,6 +81,16 @@ unset DATABASE_URL
 timestamp="$(date -u +%Y%m%d_%H%M%S)"
 dump_file="${BACKUP_DIR}/awcms_mini_${timestamp}.dump.enc"
 manifest_file="${BACKUP_DIR}/awcms_mini_${timestamp}.manifest.json"
+
+# A failed/interrupted pg_dump|openssl pipeline must not leave a partial,
+# unsigned `.dump.enc` file lying around for BACKUP_RETENTION_DAYS to
+# eventually clean up (PR #708 review) — remove it on any non-zero exit
+# until the manifest has been written successfully, at which point the trap
+# is cleared below.
+cleanup_partial_dump() {
+  rm -f "$dump_file"
+}
+trap cleanup_partial_dump EXIT
 
 echo "backup-postgres.sh: dumping database and encrypting to ${dump_file} ..."
 # Plaintext never touches disk: pg_dump streams the custom-format dump
@@ -115,6 +126,11 @@ cat > "$manifest_file" <<JSON
   "hmac_sha256": "${manifest_hmac}"
 }
 JSON
+
+# Dump + manifest are both complete and consistent now — stop treating an
+# unrelated later failure (e.g. retention pruning) as a reason to delete
+# this dump.
+trap - EXIT
 
 dump_size_human="$(du -h "$dump_file" | cut -f1)"
 echo "backup-postgres.sh: backup complete — ${dump_file} (${dump_size_human})."

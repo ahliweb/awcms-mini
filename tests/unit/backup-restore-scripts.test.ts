@@ -17,9 +17,12 @@
  * Manifest HMAC fixtures are built here with Node's `crypto.createHmac`,
  * matching exactly the `HMAC(secret, "<timestamp>.<body>")` construction
  * backup-common.sh's `hmac_sha256_string` implements via
- * `openssl dgst -sha256 -hmac`, as long as the key file has no trailing
- * newline (bash's `$(cat key_file)` strips trailing newlines; write the
- * fixture key without one so both sides read identical bytes).
+ * `deploy/backup/hmac-sha256.ts` (a tiny Bun script, not `openssl dgst
+ * -hmac` — the key is read directly from a file path so it never touches
+ * argv, per PR #708 review), as long as the key file has no trailing
+ * newline (`hmac-sha256.ts` strips trailing newlines from the key it reads,
+ * matching what `$(cat key_file)` used to do; write the fixture key
+ * without one so both sides read identical bytes).
  *
  * Tests that need a real, structurally valid encrypted pg_dump archive
  * (e.g. "restore-postgres.sh rejects --target equal to the source db",
@@ -123,7 +126,21 @@ describe("backup-postgres.sh — refuses to run without key files (Issue #691 sc
     });
 
     expect(result.exitCode).not.toBe(0);
-    expect(result.stderr).toContain("is empty");
+    expect(result.stderr).toContain("minimum 32");
+  });
+
+  test("refuses clearly when the key file is non-empty but under the 32-byte minimum (low-entropy passphrase guard)", () => {
+    const dir = makeTmpDir();
+    const shortKeyFile = join(dir, "short.key");
+    writeFileSync(shortKeyFile, "short-passphrase");
+    const result = runScript("backup-postgres.sh", [], {
+      DATABASE_URL: UNREACHABLE_DATABASE_URL,
+      BACKUP_DIR: dir,
+      BACKUP_ENCRYPTION_KEY_FILE: shortKeyFile
+    });
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("minimum 32");
   });
 
   test("refuses clearly when DATABASE_URL is not set at all", () => {
@@ -132,6 +149,36 @@ describe("backup-postgres.sh — refuses to run without key files (Issue #691 sc
 
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("DATABASE_URL is not set");
+  });
+
+  test("refuses clearly when BACKUP_ENCRYPTION_KEY_FILE and BACKUP_HMAC_KEY_FILE are the same file (key-confusion guard)", () => {
+    const dir = makeTmpDir();
+    const sharedKeyFile = writeKeyFile(dir, "shared.key");
+    const result = runScript("backup-postgres.sh", [], {
+      DATABASE_URL: UNREACHABLE_DATABASE_URL,
+      BACKUP_DIR: dir,
+      BACKUP_ENCRYPTION_KEY_FILE: sharedKeyFile,
+      BACKUP_HMAC_KEY_FILE: sharedKeyFile
+    });
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("must not be the same key");
+  });
+
+  test("refuses clearly when the two key files are different paths but contain identical bytes", () => {
+    const dir = makeTmpDir();
+    const keyValue = randomBytes(32).toString("base64");
+    const encKeyFile = writeKeyFile(dir, "enc.key", keyValue);
+    const hmacKeyFile = writeKeyFile(dir, "hmac.key", keyValue);
+    const result = runScript("backup-postgres.sh", [], {
+      DATABASE_URL: UNREACHABLE_DATABASE_URL,
+      BACKUP_DIR: dir,
+      BACKUP_ENCRYPTION_KEY_FILE: encKeyFile,
+      BACKUP_HMAC_KEY_FILE: hmacKeyFile
+    });
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("must not be the same key");
   });
 });
 
@@ -355,5 +402,66 @@ describe("offsite-copy.sh — generic off-site hook (Issue #691 scope item 7)", 
 
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).toContain("file not found");
+  });
+});
+
+describe("backup-common.sh — parse_database_url does not decode a literal '+' as a space (PR #708 review, RFC 3986 vs. x-www-form-urlencoded confusion)", () => {
+  function parseUrlViaScript(url: string): Record<string, string> {
+    // Sources backup-common.sh directly (no full backup/restore script
+    // invocation needed) and echoes the PG* variables parse_database_url
+    // sets, so this exercises the exact same code path
+    // backup-postgres.sh/restore-postgres.sh/restore-drill.sh all use.
+    const script = `
+      set -euo pipefail
+      source "${join(BACKUP_SCRIPTS_DIR, "backup-common.sh")}"
+      parse_database_url "$1"
+      echo "PGHOST=$PGHOST"
+      echo "PGPORT=$PGPORT"
+      echo "PGUSER=$PGUSER"
+      echo "PGPASSWORD=$PGPASSWORD"
+      echo "PGDATABASE=$PGDATABASE"
+    `;
+    const proc = Bun.spawnSync(["bash", "-c", script, "--", url], {
+      env: { PATH: process.env.PATH ?? "" },
+      stdout: "pipe",
+      stderr: "pipe"
+    });
+    const output = proc.stdout.toString();
+    const result: Record<string, string> = {};
+    for (const line of output.split("\n")) {
+      const eq = line.indexOf("=");
+      if (eq === -1) continue;
+      result[line.slice(0, eq)] = line.slice(eq + 1);
+    }
+    return result;
+  }
+
+  test("preserves a literal '+' in the password (a common password-generator character)", () => {
+    const parsed = parseUrlViaScript(
+      "postgres://myuser:Pass+word123@example.com:5432/mydb"
+    );
+
+    expect(parsed.PGPASSWORD).toBe("Pass+word123");
+    expect(parsed.PGUSER).toBe("myuser");
+    expect(parsed.PGHOST).toBe("example.com");
+    expect(parsed.PGPORT).toBe("5432");
+    expect(parsed.PGDATABASE).toBe("mydb");
+  });
+
+  test("preserves a literal '+' in the username and database name too", () => {
+    const parsed = parseUrlViaScript(
+      "postgres://us+er:pass@example.com:5432/db+name"
+    );
+
+    expect(parsed.PGUSER).toBe("us+er");
+    expect(parsed.PGDATABASE).toBe("db+name");
+  });
+
+  test("still percent-decodes normally (e.g. %40 for '@' inside a password)", () => {
+    const parsed = parseUrlViaScript(
+      "postgres://myuser:pass%40word@example.com:5432/mydb"
+    );
+
+    expect(parsed.PGPASSWORD).toBe("pass@word");
   });
 });

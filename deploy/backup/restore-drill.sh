@@ -16,6 +16,18 @@
 # (age of the backup used, a proxy for how much data a real recovery would
 # lose) -> writes a timestamped report.
 #
+# The report's top-level "overall" field is tri-state, not a boolean
+# pass/fail (PR #708 review): "pass" requires BOTH schema_migrations AND
+# tenant_isolation to have actually run and come back "pass" — "fail" wins
+# if either check explicitly failed — anything else (most commonly
+# tenant_isolation coming back "skip", e.g. the awcms_mini_app role is
+# missing or this backup doesn't have two tenants with cross-tenant data to
+# test with) is reported as "incomplete", a third state distinct from both,
+# so a report reader (operator or a monitoring/cron wrapper checking only a
+# status string) can never mistake "the one check this drill exists to
+# prove didn't actually run" for a verified pass. The script exits non-zero
+# for both "fail" and "incomplete".
+#
 # Same Bun-only exemption as backup-postgres.sh's header — this is an
 # OS-level shell script orchestrating the other two scripts, psql, and
 # coreutils, not application/runtime code.
@@ -53,10 +65,22 @@ fi
 
 require_secret_file BACKUP_ENCRYPTION_KEY_FILE
 require_secret_file BACKUP_HMAC_KEY_FILE
+assert_distinct_keys "$BACKUP_ENCRYPTION_KEY_FILE" "$BACKUP_HMAC_KEY_FILE"
 
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/awcms-mini}"
 DRILL_TARGET_DB="${DRILL_TARGET_DB:-awcms_mini_restore_drill}"
 DRILL_REPORT_DIR="${DRILL_REPORT_DIR:-$BACKUP_DIR}"
+
+# PR #708 review: unlike restore-postgres.sh's own --target (always run
+# through validate_db_identifier before any SQL use), DRILL_TARGET_DB was
+# previously interpolated straight into SQL run over the maintenance
+# connection (normally the superuser role) below — validate it here too,
+# mirroring restore-postgres.sh's pattern exactly, before it is used for
+# anything.
+if ! validate_db_identifier "$DRILL_TARGET_DB"; then
+  echo "restore-drill.sh: invalid DRILL_TARGET_DB value '${DRILL_TARGET_DB}' — must be a plain identifier (letters/digits/underscore/hyphen, starting with a letter or underscore, max 63 chars). Refusing to run." >&2
+  exit 1
+fi
 
 mkdir -p "$BACKUP_DIR" "$DRILL_REPORT_DIR"
 
@@ -181,9 +205,25 @@ if [[ -n "$backup_created_at" ]]; then
   fi
 fi
 
-overall="pass"
+# PR #708 review: "pass" must mean every check that can prove something
+# meaningful actually ran and confirmed it — not merely "didn't fail". In
+# particular tenant_isolation (the one check this drill exists to prove: RLS
+# still enforces cross-tenant isolation post-restore) can legitimately come
+# back "skip" (role missing, or fewer than two tenants with data in this
+# backup) without that being a failure of the backup/restore machinery
+# itself — but a report reader (operator, or a monitoring/cron wrapper that
+# only checks a status string) must not be able to mistake a skipped check
+# for a verified one. So "pass" requires schema_migrations AND
+# tenant_isolation to BOTH be "pass" specifically; a "fail" on either wins
+# outright; anything else (e.g. tenant_isolation "skip") is reported as
+# "incomplete" — a third, distinct state that is neither a clean pass nor a
+# hard failure, so it can't be silently treated as either.
 if [[ "$schema_migrations_status" == "fail" || "$tenant_isolation_status" == "fail" ]]; then
   overall="fail"
+elif [[ "$schema_migrations_status" == "pass" && "$tenant_isolation_status" == "pass" ]]; then
+  overall="pass"
+else
+  overall="incomplete"
 fi
 
 report_file="${DRILL_REPORT_DIR}/restore-drill-$(date -u +%Y%m%d_%H%M%S).json"

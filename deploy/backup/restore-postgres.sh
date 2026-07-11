@@ -141,6 +141,7 @@ fi
 
 require_secret_file BACKUP_ENCRYPTION_KEY_FILE
 require_secret_file BACKUP_HMAC_KEY_FILE
+assert_distinct_keys "$BACKUP_ENCRYPTION_KEY_FILE" "$BACKUP_HMAC_KEY_FILE"
 
 if [[ ! -f "$DUMP_FILE" ]]; then
   echo "restore-postgres.sh: dump file not found: ${DUMP_FILE}" >&2

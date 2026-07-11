@@ -414,25 +414,60 @@ suite(
         await Bun.file(join(backupDir, reportFileName)).text()
       );
 
-      expect(report.overall).toBe("pass");
+      // "overall" is tri-state (PR #708 review): "pass" requires
+      // schema_migrations AND tenant_isolation to BOTH have genuinely run
+      // and come back "pass" — not merely "not fail". A "skip" on either
+      // (most commonly tenant_isolation, if the awcms_mini_app role were
+      // missing or this backup lacked two tenants with cross-tenant data)
+      // would make "overall" report "incomplete" instead, distinct from
+      // both "pass" and "fail", so a report reader can never mistake a
+      // skipped check for a verified one. This repo's own migrations
+      // (013/045) always create the awcms_mini_app role, and beforeEach
+      // above seeds exactly the two-tenant + one-office data the tenant
+      // isolation check needs — so in this environment it must be a real
+      // "pass", never "skip"/"incomplete". If this assertion ever fails,
+      // that is a genuine regression (either the role/seed data is
+      // missing, or the check itself broke), not something to relax back
+      // to tolerating "skip".
       expect(report.checks.schema_migrations.status).toBe("pass");
       expect(report.checks.schema_migrations.count).toBeGreaterThan(0);
       expect(report.checks.sample_record.status).toBe("pass");
+      expect(report.checks.tenant_isolation.status).toBe("pass");
+      expect(report.overall).toBe("pass");
       expect(typeof report.duration_seconds).toBe("number");
       expect(report.backup_age_seconds).not.toBe("unknown");
+    });
 
-      // Tenant isolation is the one check that legitimately depends on
-      // whether the `awcms_mini_app` role exists and the connecting
-      // (superuser) role can SET ROLE to it — both true in this repo's own
-      // migrations (013/045), so this should be a real pass, not a skip.
-      expect(["pass", "skip"]).toContain(report.checks.tenant_isolation.status);
-      if (report.checks.tenant_isolation.status === "skip") {
-        console.warn(
-          `restore-drill.sh tenant isolation check was SKIPPED: ${report.checks.tenant_isolation.detail}`
-        );
-      } else {
-        expect(report.checks.tenant_isolation.status).toBe("pass");
-      }
+    test("restore-drill.sh reports overall 'incomplete' (not 'pass') when tenant_isolation cannot genuinely run, and exits non-zero", async () => {
+      // Truncate the office table (but keep both tenants) so the drill's
+      // own data_tenant/viewer_tenant search finds no tenant with any
+      // office rows — a real, reachable "not enough data to test isolation
+      // with" condition, not a broken role/privilege.
+      const admin = getAdminSql();
+      await admin`DELETE FROM awcms_mini_offices`;
+
+      const backupDir = makeTmpDir();
+      const drillResult = runScript("restore-drill.sh", [], {
+        DATABASE_URL: getAdminDatabaseUrl(),
+        BACKUP_DIR: backupDir,
+        BACKUP_ENCRYPTION_KEY_FILE: encKeyFile,
+        BACKUP_HMAC_KEY_FILE: hmacKeyFile
+      });
+      extraDatabasesToDrop.add("awcms_mini_restore_drill");
+
+      expect(drillResult.exitCode).not.toBe(0);
+      expect(drillResult.stdout).toContain("overall = incomplete");
+
+      const glob = new Bun.Glob("restore-drill-*.json");
+      const reportFileName = firstMatch([...glob.scanSync({ cwd: backupDir })]);
+      const report = JSON.parse(
+        await Bun.file(join(backupDir, reportFileName)).text()
+      );
+
+      expect(report.checks.tenant_isolation.status).toBe("skip");
+      expect(report.overall).toBe("incomplete");
+      expect(report.overall).not.toBe("pass");
+      expect(report.overall).not.toBe("fail");
     });
   }
 );

@@ -7,25 +7,31 @@ platform-hardening): encrypted backups, a signed manifest, checksum
 verification before any restore mutation, credential-safe invocation,
 mutual-exclusion locking, an off-site copy hook, and a scheduled restore
 drill. Five OS-level shell scripts wrapping Postgres's own client binaries
-(`pg_dump`, `pg_restore`, `psql`), `openssl`, and coreutils — not
-TypeScript. AGENTS.md rule 14 ("Backend Bun-only") governs application
-code, scripts, tests, migration, build, and repository tooling; it does
-not apply to standard shell ops scripts that only orchestrate Postgres's
-own binaries, `openssl`, and coreutils. See the header comment in each
-script for the full reasoning.
+(`pg_dump`, `pg_restore`, `psql`), `openssl`, and coreutils, plus one tiny
+Bun script (`hmac-sha256.ts` — Bun is already a hard project dependency per
+AGENTS.md rule 14, used here specifically so the HMAC key never has to sit
+in a CLI argument the way `openssl dgst -hmac` would require) — not
+application TypeScript. AGENTS.md rule 14 ("Backend Bun-only") governs
+application code, scripts, tests, migration, build, and repository
+tooling; it does not apply to standard shell ops scripts that only
+orchestrate Postgres's own binaries, `openssl`, coreutils, and this one
+Bun helper. See the header comment in each script for the full reasoning.
 
-| Script                | Purpose                                                                                                                                        |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `backup-common.sh`    | Shared helpers (`source`d, not run directly) — secret-from-file loading, locking, DATABASE_URL parsing, identifier validation, checksums/HMAC. |
-| `backup-postgres.sh`  | Encrypted backup + signed manifest.                                                                                                            |
-| `restore-postgres.sh` | Verify-then-restore.                                                                                                                           |
-| `offsite-copy.sh`     | Generic 3-2-1 off-site copy hook (optional).                                                                                                   |
-| `restore-drill.sh`    | Scheduled backup → restore → verify → RTO/RPO report.                                                                                          |
+| Script                | Purpose                                                                                                                                          |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `backup-common.sh`    | Shared helpers (`source`d, not run directly) — secret-from-file loading, locking, DATABASE_URL parsing, identifier validation, checksums/HMAC.   |
+| `hmac-sha256.ts`      | Tiny Bun script computing HMAC-SHA256 (key read from a file path, message from stdin — never argv). Invoked by `backup-common.sh`, not directly. |
+| `backup-postgres.sh`  | Encrypted backup + signed manifest.                                                                                                              |
+| `restore-postgres.sh` | Verify-then-restore.                                                                                                                             |
+| `offsite-copy.sh`     | Generic 3-2-1 off-site copy hook (optional).                                                                                                     |
+| `restore-drill.sh`    | Scheduled backup → restore → verify → RTO/RPO report.                                                                                            |
 
 ## Required keys
 
 Two **separate** keys, each in its own file (never a CLI argument, never an
-env var holding the key's content — only a _path_ to it):
+env var holding the key's content — only a _path_ to it), and never the
+**same** key reused for both (enforced: the two files' sha256 must differ,
+or every script refuses to run):
 
 | Env var                      | Purpose                                              |
 | ---------------------------- | ---------------------------------------------------- |
@@ -38,6 +44,12 @@ openssl rand -base64 48 > /etc/awcms-mini/backup-encryption.key
 openssl rand -base64 48 > /etc/awcms-mini/backup-hmac.key
 chmod 600 /etc/awcms-mini/backup-*.key
 ```
+
+Both keys must be **at least 32 bytes** (checked; anything shorter is
+refused) — this is a floor against an operator typing a short passphrase
+directly into the key file instead of generating one. `openssl rand
+-base64 48` (above) produces 48 bytes of real entropy, comfortably above
+the floor; the 32-byte minimum is a safety net, not the recommended size.
 
 Store both files **outside** `BACKUP_DIR` (e.g. in a secret manager, or at
 least a separate path with separate access controls) — anyone who can read
@@ -62,6 +74,13 @@ never appears in `ps`/`/proc/<pid>/cmdline`. A shared `flock` lock in
 `BACKUP_DIR` (`.awcms-mini-backup-restore.lock`) stops a backup and a
 restore (or two of either) from running concurrently against the same
 directory.
+
+> **IPv6 caveat**: `parse_database_url` (in `backup-common.sh`) does not
+> support IPv6 literal hosts (the `postgres://[::1]:5432/db` bracketed
+> form) — its host/port splitting assumes a bare `host:port` with at most
+> one colon. Point `DATABASE_URL` at a hostname or an IPv4 address, or use
+> a `.pgpass`/connection service file if your deployment must connect over
+> a literal IPv6 address.
 
 ```bash
 DATABASE_URL=postgres://user:pass@host:5432/dbname \
@@ -206,8 +225,27 @@ proxy for how long a real recovery would take) and **RPO** (age of the
 backup used at the moment the drill finished — a proxy for how much data a
 real recovery would lose), and writes a timestamped JSON report
 (`restore-drill-<UTC timestamp>.json`) to `DRILL_REPORT_DIR` (default
-`BACKUP_DIR`). Exits non-zero if `schema_migrations` or `tenant_isolation`
-comes back `fail`.
+`BACKUP_DIR`).
+
+`overall` is **tri-state**, not a plain pass/fail boolean:
+
+- `"pass"` — `schema_migrations` AND `tenant_isolation` both genuinely ran
+  and came back `"pass"`.
+- `"fail"` — either of those two explicitly failed (schema ledger came
+  back empty, or a viewer tenant could see another tenant's rows — RLS is
+  not enforcing isolation).
+- `"incomplete"` — neither of the above: most commonly `tenant_isolation`
+  came back `"skip"` (the `awcms_mini_app` role is missing, or this backup
+  doesn't have two tenants with cross-tenant data to test with). This is
+  deliberately a **third state**, distinct from both `"pass"` and
+  `"fail"` — a report reader (operator, or a monitoring/cron wrapper that
+  only checks one status string) must never be able to mistake "the one
+  check this drill exists to prove didn't actually run" for a verified
+  pass. Treat `"incomplete"` as "re-run this drill somewhere the check can
+  actually execute" before relying on it as go-live evidence.
+
+The script exits non-zero for **both** `"fail"` and `"incomplete"` — only
+`"pass"` exits `0`.
 
 ```bash
 DATABASE_URL=postgres://user:pass@host:5432/dbname \
@@ -217,7 +255,7 @@ BACKUP_HMAC_KEY_FILE=/etc/awcms-mini/backup-hmac.key \
 ./deploy/backup/restore-drill.sh
 ```
 
-Report shape:
+Report shape (`"overall": "pass"` case — see above for `"fail"`/`"incomplete"`):
 
 ```json
 {
