@@ -240,6 +240,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    # This limit covers `bun install && bun run build` (runs on every
+    # container start, see the `command:` above) as well as the running
+    # server, not just runtime — a smaller value than docker-compose.prod.yml's
+    # `app` (which only ever runs the pre-built server) can OOM the build
+    # step on constrained hardware.
     deploy:
       resources:
         limits:
@@ -255,16 +260,24 @@ services:
   # This illustrates the shape of the service only: `auth_type =
   # scram-sha-256` (Issue #682 — was `md5`) in the mounted example .ini
   # requires a real `userlist.txt` with SCRAM verifier strings, which this
-  # compose file does not generate (a secret file, never committed) —
-  # provide your own via an additional volume mount before relying on this
-  # profile. No `ports:` by default (Issue #682) — see the file-header
-  # note and docker-compose.override.yml.example for local dev access.
+  # compose file does not generate (a secret file, never committed, already
+  # in `.gitignore`) — generate it per `pgbouncer.ini.example`'s header,
+  # then add a second volume mount below, e.g.:
+  #   - ./userlist.txt:/etc/pgbouncer/userlist.txt:ro
+  # No `ports:` by default (Issue #682) — see the file-header note and
+  # docker-compose.override.yml.example for local dev access. No
+  # `healthcheck:` here (unlike every other service) — the image ships
+  # neither curl/wget nor a credential-free health probe, and a real check
+  # would need the same `userlist.txt` secret this service already can't
+  # start without; `db`'s own healthcheck is the leading indicator for this
+  # optional, profile-gated service.
   pgbouncer:
     image: edoburu/pgbouncer:v1.25.2-p0
     profiles: ["pgbouncer"]
     restart: unless-stopped
     volumes:
       - ./deploy/pgbouncer/pgbouncer.ini.example:/etc/pgbouncer/pgbouncer.ini:ro
+      # - ./userlist.txt:/etc/pgbouncer/userlist.txt:ro
     depends_on:
       db:
         condition: service_healthy

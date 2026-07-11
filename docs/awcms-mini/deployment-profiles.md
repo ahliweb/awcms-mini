@@ -471,20 +471,36 @@ Aplikasi ini **tidak pernah** melakukan terminasi TLS sendiri (tidak ada
 kode HTTPS listener) — di setiap topologi, TLS (bila ada) adalah
 tanggung jawab lapisan **di depan** aplikasi:
 
-| Topologi                                                                            | Di mana TLS berhenti                                                                                                   | Trust boundary                                                                                                                                                                                 |
-| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **offline/LAN**                                                                     | Tidak ada TLS — `http://` langsung ke port 4321                                                                        | Batas kepercayaan = jaringan LAN itu sendiri (fisik/WiFi tepercaya); tidak ada eksposur internet, doc 07 "PostgreSQL tidak public" berlaku sama untuk app port ini                             |
-| **production (online), bare-metal**                                                 | `deploy/nginx/awcms-mini.conf.example` (reverse proxy TLS termination)                                                 | Publik ↔ nginx = batas TLS; nginx ↔ app (`localhost:4321`) = plaintext HTTP di **dalam** mesin yang sama, tidak melewati jaringan                                                              |
-| **production (online), container (`docker-compose.yml`/`docker-compose.prod.yml`)** | Reverse proxy di **luar** compose stack (nginx/Caddy/Coolify's built-in proxy) — compose sendiri tidak menyediakan TLS | Publik ↔ reverse proxy = batas TLS; reverse proxy ↔ `app` container = plaintext HTTP dalam Docker network bawaan compose (nama proyek + `_default`), tidak pernah exposed ke internet langsung |
-| **PostgreSQL (`db`)/PgBouncer**                                                     | Tidak ada TLS by default (`sslmode` tidak dipaksa) — koneksi Postgres dalam Docker network internal                    | Trust boundary = Docker network compose itu sendiri (Issue #682: `db`/`pgbouncer` tidak publish port host, jadi tidak reachable dari luar mesin sama sekali)                                   |
+| Topologi                                                                            | Di mana TLS berhenti                                                                                                   | Trust boundary                                                                                                                                                                  |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **offline/LAN**                                                                     | Tidak ada TLS — `http://` langsung ke port 4321                                                                        | Batas kepercayaan = jaringan LAN itu sendiri (fisik/WiFi tepercaya); tidak ada eksposur internet, doc 07 "PostgreSQL tidak public" berlaku sama untuk app port ini              |
+| **production (online), bare-metal**                                                 | `deploy/nginx/awcms-mini.conf.example` (reverse proxy TLS termination)                                                 | Publik ↔ nginx = batas TLS; nginx ↔ app (`localhost:4321`) = plaintext HTTP di **dalam** mesin yang sama, tidak melewati jaringan                                               |
+| **production (online), container (`docker-compose.yml`/`docker-compose.prod.yml`)** | Reverse proxy di **luar** compose stack (nginx/Caddy/Coolify's built-in proxy) — compose sendiri tidak menyediakan TLS | Publik ↔ reverse proxy = batas TLS **hanya jika** reverse proxy benar-benar satu-satunya jalur masuk — lihat catatan port `app` di bawah, ini **berbeda** dari `db`/`pgbouncer` |
+| **PostgreSQL (`db`)/PgBouncer**                                                     | Tidak ada TLS by default (`sslmode` tidak dipaksa) — koneksi Postgres dalam Docker network internal                    | Trust boundary = Docker network compose itu sendiri (Issue #682: `db`/`pgbouncer` tidak publish port host, jadi tidak reachable dari luar mesin sama sekali)                    |
 
 Implikasi operasional:
 
-- **Jangan pernah** expose `app`'s port 4321 langsung ke internet publik
-  tanpa reverse proxy TLS di depannya — `AUTH_COOKIE_SECURE=true` (wajib
-  untuk profil online, lihat `.env.example`) mengasumsikan klien browser
+- **Beda penting dari `db`/`pgbouncer`**: Issue #682 membuat `db`/`pgbouncer`
+  TIDAK publish port host secara default (aman-by-default) — `app`'s
+  `ports: ["4321:4321"]` TIDAK diubah oleh issue ini dan **tetap terikat
+  ke semua interface (`0.0.0.0`) secara default** di kedua compose file,
+  persis seperti sebelum #682. Ini **bukan** berarti aman dijangkau
+  reverse proxy saja — pada host dengan IP publik/LAN yang tidak
+  sepenuhnya tepercaya, klien mana pun bisa langsung menghubungi
+  `http://<host>:4321`, melewati reverse proxy TLS sepenuhnya. **Jangan
+  pernah** expose `app`'s port 4321 langsung ke internet publik tanpa
+  reverse proxy TLS di depannya — `AUTH_COOKIE_SECURE=true` (wajib untuk
+  profil online, lihat `.env.example`) mengasumsikan klien browser
   benar-benar bicara HTTPS ke suatu titik; tanpa TLS termination, cookie
-  secure dikirim lewat kanal plaintext, membatalkan proteksinya.
+  secure dikirim lewat kanal plaintext (dan body request pertama seperti
+  password login terkirim plaintext apa pun status cookie-nya, bila klien
+  memang menghubungi port ini langsung), membatalkan proteksinya.
+  Mitigasi ini **wajib** di level firewall/jaringan host (operator), bukan
+  sesuatu yang compose file mana pun di repo ini tegakkan otomatis — mis.
+  `ufw`/`iptables` yang hanya mengizinkan port 4321 dari `localhost`/IP
+  reverse proxy, bukan dari internet umum. Operator yang ingin compose
+  sendiri menegakkan ini bisa mengikat `ports: ["127.0.0.1:4321:4321"]`
+  bila reverse proxy berjalan di mesin yang sama di luar Docker.
 - `PUBLIC_TRUST_PROXY`/`VISITOR_ANALYTICS_TRUST_PROXY` (lihat §Profil
   online dan §Visitor analytics di atas) HANYA aman di-set `true` tepat
   pada topologi baris "production (online)" di tabel ini — reverse proxy

@@ -32,7 +32,9 @@ pakai `docker-compose.prod.yml` (Issue #682) — standalone, bukan override
 `docker-compose.override.yml.example` untuk akses lokal opsional);
 `cap_drop: [ALL]` di semua service (`db` dapat `cap_add` minimal untuk
 entrypoint-nya sendiri); image Bun/Postgres/PgBouncer dipin ke versi
-eksplisit, bukan tag mengambang; healthcheck di setiap service;
+eksplisit, bukan tag mengambang; healthcheck di `db`/`app` (`migrate`
+one-shot dan `pgbouncer` opsional sengaja tanpa healthcheck — lihat
+komentar masing-masing service);
 `docker-compose.prod.yml`'s `app` jalan `read_only: true` (image
 registry-based tidak pernah menulis ke filesystem-nya sendiri saat
 runtime). PgBouncer's `deploy/pgbouncer/pgbouncer.ini.example` memakai

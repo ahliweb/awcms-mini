@@ -108,6 +108,10 @@ services:
       - /tmp
     # HEALTHCHECK is already baked into Dockerfile.production — no need to
     # redeclare it here; Compose picks up the image's own instruction.
+    # Lower than docker-compose.yml's `app` (2 CPU/2G) deliberately: this
+    # image only ever runs the built server (no bind-mounted `bun
+    # install`/`bun run build` at container start), so it doesn't need
+    # headroom for a startup install/build pass — just the running app.
     deploy:
       resources:
         limits:
