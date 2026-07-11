@@ -104,3 +104,16 @@ jobs:
             exit 1
           fi
           echo "OK: tidak ada berkas .env yang ter-track."
+
+      # Issue #682 (epic #679): catches syntax errors and dangling env var
+      # references in either compose file before they reach a deploy — both
+      # services reference `.env` via `env_file:`, so a throwaway copy of
+      # .env.example (never real secrets) is enough for `config` to resolve.
+      - name: Validate docker-compose.yml + docker-compose.prod.yml syntax
+        run: |
+          cp .env.example .env
+          docker compose -f docker-compose.yml config -q
+          docker compose -f docker-compose.yml --profile pgbouncer config -q
+          docker compose -f docker-compose.prod.yml config -q
+          rm .env
+          echo "OK: kedua compose file valid."

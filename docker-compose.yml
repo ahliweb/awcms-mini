@@ -1,5 +1,6 @@
 # docker-compose.yml — LAN-first single-server stack (Issue 12.2, doc 18
-# §Topologi deployment LAN-first, doc 07 §Profil per-environment).
+# §Topologi deployment LAN-first, doc 07 §Profil per-environment; hardened
+# by Issue #682, epic #679, platform-hardening).
 #
 # Default stack: `app` + `db` on one server, matching doc 18's offline/LAN
 # topology (one machine runs the application and PostgreSQL together;
@@ -8,6 +9,12 @@
 # environment profile, and `deploy/` for the systemd/nginx/pgbouncer/backup
 # assets this compose file complements rather than replaces (systemd is the
 # bare-metal alternative to `app`; this file is the containerized one).
+# For a registry-based/CI-pushed deployment with an immutable pre-built
+# image instead of this file's bind-mount-and-build-at-startup model, see
+# `docker-compose.prod.yml` + `Dockerfile.production` instead — this file
+# stays the LAN-first default, that one is the alternative for the
+# topology where build-at-startup is undesirable (Issue #682's own scope
+# note on this exact tradeoff).
 #
 # Usage:
 #   cp .env.example .env      # then edit secrets/config as needed
@@ -15,17 +22,26 @@
 #   docker compose up --build
 #   curl http://localhost:4321/api/v1/health
 #
+# Host ports (Issue #682): NEITHER `db` NOR `pgbouncer` publish a host port
+# by default any more — production/offline-LAN topologies should never
+# need to reach PostgreSQL directly from the host (doc 07 §Production
+# readiness checklist "PostgreSQL tidak public"; only `app`'s
+# `4321:4321` is a genuine topology requirement, and even that is meant to
+# sit behind a reverse proxy for anything internet-facing, see
+# `deploy/nginx/`). For LOCAL DEV convenience (psql/GUI client from the
+# host), copy `docker-compose.override.yml.example` to
+# `docker-compose.override.yml` (auto-loaded by `docker compose`, already
+# git-ignored) — it binds both ports to `127.0.0.1` only, never `0.0.0.0`.
+#
 # `app` image choice: no separate Dockerfile. This mounts the repository
-# into `oven/bun:1` (never `node` — AGENTS.md rule 14, doc 18 §Runtime &
-# tooling) and runs `bun install && bun run build && bun ./dist/server/entry.mjs`
-# as the container command. This is the simplest option for a LAN-first,
+# into `oven/bun:1.3.14` (pinned — Issue #682; never `node`, AGENTS.md rule
+# 14, doc 18 §Runtime & tooling) and runs
+# `bun install && bun run build && bun ./dist/server/entry.mjs` as the
+# container command. This is the simplest option for a LAN-first,
 # single-server, offline-capable deployment where operators are expected to
 # `git pull`/rebuild in place; it trades a slightly slower container start
 # (install + build happen every `up`) for zero extra Dockerfile/image-layer
-# maintenance. A multi-stage Dockerfile producing a slim pre-built image
-# would start faster and be preferable for a registry-based/CI-pushed
-# deployment — revisit if this project grows a container registry
-# workflow; not needed for the LAN-first base case this issue targets.
+# maintenance — see `docker-compose.prod.yml` above for the alternative.
 services:
   db:
     image: postgres:18.4
@@ -69,14 +85,8 @@ services:
       # existing volume does NOT re-run these — migration 013 is idempotent
       # about the role already existing, so both orders converge.
       - ./deploy/postgres:/docker-entrypoint-initdb.d:ro
-    ports:
-      # Host-facing port for local development convenience (psql from the
-      # host, GUI clients, etc.). Not required by `app`, which talks to
-      # `db` over the internal compose network. Remove/firewall this
-      # mapping for a hardened production/offline-LAN deployment where the
-      # database should not be reachable outside the compose network at all
-      # (doc 07 §Production readiness checklist "PostgreSQL tidak public").
-      - "5432:5432"
+    # No `ports:` here by default (Issue #682) — see the file-header note.
+    # For local dev host access, use docker-compose.override.yml.example.
     healthcheck:
       test:
         [
@@ -86,6 +96,25 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    # Least-privilege container runtime (Issue #682). The official
+    # postgres image's own entrypoint needs exactly these 5 capabilities at
+    # startup (chown/chmod on the data dir + socket dir, dropping to the
+    # `postgres` uid) — live-verified: `cap_drop: [ALL]` alone fails
+    # ("Operation not permitted" on `chown`/`chmod`), this exact 5-capability
+    # set starts and reaches "ready to accept connections" cleanly.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, SETUID, SETGID, DAC_OVERRIDE]
+    security_opt:
+      - no-new-privileges:true
+    # Starting-point resource limits (Issue #682) — Compose V2 honors these
+    # on a plain `docker compose up` (no Swarm needed). Sized generously for
+    # a single-server LAN deployment; tune per hardware, not a hard
+    # requirement of the app itself.
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
 
   # One-shot migration runner. Runs `bun run db:migrate` as the PRIVILEGED
   # (owner/superuser) role and exits — the app must NOT run migrations, since
@@ -94,7 +123,7 @@ services:
   # so a plain `docker compose up` orders it correctly: db init creates the
   # role -> migrate applies schema + FORCE RLS + grants -> app starts.
   migrate:
-    image: oven/bun:1
+    image: oven/bun:1.3.14
     working_dir: /app
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     volumes:
@@ -109,9 +138,21 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Least-privilege container runtime (Issue #682) — live-verified: Bun
+    # runs `bun install`/migrations fine with every Linux capability
+    # dropped, no `cap_add` needed (unlike `db`, which needs a few for its
+    # own entrypoint's chown/chmod).
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
 
   app:
-    image: oven/bun:1
+    image: oven/bun:1.3.14
     restart: unless-stopped
     working_dir: /app
     # Runs as the host user instead of the image's default root — otherwise
@@ -176,6 +217,39 @@ services:
       # the least-privilege app starts — it cannot create them itself.
       migrate:
         condition: service_completed_successfully
+    # Live-verified: neither `bun install`/`bun run build` nor the running
+    # server needs any Linux capability — `cap_drop: [ALL]` alone is
+    # sufficient (unlike `db`, see that service's own comment). File writes
+    # into the bind-mounted repo are governed by the `user:` UID/GID above,
+    # not by capabilities.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      # No curl/wget in the debian-based oven/bun image — Bun's own fetch
+      # works fine for this and avoids adding a dependency just for the
+      # healthcheck.
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "fetch('http://localhost:4321/api/v1/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # This limit covers `bun install && bun run build` (runs on every
+    # container start, see the `command:` above) as well as the running
+    # server, not just runtime — a smaller value than docker-compose.prod.yml's
+    # `app` (which only ever runs the pre-built server) can OOM the build
+    # step on constrained hardware.
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
 
   # Optional PgBouncer front-end for the `db` service — gated behind the
   # "pgbouncer" Compose profile so it never starts by default (doc 18's
@@ -183,22 +257,40 @@ services:
   # deploy/pgbouncer/pgbouncer.ini.example and
   # docs/awcms-mini/database-pooling.md §7). Enable explicitly with:
   #   docker compose --profile pgbouncer up
-  # This illustrates the shape of the service only: `auth_type = md5` in
-  # the mounted example .ini requires a real `userlist.txt` with hashed
-  # credentials, which this compose file does not generate (a secret file,
-  # never committed) — provide your own via an additional volume mount
-  # before relying on this profile.
+  # This illustrates the shape of the service only: `auth_type =
+  # scram-sha-256` (Issue #682 — was `md5`) in the mounted example .ini
+  # requires a real `userlist.txt` with SCRAM verifier strings, which this
+  # compose file does not generate (a secret file, never committed, already
+  # in `.gitignore`) — generate it per `pgbouncer.ini.example`'s header,
+  # then add a second volume mount below, e.g.:
+  #   - ./userlist.txt:/etc/pgbouncer/userlist.txt:ro
+  # No `ports:` by default (Issue #682) — see the file-header note and
+  # docker-compose.override.yml.example for local dev access. No
+  # `healthcheck:` here (unlike every other service) — the image ships
+  # neither curl/wget nor a credential-free health probe, and a real check
+  # would need the same `userlist.txt` secret this service already can't
+  # start without; `db`'s own healthcheck is the leading indicator for this
+  # optional, profile-gated service.
   pgbouncer:
-    image: edoburu/pgbouncer:latest
+    image: edoburu/pgbouncer:v1.25.2-p0
     profiles: ["pgbouncer"]
     restart: unless-stopped
     volumes:
       - ./deploy/pgbouncer/pgbouncer.ini.example:/etc/pgbouncer/pgbouncer.ini:ro
-    ports:
-      - "6432:6432"
+      # - ./userlist.txt:/etc/pgbouncer/userlist.txt:ro
     depends_on:
       db:
         condition: service_healthy
+    # Least-privilege container runtime (Issue #682) — live-verified:
+    # PgBouncer needs zero extra Linux capabilities to start and listen.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
 
 volumes:
   awcms-mini-db-data:

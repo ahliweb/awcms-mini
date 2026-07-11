@@ -6,6 +6,17 @@ node_modules/
 .env.*
 !.env.example
 
+# Local dev-only Docker Compose overrides (Issue #682) — auto-loaded by
+# `docker compose`, never committed (each operator's own local port/volume
+# preferences, not shared config). See docker-compose.override.yml.example.
+docker-compose.override.yml
+
+# PgBouncer SCRAM verifier file (Issue #682) — contains SCRAM-SHA-256
+# verifiers (equivalent to password hashes; usable for offline dictionary
+# attacks against DB roles), never committed. See
+# deploy/pgbouncer/pgbouncer.ini.example's header for how to generate it.
+userlist.txt
+
 # Build output
 dist/
 .astro/

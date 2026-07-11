@@ -1,0 +1,27 @@
+# docker-compose.override.yml.example — opt-in local dev host ports
+# (Issue #682, epic #679, platform-hardening).
+#
+# Since Issue #682, `docker-compose.yml` no longer publishes `db`'s 5432
+# or `pgbouncer`'s 6432 to the host by default — a production/offline-LAN
+# deployment should never need to reach PostgreSQL directly from outside
+# the compose network (doc 07 §Production readiness checklist "PostgreSQL
+# tidak public"). For LOCAL DEVELOPMENT convenience (psql, a GUI client,
+# or a pgbouncer connection from your host machine), copy this file:
+#
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#
+# `docker compose` auto-loads `docker-compose.override.yml` alongside
+# `docker-compose.yml` with no extra flag — it's already git-ignored
+# (this is deliberately a LOCAL, per-operator file, not shared config).
+#
+# Both ports below bind to `127.0.0.1` only, never `0.0.0.0` — even in
+# local dev, there is no reason for these to be reachable from other
+# machines on the LAN.
+services:
+  db:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  pgbouncer:
+    ports:
+      - "127.0.0.1:6432:6432"
