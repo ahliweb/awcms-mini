@@ -76,8 +76,10 @@ jalan, karena CI memang menyediakan server+DB hidup). **Tetap belum**
 bagian dari `bun run check` lokal (`check` tidak boot server/DB sendiri) —
 lokal tetap manual seperti di atas. Job CI-nya berjalan **dua fase**
 (lifecycle server terpisah): fase 1 dengan config default menjalankan
-semua spec KECUALI `admin-security-enabled.e2e.ts`
-(`--grep-invert "full-online gate enabled"`), fase 2 me-restart server
+semua spec KECUALI `admin-security-enabled.e2e.ts` (yang di-tag
+`@full-online-gate` di `test.describe`-nya sendiri, bukan dicocokkan lewat
+judul prosa — `--grep-invert "@full-online-gate"`, tahan terhadap rename
+judul di masa depan), fase 2 me-restart server
 dengan `AUTH_ONLINE_SECURITY_ENABLED=true`/`AUTH_ONLINE_SECURITY_PROFILE=full_online`
 lalu menjalankan hanya spec itu — ditemukan empiris saat mewire job ini
 bahwa `admin-security-disabled.e2e.ts` dan `admin-security-enabled.e2e.ts`

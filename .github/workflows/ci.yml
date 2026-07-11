@@ -263,7 +263,7 @@ jobs:
           exit 1
 
       - name: "Phase 1 — run E2E specs (default config)"
-        run: bun run test:e2e --grep-invert "full-online gate enabled"
+        run: bun run test:e2e --grep-invert "@full-online-gate"
         env:
           E2E_BASE_URL: "http://localhost:4321"
           E2E_SEED_DATABASE_URL: ${{ env.ADMIN_DATABASE_URL }}
@@ -302,7 +302,7 @@ jobs:
           exit 1
 
       - name: "Phase 2 — run E2E specs (full-online gate enabled)"
-        run: bun run test:e2e tests/e2e/admin-security-enabled.e2e.ts
+        run: bun run test:e2e --grep "@full-online-gate"
         env:
           E2E_BASE_URL: "http://localhost:4321"
           E2E_SEED_DATABASE_URL: ${{ env.ADMIN_DATABASE_URL }}

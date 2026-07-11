@@ -34,6 +34,23 @@
  * before #681: the declared-dependency graph never had a blog_content <->
  * news_portal edge at all, so `modules:dag:check` alone could never have
  * caught that cycle).
+ *
+ * Known limitation (inherited from `module-boundary.test.ts`'s own,
+ * reviewer + security-auditor-reviewed disclosure on PR #702 — repeated
+ * here since this file is the broader, more likely to be relied on going
+ * forward of the two): this is a CI/build-time TEXT SCAN, not a real
+ * import-graph resolver. It cannot catch a cycle hidden behind a
+ * re-export CHAIN through a third file outside the scanned
+ * `application`/`domain` trees — e.g. module A's `application/` code
+ * imports a local `infrastructure/`/`api/` file that itself imports and
+ * re-exports module B's `application`/`domain` code; the forbidden path
+ * string `B/(application|domain)/` never appears literally in a file
+ * this scanner walks, so that indirect cycle passes silently. No such
+ * chain exists today (verified by this test passing against the real
+ * registry); closing that residual gap for good would need a real
+ * module-graph tool (`ts-morph`, an ESLint `import/no-restricted-paths`
+ * rule with proper resolution, etc.), not a text-pattern scan — a
+ * documented follow-up, not blocking.
  */
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync, statSync } from "node:fs";
