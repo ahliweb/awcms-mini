@@ -3,6 +3,10 @@ import { fail, ok } from "../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../lib/database/client";
 import { withTenant } from "../../../../lib/database/tenant-context";
 import { hashSessionToken } from "../../../../lib/auth/session-token";
+import {
+  bodyTooLargeResponse,
+  readJsonBody
+} from "../../../../lib/security/request-body-limit";
 import { extractBearerToken } from "../../../../modules/identity-access/application/session-lookup";
 import {
   fetchGrantedPermissionKeys,
@@ -47,8 +51,13 @@ export const DELETE: APIRoute = async ({ request, params, locals }) => {
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
   }
 
-  const body = await request.json().catch(() => null);
-  const validation = validateDeleteReasonRequestBody(body);
+  const bodyRead = await readJsonBody(request);
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const validation = validateDeleteReasonRequestBody(bodyRead.value);
 
   if (!validation.valid) {
     return fail(

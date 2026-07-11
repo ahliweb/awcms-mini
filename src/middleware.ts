@@ -10,6 +10,11 @@ import {
   mergeCorrelationIdIntoApiPayload
 } from "./lib/logging/correlation-response";
 import { getDatabaseClient } from "./lib/database/client";
+import {
+  BODY_SIZE_HARD_CEILING_BYTES,
+  bodyTooLargeResponse,
+  checkContentLengthCeiling
+} from "./lib/security/request-body-limit";
 import { resolvePublicTenantFromRequest } from "./lib/tenant/public-host-tenant-resolver";
 import { log } from "./lib/logging/logger";
 import { resolveVisitorAnalyticsConfig } from "./modules/visitor-analytics/domain/visitor-analytics-config";
@@ -23,6 +28,7 @@ import {
 } from "./modules/visitor-analytics/application/collector";
 
 const PROTECTED_PREFIX = "/admin";
+const API_PREFIX = "/api/";
 const CORRELATION_ID_HEADER = "X-Correlation-ID";
 const VISITOR_KEY_COOKIE_NAME = "awcms_mini_visitor_key";
 /** 2 years — a conventional analytics cookie lifetime, same order of magnitude as `VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS`'s default. */
@@ -270,6 +276,27 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // `ssrContext` is available for `/admin/*` routes (doc 14
   // §Internationalization precedence: cookie -> tenant default -> `en`).
   context.locals.locale = resolveRequestLocale(context.cookies);
+
+  // Issue #686 (epic #679, platform-hardening) — global backstop, checked
+  // before `next()` even runs so an obviously-oversized declared body
+  // never reaches a route handler at all. This is defense-in-depth on top
+  // of (not a replacement for) each handler's own `readJsonBody`/
+  // `readTextBody` tiered check (`src/lib/security/request-body-limit.ts`)
+  // — it only catches a DECLARED `Content-Length` above the hard ceiling,
+  // never a chunked/absent-length body, since that requires actually
+  // consuming the stream.
+  if (
+    context.url.pathname.startsWith(API_PREFIX) &&
+    !checkContentLengthCeiling(context.request)
+  ) {
+    const response = await applyCorrelationIdToApiBody(
+      bodyTooLargeResponse(BODY_SIZE_HARD_CEILING_BYTES),
+      context.url.pathname,
+      context.locals.correlationId
+    );
+
+    return applyResponseHeaders(response, context.locals.correlationId);
+  }
 
   if (!context.url.pathname.startsWith(PROTECTED_PREFIX)) {
     const response = await applyCorrelationIdToApiBody(

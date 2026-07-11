@@ -4,6 +4,10 @@ import { fail } from "../../../../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../../../../lib/database/client";
 import { resolveAuthInputs } from "../../../../../../../modules/identity-access/application/access-guard";
 import { hashSessionToken } from "../../../../../../../lib/auth/session-token";
+import {
+  bodyTooLargeResponse,
+  readJsonBody
+} from "../../../../../../../lib/security/request-body-limit";
 import { resolveNewsMediaR2Config } from "../../../../../../../modules/news-portal/domain/news-media-r2-config";
 import { validateFinalizeNewsMediaUploadSessionInput } from "../../../../../../../modules/news-portal/domain/news-media-upload-session-validation";
 import { finalizeNewsMediaUploadSession } from "../../../../../../../modules/news-portal/application/news-media-finalize-upload-session";
@@ -48,8 +52,15 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
     );
   }
 
-  const rawBody = await request.json().catch(() => null);
-  const validation = validateFinalizeNewsMediaUploadSessionInput(rawBody);
+  const bodyRead = await readJsonBody(request);
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const validation = validateFinalizeNewsMediaUploadSessionInput(
+    bodyRead.value
+  );
 
   if (!validation.valid) {
     return fail(

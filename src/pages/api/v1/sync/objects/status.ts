@@ -3,6 +3,10 @@ import { fail, ok } from "../../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../../lib/database/client";
 import { withTenant } from "../../../../../lib/database/tenant-context";
 import {
+  bodyTooLargeResponse,
+  readTextBody
+} from "../../../../../lib/security/request-body-limit";
+import {
   resolveOrRegisterSyncNode,
   verifySyncHeaders
 } from "../../../../../modules/sync-storage/application/sync-auth";
@@ -25,7 +29,13 @@ export const GET: APIRoute = async ({ request }) => {
     );
   }
 
-  const rawBody = await request.text();
+  const bodyRead = await readTextBody(request);
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const rawBody = bodyRead.value;
   const authResult = verifySyncHeaders(
     request.headers.get("x-awcms-mini-timestamp"),
     request.headers.get("x-awcms-mini-signature"),

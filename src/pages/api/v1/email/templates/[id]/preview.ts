@@ -8,6 +8,10 @@ import {
   resolveAuthInputs
 } from "../../../../../../modules/identity-access/application/access-guard";
 import { hashSessionToken } from "../../../../../../lib/auth/session-token";
+import {
+  bodyTooLargeResponse,
+  readJsonBody
+} from "../../../../../../lib/security/request-body-limit";
 import { fetchActiveEmailTemplate } from "../../../../../../modules/email/application/email-template-directory";
 import { buildSyntheticSampleVariables } from "../../../../../../modules/email/domain/email-template-preview";
 import { renderEmailTemplate } from "../../../../../../modules/email/domain/email-template-render";
@@ -44,10 +48,16 @@ export const POST: APIRoute = async ({ request, params, cookies }) => {
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
   }
 
-  const body = (await request.json().catch(() => null)) as {
+  const bodyRead = await readJsonBody<{
     locale?: unknown;
     variables?: unknown;
-  } | null;
+  }>(request);
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const body = bodyRead.value;
 
   const locale =
     typeof body?.locale === "string" && body.locale.trim().length > 0

@@ -5,6 +5,10 @@ import { getDatabaseClient } from "../../../../lib/database/client";
 import { withTenant } from "../../../../lib/database/tenant-context";
 import { hashSessionToken } from "../../../../lib/auth/session-token";
 import {
+  bodyTooLargeResponse,
+  readJsonBody
+} from "../../../../lib/security/request-body-limit";
+import {
   authorizeInTransaction,
   resolveAuthInputs
 } from "../../../../modules/identity-access/application/access-guard";
@@ -37,9 +41,13 @@ export const PATCH: APIRoute = async ({ request, cookies, params }) => {
     return fail(400, "VALIDATION_ERROR", "Role id is required.");
   }
 
-  const validation = validateUpdateRoleInput(
-    await request.json().catch(() => null)
-  );
+  const bodyRead = await readJsonBody(request);
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const validation = validateUpdateRoleInput(bodyRead.value);
 
   if (!validation.valid) {
     return fail(
@@ -169,9 +177,13 @@ export const DELETE: APIRoute = async ({ request, cookies, params }) => {
     return fail(400, "VALIDATION_ERROR", "Role id is required.");
   }
 
-  const validation = validateDeleteReasonRequestBody(
-    await request.json().catch(() => null)
-  );
+  const bodyRead = await readJsonBody(request);
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const validation = validateDeleteReasonRequestBody(bodyRead.value);
 
   if (!validation.valid) {
     return fail(

@@ -5,6 +5,10 @@ import { getDatabaseClient } from "../../../../../lib/database/client";
 import { withTenant } from "../../../../../lib/database/tenant-context";
 import { hashSessionToken } from "../../../../../lib/auth/session-token";
 import {
+  bodyTooLargeResponse,
+  readJsonBody
+} from "../../../../../lib/security/request-body-limit";
+import {
   authorizeInTransaction,
   resolveAuthInputs
 } from "../../../../../modules/identity-access/application/access-guard";
@@ -103,9 +107,13 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
   }
 
-  const validation = validateUpdateTenantDomainInput(
-    await request.json().catch(() => null)
-  );
+  const bodyRead = await readJsonBody(request);
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const validation = validateUpdateTenantDomainInput(bodyRead.value);
 
   if (!validation.valid) {
     return fail(
@@ -186,7 +194,13 @@ export const DELETE: APIRoute = async ({
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
   }
 
-  const body = await request.json().catch(() => null);
+  const bodyRead = await readJsonBody(request);
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const body = bodyRead.value;
   const reasonRaw = (body as { reason?: unknown } | null)?.reason;
 
   if (typeof reasonRaw !== "string" || reasonRaw.trim().length === 0) {

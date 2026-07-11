@@ -46,6 +46,17 @@ server {
     # Do not leak the nginx version in the Server response header.
     server_tokens off;
 
+    # Matches the app's own hard request-body ceiling
+    # (BODY_SIZE_HARD_CEILING_BYTES, src/lib/security/request-body-limit.ts,
+    # Issue #686, epic #679) — nginx's default (1m) is already close to this,
+    # but set it explicitly so proxy and app limits stay in sync rather than
+    # relying on nginx's default happening to line up. This is defense-in-
+    # depth only: the app enforces its own per-endpoint tiers (128 KiB
+    # default, 5 MiB for content-heavy endpoints) independently and does not
+    # trust this reverse-proxy layer to protect direct/local access (doc 18
+    # LAN-first deployments often run with no nginx in front at all).
+    client_max_body_size 10m;
+
     location / {
         proxy_pass http://127.0.0.1:4321;
         proxy_http_version 1.1;

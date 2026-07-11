@@ -16,6 +16,10 @@ import {
   checkRateLimit,
   resolveClientIp
 } from "../../../../lib/security/rate-limit";
+import {
+  bodyTooLargeResponse,
+  readJsonBody
+} from "../../../../lib/security/request-body-limit";
 import { enforceTurnstileIfRequired } from "../../../../lib/security/turnstile";
 import {
   isMfaRequired,
@@ -92,7 +96,13 @@ export const POST: APIRoute = async ({
     );
   }
 
-  const body = (await request.json().catch(() => null)) as LoginBody | null;
+  const bodyRead = await readJsonBody<LoginBody>(request);
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const body = bodyRead.value;
 
   if (
     !body ||

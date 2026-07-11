@@ -111,6 +111,7 @@ Default response list/detail tidak menampilkan soft-deleted record. Detail soft-
 | `WORKFLOW_APPROVAL_REQUIRED` |  409 | Perlu approval                                                   |
 | `STOCK_NOT_AVAILABLE`        |  409 | Stok tidak cukup                                                 |
 | `SYNC_CONFLICT`              |  409 | Konflik sync                                                     |
+| `PAYLOAD_TOO_LARGE`          |  413 | Body request melebihi batas ukuran (Issue #686)                  |
 | `DATABASE_BUSY`              |  503 | Pool/DB sibuk                                                    |
 | `PROVIDER_ERROR`             |  502 | Provider eksternal gagal                                         |
 | `INTERNAL_ERROR`             |  500 | Error internal                                                   |

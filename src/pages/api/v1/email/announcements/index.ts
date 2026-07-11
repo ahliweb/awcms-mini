@@ -12,6 +12,10 @@ import {
   resolveAuthInputs
 } from "../../../../../modules/identity-access/application/access-guard";
 import { hashSessionToken } from "../../../../../lib/auth/session-token";
+import {
+  bodyTooLargeResponse,
+  readJsonBody
+} from "../../../../../lib/security/request-body-limit";
 import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
 import {
   computeRequestHash,
@@ -71,9 +75,13 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     );
   }
 
-  const validation = validateAnnouncementInput(
-    await request.json().catch(() => null)
-  );
+  const bodyRead = await readJsonBody(request, "large");
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const validation = validateAnnouncementInput(bodyRead.value);
 
   if (!validation.valid) {
     return fail(

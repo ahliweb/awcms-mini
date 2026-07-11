@@ -2,6 +2,10 @@ import type { APIRoute } from "astro";
 import { fail, ok } from "../../../../modules/_shared/api-response";
 import { getSetupDatabaseClient } from "../../../../lib/database/client";
 import { resolveClientIp } from "../../../../lib/security/rate-limit";
+import {
+  bodyTooLargeResponse,
+  readJsonBody
+} from "../../../../lib/security/request-body-limit";
 import { enforceTurnstileIfRequired } from "../../../../lib/security/turnstile";
 import { validateSetupInitializeInput } from "../../../../modules/tenant-admin/domain/setup-validation";
 import { bootstrapPlatformTenant } from "../../../../modules/tenant-admin/application/platform-bootstrap";
@@ -20,7 +24,13 @@ import { bootstrapPlatformTenant } from "../../../../modules/tenant-admin/applic
  * header for the full role matrix.
  */
 export const POST: APIRoute = async ({ request, clientAddress }) => {
-  const body = await request.json().catch(() => null);
+  const bodyRead = await readJsonBody(request);
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const body = bodyRead.value;
   const validation = validateSetupInitializeInput(body);
 
   if (!validation.valid) {

@@ -9,6 +9,10 @@ import {
 } from "../../../../../../modules/identity-access/application/access-guard";
 import { hashSessionToken } from "../../../../../../lib/auth/session-token";
 import {
+  bodyTooLargeResponse,
+  readJsonBody
+} from "../../../../../../lib/security/request-body-limit";
+import {
   resolveNewsMediaR2Config,
   findMissingNewsMediaR2Vars
 } from "../../../../../../modules/news-portal/domain/news-media-r2-config";
@@ -63,8 +67,14 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     );
   }
 
+  const bodyRead = await readJsonBody(request);
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
   const validation = validateCreateNewsMediaUploadSessionInput(
-    await request.json().catch(() => null),
+    bodyRead.value,
     config.allowedMimeTypes,
     config.maxUploadBytes
   );
