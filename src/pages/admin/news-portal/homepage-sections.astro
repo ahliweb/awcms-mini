@@ -18,6 +18,7 @@ import { permissionKey } from "../../../modules/identity-access/domain/access-co
 import { listHomepageSections } from "../../../modules/news-portal/application/homepage-section-directory";
 import { HOMEPAGE_SECTION_TYPES } from "../../../modules/news-portal/domain/homepage-section-policy";
 import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
 import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
 
 const context = Astro.locals.ssrContext;
@@ -74,9 +75,10 @@ if (CAN_READ) {
       }
     );
   } catch (error) {
-    console.error(
+    logAdminPageError(
       "admin/news-portal/homepage-sections.astro: failed to load sections",
-      error
+      error,
+      { correlationId: Astro.locals.correlationId }
     );
     loadError = true;
   }

@@ -29,6 +29,7 @@
  * safe row counts only, never any raw event/session data.
  */
 import { getWorkerDatabaseClient } from "../src/lib/database/client";
+import { logScriptFailure } from "../src/lib/logging/error-log";
 import { withTenant } from "../src/lib/database/tenant-context";
 import { recordAuditEvent } from "../src/modules/logging/application/audit-log";
 import {
@@ -168,9 +169,7 @@ async function main() {
         `rollupsDeleted=${result.totals.rollupsDeleted}`
     );
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    console.error(`analytics:purge FAILED — ${detail}`);
-    process.exitCode = 1;
+    logScriptFailure("analytics:purge FAILED", error);
   } finally {
     await sql.close({ timeout: 1 });
   }

@@ -23,6 +23,7 @@
  * `AUDIT_EVENT_DEFAULT_RETENTION_DAYS` (730 days / 2 years).
  */
 import { getWorkerDatabaseClient } from "../src/lib/database/client";
+import { logScriptFailure } from "../src/lib/logging/error-log";
 import {
   AUDIT_EVENT_DEFAULT_RETENTION_DAYS,
   purgeExpiredAuditEvents
@@ -94,9 +95,7 @@ async function main() {
         `tenants=${tenants.length} purged=${totalPurged}`
     );
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    console.error(`logs:audit:purge FAILED — ${detail}`);
-    process.exitCode = 1;
+    logScriptFailure("logs:audit:purge FAILED", error);
   } finally {
     await sql.close({ timeout: 1 });
   }

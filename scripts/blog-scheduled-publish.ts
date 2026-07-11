@@ -9,6 +9,7 @@
  * published or still in the future simply doesn't match on a re-run.
  */
 import { getWorkerDatabaseClient } from "../src/lib/database/client";
+import { logScriptFailure } from "../src/lib/logging/error-log";
 import { publishDueScheduledPosts } from "../src/modules/blog-content/application/blog-scheduled-publish";
 
 type TenantRow = { id: string };
@@ -40,9 +41,7 @@ async function main() {
         `tenants=${tenants.length} published=${totalPublished}`
     );
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    console.error(`blog:publish:scheduled FAILED — ${detail}`);
-    process.exitCode = 1;
+    logScriptFailure("blog:publish:scheduled FAILED", error);
   } finally {
     await sql.close({ timeout: 1 });
   }

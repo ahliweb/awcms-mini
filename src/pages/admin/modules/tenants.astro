@@ -105,6 +105,7 @@ import { withTenant } from "../../../lib/database/tenant-context";
 import { permissionKey } from "../../../modules/identity-access/domain/access-control";
 import { fetchModuleMatrix } from "../../../modules/module-management/application/module-matrix";
 import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
 import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
 
 const context = Astro.locals.ssrContext;
@@ -156,9 +157,10 @@ if (CAN_VIEW_MATRIX) {
       })
     );
   } catch (error) {
-    console.error(
+    logAdminPageError(
       "admin/modules/tenants.astro: failed to load module matrix",
-      error
+      error,
+      { correlationId: Astro.locals.correlationId }
     );
     loadError = true;
   }

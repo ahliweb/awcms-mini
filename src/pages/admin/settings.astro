@@ -23,6 +23,7 @@ import { withTenant } from "../../lib/database/tenant-context";
 import { permissionKey } from "../../modules/identity-access/domain/access-control";
 import { fetchTenantSettings } from "../../modules/tenant-admin/application/tenant-settings-directory";
 import { createTranslator } from "../../lib/i18n/translate";
+import { logAdminPageError } from "../../lib/logging/error-log";
 import { buildClientErrorMessages } from "../../lib/i18n/error-messages";
 import {
   LOCALE_FLAGS,
@@ -66,7 +67,9 @@ if (CAN_READ) {
       fetchTenantSettings(tx, context.tenantId)
     );
   } catch (error) {
-    console.error("admin/settings.astro: failed to load settings", error);
+    logAdminPageError("admin/settings.astro: failed to load settings", error, {
+      correlationId: Astro.locals.correlationId
+    });
     loadError = true;
   }
 }

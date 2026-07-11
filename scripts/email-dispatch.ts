@@ -13,6 +13,7 @@
  * see `dispatchEmailQueue`'s own early return.
  */
 import { getWorkerDatabaseClient } from "../src/lib/database/client";
+import { logScriptFailure } from "../src/lib/logging/error-log";
 import { dispatchEmailQueue } from "../src/modules/email/application/email-dispatch";
 
 const MAX_PASSES_PER_TENANT = 20;
@@ -57,9 +58,7 @@ async function main() {
         `retried=${totalRetried} failed=${totalFailed}`
     );
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    console.error(`email:dispatch FAILED — ${detail}`);
-    process.exitCode = 1;
+    logScriptFailure("email:dispatch FAILED", error);
   } finally {
     await sql.close({ timeout: 1 });
   }

@@ -15,6 +15,7 @@
  * check` already gate on, reused rather than duplicated.
  */
 import { getDatabaseClient } from "../src/lib/database/client";
+import { logScriptFailure } from "../src/lib/logging/error-log";
 import { syncModuleDescriptors } from "../src/modules/module-management/application/descriptor-sync";
 import { listModules } from "../src/modules";
 import {
@@ -57,9 +58,7 @@ async function main() {
       );
     }
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    console.error(`modules:sync FAILED — ${detail}`);
-    process.exitCode = 1;
+    logScriptFailure("modules:sync FAILED", error);
   } finally {
     await sql.close({ timeout: 1 });
   }

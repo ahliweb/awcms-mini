@@ -43,6 +43,7 @@ import {
   isValidStatusTransition
 } from "../../../../modules/blog-content/domain/post-status";
 import { createTranslator } from "../../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../../lib/logging/error-log";
 import { buildClientErrorMessages } from "../../../../lib/i18n/error-messages";
 import { formatDateTime } from "../../../../lib/i18n/format";
 
@@ -169,7 +170,11 @@ if (CAN_READ_POSTS) {
       notFound = true;
     }
   } catch (error) {
-    console.error("admin/blog/posts/[id].astro: failed to load post", error);
+    logAdminPageError(
+      "admin/blog/posts/[id].astro: failed to load post",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
     loadError = true;
   }
 }

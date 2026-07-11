@@ -5,179 +5,179 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/pages/admin/access-users.astro:141
+#: src/pages/admin/access-users.astro:144
 msgid "admin.access_users.access_denied_body"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:140
+#: src/pages/admin/access-users.astro:143
 msgid "admin.access_users.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:181
+#: src/pages/admin/access-users.astro:184
 msgid "admin.access_users.actions_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:274
+#: src/pages/admin/access-users.astro:277
 msgid "admin.access_users.activate_button"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:256
+#: src/pages/admin/access-users.astro:259
 msgid "admin.access_users.assign_button"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:238
+#: src/pages/admin/access-users.astro:241
 msgid "admin.access_users.assign_role_placeholder"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:62
+#: src/pages/admin/access-users.astro:63
 msgid "admin.access_users.assign_role_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:341
+#: src/pages/admin/access-users.astro:344
 msgid "admin.access_users.code_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:488
+#: src/pages/admin/access-users.astro:491
 msgid "admin.access_users.create_role_submit"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:58
+#: src/pages/admin/access-users.astro:59
 msgid "admin.access_users.create_role_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:449
+#: src/pages/admin/access-users.astro:452
 msgid "admin.access_users.create_role_summary"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:322
+#: src/pages/admin/access-users.astro:325
 msgid "admin.access_users.create_user_submit"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:57
+#: src/pages/admin/access-users.astro:58
 msgid "admin.access_users.create_user_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:287
+#: src/pages/admin/access-users.astro:290
 msgid "admin.access_users.create_user_summary"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:273
+#: src/pages/admin/access-users.astro:276
 msgid "admin.access_users.deactivate_button"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:436
+#: src/pages/admin/access-users.astro:439
 msgid "admin.access_users.delete_button"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:64
+#: src/pages/admin/access-users.astro:65
 msgid "admin.access_users.delete_role_prompt"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:60
+#: src/pages/admin/access-users.astro:61
 msgid "admin.access_users.delete_role_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:376
+#: src/pages/admin/access-users.astro:379
 msgid "admin.access_users.edit_summary"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:308
+#: src/pages/admin/access-users.astro:311
 msgid "admin.access_users.initial_roles_legend"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:177
+#: src/pages/admin/access-users.astro:180
 msgid "admin.access_users.login_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:294
+#: src/pages/admin/access-users.astro:297
 msgid "admin.access_users.login_identifier_label"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:176
+#: src/pages/admin/access-users.astro:179
 msgid "admin.access_users.name_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:290
+#: src/pages/admin/access-users.astro:293
 msgid "admin.access_users.name_label"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:353
+#: src/pages/admin/access-users.astro:356
 msgid "admin.access_users.no_roles"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:189
+#: src/pages/admin/access-users.astro:192
 msgid "admin.access_users.no_users"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:298
+#: src/pages/admin/access-users.astro:301
 msgid "admin.access_users.password_label"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:342
+#: src/pages/admin/access-users.astro:345
 msgid "admin.access_users.permission_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:399
+#: src/pages/admin/access-users.astro:402
 msgid "admin.access_users.permission_legend"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:452
+#: src/pages/admin/access-users.astro:455
 msgid "admin.access_users.role_code_label"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:457
+#: src/pages/admin/access-users.astro:460
 msgid "admin.access_users.role_code_placeholder"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:179
+#: src/pages/admin/access-users.astro:182
 msgid "admin.access_users.role_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:386
+#: src/pages/admin/access-users.astro:389
 msgid "admin.access_users.role_name_label"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:333
+#: src/pages/admin/access-users.astro:336
 msgid "admin.access_users.roles_title"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:426
+#: src/pages/admin/access-users.astro:429
 msgid "admin.access_users.save_button"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:178
+#: src/pages/admin/access-users.astro:181
 msgid "admin.access_users.status_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:363
+#: src/pages/admin/access-users.astro:366
 msgid "admin.access_users.system_role_badge"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:401
+#: src/pages/admin/access-users.astro:404
 msgid "admin.access_users.system_role_note"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:220
+#: src/pages/admin/access-users.astro:223
 msgid "admin.access_users.unassign_role_aria_label"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:63
+#: src/pages/admin/access-users.astro:64
 msgid "admin.access_users.unassign_role_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:59
+#: src/pages/admin/access-users.astro:60
 msgid "admin.access_users.update_role_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:61
+#: src/pages/admin/access-users.astro:62
 msgid "admin.access_users.update_status_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:343
+#: src/pages/admin/access-users.astro:346
 msgid "admin.access_users.users_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:169
+#: src/pages/admin/access-users.astro:172
 msgid "admin.access_users.users_title"
 msgstr ""
 
@@ -441,1310 +441,1310 @@ msgstr ""
 msgid "admin.analytics.summary_pageviews_label"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:109
+#: src/pages/admin/blog/ads.astro:112
 msgid "admin.blog.access_denied_body"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:108
+#: src/pages/admin/blog/ads.astro:111
 msgid "admin.blog.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:238
+#: src/pages/admin/blog/ads.astro:241
 msgid "admin.blog.ads.create_submit"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:43
+#: src/pages/admin/blog/ads.astro:44
 msgid "admin.blog.ads.create_success"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:212
+#: src/pages/admin/blog/ads.astro:215
 msgid "admin.blog.ads.create_summary"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:203
+#: src/pages/admin/blog/ads.astro:206
 msgid "admin.blog.ads.delete_button"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:47
+#: src/pages/admin/blog/ads.astro:48
 msgid "admin.blog.ads.delete_confirm"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:46
+#: src/pages/admin/blog/ads.astro:47
 msgid "admin.blog.ads.delete_reason_prompt"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:45
+#: src/pages/admin/blog/ads.astro:46
 msgid "admin.blog.ads.delete_success"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:181
+#: src/pages/admin/blog/ads.astro:184
 msgid "admin.blog.ads.field_active"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:168
+#: src/pages/admin/blog/ads.astro:171
 msgid "admin.blog.ads.field_ends_at"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:147
+#: src/pages/admin/blog/ads.astro:150
 msgid "admin.blog.ads.field_image_url"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:156
+#: src/pages/admin/blog/ads.astro:159
 msgid "admin.blog.ads.field_link_url"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:143
+#: src/pages/admin/blog/ads.astro:146
 msgid "admin.blog.ads.field_name"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:184
+#: src/pages/admin/blog/ads.astro:187
 msgid "admin.blog.ads.field_placements"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:160
+#: src/pages/admin/blog/ads.astro:163
 msgid "admin.blog.ads.field_starts_at"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:48
+#: src/pages/admin/blog/ads.astro:49
 msgid "admin.blog.ads.invalid_placements_json"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:135
+#: src/pages/admin/blog/ads.astro:138
 msgid "admin.blog.ads.no_ads"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:189
+#: src/pages/admin/blog/ads.astro:192
 msgid "admin.blog.ads.placements_hint"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:193
+#: src/pages/admin/blog/ads.astro:196
 msgid "admin.blog.ads.save_button"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:103
+#: src/pages/admin/blog/ads.astro:106
 msgid "admin.blog.ads.title"
 msgstr ""
 
-#: src/pages/admin/blog/ads.astro:44
+#: src/pages/admin/blog/ads.astro:45
 msgid "admin.blog.ads.update_success"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:116
+#: src/pages/admin/blog/categories.astro:118
 msgid "admin.blog.categories.actions_column"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:249
+#: src/pages/admin/blog/categories.astro:251
 msgid "admin.blog.categories.create_submit"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:46
+#: src/pages/admin/blog/categories.astro:47
 msgid "admin.blog.categories.create_success"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:218
+#: src/pages/admin/blog/categories.astro:220
 msgid "admin.blog.categories.create_summary"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:205
+#: src/pages/admin/blog/categories.astro:207
 msgid "admin.blog.categories.delete_button"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:50
+#: src/pages/admin/blog/categories.astro:51
 msgid "admin.blog.categories.delete_confirm"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:49
+#: src/pages/admin/blog/categories.astro:50
 msgid "admin.blog.categories.delete_reason_prompt"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:48
+#: src/pages/admin/blog/categories.astro:49
 msgid "admin.blog.categories.delete_success"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:137
+#: src/pages/admin/blog/categories.astro:139
 msgid "admin.blog.categories.edit_summary"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:164
+#: src/pages/admin/blog/categories.astro:166
 msgid "admin.blog.categories.field_description"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:144
+#: src/pages/admin/blog/categories.astro:146
 msgid "admin.blog.categories.field_name"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:174
+#: src/pages/admin/blog/categories.astro:176
 msgid "admin.blog.categories.field_parent"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:154
+#: src/pages/admin/blog/categories.astro:156
 msgid "admin.blog.categories.field_slug"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:112
+#: src/pages/admin/blog/categories.astro:114
 msgid "admin.blog.categories.name_column"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:106
+#: src/pages/admin/blog/categories.astro:108
 msgid "admin.blog.categories.no_categories"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:177
+#: src/pages/admin/blog/categories.astro:179
 msgid "admin.blog.categories.no_parent_option"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:114
+#: src/pages/admin/blog/categories.astro:116
 msgid "admin.blog.categories.parent_column"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:196
+#: src/pages/admin/blog/categories.astro:198
 msgid "admin.blog.categories.save_button"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:113
+#: src/pages/admin/blog/categories.astro:115
 msgid "admin.blog.categories.slug_column"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:74
+#: src/pages/admin/blog/categories.astro:76
 msgid "admin.blog.categories.title"
 msgstr ""
 
-#: src/pages/admin/blog/categories.astro:47
+#: src/pages/admin/blog/categories.astro:48
 msgid "admin.blog.categories.update_success"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:162
+#: src/pages/admin/blog/index.astro:167
 msgid "admin.blog.dashboard.draft_posts_label"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:212
+#: src/pages/admin/blog/index.astro:217
 msgid "admin.blog.dashboard.manage_categories_link"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:205
+#: src/pages/admin/blog/index.astro:210
 msgid "admin.blog.dashboard.manage_pages_link"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:198
+#: src/pages/admin/blog/index.astro:203
 msgid "admin.blog.dashboard.manage_posts_link"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:226
+#: src/pages/admin/blog/index.astro:231
 msgid "admin.blog.dashboard.manage_settings_link"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:219
+#: src/pages/admin/blog/index.astro:224
 msgid "admin.blog.dashboard.manage_tags_link"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:191
+#: src/pages/admin/blog/index.astro:196
 msgid "admin.blog.dashboard.new_page_link"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:184
+#: src/pages/admin/blog/index.astro:189
 msgid "admin.blog.dashboard.new_post_link"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:238
+#: src/pages/admin/blog/index.astro:243
 msgid "admin.blog.dashboard.no_recent_updates"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:171
+#: src/pages/admin/blog/index.astro:176
 msgid "admin.blog.dashboard.pages_title"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:158
+#: src/pages/admin/blog/index.astro:163
 msgid "admin.blog.dashboard.posts_title"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:179
+#: src/pages/admin/blog/index.astro:184
 msgid "admin.blog.dashboard.quick_links_title"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:236
+#: src/pages/admin/blog/index.astro:241
 msgid "admin.blog.dashboard.recent_updates_title"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:164
+#: src/pages/admin/blog/index.astro:169
 msgid "admin.blog.dashboard.scheduled_posts_label"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:131
+#: src/pages/admin/blog/index.astro:136
 msgid "admin.blog.dashboard.title"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:173
+#: src/pages/admin/blog/index.astro:178
 msgid "admin.blog.dashboard.total_pages_label"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:160
+#: src/pages/admin/blog/index.astro:165
 msgid "admin.blog.dashboard.total_posts_label"
 msgstr ""
 
-#: src/pages/admin/blog/menus.astro:194
+#: src/pages/admin/blog/menus.astro:197
 msgid "admin.blog.menus.create_submit"
 msgstr ""
 
-#: src/pages/admin/blog/menus.astro:46
+#: src/pages/admin/blog/menus.astro:47
 msgid "admin.blog.menus.create_success"
 msgstr ""
 
-#: src/pages/admin/blog/menus.astro:178
+#: src/pages/admin/blog/menus.astro:181
 msgid "admin.blog.menus.create_summary"
 msgstr ""
 
-#: src/pages/admin/blog/menus.astro:169
+#: src/pages/admin/blog/menus.astro:172
 msgid "admin.blog.menus.delete_button"
 msgstr ""
 
-#: src/pages/admin/blog/menus.astro:50
+#: src/pages/admin/blog/menus.astro:51
 msgid "admin.blog.menus.delete_confirm"
 msgstr ""
 
-#: src/pages/admin/blog/menus.astro:49
+#: src/pages/admin/blog/menus.astro:50
 msgid "admin.blog.menus.delete_reason_prompt"
 msgstr ""
 
-#: src/pages/admin/blog/menus.astro:48
+#: src/pages/admin/blog/menus.astro:49
 msgid "admin.blog.menus.delete_success"
 msgstr ""
 
-#: src/pages/admin/blog/menus.astro:145
+#: src/pages/admin/blog/menus.astro:148
 msgid "admin.blog.menus.field_items"
 msgstr ""
 
-#: src/pages/admin/blog/menus.astro:181
+#: src/pages/admin/blog/menus.astro:184
 msgid "admin.blog.menus.field_key"
 msgstr ""
 
-#: src/pages/admin/blog/menus.astro:141
+#: src/pages/admin/blog/menus.astro:144
 msgid "admin.blog.menus.field_name"
 msgstr ""
 
-#: src/pages/admin/blog/menus.astro:158
+#: src/pages/admin/blog/menus.astro:161
 msgid "admin.blog.menus.generate_id_button"
 msgstr ""
 
-#: src/pages/admin/blog/menus.astro:51
+#: src/pages/admin/blog/menus.astro:52
 msgid "admin.blog.menus.invalid_items_json"
 msgstr ""
 
-#: src/pages/admin/blog/menus.astro:150
+#: src/pages/admin/blog/menus.astro:153
 msgid "admin.blog.menus.items_hint"
 msgstr ""
 
-#: src/pages/admin/blog/menus.astro:131
+#: src/pages/admin/blog/menus.astro:134
 msgid "admin.blog.menus.no_menus"
 msgstr ""
 
-#: src/pages/admin/blog/menus.astro:155
+#: src/pages/admin/blog/menus.astro:158
 msgid "admin.blog.menus.save_button"
 msgstr ""
 
-#: src/pages/admin/blog/menus.astro:99
+#: src/pages/admin/blog/menus.astro:102
 msgid "admin.blog.menus.title"
 msgstr ""
 
-#: src/pages/admin/blog/menus.astro:47
+#: src/pages/admin/blog/menus.astro:48
 msgid "admin.blog.menus.update_success"
 msgstr ""
 
 #. dynamic key family "admin.blog.page_type." — concrete suffix from src/modules/blog-content/domain/page-type.ts PAGE_TYPES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/pages/[id].astro:211
+#: src/pages/admin/blog/pages/[id].astro:216
 msgid "admin.blog.page_type.landing"
 msgstr ""
 
 #. dynamic key family "admin.blog.page_type." — concrete suffix from src/modules/blog-content/domain/page-type.ts PAGE_TYPES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/pages/[id].astro:211
+#: src/pages/admin/blog/pages/[id].astro:216
 msgid "admin.blog.page_type.legal"
 msgstr ""
 
 #. dynamic key family "admin.blog.page_type." — concrete suffix from src/modules/blog-content/domain/page-type.ts PAGE_TYPES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/pages/[id].astro:211
+#: src/pages/admin/blog/pages/[id].astro:216
 msgid "admin.blog.page_type.standard"
 msgstr ""
 
 #. dynamic key family "admin.blog.page_type." — concrete suffix from src/modules/blog-content/domain/page-type.ts PAGE_TYPES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/pages/[id].astro:211
+#: src/pages/admin/blog/pages/[id].astro:216
 msgid "admin.blog.page_type.system"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:151
+#: src/pages/admin/blog/pages/index.astro:156
 msgid "admin.blog.pages.apply_filters_button"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:132
+#: src/pages/admin/blog/pages/[id].astro:137
 msgid "admin.blog.pages.back_to_list"
 msgstr ""
 
-#: src/pages/admin/blog/pages/new.astro:177
+#: src/pages/admin/blog/pages/new.astro:179
 msgid "admin.blog.pages.create_submit"
 msgstr ""
 
-#: src/pages/admin/blog/pages/new.astro:37
+#: src/pages/admin/blog/pages/new.astro:38
 msgid "admin.blog.pages.create_success"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:161
+#: src/pages/admin/blog/pages/[id].astro:166
 msgid "admin.blog.pages.delete_button"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:51
+#: src/pages/admin/blog/pages/[id].astro:52
 msgid "admin.blog.pages.delete_reason_prompt"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:50
+#: src/pages/admin/blog/pages/[id].astro:51
 msgid "admin.blog.pages.delete_success"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:233
+#: src/pages/admin/blog/pages/[id].astro:238
 msgid "admin.blog.pages.field_menu_order"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:204
+#: src/pages/admin/blog/pages/[id].astro:209
 msgid "admin.blog.pages.field_page_type"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:217
+#: src/pages/admin/blog/pages/[id].astro:222
 msgid "admin.blog.pages.field_parent_page"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:179
+#: src/pages/admin/blog/pages/[id].astro:184
 msgid "admin.blog.pages.field_slug"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:169
+#: src/pages/admin/blog/pages/[id].astro:174
 msgid "admin.blog.pages.field_title"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:122
+#: src/pages/admin/blog/pages/index.astro:127
 msgid "admin.blog.pages.filters_aria_label"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:169
+#: src/pages/admin/blog/pages/index.astro:174
 msgid "admin.blog.pages.locale_column"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:168
+#: src/pages/admin/blog/pages/index.astro:173
 msgid "admin.blog.pages.menu_order_column"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:114
+#: src/pages/admin/blog/pages/index.astro:119
 msgid "admin.blog.pages.new_button"
 msgstr ""
 
-#: src/pages/admin/blog/pages/new.astro:65
+#: src/pages/admin/blog/pages/new.astro:67
 msgid "admin.blog.pages.new_title"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:159
+#: src/pages/admin/blog/pages/index.astro:164
 msgid "admin.blog.pages.no_pages"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:220
+#: src/pages/admin/blog/pages/[id].astro:225
 msgid "admin.blog.pages.no_parent_option"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:131
+#: src/pages/admin/blog/pages/[id].astro:136
 msgid "admin.blog.pages.not_found_body"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:130
+#: src/pages/admin/blog/pages/[id].astro:135
 msgid "admin.blog.pages.not_found_title"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:198
+#: src/pages/admin/blog/pages/index.astro:203
 msgid "admin.blog.pages.pagination_aria_label"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:154
+#: src/pages/admin/blog/pages/index.astro:159
 msgid "admin.blog.pages.reset_filters_link"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:293
+#: src/pages/admin/blog/pages/[id].astro:298
 msgid "admin.blog.pages.save_button"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:48
+#: src/pages/admin/blog/pages/[id].astro:49
 msgid "admin.blog.pages.save_success"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:125
+#: src/pages/admin/blog/pages/index.astro:130
 msgid "admin.blog.pages.search_label"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:166
+#: src/pages/admin/blog/pages/index.astro:171
 msgid "admin.blog.pages.status_column"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:129
+#: src/pages/admin/blog/pages/index.astro:134
 msgid "admin.blog.pages.status_filter_label"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:105
+#: src/pages/admin/blog/pages/[id].astro:110
 msgid "admin.blog.pages.title"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:165
+#: src/pages/admin/blog/pages/index.astro:170
 msgid "admin.blog.pages.title_column"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:167
+#: src/pages/admin/blog/pages/index.astro:172
 msgid "admin.blog.pages.type_column"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:140
+#: src/pages/admin/blog/pages/index.astro:145
 msgid "admin.blog.pages.type_filter_label"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:170
+#: src/pages/admin/blog/pages/index.astro:175
 msgid "admin.blog.pages.updated_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/index.astro:188
+#: src/pages/admin/blog/posts/index.astro:193
 msgid "admin.blog.posts.apply_filters_button"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:295
+#: src/pages/admin/blog/posts/[id].astro:300
 msgid "admin.blog.posts.archive_button"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:109
+#: src/pages/admin/blog/posts/[id].astro:110
 msgid "admin.blog.posts.archive_confirm"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:101
+#: src/pages/admin/blog/posts/[id].astro:102
 msgid "admin.blog.posts.archive_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/index.astro:204
+#: src/pages/admin/blog/posts/index.astro:209
 msgid "admin.blog.posts.author_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:272
+#: src/pages/admin/blog/posts/[id].astro:277
 msgid "admin.blog.posts.author_label"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:247
+#: src/pages/admin/blog/posts/[id].astro:252
 msgid "admin.blog.posts.back_to_list"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:200
+#: src/pages/admin/blog/pages/[id].astro:205
 msgid "admin.blog.posts.content_json_hint"
 msgstr ""
 
-#: src/pages/admin/blog/posts/new.astro:212
+#: src/pages/admin/blog/posts/new.astro:214
 msgid "admin.blog.posts.create_submit"
 msgstr ""
 
-#: src/pages/admin/blog/posts/new.astro:50
+#: src/pages/admin/blog/posts/new.astro:51
 msgid "admin.blog.posts.create_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:300
+#: src/pages/admin/blog/posts/[id].astro:305
 msgid "admin.blog.posts.delete_button"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:106
+#: src/pages/admin/blog/posts/[id].astro:107
 msgid "admin.blog.posts.delete_reason_prompt"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:104
+#: src/pages/admin/blog/posts/[id].astro:105
 msgid "admin.blog.posts.delete_success"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:153
+#: src/pages/admin/blog/pages/[id].astro:158
 msgid "admin.blog.posts.deleted_label"
 msgstr ""
 
-#: src/pages/admin/blog/posts/new.astro:162
+#: src/pages/admin/blog/posts/new.astro:164
 msgid "admin.blog.posts.featured_media_hint"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:283
+#: src/pages/admin/blog/pages/[id].astro:288
 msgid "admin.blog.posts.field_canonical_url"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:390
+#: src/pages/admin/blog/posts/[id].astro:395
 msgid "admin.blog.posts.field_categories"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:195
+#: src/pages/admin/blog/pages/[id].astro:200
 msgid "admin.blog.posts.field_content_json"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:189
+#: src/pages/admin/blog/pages/[id].astro:194
 msgid "admin.blog.posts.field_content_text"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:338
+#: src/pages/admin/blog/posts/[id].astro:343
 msgid "admin.blog.posts.field_excerpt"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:381
+#: src/pages/admin/blog/posts/[id].astro:386
 msgid "admin.blog.posts.field_featured_media_id"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:256
+#: src/pages/admin/blog/pages/[id].astro:261
 msgid "admin.blog.posts.field_locale"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:277
+#: src/pages/admin/blog/pages/[id].astro:282
 msgid "admin.blog.posts.field_meta_description"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:268
+#: src/pages/admin/blog/pages/[id].astro:273
 msgid "admin.blog.posts.field_seo_title"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:328
+#: src/pages/admin/blog/posts/[id].astro:333
 msgid "admin.blog.posts.field_slug"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:412
+#: src/pages/admin/blog/posts/[id].astro:417
 msgid "admin.blog.posts.field_tags"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:318
+#: src/pages/admin/blog/posts/[id].astro:323
 msgid "admin.blog.posts.field_title"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:243
+#: src/pages/admin/blog/pages/[id].astro:248
 msgid "admin.blog.posts.field_visibility"
 msgstr ""
 
-#: src/pages/admin/blog/posts/index.astro:151
+#: src/pages/admin/blog/posts/index.astro:156
 msgid "admin.blog.posts.filters_aria_label"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:49
+#: src/pages/admin/blog/pages/[id].astro:50
 msgid "admin.blog.posts.invalid_content_json"
 msgstr ""
 
-#: src/pages/admin/blog/posts/index.astro:205
+#: src/pages/admin/blog/posts/index.astro:210
 msgid "admin.blog.posts.locale_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/index.astro:143
+#: src/pages/admin/blog/posts/index.astro:148
 msgid "admin.blog.posts.new_button"
 msgstr ""
 
-#: src/pages/admin/blog/posts/new.astro:81
+#: src/pages/admin/blog/posts/new.astro:83
 msgid "admin.blog.posts.new_title"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:392
+#: src/pages/admin/blog/posts/[id].astro:397
 msgid "admin.blog.posts.no_categories"
 msgstr ""
 
-#: src/pages/admin/blog/posts/index.astro:196
+#: src/pages/admin/blog/posts/index.astro:201
 msgid "admin.blog.posts.no_posts"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:466
+#: src/pages/admin/blog/posts/[id].astro:471
 msgid "admin.blog.posts.no_revisions"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:414
+#: src/pages/admin/blog/posts/[id].astro:419
 msgid "admin.blog.posts.no_tags"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:246
+#: src/pages/admin/blog/posts/[id].astro:251
 msgid "admin.blog.posts.not_found_body"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:245
+#: src/pages/admin/blog/posts/[id].astro:250
 msgid "admin.blog.posts.not_found_title"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:204
+#: src/pages/admin/blog/pages/index.astro:209
 msgid "admin.blog.posts.page_indicator"
 msgstr ""
 
-#: src/pages/admin/blog/posts/index.astro:242
+#: src/pages/admin/blog/posts/index.astro:247
 msgid "admin.blog.posts.pagination_aria_label"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:285
+#: src/pages/admin/blog/posts/[id].astro:290
 msgid "admin.blog.posts.publish_button"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:107
+#: src/pages/admin/blog/posts/[id].astro:108
 msgid "admin.blog.posts.publish_confirm"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:99
+#: src/pages/admin/blog/posts/[id].astro:100
 msgid "admin.blog.posts.publish_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/index.astro:206
+#: src/pages/admin/blog/posts/index.astro:211
 msgid "admin.blog.posts.published_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:310
+#: src/pages/admin/blog/posts/[id].astro:315
 msgid "admin.blog.posts.purge_button"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:111
+#: src/pages/admin/blog/posts/[id].astro:112
 msgid "admin.blog.posts.purge_confirm"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:103
+#: src/pages/admin/blog/posts/[id].astro:104
 msgid "admin.blog.posts.purge_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/index.astro:191
+#: src/pages/admin/blog/posts/index.astro:196
 msgid "admin.blog.posts.reset_filters_link"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:305
+#: src/pages/admin/blog/posts/[id].astro:310
 msgid "admin.blog.posts.restore_button"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:110
+#: src/pages/admin/blog/posts/[id].astro:111
 msgid "admin.blog.posts.restore_confirm"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:102
+#: src/pages/admin/blog/posts/[id].astro:103
 msgid "admin.blog.posts.restore_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:478
+#: src/pages/admin/blog/posts/[id].astro:483
 msgid "admin.blog.posts.revision_actions_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:476
+#: src/pages/admin/blog/posts/[id].astro:481
 msgid "admin.blog.posts.revision_created_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:475
+#: src/pages/admin/blog/posts/[id].astro:480
 msgid "admin.blog.posts.revision_note_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:472
+#: src/pages/admin/blog/posts/[id].astro:477
 msgid "admin.blog.posts.revision_number_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:498
+#: src/pages/admin/blog/posts/[id].astro:503
 msgid "admin.blog.posts.revision_restore_button"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:112
+#: src/pages/admin/blog/posts/[id].astro:113
 msgid "admin.blog.posts.revision_restore_confirm"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:105
+#: src/pages/admin/blog/posts/[id].astro:106
 msgid "admin.blog.posts.revision_restore_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:474
+#: src/pages/admin/blog/posts/[id].astro:479
 msgid "admin.blog.posts.revision_status_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:473
+#: src/pages/admin/blog/posts/[id].astro:478
 msgid "admin.blog.posts.revision_title_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:464
+#: src/pages/admin/blog/posts/[id].astro:469
 msgid "admin.blog.posts.revisions_title"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:457
+#: src/pages/admin/blog/posts/[id].astro:462
 msgid "admin.blog.posts.save_button"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:96
+#: src/pages/admin/blog/posts/[id].astro:97
 msgid "admin.blog.posts.save_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:290
+#: src/pages/admin/blog/posts/[id].astro:295
 msgid "admin.blog.posts.schedule_button"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:108
+#: src/pages/admin/blog/posts/[id].astro:109
 msgid "admin.blog.posts.schedule_confirm"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:100
+#: src/pages/admin/blog/posts/[id].astro:101
 msgid "admin.blog.posts.schedule_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:113
+#: src/pages/admin/blog/posts/[id].astro:114
 msgid "admin.blog.posts.scheduled_at_prompt"
 msgstr ""
 
-#: src/pages/admin/blog/posts/index.astro:154
+#: src/pages/admin/blog/posts/index.astro:159
 msgid "admin.blog.posts.search_label"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:266
+#: src/pages/admin/blog/pages/[id].astro:271
 msgid "admin.blog.posts.seo_legend"
 msgstr ""
 
-#: src/pages/admin/blog/posts/new.astro:125
+#: src/pages/admin/blog/posts/new.astro:127
 msgid "admin.blog.posts.slug_hint"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:245
+#: src/pages/admin/blog/index.astro:250
 msgid "admin.blog.posts.status_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/index.astro:158
+#: src/pages/admin/blog/posts/index.astro:163
 msgid "admin.blog.posts.status_filter_label"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:280
+#: src/pages/admin/blog/posts/[id].astro:285
 msgid "admin.blog.posts.submit_review_button"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:98
+#: src/pages/admin/blog/posts/[id].astro:99
 msgid "admin.blog.posts.submit_review_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/index.astro:170
+#: src/pages/admin/blog/posts/index.astro:175
 msgid "admin.blog.posts.term_filter_label"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:220
+#: src/pages/admin/blog/posts/[id].astro:225
 msgid "admin.blog.posts.title"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:244
+#: src/pages/admin/blog/index.astro:249
 msgid "admin.blog.posts.title_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:273
+#: src/pages/admin/blog/posts/[id].astro:278
 msgid "admin.blog.posts.unknown_author"
 msgstr ""
 
-#: src/pages/admin/blog/index.astro:246
+#: src/pages/admin/blog/index.astro:251
 msgid "admin.blog.posts.updated_column"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:130
+#: src/pages/admin/blog/settings.astro:135
 msgid "admin.blog.settings.field_blog_description"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:120
+#: src/pages/admin/blog/settings.astro:125
 msgid "admin.blog.settings.field_blog_title"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:163
+#: src/pages/admin/blog/settings.astro:168
 msgid "admin.blog.settings.field_default_locale"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:172
+#: src/pages/admin/blog/settings.astro:177
 msgid "admin.blog.settings.field_default_visibility"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:136
+#: src/pages/admin/blog/settings.astro:141
 msgid "admin.blog.settings.field_posts_per_page"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:152
+#: src/pages/admin/blog/settings.astro:157
 msgid "admin.blog.settings.field_rss_enabled"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:194
+#: src/pages/admin/blog/settings.astro:199
 msgid "admin.blog.settings.field_seo_default_description"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:185
+#: src/pages/admin/blog/settings.astro:190
 msgid "admin.blog.settings.field_seo_default_title"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:160
+#: src/pages/admin/blog/settings.astro:165
 msgid "admin.blog.settings.field_sitemap_enabled"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:224
+#: src/pages/admin/blog/settings.astro:229
 msgid "admin.blog.settings.field_theme_mode"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:116
+#: src/pages/admin/blog/settings.astro:121
 msgid "admin.blog.settings.general_legend"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:206
+#: src/pages/admin/blog/settings.astro:211
 msgid "admin.blog.settings.save_button"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:55
+#: src/pages/admin/blog/settings.astro:56
 msgid "admin.blog.settings.save_success"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:219
+#: src/pages/admin/blog/settings.astro:224
 msgid "admin.blog.settings.theme_inherited_note"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:215
+#: src/pages/admin/blog/settings.astro:220
 msgid "admin.blog.settings.theme_legend"
 msgstr ""
 
 #. dynamic key family "admin.blog.settings.theme_mode_" — concrete suffix from src/modules/blog-content/domain/theme-policy.ts BLOG_THEME_MODES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/settings.astro:228
+#: src/pages/admin/blog/settings.astro:233
 msgid "admin.blog.settings.theme_mode_dark"
 msgstr ""
 
 #. dynamic key family "admin.blog.settings.theme_mode_" — concrete suffix from src/modules/blog-content/domain/theme-policy.ts BLOG_THEME_MODES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/settings.astro:228
+#: src/pages/admin/blog/settings.astro:233
 msgid "admin.blog.settings.theme_mode_light"
 msgstr ""
 
 #. dynamic key family "admin.blog.settings.theme_mode_" — concrete suffix from src/modules/blog-content/domain/theme-policy.ts BLOG_THEME_MODES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/settings.astro:228
+#: src/pages/admin/blog/settings.astro:233
 msgid "admin.blog.settings.theme_mode_system"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:218
+#: src/pages/admin/blog/settings.astro:223
 msgid "admin.blog.settings.theme_override_note"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:56
+#: src/pages/admin/blog/settings.astro:57
 msgid "admin.blog.settings.theme_save_success"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:83
+#: src/pages/admin/blog/settings.astro:88
 msgid "admin.blog.settings.title"
 msgstr ""
 
 #. dynamic key family "admin.blog.status." — concrete suffix from src/modules/blog-content/domain/post-status.ts BLOG_CONTENT_STATUSES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/index.astro:259
+#: src/pages/admin/blog/index.astro:264
 msgid "admin.blog.status.archived"
 msgstr ""
 
 #. dynamic key family "admin.blog.status." — concrete suffix from src/modules/blog-content/domain/post-status.ts BLOG_CONTENT_STATUSES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/index.astro:259
+#: src/pages/admin/blog/index.astro:264
 msgid "admin.blog.status.draft"
 msgstr ""
 
 #. dynamic key family "admin.blog.status." — concrete suffix from src/modules/blog-content/domain/post-status.ts BLOG_CONTENT_STATUSES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/index.astro:259
+#: src/pages/admin/blog/index.astro:264
 msgid "admin.blog.status.published"
 msgstr ""
 
 #. dynamic key family "admin.blog.status." — concrete suffix from src/modules/blog-content/domain/post-status.ts BLOG_CONTENT_STATUSES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/index.astro:259
+#: src/pages/admin/blog/index.astro:264
 msgid "admin.blog.status.review"
 msgstr ""
 
 #. dynamic key family "admin.blog.status." — concrete suffix from src/modules/blog-content/domain/post-status.ts BLOG_CONTENT_STATUSES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/index.astro:259
+#: src/pages/admin/blog/index.astro:264
 msgid "admin.blog.status.scheduled"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:105
+#: src/pages/admin/blog/tags.astro:108
 msgid "admin.blog.tags.actions_column"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:194
+#: src/pages/admin/blog/tags.astro:197
 msgid "admin.blog.tags.create_submit"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:39
+#: src/pages/admin/blog/tags.astro:40
 msgid "admin.blog.tags.create_success"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:174
+#: src/pages/admin/blog/tags.astro:177
 msgid "admin.blog.tags.create_summary"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:161
+#: src/pages/admin/blog/tags.astro:164
 msgid "admin.blog.tags.delete_button"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:43
+#: src/pages/admin/blog/tags.astro:44
 msgid "admin.blog.tags.delete_confirm"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:42
+#: src/pages/admin/blog/tags.astro:43
 msgid "admin.blog.tags.delete_reason_prompt"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:41
+#: src/pages/admin/blog/tags.astro:42
 msgid "admin.blog.tags.delete_success"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:119
+#: src/pages/admin/blog/tags.astro:122
 msgid "admin.blog.tags.edit_summary"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:142
+#: src/pages/admin/blog/tags.astro:145
 msgid "admin.blog.tags.field_description"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:122
+#: src/pages/admin/blog/tags.astro:125
 msgid "admin.blog.tags.field_name"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:132
+#: src/pages/admin/blog/tags.astro:135
 msgid "admin.blog.tags.field_slug"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:102
+#: src/pages/admin/blog/tags.astro:105
 msgid "admin.blog.tags.name_column"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:96
+#: src/pages/admin/blog/tags.astro:99
 msgid "admin.blog.tags.no_tags"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:152
+#: src/pages/admin/blog/tags.astro:155
 msgid "admin.blog.tags.save_button"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:103
+#: src/pages/admin/blog/tags.astro:106
 msgid "admin.blog.tags.slug_column"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:64
+#: src/pages/admin/blog/tags.astro:67
 msgid "admin.blog.tags.title"
 msgstr ""
 
-#: src/pages/admin/blog/tags.astro:40
+#: src/pages/admin/blog/tags.astro:41
 msgid "admin.blog.tags.update_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/index.astro:176
+#: src/pages/admin/blog/posts/index.astro:181
 msgid "admin.blog.taxonomy.category_prefix"
 msgstr ""
 
-#: src/pages/admin/blog/posts/index.astro:179
+#: src/pages/admin/blog/posts/index.astro:184
 msgid "admin.blog.taxonomy.tag_prefix"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:110
+#: src/pages/admin/blog/templates.astro:112
 msgid "admin.blog.templates.actions_column"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:108
+#: src/pages/admin/blog/templates.astro:110
 msgid "admin.blog.templates.active_column"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:106
+#: src/pages/admin/blog/templates.astro:108
 msgid "admin.blog.templates.columns_column"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:248
+#: src/pages/admin/blog/templates.astro:250
 msgid "admin.blog.templates.create_submit"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:38
+#: src/pages/admin/blog/templates.astro:39
 msgid "admin.blog.templates.create_success"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:204
+#: src/pages/admin/blog/templates.astro:206
 msgid "admin.blog.templates.create_summary"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:191
+#: src/pages/admin/blog/templates.astro:193
 msgid "admin.blog.templates.delete_button"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:42
+#: src/pages/admin/blog/templates.astro:43
 msgid "admin.blog.templates.delete_confirm"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:41
+#: src/pages/admin/blog/templates.astro:42
 msgid "admin.blog.templates.delete_reason_prompt"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:40
+#: src/pages/admin/blog/templates.astro:41
 msgid "admin.blog.templates.delete_success"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:130
+#: src/pages/admin/blog/templates.astro:132
 msgid "admin.blog.templates.edit_summary"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:179
+#: src/pages/admin/blog/templates.astro:181
 msgid "admin.blog.templates.field_active"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:143
+#: src/pages/admin/blog/templates.astro:145
 msgid "admin.blog.templates.field_columns"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:207
+#: src/pages/admin/blog/templates.astro:209
 msgid "admin.blog.templates.field_key"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:134
+#: src/pages/admin/blog/templates.astro:136
 msgid "admin.blog.templates.field_name"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:158
+#: src/pages/admin/blog/templates.astro:160
 msgid "admin.blog.templates.field_sidebar"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:104
+#: src/pages/admin/blog/templates.astro:106
 msgid "admin.blog.templates.key_column"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:105
+#: src/pages/admin/blog/templates.astro:107
 msgid "admin.blog.templates.name_column"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:98
+#: src/pages/admin/blog/templates.astro:100
 msgid "admin.blog.templates.no_templates"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:182
+#: src/pages/admin/blog/templates.astro:184
 msgid "admin.blog.templates.save_button"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:107
+#: src/pages/admin/blog/templates.astro:109
 msgid "admin.blog.templates.sidebar_column"
 msgstr ""
 
 #. dynamic key family "admin.blog.templates.sidebar_" — concrete suffix from src/pages/admin/blog/templates.astro inline ["left","right","none"] option list (no exported domain constant — sidebarPosition layout field, not persisted as its own enum type) (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/templates.astro:168
+#: src/pages/admin/blog/templates.astro:170
 msgid "admin.blog.templates.sidebar_left"
 msgstr ""
 
 #. dynamic key family "admin.blog.templates.sidebar_" — concrete suffix from src/pages/admin/blog/templates.astro inline ["left","right","none"] option list (no exported domain constant — sidebarPosition layout field, not persisted as its own enum type) (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/templates.astro:168
+#: src/pages/admin/blog/templates.astro:170
 msgid "admin.blog.templates.sidebar_none"
 msgstr ""
 
 #. dynamic key family "admin.blog.templates.sidebar_" — concrete suffix from src/pages/admin/blog/templates.astro inline ["left","right","none"] option list (no exported domain constant — sidebarPosition layout field, not persisted as its own enum type) (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/templates.astro:168
+#: src/pages/admin/blog/templates.astro:170
 msgid "admin.blog.templates.sidebar_right"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:66
+#: src/pages/admin/blog/templates.astro:68
 msgid "admin.blog.templates.title"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:39
+#: src/pages/admin/blog/templates.astro:40
 msgid "admin.blog.templates.update_success"
 msgstr ""
 
 #. dynamic key family "admin.blog.visibility." — concrete suffix from src/modules/blog-content/domain/post-status.ts BLOG_CONTENT_VISIBILITIES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/pages/[id].astro:250
+#: src/pages/admin/blog/pages/[id].astro:255
 msgid "admin.blog.visibility.private"
 msgstr ""
 
 #. dynamic key family "admin.blog.visibility." — concrete suffix from src/modules/blog-content/domain/post-status.ts BLOG_CONTENT_VISIBILITIES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/pages/[id].astro:250
+#: src/pages/admin/blog/pages/[id].astro:255
 msgid "admin.blog.visibility.public"
 msgstr ""
 
 #. dynamic key family "admin.blog.visibility." — concrete suffix from src/modules/blog-content/domain/post-status.ts BLOG_CONTENT_VISIBILITIES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/pages/[id].astro:250
+#: src/pages/admin/blog/pages/[id].astro:255
 msgid "admin.blog.visibility.unlisted"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:105
+#: src/pages/admin/blog/widgets.astro:110
 msgid "admin.blog.widgets.actions_column"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:103
+#: src/pages/admin/blog/widgets.astro:108
 msgid "admin.blog.widgets.active_column"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:224
+#: src/pages/admin/blog/widgets.astro:229
 msgid "admin.blog.widgets.create_submit"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:37
+#: src/pages/admin/blog/widgets.astro:38
 msgid "admin.blog.widgets.create_success"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:195
+#: src/pages/admin/blog/widgets.astro:200
 msgid "admin.blog.widgets.create_summary"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:182
+#: src/pages/admin/blog/widgets.astro:187
 msgid "admin.blog.widgets.delete_button"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:41
+#: src/pages/admin/blog/widgets.astro:42
 msgid "admin.blog.widgets.delete_confirm"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:40
+#: src/pages/admin/blog/widgets.astro:41
 msgid "admin.blog.widgets.delete_reason_prompt"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:39
+#: src/pages/admin/blog/widgets.astro:40
 msgid "admin.blog.widgets.delete_success"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:124
+#: src/pages/admin/blog/widgets.astro:129
 msgid "admin.blog.widgets.edit_summary"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:170
+#: src/pages/admin/blog/widgets.astro:175
 msgid "admin.blog.widgets.field_active"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:150
+#: src/pages/admin/blog/widgets.astro:155
 msgid "admin.blog.widgets.field_body_text"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:137
+#: src/pages/admin/blog/widgets.astro:142
 msgid "admin.blog.widgets.field_position"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:156
+#: src/pages/admin/blog/widgets.astro:161
 msgid "admin.blog.widgets.field_sort_order"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:128
+#: src/pages/admin/blog/widgets.astro:133
 msgid "admin.blog.widgets.field_title"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:94
+#: src/pages/admin/blog/widgets.astro:99
 msgid "admin.blog.widgets.no_widgets"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:101
+#: src/pages/admin/blog/widgets.astro:106
 msgid "admin.blog.widgets.position_column"
 msgstr ""
 
 #. dynamic key family "admin.blog.widgets.position_" — concrete suffix from src/modules/blog-content/domain/widget-policy.ts WIDGET_POSITIONS (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/widgets.astro:114
+#: src/pages/admin/blog/widgets.astro:119
 msgid "admin.blog.widgets.position_content_after"
 msgstr ""
 
 #. dynamic key family "admin.blog.widgets.position_" — concrete suffix from src/modules/blog-content/domain/widget-policy.ts WIDGET_POSITIONS (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/widgets.astro:114
+#: src/pages/admin/blog/widgets.astro:119
 msgid "admin.blog.widgets.position_content_before"
 msgstr ""
 
 #. dynamic key family "admin.blog.widgets.position_" — concrete suffix from src/modules/blog-content/domain/widget-policy.ts WIDGET_POSITIONS (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/widgets.astro:114
+#: src/pages/admin/blog/widgets.astro:119
 msgid "admin.blog.widgets.position_footer"
 msgstr ""
 
 #. dynamic key family "admin.blog.widgets.position_" — concrete suffix from src/modules/blog-content/domain/widget-policy.ts WIDGET_POSITIONS (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/widgets.astro:114
+#: src/pages/admin/blog/widgets.astro:119
 msgid "admin.blog.widgets.position_header"
 msgstr ""
 
 #. dynamic key family "admin.blog.widgets.position_" — concrete suffix from src/modules/blog-content/domain/widget-policy.ts WIDGET_POSITIONS (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/widgets.astro:114
+#: src/pages/admin/blog/widgets.astro:119
 msgid "admin.blog.widgets.position_sidebar"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:173
+#: src/pages/admin/blog/widgets.astro:178
 msgid "admin.blog.widgets.save_button"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:102
+#: src/pages/admin/blog/widgets.astro:107
 msgid "admin.blog.widgets.sort_order_column"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:62
+#: src/pages/admin/blog/widgets.astro:67
 msgid "admin.blog.widgets.title"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:100
+#: src/pages/admin/blog/widgets.astro:105
 msgid "admin.blog.widgets.title_column"
 msgstr ""
 
-#: src/pages/admin/blog/widgets.astro:38
+#: src/pages/admin/blog/widgets.astro:39
 msgid "admin.blog.widgets.update_success"
 msgstr ""
 
-#: src/pages/admin/index.astro:118
+#: src/pages/admin/index.astro:121
 msgid "admin.dashboard.access_audit_title"
 msgstr ""
 
-#: src/pages/admin/index.astro:81
+#: src/pages/admin/index.astro:84
 msgid "admin.dashboard.access_denied_body"
 msgstr ""
 
-#: src/pages/admin/index.astro:80
+#: src/pages/admin/index.astro:83
 msgid "admin.dashboard.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/index.astro:141
+#: src/pages/admin/index.astro:144
 msgid "admin.dashboard.active_nodes_label"
 msgstr ""
 
-#: src/pages/admin/index.astro:111
+#: src/pages/admin/index.astro:114
 msgid "admin.dashboard.active_offices_label"
 msgstr ""
 
-#: src/pages/admin/index.astro:109
+#: src/pages/admin/index.astro:112
 msgid "admin.dashboard.active_users_label"
 msgstr ""
 
-#: src/pages/admin/index.astro:121
+#: src/pages/admin/index.astro:124
 msgid "admin.dashboard.allow_count_label"
 msgstr ""
 
-#: src/pages/admin/index.astro:168
+#: src/pages/admin/index.astro:171
 msgid "admin.dashboard.count_column"
 msgstr ""
 
-#: src/pages/admin/index.astro:127
+#: src/pages/admin/index.astro:130
 msgid "admin.dashboard.deny_count_label"
 msgstr ""
 
-#: src/pages/admin/index.astro:150
+#: src/pages/admin/index.astro:153
 msgid "admin.dashboard.failed_objects_label"
 msgstr ""
 
-#: src/pages/admin/index.astro:113
+#: src/pages/admin/index.astro:116
 msgid "admin.dashboard.last_login_label"
 msgstr ""
 
-#: src/pages/admin/index.astro:167
+#: src/pages/admin/index.astro:170
 msgid "admin.dashboard.metric_column"
 msgstr ""
 
-#: src/pages/admin/index.astro:166
+#: src/pages/admin/index.astro:169
 msgid "admin.dashboard.module_column"
 msgstr ""
 
-#: src/pages/admin/index.astro:161
+#: src/pages/admin/index.astro:164
 msgid "admin.dashboard.module_usage_title"
 msgstr ""
 
-#: src/pages/admin/index.astro:174
+#: src/pages/admin/index.astro:177
 msgid "admin.dashboard.no_module_usage"
 msgstr ""
 
-#: src/pages/admin/index.astro:146
+#: src/pages/admin/index.astro:149
 msgid "admin.dashboard.open_conflicts_label"
 msgstr ""
 
-#: src/pages/admin/index.astro:148
+#: src/pages/admin/index.astro:151
 msgid "admin.dashboard.pending_objects_label"
 msgstr ""
 
-#: src/pages/admin/index.astro:134
+#: src/pages/admin/index.astro:137
 msgid "admin.dashboard.profile_audit_log_label"
 msgstr ""
 
-#: src/pages/admin/index.astro:155
+#: src/pages/admin/index.astro:158
 msgid "admin.dashboard.status_healthy"
 msgstr ""
 
-#: src/pages/admin/index.astro:152
+#: src/pages/admin/index.astro:155
 msgid "admin.dashboard.status_label"
 msgstr ""
 
-#: src/pages/admin/index.astro:156
+#: src/pages/admin/index.astro:159
 msgid "admin.dashboard.status_needs_attention"
 msgstr ""
 
-#: src/pages/admin/index.astro:139
+#: src/pages/admin/index.astro:142
 msgid "admin.dashboard.sync_health_title"
 msgstr ""
 
-#: src/pages/admin/index.astro:102
+#: src/pages/admin/index.astro:105
 msgid "admin.dashboard.tenant_activity_title"
 msgstr ""
 
-#: src/pages/admin/index.astro:104
+#: src/pages/admin/index.astro:107
 msgid "admin.dashboard.tenant_label"
 msgstr ""
 
-#: src/pages/admin/index.astro:132
+#: src/pages/admin/index.astro:135
 msgid "admin.dashboard.total_decision_log_label"
 msgstr ""
 
@@ -1947,1087 +1947,1087 @@ msgstr ""
 msgid "admin.layout.theme_toggle_aria_label"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:201
+#: src/pages/admin/modules/[moduleKey].astro:203
 msgid "admin.modules.access_denied_body"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:200
+#: src/pages/admin/modules/[moduleKey].astro:202
 msgid "admin.modules.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:246
+#: src/pages/admin/modules/tenants.astro:248
 msgid "admin.modules.actions_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:494
+#: src/pages/admin/modules/[moduleKey].astro:496
 msgid "admin.modules.audit_action_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:486
+#: src/pages/admin/modules/[moduleKey].astro:488
 msgid "admin.modules.audit_legend"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:496
+#: src/pages/admin/modules/[moduleKey].astro:498
 msgid "admin.modules.audit_message_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:495
+#: src/pages/admin/modules/[moduleKey].astro:497
 msgid "admin.modules.audit_severity_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:497
+#: src/pages/admin/modules/[moduleKey].astro:499
 msgid "admin.modules.audit_time_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:222
+#: src/pages/admin/modules/[moduleKey].astro:224
 msgid "admin.modules.back_to_list"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:253
+#: src/pages/admin/modules/[moduleKey].astro:255
 msgid "admin.modules.core_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:260
+#: src/pages/admin/modules/[moduleKey].astro:262
 msgid "admin.modules.dependencies_legend"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:221
+#: src/pages/admin/modules/[moduleKey].astro:223
 msgid "admin.modules.detail_not_found_body"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:220
+#: src/pages/admin/modules/[moduleKey].astro:222
 msgid "admin.modules.detail_not_found_title"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:304
+#: src/pages/admin/modules/[moduleKey].astro:306
 msgid "admin.modules.disable_button"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:60
+#: src/pages/admin/modules/[moduleKey].astro:61
 msgid "admin.modules.disable_reason_prompt"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:59
+#: src/pages/admin/modules/[moduleKey].astro:60
 msgid "admin.modules.disable_success"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:286
+#: src/pages/admin/modules/[moduleKey].astro:288
 msgid "admin.modules.disabled_label"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:297
+#: src/pages/admin/modules/[moduleKey].astro:299
 msgid "admin.modules.enable_button"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:58
+#: src/pages/admin/modules/[moduleKey].astro:59
 msgid "admin.modules.enable_success"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:285
+#: src/pages/admin/modules/[moduleKey].astro:287
 msgid "admin.modules.enabled_label"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:213
+#: src/pages/admin/modules/tenants.astro:215
 msgid "admin.modules.filter_all"
 msgstr ""
 
-#: src/pages/admin/modules.astro:138
+#: src/pages/admin/modules.astro:143
 msgid "admin.modules.filter_health_label"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:220
+#: src/pages/admin/modules/tenants.astro:222
 msgid "admin.modules.filter_status_label"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:211
+#: src/pages/admin/modules/tenants.astro:213
 msgid "admin.modules.filter_type_label"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:208
+#: src/pages/admin/modules/tenants.astro:210
 msgid "admin.modules.filters_aria_label"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:479
+#: src/pages/admin/modules/[moduleKey].astro:481
 msgid "admin.modules.health_check_button"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:63
+#: src/pages/admin/modules/[moduleKey].astro:64
 msgid "admin.modules.health_check_success"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:242
+#: src/pages/admin/modules/tenants.astro:244
 msgid "admin.modules.health_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:444
+#: src/pages/admin/modules/[moduleKey].astro:446
 msgid "admin.modules.health_legend"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:62
+#: src/pages/admin/modules/[moduleKey].astro:63
 msgid "admin.modules.invalid_settings"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:414
+#: src/pages/admin/modules/[moduleKey].astro:416
 msgid "admin.modules.job_command_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:417
+#: src/pages/admin/modules/[moduleKey].astro:419
 msgid "admin.modules.job_offline_lan_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:415
+#: src/pages/admin/modules/[moduleKey].astro:417
 msgid "admin.modules.job_purpose_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:416
+#: src/pages/admin/modules/[moduleKey].astro:418
 msgid "admin.modules.job_schedule_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:406
+#: src/pages/admin/modules/[moduleKey].astro:408
 msgid "admin.modules.jobs_legend"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:325
+#: src/pages/admin/modules/tenants.astro:327
 msgid "admin.modules.matrix_dependency_warning_prefix"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:230
+#: src/pages/admin/modules/tenants.astro:232
 msgid "admin.modules.matrix_filter_warning_label"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:195
+#: src/pages/admin/modules/tenants.astro:197
 msgid "admin.modules.matrix_intro"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:331
+#: src/pages/admin/modules/tenants.astro:333
 msgid "admin.modules.matrix_reverse_dependency_warning_prefix"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:171
+#: src/pages/admin/modules/tenants.astro:173
 msgid "admin.modules.matrix_title"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:238
+#: src/pages/admin/modules/tenants.astro:240
 msgid "admin.modules.module_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:380
+#: src/pages/admin/modules/[moduleKey].astro:382
 msgid "admin.modules.nav_label_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:382
+#: src/pages/admin/modules/[moduleKey].astro:384
 msgid "admin.modules.nav_order_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:381
+#: src/pages/admin/modules/[moduleKey].astro:383
 msgid "admin.modules.nav_path_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:383
+#: src/pages/admin/modules/[moduleKey].astro:385
 msgid "admin.modules.nav_permission_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:372
+#: src/pages/admin/modules/[moduleKey].astro:374
 msgid "admin.modules.navigation_legend"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:488
+#: src/pages/admin/modules/[moduleKey].astro:490
 msgid "admin.modules.no_audit_events"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:262
+#: src/pages/admin/modules/[moduleKey].astro:264
 msgid "admin.modules.no_dependencies"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:408
+#: src/pages/admin/modules/[moduleKey].astro:410
 msgid "admin.modules.no_jobs"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:255
+#: src/pages/admin/modules/tenants.astro:257
 msgid "admin.modules.no_modules"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:374
+#: src/pages/admin/modules/[moduleKey].astro:376
 msgid "admin.modules.no_navigation"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:347
+#: src/pages/admin/modules/[moduleKey].astro:349
 msgid "admin.modules.no_permissions"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:340
+#: src/pages/admin/modules/[moduleKey].astro:342
 msgid "admin.modules.permission_action_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:339
+#: src/pages/admin/modules/[moduleKey].astro:341
 msgid "admin.modules.permission_activity_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:334
+#: src/pages/admin/modules/[moduleKey].astro:336
 msgid "admin.modules.permissions_legend"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:289
+#: src/pages/admin/modules/tenants.astro:291
 msgid "admin.modules.protected_label"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:321
+#: src/pages/admin/modules/[moduleKey].astro:323
 msgid "admin.modules.settings_hint"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:316
+#: src/pages/admin/modules/[moduleKey].astro:318
 msgid "admin.modules.settings_json_label"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:312
+#: src/pages/admin/modules/[moduleKey].astro:314
 msgid "admin.modules.settings_legend"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:325
+#: src/pages/admin/modules/[moduleKey].astro:327
 msgid "admin.modules.settings_save_button"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:61
+#: src/pages/admin/modules/[moduleKey].astro:62
 msgid "admin.modules.settings_save_success"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:454
+#: src/pages/admin/modules/[moduleKey].astro:456
 msgid "admin.modules.signal_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:456
+#: src/pages/admin/modules/[moduleKey].astro:458
 msgid "admin.modules.signal_detail_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:455
+#: src/pages/admin/modules/[moduleKey].astro:457
 msgid "admin.modules.signal_status_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:245
+#: src/pages/admin/modules/[moduleKey].astro:247
 msgid "admin.modules.status_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:276
+#: src/pages/admin/modules/[moduleKey].astro:278
 msgid "admin.modules.tenant_enablement_legend"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:241
+#: src/pages/admin/modules/tenants.astro:243
 msgid "admin.modules.tenant_status_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:249
+#: src/pages/admin/modules/[moduleKey].astro:251
 msgid "admin.modules.type_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:241
+#: src/pages/admin/modules/[moduleKey].astro:243
 msgid "admin.modules.version_column"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:361
+#: src/pages/admin/modules/tenants.astro:363
 msgid "admin.modules.view_detail_link"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:243
+#: src/pages/admin/modules/tenants.astro:245
 msgid "admin.modules.warnings_column"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:100
+#: src/pages/admin/news-portal/homepage-sections.astro:102
 msgid "admin.news_portal.access_denied_body"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:99
+#: src/pages/admin/news-portal/homepage-sections.astro:101
 msgid "admin.news_portal.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:152
+#: src/pages/admin/news-portal/homepage-sections.astro:154
 msgid "admin.news_portal.homepage_sections.config_hint"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:254
+#: src/pages/admin/news-portal/homepage-sections.astro:256
 msgid "admin.news_portal.homepage_sections.create_submit"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:41
+#: src/pages/admin/news-portal/homepage-sections.astro:42
 msgid "admin.news_portal.homepage_sections.create_success"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:209
+#: src/pages/admin/news-portal/homepage-sections.astro:211
 msgid "admin.news_portal.homepage_sections.create_summary"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:199
+#: src/pages/admin/news-portal/homepage-sections.astro:201
 msgid "admin.news_portal.homepage_sections.delete_button"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:47
+#: src/pages/admin/news-portal/homepage-sections.astro:48
 msgid "admin.news_portal.homepage_sections.delete_confirm"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:44
+#: src/pages/admin/news-portal/homepage-sections.astro:45
 msgid "admin.news_portal.homepage_sections.delete_reason_prompt"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:43
+#: src/pages/admin/news-portal/homepage-sections.astro:44
 msgid "admin.news_portal.homepage_sections.delete_success"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:147
+#: src/pages/admin/news-portal/homepage-sections.astro:149
 msgid "admin.news_portal.homepage_sections.field_config"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:186
+#: src/pages/admin/news-portal/homepage-sections.astro:188
 msgid "admin.news_portal.homepage_sections.field_enabled"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:173
+#: src/pages/admin/news-portal/homepage-sections.astro:175
 msgid "admin.news_portal.homepage_sections.field_ends_at"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:213
+#: src/pages/admin/news-portal/homepage-sections.astro:215
 msgid "admin.news_portal.homepage_sections.field_section_key"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:217
+#: src/pages/admin/news-portal/homepage-sections.astro:219
 msgid "admin.news_portal.homepage_sections.field_section_type"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:156
+#: src/pages/admin/news-portal/homepage-sections.astro:158
 msgid "admin.news_portal.homepage_sections.field_sort_order"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:165
+#: src/pages/admin/news-portal/homepage-sections.astro:167
 msgid "admin.news_portal.homepage_sections.field_starts_at"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:139
+#: src/pages/admin/news-portal/homepage-sections.astro:141
 msgid "admin.news_portal.homepage_sections.field_title"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:48
+#: src/pages/admin/news-portal/homepage-sections.astro:49
 msgid "admin.news_portal.homepage_sections.invalid_config_json"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:127
+#: src/pages/admin/news-portal/homepage-sections.astro:129
 msgid "admin.news_portal.homepage_sections.no_sections"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:189
+#: src/pages/admin/news-portal/homepage-sections.astro:191
 msgid "admin.news_portal.homepage_sections.save_button"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:94
+#: src/pages/admin/news-portal/homepage-sections.astro:96
 msgid "admin.news_portal.homepage_sections.title"
 msgstr ""
 
-#: src/pages/admin/news-portal/homepage-sections.astro:42
+#: src/pages/admin/news-portal/homepage-sections.astro:43
 msgid "admin.news_portal.homepage_sections.update_success"
 msgstr ""
 
-#: src/pages/admin/security.astro:194
+#: src/pages/admin/security.astro:199
 msgid "admin.security.access_denied_body"
 msgstr ""
 
-#: src/pages/admin/security.astro:193
+#: src/pages/admin/security.astro:198
 msgid "admin.security.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/security.astro:320
+#: src/pages/admin/security.astro:325
 msgid "admin.security.allowed_email_domains_hint"
 msgstr ""
 
-#: src/pages/admin/security.astro:312
+#: src/pages/admin/security.astro:317
 msgid "admin.security.allowed_email_domains_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:308
+#: src/pages/admin/security.astro:313
 msgid "admin.security.auto_link_verified_email_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:88
+#: src/pages/admin/security.astro:89
 msgid "admin.security.break_glass_client_warning"
 msgstr ""
 
-#: src/pages/admin/security.astro:326
+#: src/pages/admin/security.astro:331
 msgid "admin.security.break_glass_hint"
 msgstr ""
 
-#: src/pages/admin/security.astro:324
+#: src/pages/admin/security.astro:329
 msgid "admin.security.break_glass_legend"
 msgstr ""
 
-#: src/pages/admin/security.astro:353
+#: src/pages/admin/security.astro:358
 msgid "admin.security.break_glass_manual_hint"
 msgstr ""
 
-#: src/pages/admin/security.astro:346
+#: src/pages/admin/security.astro:351
 msgid "admin.security.break_glass_manual_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:463
+#: src/pages/admin/security.astro:468
 msgid "admin.security.client_id_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:584
+#: src/pages/admin/security.astro:589
 msgid "admin.security.client_secret_env_var_hint"
 msgstr ""
 
-#: src/pages/admin/security.astro:480
+#: src/pages/admin/security.astro:485
 msgid "admin.security.client_secret_env_var_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:489
+#: src/pages/admin/security.astro:494
 msgid "admin.security.client_secret_hint"
 msgstr ""
 
-#: src/pages/admin/security.astro:472
+#: src/pages/admin/security.astro:477
 msgid "admin.security.client_secret_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:604
+#: src/pages/admin/security.astro:609
 msgid "admin.security.create_provider_submit"
 msgstr ""
 
-#: src/pages/admin/security.astro:84
+#: src/pages/admin/security.astro:85
 msgid "admin.security.create_provider_success"
 msgstr ""
 
-#: src/pages/admin/security.astro:545
+#: src/pages/admin/security.astro:550
 msgid "admin.security.create_provider_summary"
 msgstr ""
 
-#: src/pages/admin/security.astro:532
+#: src/pages/admin/security.astro:537
 msgid "admin.security.delete_provider_button"
 msgstr ""
 
-#: src/pages/admin/security.astro:87
+#: src/pages/admin/security.astro:88
 msgid "admin.security.delete_provider_prompt"
 msgstr ""
 
-#: src/pages/admin/security.astro:86
+#: src/pages/admin/security.astro:87
 msgid "admin.security.delete_provider_success"
 msgstr ""
 
-#: src/pages/admin/security.astro:445
+#: src/pages/admin/security.astro:450
 msgid "admin.security.display_name_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:438
+#: src/pages/admin/security.astro:443
 msgid "admin.security.edit_provider_summary"
 msgstr ""
 
-#: src/pages/admin/security.astro:518
+#: src/pages/admin/security.astro:523
 msgid "admin.security.enabled_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:171
+#: src/pages/admin/security.astro:176
 msgid "admin.security.feature_configured"
 msgstr ""
 
-#: src/pages/admin/security.astro:172
+#: src/pages/admin/security.astro:177
 msgid "admin.security.feature_not_configured"
 msgstr ""
 
-#: src/pages/admin/security.astro:166
+#: src/pages/admin/security.astro:171
 msgid "admin.security.feature_status_disabled"
 msgstr ""
 
-#: src/pages/admin/security.astro:165
+#: src/pages/admin/security.astro:170
 msgid "admin.security.feature_status_enabled"
 msgstr ""
 
-#: src/pages/admin/security.astro:231
+#: src/pages/admin/security.astro:236
 msgid "admin.security.gate_active_value"
 msgstr ""
 
-#: src/pages/admin/security.astro:184
+#: src/pages/admin/security.astro:189
 msgid "admin.security.gate_disabled_body"
 msgstr ""
 
-#: src/pages/admin/security.astro:183
+#: src/pages/admin/security.astro:188
 msgid "admin.security.gate_disabled_title"
 msgstr ""
 
-#: src/pages/admin/security.astro:232
+#: src/pages/admin/security.astro:237
 msgid "admin.security.gate_inactive_value"
 msgstr ""
 
-#: src/pages/admin/security.astro:224
+#: src/pages/admin/security.astro:229
 msgid "admin.security.gate_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:236
+#: src/pages/admin/security.astro:241
 msgid "admin.security.gate_profile_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:253
+#: src/pages/admin/security.astro:258
 msgid "admin.security.google_login_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:177
+#: src/pages/admin/security.astro:182
 msgid "admin.security.heading"
 msgstr ""
 
-#: src/pages/admin/security.astro:90
+#: src/pages/admin/security.astro:91
 msgid "admin.security.invalid_create_secret_choice"
 msgstr ""
 
-#: src/pages/admin/security.astro:89
+#: src/pages/admin/security.astro:90
 msgid "admin.security.invalid_secret_choice"
 msgstr ""
 
-#: src/pages/admin/security.astro:454
+#: src/pages/admin/security.astro:459
 msgid "admin.security.issuer_url_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:247
+#: src/pages/admin/security.astro:252
 msgid "admin.security.mfa_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:403
+#: src/pages/admin/security.astro:408
 msgid "admin.security.no_providers"
 msgstr ""
 
-#: src/pages/admin/security.astro:278
+#: src/pages/admin/security.astro:283
 msgid "admin.security.password_login_enabled_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:269
+#: src/pages/admin/security.astro:274
 msgid "admin.security.policy_legend"
 msgstr ""
 
-#: src/pages/admin/security.astro:361
+#: src/pages/admin/security.astro:366
 msgid "admin.security.policy_save_button"
 msgstr ""
 
-#: src/pages/admin/security.astro:83
+#: src/pages/admin/security.astro:84
 msgid "admin.security.policy_save_success"
 msgstr ""
 
-#: src/pages/admin/security.astro:430
+#: src/pages/admin/security.astro:435
 msgid "admin.security.provider_disabled_value"
 msgstr ""
 
-#: src/pages/admin/security.astro:429
+#: src/pages/admin/security.astro:434
 msgid "admin.security.provider_enabled_value"
 msgstr ""
 
-#: src/pages/admin/security.astro:557
+#: src/pages/admin/security.astro:562
 msgid "admin.security.provider_key_hint"
 msgstr ""
 
-#: src/pages/admin/security.astro:548
+#: src/pages/admin/security.astro:553
 msgid "admin.security.provider_key_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:372
+#: src/pages/admin/security.astro:377
 msgid "admin.security.providers_legend"
 msgstr ""
 
-#: src/pages/admin/security.astro:390
+#: src/pages/admin/security.astro:395
 msgid "admin.security.providers_table_actions_column"
 msgstr ""
 
-#: src/pages/admin/security.astro:385
+#: src/pages/admin/security.astro:390
 msgid "admin.security.providers_table_domains_column"
 msgstr ""
 
-#: src/pages/admin/security.astro:381
+#: src/pages/admin/security.astro:386
 msgid "admin.security.providers_table_issuer_column"
 msgstr ""
 
-#: src/pages/admin/security.astro:379
+#: src/pages/admin/security.astro:384
 msgid "admin.security.providers_table_key_column"
 msgstr ""
 
-#: src/pages/admin/security.astro:380
+#: src/pages/admin/security.astro:385
 msgid "admin.security.providers_table_name_column"
 msgstr ""
 
-#: src/pages/admin/security.astro:383
+#: src/pages/admin/security.astro:388
 msgid "admin.security.providers_table_scopes_column"
 msgstr ""
 
-#: src/pages/admin/security.astro:382
+#: src/pages/admin/security.astro:387
 msgid "admin.security.providers_table_secret_column"
 msgstr ""
 
-#: src/pages/admin/security.astro:387
+#: src/pages/admin/security.astro:392
 msgid "admin.security.providers_table_status_column"
 msgstr ""
 
-#: src/pages/admin/security.astro:492
+#: src/pages/admin/security.astro:497
 msgid "admin.security.scopes_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:416
+#: src/pages/admin/security.astro:421
 msgid "admin.security.secret_source_encrypted_value"
 msgstr ""
 
-#: src/pages/admin/security.astro:417
+#: src/pages/admin/security.astro:422
 msgid "admin.security.secret_source_env_value"
 msgstr ""
 
-#: src/pages/admin/security.astro:287
+#: src/pages/admin/security.astro:292
 msgid "admin.security.sso_enabled_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:259
+#: src/pages/admin/security.astro:264
 msgid "admin.security.sso_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:299
+#: src/pages/admin/security.astro:304
 msgid "admin.security.sso_required_hint"
 msgstr ""
 
-#: src/pages/admin/security.astro:296
+#: src/pages/admin/security.astro:301
 msgid "admin.security.sso_required_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:222
+#: src/pages/admin/security.astro:227
 msgid "admin.security.status_legend"
 msgstr ""
 
-#: src/pages/admin/security.astro:241
+#: src/pages/admin/security.astro:246
 msgid "admin.security.turnstile_label"
 msgstr ""
 
-#: src/pages/admin/security.astro:521
+#: src/pages/admin/security.astro:526
 msgid "admin.security.update_provider_submit"
 msgstr ""
 
-#: src/pages/admin/security.astro:85
+#: src/pages/admin/security.astro:86
 msgid "admin.security.update_provider_success"
 msgstr ""
 
-#: src/pages/admin/settings.astro:81
+#: src/pages/admin/settings.astro:84
 msgid "admin.settings.access_denied_body"
 msgstr ""
 
-#: src/pages/admin/settings.astro:80
+#: src/pages/admin/settings.astro:83
 msgid "admin.settings.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/settings.astro:131
+#: src/pages/admin/settings.astro:134
 msgid "admin.settings.default_locale_label"
 msgstr ""
 
-#: src/pages/admin/settings.astro:156
+#: src/pages/admin/settings.astro:159
 msgid "admin.settings.default_theme_hint"
 msgstr ""
 
-#: src/pages/admin/settings.astro:144
+#: src/pages/admin/settings.astro:147
 msgid "admin.settings.default_theme_label"
 msgstr ""
 
-#: src/pages/admin/settings.astro:129
+#: src/pages/admin/settings.astro:132
 msgid "admin.settings.display_preferences_legend"
 msgstr ""
 
-#: src/pages/admin/settings.astro:181
+#: src/pages/admin/settings.astro:184
 msgid "admin.settings.feature_flags_hint"
 msgstr ""
 
-#: src/pages/admin/settings.astro:176
+#: src/pages/admin/settings.astro:179
 msgid "admin.settings.feature_flags_json_label"
 msgstr ""
 
-#: src/pages/admin/settings.astro:174
+#: src/pages/admin/settings.astro:177
 msgid "admin.settings.feature_flags_legend"
 msgstr ""
 
-#: src/pages/admin/settings.astro:44
+#: src/pages/admin/settings.astro:45
 msgid "admin.settings.invalid_feature_flags"
 msgstr ""
 
-#: src/pages/admin/settings.astro:119
+#: src/pages/admin/settings.astro:122
 msgid "admin.settings.legal_name_label"
 msgstr ""
 
-#: src/pages/admin/settings.astro:45
+#: src/pages/admin/settings.astro:46
 msgid "admin.settings.save_success"
 msgstr ""
 
-#: src/pages/admin/settings.astro:110
+#: src/pages/admin/settings.astro:113
 msgid "admin.settings.tenant_name_label"
 msgstr ""
 
-#: src/pages/admin/settings.astro:108
+#: src/pages/admin/settings.astro:111
 msgid "admin.settings.tenant_profile_legend"
 msgstr ""
 
-#: src/pages/admin/settings.astro:162
+#: src/pages/admin/settings.astro:165
 msgid "admin.settings.timezone_label"
 msgstr ""
 
-#: src/pages/admin/settings.astro:160
+#: src/pages/admin/settings.astro:163
 msgid "admin.settings.timezone_legend"
 msgstr ""
 
-#: src/pages/admin/sync.astro:140
+#: src/pages/admin/sync.astro:143
 msgid "admin.sync.access_denied_body"
 msgstr ""
 
-#: src/pages/admin/sync.astro:139
+#: src/pages/admin/sync.astro:142
 msgid "admin.sync.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/sync.astro:276
+#: src/pages/admin/sync.astro:279
 msgid "admin.sync.aggregate_column"
 msgstr ""
 
-#: src/pages/admin/sync.astro:278
+#: src/pages/admin/sync.astro:281
 msgid "admin.sync.batch_column"
 msgstr ""
 
-#: src/pages/admin/sync.astro:277
+#: src/pages/admin/sync.astro:280
 msgid "admin.sync.conflict_type_column"
 msgstr ""
 
-#: src/pages/admin/sync.astro:279
+#: src/pages/admin/sync.astro:282
 msgid "admin.sync.created_column"
 msgstr ""
 
-#: src/pages/admin/sync.astro:342
+#: src/pages/admin/sync.astro:345
 msgid "admin.sync.failed_queue_title"
 msgstr ""
 
-#: src/pages/admin/sync.astro:350
+#: src/pages/admin/sync.astro:353
 msgid "admin.sync.last_error_column"
 msgstr ""
 
-#: src/pages/admin/sync.astro:208
+#: src/pages/admin/sync.astro:211
 msgid "admin.sync.last_pulled_column"
 msgstr ""
 
-#: src/pages/admin/sync.astro:207
+#: src/pages/admin/sync.astro:210
 msgid "admin.sync.last_pushed_column"
 msgstr ""
 
-#: src/pages/admin/sync.astro:360
+#: src/pages/admin/sync.astro:363
 msgid "admin.sync.no_failed_objects"
 msgstr ""
 
-#: src/pages/admin/sync.astro:218
+#: src/pages/admin/sync.astro:221
 msgid "admin.sync.no_nodes"
 msgstr ""
 
-#: src/pages/admin/sync.astro:289
+#: src/pages/admin/sync.astro:292
 msgid "admin.sync.no_open_conflicts"
 msgstr ""
 
-#: src/pages/admin/sync.astro:204
+#: src/pages/admin/sync.astro:207
 msgid "admin.sync.node_column"
 msgstr ""
 
-#: src/pages/admin/sync.astro:199
+#: src/pages/admin/sync.astro:202
 msgid "admin.sync.nodes_title"
 msgstr ""
 
-#: src/pages/admin/sync.astro:348
+#: src/pages/admin/sync.astro:351
 msgid "admin.sync.object_key_column"
 msgstr ""
 
-#: src/pages/admin/sync.astro:271
+#: src/pages/admin/sync.astro:274
 msgid "admin.sync.open_conflicts_title"
 msgstr ""
 
-#: src/pages/admin/sync.astro:310
+#: src/pages/admin/sync.astro:313
 msgid "admin.sync.resolution_accept_incoming"
 msgstr ""
 
-#: src/pages/admin/sync.astro:281
+#: src/pages/admin/sync.astro:284
 msgid "admin.sync.resolution_column"
 msgstr ""
 
-#: src/pages/admin/sync.astro:313
+#: src/pages/admin/sync.astro:316
 msgid "admin.sync.resolution_keep_existing"
 msgstr ""
 
-#: src/pages/admin/sync.astro:316
+#: src/pages/admin/sync.astro:319
 msgid "admin.sync.resolution_manual"
 msgstr ""
 
-#: src/pages/admin/sync.astro:322
+#: src/pages/admin/sync.astro:325
 msgid "admin.sync.resolution_note_placeholder"
 msgstr ""
 
-#: src/pages/admin/sync.astro:327
+#: src/pages/admin/sync.astro:330
 msgid "admin.sync.resolve_button"
 msgstr ""
 
-#: src/pages/admin/sync.astro:53
+#: src/pages/admin/sync.astro:54
 msgid "admin.sync.resolve_conflict_success"
 msgstr ""
 
-#: src/pages/admin/sync.astro:379
+#: src/pages/admin/sync.astro:382
 msgid "admin.sync.retry_button"
 msgstr ""
 
-#: src/pages/admin/sync.astro:349
+#: src/pages/admin/sync.astro:352
 msgid "admin.sync.retry_column"
 msgstr ""
 
-#: src/pages/admin/sync.astro:54
+#: src/pages/admin/sync.astro:55
 msgid "admin.sync.retry_object_success"
 msgstr ""
 
-#: src/pages/admin/sync.astro:166
+#: src/pages/admin/sync.astro:169
 msgid "admin.sync.summary_title"
 msgstr ""
 
-#: src/pages/admin/sync.astro:52
+#: src/pages/admin/sync.astro:53
 msgid "admin.sync.update_node_success"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:167
+#: src/pages/admin/tenant/domains.astro:169
 msgid "admin.tenant_domain.access_denied_body"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:166
+#: src/pages/admin/tenant/domains.astro:168
 msgid "admin.tenant_domain.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:203
+#: src/pages/admin/tenant/domains.astro:205
 msgid "admin.tenant_domain.actions_column"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:258
+#: src/pages/admin/tenant/domains.astro:260
 msgid "admin.tenant_domain.copy_button"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:103
+#: src/pages/admin/tenant/domains.astro:104
 msgid "admin.tenant_domain.copy_error"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:102
+#: src/pages/admin/tenant/domains.astro:103
 msgid "admin.tenant_domain.copy_success"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:548
+#: src/pages/admin/tenant/domains.astro:550
 msgid "admin.tenant_domain.create_submit"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:92
+#: src/pages/admin/tenant/domains.astro:93
 msgid "admin.tenant_domain.create_success"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:476
+#: src/pages/admin/tenant/domains.astro:478
 msgid "admin.tenant_domain.create_summary"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:463
+#: src/pages/admin/tenant/domains.astro:465
 msgid "admin.tenant_domain.delete_button"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:98
+#: src/pages/admin/tenant/domains.astro:99
 msgid "admin.tenant_domain.delete_confirm"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:97
+#: src/pages/admin/tenant/domains.astro:98
 msgid "admin.tenant_domain.delete_reason_prompt"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:94
+#: src/pages/admin/tenant/domains.astro:95
 msgid "admin.tenant_domain.delete_success"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.domain_type." — concrete suffix from src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_TYPES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:225
+#: src/pages/admin/tenant/domains.astro:227
 msgid "admin.tenant_domain.domain_type.custom_domain"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.domain_type." — concrete suffix from src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_TYPES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:225
+#: src/pages/admin/tenant/domains.astro:227
 msgid "admin.tenant_domain.domain_type.subdomain"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:324
+#: src/pages/admin/tenant/domains.astro:326
 msgid "admin.tenant_domain.edit_summary"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:331
+#: src/pages/admin/tenant/domains.astro:333
 msgid "admin.tenant_domain.field_domain_type"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:479
+#: src/pages/admin/tenant/domains.astro:481
 msgid "admin.tenant_domain.field_hostname"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:489
+#: src/pages/admin/tenant/domains.astro:491
 msgid "admin.tenant_domain.field_hostname_hint"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:424
+#: src/pages/admin/tenant/domains.astro:426
 msgid "admin.tenant_domain.field_record_name"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:433
+#: src/pages/admin/tenant/domains.astro:435
 msgid "admin.tenant_domain.field_record_value"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:447
+#: src/pages/admin/tenant/domains.astro:449
 msgid "admin.tenant_domain.field_redirect_to_primary"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:346
+#: src/pages/admin/tenant/domains.astro:348
 msgid "admin.tenant_domain.field_route_mode"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:361
+#: src/pages/admin/tenant/domains.astro:363
 msgid "admin.tenant_domain.field_status"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:388
+#: src/pages/admin/tenant/domains.astro:390
 msgid "admin.tenant_domain.field_status_active_hint"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:371
+#: src/pages/admin/tenant/domains.astro:373
 msgid "admin.tenant_domain.field_status_no_change"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:395
+#: src/pages/admin/tenant/domains.astro:397
 msgid "admin.tenant_domain.field_verification_method"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:403
+#: src/pages/admin/tenant/domains.astro:405
 msgid "admin.tenant_domain.field_verification_method_none_option"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:199
+#: src/pages/admin/tenant/domains.astro:201
 msgid "admin.tenant_domain.hostname_column"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:101
+#: src/pages/admin/tenant/domains.astro:102
 msgid "admin.tenant_domain.invalid_hostname"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:193
+#: src/pages/admin/tenant/domains.astro:195
 msgid "admin.tenant_domain.no_domains"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:280
+#: src/pages/admin/tenant/domains.astro:282
 msgid "admin.tenant_domain.no_record_configured"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:316
+#: src/pages/admin/tenant/domains.astro:318
 msgid "admin.tenant_domain.preview_hint"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:318
+#: src/pages/admin/tenant/domains.astro:320
 msgid "admin.tenant_domain.preview_link"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:214
+#: src/pages/admin/tenant/domains.astro:216
 msgid "admin.tenant_domain.primary_badge_label"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:247
+#: src/pages/admin/tenant/domains.astro:249
 msgid "admin.tenant_domain.record_name_label"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:262
+#: src/pages/admin/tenant/domains.astro:264
 msgid "admin.tenant_domain.record_value_label"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.route_mode." — concrete suffix from src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_ROUTE_MODES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:353
+#: src/pages/admin/tenant/domains.astro:355
 msgid "admin.tenant_domain.route_mode.canonical"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.route_mode." — concrete suffix from src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_ROUTE_MODES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:353
+#: src/pages/admin/tenant/domains.astro:355
 msgid "admin.tenant_domain.route_mode.legacy_blog"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:452
+#: src/pages/admin/tenant/domains.astro:454
 msgid "admin.tenant_domain.save_button"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:307
+#: src/pages/admin/tenant/domains.astro:309
 msgid "admin.tenant_domain.set_primary_button"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:100
+#: src/pages/admin/tenant/domains.astro:101
 msgid "admin.tenant_domain.set_primary_confirm"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:96
+#: src/pages/admin/tenant/domains.astro:97
 msgid "admin.tenant_domain.set_primary_success"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.status." — concrete suffix from sql/031_awcms_mini_tenant_domain_schema.sql CHECK (status IN ('pending_verification','active','suspended','failed')); src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_UPDATABLE_STATUSES covers all but 'active' (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:231
+#: src/pages/admin/tenant/domains.astro:233
 msgid "admin.tenant_domain.status.active"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.status." — concrete suffix from sql/031_awcms_mini_tenant_domain_schema.sql CHECK (status IN ('pending_verification','active','suspended','failed')); src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_UPDATABLE_STATUSES covers all but 'active' (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:231
+#: src/pages/admin/tenant/domains.astro:233
 msgid "admin.tenant_domain.status.failed"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.status." — concrete suffix from sql/031_awcms_mini_tenant_domain_schema.sql CHECK (status IN ('pending_verification','active','suspended','failed')); src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_UPDATABLE_STATUSES covers all but 'active' (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:231
+#: src/pages/admin/tenant/domains.astro:233
 msgid "admin.tenant_domain.status.pending_verification"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.status." — concrete suffix from sql/031_awcms_mini_tenant_domain_schema.sql CHECK (status IN ('pending_verification','active','suspended','failed')); src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_UPDATABLE_STATUSES covers all but 'active' (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:231
+#: src/pages/admin/tenant/domains.astro:233
 msgid "admin.tenant_domain.status.suspended"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:201
+#: src/pages/admin/tenant/domains.astro:203
 msgid "admin.tenant_domain.status_column"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:161
+#: src/pages/admin/tenant/domains.astro:163
 msgid "admin.tenant_domain.title"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:200
+#: src/pages/admin/tenant/domains.astro:202
 msgid "admin.tenant_domain.type_column"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:93
+#: src/pages/admin/tenant/domains.astro:94
 msgid "admin.tenant_domain.update_success"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:202
+#: src/pages/admin/tenant/domains.astro:204
 msgid "admin.tenant_domain.verification_column"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.verification_method." — concrete suffix from src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_VERIFICATION_METHODS (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:238
+#: src/pages/admin/tenant/domains.astro:240
 msgid "admin.tenant_domain.verification_method.dns_cname"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.verification_method." — concrete suffix from src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_VERIFICATION_METHODS (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:238
+#: src/pages/admin/tenant/domains.astro:240
 msgid "admin.tenant_domain.verification_method.dns_txt"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.verification_method." — concrete suffix from src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_VERIFICATION_METHODS (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:238
+#: src/pages/admin/tenant/domains.astro:240
 msgid "admin.tenant_domain.verification_method.file"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.verification_method." — concrete suffix from src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_VERIFICATION_METHODS (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:238
+#: src/pages/admin/tenant/domains.astro:240
 msgid "admin.tenant_domain.verification_method.manual"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:287
+#: src/pages/admin/tenant/domains.astro:289
 msgid "admin.tenant_domain.verification_method_none"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:298
+#: src/pages/admin/tenant/domains.astro:300
 msgid "admin.tenant_domain.verify_button"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:99
+#: src/pages/admin/tenant/domains.astro:100
 msgid "admin.tenant_domain.verify_confirm"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:95
+#: src/pages/admin/tenant/domains.astro:96
 msgid "admin.tenant_domain.verify_success"
 msgstr ""
 
@@ -3063,19 +3063,19 @@ msgstr ""
 msgid "common.back"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:150
+#: src/pages/admin/access-users.astro:153
 msgid "common.error_body"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:149
+#: src/pages/admin/access-users.astro:152
 msgid "common.error_title"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:131
+#: src/pages/admin/blog/pages/index.astro:136
 msgid "common.filter_all"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:65
+#: src/pages/admin/access-users.astro:66
 msgid "common.network_error"
 msgstr ""
 
@@ -3083,31 +3083,31 @@ msgstr ""
 msgid "common.next"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:207
+#: src/pages/admin/blog/pages/index.astro:212
 msgid "common.next_page"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:124
+#: src/pages/admin/blog/templates.astro:126
 msgid "common.no"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:66
+#: src/pages/admin/access-users.astro:67
 msgid "common.please_wait"
 msgstr ""
 
-#: src/pages/admin/blog/pages/index.astro:201
+#: src/pages/admin/blog/pages/index.astro:206
 msgid "common.previous_page"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:151
+#: src/pages/admin/access-users.astro:154
 msgid "common.retry"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:200
+#: src/pages/admin/access-users.astro:203
 msgid "common.status_active"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:201
+#: src/pages/admin/access-users.astro:204
 msgid "common.status_inactive"
 msgstr ""
 
@@ -3115,7 +3115,7 @@ msgstr ""
 msgid "common.submit"
 msgstr ""
 
-#: src/pages/admin/blog/templates.astro:124
+#: src/pages/admin/blog/templates.astro:126
 msgid "common.yes"
 msgstr ""
 

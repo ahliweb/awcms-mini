@@ -18,6 +18,7 @@
  * `FORM_DRAFT_DEFAULT_RETENTION_DAYS` (30 days).
  */
 import { getWorkerDatabaseClient } from "../src/lib/database/client";
+import { logScriptFailure } from "../src/lib/logging/error-log";
 import {
   FORM_DRAFT_DEFAULT_RETENTION_DAYS,
   expireOverdueFormDrafts,
@@ -104,9 +105,7 @@ async function main() {
         `tenants=${tenants.length} expired=${totalExpired} purged=${totalPurged}`
     );
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    console.error(`form-drafts:purge FAILED — ${detail}`);
-    process.exitCode = 1;
+    logScriptFailure("form-drafts:purge FAILED", error);
   } finally {
     await sql.close({ timeout: 1 });
   }

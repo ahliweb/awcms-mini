@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
   findSecretShapedValues,
   findSensitiveKeys,
+  redactSecretsInText,
   redactSensitiveAttributes
 } from "../src/modules/_shared/redaction";
 import {
@@ -123,6 +124,75 @@ describe("redactSensitiveAttributes", () => {
       credential: "[REDACTED]"
     });
   });
+
+  // Issue #687 — extending REDACTION_KEYS with "cookie" and an IP-address
+  // synonym set (credentials/tokens/cookies/authorization headers/DSNs/
+  // email/IP per the issue's own acceptance criteria).
+  test("redacts cookie-named keys (substring match, like the other keys above)", () => {
+    expect(
+      redactSensitiveAttributes({
+        cookie: "session=abc123",
+        setCookie: "session=abc123",
+        cookies: ["a", "b"]
+      })
+    ).toEqual({
+      cookie: "[REDACTED]",
+      setCookie: "[REDACTED]",
+      cookies: "[REDACTED]"
+    });
+  });
+
+  test("redacts every real IP-address key shape (exact-match synonyms, not substring)", () => {
+    expect(
+      redactSensitiveAttributes({
+        ip: "203.0.113.5",
+        ipAddress: "203.0.113.5",
+        ip_address: "203.0.113.5",
+        clientIp: "203.0.113.5",
+        client_ip: "203.0.113.5",
+        remoteAddr: "203.0.113.5",
+        remote_address: "203.0.113.5",
+        "x-forwarded-for": "203.0.113.5",
+        xForwardedFor: "203.0.113.5"
+      })
+    ).toEqual({
+      ip: "[REDACTED]",
+      ipAddress: "[REDACTED]",
+      ip_address: "[REDACTED]",
+      clientIp: "[REDACTED]",
+      client_ip: "[REDACTED]",
+      remoteAddr: "[REDACTED]",
+      remote_address: "[REDACTED]",
+      "x-forwarded-for": "[REDACTED]",
+      xForwardedFor: "[REDACTED]"
+    });
+  });
+
+  // Issue #687 — the over-match finding: a plain substring check for "ip"
+  // (mirroring how the other REDACTION_KEYS entries work) would also catch
+  // every key that merely *contains* the letters "ip" consecutively.
+  // Verified before shipping the "ip" addition — these keys must NOT be
+  // redacted, so "ip" is an exact-match synonym allowlist, not a
+  // REDACTION_KEYS substring entry.
+  test("does NOT redact keys that merely contain the substring 'ip' (over-match check)", () => {
+    expect(
+      redactSensitiveAttributes({
+        description: "a package description",
+        shipping: "flat rate",
+        recipient: "Jane Doe",
+        equipment: "POS terminal",
+        membership: "gold tier",
+        principal: "site owner"
+      })
+    ).toEqual({
+      description: "a package description",
+      shipping: "flat rate",
+      recipient: "Jane Doe",
+      equipment: "POS terminal",
+      membership: "gold tier",
+      principal: "site owner"
+    });
+  });
 });
 
 describe("findSensitiveKeys", () => {
@@ -225,6 +295,72 @@ describe("findSecretShapedValues", () => {
         ]
       })
     ).toEqual(["webhooks[1].label"]);
+  });
+});
+
+// Issue #687 — free-text complement to `redactSensitiveAttributes`, used by
+// `src/lib/logging/error-sanitizer.ts` to sanitize a caught exception's own
+// message/stack (unstructured prose, no object key to check by name).
+describe("redactSecretsInText", () => {
+  test("leaves text with no secret-shaped content untouched", () => {
+    expect(redactSecretsInText("connection refused")).toBe(
+      "connection refused"
+    );
+  });
+
+  test("redacts a password=value pair", () => {
+    expect(redactSecretsInText("login failed: password=hunter2")).toBe(
+      "login failed: password=[REDACTED]"
+    );
+  });
+
+  test("redacts a quoted key: value secret pair", () => {
+    expect(redactSecretsInText('config error: apiKey: "abc123"')).toBe(
+      "config error: apiKey: [REDACTED]"
+    );
+  });
+
+  test("redacts an embedded JWT", () => {
+    const jwt =
+      "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dQw4w9WgXcQ_dGVzdF9zaWduYXR1cmU";
+
+    // Deliberately no "token:"/"password:"-shaped prefix immediately before
+    // the JWT here — that's a separate, still-safe overlap case (the
+    // key=value pattern would also match "token: <value>" and win with the
+    // generic `[REDACTED]` tag instead of `[REDACTED_JWT]`; the secret is
+    // still fully redacted either way, only the tag differs).
+    expect(redactSecretsInText(`unexpected value: ${jwt}`)).toBe(
+      "unexpected value: [REDACTED_JWT]"
+    );
+  });
+
+  test("redacts a connection-string credential (DSN)", () => {
+    expect(
+      redactSecretsInText(
+        "could not connect to postgres://appuser:s3cr3t@db.internal:5432/awcms"
+      )
+    ).toBe("could not connect to postgres://[REDACTED]@db.internal:5432/awcms");
+  });
+
+  test("redacts a Bearer authorization header value", () => {
+    expect(
+      redactSecretsInText("request failed — Authorization: Bearer abc.def.ghi")
+    ).toBe("request failed — Authorization: Bearer [REDACTED]");
+  });
+
+  test("redacts a PEM private key block", () => {
+    const pem =
+      "-----BEGIN PRIVATE KEY-----\nMIIBVgIBADANBgkqhkiG9w0BAQ\n-----END PRIVATE KEY-----";
+
+    expect(redactSecretsInText(`key: ${pem}`)).toBe(
+      "key: [REDACTED_PRIVATE_KEY]"
+    );
+  });
+
+  test("redacts an AWS access key id", () => {
+    expect(
+      redactSecretsInText("using key AKIAIOSFODNN7EXAMPLE for upload")
+    ).toBe("using key [REDACTED_AWS_KEY] for upload");
   });
 });
 

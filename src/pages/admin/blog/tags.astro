@@ -16,6 +16,7 @@ import { withTenant } from "../../../lib/database/tenant-context";
 import { permissionKey } from "../../../modules/identity-access/domain/access-control";
 import { listBlogTerms } from "../../../modules/blog-content/application/blog-taxonomy-directory";
 import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
 import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
 
 const context = Astro.locals.ssrContext;
@@ -55,7 +56,9 @@ if (CAN_READ_TAXONOMIES) {
       listBlogTerms(tx, context.tenantId, { taxonomyType: "tag" })
     );
   } catch (error) {
-    console.error("admin/blog/tags.astro: failed to load tags", error);
+    logAdminPageError("admin/blog/tags.astro: failed to load tags", error, {
+      correlationId: Astro.locals.correlationId
+    });
     loadError = true;
   }
 }

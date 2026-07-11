@@ -628,3 +628,98 @@ upload-sessions/*` tetap di tier `default` (128 KiB) karena byte
   jalur presigned R2 (Keputusan kunci #2, skill `awcms-mini-news-portal`)
   sudah lebih dulu memastikan itu; body JSON kecil (kunci objek,
   checksum) di endpoint ini tidak butuh tier lebih besar.
+
+## Standar tambahan dipicu epic platform-hardening (Issue #687, epic #679)
+
+Remediasi NARROW, bukan pengganti fondasi structured-logging/audit-trail
+Issue 10.1/#403/#447 (`src/lib/logging/logger.ts`,
+`src/modules/logging/application/audit-log.ts`). Evidence sebelum issue
+ini: banyak halaman admin Astro (`src/pages/admin/**/*.astro`, 24 file)
+dan script worker (`scripts/*.ts`, termasuk `scripts/api-spec-check.ts`
+yang lolos dari inventarisasi awal) memanggil `console.error(label,
+error)` mentah atau meng-ekstrak `error.message` dengan tangan
+(`error instanceof Error ? error.message : String(error)`) lalu
+mencetaknya langsung — kanal kebocoran yang berbeda dari yang sudah
+ditutup `redactSensitiveAttributes` (yang hanya bekerja pada KEY objek,
+bukan teks bebas seperti pesan exception).
+
+Dua helper baru, satu jalur konsisten menggantikan ~40 titik panggil
+bespoke:
+
+- `logAdminPageError(label, error, context)`
+  (`src/lib/logging/error-log.ts`) — dipakai setiap SSR admin page
+  frontmatter; meneruskan `Astro.locals.correlationId` (sudah tersedia
+  sejak Issue 10.1/#447) sehingga kegagalan tetap correlation-aware,
+  lalu memanggil `log("error", ...)` dengan detail exception yang sudah
+  disanitasi.
+- `logScriptFailure(label, error)` (`src/lib/logging/error-log.ts`) —
+  dipakai setiap `catch` di CLI worker (`scripts/*.ts`); mempertahankan
+  bentuk pesan operator persis sama (`"<script> FAILED — <detail>"`) dan
+  `process.exitCode = 1`, hanya detailnya sekarang sudah disanitasi.
+
+Keduanya dibangun di atas `src/lib/logging/error-sanitizer.ts`:
+`sanitizeErrorForLog` (representasi terstruktur, termasuk rantai
+`.cause` bertingkat, dibatasi 5 level) dan `safeErrorDetail` (ringkasan
+satu baris untuk output CLI) — keduanya memanggil
+`redactSecretsInText` (`src/modules/_shared/redaction.ts`) baru:
+pelengkap teks-bebas dari `redactSensitiveAttributes` yang berbasis
+KEY, untuk pola BENTUK NILAI (JWT, blok PEM private key, AWS access
+key, `Bearer`/`Basic` auth header, connection-string dengan kredensial
+`user:pass@`, dan pasangan `key=value`/`key: value` yang key-nya
+credential-shaped) di dalam `.message`/`.stack` exception itu sendiri.
+
+`REDACTION_KEYS` (redaksi berbasis key object) diperluas dengan
+`"cookie"`. **Temuan penting**: `"ip"` TIDAK bisa masuk daftar itu
+sebagai substring biasa — pengecekan `.includes()` yang sudah ada akan
+ikut meredaksi setiap key yang sekadar MENGANDUNG huruf "ip" berurutan
+(`description`, `shipping`, `recipient`, `equipment`, `membership`
+semuanya cocok). Sebagai gantinya `"ip"` dan sinonim nyatanya
+(`ipAddress`, `ip_address`, `clientIp`, `remoteAddr`,
+`x-forwarded-for`, dst.) masuk allowlist EXACT-MATCH terpisah
+(dibandingkan setelah karakter non-alfanumerik dibuang) — lihat
+`tests/audit-log.test.ts`'s fixture negatif (`description`/`shipping`/
+`recipient` TIDAK boleh ter-redact) sebagai regression guard.
+
+Gate baru `bun run logging:lint:check`
+(`scripts/logging-lint-check.ts`, bagian dari `bun run check`) mencegah
+pola lama muncul kembali di tiga direktori tercakup: (1) ekstraksi
+`instanceof Error`/`String(...)` yang variabelnya lalu mengalir ke
+`console.error`/`console.warn` — sengaja TIDAK melarang pola ekstraksi
+itu sendiri di mana pun (`src/pages/api/v1/**` punya 11 pemakaian sah
+untuk mencocokkan nama constraint DB secara internal, tidak pernah
+dicetak/dikembalikan mentah, yang akan jadi false positive kalau
+dilarang total); (2) panggilan `console.error`/`console.warn` yang
+menerima objek error mentah langsung atau mengakses `.message`/`.stack`
+inline tanpa melalui salah satu fungsi sanitasi yang direview
+(`ALLOWED_SANITIZER_CALLS` di skrip itu).
+
+### Troubleshooting operator-safe
+
+Operator yang membaca output `bun run <script>` atau baris log JSON
+`log()` (stdout, `{"level":"error",...}`) TIDAK PERNAH melihat nilai
+password/token/cookie/authorization header/connection-string/JWT mentah
+— nilai itu sudah diganti `[REDACTED]`/`[REDACTED_JWT]`/
+`[REDACTED_PRIVATE_KEY]`/`[REDACTED_AWS_KEY]` sebelum baris dicetak.
+Kalau pesan error tidak cukup jelas untuk mendiagnosis:
+
+1. **Cari `correlationId`-nya** — setiap baris `log()` dari admin page
+   dan setiap respons `/api/*` membawa `correlationId` yang sama
+   (header `X-Correlation-ID` dan `meta.correlationId`); cocokkan
+   dengan `GET /logs/audit` (skill `awcms-mini-observability`) untuk
+   melihat aksi/aktor yang terkait request yang sama.
+2. **Rantai `.cause` tetap ada, hanya disanitasi per level** —
+   `sanitizeErrorForLog` tidak membuang informasi struktural (error
+   asli -> penyebab -> penyebab lebih dalam), hanya nilai secret-shaped
+   di tiap level yang diganti. Nama file/baris di `.stack` tetap utuh
+   kecuali kebetulan cocok pola secret.
+3. **Detail lengkap TIDAK PERNAH hilang, hanya tidak pernah ada di
+   response HTTP publik** — response API (`fail()`) tidak pernah
+   membawa `error.message`/`error.stack` mentah (diverifikasi tidak ada
+   celah, lihat inventarisasi Issue #687); detail lengkap ada di baris
+   `log()` server-side, yang aksesnya sudah dibatasi ke operator
+   (bukan di kanal yang bisa dilihat client/publik).
+4. **False positive `bun run logging:lint:check`** — kalau menemukan
+   kasus nyata yang tidak bisa ditulis ulang untuk lolos gate ini,
+   tambahkan `"relative/path:line"` ke `LOGGING_LINT_EXEMPTIONS` di
+   `scripts/logging-lint-check.ts` dengan alasan tercatat di komentar,
+   jangan hapus/lemahkan pattern generiknya.

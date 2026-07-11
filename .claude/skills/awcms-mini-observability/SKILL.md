@@ -45,6 +45,10 @@ Base ini generik dan **sengaja tidak** membangun SIEM/alerting/export nyata (doc
 - Sink/hook yang sengaja dibuat melempar error tidak pernah menjatuhkan request/transaksi pemanggil.
 - `LOG_LEVEL` (env) tetap dihormati — `debug` hanya muncul saat `LOG_LEVEL=debug`.
 
+## Caught exception -> log/console — pakai helper, jangan console.error mentah (Issue #687)
+
+`log()` di atas sudah meredaksi `context` object berbasis key (`redactSensitiveAttributes`), tapi TIDAK otomatis membersihkan `.message`/`.stack` sebuah `Error` yang dioper begitu saja sebagai salah satu attribute `context` — teks bebas itu bisa mengandung secret yang lolos dari redaksi berbasis key. Untuk SSR admin page dan CLI worker, jangan panggil `console.error(label, error)` mentah atau meng-ekstrak `error.message` dengan tangan — pakai `logAdminPageError`/`logScriptFailure` (`src/lib/logging/error-log.ts`), yang menjalankan `sanitizeErrorForLog`/`safeErrorDetail` (`src/lib/logging/error-sanitizer.ts`) lebih dulu. `bun run logging:lint:check` (bagian dari `bun run check`) menolak regresi pola lama di `src/pages/admin`, `src/pages/api/v1`, dan `scripts/` — lihat doc 20 §Standar tambahan Issue #687.
+
 ## Skill terkait
 
 `awcms-mini-audit-log` (APA yang wajib diaudit + redaksi), `awcms-mini-integration` (pola dispatcher/outbox untuk I/O eksternal, ADR-0006), `awcms-mini-security-hardening` (batas scope A.8.16 SIEM/monitoring terpusat).
