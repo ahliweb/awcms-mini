@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  checkAppEnvValue,
   checkEmailConfig,
   checkGoogleOidcConfig,
   checkNewsMediaR2AllowedMimeTypesKnown,
@@ -50,6 +51,33 @@ describe("checkRequiredVars", () => {
     const failed = results.find((result) => result.name === "APP_ENV");
 
     expect(failed?.status).toBe("fail");
+  });
+});
+
+describe("checkAppEnvValue (Issue #684 follow-up — security-auditor finding on PR #705)", () => {
+  test("passes for each documented value (doc 18)", () => {
+    for (const value of ["development", "staging", "production"]) {
+      const result = checkAppEnvValue({ ...VALID_ENV, APP_ENV: value });
+      expect(result.status).toBe("pass");
+    }
+  });
+
+  test("fails for a casing variant — a typo that would silently weaken production-only safety checks", () => {
+    const result = checkAppEnvValue({ ...VALID_ENV, APP_ENV: "Production" });
+    expect(result.status).toBe("fail");
+  });
+
+  test("fails for an unknown value", () => {
+    const result = checkAppEnvValue({ ...VALID_ENV, APP_ENV: "prod" });
+    expect(result.status).toBe("fail");
+  });
+
+  test("passes (defers to checkRequiredVars) when APP_ENV is unset, rather than double-reporting", () => {
+    const result = checkAppEnvValue({
+      ...VALID_ENV,
+      APP_ENV: undefined
+    } as NodeJS.ProcessEnv);
+    expect(result.status).toBe("pass");
   });
 });
 

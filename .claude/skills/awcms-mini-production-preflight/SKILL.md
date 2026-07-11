@@ -11,20 +11,44 @@ Ikuti `docs/awcms-mini/07_sprint_testing_production_readiness.md` dan `docs/awcm
 
 ```bash
 bun install
-bun run config:validate
-bun run db:migrate
-bun run api:spec:check
-bun test
-bun run build
-bun run db:pool:health
-bun run security:readiness
 bun run production:preflight
 ```
 
-`bun run production:preflight` (Issue 12.2) runs `config:validate` as its
-first stage, before `db:migrate` — configuration must be valid before
-anything else attempts to connect to a database or run migrations (doc 18
-§Prinsip konfigurasi #5).
+Sejak Issue #684 (epic #679), `bun run production:preflight` (Issue 12.2)
+adalah SATU perintah **read-only** yang menjalankan urutan lengkap sendiri
+— `config:validate` → `security:readiness` → `db:connectivity` (BARU, satu
+`SELECT` memverifikasi koneksi + tabel ledger migrasi) → `api:spec:check`
+→ `test` → `build` → `db:pool:health` (skip bila server belum jalan,
+kecuali `APP_ENV=production` — di situ skip BLOKIR go-live) →
+`migration:plan` (BARU, dry-run: daftar migrasi pending TANPA
+menjalankannya). Tidak ada stage yang menulis ke database. Menjalankan
+command satu-satu secara manual (seperti daftar lama di atas) TIDAK lagi
+direkomendasikan — `bun run db:migrate` secara terpisah TIDAK termasuk
+dalam preflight ini sama sekali; lihat §Menerapkan migrasi di bawah.
+
+### Menerapkan migrasi (langkah terpisah, wajib eksplisit)
+
+`bun run production:preflight` sendiri **tidak pernah** menulis ke
+database — bug lama (Issue #684): `db:migrate` dulu berjalan sebagai
+stage awal tanpa syarat, jadi stage belakangan (spec check/test/build)
+yang gagal tetap meninggalkan database ter-migrasi walau verdict akhirnya
+"GO-LIVE DIBLOKIR". Sekarang menerapkan migrasi butuh flag eksplisit,
+HANYA berjalan bila verdict `GO-LIVE DIIZINKAN` (delapan stage read-only
+di atas semua lulus):
+
+```bash
+APP_ENV=production DATABASE_URL=<production-url> bun run production:preflight \
+  --apply-migrations --backup-verified --acknowledge-target=production
+```
+
+Ketiga flag WAJIB bersamaan (`scripts/production-preflight.ts`'s
+`authorizeApply`, diuji unit test): `--apply-migrations` (niat operator),
+`--backup-verified` (atestasi backup baru yang sudah dibuktikan bisa
+di-restore), `--acknowledge-target=<nilai>` yang harus SAMA PERSIS dengan
+`APP_ENV` (penangkap typo — menjalankan di shell/`.env` yang salah dengan
+`--acknowledge-target` salah menghasilkan penolakan keras, bukan mutasi
+diam-diam ke database yang salah). Prosedur lengkap (rehearsal staging,
+bukti backup, apply, rollback): `docs/awcms-mini/production-preflight-runbook.md`.
 
 ## Checklist go-live
 
@@ -58,7 +82,14 @@ Validasi restore: tenant/user/produk/stok/transaksi terbaca · login test · POS
 Sejak Issue 12.2, kedua command di atas sudah diimplementasikan sebagai
 skrip siap pakai: `deploy/backup/backup-postgres.sh` dan
 `deploy/backup/restore-postgres.sh` (lihat `deploy/backup/README.md`).
+Sejak Issue #684, `--backup-verified` di atas WAJIB berdasarkan bukti
+restore-test nyata dari skrip ini, bukan sekadar backup yang "ada" —
+lihat `docs/awcms-mini/production-preflight-runbook.md`'s §Backup evidence
+untuk urutan lengkap (dump → restore-test → catat evidence).
 
 ## Output
 
 Laporan production readiness: status tiap gate, temuan (severity), rollback plan, keputusan go/no-go. Critical control fail **memblokir** go-live.
+`--json-output=<path>` (opsional, Issue #684) menulis hasil terstruktur
+(`{ go, failedStages, blockingSkips, results, plan, applied }`) ke file — untuk arsip evidence deploy,
+tidak mengubah output stdout default.
