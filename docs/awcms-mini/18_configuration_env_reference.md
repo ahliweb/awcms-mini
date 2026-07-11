@@ -306,10 +306,11 @@ body membaca lewat `readJsonBody`/`readTextBody`/`readFormBody`
 menegakkan `Content-Length` yang dideklarasikan SEBELUM byte apa pun
 dibaca, dan penghitungan byte streaming untuk body chunked/tanpa
 `Content-Length` (declared length tidak pernah dipercaya sendirian).
-Tier: `default` (128 KiB, mayoritas endpoint CRUD/settings/auth),
-`large` (5 MiB, endpoint konten-berat: blog post/page/template/theme,
-email template/announcement, homepage section news-portal, sync
-push/pull). Plafon keras `BODY_SIZE_HARD_CEILING_BYTES` (10 MiB, sama
+Tier: `default` (128 KiB, mayoritas endpoint CRUD/settings/auth — termasuk
+`sync/pull`, body-nya hanya `{ limit? }` kecil), `large` (5 MiB, endpoint
+konten-berat: blog post/page/template/theme, email template/announcement,
+homepage section news-portal, `sync/push`/`sync/objects` batch). Plafon
+keras `BODY_SIZE_HARD_CEILING_BYTES` (10 MiB, sama
 urutan besaran dengan `NEWS_MEDIA_R2_MAX_UPLOAD_BYTES` di atas) — tidak
 ada tier yang boleh melebihinya, ditegakkan tes unit, bukan hanya
 didokumentasikan. Body yang terlalu besar selalu `413

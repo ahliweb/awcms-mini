@@ -203,6 +203,12 @@ describe("bodyTooLargeResponse", () => {
     expect(body.success).toBe(false);
     expect(body.error.code).toBe("PAYLOAD_TOO_LARGE");
   });
+
+  test("sends Connection: close so a keep-alive client doesn't reuse a connection with an undrained body (security-auditor finding, PR #704)", () => {
+    const response = bodyTooLargeResponse(BODY_SIZE_TIER_BYTES.default);
+
+    expect(response.headers.get("connection")).toBe("close");
+  });
 });
 
 describe("checkContentLengthCeiling (middleware backstop)", () => {

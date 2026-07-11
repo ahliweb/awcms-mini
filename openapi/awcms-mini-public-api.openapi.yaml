@@ -12,8 +12,8 @@ info:
     that accepts a body enforces an application-level size cap, independent
     of any reverse-proxy limit — most endpoints allow up to 128 KiB;
     content-heavy endpoints (blog posts/pages/templates/theme, email
-    templates/announcements, news-portal homepage sections, sync
-    push/pull) allow up to 5 MiB. A body over the limit — whether declared
+    templates/announcements, news-portal homepage sections, sync push and
+    object-enqueue batches) allow up to 5 MiB. A body over the limit — whether declared
     via `Content-Length` or discovered while streaming a chunked/
     unlabeled body — is rejected with `413 Payload Too Large` and error
     code `PAYLOAD_TOO_LARGE`, using the same envelope as every other error
@@ -209,6 +209,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/SyncPushResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -256,6 +258,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/sync/status:
@@ -371,6 +375,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/SyncConflictResolveResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -422,6 +428,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/ObjectSyncEnqueueResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -536,6 +544,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiSuccess"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -706,6 +716,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/TenantSettingsResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -778,6 +790,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/SetupInitializeResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "403":
@@ -838,6 +852,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/LoginResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1046,6 +1062,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/MfaEnrollVerifyResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           description: >-
             Validation error, or the code is invalid (`MFA_INVALID_CODE`).
@@ -1111,6 +1129,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/LoginResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1772,6 +1792,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/AuthProviderView"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1877,6 +1899,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/AuthProviderView"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1951,6 +1975,8 @@ paths:
                             format: uuid
                           deleted:
                             type: boolean
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2038,6 +2064,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/TenantAuthPolicyView"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2093,6 +2121,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/ForgotPasswordResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "429":
@@ -2140,6 +2170,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/ResetPasswordResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           description: >-
             Validation error, or the token is invalid/expired/already used
@@ -2219,6 +2251,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/AccessEvaluateResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2257,6 +2291,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/AccessAssignmentResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2304,6 +2340,8 @@ paths:
                         properties:
                           unassigned:
                             type: boolean
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2444,6 +2482,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/CreateUserResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2489,6 +2529,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiSuccess"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2562,6 +2604,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/CreateRoleResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2610,6 +2654,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiSuccess"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2659,6 +2705,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiSuccess"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2895,6 +2943,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/ProfileLifecycleResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3075,6 +3125,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/WorkflowTaskDecisionResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3178,6 +3230,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/FormDraftItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3265,6 +3319,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/FormDraftItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3332,6 +3388,8 @@ paths:
                             format: uuid
                           deleted:
                             type: boolean
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3465,6 +3523,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/EmailTemplateItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3558,6 +3618,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/EmailTemplateItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3622,6 +3684,8 @@ paths:
                             format: uuid
                           deleted:
                             type: boolean
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3727,6 +3791,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/EmailTemplatePreviewResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3772,6 +3838,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/AnnouncementCreateResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -3827,6 +3895,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/AnnouncementPreviewResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -4005,6 +4075,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/SuppressionCreateResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -4515,6 +4587,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/TenantModuleMutationResponse"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -4633,6 +4707,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/ModuleSettingsView"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           description: >-
             Validation failed (see `error.code`: `VALIDATION_ERROR`,
@@ -4725,6 +4801,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/TenantDomainItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -4832,6 +4910,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/TenantDomainItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -4900,6 +4980,8 @@ paths:
                             format: uuid
                           deleted:
                             type: boolean
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -5163,6 +5245,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/BlogPostItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -5268,6 +5352,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/BlogPostItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -5356,6 +5442,8 @@ paths:
                             format: uuid
                           deleted:
                             type: boolean
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -5504,6 +5592,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/BlogPostItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -5950,6 +6040,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/BlogPageItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -6055,6 +6147,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/BlogPageItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -6143,6 +6237,8 @@ paths:
                             format: uuid
                           deleted:
                             type: boolean
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -6223,6 +6319,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/BlogTermItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           description: >-
             Validation error, including a tag with a non-null parentId.
@@ -6280,6 +6378,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/BlogTermItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           description: >-
             Validation error, including a tag with a non-null parentId.
@@ -6355,6 +6455,8 @@ paths:
                             format: uuid
                           deleted:
                             type: boolean
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -6510,6 +6612,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/BlogTemplateItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -6569,6 +6673,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/BlogTemplateItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -6630,6 +6736,8 @@ paths:
                             format: uuid
                           deleted:
                             type: boolean
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -6724,6 +6832,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/BlogMenuItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -6783,6 +6893,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/BlogMenuItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -6844,6 +6956,8 @@ paths:
                             format: uuid
                           deleted:
                             type: boolean
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -6946,6 +7060,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/BlogWidgetItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -7004,6 +7120,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/BlogWidgetItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -7065,6 +7183,8 @@ paths:
                             format: uuid
                           deleted:
                             type: boolean
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -7172,6 +7292,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/BlogAdItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -7240,6 +7362,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/BlogAdItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -7301,6 +7425,8 @@ paths:
                             format: uuid
                           deleted:
                             type: boolean
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -7382,6 +7508,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/BlogThemeSettings"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -7455,6 +7583,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/BlogSettingsView"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -7831,6 +7961,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/ModuleSettingsView"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -7922,6 +8054,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/NewsMediaUploadSessionCreated"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -7986,6 +8120,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/NewsMediaObjectItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -8144,6 +8280,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/HomepageSectionItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -8202,6 +8340,8 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/HomepageSectionItem"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -8269,6 +8409,8 @@ paths:
                             format: uuid
                           deleted:
                             type: boolean
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -8419,6 +8561,16 @@ components:
             $ref: "#/components/schemas/ApiError"
     InternalError:
       description: Internal server error without stack trace.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    PayloadTooLarge:
+      description: >-
+        Request body exceeds the endpoint's size limit (Issue #686, epic
+        #679) — either its declared `Content-Length` or, for a chunked/
+        unlabeled body, the actual streamed byte count. Error code
+        `PAYLOAD_TOO_LARGE`.
       content:
         application/json:
           schema:

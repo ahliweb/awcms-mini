@@ -42,11 +42,12 @@ import { fail } from "../../modules/_shared/api-response";
 export type BodySizeTier = "default" | "large";
 
 /**
- * `default` (128 KiB) covers ordinary CRUD/settings/auth JSON bodies.
+ * `default` (128 KiB) covers ordinary CRUD/settings/auth JSON bodies —
+ * including `sync/pull`, whose body is only an optional `{ limit? }`.
  * `large` (5 MiB) covers content-heavy endpoints (blog post/page/template/
- * theme HTML, email templates, news-portal homepage sections) and batched
- * sync payloads (`sync/push`, `sync/pull`) — sized generously enough for
- * legitimate use without approaching the hard ceiling. Media/upload
+ * theme HTML, email templates, news-portal homepage sections) and the
+ * batched `sync/push`/`sync/objects` payloads — sized generously enough
+ * for legitimate use without approaching the hard ceiling. Media/upload
  * endpoints (`media/news-images/upload-sessions/*`) stay on `default`:
  * they only ever exchange small JSON (object keys, checksums) — the
  * actual image bytes go straight to R2 via a presigned URL, never through
@@ -224,12 +225,28 @@ export async function readFormBody(
   }
 }
 
-/** The standard `413` response for any `tooLarge: true` result above. */
+/**
+ * The standard `413` response for any `tooLarge: true` result above.
+ *
+ * Always sends `Connection: close` — security-auditor review of PR #704
+ * (Issue #686) found that on a real HTTP/1.1 keep-alive connection, an
+ * oversized request's body is abandoned mid-stream (never drained to its
+ * end), which desyncs the connection: Node's HTTP parser then reads the
+ * client's NEXT, unrelated, perfectly valid request as leftover garbage
+ * from the first one and returns it a spurious `400 Bad Request`. This
+ * only reproduces against a real socket (`tests/integration/...` uses an
+ * in-process harness that never touches HTTP framing, so it can't catch
+ * this) — `Connection: close` tells the client to open a fresh connection
+ * instead of reusing this now-desynced one, closing that gap.
+ */
 export function bodyTooLargeResponse(limitBytes: number): Response {
   return fail(
     413,
     "PAYLOAD_TOO_LARGE",
-    `Request body exceeds the maximum allowed size of ${limitBytes} bytes.`
+    `Request body exceeds the maximum allowed size of ${limitBytes} bytes.`,
+    {},
+    undefined,
+    { connection: "close" }
   );
 }
 
