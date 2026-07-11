@@ -226,6 +226,33 @@ export function checkAsyncApi(spec: unknown, file: string): Problem[] {
 }
 
 /**
+ * PR #711 review (Issue #695, epic #679): per the OpenAPI 3.x spec, an
+ * EMPTY security requirement object (`{}`) inside a `security` array means
+ * "this alternative is satisfied with no credentials at all" — since an
+ * operation only needs ONE array element to be satisfied, a `security`
+ * array containing even one `{}` alongside other real requirements is
+ * effectively unauthenticated, identical in practice to `security: []`.
+ * Both `checkPublicOperationAllowlist` (empty-array form) and
+ * `checkOperationSecurityMetadata` (per-scheme validation) need to treat
+ * this the same way `security: []` is treated, or a `security: [{}]`
+ * operation could merge as an undocumented, un-allow-listed public
+ * endpoint without either check flagging it (security-auditor finding,
+ * PR #711 review — confirmed zero such operations exist in the spec
+ * today, but the checkers themselves had this gap).
+ */
+function hasEmptySecurityRequirement(security: unknown): boolean {
+  if (!Array.isArray(security)) return false;
+
+  return security.some((requirement) => {
+    const requirementRecord = asRecord(requirement);
+    return (
+      requirementRecord !== undefined &&
+      Object.keys(requirementRecord).length === 0
+    );
+  });
+}
+
+/**
  * Issue #685 (epic #679): every operation must declare a security stance —
  * either explicit `security: []` (public, requires an entry in
  * `ALLOWED_PUBLIC_OPERATIONS`) or inherit the spec's global `bearerAuth` +
@@ -261,8 +288,9 @@ export function checkPublicOperationAllowlist(
       if (!operation) continue;
 
       if (
-        Array.isArray(operation.security) &&
-        operation.security.length === 0
+        (Array.isArray(operation.security) &&
+          operation.security.length === 0) ||
+        hasEmptySecurityRequirement(operation.security)
       ) {
         actualPublic.add(`${method} ${rawPath}`);
       }
@@ -705,6 +733,16 @@ export function checkOperationSecurityMetadata(
       }
 
       if (!Array.isArray(operation.security)) continue;
+
+      if (
+        hasEmptySecurityRequirement(operation.security) &&
+        !ALLOWED_PUBLIC_OPERATIONS.includes(key as `${string} ${string}`)
+      ) {
+        problems.push({
+          file,
+          message: `${key}: security requirement includes an empty alternative ({}), which OpenAPI treats as "satisfied without credentials" — this operation is effectively public and is not in ALLOWED_PUBLIC_OPERATIONS. Remove the empty requirement, or add an allow-list entry if it is genuinely public.`
+        });
+      }
 
       for (const requirement of operation.security) {
         const requirementRecord = asRecord(requirement);

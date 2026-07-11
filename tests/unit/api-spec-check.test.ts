@@ -91,6 +91,24 @@ describe("checkPublicOperationAllowlist", () => {
 
     expect(checkPublicOperationAllowlist(spec, "spec.yaml")).toEqual([]);
   });
+
+  test("an operation with an empty security requirement ({}) alongside a real one is treated as public (drift fixture, PR #711 review)", () => {
+    // Per OpenAPI 3.x, `security: [{ bearerAuth: [] }, {}]` means "either a
+    // valid bearer token OR no credentials at all" -- the empty alternative
+    // makes the whole operation effectively unauthenticated, identical to
+    // `security: []`. This must be caught the same way a bare `security: []`
+    // is, not silently accepted because the array happens to be non-empty.
+    const spec = specWithAllowListSatisfied({
+      "/api/v1/some/new/route": {
+        get: { security: [{ bearerAuth: [] }, {}] }
+      }
+    });
+
+    const problems = checkPublicOperationAllowlist(spec, "spec.yaml");
+    expect(problems).toHaveLength(1);
+    expect(problems[0]!.message).toContain("GET /api/v1/some/new/route");
+    expect(problems[0]!.message).toContain("not in ALLOWED_PUBLIC_OPERATIONS");
+  });
 });
 
 describe("checkRouteParity", () => {
@@ -530,5 +548,43 @@ describe("checkOperationSecurityMetadata", () => {
     const problems = checkOperationSecurityMetadata(spec, "spec.yaml");
     expect(problems).toHaveLength(1);
     expect(problems[0]!.message).toContain('undefined scheme "bearrAuth"');
+  });
+
+  // Security-auditor finding, PR #711 review: `security: [{}]` (an empty
+  // requirement alongside a real one) is effectively public per OpenAPI 3.x
+  // semantics -- previously neither this check nor
+  // checkPublicOperationAllowlist flagged it, since `.length === 0` is false
+  // and the empty requirement's own key-iteration loop never runs.
+  test("fails when security includes an empty requirement alternative and is not allow-listed (drift fixture)", () => {
+    const spec = {
+      components: { securitySchemes: { bearerAuth: {} } },
+      paths: {
+        "/api/v1/widgets": {
+          get: { security: [{ bearerAuth: [] }, {}] }
+        }
+      }
+    };
+
+    const problems = checkOperationSecurityMetadata(spec, "spec.yaml");
+    expect(problems).toHaveLength(1);
+    expect(problems[0]!.message).toContain("GET /api/v1/widgets");
+    expect(problems[0]!.message).toContain("empty alternative");
+  });
+
+  test("passes when an empty security requirement is allow-listed as public", () => {
+    const [publicMethod, publicPath] = ALLOWED_PUBLIC_OPERATIONS[0]!.split(
+      " "
+    ) as [string, string];
+
+    const spec = {
+      components: { securitySchemes: { bearerAuth: {} } },
+      paths: {
+        [publicPath]: {
+          [publicMethod.toLowerCase()]: { security: [{}] }
+        }
+      }
+    };
+
+    expect(checkOperationSecurityMetadata(spec, "spec.yaml")).toEqual([]);
   });
 });
