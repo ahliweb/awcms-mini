@@ -243,8 +243,12 @@ describe("assertNoDeadDynamicFamilies", () => {
     const allButOne = new Set(
       DYNAMIC_KEY_FAMILIES.slice(1).map((f) => f.prefix)
     );
+    const escapedPrefix = DYNAMIC_KEY_FAMILIES[0]!.prefix.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&"
+    );
     expect(() => assertNoDeadDynamicFamilies(allButOne)).toThrow(
-      new RegExp(DYNAMIC_KEY_FAMILIES[0]!.prefix.replace(/\./g, "\\."))
+      new RegExp(escapedPrefix)
     );
   });
 });
