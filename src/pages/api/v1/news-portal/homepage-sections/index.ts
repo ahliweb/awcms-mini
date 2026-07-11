@@ -8,6 +8,10 @@ import {
   resolveAuthInputs
 } from "../../../../../modules/identity-access/application/access-guard";
 import { hashSessionToken } from "../../../../../lib/auth/session-token";
+import {
+  bodyTooLargeResponse,
+  readJsonBody
+} from "../../../../../lib/security/request-body-limit";
 import { log } from "../../../../../lib/logging/logger";
 import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
 import {
@@ -77,11 +81,16 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
   }
 
-  const body = (await request.json().catch(() => null)) as Record<
-    string,
-    unknown
-  > | null;
+  const bodyRead = await readJsonBody<Record<string, unknown>>(
+    request,
+    "large"
+  );
 
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const body = bodyRead.value;
   const validation = validateCreateHomepageSectionInput(body);
 
   if (!validation.valid) {

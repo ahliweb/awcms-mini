@@ -8,6 +8,10 @@ import {
   resolveAuthInputs
 } from "../../../../../../modules/identity-access/application/access-guard";
 import { hashSessionToken } from "../../../../../../lib/auth/session-token";
+import {
+  bodyTooLargeResponse,
+  readJsonBody
+} from "../../../../../../lib/security/request-body-limit";
 import { recordAuditEvent } from "../../../../../../modules/logging/application/audit-log";
 import {
   createAuthProvider,
@@ -83,9 +87,13 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
   }
 
-  const validation = validateCreateAuthProviderInput(
-    await request.json().catch(() => null)
-  );
+  const bodyRead = await readJsonBody(request);
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const validation = validateCreateAuthProviderInput(bodyRead.value);
 
   if (!validation.valid) {
     return fail(

@@ -564,3 +564,67 @@ PRIVILEGES` yang sudah ada (migration 013) tetap otomatis memberi
   itu tidak menambah keamanan nyata, hanya menambah beban migrasi
   setiap tabel baru. Yang tidak tercakup convenience ini justru 9 tabel
   GLOBAL (non-RLS) — itulah yang dijaga `checkRuntimeRoleGlobalTableGrants`.
+
+## Standar tambahan dipicu epic platform-hardening (Issue #686, epic #679)
+
+Sebelum issue ini, mayoritas handler `/api/*` memanggil `request.json()`/
+`request.text()` langsung, tanpa batas ukuran level aplikasi — batas
+reverse-proxy (bila ada) tidak melindungi akses direct/local (deployment
+offline/LAN tanpa nginx sama sekali, doc 18 §Topologi deployment
+LAN-first), dan tidak ada batas sama sekali untuk body yang mengirim via
+chunked transfer encoding atau membohongi `Content-Length`-nya.
+
+`src/lib/security/request-body-limit.ts`'s `readJsonBody`/`readTextBody`/
+`readFormBody` sekarang menjadi SATU-SATUNYA jalur baca body di seluruh
+`/api/*` (71 titik panggil di 57 file dimigrasi, diverifikasi grep
+menunjukkan nol `request.json()`/`.text()`/`.formData()` langsung
+tersisa) — menegakkan `Content-Length` yang dideklarasikan SEBELUM byte
+apa pun dibaca (short-circuit murah untuk kasus jujur), DAN penghitungan
+byte streaming yang membatalkan baca begitu total terlampaui (menangkap
+body chunked/tanpa `Content-Length`, atau `Content-Length` yang
+berbohong lebih kecil dari byte sesungguhnya — declared length TIDAK
+PERNAH dipercaya sendirian). Dua tier (`default` 128 KiB, `large` 5 MiB)
+plus plafon keras `BODY_SIZE_HARD_CEILING_BYTES` (10 MiB) yang tidak
+boleh dilampaui tier mana pun — ditegakkan tes unit
+(`tests/unit/request-body-limit.test.ts`'s "tier configuration
+invariant"), bukan hanya didokumentasikan, sehingga tier baru yang salah
+ketik nilai besarnya gagal `bun test` sebelum sempat merge.
+
+Sengaja BUKAN diimplementasikan sebagai Astro middleware yang
+me-rewrite/mengganti `context.request` — memanggil `next(request)` di
+middleware Astro memicu `pipeline.tryRewrite` (re-routing sungguhan
+per-request, dimaksudkan untuk internal rewrite gaya i18n, bukan
+transformasi body transparan). Sebagai gantinya, setiap handler memanggil
+fungsi reader secara eksplisit — bentuk yang sama dengan pola pemeriksaan
+keamanan opt-in lain di codebase ini (`checkRateLimit`,
+`enforceTurnstileIfRequired`), dan memungkinkan setiap endpoint memilih
+tier ukurannya sendiri. `checkContentLengthCeiling`
+(`src/middleware.ts`) tetap ada sebagai backstop TERPISAH, murah,
+hanya-global: menolak `Content-Length` yang dideklarasikan melebihi
+plafon keras SEBELUM request menyentuh handler mana pun — defense-in-
+depth untuk endpoint masa depan yang lupa memanggil reader di atas,
+bukan pengganti pemeriksaan per-handler (tidak bisa menangkap body
+chunked/tanpa `Content-Length` sama sekali, karena itu perlu benar-benar
+mengonsumsi stream).
+
+`deploy/nginx/awcms-mini.conf.example`'s `client_max_body_size 10m`
+diselaraskan dengan plafon keras aplikasi yang sama — murni
+defense-in-depth di lapisan proxy opsional, bukan satu-satunya
+perlindungan (banyak deployment LAN-first jalan tanpa nginx sama
+sekali).
+
+### Batasan yang dicatat, bukan diabaikan (platform-hardening — request body limits)
+
+- **Middleware-level backstop tidak unit-testable** — `src/middleware.ts`
+  mengimpor `astro:middleware` (virtual module yang hanya tersedia di
+  dalam pipeline build/dev Astro sendiri), sama batasan yang sudah
+  didokumentasikan untuk `collectRequestAnalytics` (Issue #620). Coverage
+  untuk logika sesungguhnya datang dari `checkContentLengthCeiling`'s
+  tes unit langsung (fungsi murni, bukan wrapper middleware-nya) plus
+  verifikasi manual dev-server + curl.
+- **Endpoint upload/media tidak terpengaruh** — `media/news-images/
+upload-sessions/*` tetap di tier `default` (128 KiB) karena byte
+  gambar sesungguhnya tidak pernah lewat handler Astro sama sekali —
+  jalur presigned R2 (Keputusan kunci #2, skill `awcms-mini-news-portal`)
+  sudah lebih dulu memastikan itu; body JSON kecil (kunci objek,
+  checksum) di endpoint ini tidak butuh tier lebih besar.

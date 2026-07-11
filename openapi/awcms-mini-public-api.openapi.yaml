@@ -6,6 +6,19 @@ info:
     Stable REST contract for the AWCMS-Mini modular monolith base (ADR-0008
     — contract version is independent of the package release version;
     bumped only when the contract shape itself changes).
+
+
+    **Request body size limits** (Issue #686, epic #679): every endpoint
+    that accepts a body enforces an application-level size cap, independent
+    of any reverse-proxy limit — most endpoints allow up to 128 KiB;
+    content-heavy endpoints (blog posts/pages/templates/theme, email
+    templates/announcements, news-portal homepage sections, sync
+    push/pull) allow up to 5 MiB. A body over the limit — whether declared
+    via `Content-Length` or discovered while streaming a chunked/
+    unlabeled body — is rejected with `413 Payload Too Large` and error
+    code `PAYLOAD_TOO_LARGE`, using the same envelope as every other error
+    response in this contract. No endpoint accepts a body larger than
+    10 MiB.
 servers:
   - url: http://localhost:4321
     description: Local development

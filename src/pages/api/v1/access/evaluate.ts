@@ -3,6 +3,10 @@ import { fail, ok } from "../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../lib/database/client";
 import { withTenant } from "../../../../lib/database/tenant-context";
 import { hashSessionToken } from "../../../../lib/auth/session-token";
+import {
+  bodyTooLargeResponse,
+  readJsonBody
+} from "../../../../lib/security/request-body-limit";
 import { extractBearerToken } from "../../../../modules/identity-access/application/session-lookup";
 import {
   fetchGrantedPermissionKeys,
@@ -29,7 +33,13 @@ export const POST: APIRoute = async ({ request }) => {
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
   }
 
-  const body = (await request.json().catch(() => null)) as EvaluateBody | null;
+  const bodyRead = await readJsonBody<EvaluateBody>(request);
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const body = bodyRead.value;
 
   if (
     !body ||

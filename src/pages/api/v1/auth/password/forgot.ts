@@ -7,6 +7,10 @@ import {
   checkRateLimit,
   resolveClientIp
 } from "../../../../../lib/security/rate-limit";
+import {
+  bodyTooLargeResponse,
+  readJsonBody
+} from "../../../../../lib/security/request-body-limit";
 import { enforceTurnstileIfRequired } from "../../../../../lib/security/turnstile";
 import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
 import { requestPasswordReset } from "../../../../../modules/identity-access/application/password-reset";
@@ -63,7 +67,13 @@ export const POST: APIRoute = async ({ request, clientAddress, locals }) => {
     );
   }
 
-  const rawBody = await request.json().catch(() => null);
+  const bodyRead = await readJsonBody(request);
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const rawBody = bodyRead.value;
   const validation = validateForgotIdentifierInput(rawBody);
 
   if (!validation.valid) {

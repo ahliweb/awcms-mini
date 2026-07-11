@@ -3,6 +3,10 @@ import { fail, ok } from "../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../lib/database/client";
 import { withTenant } from "../../../../lib/database/tenant-context";
 import {
+  bodyTooLargeResponse,
+  readTextBody
+} from "../../../../lib/security/request-body-limit";
+import {
   resolveOrRegisterSyncNode,
   verifySyncHeaders
 } from "../../../../modules/sync-storage/application/sync-auth";
@@ -26,7 +30,13 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 
-  const rawBody = await request.text();
+  const bodyRead = await readTextBody(request);
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const rawBody = bodyRead.value;
   const authResult = verifySyncHeaders(
     request.headers.get("x-awcms-mini-timestamp"),
     request.headers.get("x-awcms-mini-signature"),
@@ -37,7 +47,20 @@ export const POST: APIRoute = async ({ request }) => {
     return fail(authResult.status, authResult.code, authResult.message);
   }
 
-  const parsedBody = rawBody.length > 0 ? JSON.parse(rawBody) : {};
+  let parsedBody: { limit?: unknown } = {};
+
+  if (rawBody.length > 0) {
+    try {
+      parsedBody = JSON.parse(rawBody);
+    } catch {
+      return fail(
+        400,
+        "VALIDATION_ERROR",
+        "Sync pull body must be valid JSON."
+      );
+    }
+  }
+
   const requestedLimit = Number(parsedBody?.limit);
   const limit =
     Number.isInteger(requestedLimit) && requestedLimit > 0

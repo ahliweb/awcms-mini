@@ -23,6 +23,23 @@ flowchart LR
    **Rute publik tenant-scoped** (tanpa sesi/header — mis. halaman blog publik, RSS, sitemap) resolve tenant lewat segmen path `tenantCode` (`/<prefix>/{tenantCode}/...`), **bukan** subdomain — lihat ADR-0009 (`docs/adr/0009-public-tenant-scoped-routes.md`) untuk alasan lengkap (subdomain butuh wildcard DNS/TLS, bertentangan dengan topologi LAN-first default). Belum ada implementasi contoh di base ini — Issue #540 (epic #536, `blog_content`) adalah konsumen pertama.
 4. Cek akses dengan `awcms-mini-abac-guard` (default deny).
 5. Validasi semua input (UUID, enum, length, numeric range, unknown field).
+   Baca body lewat `readJsonBody`/`readTextBody`/`readFormBody`
+   (`src/lib/security/request-body-limit.ts`, Issue #686) —
+   **jangan pernah** panggil `request.json()`/`.text()`/`.formData()`
+   langsung, endpoint ini menegakkan batas ukuran body level aplikasi
+   (bukan hanya reverse-proxy). Pola drop-in:
+   ```ts
+   const bodyRead = await readJsonBody<XBody>(
+     request /* , "large" bila konten berat */
+   );
+   if (bodyRead.tooLarge) return bodyTooLargeResponse(bodyRead.limitBytes);
+   const validation = validateXInput(bodyRead.value); // sama seperti sebelumnya
+   ```
+   Tier `default` (128 KiB) untuk mayoritas endpoint; `large` (5 MiB)
+   hanya untuk endpoint konten-berat (HTML/rich content, batch sync).
+   Jangan menambah tier baru tanpa memperbarui plafon keras
+   `BODY_SIZE_HARD_CEILING_BYTES` DAN invariant test-nya
+   (`tests/unit/request-body-limit.test.ts`).
 6. Mutation high-risk → `awcms-mini-idempotency` (`Idempotency-Key`).
 7. Data sensitif keluar lewat mapper (`awcms-mini-sensitive-data`); jangan return row mentah.
 8. DELETE resource deletable berarti soft delete; restore/purge butuh ABAC, audit, OpenAPI, dan idempotency bila high-risk.
@@ -35,7 +52,7 @@ Sukses `{ success:true, data, meta }`; error `{ success:false, error:{ code, mes
 
 ## Error code standar
 
-`VALIDATION_ERROR`(400), `AUTH_REQUIRED`(401), `TOKEN_EXPIRED`(401), `ACCESS_DENIED`(403), `TENANT_REQUIRED`(400), `RESOURCE_NOT_FOUND`(404), `RESOURCE_DELETED`(410), `IDEMPOTENCY_REQUIRED`(400), `IDEMPOTENCY_CONFLICT`(409), `WORKFLOW_APPROVAL_REQUIRED`(409), `STOCK_NOT_AVAILABLE`(409), `SYNC_CONFLICT`(409), `DATABASE_BUSY`(503), `PROVIDER_ERROR`(502), `INTERNAL_ERROR`(500). Jangan expose stack trace.
+`VALIDATION_ERROR`(400), `AUTH_REQUIRED`(401), `TOKEN_EXPIRED`(401), `ACCESS_DENIED`(403), `TENANT_REQUIRED`(400), `RESOURCE_NOT_FOUND`(404), `RESOURCE_DELETED`(410), `IDEMPOTENCY_REQUIRED`(400), `IDEMPOTENCY_CONFLICT`(409), `WORKFLOW_APPROVAL_REQUIRED`(409), `STOCK_NOT_AVAILABLE`(409), `SYNC_CONFLICT`(409), `PAYLOAD_TOO_LARGE`(413), `DATABASE_BUSY`(503), `PROVIDER_ERROR`(502), `INTERNAL_ERROR`(500). Jangan expose stack trace.
 
 ## Header standar
 

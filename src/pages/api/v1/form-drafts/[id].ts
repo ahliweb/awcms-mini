@@ -8,6 +8,10 @@ import {
   resolveAuthInputs
 } from "../../../../modules/identity-access/application/access-guard";
 import { hashSessionToken } from "../../../../lib/auth/session-token";
+import {
+  bodyTooLargeResponse,
+  readJsonBody
+} from "../../../../lib/security/request-body-limit";
 import { recordAuditEvent } from "../../../../modules/logging/application/audit-log";
 import {
   deleteFormDraft,
@@ -101,9 +105,13 @@ export const PATCH: APIRoute = async ({ request, params, cookies }) => {
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
   }
 
-  const validation = validateUpdateFormDraftInput(
-    await request.json().catch(() => null)
-  );
+  const bodyRead = await readJsonBody(request);
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const validation = validateUpdateFormDraftInput(bodyRead.value);
 
   if (!validation.valid) {
     return fail(
@@ -178,7 +186,13 @@ export const DELETE: APIRoute = async ({ request, params, cookies }) => {
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
   }
 
-  const body = await request.json().catch(() => null);
+  const bodyRead = await readJsonBody(request);
+
+  if (bodyRead.tooLarge) {
+    return bodyTooLargeResponse(bodyRead.limitBytes);
+  }
+
+  const body = bodyRead.value;
   const reasonRaw = (body as { reason?: unknown } | null)?.reason;
   const reason =
     typeof reasonRaw === "string" && reasonRaw.trim().length > 0

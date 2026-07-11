@@ -295,6 +295,39 @@ online-only ini (lihat `deployment-profiles.md`).
   kebijakan disimpan" yang tidak bisa dideteksi `saveTenantAuthPolicy`'s
   validasi save-time saja.
 
+### Batas ukuran request body (Issue #686, epic #679, platform-hardening)
+
+Tidak ada env var — batas ini adalah konstanta kode
+(`src/lib/security/request-body-limit.ts`), sengaja tidak dibuat
+configurable agar tidak ada deployment yang bisa diam-diam melonggarkan
+plafon keras tanpa review kode. Setiap handler `/api/*` yang menerima
+body membaca lewat `readJsonBody`/`readTextBody`/`readFormBody`
+(pengganti `request.json()`/`.text()`/`.formData()` langsung) —
+menegakkan `Content-Length` yang dideklarasikan SEBELUM byte apa pun
+dibaca, dan penghitungan byte streaming untuk body chunked/tanpa
+`Content-Length` (declared length tidak pernah dipercaya sendirian).
+Tier: `default` (128 KiB, mayoritas endpoint CRUD/settings/auth),
+`large` (5 MiB, endpoint konten-berat: blog post/page/template/theme,
+email template/announcement, homepage section news-portal, sync
+push/pull). Plafon keras `BODY_SIZE_HARD_CEILING_BYTES` (10 MiB, sama
+urutan besaran dengan `NEWS_MEDIA_R2_MAX_UPLOAD_BYTES` di atas) — tidak
+ada tier yang boleh melebihinya, ditegakkan tes unit, bukan hanya
+didokumentasikan. Body yang terlalu besar selalu `413
+PAYLOAD_TOO_LARGE`, dibedakan dari `400 VALIDATION_ERROR` (JSON tidak
+valid) — endpoint konten-media (`media/news-images/upload-sessions/*`)
+tidak terpengaruh karena byte gambar sesungguhnya lewat jalur presigned
+R2, tidak pernah lewat body handler Astro (Keputusan kunci #2, skill
+`awcms-mini-news-portal`). Backstop tambahan di
+`src/middleware.ts` menolak `Content-Length` yang dideklarasikan
+melebihi plafon keras SEBELUM request menyentuh handler mana pun — lapis
+kedua, bukan pengganti, pengecekan per-handler di atas (tidak bisa
+menangkap body chunked/tanpa `Content-Length`, hanya yang
+dideklarasikan). `deploy/nginx/awcms-mini.conf.example`'s
+`client_max_body_size 10m` diselaraskan dengan plafon keras yang sama
+— defense-in-depth di lapisan proxy, bukan satu-satunya perlindungan
+(doc 18 §Topologi deployment LAN-first: banyak deployment jalan tanpa
+nginx sama sekali).
+
 ### Sync & node
 
 | Var                            | Wajib     | Default          | Sensitif | Fungsi                |
