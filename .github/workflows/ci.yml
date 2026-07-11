@@ -1,5 +1,14 @@
 # CI AWCMS-Mini — kualitas dokumentasi, unit test, & hygiene (Bun-only).
 # Repo saat ini foundation skeleton + tooling; gate build aktif sejak Issue 0.1.
+#
+# Issue #685 (epic #679, platform-hardening): this file previously ran only
+# a SUBSET of `bun run check`'s own steps (lint/docs/typecheck/test/build),
+# silently missing `api:spec:check` and `modules:dag:check` — a contract or
+# module-graph regression could merge to `main` with CI green. Every step
+# below is now named after, and kept in the same order as, the `check`
+# script in package.json — that script stays the single source of truth;
+# this file's `quality` job steps are its CI-orchestrated mirror, not an
+# independent list that can drift from it again.
 name: CI
 
 on:
@@ -17,8 +26,13 @@ permissions:
 
 jobs:
   quality:
-    name: Quality (lint + docs + typecheck + test)
+    name: Quality (lint + docs + contracts + typecheck + test)
     runs-on: ubuntu-latest
+    # Least-required permissions (Issue #685): this job only ever reads the
+    # checkout and writes nothing back to the repo/API — no broader default
+    # inherited beyond the top-level `contents: read`.
+    permissions:
+      contents: read
 
     # PostgreSQL service so the integration suite (tests/integration/**) runs
     # against a real database on every PR. The pure-unit suite skips these
@@ -52,12 +66,27 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: "1.3.14"
+
+      # Issue #685: dependency caching WITHOUT weakening `--frozen-lockfile`
+      # (below) — this only caches Bun's own download cache
+      # (~/.bun/install/cache, keyed on bun.lock's hash), so a cache hit
+      # just skips re-downloading packages already fetched for the exact
+      # same lockfile; `bun install --frozen-lockfile` still runs in full
+      # every time and still fails hard on any lockfile/package.json
+      # mismatch, same as an uncached run.
+      - name: Cache Bun install cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
 
       - name: Assemble DATABASE_URL for the integration DB
         run: echo "DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}" >> "$GITHUB_ENV"
@@ -71,6 +100,15 @@ jobs:
       - name: Docs checks (mermaid, internal links, naming)
         run: bun run check:docs
 
+      - name: API spec + route + AsyncAPI contract check
+        run: bun run api:spec:check
+
+      - name: Module dependency graph check
+        run: bun run modules:dag:check
+
+      - name: i18n EN/ID/POT key parity check
+        run: bun run i18n:parity:check
+
       - name: Typecheck (tsc --noEmit)
         run: bun run typecheck
 
@@ -83,11 +121,222 @@ jobs:
       - name: Build Astro foundation
         run: bun run build
 
+      # Issue #685: concise failure artifact, uploaded only when something
+      # above actually failed. Deliberately narrow (not the whole
+      # workspace/node_modules) and log-only — no .env/DATABASE_URL/secret
+      # material is written to any of these paths by the steps above (the
+      # app's own structured logger never prints DATABASE_URL/secrets, see
+      # src/lib/logging; the throwaway CI Postgres credential is a fixed
+      # non-secret dev default already visible in .env.example, not
+      # rotated/reused anywhere real).
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: quality-failure-diagnostics
+          path: |
+            dist/
+            !dist/**/*.map
+          retention-days: 5
+          if-no-files-found: ignore
+
+  e2e-smoke:
+    name: E2E smoke (Playwright)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      POSTGRES_USER: awcms-mini
+      POSTGRES_PASSWORD: awcms_mini_password
+      POSTGRES_DB: awcms-mini
+
+    # Issue #685 acceptance criterion: "E2E provisions an isolated database
+    # and cleans it safely." A fresh `services.postgres` container is
+    # created and torn down by the runner for THIS job only — never shared
+    # with the `quality` job's own Postgres service, and destroyed
+    # unconditionally when the job ends (GitHub Actions service containers
+    # are ephemeral per-job, not a persistent resource this workflow has to
+    # clean up itself).
+    services:
+      postgres:
+        image: postgres:18.4
+        env:
+          POSTGRES_USER: awcms-mini
+          POSTGRES_PASSWORD: awcms_mini_password
+          POSTGRES_DB: awcms-mini
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U awcms-mini -d awcms-mini"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Cache Bun install cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+
+      - name: Assemble ADMIN_DATABASE_URL for this job's isolated Postgres
+        run: echo "ADMIN_DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Apply migrations (privileged role)
+        run: bun run db:migrate
+        env:
+          DATABASE_URL: ${{ env.ADMIN_DATABASE_URL }}
+
+      # Migration 013 creates `awcms_mini_app` NOLOGIN — mirrors
+      # tests/integration/harness.ts's own provisionAppRole() (same
+      # activate-with-a-throwaway-password pattern) so the running app
+      # connects as the least-privilege role, exactly like production,
+      # instead of the migration superuser.
+      - name: Activate the least-privilege app role's login
+        run: |
+          bun -e '
+            const sql = new Bun.SQL(process.env.ADMIN_DATABASE_URL);
+            await sql.unsafe(
+              `ALTER ROLE awcms_mini_app WITH LOGIN PASSWORD ${"\x27"}${process.env.APP_ROLE_PASSWORD}${"\x27"}`
+            );
+            await sql.end();
+          '
+        env:
+          APP_ROLE_PASSWORD: ci-e2e-app-role-password
+
+      - name: Build Astro foundation
+        run: bun run build
+
+      - name: Install Playwright Chromium (with OS deps)
+        run: bun run test:e2e:install
+
+      - name: Prepare .env for the app server
+        run: cp .env.example .env
+
+      # Two phases, two separate server lifecycles — NOT one server running
+      # both sets of specs. `admin-security-disabled.e2e.ts` and
+      # `admin-security-enabled.e2e.ts` assert opposite renders of the SAME
+      # page gated on `AUTH_ONLINE_SECURITY_ENABLED`/`_PROFILE` (Issue #587),
+      # a boot-time env var this app cannot toggle at runtime — discovered
+      # empirically while wiring this job: running the full suite against
+      # one server instance either way makes exactly one of those two specs
+      # fail, not a bug in the specs themselves. Phase 1 covers every spec
+      # that works against the default (gate-off) config; phase 2 restarts
+      # the server with the gate on for the one spec that needs it.
+      - name: "Phase 1 — start app server (default config, gate off)"
+        run: |
+          nohup bun run start > app-server-phase1.log 2>&1 &
+          echo "APP_SERVER_PID=$!" >> "$GITHUB_ENV"
+        env:
+          DATABASE_URL: "postgres://awcms_mini_app:ci-e2e-app-role-password@localhost:5432/awcms-mini"
+          HOST: "0.0.0.0"
+          PORT: "4321"
+          APP_ENV: production
+          APP_URL: "http://localhost:4321"
+          APP_TIMEZONE: "Asia/Jakarta"
+          AUTH_JWT_SECRET: "ci-e2e-jwt-secret-not-a-real-secret"
+          AUTH_COOKIE_SECURE: "false"
+
+      - name: "Phase 1 — wait for app health check"
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:4321/api/v1/health > /dev/null 2>&1; then
+              echo "App is healthy."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::App did not become healthy in time."
+          cat app-server-phase1.log || true
+          exit 1
+
+      - name: "Phase 1 — run E2E specs (default config)"
+        run: bun run test:e2e --grep-invert "full-online gate enabled"
+        env:
+          E2E_BASE_URL: "http://localhost:4321"
+          E2E_SEED_DATABASE_URL: ${{ env.ADMIN_DATABASE_URL }}
+
+      - name: "Phase 1 — stop app server"
+        if: always()
+        run: kill "$APP_SERVER_PID" 2>/dev/null || true
+
+      - name: "Phase 2 — start app server (full-online security gate on)"
+        run: |
+          nohup bun run start > app-server-phase2.log 2>&1 &
+          echo "APP_SERVER_PID=$!" >> "$GITHUB_ENV"
+        env:
+          DATABASE_URL: "postgres://awcms_mini_app:ci-e2e-app-role-password@localhost:5432/awcms-mini"
+          HOST: "0.0.0.0"
+          PORT: "4321"
+          APP_ENV: production
+          APP_URL: "http://localhost:4321"
+          APP_TIMEZONE: "Asia/Jakarta"
+          AUTH_JWT_SECRET: "ci-e2e-jwt-secret-not-a-real-secret"
+          AUTH_COOKIE_SECURE: "false"
+          AUTH_ONLINE_SECURITY_ENABLED: "true"
+          AUTH_ONLINE_SECURITY_PROFILE: "full_online"
+
+      - name: "Phase 2 — wait for app health check"
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:4321/api/v1/health > /dev/null 2>&1; then
+              echo "App is healthy."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::App did not become healthy in time."
+          cat app-server-phase2.log || true
+          exit 1
+
+      - name: "Phase 2 — run E2E specs (full-online gate enabled)"
+        run: bun run test:e2e tests/e2e/admin-security-enabled.e2e.ts
+        env:
+          E2E_BASE_URL: "http://localhost:4321"
+          E2E_SEED_DATABASE_URL: ${{ env.ADMIN_DATABASE_URL }}
+
+      - name: "Phase 2 — stop app server"
+        if: always()
+        run: kill "$APP_SERVER_PID" 2>/dev/null || true
+
+      # Playwright's own trace/screenshot/video artifacts (retain-on-failure
+      # per playwright.config.ts) plus the app server's own stdout/stderr —
+      # narrow, no .env/secret files included. The one non-placeholder
+      # secret used in this job (AUTH_JWT_SECRET above) is a fixed
+      # CI-only literal, never printed by the app's structured logger, and
+      # not reused anywhere outside this ephemeral job run.
+      - name: Upload E2E failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e2e-failure-diagnostics
+          path: |
+            playwright-report/
+            test-results/
+            app-server-phase1.log
+            app-server-phase2.log
+          retention-days: 5
+          if-no-files-found: ignore
+
   hygiene:
     name: Repo hygiene (Bun-only + no secrets)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: No Node.js tooling in package scripts (Bun-only)
         run: |

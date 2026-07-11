@@ -67,12 +67,25 @@ bun run test:e2e
 ```
 
 `E2E_BASE_URL` override target selain `http://localhost:4321` default
-(`playwright.config.ts`). **Belum** bagian dari `bun run check` atau CI —
-integration test bisa skip otomatis tanpa `DATABASE_URL` (lihat skill
-`awcms-mini-testing`), tapi Playwright tidak punya mekanisme skip-jika-
-server-tidak-jalan bawaan; menaruhnya di `check`/CI tanpa orkestrasi
-server+DB akan selalu gagal, bukan skip bersih. Jalankan manual sampai ada
-issue terpisah untuk mewire CI dengan app+DB yang benar-benar hidup.
+(`playwright.config.ts`). **Sejak Issue #685** (epic #679,
+platform-hardening) sudah jadi job CI tersendiri —
+`.github/workflows/ci.yml`'s `e2e-smoke` — yang mengorkestrasi Postgres
+service terisolasi, `db:migrate`, `bun run build`, `bun run start`, health
+check, lalu `bun run test:e2e` sungguhan (bukan skip-jika-server-tidak-
+jalan, karena CI memang menyediakan server+DB hidup). **Tetap belum**
+bagian dari `bun run check` lokal (`check` tidak boot server/DB sendiri) —
+lokal tetap manual seperti di atas. Job CI-nya berjalan **dua fase**
+(lifecycle server terpisah): fase 1 dengan config default menjalankan
+semua spec KECUALI `admin-security-enabled.e2e.ts`
+(`--grep-invert "full-online gate enabled"`), fase 2 me-restart server
+dengan `AUTH_ONLINE_SECURITY_ENABLED=true`/`AUTH_ONLINE_SECURITY_PROFILE=full_online`
+lalu menjalankan hanya spec itu — ditemukan empiris saat mewire job ini
+bahwa `admin-security-disabled.e2e.ts` dan `admin-security-enabled.e2e.ts`
+menguji render YANG BERTENTANGAN dari halaman yang sama digerbangi env var
+boot-time, jadi tidak bisa jalan terhadap satu instance server yang sama.
+Spec baru yang butuh config server non-default lain (var env baru, dsb.)
+kemungkinan butuh fase ketiga serupa — lihat `ci.yml`'s `e2e-smoke` job
+untuk pola lengkapnya sebelum menambah.
 
 ## Konvensi wajib
 
