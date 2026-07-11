@@ -676,6 +676,8 @@ Doc issue #542 eksplisit: "Do not rebuild the base media library... Integrate wi
 
 **Update Issue #636** (epic `news_portal`, di luar epic #536): paragraf di atas tetap akurat untuk deployment non-R2-only (mayoritas hari ini). Ketika full-online R2-only mode aktif untuk tenant pemanggil, `featuredMediaId` dan item gallery `mediaType: "image"` WAJIB mereferensikan baris `verified`/`attached` di media registry `news_portal` (Issue #633) — item `mediaType: "video"` dan seluruh perilaku non-R2-only tidak berubah. Tetap **bukan** media library baru di `blog_content` — lihat `.claude/skills/awcms-mini-news-portal/SKILL.md` §636 untuk detail lengkap.
 
+**Update Issue #637** (epic `news_portal`): `public-blog-directory.ts`'s `PublicBlogPostSummary` (listing/archive/homepage-composer queries — sebelumnya hanya `PublicBlogPostDetail`, single-post-by-slug, punya `featuredMediaId`) sekarang juga menyertakan `featuredMediaId`, supaya `news_portal`'s homepage section composer bisa menampilkan gambar unggulan post di kartu ringkasan tanpa query terpisah. Tidak ada perubahan skema/validasi `blog_content` sendiri di sini — murni menambah satu kolom ke SELECT yang sudah ada.
+
 ## Settings API (Issue #543)
 
 `GET`/`PATCH /api/v1/blog/settings` (`src/pages/api/v1/blog/settings/index.ts`) — akhirnya mengaktifkan `awcms_mini_blog_settings` (migration 026, satu baris per tenant, `tenant_id` = PK) yang sejak Issue #537 sudah ada di schema tapi tidak punya route. Tidak ada `{id}` di path — sama seperti `PATCH /api/v1/blog/theme`, satu baris per tenant.

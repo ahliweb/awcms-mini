@@ -93,6 +93,8 @@ export type PublicBlogPostSummary = {
   slug: string;
   excerpt: string | null;
   publishedAt: Date;
+  /** Issue #637 — added so homepage section cards can resolve it to a verified R2 media object, same reason #636 added it to `PublicBlogPostDetail`. Not selected by every query below (only where a caller actually renders an image). */
+  featuredMediaId: string | null;
 };
 
 type PublicBlogPostSummaryRow = {
@@ -101,6 +103,7 @@ type PublicBlogPostSummaryRow = {
   slug: string;
   excerpt: string | null;
   published_at: Date;
+  featured_media_id: string | null;
 };
 
 function toSummary(row: PublicBlogPostSummaryRow): PublicBlogPostSummary {
@@ -109,7 +112,8 @@ function toSummary(row: PublicBlogPostSummaryRow): PublicBlogPostSummary {
     title: row.title,
     slug: row.slug,
     excerpt: row.excerpt,
-    publishedAt: row.published_at
+    publishedAt: row.published_at,
+    featuredMediaId: row.featured_media_id
   };
 }
 
@@ -140,7 +144,7 @@ export async function listPublicBlogPosts(
   const offset = (page - 1) * pageSize;
 
   const rows = (await tx`
-    SELECT id, title, slug, excerpt, published_at
+    SELECT id, title, slug, excerpt, published_at, featured_media_id
     FROM awcms_mini_blog_posts
     WHERE tenant_id = ${tenantId}
       AND status = 'published' AND visibility = 'public'
@@ -210,7 +214,7 @@ export async function listPublicBlogPostsByTermId(
   const offset = (page - 1) * pageSize;
 
   const rows = (await tx`
-    SELECT p.id, p.title, p.slug, p.excerpt, p.published_at
+    SELECT p.id, p.title, p.slug, p.excerpt, p.published_at, p.featured_media_id
     FROM awcms_mini_blog_posts p
     JOIN awcms_mini_blog_post_terms pt
       ON pt.post_id = p.id AND pt.tenant_id = p.tenant_id
@@ -227,6 +231,42 @@ export async function listPublicBlogPostsByTermId(
     items: rows.slice(0, pageSize).map(toSummary),
     hasNextPage
   };
+}
+
+/**
+ * Fetches public/published summaries for a curated set of post ids (Issue
+ * #637 — `headline`/`featured_posts`/`editor_picks` homepage sections),
+ * preserving the CALLER's requested order (not `published_at DESC`) since
+ * curation order is editorially meaningful here, unlike the chronological
+ * listing functions above. A stale/unpublished/cross-tenant/soft-deleted
+ * id is silently dropped from the result rather than throwing — same
+ * "degrade, don't 500" convention `resolveVerifiedNewsMediaReferences`
+ * uses for media references.
+ */
+export async function fetchPublicBlogPostSummariesByIds(
+  tx: Bun.SQL,
+  tenantId: string,
+  postIds: readonly string[]
+): Promise<PublicBlogPostSummary[]> {
+  if (postIds.length === 0) {
+    return [];
+  }
+
+  const rows = (await tx`
+    SELECT id, title, slug, excerpt, published_at, featured_media_id
+    FROM awcms_mini_blog_posts
+    WHERE tenant_id = ${tenantId} AND id = ANY(${tx.array([...new Set(postIds)], "uuid")})
+      AND status = 'published' AND visibility = 'public'
+      AND deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= now()
+  `) as PublicBlogPostSummaryRow[];
+
+  const byId = new Map(rows.map((row) => [row.id, toSummary(row)]));
+
+  return postIds
+    .map((id) => byId.get(id))
+    .filter(
+      (summary): summary is PublicBlogPostSummary => summary !== undefined
+    );
 }
 
 const FEED_ITEM_LIMIT = 50;

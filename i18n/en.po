@@ -227,6 +227,12 @@ msgstr "Password login is disabled for this account. Use single sign-on instead.
 msgid "error.news_media_reference_invalid"
 msgstr "One or more images are not verified R2 media objects. Upload the image first and select it from the media library."
 
+msgid "error.homepage_section_reference_invalid"
+msgstr "This section references content that does not exist, does not belong to this tenant, or is not verified yet."
+
+msgid "error.homepage_section_key_conflict"
+msgstr "That section key is already in use."
+
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"
 msgstr "No role"
@@ -1838,6 +1844,76 @@ msgstr "Delete this advertisement?"
 msgid "admin.blog.ads.delete_success"
 msgstr "Advertisement deleted."
 
+#. admin.news_portal.homepage_sections (Issue #637)
+msgid "admin.news_portal.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.news_portal.access_denied_body"
+msgstr "You do not have permission to view this page."
+
+msgid "admin.news_portal.homepage_sections.title"
+msgstr "Homepage Sections"
+
+msgid "admin.news_portal.homepage_sections.no_sections"
+msgstr "No homepage sections yet."
+
+msgid "admin.news_portal.homepage_sections.field_section_key"
+msgstr "Section key"
+
+msgid "admin.news_portal.homepage_sections.field_section_type"
+msgstr "Section type"
+
+msgid "admin.news_portal.homepage_sections.field_title"
+msgstr "Title"
+
+msgid "admin.news_portal.homepage_sections.field_config"
+msgstr "Config (JSON)"
+
+msgid "admin.news_portal.homepage_sections.config_hint"
+msgstr "Shape depends on section type — headline: {postId}; latest_posts: {limit?, categorySlug?}; featured_posts/editor_picks: {postIds: []}; category_grid: {categorySlugs: [], postsPerCategory?}; gallery_block: {mediaObjectIds: [], caption?}. Every id/slug must already exist for this tenant."
+
+msgid "admin.news_portal.homepage_sections.field_sort_order"
+msgstr "Sort order"
+
+msgid "admin.news_portal.homepage_sections.field_enabled"
+msgstr "Enabled"
+
+msgid "admin.news_portal.homepage_sections.field_starts_at"
+msgstr "Starts at"
+
+msgid "admin.news_portal.homepage_sections.field_ends_at"
+msgstr "Ends at"
+
+msgid "admin.news_portal.homepage_sections.invalid_config_json"
+msgstr "Config must be valid JSON."
+
+msgid "admin.news_portal.homepage_sections.save_button"
+msgstr "Save"
+
+msgid "admin.news_portal.homepage_sections.delete_button"
+msgstr "Delete section"
+
+msgid "admin.news_portal.homepage_sections.create_summary"
+msgstr "Add homepage section"
+
+msgid "admin.news_portal.homepage_sections.create_submit"
+msgstr "Create section"
+
+msgid "admin.news_portal.homepage_sections.create_success"
+msgstr "Homepage section created."
+
+msgid "admin.news_portal.homepage_sections.update_success"
+msgstr "Homepage section updated."
+
+msgid "admin.news_portal.homepage_sections.delete_reason_prompt"
+msgstr "Reason for deleting this homepage section:"
+
+msgid "admin.news_portal.homepage_sections.delete_confirm"
+msgstr "Delete this homepage section?"
+
+msgid "admin.news_portal.homepage_sections.delete_success"
+msgstr "Homepage section deleted."
+
 #. admin.tenant_domain (Issue #563)
 msgid "admin.tenant_domain.title"
 msgstr "Tenant Domains"
@@ -2232,6 +2308,10 @@ msgstr "Provide exactly one of client secret value or environment variable name.
 #. admin.layout.nav_visitor_analytics (Issue #617/#622, epic: visitor analytics #617-#624)
 msgid "admin.layout.nav_visitor_analytics"
 msgstr "Visitor Analytics"
+
+#. admin.layout.nav_news_portal_homepage_sections (Issue #637, epic: news_portal #631-#642/#649)
+msgid "admin.layout.nav_news_portal_homepage_sections"
+msgstr "Homepage Sections"
 
 #. admin.analytics (Issue #622, epic: visitor analytics #617-#624) — /admin/analytics dashboard
 msgid "admin.analytics.heading"

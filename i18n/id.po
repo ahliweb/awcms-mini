@@ -227,6 +227,12 @@ msgstr "Login password dinonaktifkan untuk akun ini. Gunakan single sign-on."
 msgid "error.news_media_reference_invalid"
 msgstr "Satu atau lebih gambar bukan objek media R2 yang terverifikasi. Unggah gambar terlebih dahulu lalu pilih dari pustaka media."
 
+msgid "error.homepage_section_reference_invalid"
+msgstr "Section ini merujuk konten yang tidak ada, bukan milik tenant ini, atau belum terverifikasi."
+
+msgid "error.homepage_section_key_conflict"
+msgstr "Section key tersebut sudah dipakai."
+
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"
 msgstr "Tanpa role"
@@ -1838,6 +1844,76 @@ msgstr "Hapus iklan ini?"
 msgid "admin.blog.ads.delete_success"
 msgstr "Iklan berhasil dihapus."
 
+#. admin.news_portal.homepage_sections (Issue #637)
+msgid "admin.news_portal.access_denied_title"
+msgstr "Akses ditolak"
+
+msgid "admin.news_portal.access_denied_body"
+msgstr "Anda tidak memiliki izin untuk melihat halaman ini."
+
+msgid "admin.news_portal.homepage_sections.title"
+msgstr "Section Homepage"
+
+msgid "admin.news_portal.homepage_sections.no_sections"
+msgstr "Belum ada section homepage."
+
+msgid "admin.news_portal.homepage_sections.field_section_key"
+msgstr "Section key"
+
+msgid "admin.news_portal.homepage_sections.field_section_type"
+msgstr "Tipe section"
+
+msgid "admin.news_portal.homepage_sections.field_title"
+msgstr "Judul"
+
+msgid "admin.news_portal.homepage_sections.field_config"
+msgstr "Config (JSON)"
+
+msgid "admin.news_portal.homepage_sections.config_hint"
+msgstr "Bentuknya tergantung tipe section — headline: {postId}; latest_posts: {limit?, categorySlug?}; featured_posts/editor_picks: {postIds: []}; category_grid: {categorySlugs: [], postsPerCategory?}; gallery_block: {mediaObjectIds: [], caption?}. Semua id/slug harus sudah ada untuk tenant ini."
+
+msgid "admin.news_portal.homepage_sections.field_sort_order"
+msgstr "Urutan"
+
+msgid "admin.news_portal.homepage_sections.field_enabled"
+msgstr "Aktif"
+
+msgid "admin.news_portal.homepage_sections.field_starts_at"
+msgstr "Mulai pada"
+
+msgid "admin.news_portal.homepage_sections.field_ends_at"
+msgstr "Berakhir pada"
+
+msgid "admin.news_portal.homepage_sections.invalid_config_json"
+msgstr "Config harus berupa JSON yang valid."
+
+msgid "admin.news_portal.homepage_sections.save_button"
+msgstr "Simpan"
+
+msgid "admin.news_portal.homepage_sections.delete_button"
+msgstr "Hapus section"
+
+msgid "admin.news_portal.homepage_sections.create_summary"
+msgstr "Tambah section homepage"
+
+msgid "admin.news_portal.homepage_sections.create_submit"
+msgstr "Buat section"
+
+msgid "admin.news_portal.homepage_sections.create_success"
+msgstr "Section homepage berhasil dibuat."
+
+msgid "admin.news_portal.homepage_sections.update_success"
+msgstr "Section homepage berhasil diperbarui."
+
+msgid "admin.news_portal.homepage_sections.delete_reason_prompt"
+msgstr "Alasan menghapus section homepage ini:"
+
+msgid "admin.news_portal.homepage_sections.delete_confirm"
+msgstr "Hapus section homepage ini?"
+
+msgid "admin.news_portal.homepage_sections.delete_success"
+msgstr "Section homepage berhasil dihapus."
+
 #. admin.tenant_domain (Issue #563)
 msgid "admin.tenant_domain.title"
 msgstr "Domain Tenant"
@@ -2232,6 +2308,10 @@ msgstr "Isi tepat salah satu: nilai client secret atau nama environment variable
 #. admin.layout.nav_visitor_analytics (Issue #617/#622, epic: visitor analytics #617-#624)
 msgid "admin.layout.nav_visitor_analytics"
 msgstr "Analitik Pengunjung"
+
+#. admin.layout.nav_news_portal_homepage_sections (Issue #637, epic: news_portal #631-#642/#649)
+msgid "admin.layout.nav_news_portal_homepage_sections"
+msgstr "Section Homepage"
 
 #. admin.analytics (Issue #622, epic: visitor analytics #617-#624) — dashboard /admin/analytics
 msgid "admin.analytics.heading"
