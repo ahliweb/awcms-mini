@@ -267,6 +267,14 @@ Piramida: banyak unit test di dasar, sedikit end-to-end di puncak; security & pe
 - POS transaction test.
 - Backup baru dibuat.
 
+Sejak Issue #684 (epic #679): `bun run production:preflight` sendiri
+**read-only** (config/security/connectivity/spec/test/build/pool-health/
+migration-plan — tidak ada stage yang menulis). Menerapkan migrasi adalah
+langkah terpisah dan eksplisit (`--apply-migrations --backup-verified
+--acknowledge-target=<APP_ENV>`), hanya berjalan bila verdict preflight
+`GO-LIVE DIIZINKAN`. Prosedur rehearsal staging → bukti backup → apply →
+rollback lengkap: `docs/awcms-mini/production-preflight-runbook.md`.
+
 ## Legacy migration checklist
 
 - Backup legacy tersedia.
@@ -284,9 +292,12 @@ Piramida: banyak unit test di dasar, sedikit end-to-end di puncak; security & pe
 ### Application
 
 - Build pass.
-- Migration pass.
+- Migration pass (`migration:plan` stage bersih, dan apply — langkah
+  terpisah, lihat §Migration checklist di atas — berhasil).
 - API spec valid.
-- Production preflight pass.
+- Production preflight pass (`bun run production:preflight`, read-only
+  sejak Issue #684; `APP_ENV=production` memblokir go-live bila
+  `db:pool:health` skip).
 - Setup wizard locked.
 - Role default tersedia.
 - ABAC default deny tested.
