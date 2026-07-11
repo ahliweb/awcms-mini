@@ -12,7 +12,7 @@
  * No-op (claims nothing, exits 0) when `EMAIL_ENABLED` is not `"true"` —
  * see `dispatchEmailQueue`'s own early return.
  */
-import { getDatabaseClient } from "../src/lib/database/client";
+import { getWorkerDatabaseClient } from "../src/lib/database/client";
 import { dispatchEmailQueue } from "../src/modules/email/application/email-dispatch";
 
 const MAX_PASSES_PER_TENANT = 20;
@@ -20,7 +20,8 @@ const MAX_PASSES_PER_TENANT = 20;
 type TenantRow = { id: string };
 
 async function main() {
-  const sql = getDatabaseClient();
+  // Issue #683 (epic #679): `awcms_mini_worker` role — see migration 045.
+  const sql = getWorkerDatabaseClient();
   const correlationId = crypto.randomUUID();
 
   try {

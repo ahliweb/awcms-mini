@@ -8,13 +8,14 @@
  * tenant via `publishDueScheduledPosts`. Idempotent: a post already
  * published or still in the future simply doesn't match on a re-run.
  */
-import { getDatabaseClient } from "../src/lib/database/client";
+import { getWorkerDatabaseClient } from "../src/lib/database/client";
 import { publishDueScheduledPosts } from "../src/modules/blog-content/application/blog-scheduled-publish";
 
 type TenantRow = { id: string };
 
 async function main() {
-  const sql = getDatabaseClient();
+  // Issue #683 (epic #679): `awcms_mini_worker` role — see migration 045.
+  const sql = getWorkerDatabaseClient();
   const correlationId = crypto.randomUUID();
   const now = new Date();
 

@@ -19,6 +19,18 @@ Skema ada di `sql/002_awcms_mini_tenant_office_schema.sql`. Lihat `docs/awcms-mi
 
 Skema ada di `sql/006_awcms_mini_setup_wizard_schema.sql`.
 
+Sejak Issue #683 (epic #679), route ini connect ke database lewat
+`getSetupDatabaseClient()` — role Postgres khusus `awcms_mini_setup`
+(`SETUP_DATABASE_URL`, opsional, fallback ke `DATABASE_URL`/role
+`awcms_mini_app` bila tidak di-set), BUKAN `getDatabaseClient()` seperti
+sebelumnya. Defense-in-depth di atas kunci singleton `awcms_mini_setup_state`
+yang sudah ada — bila kredensial `awcms_mini_app` yang melayani request
+biasa suatu saat bocor, penyerang tetap tidak bisa membuat tenant nakal
+lewat endpoint ini (butuh kredensial `awcms_mini_setup` yang terpisah).
+Lihat `sql/045_awcms_mini_db_role_separation.sql`'s header untuk matriks
+grant lengkap dan `docs/awcms-mini/18_configuration_env_reference.md`
+§Model role database untuk penjelasan keempat role.
+
 ## Domain logic
 
 `domain/setup-validation.ts` — `validateSetupInitializeInput` (pure, murni): memvalidasi field wajib non-kosong dan panjang minimum password (kebijakan generik, 8 karakter — "Password wajib memenuhi policy" doc 03). Tidak memvalidasi format `tenantCode`/`officeCode` lebih jauh; keunikan ditegakkan oleh constraint database.

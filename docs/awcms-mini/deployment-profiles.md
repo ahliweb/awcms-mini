@@ -445,6 +445,17 @@ Membuat peran aplikasi:
   (URL superuser). Setelah itu app konek sebagai `awcms_mini_app`
   (`DATABASE_URL` di `.env`). Lihat `.env.example` §Database.
 
+Sejak Issue #683 (epic #679), migrasi 045 menambah DUA peran OPSIONAL di
+atas fondasi dua-peran ini — `awcms_mini_worker` (7 script background,
+`WORKER_DATABASE_URL`) dan `awcms_mini_setup` (hanya
+`POST /api/v1/setup/initialize`, `SETUP_DATABASE_URL`) — keduanya
+fallback ke `DATABASE_URL`/`awcms_mini_app` bila tidak di-set, jadi
+model dua-peran di atas tetap fondasi minimum yang wajib; dua peran
+tambahan ini murni defense-in-depth opsional. Lihat
+`docs/awcms-mini/18_configuration_env_reference.md` §Model role database
+dan `sql/045_awcms_mini_db_role_separation.sql`'s header untuk detail
+lengkap.
+
 ## Validasi konfigurasi sebelum boot (`bun run config:validate`)
 
 Doc 18 §Prinsip konfigurasi #5: "Konfigurasi tervalidasi saat boot; nilai

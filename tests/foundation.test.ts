@@ -259,7 +259,8 @@ describe("database migration runner helpers", () => {
       "041_awcms_mini_news_media_object_registry_schema.sql",
       "042_awcms_mini_news_media_permissions.sql",
       "043_awcms_mini_news_portal_tenant_state_schema.sql",
-      "044_awcms_mini_news_portal_homepage_sections_schema.sql"
+      "044_awcms_mini_news_portal_homepage_sections_schema.sql",
+      "045_awcms_mini_db_role_separation.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
@@ -294,6 +295,90 @@ describe("database migration runner helpers", () => {
     expect(rlsSchema?.sql).toContain(
       "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO awcms_mini_app"
     );
+  });
+
+  test("DB role separation migration creates worker/setup roles, narrows the app role on global tables, and never leaks a password", async () => {
+    const migrations = await discoverMigrationFiles();
+    const roleSeparation = migrations.find(
+      (migration) => migration.name === "045_awcms_mini_db_role_separation.sql"
+    );
+
+    expect(roleSeparation).toBeDefined();
+    const sql = roleSeparation?.sql ?? "";
+
+    // Two new roles, both NOLOGIN/passwordless (mirrors migration 013's app role).
+    expect(sql).toContain("CREATE ROLE awcms_mini_worker NOLOGIN");
+    expect(sql).toContain("CREATE ROLE awcms_mini_setup NOLOGIN");
+    expect(sql).not.toMatch(
+      /CREATE ROLE awcms_mini_(worker|setup)[^;]*PASSWORD/i
+    );
+    expect(sql).not.toMatch(/PASSWORD\s+'/i);
+
+    // The app role loses ALL write access to the 2 tables nothing ever
+    // writes at runtime (dedicated role or fallback) — never re-granted
+    // INSERT/UPDATE/DELETE anywhere in this file.
+    expect(sql).toContain(
+      "REVOKE INSERT, UPDATE, DELETE ON awcms_mini_permissions FROM awcms_mini_app"
+    );
+    expect(sql).toContain(
+      "REVOKE INSERT, UPDATE, DELETE ON awcms_mini_schema_migrations FROM awcms_mini_app"
+    );
+    expect(sql).not.toMatch(
+      /GRANT\s+[^;]*\b(INSERT|UPDATE|DELETE)\b[^;]*\bON\s+awcms_mini_permissions\b[^;]*TO\s+awcms_mini_app/i
+    );
+    expect(sql).not.toMatch(
+      /GRANT\s+[^;]*\b(INSERT|UPDATE|DELETE)\b[^;]*\bON\s+awcms_mini_schema_migrations\b[^;]*TO\s+awcms_mini_app/i
+    );
+
+    // `awcms_mini_setup_state`/`awcms_mini_tenants`: only DELETE is
+    // revoked from the app role — INSERT/UPDATE stay because the setup
+    // wizard falls back to this role when SETUP_DATABASE_URL isn't
+    // configured (src/lib/database/client.ts), an explicit trade-off
+    // documented in migration 045's header (role 2).
+    expect(sql).toContain(
+      "REVOKE DELETE ON awcms_mini_setup_state FROM awcms_mini_app"
+    );
+    expect(sql).toContain(
+      "REVOKE DELETE ON awcms_mini_tenants FROM awcms_mini_app"
+    );
+    expect(sql).not.toMatch(
+      /REVOKE\s+[^;]*\b(INSERT|UPDATE)\b[^;]*\bON\s+awcms_mini_setup_state\b[^;]*FROM\s+awcms_mini_app/i
+    );
+
+    // `awcms_mini_setup` legitimately reads `awcms_mini_permissions` (to
+    // copy rows from it) but must never be granted a write verb there or on
+    // the migration ledger (worker: no legitimate use for either, at all).
+    for (const table of [
+      "awcms_mini_permissions",
+      "awcms_mini_schema_migrations"
+    ]) {
+      expect(sql).not.toMatch(
+        new RegExp(
+          `GRANT\\s+[^;]*\\b(INSERT|UPDATE|DELETE)\\b[^;]*\\bON\\s+${table}\\b[^;]*TO\\s+awcms_mini_setup`,
+          "i"
+        )
+      );
+    }
+    // Worker legitimately SELECTs `awcms_mini_tenants` (to iterate active
+    // tenants) but must never get a write verb there, and no grant at all
+    // — not even SELECT — on the other 4 (it has no reason to touch the
+    // permission catalog, migration ledger, setup lock, or module registry).
+    expect(sql).not.toMatch(
+      /GRANT\s+[^;]*\b(INSERT|UPDATE|DELETE)\b[^;]*\bON\s+awcms_mini_tenants\b[^;]*TO\s+awcms_mini_worker/i
+    );
+    for (const table of [
+      "awcms_mini_permissions",
+      "awcms_mini_schema_migrations",
+      "awcms_mini_setup_state",
+      "awcms_mini_modules"
+    ]) {
+      expect(sql).not.toMatch(
+        new RegExp(
+          `GRANT[^;]*\\bON\\s+${table}\\b[^;]*TO\\s+awcms_mini_worker`,
+          "i"
+        )
+      );
+    }
   });
 
   test("sync node management migration seeds read/update permissions with no schema change", async () => {
