@@ -269,6 +269,18 @@ Graph dependency sendiri **selalu dibaca dari registry code
 dengan akses database langsung tidak bisa memanipulasi graph yang
 dipakai untuk keputusan enable/disable dengan mengubah tabel itu saja.
 
+**Registry-wide DAG gate (Issue #680, epic #679)**: `MODULE_DEPENDENCY_CYCLE`
+di atas hanya pernah diperiksa untuk SATU modul (yang sedang di-enable),
+tidak pernah untuk seluruh registry sekaligus — celah ini pernah
+membiarkan `tenant_admin`/`profile_identity`/`identity_access` punya
+cycle 3-node nyata di descriptor code selama tidak ada yang mencoba
+meng-enable ketiganya lewat jalur normal. `domain/module-dependency-graph.ts`'s
+`validateModuleDependencyGraph` menutup celah itu — memeriksa SELURUH
+`listModules()` sekaligus (self-dependency, duplicate, missing key,
+cycle langsung/tidak langsung), dijalankan di `bun run modules:dag:check`
+(bagian dari `bun run check`, jadi gagal build bila registry rusak) dan
+`bun run modules:sync` (menolak menulis graph rusak ke DB).
+
 ### Kebocoran konfigurasi sensitif (module settings)
 
 `awcms_mini_module_settings` tenant-scoped (RLS FORCE) tapi **tetap

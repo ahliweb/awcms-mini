@@ -63,6 +63,24 @@ core-module protection) — see that file and
 section for how a disabled module is actually blocked everywhere, not just
 in this module's own state row.
 
+**Registry-wide DAG validation (Issue #680, epic #679)** —
+`tenant-module-lifecycle.ts`'s `hasDependencyCycle` only ever validates
+ONE module (the one being enabled) against the live graph; it was never
+used to check "is the WHOLE registry a valid DAG", which is exactly the
+gap that let `tenant_admin`/`profile_identity`/`identity_access` sit in a
+live 3-node cycle in their `dependencies` arrays undetected.
+`domain/module-dependency-graph.ts`'s `validateModuleDependencyGraph`
+fills that gap — self-dependency, duplicate-dependency,
+missing-dependency, and cycle (direct/indirect) detection across the
+entire `listModules()` registry in one pass. Wired into `bun run
+modules:dag:check` (spliced into `bun run check` right after
+`api:spec:check`) and `bun run modules:sync` (refuses to sync a broken
+graph). `tenant_admin.dependencies` is now `[]` — its one-time setup
+wizard's cross-module writes moved to
+`src/modules/tenant-admin/application/platform-bootstrap.ts`'s
+`bootstrapPlatformTenant`, an explicit composition-root function, not a
+module dependency edge.
+
 - **`fetchTenantModuleEntries(tx, tenantId)`** — every registered module's
   tenant-enabled state, for callers that genuinely need the full list (the
   `GET` endpoint above, tenant module presets, the tenant-module matrix
