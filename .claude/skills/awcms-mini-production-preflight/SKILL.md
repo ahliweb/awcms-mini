@@ -71,17 +71,35 @@ flowchart LR
 
 ## Backup & restore (wajib teruji)
 
+Sejak Issue 12.2, alur ini sudah diimplementasikan sebagai skrip siap
+pakai — sejak Issue #691 (epic #679) skrip ini mewajibkan **backup
+terenkripsi + manifest bertanda tangan (HMAC)**, dan restore memverifikasi
+checksum SEBELUM mutasi apa pun (lihat `deploy/backup/README.md` untuk
+model keamanan lengkap: kunci wajib dari FILE — `BACKUP_ENCRYPTION_KEY_FILE`/
+`BACKUP_HMAC_KEY_FILE` — bukan CLI/env-content; `DATABASE_URL` tidak pernah
+muncul di argv `pg_dump`/`pg_restore`/`psql`; lock mutual-exclusion; off-site
+copy opsional via `deploy/backup/offsite-copy.sh`; restore drill terjadwal
+via `deploy/backup/restore-drill.sh`):
+
 ```bash
-pg_dump --format=custom --file=/backup/awcms_mini_$(date +%Y%m%d_%H%M%S).dump "$DATABASE_URL"
-createdb awcms_mini_restore_test
-pg_restore --dbname=awcms_mini_restore_test --clean --if-exists /backup/awcms_mini_YYYYMMDD_HHMMSS.dump
+DATABASE_URL="$DATABASE_URL" \
+BACKUP_DIR=/var/backups/awcms-mini \
+BACKUP_ENCRYPTION_KEY_FILE=/etc/awcms-mini/backup-encryption.key \
+BACKUP_HMAC_KEY_FILE=/etc/awcms-mini/backup-hmac.key \
+./deploy/backup/backup-postgres.sh
+
+DATABASE_URL="$DATABASE_URL" \
+BACKUP_ENCRYPTION_KEY_FILE=/etc/awcms-mini/backup-encryption.key \
+BACKUP_HMAC_KEY_FILE=/etc/awcms-mini/backup-hmac.key \
+./deploy/backup/restore-postgres.sh /var/backups/awcms-mini/awcms_mini_YYYYMMDD_HHMMSS.dump.enc
 ```
 
-Validasi restore: tenant/user/produk/stok/transaksi terbaca · login test · POS smoke test · report smoke test.
+(Restores into the disposable `awcms_mini_restore_test` database by
+default — never the live one. `--target=<dbname>` + matching
+`--acknowledge-target=<dbname>` is required for a real recovery target.)
 
-Sejak Issue 12.2, kedua command di atas sudah diimplementasikan sebagai
-skrip siap pakai: `deploy/backup/backup-postgres.sh` dan
-`deploy/backup/restore-postgres.sh` (lihat `deploy/backup/README.md`).
+Validasi restore: tenant/user/produk/stok/transaksi terbaca · login test · POS smoke test · report smoke test. `deploy/backup/restore-drill.sh` mengotomasi sebagian validasi ini (migrasi schema, tenant isolation RLS, sample record) plus laporan RTO/RPO — jalankan terjadwal, terpisah dari backup harian.
+
 Sejak Issue #684, `--backup-verified` di atas WAJIB berdasarkan bukti
 restore-test nyata dari skrip ini, bukan sekadar backup yang "ada" —
 lihat `docs/awcms-mini/production-preflight-runbook.md`'s §Backup evidence

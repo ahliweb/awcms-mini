@@ -48,28 +48,45 @@ copy of production.
 
 `--backup-verified` is a flag, not an automated check — the operator is
 attesting to a specific evidence trail, not just remembering a backup
-exists somewhere. Before passing it:
+exists somewhere. Since Issue #691 (epic #679), the backup is encrypted
+and manifest-signed and the restore verifies checksums before any
+mutation — see `deploy/backup/README.md` for the full model. Before
+passing `--backup-verified`:
 
 ```bash
 DATABASE_URL=<production-url> \
 BACKUP_DIR=/var/backups/awcms-mini \
+BACKUP_ENCRYPTION_KEY_FILE=/etc/awcms-mini/backup-encryption.key \
+BACKUP_HMAC_KEY_FILE=/etc/awcms-mini/backup-hmac.key \
 ./deploy/backup/backup-postgres.sh
 ```
 
 Then **prove the dump restores** (a dump that was never test-restored is
 not verified evidence — this is the same principle
-`deploy/backup/README.md` and doc 07's restore SOP already establish):
+`deploy/backup/README.md` and doc 07's restore SOP already establish).
+`restore-postgres.sh` itself now verifies the manifest's HMAC and the
+dump's checksum, and validates the decrypted archive's structure with
+`pg_restore --list`, before touching any target database:
 
 ```bash
 DATABASE_URL=<production-url> \
-./deploy/backup/restore-postgres.sh /var/backups/awcms-mini/awcms_mini_<timestamp>.dump
+BACKUP_ENCRYPTION_KEY_FILE=/etc/awcms-mini/backup-encryption.key \
+BACKUP_HMAC_KEY_FILE=/etc/awcms-mini/backup-hmac.key \
+./deploy/backup/restore-postgres.sh /var/backups/awcms-mini/awcms_mini_<timestamp>.dump.enc
 ```
 
 (Defaults to restoring into the disposable `awcms_mini_restore_test`
-database — never the live one.) Record the dump filename, its `.sha256`
-checksum, and the restore-test timestamp somewhere durable (deploy
-ticket/runbook log) — this is the "evidence retention" the issue's scope
-asks for.
+database — never the live one.) Record the dump filename, its manifest's
+`sha256`/`hmac_sha256`, and the restore-test timestamp somewhere durable
+(deploy ticket/runbook log) — this is the "evidence retention" the
+issue's scope asks for.
+
+Off-site copy (`deploy/backup/offsite-copy.sh`) is optional and, if
+configured, runs as a separate step after `backup-postgres.sh` — see
+`deploy/backup/README.md`'s "3-2-1" section. It is not part of the
+`--backup-verified` evidence trail itself (the restore-test is what
+proves the backup is usable; off-site copy is about surviving loss of the
+backup host).
 
 ## Stage 3 — Production preflight (read-only)
 

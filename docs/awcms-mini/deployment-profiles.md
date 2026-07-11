@@ -745,6 +745,15 @@ untuk detail penggunaan, contoh crontab, dan model keamanan restore
 live tanpa flag `--target` eksplisit). Backup lokal wajib pada **semua**
 profil non-development, termasuk offline/LAN (doc 18: "backup lokal").
 
+Sejak Issue #691: **enkripsi backup wajib** (`BACKUP_ENCRYPTION_KEY_FILE`/
+`BACKUP_HMAC_KEY_FILE`, keduanya file, bukan CLI/env-content) — alur lokal
+terenkripsi ini berjalan penuh **tanpa internet**, jadi profil offline/LAN
+tidak kehilangan apa pun. Off-site copy (`deploy/backup/offsite-copy.sh`,
+pola 3-2-1) dan restore drill terjadwal (`deploy/backup/restore-drill.sh`)
+**opsional/dikonfigurasi** — dilewati (bukan gagal) bila tidak
+dikonfigurasi, sehingga deployment offline/LAN tetap sepenuhnya lokal bila
+diinginkan.
+
 ## Lihat juga
 
 - [`deploy-coolify.md`](deploy-coolify.md) — panduan deploy Coolify
