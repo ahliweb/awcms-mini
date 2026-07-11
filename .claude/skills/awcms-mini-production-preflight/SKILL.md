@@ -14,6 +14,15 @@ bun install
 bun run production:preflight
 ```
 
+Sejak Issue #689 (epic #679), `config:validate`'s CLI report menambahkan
+satu seksi baru di akhir output — **deprecation notices** (informational,
+tidak pernah menggagalkan check ini), didorong oleh `src/lib/config/
+registry.ts`'s field `deprecated`. Bentuk/urutan/exit-code stage lain di
+bawah ini tidak berubah. `bun run config:docs:check` (bagian dari `bun run
+check`, BUKAN bagian dari `production:preflight` — lihat doc 18 §Config
+registry) menjaga registry ini, `.env.example`, dan doc 18 tetap sinkron;
+jalankan itu terpisah sebelum preflight bila baru saja mengubah env var.
+
 Sejak Issue #684 (epic #679), `bun run production:preflight` (Issue 12.2)
 adalah SATU perintah **read-only** yang menjalankan urutan lengkap sendiri
 — `config:validate` → `security:readiness` → `db:connectivity` (BARU, satu

@@ -42,28 +42,81 @@ flowchart LR
 
 Legenda: Wajib = perlu untuk boot; Sensitif = jangan bocor ke log/response.
 
+### Config registry (Issue #689, epic #679 platform-hardening)
+
+`src/lib/config/registry.ts` adalah **satu sumber kebenaran terstruktur**
+(TypeScript, bukan JSON — full type-checking) untuk setiap environment
+variable yang dibaca aplikasi/tooling deployment repo ini: satu entry per
+variabel dengan field `type` (string/boolean/integer/url/enum/path/csv/
+uuid), `required` (`required`/`optional`/`conditional` — mencerminkan
+penegakan `scripts/validate-env.ts` HARI INI), `ownerModule`, `sensitivity`
+(`secret`/`non-secret` — untuk redaction), `profiles` (development/staging/
+production/offline-lan mana yang relevan), `default`, dan opsional
+`deprecated` (`since`/`removalVersion`/`guidance`). Tabel-tabel di bawah
+tetap tabel prosa yang sama seperti sebelumnya (readable Markdown untuk
+manusia) — registry adalah lapisan metadata terstruktur yang
+**dibandingkan** dengannya, bukan pengganti prosa ini.
+
+`bun run config:docs:check` (`scripts/config-docs-check.ts`, bagian dari
+`bun run check`) menegakkan parity tiga arah antara registry ini,
+`.env.example`, dan tabel-tabel dokumen ini — gagal (exit 1) bila ada
+variabel di salah satu tempat yang tidak ada di tempat lain, kecuali
+terdaftar eksplisit di `CONFIG_EXEMPTIONS` (registry.ts, untuk var yang
+sengaja BUKAN bagian registry — mis. `NODE_ENV`/`PORT` platform-level, atau
+`STARSENDER_*`/`MAILKETING_ENABLED`/`AI_*` yang ilustratif untuk aplikasi
+turunan) atau `DOC18_NON_VARIABLE_TOKENS` (config-docs-check.ts, untuk
+token huruf besar di dokumen ini yang bukan nama variabel sama sekali —
+keyword SQL, nama konstanta kode, atau nama variabel yang disebut justru
+untuk menyatakan "TIDAK ada").
+
+**Kebijakan deprecation**: menandai sebuah entry `deprecated` di registry
+TIDAK PERNAH otomatis mengubah perilaku lulus/gagal `bun run
+config:validate` — lihat field `guidance` masing-masing entry untuk apa
+yang sebenarnya berubah (biasanya: belum ada, versi major berikutnya baru
+benar-benar menghapus variabelnya, sesuai `removalVersion`). Enam variabel
+ditandai `deprecated` sejak issue ini (diverifikasi mati/menyesatkan lewat
+grep menyeluruh, bukan asumsi dari deskripsi issue saja — lihat entry
+masing-masing di `src/lib/config/registry.ts` untuk bukti lengkap):
+
+| Var                  | Kenapa                                                                                                     | Ganti dengan                                                                         |
+| -------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `AUTH_JWT_SECRET`    | Tidak pernah dibaca — sesi memakai token opaque (`awcms_mini_sessions.token_hash`), bukan JWT              | Tidak ada — token sesi acak kriptografis, tidak diturunkan dari secret bersama       |
+| `APP_TIMEZONE`       | Tidak pernah dibaca — `src/lib/i18n/format.ts` hardcode `Asia/Jakarta`; timezone per tenant dari DB        | Ubah timezone tenant lewat `/admin/settings` (`awcms_mini_tenant_settings.timezone`) |
+| `APP_DEFAULT_LOCALE` | Tidak pernah dibaca — `src/lib/i18n/locale.ts` hardcode `DEFAULT_LOCALE = "en"`; locale per tenant dari DB | Ubah `default_locale` tenant lewat Setup Wizard / data tenant, bukan env var         |
+| `AWCMS_MINI_NODE_ID` | Tidak pernah dibaca — identitas node berasal dari `awcms_mini_sync_nodes` (DB), bukan env var              | Tidak ada — node teregistrasi otomatis lewat header/HMAC saat request sync pertama   |
+| `STORAGE_DRIVER`     | Tidak pernah dibaca — switch lokal/R2 sesungguhnya adalah `R2_ENABLED`                                     | `R2_ENABLED=true`/`false`                                                            |
+| `LOCAL_STORAGE_PATH` | Tidak pernah dibaca — tidak ada kode yang menulis ke path ini                                              | Tidak ada                                                                            |
+
+`AUTH_JWT_SECRET`/`APP_TIMEZONE` **tetap** wajib non-kosong di
+`config:validate` untuk rilis ini (tidak ada perubahan perilaku boot pass/
+fail dibanding sebelum Issue #689 — setiap `.env` yang sudah lulus tetap
+lulus); `removalVersion: "1.0.0"` di registry menandai kapan penegakan
+wajib ini (dan variabelnya sendiri) direncanakan benar-benar dihapus.
+Ketiga variabel lain sudah opsional hari ini dan tidak berubah.
+
 ### Inti aplikasi
 
 | Var                         | Wajib | Default                 | Sensitif | Fungsi                                                                                                                                                                        |
 | --------------------------- | ----- | ----------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `APP_ENV`                   | Ya    | `development`           | –        | development/staging/production                                                                                                                                                |
 | `APP_URL`                   | Ya    | `http://localhost:4321` | –        | Base URL aplikasi                                                                                                                                                             |
-| `APP_TIMEZONE`              | Ya    | `Asia/Jakarta`          | –        | Timezone default                                                                                                                                                              |
-| `APP_DEFAULT_LOCALE`        | –     | `id`                    | –        | Locale default                                                                                                                                                                |
+| `APP_TIMEZONE`              | Ya    | `Asia/Jakarta`          | –        | **DEPRECATED** (Issue #689, target hapus `1.0.0`) — tidak pernah dibaca; lihat §Config registry di atas                                                                       |
+| `APP_DEFAULT_LOCALE`        | –     | `id`                    | –        | **DEPRECATED** (Issue #689, target hapus `1.0.0`) — tidak pernah dibaca; lihat §Config registry di atas                                                                       |
 | `LOG_LEVEL`                 | –     | `info`                  | –        | debug/info/warn/error                                                                                                                                                         |
 | `AUDIT_LOG_RETENTION_DAYS`  | –     | `730`                   | –        | Retensi `awcms_mini_audit_events` (hari) dipakai `bun run logs:audit:purge` (Issue #447; doc 04 §Retention awal)                                                              |
 | `FORM_DRAFT_RETENTION_DAYS` | –     | `30`                    | –        | Retensi `awcms_mini_form_drafts` `expired`/`abandoned` (hari) dipakai `bun run form-drafts:purge` (Issue #484; `--retention-days=<n>` CLI flag override lebih diprioritaskan) |
 
 ### Database & pool
 
-| Var                             | Wajib | Default                    | Sensitif | Fungsi                                                            |
-| ------------------------------- | ----- | -------------------------- | -------- | ----------------------------------------------------------------- |
-| `DATABASE_URL`                  | Ya    | –                          | Ya       | Koneksi PostgreSQL (role `awcms_mini_app`)                        |
-| `DATABASE_POOL_MAX`             | –     | `20`                       | –        | Maks koneksi pool                                                 |
-| `DATABASE_STATEMENT_TIMEOUT_MS` | –     | `15000`                    | –        | Timeout statement                                                 |
-| `DATABASE_PGBOUNCER`            | –     | `false`                    | –        | Mode PgBouncer (transaction)                                      |
-| `WORKER_DATABASE_URL`           | –     | fallback ke `DATABASE_URL` | Ya       | Koneksi role `awcms_mini_worker` (7 background script)            |
-| `SETUP_DATABASE_URL`            | –     | fallback ke `DATABASE_URL` | Ya       | Koneksi role `awcms_mini_setup` (`POST /api/v1/setup/initialize`) |
+| Var                             | Wajib | Default                    | Sensitif | Fungsi                                                                                                                                                                                                                           |
+| ------------------------------- | ----- | -------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                  | Ya    | –                          | Ya       | Koneksi PostgreSQL (role `awcms_mini_app`)                                                                                                                                                                                       |
+| `AWCMS_MINI_APP_DB_PASSWORD`    | –     | `awcms_mini_app_password`  | Ya       | Password role `awcms_mini_app` dipakai `deploy/postgres/10-create-app-role.sh`/`docker-compose.yml` saat init container; harus sama dengan password di `DATABASE_URL`. Tidak dibaca kode TypeScript apa pun (shell/compose saja) |
+| `DATABASE_POOL_MAX`             | –     | `20`                       | –        | Maks koneksi pool                                                                                                                                                                                                                |
+| `DATABASE_STATEMENT_TIMEOUT_MS` | –     | `15000`                    | –        | Timeout statement                                                                                                                                                                                                                |
+| `DATABASE_PGBOUNCER`            | –     | `false`                    | –        | Mode PgBouncer (transaction)                                                                                                                                                                                                     |
+| `WORKER_DATABASE_URL`           | –     | fallback ke `DATABASE_URL` | Ya       | Koneksi role `awcms_mini_worker` (7 background script)                                                                                                                                                                           |
+| `SETUP_DATABASE_URL`            | –     | fallback ke `DATABASE_URL` | Ya       | Koneksi role `awcms_mini_setup` (`POST /api/v1/setup/initialize`)                                                                                                                                                                |
 
 #### Model role database (Issue #683, epic #679, platform-hardening)
 
@@ -110,40 +163,40 @@ tambahan di salah satu dari 9 tabel global tersebut.
 
 ### Auth & keamanan
 
-| Var                                         | Wajib          | Default                                  | Sensitif | Fungsi                                                                                                  |
-| ------------------------------------------- | -------------- | ---------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------- |
-| `AUTH_JWT_SECRET`                           | Ya             | –                                        | Ya       | Signing token sesi                                                                                      |
-| `AUTH_SESSION_TTL_MIN`                      | –              | `120`                                    | –        | Umur sesi                                                                                               |
-| `AUTH_COOKIE_SECURE`                        | –              | `true`                                   | –        | Cookie hanya HTTPS di prod                                                                              |
-| `AUTH_LOGIN_MAX_ATTEMPTS`                   | –              | `5`                                      | –        | Lockout login (per identitas)                                                                           |
-| `AUTH_LOGIN_RATE_LIMIT_MAX`                 | –              | `20`                                     | –        | Rate limit login per sumber+tenant (Issue #437)                                                         |
-| `AUTH_LOGIN_RATE_LIMIT_WINDOW_SEC`          | –              | `60`                                     | –        | Jendela waktu rate limit login (detik)                                                                  |
-| `AUTH_PASSWORD_RESET_TOKEN_TTL_MIN`         | –              | `30`                                     | –        | Umur token reset password (Issue #496)                                                                  |
-| `AUTH_PASSWORD_RESET_RATE_LIMIT_MAX`        | –              | `5`                                      | –        | Rate limit forgot/reset per sumber+tenant                                                               |
-| `AUTH_PASSWORD_RESET_RATE_LIMIT_WINDOW_SEC` | –              | `900`                                    | –        | Jendela waktu rate limit reset password (detik)                                                         |
-| `AUTH_ONLINE_SECURITY_ENABLED`              | –              | `false`                                  | –        | Gate full-online-only auth hardening (Issue #587) — lihat §Full-online auth security hardening di bawah |
-| `AUTH_ONLINE_SECURITY_PROFILE`              | –              | `disabled`                               | –        | `disabled` (default) atau `full_online`; wajib `full_online` bila `AUTH_ONLINE_SECURITY_ENABLED=true`   |
-| `TURNSTILE_ENABLED`                         | –              | `false`                                  | –        | Cloudflare Turnstile bot protection (Issue #588) — lihat §Full-online auth security hardening di bawah  |
-| `TURNSTILE_SITE_KEY`                        | bila Turnstile | –                                        | –        | Site key publik (bukan secret) — dirender di widget `/login`                                            |
-| `TURNSTILE_SECRET_KEY`                      | bila Turnstile | –                                        | Ya       | Secret key — hanya untuk verifikasi server-side, tidak pernah ke klien                                  |
-| `TURNSTILE_VERIFY_TIMEOUT_MS`               | –              | `5000`                                   | –        | Timeout panggilan siteverify Cloudflare (ms)                                                            |
-| `AUTH_MFA_ENABLED`                          | –              | `false`                                  | –        | MFA/TOTP login challenge (Issue #589) — lihat §Full-online auth security hardening di bawah             |
-| `AUTH_MFA_SECRET_ENCRYPTION_KEY`            | bila MFA       | –                                        | Ya       | Key AES-256-GCM (base64, 32 byte) untuk enkripsi-at-rest TOTP secret                                    |
-| `AUTH_MFA_TOTP_ISSUER`                      | –              | `AWCMS-Mini`                             | –        | Nama issuer yang tampil di aplikasi authenticator                                                       |
-| `AUTH_MFA_TOTP_PERIOD_SEC`                  | –              | `30`                                     | –        | Panjang time-step TOTP (detik)                                                                          |
-| `AUTH_MFA_TOTP_DIGITS`                      | –              | `6`                                      | –        | Jumlah digit kode TOTP (`6` atau `8`)                                                                   |
-| `AUTH_MFA_CHALLENGE_TTL_SEC`                | –              | `300`                                    | –        | Umur challenge MFA login (detik)                                                                        |
-| `AUTH_MFA_RATE_LIMIT_MAX`                   | –              | `5`                                      | –        | Rate limit `POST /auth/mfa/totp/verify` per sumber+tenant                                               |
-| `AUTH_MFA_RATE_LIMIT_WINDOW_SEC`            | –              | `300`                                    | –        | Jendela waktu rate limit verifikasi MFA (detik)                                                         |
-| `AUTH_GOOGLE_LOGIN_ENABLED`                 | –              | `false`                                  | –        | Google OIDC login (Issue #590) — lihat §Full-online auth security hardening di bawah                    |
-| `AUTH_GOOGLE_CLIENT_ID`                     | bila Google    | –                                        | –        | OAuth client ID dari Google Cloud Console                                                               |
-| `AUTH_GOOGLE_CLIENT_SECRET`                 | bila Google    | –                                        | Ya       | OAuth client secret — hanya untuk token exchange server-side                                            |
-| `AUTH_GOOGLE_ALLOWED_DOMAINS`               | –              | –                                        | –        | Daftar domain email (dipisah koma) yang boleh auto-link; kosong = auto-link selalu ditolak              |
-| `AUTH_GOOGLE_REDIRECT_PATH`                 | –              | `/api/v1/auth/providers/google/callback` | –        | Path callback OAuth di bawah `APP_URL`                                                                  |
-| `AUTH_SSO_ENABLED`                          | –              | `false`                                  | –        | Generic tenant OIDC SSO (Issue #591) — lihat §Full-online auth security hardening di bawah              |
-| `AUTH_SSO_CREDENTIAL_ENCRYPTION_KEY`        | bila SSO       | –                                        | Ya       | Key AES-256-GCM (base64, 32 byte) untuk enkripsi-at-rest client secret provider — beda dari key MFA     |
-| `AUTH_SSO_DISCOVERY_TIMEOUT_MS`             | –              | `5000`                                   | –        | Timeout discovery/JWKS/token-exchange OIDC provider tenant (ms)                                         |
-| `AUTH_SSO_MAX_PROVIDERS_PER_TENANT`         | –              | `20`                                     | –        | Batas jumlah baris provider aktif per tenant (Issue #612) — membatasi total budget probing tenant       |
+| Var                                         | Wajib          | Default                                  | Sensitif | Fungsi                                                                                                                                |
+| ------------------------------------------- | -------------- | ---------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `AUTH_JWT_SECRET`                           | Ya             | –                                        | Ya       | **DEPRECATED** (Issue #689, target hapus `1.0.0`) — tidak pernah dibaca; sesi memakai token opaque, bukan JWT; lihat §Config registry |
+| `AUTH_SESSION_TTL_MIN`                      | –              | `120`                                    | –        | Umur sesi                                                                                                                             |
+| `AUTH_COOKIE_SECURE`                        | –              | `true`                                   | –        | Cookie hanya HTTPS di prod                                                                                                            |
+| `AUTH_LOGIN_MAX_ATTEMPTS`                   | –              | `5`                                      | –        | Lockout login (per identitas)                                                                                                         |
+| `AUTH_LOGIN_RATE_LIMIT_MAX`                 | –              | `20`                                     | –        | Rate limit login per sumber+tenant (Issue #437)                                                                                       |
+| `AUTH_LOGIN_RATE_LIMIT_WINDOW_SEC`          | –              | `60`                                     | –        | Jendela waktu rate limit login (detik)                                                                                                |
+| `AUTH_PASSWORD_RESET_TOKEN_TTL_MIN`         | –              | `30`                                     | –        | Umur token reset password (Issue #496)                                                                                                |
+| `AUTH_PASSWORD_RESET_RATE_LIMIT_MAX`        | –              | `5`                                      | –        | Rate limit forgot/reset per sumber+tenant                                                                                             |
+| `AUTH_PASSWORD_RESET_RATE_LIMIT_WINDOW_SEC` | –              | `900`                                    | –        | Jendela waktu rate limit reset password (detik)                                                                                       |
+| `AUTH_ONLINE_SECURITY_ENABLED`              | –              | `false`                                  | –        | Gate full-online-only auth hardening (Issue #587) — lihat §Full-online auth security hardening di bawah                               |
+| `AUTH_ONLINE_SECURITY_PROFILE`              | –              | `disabled`                               | –        | `disabled` (default) atau `full_online`; wajib `full_online` bila `AUTH_ONLINE_SECURITY_ENABLED=true`                                 |
+| `TURNSTILE_ENABLED`                         | –              | `false`                                  | –        | Cloudflare Turnstile bot protection (Issue #588) — lihat §Full-online auth security hardening di bawah                                |
+| `TURNSTILE_SITE_KEY`                        | bila Turnstile | –                                        | –        | Site key publik (bukan secret) — dirender di widget `/login`                                                                          |
+| `TURNSTILE_SECRET_KEY`                      | bila Turnstile | –                                        | Ya       | Secret key — hanya untuk verifikasi server-side, tidak pernah ke klien                                                                |
+| `TURNSTILE_VERIFY_TIMEOUT_MS`               | –              | `5000`                                   | –        | Timeout panggilan siteverify Cloudflare (ms)                                                                                          |
+| `AUTH_MFA_ENABLED`                          | –              | `false`                                  | –        | MFA/TOTP login challenge (Issue #589) — lihat §Full-online auth security hardening di bawah                                           |
+| `AUTH_MFA_SECRET_ENCRYPTION_KEY`            | bila MFA       | –                                        | Ya       | Key AES-256-GCM (base64, 32 byte) untuk enkripsi-at-rest TOTP secret                                                                  |
+| `AUTH_MFA_TOTP_ISSUER`                      | –              | `AWCMS-Mini`                             | –        | Nama issuer yang tampil di aplikasi authenticator                                                                                     |
+| `AUTH_MFA_TOTP_PERIOD_SEC`                  | –              | `30`                                     | –        | Panjang time-step TOTP (detik)                                                                                                        |
+| `AUTH_MFA_TOTP_DIGITS`                      | –              | `6`                                      | –        | Jumlah digit kode TOTP (`6` atau `8`)                                                                                                 |
+| `AUTH_MFA_CHALLENGE_TTL_SEC`                | –              | `300`                                    | –        | Umur challenge MFA login (detik)                                                                                                      |
+| `AUTH_MFA_RATE_LIMIT_MAX`                   | –              | `5`                                      | –        | Rate limit `POST /auth/mfa/totp/verify` per sumber+tenant                                                                             |
+| `AUTH_MFA_RATE_LIMIT_WINDOW_SEC`            | –              | `300`                                    | –        | Jendela waktu rate limit verifikasi MFA (detik)                                                                                       |
+| `AUTH_GOOGLE_LOGIN_ENABLED`                 | –              | `false`                                  | –        | Google OIDC login (Issue #590) — lihat §Full-online auth security hardening di bawah                                                  |
+| `AUTH_GOOGLE_CLIENT_ID`                     | bila Google    | –                                        | –        | OAuth client ID dari Google Cloud Console                                                                                             |
+| `AUTH_GOOGLE_CLIENT_SECRET`                 | bila Google    | –                                        | Ya       | OAuth client secret — hanya untuk token exchange server-side                                                                          |
+| `AUTH_GOOGLE_ALLOWED_DOMAINS`               | –              | –                                        | –        | Daftar domain email (dipisah koma) yang boleh auto-link; kosong = auto-link selalu ditolak                                            |
+| `AUTH_GOOGLE_REDIRECT_PATH`                 | –              | `/api/v1/auth/providers/google/callback` | –        | Path callback OAuth di bawah `APP_URL`                                                                                                |
+| `AUTH_SSO_ENABLED`                          | –              | `false`                                  | –        | Generic tenant OIDC SSO (Issue #591) — lihat §Full-online auth security hardening di bawah                                            |
+| `AUTH_SSO_CREDENTIAL_ENCRYPTION_KEY`        | bila SSO       | –                                        | Ya       | Key AES-256-GCM (base64, 32 byte) untuk enkripsi-at-rest client secret provider — beda dari key MFA                                   |
+| `AUTH_SSO_DISCOVERY_TIMEOUT_MS`             | –              | `5000`                                   | –        | Timeout discovery/JWKS/token-exchange OIDC provider tenant (ms)                                                                       |
+| `AUTH_SSO_MAX_PROVIDERS_PER_TENANT`         | –              | `20`                                     | –        | Batas jumlah baris provider aktif per tenant (Issue #612) — membatasi total budget probing tenant                                     |
 
 ### Full-online auth security hardening (opsional, Issue #587-#593)
 
@@ -331,25 +384,25 @@ nginx sama sekali).
 
 ### Sync & node
 
-| Var                            | Wajib     | Default          | Sensitif | Fungsi                |
-| ------------------------------ | --------- | ---------------- | -------- | --------------------- |
-| `AWCMS_MINI_NODE_ID`           | Ya        | `local-dev-node` | –        | Identitas node        |
-| `AWCMS_MINI_SYNC_ENABLED`      | –         | `false`          | –        | Aktifkan sync hybrid  |
-| `AWCMS_MINI_SYNC_HMAC_SECRET`  | bila sync | –                | Ya       | Signature HMAC        |
-| `AWCMS_MINI_SYNC_MAX_SKEW_SEC` | –         | `300`            | –        | Toleransi anti-replay |
+| Var                            | Wajib     | Default          | Sensitif | Fungsi                                                                                                                                                    |
+| ------------------------------ | --------- | ---------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AWCMS_MINI_NODE_ID`           | –         | `local-dev-node` | –        | **DEPRECATED** (Issue #689, target hapus `1.0.0`) — tidak pernah dibaca; identitas node berasal dari `awcms_mini_sync_nodes` (DB); lihat §Config registry |
+| `AWCMS_MINI_SYNC_ENABLED`      | –         | `false`          | –        | Aktifkan sync hybrid                                                                                                                                      |
+| `AWCMS_MINI_SYNC_HMAC_SECRET`  | bila sync | –                | Ya       | Signature HMAC                                                                                                                                            |
+| `AWCMS_MINI_SYNC_MAX_SKEW_SEC` | –         | `300`            | –        | Toleransi anti-replay                                                                                                                                     |
 
 ### Storage
 
-| Var                             | Wajib   | Default     | Sensitif | Fungsi                                                                  |
-| ------------------------------- | ------- | ----------- | -------- | ----------------------------------------------------------------------- |
-| `STORAGE_DRIVER`                | –       | `local`     | –        | local/r2                                                                |
-| `LOCAL_STORAGE_PATH`            | –       | `./storage` | –        | Path file lokal                                                         |
-| `R2_ENABLED`                    | –       | `false`     | –        | Aktifkan R2                                                             |
-| `R2_ACCOUNT_ID`                 | bila R2 | –           | Ya       | Akun R2                                                                 |
-| `R2_ACCESS_KEY_ID`              | bila R2 | –           | Ya       | Kredensial R2                                                           |
-| `R2_SECRET_ACCESS_KEY`          | bila R2 | –           | Ya       | Kredensial R2                                                           |
-| `R2_BUCKET`                     | bila R2 | –           | –        | Bucket                                                                  |
-| `OBJECT_SYNC_UPLOAD_TIMEOUT_MS` | –       | `10000`     | –        | Timeout upload dispatcher (Issue #436, `bun run sync:objects:dispatch`) |
+| Var                             | Wajib   | Default     | Sensitif | Fungsi                                                                                                                                     |
+| ------------------------------- | ------- | ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `STORAGE_DRIVER`                | –       | `local`     | –        | **DEPRECATED** (Issue #689, target hapus `1.0.0`) — tidak pernah dibaca; switch lokal/R2 sesungguhnya `R2_ENABLED`; lihat §Config registry |
+| `LOCAL_STORAGE_PATH`            | –       | `./storage` | –        | **DEPRECATED** (Issue #689, target hapus `1.0.0`) — tidak pernah dibaca; lihat §Config registry                                            |
+| `R2_ENABLED`                    | –       | `false`     | –        | Aktifkan R2                                                                                                                                |
+| `R2_ACCOUNT_ID`                 | bila R2 | –           | Ya       | Akun R2                                                                                                                                    |
+| `R2_ACCESS_KEY_ID`              | bila R2 | –           | Ya       | Kredensial R2                                                                                                                              |
+| `R2_SECRET_ACCESS_KEY`          | bila R2 | –           | Ya       | Kredensial R2                                                                                                                              |
+| `R2_BUCKET`                     | bila R2 | –           | –        | Bucket                                                                                                                                     |
+| `OBJECT_SYNC_UPLOAD_TIMEOUT_MS` | –       | `10000`     | –        | Timeout upload dispatcher (Issue #436, `bun run sync:objects:dispatch`)                                                                    |
 
 ### Email (base — Issue #493-#495, epic #492)
 

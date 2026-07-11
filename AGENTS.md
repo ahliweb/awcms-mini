@@ -215,7 +215,7 @@ berjalan, bukan target/rencana:
 
 ```bash
 bun install
-bun run check                    # gate lengkap: lint + check:docs + api:spec:check + modules:dag:check + i18n:parity:check + typecheck + test + build
+bun run check                    # gate lengkap: lint + check:docs + api:spec:check + modules:dag:check + i18n:parity:check + config:docs:check + typecheck + test + build
 bun run dev                      # bun --bun astro dev
 bun run build                    # bun --bun astro build
 bun run preview                  # bun --bun astro preview
@@ -235,6 +235,7 @@ bun run changeset:tag            # tag rilis dari changeset
 bun run db:pool:health           # cek kesehatan pool DB
 bun run security:readiness       # cek security readiness
 bun run config:validate          # validasi env/config sebelum apapun jalan
+bun run config:docs:check        # validasi src/lib/config/registry.ts <-> .env.example <-> doc 18 sinkron (bagian dari `bun run check`, Issue #689)
 bun run production:preflight     # preflight read-only sebelum go-live (config -> security -> connectivity -> spec -> test -> build -> pool -> migration:plan); apply migrasi terpisah & bergerbang (--apply-migrations --backup-verified --acknowledge-target=<APP_ENV>, Issue #684)
 bun run email:provider:health    # cek kesehatan provider email (Mailketing)
 bun run sync:objects:dispatch    # job terjadwal: dispatch antrian sync object R2

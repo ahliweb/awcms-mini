@@ -3,6 +3,7 @@
 Folder `src/lib/` berisi helper lintas-modul (base generik selesai, v0.23.5 — folder ini sudah terimplementasi, bukan lagi placeholder):
 
 - `auth/` — sesi/token, `ssr-session.ts`, password hashing.
+- `config/` — `registry.ts`: registry TypeScript terstruktur untuk setiap environment variable (type/required/owner/sensitivity/profiles/default/deprecation), sumber kebenaran bagi `scripts/validate-env.ts`, `.env.example`, dan doc 18 (Issue #689; skill terkait: `awcms-mini-production-preflight`, `awcms-mini-deploy`).
 - `database/` — `client.ts`, `tenant-context.ts` (`withTenant`), `work-class.ts`, `circuit-breaker.ts` (registry per-provider, Issue #436).
 - `errors/` — tipe/utilitas error.
 - `files/` — helper file/storage lokal.
