@@ -272,12 +272,15 @@ describe("findSecretShapedValues", () => {
   test("finds a JWT-shaped value under an innocently-named key", () => {
     expect(
       findSecretShapedValues({
-        // The canonical public example token from jwt.io's own debugger
-        // (used verbatim in virtually every JWT tutorial) — a recognizable
-        // non-secret, same convention as AWS's own "AKIA...EXAMPLE" key id
-        // below, chosen so this fixture doesn't read as a real leaked token.
+        // Deliberately fabricated, not the well-known jwt.io canonical
+        // example token — that exact string previously tripped GitGuardian's
+        // scanner on this PR despite being public test data (structural
+        // JWT-pattern matching doesn't distinguish "famous example" from
+        // "real secret"). This fixture only needs to be JWT-*shaped* (three
+        // base64url segments prefixed `eyJ`) to exercise the same regex, so
+        // a fabricated, non-canonical value works equally well as a test.
         publicLabel:
-          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+          "eyJub3RfYV9yZWFsX2p3dF9maXh0dXJl.eyJqdXN0X3Rlc3RfZGF0YV9oZXJl.bm90YV9yZWFsX3NpZ25hdHVyZQ"
       })
     ).toEqual(["publicLabel"]);
   });
