@@ -1,0 +1,622 @@
+# Source fragment for the "Blog Pages" module/tag (Issue #695, epic #679).
+#
+# Owns every path tagged "Blog Pages" and every schema referenced ONLY by this
+# tag's operations. Schemas shared with another module/tag live in the root
+# file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/blog/pages:
+    get:
+      tags:
+        - Blog Pages
+      summary: List this tenant's non-deleted blog pages
+      operationId: blogPagesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - draft
+              - review
+              - scheduled
+              - published
+              - archived
+        - name: pageType
+          in: query
+          schema:
+            type: string
+            enum:
+              - standard
+              - landing
+              - legal
+              - system
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Blog pages for the caller's tenant (limit 100, menu order then newest-updated first).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogPageListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Blog Pages
+      summary: Create a draft blog page
+      operationId: blogPagesCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBlogPageRequest"
+      responses:
+        "200":
+          description: Blog page created (status "draft").
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogPageItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: A page already exists for this slug in this locale.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and featuredMediaId or a contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/pages/{id}:
+    get:
+      tags:
+        - Blog Pages
+      summary: Read one blog page
+      operationId: blogPagesGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The requested blog page.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogPageItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Blog Pages
+      summary: Update a blog page (any field). Author may edit their own not-yet-published page even without blog_content.pages.update
+      operationId: blogPagesUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBlogPageRequest"
+      responses:
+        "200":
+          description: Blog page updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/BlogPageItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Access denied — the caller neither holds blog_content.pages.update nor is the page's author editing their own not-yet-published page.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: A page already exists for this slug in this locale.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and a submitted featuredMediaId or contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Blog Pages
+      summary: Soft-delete a blog page
+      operationId: blogPagesDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+      responses:
+        "200":
+          description: Blog page deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - id
+                          - deleted
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    BlogPageItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - authorTenantUserId
+        - title
+        - slug
+        - excerpt
+        - contentJson
+        - contentText
+        - status
+        - visibility
+        - featuredMediaId
+        - seoTitle
+        - metaDescription
+        - canonicalUrl
+        - locale
+        - pageType
+        - parentPageId
+        - menuOrder
+        - publishedAt
+        - scheduledAt
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - deletedBy
+        - deleteReason
+        - restoredAt
+        - restoredBy
+        - version
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        authorTenantUserId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        slug:
+          type: string
+        excerpt:
+          type: string
+          nullable: true
+        contentJson:
+          type: object
+          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url."
+        contentText:
+          type: string
+        status:
+          type: string
+          enum:
+            - draft
+            - review
+            - scheduled
+            - published
+            - archived
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+            - unlisted
+        featuredMediaId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), must reference an existing, same-tenant media object (Issue #633) with status verified or attached — never a local path or arbitrary external URL. A non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID. Outside that mode, only the UUID shape is validated."
+        seoTitle:
+          type: string
+          nullable: true
+        metaDescription:
+          type: string
+          nullable: true
+        canonicalUrl:
+          type: string
+          nullable: true
+        locale:
+          type: string
+        pageType:
+          type: string
+          enum:
+            - standard
+            - landing
+            - legal
+            - system
+        parentPageId:
+          type: string
+          format: uuid
+          nullable: true
+        menuOrder:
+          type: integer
+          minimum: 0
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deletedBy:
+          type: string
+          format: uuid
+          nullable: true
+        deleteReason:
+          type: string
+          nullable: true
+        restoredAt:
+          type: string
+          format: date-time
+          nullable: true
+        restoredBy:
+          type: string
+          format: uuid
+          nullable: true
+        version:
+          type: integer
+          minimum: 1
+    BlogPageListItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - title
+        - slug
+        - status
+        - visibility
+        - pageType
+        - parentPageId
+        - menuOrder
+        - locale
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        slug:
+          type: string
+        status:
+          type: string
+          enum:
+            - draft
+            - review
+            - scheduled
+            - published
+            - archived
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+            - unlisted
+        pageType:
+          type: string
+          enum:
+            - standard
+            - landing
+            - legal
+            - system
+        parentPageId:
+          type: string
+          format: uuid
+          nullable: true
+        menuOrder:
+          type: integer
+          minimum: 0
+        locale:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+    BlogPageListResponse:
+      type: object
+      required:
+        - pages
+      additionalProperties: false
+      properties:
+        pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlogPageListItem"
+    CreateBlogPageRequest:
+      type: object
+      required:
+        - title
+        - slug
+        - contentJson
+        - contentText
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        slug:
+          type: string
+          pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
+        excerpt:
+          type: string
+          maxLength: 500
+          nullable: true
+        contentJson:
+          type: object
+          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url."
+        contentText:
+          type: string
+        locale:
+          type: string
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+            - unlisted
+        featuredMediaId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), must reference an existing, same-tenant media object (Issue #633) with status verified or attached — never a local path or arbitrary external URL. A non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID. Outside that mode, only the UUID shape is validated."
+        seoTitle:
+          type: string
+          maxLength: 70
+          nullable: true
+        metaDescription:
+          type: string
+          maxLength: 160
+          nullable: true
+        canonicalUrl:
+          type: string
+          nullable: true
+        pageType:
+          type: string
+          enum:
+            - standard
+            - landing
+            - legal
+            - system
+        parentPageId:
+          type: string
+          format: uuid
+          nullable: true
+        menuOrder:
+          type: integer
+          minimum: 0
+    UpdateBlogPageRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        slug:
+          type: string
+          pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
+        excerpt:
+          type: string
+          maxLength: 500
+          nullable: true
+        contentJson:
+          type: object
+          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url."
+        contentText:
+          type: string
+        locale:
+          type: string
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+            - unlisted
+        featuredMediaId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), must reference an existing, same-tenant media object (Issue #633) with status verified or attached — never a local path or arbitrary external URL. A non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID. Outside that mode, only the UUID shape is validated."
+        seoTitle:
+          type: string
+          maxLength: 70
+          nullable: true
+        metaDescription:
+          type: string
+          maxLength: 160
+          nullable: true
+        canonicalUrl:
+          type: string
+          nullable: true
+        pageType:
+          type: string
+          enum:
+            - standard
+            - landing
+            - legal
+            - system
+        parentPageId:
+          type: string
+          format: uuid
+          nullable: true
+        menuOrder:
+          type: integer
+          minimum: 0

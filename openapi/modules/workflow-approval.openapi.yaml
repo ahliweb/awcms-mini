@@ -1,0 +1,209 @@
+# Source fragment for the "Workflow Approval" module/tag (Issue #695, epic #679).
+#
+# Owns every path tagged "Workflow Approval" and every schema referenced ONLY by this
+# tag's operations. Schemas shared with another module/tag live in the root
+# file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/workflows/tasks:
+    get:
+      tags:
+        - Workflow Approval
+      summary: List this tenant's pending workflow tasks (limit 100, oldest first)
+      operationId: workflowsGetPendingTasks
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Pending workflow tasks for the caller's tenant (limit 100, oldest first).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/WorkflowTaskListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/workflows/tasks/{id}/decisions:
+    post:
+      tags:
+        - Workflow Approval
+      summary: Record a decision (approve/reject) for a pending workflow task
+      operationId: workflowsRecordTaskDecision
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowTaskDecisionRequest"
+      responses:
+        "200":
+          description: Decision recorded. Instance advances to the next step, is approved, or is rejected depending on the decision and remaining steps.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/WorkflowTaskDecisionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Access denied by RBAC, ABAC, or tenant policy — including self-approval denial when the caller is the same tenant user who requested the workflow instance.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request, or the task's decision has already been recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    WorkflowTaskDecisionRequest:
+      type: object
+      required:
+        - decision
+      additionalProperties: false
+      properties:
+        decision:
+          type: string
+          enum:
+            - approve
+            - reject
+        reason:
+          type: string
+    WorkflowTaskDecisionResponse:
+      type: object
+      required:
+        - taskId
+        - decision
+        - instanceId
+        - instanceStatus
+        - nextStepOrder
+      additionalProperties: false
+      properties:
+        taskId:
+          type: string
+          format: uuid
+        decision:
+          type: string
+          enum:
+            - approve
+            - reject
+        instanceId:
+          type: string
+          format: uuid
+        instanceStatus:
+          type: string
+          enum:
+            - approved
+            - rejected
+            - pending
+        nextStepOrder:
+          type: integer
+          minimum: 1
+          nullable: true
+    WorkflowTaskItem:
+      type: object
+      required:
+        - id
+        - stepOrder
+        - createdAt
+        - instanceId
+        - resourceType
+        - resourceId
+        - requestedByTenantUserId
+        - currentStepOrder
+        - workflowDefinitionId
+        - workflowKey
+        - workflowName
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        stepOrder:
+          type: integer
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+        instanceId:
+          type: string
+          format: uuid
+        resourceType:
+          type: string
+        resourceId:
+          type: string
+        requestedByTenantUserId:
+          type: string
+          format: uuid
+        currentStepOrder:
+          type: integer
+          minimum: 1
+        workflowDefinitionId:
+          type: string
+          format: uuid
+        workflowKey:
+          type: string
+        workflowName:
+          type: string
+    WorkflowTaskListResponse:
+      type: object
+      required:
+        - tasks
+      additionalProperties: false
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowTaskItem"

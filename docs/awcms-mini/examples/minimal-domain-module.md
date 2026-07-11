@@ -284,9 +284,14 @@ workflow (`src/pages/api/v1/workflows/tasks/[id]/decisions.ts`).
 
 ## Snippet OpenAPI
 
-Tambahkan path baru ke `openapi/awcms-mini-public-api.openapi.yaml` —
-jangan membuat file OpenAPI terpisah per modul (kontrak base tunggal,
-ADR-0007):
+Sejak Issue #695 (epic #679), `openapi/awcms-mini-public-api.openapi.yaml`
+adalah artefak GENERATED — jangan edit langsung. Tambahkan path baru ke
+fragment sumber modul ini, `openapi/modules/<module-key>.openapi.yaml`
+(bikin baru bila modul ini belum punya satu — satu file per
+modul/tag, jangan campur dengan modul lain), lalu jalankan
+`bun run openapi:bundle` untuk regenerate file bundle publikasi. Kontrak
+yang DIPUBLIKASIKAN tetap tunggal (ADR-0007) — hanya representasi sumber
+yang sekarang dipecah per modul, lihat `openapi/README.md`:
 
 ```yaml
 /api/v1/assets:
@@ -331,10 +336,14 @@ ADR-0007):
 ```
 
 `AssetRegisterRequest`/`AssetResponse` didefinisikan sekali di
-`components.schemas`, sama seperti skema modul aktif lain. Jalankan
-`bun run api:spec:check` setelah menambah path — pemeriksaan ini gagal
-bila `info.version` bukan SemVer atau path/schema tidak konsisten
-(ADR-0008).
+`components.schemas` fragment modul ini (atau di
+`openapi/awcms-mini-public-api.src.yaml` bila genuinely dipakai 2+ modul),
+sama seperti skema modul aktif lain. Jalankan `bun run openapi:bundle` lalu
+`bun run api:spec:check` setelah menambah path — pemeriksaan ini gagal bila
+`info.version` bukan SemVer, path/schema tidak konsisten (ADR-0008), bundle
+basi relatif terhadap fragment sumber, `operationId` duplikat, path
+parameter tidak cocok, response error bukan `ApiError`, atau security
+metadata tidak eksplisit (Issue #695).
 
 ## Snippet AsyncAPI (bila mutation menghasilkan event domain)
 

@@ -1,0 +1,187 @@
+# Source fragment for the "Email Suppressions" module/tag (Issue #695, epic #679).
+#
+# Owns every path tagged "Email Suppressions" and every schema referenced ONLY by this
+# tag's operations. Schemas shared with another module/tag live in the root
+# file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/email/suppressions:
+    get:
+      tags:
+        - Email Suppressions
+      summary: List the tenant's email suppression list (limit 100, newest first)
+      operationId: emailSuppressionsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Suppression list entries — recipient address is always masked.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SuppressionListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Email Suppressions
+      summary: Manually suppress a recipient address
+      operationId: emailSuppressionsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuppressionCreateRequest"
+      responses:
+        "200":
+          description: Suppression entry created (or already existed).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SuppressionCreateResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/email/suppressions/{id}:
+    delete:
+      tags:
+        - Email Suppressions
+      summary: Remove a manual suppression entry
+      operationId: emailSuppressionsDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Suppression entry removed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    SuppressionCreateRequest:
+      type: object
+      required:
+        - recipient
+        - reason
+      additionalProperties: false
+      properties:
+        recipient:
+          type: string
+          format: email
+        reason:
+          type: string
+          enum:
+            - bounced
+            - complained
+            - manual
+            - unsubscribed
+    SuppressionCreateResponse:
+      description: 'Either the created entry, or `{ "alreadySuppressed": true }` if the recipient was already on the list (idempotent no-op).'
+      oneOf:
+        - $ref: "#/components/schemas/SuppressionEntry"
+        - type: object
+          required:
+            - alreadySuppressed
+          additionalProperties: false
+          properties:
+            alreadySuppressed:
+              type: boolean
+    SuppressionEntry:
+      type: object
+      required:
+        - id
+        - recipientMasked
+        - reason
+        - createdAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        recipientMasked:
+          type: string
+        reason:
+          type: string
+          enum:
+            - bounced
+            - complained
+            - manual
+            - unsubscribed
+        createdBy:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    SuppressionListResponse:
+      type: object
+      required:
+        - entries
+      additionalProperties: false
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/SuppressionEntry"

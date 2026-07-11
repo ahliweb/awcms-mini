@@ -1,0 +1,916 @@
+# Source fragment for the "Sync Storage" module/tag (Issue #695, epic #679).
+#
+# Owns every path tagged "Sync Storage" and every schema referenced ONLY by this
+# tag's operations. Schemas shared with another module/tag live in the root
+# file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/sync/conflicts:
+    get:
+      tags:
+        - Sync Storage
+      summary: List sync conflicts for the tenant (bearer session, not HMAC)
+      operationId: syncListConflicts
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - open
+              - resolved
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Recent sync conflicts, newest first (limit 50).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SyncConflictListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sync/conflicts/{id}/resolve:
+    post:
+      tags:
+        - Sync Storage
+      summary: Resolve a sync conflict (bearer session, not HMAC)
+      operationId: syncResolveConflict
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncConflictResolveRequest"
+      responses:
+        "200":
+          description: Conflict resolved.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SyncConflictResolveResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Conflict is already resolved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sync/nodes:
+    get:
+      tags:
+        - Sync Storage
+      summary: List sync nodes for the tenant (bearer session or SSR cookie, not HMAC)
+      description: Admin-facing view of node registrations — distinct from the machine-to-machine HMAC endpoints (`/sync/push`, `/sync/pull`, `/sync/status`, `/sync/objects*`).
+      operationId: syncListNodes
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: All sync nodes registered for the tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SyncNodeListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sync/nodes/{id}:
+    patch:
+      tags:
+        - Sync Storage
+      summary: Activate/deactivate or rename a sync node
+      description: "Deactivating a node takes effect immediately: every HMAC sync endpoint already rejects a non-active node with 403. Use this to revoke a lost/retired device."
+      operationId: syncUpdateNode
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSyncNodeRequest"
+      responses:
+        "200":
+          description: Sync node updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sync/object-queue:
+    get:
+      tags:
+        - Sync Storage
+      summary: List object sync queue entries tenant-wide (bearer session, not HMAC)
+      description: Admin-facing, all-nodes view — distinct from the node-scoped, HMAC `GET /sync/objects/status` that a single node polls for its own work.
+      operationId: syncListObjectQueue
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - sent
+              - failed
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Object sync queue entries tenant-wide (limit 200), newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ObjectQueueListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sync/object-queue/{id}/retry:
+    post:
+      tags:
+        - Sync Storage
+      summary: Manually retry a failed object sync queue entry
+      description: Human override of the automatic exponential-backoff schedule — resets retry_count/next_retry_at/last_error and status back to `pending` so the node's next status poll picks it up. Only `failed` entries are eligible; `pending`/`sent` are rejected with 409.
+      operationId: syncRetryObjectQueueEntry
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Entry reset to pending.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Only failed entries can be retried.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sync/objects:
+    post:
+      tags:
+        - Sync Storage
+      summary: Enqueue local objects for R2 sync (upsert by objectKey)
+      operationId: syncEnqueueObjects
+      security:
+        - syncHmac: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/SyncNodeId"
+        - $ref: "#/components/parameters/SyncTimestamp"
+        - $ref: "#/components/parameters/SyncSignature"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ObjectSyncEnqueueRequest"
+      responses:
+        "200":
+          description: Objects queued (re-enqueuing an existing objectKey upserts it back to pending).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ObjectSyncEnqueueResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sync/objects/status:
+    get:
+      tags:
+        - Sync Storage
+      summary: List this node's pending/failed object sync queue entries
+      operationId: syncGetObjectsStatus
+      security:
+        - syncHmac: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/SyncNodeId"
+        - $ref: "#/components/parameters/SyncTimestamp"
+        - $ref: "#/components/parameters/SyncSignature"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Non-sent object sync queue entries for this node (limit 100), oldest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ObjectSyncStatusResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sync/pull:
+    post:
+      tags:
+        - Sync Storage
+      summary: Pull events newer than the node's stored checkpoint
+      operationId: syncPull
+      security:
+        - syncHmac: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/SyncNodeId"
+        - $ref: "#/components/parameters/SyncTimestamp"
+        - $ref: "#/components/parameters/SyncSignature"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncPullRequest"
+      responses:
+        "200":
+          description: Events since the node's last checkpoint, and the new checkpoint.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SyncPullResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sync/push:
+    post:
+      tags:
+        - Sync Storage
+      summary: Push a batch of local events to the server (idempotent per batchId)
+      operationId: syncPush
+      security:
+        - syncHmac: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/SyncNodeId"
+        - $ref: "#/components/parameters/SyncTimestamp"
+        - $ref: "#/components/parameters/SyncSignature"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncPushRequest"
+      responses:
+        "200":
+          description: Batch accepted (or already applied, if the batchId was seen before).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SyncPushResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/sync/status:
+    get:
+      tags:
+        - Sync Storage
+      summary: Get the calling node's sync status
+      operationId: syncGetStatus
+      security:
+        - syncHmac: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/SyncNodeId"
+        - $ref: "#/components/parameters/SyncTimestamp"
+        - $ref: "#/components/parameters/SyncSignature"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Sync node status.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SyncStatusResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    ObjectQueueEntry:
+      type: object
+      required:
+        - objectQueueId
+        - nodeId
+        - nodeCode
+        - objectKey
+        - status
+        - retryCount
+        - byteSize
+        - requiresUpload
+        - createdAt
+      additionalProperties: false
+      properties:
+        objectQueueId:
+          type: string
+          format: uuid
+        nodeId:
+          type: string
+          format: uuid
+        nodeCode:
+          type: string
+        objectKey:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - sent
+            - failed
+        retryCount:
+          type: integer
+          minimum: 0
+        nextRetryAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastError:
+          type: string
+          nullable: true
+        byteSize:
+          type: integer
+          minimum: 0
+        requiresUpload:
+          type: boolean
+        uploadedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    ObjectQueueListResponse:
+      type: object
+      required:
+        - objects
+        - nextCursor
+      additionalProperties: false
+      properties:
+        objects:
+          type: array
+          items:
+            $ref: "#/components/schemas/ObjectQueueEntry"
+        nextCursor:
+          type: string
+          nullable: true
+          description: Opaque keyset pagination cursor; pass back as the `cursor` query parameter to fetch the next page. `null` when this is the last page.
+    ObjectSyncEnqueueRequest:
+      type: object
+      required:
+        - objects
+      additionalProperties: false
+      properties:
+        objects:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ObjectSyncQueueItem"
+    ObjectSyncEnqueueResponse:
+      type: object
+      required:
+        - queued
+      additionalProperties: false
+      properties:
+        queued:
+          type: integer
+          minimum: 0
+    ObjectSyncQueueItem:
+      type: object
+      required:
+        - objectKey
+        - localPath
+        - checksumSha256
+        - byteSize
+      additionalProperties: false
+      properties:
+        objectKey:
+          type: string
+          minLength: 1
+        localPath:
+          type: string
+          minLength: 1
+        checksumSha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+          description: SHA-256 checksum of the local file, lowercase hex.
+        byteSize:
+          type: integer
+          minimum: 0
+    ObjectSyncStatusEntry:
+      type: object
+      required:
+        - objectKey
+        - status
+        - retryCount
+        - byteSize
+        - requiresUpload
+      additionalProperties: false
+      properties:
+        objectKey:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - sent
+            - failed
+        retryCount:
+          type: integer
+          minimum: 0
+        nextRetryAt:
+          type: string
+          format: date-time
+        lastError:
+          type: string
+        byteSize:
+          type: integer
+          minimum: 0
+        requiresUpload:
+          type: boolean
+    ObjectSyncStatusResponse:
+      type: object
+      required:
+        - objects
+      additionalProperties: false
+      properties:
+        objects:
+          type: array
+          items:
+            $ref: "#/components/schemas/ObjectSyncStatusEntry"
+    SyncConflictEntry:
+      type: object
+      required:
+        - id
+        - nodeId
+        - batchId
+        - aggregateType
+        - aggregateId
+        - conflictType
+        - payload
+        - status
+        - createdAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        nodeId:
+          type: string
+          format: uuid
+        batchId:
+          type: string
+        aggregateType:
+          type: string
+        aggregateId:
+          type: string
+          format: uuid
+        conflictType:
+          type: string
+          enum:
+            - version_mismatch
+            - missing_base_version
+        payload:
+          description: The event payload that triggered the conflict.
+        status:
+          type: string
+          enum:
+            - open
+            - resolved
+        resolution:
+          type: string
+          enum:
+            - accept_incoming
+            - keep_existing
+            - manual
+        resolutionNote:
+          type: string
+        resolvedBy:
+          type: string
+          format: uuid
+        resolvedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    SyncConflictListResponse:
+      type: object
+      required:
+        - conflicts
+      additionalProperties: false
+      properties:
+        conflicts:
+          type: array
+          items:
+            $ref: "#/components/schemas/SyncConflictEntry"
+    SyncConflictResolveRequest:
+      type: object
+      required:
+        - resolution
+      additionalProperties: false
+      properties:
+        resolution:
+          type: string
+          enum:
+            - accept_incoming
+            - keep_existing
+            - manual
+        note:
+          type: string
+    SyncConflictResolveResponse:
+      type: object
+      required:
+        - id
+        - status
+        - resolution
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          const: resolved
+        resolution:
+          type: string
+          enum:
+            - accept_incoming
+            - keep_existing
+            - manual
+    SyncNodeEntry:
+      type: object
+      required:
+        - nodeId
+        - nodeCode
+        - nodeName
+        - status
+        - lastPullSequence
+        - createdAt
+      additionalProperties: false
+      properties:
+        nodeId:
+          type: string
+          format: uuid
+        nodeCode:
+          type: string
+        nodeName:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+        lastPushedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastPulledAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastPullSequence:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+    SyncNodeListResponse:
+      type: object
+      required:
+        - nodes
+      additionalProperties: false
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/SyncNodeEntry"
+    SyncPulledEvent:
+      type: object
+      required:
+        - sequence
+        - eventType
+        - aggregateType
+        - payload
+        - createdAt
+      additionalProperties: false
+      properties:
+        sequence:
+          type: integer
+        eventType:
+          type: string
+        aggregateType:
+          type: string
+        aggregateId:
+          type: string
+          format: uuid
+        payload:
+          description: Event payload; shape is producer-defined.
+        createdAt:
+          type: string
+          format: date-time
+    SyncPullRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 100
+    SyncPullResponse:
+      type: object
+      required:
+        - events
+        - checkpoint
+        - hasMore
+      additionalProperties: false
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/SyncPulledEvent"
+        checkpoint:
+          type: integer
+        hasMore:
+          type: boolean
+    SyncPushEvent:
+      type: object
+      required:
+        - eventType
+        - aggregateType
+        - payload
+      additionalProperties: false
+      properties:
+        eventType:
+          type: string
+        aggregateType:
+          type: string
+        aggregateId:
+          type: string
+          format: uuid
+        baseVersion:
+          type: integer
+          minimum: 0
+          description: The aggregate version this event was based on. Required once the aggregate has any history; a mismatch against the server's current version is recorded as a conflict instead of applied.
+        payload:
+          description: Event payload; shape is producer-defined.
+    SyncPushRequest:
+      type: object
+      required:
+        - batchId
+        - events
+      additionalProperties: false
+      properties:
+        batchId:
+          type: string
+          minLength: 1
+          description: Client-supplied idempotency key for this batch.
+        events:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/SyncPushEvent"
+    SyncPushResponse:
+      type: object
+      required:
+        - batchId
+        - accepted
+        - conflicted
+        - duplicate
+      additionalProperties: false
+      properties:
+        batchId:
+          type: string
+        accepted:
+          type: integer
+          minimum: 0
+        conflicted:
+          type: integer
+          minimum: 0
+          description: Number of events recorded as conflicts instead of applied.
+        duplicate:
+          type: boolean
+          description: True if this batchId was already processed; no events were reprocessed.
+    SyncStatusResponse:
+      type: object
+      required:
+        - nodeCode
+        - status
+        - checkpoint
+      additionalProperties: false
+      properties:
+        nodeCode:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+        lastPushedAt:
+          type: string
+          format: date-time
+        lastPulledAt:
+          type: string
+          format: date-time
+        checkpoint:
+          type: integer
+    UpdateSyncNodeRequest:
+      type: object
+      description: At least one of status or nodeName is required.
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+        nodeName:
+          type: string
+          minLength: 1

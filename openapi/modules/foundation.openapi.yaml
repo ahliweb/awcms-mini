@@ -1,0 +1,71 @@
+# Source fragment for the "Foundation" module/tag (Issue #695, epic #679).
+#
+# Owns every path tagged "Foundation" and every schema referenced ONLY by this
+# tag's operations. Schemas shared with another module/tag live in the root
+# file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/health:
+    get:
+      tags:
+        - Foundation
+      summary: Check foundation health
+      operationId: getHealth
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+        - $ref: "#/components/parameters/AcceptLanguage"
+      responses:
+        "200":
+          description: Service health status.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/HealthResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - service
+        - runtime
+        - buildMode
+        - moduleCount
+        - generatedAt
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+        service:
+          type: string
+          const: awcms-mini
+        runtime:
+          type: string
+          const: bun
+        buildMode:
+          type: string
+        moduleCount:
+          type: integer
+          minimum: 0
+        generatedAt:
+          type: string
+          format: date-time

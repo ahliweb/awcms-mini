@@ -1,0 +1,309 @@
+# Source fragment for the "Tenant Admin" module/tag (Issue #695, epic #679).
+#
+# Owns every path tagged "Tenant Admin" and every schema referenced ONLY by this
+# tag's operations. Schemas shared with another module/tag live in the root
+# file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/settings:
+    get:
+      tags:
+        - Tenant Admin
+      summary: Read the tenant's profile and settings
+      description: Joins awcms_mini_tenants (tenant_name, legal_name, default_locale, default_theme) and awcms_mini_tenant_settings (timezone, feature_flags).
+      operationId: settingsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Tenant profile and settings.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantSettingsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Tenant Admin
+      summary: Update a subset of the tenant's profile and settings
+      operationId: settingsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTenantSettingsRequest"
+      responses:
+        "200":
+          description: Settings updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantSettingsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/setup/initialize:
+    post:
+      tags:
+        - Tenant Admin
+      summary: Bootstrap the first tenant, owner, office, and access assignment
+      description: "When full-online auth security hardening AND `TURNSTILE_ENABLED=true` are both active (Issue #588), `turnstileToken` is verified before creating the tenant/owner: missing -> `400 TURNSTILE_REQUIRED`, invalid -> `400 TURNSTILE_INVALID`."
+      operationId: setupInitialize
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetupInitializeRequest"
+      responses:
+        "200":
+          description: Setup completed; tenant, owner, and office created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SetupInitializeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          description: Setup has already been completed and is permanently locked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/setup/status:
+    get:
+      tags:
+        - Tenant Admin
+      summary: Check whether the setup wizard has already run
+      operationId: setupGetStatus
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Setup lock status.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SetupStatusResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    SetupInitializeRequest:
+      type: object
+      required:
+        - tenantCode
+        - tenantName
+        - officeCode
+        - officeName
+        - ownerLoginIdentifier
+        - ownerPassword
+        - ownerDisplayName
+      additionalProperties: false
+      properties:
+        tenantCode:
+          type: string
+          minLength: 1
+        tenantName:
+          type: string
+          minLength: 1
+        officeCode:
+          type: string
+          minLength: 1
+        officeName:
+          type: string
+          minLength: 1
+        ownerLoginIdentifier:
+          type: string
+          minLength: 1
+        ownerPassword:
+          type: string
+          minLength: 8
+          writeOnly: true
+        ownerDisplayName:
+          type: string
+          minLength: 1
+        turnstileToken:
+          type: string
+          description: "Cloudflare Turnstile response token (Issue #588). Required only when full-online auth security hardening AND `TURNSTILE_ENABLED=true` are both active — see `LoginRequest`'s `turnstileToken` for the full gating rule."
+    SetupInitializeResponse:
+      type: object
+      required:
+        - tenantId
+        - officeId
+        - ownerProfileId
+        - ownerIdentityId
+        - ownerTenantUserId
+        - ownerRoleId
+      additionalProperties: false
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        officeId:
+          type: string
+          format: uuid
+        ownerProfileId:
+          type: string
+          format: uuid
+        ownerIdentityId:
+          type: string
+          format: uuid
+        ownerTenantUserId:
+          type: string
+          format: uuid
+        ownerRoleId:
+          type: string
+          format: uuid
+    SetupStatusResponse:
+      type: object
+      required:
+        - locked
+      additionalProperties: false
+      properties:
+        locked:
+          type: boolean
+        tenantId:
+          type: string
+          format: uuid
+        lockedAt:
+          type: string
+          format: date-time
+    TenantSettingsResponse:
+      type: object
+      required:
+        - tenantId
+        - tenantName
+        - defaultLocale
+        - defaultTheme
+        - timezone
+        - featureFlags
+      additionalProperties: false
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        tenantName:
+          type: string
+        legalName:
+          type: string
+          nullable: true
+        defaultLocale:
+          type: string
+          enum:
+            - id
+            - en
+            - ms
+            - ar
+        defaultTheme:
+          type: string
+          enum:
+            - light
+            - dark
+            - system
+        timezone:
+          type: string
+        featureFlags:
+          type: object
+          additionalProperties: true
+    UpdateTenantSettingsRequest:
+      type: object
+      description: At least one field is required. legalName accepts null to clear it.
+      additionalProperties: false
+      properties:
+        tenantName:
+          type: string
+          minLength: 1
+        legalName:
+          type: string
+          nullable: true
+        defaultLocale:
+          type: string
+          enum:
+            - id
+            - en
+            - ms
+            - ar
+        defaultTheme:
+          type: string
+          enum:
+            - light
+            - dark
+            - system
+        timezone:
+          type: string
+          minLength: 1
+        featureFlags:
+          type: object
+          additionalProperties: true

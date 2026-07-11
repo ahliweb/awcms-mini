@@ -13,6 +13,10 @@ import path from "node:path";
 import {
   checkPublicOperationAllowlist,
   checkRouteParity,
+  checkOperationIdUniqueness,
+  checkPathParameters,
+  checkStandardErrorSchema,
+  checkOperationSecurityMetadata,
   ALLOWED_PUBLIC_OPERATIONS,
   ROUTES_DIR
 } from "../../scripts/api-spec-check";
@@ -218,5 +222,313 @@ describe("checkRouteParity", () => {
         expect(await checkRouteParity(spec, rootDir, "spec.yaml")).toEqual([]);
       }
     );
+  });
+});
+
+// Issue #695 (epic #679): fixture tests proving each new split-hardening
+// check actually fails on the drift shape it claims to catch.
+describe("checkOperationIdUniqueness", () => {
+  test("passes when every operationId is unique", () => {
+    const spec = {
+      paths: {
+        "/api/v1/widgets": { get: { operationId: "listWidgets" } },
+        "/api/v1/widgets/{id}": { get: { operationId: "getWidget" } }
+      }
+    };
+
+    expect(checkOperationIdUniqueness(spec, "spec.yaml")).toEqual([]);
+  });
+
+  test("fails when two operations share an operationId, naming both locations (drift fixture)", () => {
+    const spec = {
+      paths: {
+        "/api/v1/widgets": { get: { operationId: "widgetsOp" } },
+        "/api/v1/widgets/{id}": { get: { operationId: "widgetsOp" } }
+      }
+    };
+
+    const problems = checkOperationIdUniqueness(spec, "spec.yaml");
+    expect(problems).toHaveLength(1);
+    expect(problems[0]!.message).toContain('"widgetsOp"');
+    expect(problems[0]!.message).toContain("GET /api/v1/widgets");
+    expect(problems[0]!.message).toContain("GET /api/v1/widgets/{id}");
+  });
+});
+
+describe("checkPathParameters", () => {
+  test("passes when path params exactly match declared parameters", () => {
+    const spec = {
+      paths: {
+        "/api/v1/widgets/{id}": {
+          get: {
+            parameters: [
+              {
+                name: "id",
+                in: "path",
+                required: true,
+                schema: { type: "string" }
+              }
+            ]
+          }
+        }
+      }
+    };
+
+    expect(checkPathParameters(spec, "spec.yaml")).toEqual([]);
+  });
+
+  test("resolves $ref parameters against components.parameters", () => {
+    const spec = {
+      components: {
+        parameters: {
+          WidgetId: {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" }
+          }
+        }
+      },
+      paths: {
+        "/api/v1/widgets/{id}": {
+          get: { parameters: [{ $ref: "#/components/parameters/WidgetId" }] }
+        }
+      }
+    };
+
+    expect(checkPathParameters(spec, "spec.yaml")).toEqual([]);
+  });
+
+  test("fails when a path segment has no matching parameter declaration (drift fixture)", () => {
+    const spec = {
+      paths: {
+        "/api/v1/widgets/{id}": { get: { parameters: [] } }
+      }
+    };
+
+    const problems = checkPathParameters(spec, "spec.yaml");
+    expect(problems).toHaveLength(1);
+    expect(problems[0]!.message).toContain("{id}");
+    expect(problems[0]!.message).toContain("no matching parameters entry");
+  });
+
+  test("fails when a declared path parameter doesn't appear in the path template (drift fixture)", () => {
+    const spec = {
+      paths: {
+        "/api/v1/widgets": {
+          get: {
+            parameters: [
+              {
+                name: "id",
+                in: "path",
+                required: true,
+                schema: { type: "string" }
+              }
+            ]
+          }
+        }
+      }
+    };
+
+    const problems = checkPathParameters(spec, "spec.yaml");
+    expect(problems).toHaveLength(1);
+    expect(problems[0]!.message).toContain('declares path parameter "id"');
+  });
+
+  test("fails when a path parameter isn't marked required: true", () => {
+    const spec = {
+      paths: {
+        "/api/v1/widgets/{id}": {
+          get: {
+            parameters: [
+              {
+                name: "id",
+                in: "path",
+                required: false,
+                schema: { type: "string" }
+              }
+            ]
+          }
+        }
+      }
+    };
+
+    const problems = checkPathParameters(spec, "spec.yaml");
+    expect(
+      problems.some((p) => p.message.includes("must declare required: true"))
+    ).toBe(true);
+  });
+});
+
+describe("checkStandardErrorSchema", () => {
+  const componentsWithApiError = {
+    responses: {
+      BadRequest: {
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/ApiError" }
+          }
+        }
+      }
+    }
+  };
+
+  test("passes when every error response resolves to ApiError via $ref to components.responses", () => {
+    const spec = {
+      components: componentsWithApiError,
+      paths: {
+        "/api/v1/widgets": {
+          get: {
+            responses: { "400": { $ref: "#/components/responses/BadRequest" } }
+          }
+        }
+      }
+    };
+
+    expect(checkStandardErrorSchema(spec, "spec.yaml")).toEqual([]);
+  });
+
+  test("passes when ApiError is one alternative of a oneOf (documented status-code overload)", () => {
+    const spec = {
+      paths: {
+        "/api/v1/auth/login": {
+          post: {
+            responses: {
+              "401": {
+                content: {
+                  "application/json": {
+                    schema: {
+                      oneOf: [
+                        { $ref: "#/components/schemas/ApiError" },
+                        {
+                          $ref: "#/components/schemas/LoginMfaRequiredResponse"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    };
+
+    expect(checkStandardErrorSchema(spec, "spec.yaml")).toEqual([]);
+  });
+
+  test("ignores 2xx/3xx responses", () => {
+    const spec = {
+      paths: {
+        "/api/v1/widgets": {
+          get: {
+            responses: {
+              "200": {
+                content: { "application/json": { schema: { type: "object" } } }
+              },
+              "302": { description: "redirect" }
+            }
+          }
+        }
+      }
+    };
+
+    expect(checkStandardErrorSchema(spec, "spec.yaml")).toEqual([]);
+  });
+
+  test("fails when an error response uses an ad-hoc inline schema instead of ApiError (drift fixture)", () => {
+    const spec = {
+      paths: {
+        "/api/v1/widgets": {
+          get: {
+            responses: {
+              "400": {
+                content: {
+                  "application/json": {
+                    schema: {
+                      type: "object",
+                      properties: { oops: { type: "string" } }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    };
+
+    const problems = checkStandardErrorSchema(spec, "spec.yaml");
+    expect(problems).toHaveLength(1);
+    expect(problems[0]!.message).toContain("400");
+    expect(problems[0]!.message).toContain(
+      "does not resolve to the shared ApiError schema"
+    );
+  });
+});
+
+describe("checkOperationSecurityMetadata", () => {
+  test("passes when security is explicit and allow-listed as public", () => {
+    const spec = {
+      components: { securitySchemes: {} },
+      paths: {
+        [ALLOWED_PUBLIC_OPERATIONS[0]!.split(" ")[1]!]: {
+          [ALLOWED_PUBLIC_OPERATIONS[0]!.split(" ")[0]!.toLowerCase()]: {
+            security: []
+          }
+        }
+      }
+    };
+
+    expect(checkOperationSecurityMetadata(spec, "spec.yaml")).toEqual([]);
+  });
+
+  test("passes when security is explicit and non-empty", () => {
+    const spec = {
+      components: { securitySchemes: { bearerAuth: {} } },
+      paths: {
+        "/api/v1/widgets": { get: { security: [{ bearerAuth: [] }] } }
+      }
+    };
+
+    expect(checkOperationSecurityMetadata(spec, "spec.yaml")).toEqual([]);
+  });
+
+  // This is the gap checkPublicOperationAllowlist (Issue #685) does NOT
+  // cover: that check only looks at operations with EXPLICIT
+  // `security: []`. An operation with no `security` key at all inherits the
+  // document's global default per the OpenAPI spec, so
+  // checkPublicOperationAllowlist correctly does not flag it as "public" —
+  // but this project's convention is that every operation states its
+  // security stance explicitly, so checkOperationSecurityMetadata fails it
+  // instead (see the same fixture asserted as a pass in
+  // checkPublicOperationAllowlist's "no security key" test above).
+  test("fails when security is entirely absent and not allow-listed (drift fixture)", () => {
+    const spec = {
+      components: { securitySchemes: {} },
+      paths: {
+        "/api/v1/widgets": { get: {} }
+      }
+    };
+
+    const problems = checkOperationSecurityMetadata(spec, "spec.yaml");
+    expect(problems).toHaveLength(1);
+    expect(problems[0]!.message).toContain("GET /api/v1/widgets");
+    expect(problems[0]!.message).toContain(
+      "declares no security requirement at all"
+    );
+  });
+
+  test("fails when a security requirement references an undefined scheme (typo)", () => {
+    const spec = {
+      components: { securitySchemes: { bearerAuth: {} } },
+      paths: {
+        "/api/v1/widgets": { get: { security: [{ bearrAuth: [] }] } }
+      }
+    };
+
+    const problems = checkOperationSecurityMetadata(spec, "spec.yaml");
+    expect(problems).toHaveLength(1);
+    expect(problems[0]!.message).toContain('undefined scheme "bearrAuth"');
   });
 });

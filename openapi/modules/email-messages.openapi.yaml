@@ -1,0 +1,179 @@
+# Source fragment for the "Email Messages" module/tag (Issue #695, epic #679).
+#
+# Owns every path tagged "Email Messages" and every schema referenced ONLY by this
+# tag's operations. Schemas shared with another module/tag live in the root
+# file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/email/messages:
+    get:
+      tags:
+        - Email Messages
+      summary: List tenant-wide email queue diagnostics (queue health, failed messages, retry backlog) — never the raw recipient address
+      operationId: emailMessagesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - queued
+              - sending
+              - sent
+              - failed
+              - retry_wait
+              - cancelled
+              - suppressed
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Email messages tenant-wide (limit 100), newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/EmailMessageListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/email/messages/{id}/cancel:
+    post:
+      tags:
+        - Email Messages
+      summary: Cancel a still-queued (queued/retry_wait) email message before it sends
+      description: Technical mitigation for the "accidental bulk send" incident scenario. Only queued/retry_wait messages are eligible; anything already sending/sent/failed/cancelled/suppressed is rejected with 409.
+      operationId: emailMessagesCancel
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Message cancelled.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/EmailMessageEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Message can no longer be cancelled (not queued/retry_wait).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    EmailMessageEntry:
+      type: object
+      required:
+        - id
+        - category
+        - status
+        - priority
+        - toAddressMasked
+        - subject
+        - retryCount
+        - createdAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        correlationId:
+          type: string
+          nullable: true
+        category:
+          type: string
+        status:
+          type: string
+          enum:
+            - queued
+            - sending
+            - sent
+            - failed
+            - retry_wait
+            - cancelled
+            - suppressed
+        priority:
+          type: string
+          enum:
+            - low
+            - normal
+            - high
+        toAddressMasked:
+          type: string
+        subject:
+          type: string
+        retryCount:
+          type: integer
+          minimum: 0
+        lastError:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+    EmailMessageListResponse:
+      type: object
+      required:
+        - messages
+        - nextCursor
+      additionalProperties: false
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmailMessageEntry"
+        nextCursor:
+          type: string
+          nullable: true
+          description: Opaque keyset pagination cursor; pass back as the `cursor` query parameter to fetch the next page. `null` when this is the last page.
