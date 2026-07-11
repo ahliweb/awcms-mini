@@ -6,11 +6,34 @@
  * descriptor-sync.ts`) — reads the trusted code registry (`listModules()`)
  * and upserts it into the database-backed registry. Safe to run on every
  * deploy (idempotent, no network calls, no user input).
+ *
+ * Issue #680 (epic #679) — refuses to sync a registry whose dependency
+ * graph is broken (self-dependency, duplicate, missing key, or cycle):
+ * writing a known-bad graph into the DB mirror table would just make the
+ * corruption durable and harder to notice than failing here, before any
+ * row is touched. Same validator `bun run modules:dag:check`/`bun run
+ * check` already gate on, reused rather than duplicated.
  */
 import { getDatabaseClient } from "../src/lib/database/client";
 import { syncModuleDescriptors } from "../src/modules/module-management/application/descriptor-sync";
+import { listModules } from "../src/modules";
+import {
+  formatModuleDependencyGraphIssue,
+  validateModuleDependencyGraph
+} from "../src/modules/module-management/domain/module-dependency-graph";
 
 async function main() {
+  const graphResult = validateModuleDependencyGraph(listModules());
+
+  if (!graphResult.valid) {
+    console.error("modules:sync FAILED — dependency graph is invalid:");
+    for (const issue of graphResult.issues) {
+      console.error(`  ${formatModuleDependencyGraphIssue(issue)}`);
+    }
+    process.exitCode = 1;
+    return;
+  }
+
   const sql = getDatabaseClient();
 
   try {

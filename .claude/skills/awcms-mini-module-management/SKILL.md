@@ -62,6 +62,58 @@ Modul `isCore: true` (saat ini hanya `module_management` sendiri) tidak
 bisa dinonaktifkan — ini pencegah _admin lockout_ utama: kemampuan
 mengelola modul lain tidak pernah hilang.
 
+### Registry-wide DAG validator (Issue #680, epic #679) — beda dari `hasDependencyCycle`
+
+`hasDependencyCycle` di atas hanya pernah dipanggil untuk SATU modul (yang
+sedang dicoba di-enable, `evaluateModuleEnable` — lihat `tenant-module-lifecycle.ts:138`)
+— tidak pernah dipakai untuk memeriksa "apakah SELURUH registry sudah
+DAG yang valid". Celah inilah yang membuat `tenant_admin`/
+`profile_identity`/`identity_access` sempat punya cycle 3-node nyata di
+`dependencies` masing-masing (`tenant_admin -> profile_identity ->
+tenant_admin`, dst) selama registry-nya tidak pernah diiterasi
+menyeluruh — padahal `hasDependencyCycle` SUDAH akan menolaknya kalau
+ada yang mencoba meng-enable salah satu dari ketiganya lewat jalur
+normal.
+
+`domain/module-dependency-graph.ts`'s `validateModuleDependencyGraph(listModules())`
+adalah pemeriksaan menyeluruh itu — mendeteksi EMPAT masalah berbeda
+sekaligus (tidak berhenti di yang pertama): `self_dependency`,
+`duplicate_dependency`, `missing_dependency`, dan `cycle`
+(langsung/tidak langsung, algoritma Kahn menyeluruh, bukan DFS
+satu-titik). Dipanggil dari:
+
+- `bun run modules:dag:check` (`scripts/validate-module-graph.ts`) —
+  disisipkan ke `bun run check` tepat setelah `api:spec:check`.
+- `bun run modules:sync` (`scripts/modules-sync.ts`) — menolak sync ke DB
+  bila graph rusak, SEBELUM baris apa pun tersentuh.
+
+**Fix nyata untuk cycle historis** (Issue #680): `tenant_admin.dependencies`
+diubah dari `["profile_identity", "identity_access"]` menjadi `[]` —
+`profile_identity`/`identity_access`'s array masing-masing SUDAH benar
+sejak awal (`profile_identity: ["tenant_admin"]`,
+`identity_access: ["tenant_admin", "profile_identity"]`); satu-satunya
+edge yang salah arah adalah `tenant_admin` balik menunjuk keduanya.
+Alasan historis edge itu ada: `tenant_admin`'s one-time setup wizard
+(`POST /api/v1/setup/initialize`) menulis baris ke tabel
+`profile_identity`/`identity_access` DALAM transaksi yang sama — itu
+kebutuhan **saat-dipanggil** (call-time), bukan "tenant_admin tidak bisa
+berfungsi sama sekali tanpa keduanya" (static dependency yang salah).
+Orkestrasi itu sekarang jadi fungsi composition-root eksplisit,
+`application/platform-bootstrap.ts`'s `bootstrapPlatformTenant`, dipanggil
+langsung oleh route handler — bukan lewat `dependencies` array. Jangan
+kembalikan pola lama ini kalau butuh orkestrasi lintas-modul serupa di
+masa depan — buat composition-root function baru, jangan tambah edge
+`dependencies` untuk menjustifikasi urutan panggilan satu-kali.
+
+`resolveProtectedModuleKeys`'s (module-presets.ts) hasil closure untuk
+`module_management` — `{module_management, tenant_admin, identity_access,
+profile_identity}` — TIDAK berubah meski edge tenant_admin dihapus,
+karena closure dihitung lewat `identity_access -> profile_identity ->
+tenant_admin` (masih transitif sama), bukan lewat edge tenant_admin yang
+dihapus. Verifikasi ini lewat test yang sudah ada
+(`tests/unit/module-presets.test.ts`'s "real registry's protected set is
+exactly module_management's own dependency closure").
+
 ## Baca status tenant-enabled: plural vs singular
 
 `fetchTenantModuleEntries(tx, tenantId)` (semua modul terdaftar) vs
