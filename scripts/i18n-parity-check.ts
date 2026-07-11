@@ -102,6 +102,16 @@ export function checkKeyParity(
  * `interpolate()`'s own substitution regex (`src/lib/i18n/translate.ts`)
  * exactly — this check flags precisely what would otherwise render as a
  * literal, un-substituted `{placeholder}` in production.
+ *
+ * This match is syntactic, not semantic: it can't tell a real interpolation
+ * target from incidental `{word}`-shaped text inside illustrative content.
+ * `admin.news_portal.homepage_sections.config_hint` (i18n/en.po, PR #710
+ * review) is a known example — its `{postId}` sits inside JSON-shape help
+ * prose and is never actually substituted (the call site passes no params),
+ * but both EN/ID happen to preserve it verbatim today so the gate passes.
+ * If a future rewrite of that string drops/renames the bracketed word on
+ * one side only, this check will report a "placeholder mismatch" that
+ * isn't a real interpolation bug — that's expected, not a check defect.
  */
 export function extractPlaceholders(value: string): Set<string> {
   const placeholders = new Set<string>();
