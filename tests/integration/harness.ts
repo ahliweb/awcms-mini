@@ -44,6 +44,16 @@ const SETUP_ROLE_TEST_PASSWORD = "integration_setup_role_password";
 
 export const integrationEnabled = ADMIN_DATABASE_URL.length > 0;
 
+/**
+ * Issue #691 (epic #679): the raw privileged connection string, for tests
+ * that need to pass DATABASE_URL to a spawned OS process (e.g.
+ * deploy/backup/{backup,restore,restore-drill}-postgres.sh) rather than use
+ * `getAdminSql()`'s in-process client.
+ */
+export function getAdminDatabaseUrl(): string {
+  return ADMIN_DATABASE_URL;
+}
+
 let adminSql: Bun.SQL | undefined;
 
 /**

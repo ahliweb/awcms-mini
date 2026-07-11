@@ -334,7 +334,11 @@ rollback lengkap: `docs/awcms-mini/production-preflight-runbook.md`.
 
 ## Backup SOP ringkas
 
-Command contoh:
+Command contoh (konsep dasar; implementasi nyata sejak Issue 12.2 adalah
+`deploy/backup/backup-postgres.sh`, dikeraskan Issue #691 dengan enkripsi +
+manifest bertanda tangan — lihat `deploy/backup/README.md` untuk command
+lengkap dan model keamanannya, jangan jalankan `pg_dump` polos di bawah ini
+langsung terhadap production):
 
 ```bash
 pg_dump --format=custom --file=/backup/awcms_mini_$(date +%Y%m%d_%H%M%S).dump "$DATABASE_URL"
@@ -352,6 +356,11 @@ Checklist:
 
 ## Restore SOP ringkas
 
+Command contoh (konsep dasar; implementasi nyata adalah
+`deploy/backup/restore-postgres.sh`, yang sejak Issue #691 memverifikasi
+manifest HMAC + checksum dump SEBELUM mutasi apa pun — lihat
+`deploy/backup/README.md`):
+
 ```bash
 createdb awcms_mini_restore_test
 pg_restore --dbname=awcms_mini_restore_test --clean --if-exists /backup/awcms_mini_YYYYMMDD_HHMMSS.dump
@@ -365,6 +374,10 @@ Validasi:
 - Login test.
 - POS smoke test.
 - Report smoke test.
+
+`deploy/backup/restore-drill.sh` (Issue #691) mengotomasi restore drill
+terjadwal: backup → restore ke database disposable → verifikasi migrasi
+schema, tenant isolation (RLS), dan sample record → laporan RTO/RPO.
 
 ## Go-live plan
 
