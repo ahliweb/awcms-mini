@@ -247,6 +247,24 @@ i18n memakai **dua lapisan terpisah** sesuai sumber teksnya:
 - **Pesan error ter-i18n**: kode error (doc 05) dipetakan ke key `error.*` (`src/lib/i18n/error-messages.ts`); untuk banner aksi client-side, peta `{code: pesan}` di-inject sebagai `<script type="application/json">` di halaman (katalog `.po` hanya bisa dibaca server-side via `Bun.file`).
 - **Format lokal**: angka/mata uang (IDR + pemisah ribuan sesuai locale) dan tanggal (`Asia/Jakarta`, `Intl.DateTimeFormat`/`NumberFormat`) sadar-locale — `src/lib/i18n/format.ts`.
 
+### Extraction, parity, dan obsolete key (Issue #694)
+
+`i18n/messages.pot` **tidak lagi ditulis tangan** — `scripts/i18n-extract.ts` (`bun run i18n:extract`) men-scan seluruh `.astro`/`.ts`/`.tsx` di `src/` untuk setiap pemanggilan `t("key")`, lalu menulis ulang `messages.pot` (terurut alfabetis, satu komentar `#: file:line` per key, deterministik — dua run berturut-turut terhadap source yang sama menghasilkan byte yang identik).
+
+**Menambah string UI baru**:
+
+1. Pakai `t("namespace.key", params?)` di source seperti biasa.
+2. Jalankan `bun run i18n:extract` — key baru otomatis masuk `i18n/messages.pot`.
+3. Isi `msgstr` untuk key baru itu di `i18n/en.po` **dan** `i18n/id.po` (langkah manual — extraction hanya mengurus inventaris key, bukan menerjemahkan).
+4. Commit ketiga berkas (`messages.pot`, `en.po`, `id.po`) bersamaan.
+5. `bun run i18n:pot:check` (bagian dari `bun run check`) memverifikasi `messages.pot` yang di-commit identik dengan hasil regenerasi dari source — kalau lupa langkah 2, gate ini gagal di CI. `bun run i18n:parity:check` (Issue #685, diperluas Issue #694) memverifikasi: (a) key set `en.po`/`id.po`/`messages.pot` identik, (b) setiap key yang punya placeholder `{name}`-style di `en.po` punya placeholder yang sama persis di `id.po` (dan sebaliknya) — translator yang lupa menyalin `{name}` ke terjemahan akan gagal di CI, bukan diam-diam tampil sebagai teks `{name}` mentah ke user.
+
+**Pola dynamic key** (`t(\`namespace.${variable}\`)`, `t(entry.labelKey)`, `t(key)`dari map seperti`ERROR_CODE_KEYS`) tidak bisa ditemukan lewat scan string literal biasa — `scripts/i18n-extract.ts`'s `DYNAMIC_KEY_FAMILIES`table (untuk pola template-literal, dipetakan ke suffix konkret dari domain enum aslinya) dan scan`labelKey:`/`ERROR_CODE_KEYS`eksplisit menangani ini, supaya key yang benar-benar dipakai tidak salah ditandai "obsolete". Menambah pola dynamic key baru di source **harus** diikuti entry baru di`DYNAMIC_KEY_FAMILIES` (`scripts/i18n-extract.ts`) — kalau tidak, `bun run i18n:extract`/`i18n:pot:check` gagal dengan pesan error yang menyebutkan prefix yang tidak dikenali.
+
+**Key obsolete** (ada di `en.po`/`id.po` tapi sudah tidak ditemukan `bun run i18n:extract` di source manapun) dilaporkan sebagai peringatan oleh `bun run i18n:extract` (bukan dihapus otomatis). Sebelum menghapus, pastikan key itu memang tidak dipakai secara dinamis (cek `DYNAMIC_KEY_FAMILIES`/`labelKey`/`ERROR_CODE_KEYS` di atas); kalau memang sudah tidak dipakai, tandai entrinya dengan prefix `#~ ` (konvensi gettext untuk entry obsolete) di `en.po`/`id.po`/`messages.pot` alih-alih menghapus langsung, supaya translator tahu apa yang baru saja dipensiunkan.
+
+**Plural forms**: katalog ini **tidak** memakai `msgid_plural`/`msgstr[n]` gettext sama sekali (diverifikasi — nol kemunculan di ketiga berkas) — keputusan desain saat ini, bukan kelalaian; `src/lib/i18n/po-parser.ts` juga belum mengimplementasikan parsing plural form. `bun run i18n:parity:check` menyertakan tripwire yang gagal kalau `msgid_plural` pernah muncul, supaya pengenalan fitur ini disadari eksplisit (dan diimplementasikan penuh: parser + `translate.ts`'s pemilihan runtime) alih-alih diam-diam salah di-parse.
+
 ```mermaid
 flowchart LR
   subgraph Statis

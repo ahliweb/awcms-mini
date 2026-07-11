@@ -14,10 +14,26 @@ Sumber kebenaran: **`docs/awcms-mini/14_ui_ux_design_system.md`** §Internationa
 
 ## Menambah string UI baru
 
-1. Tambah key **paralel** di ketiga berkas: `i18n/messages.pot`, `i18n/en.po`, `i18n/id.po` — keyset harus identik di ketiganya (diverifikasi via diff terurut, lihat pola PR #440/#441).
-2. Pakai di server: `const t = await createTranslator(locale)` (`src/lib/i18n/translate.ts`), lalu `t("namespace.key", params?)`. Fallback chain: `locale → en → key mentah` — tidak pernah crash pada key hilang.
-3. Pakai di client script (`<script>` inline di halaman `.astro`): **tidak bisa** memanggil `createTranslator` (katalog server-side only) — injeksikan string yang dibutuhkan lewat `<script type="application/json" set:html={JSON.stringify(clientStrings)} />` di frontmatter, baca di client script (pola `login.astro`, `admin/access-users.astro`).
-4. Pesan error banner: petakan kode error (doc 05) ke key ter-lokalisasi via `translateErrorCode`/`buildClientErrorMessages` (`src/lib/i18n/error-messages.ts`) — jangan hardcode pesan per kode error di tiap halaman.
+1. Pakai di server: `const t = await createTranslator(locale)` (`src/lib/i18n/translate.ts`), lalu `t("namespace.key", params?)`. Fallback chain: `locale → en → key mentah` — tidak pernah crash pada key hilang.
+2. Jalankan `bun run i18n:extract` (`scripts/i18n-extract.ts`, Issue #694) — men-scan seluruh `t("...")` di `src/` dan menulis ulang `i18n/messages.pot` secara **deterministik** (terurut alfabetis, `#: file:line` per key). Key barumu otomatis masuk template ini; **jangan** edit `messages.pot` dengan tangan lagi.
+3. Isi `msgstr` untuk key baru itu di `i18n/en.po` **dan** `i18n/id.po` — ini tetap langkah manual (extraction cuma mengurus inventaris key, bukan menerjemahkan).
+4. Commit ketiga berkas (`messages.pot`, `en.po`, `id.po`) bersamaan. `bun run i18n:pot:check` (bagian `bun run check`) gagal kalau `messages.pot` yang di-commit tidak identik dengan hasil regenerasi dari source — tanda kamu lupa langkah 2.
+5. Pakai di client script (`<script>` inline di halaman `.astro`): **tidak bisa** memanggil `createTranslator` (katalog server-side only) — injeksikan string yang dibutuhkan lewat `<script type="application/json" set:html={JSON.stringify(clientStrings)} />` di frontmatter, baca di client script (pola `login.astro`, `admin/access-users.astro`).
+6. Pesan error banner: petakan kode error (doc 05) ke key ter-lokalisasi via `translateErrorCode`/`buildClientErrorMessages` (`src/lib/i18n/error-messages.ts`) — jangan hardcode pesan per kode error di tiap halaman.
+
+## Dynamic key (t(\`ns.${var}\`), t(entry.labelKey), t(key) dari map)
+
+Sebuah literal-string scan tidak bisa menemukan key yang dipakai secara dinamis. Tiga pola nyata di codebase ini ditangani eksplisit oleh `scripts/i18n-extract.ts` supaya key yang benar-benar dipakai tidak salah ditandai "obsolete":
+
+- `t(\`admin.blog.status.${post.status}\`)`(template-literal interpolation) — resolusi lewat`DYNAMIC_KEY_FAMILIES`table di`scripts/i18n-extract.ts`, memetakan prefix ke suffix konkret dari domain enum aslinya (pola sama seperti `CONFIG_EXEMPTIONS`, Issue #689). **Menambah pola baru ini di source WAJIB diikuti entry baru di tabel itu** — kalau tidak, `bun run i18n:extract`/`i18n:pot:check` gagal (bukan diam-diam under-extract).
+- `t(entry.labelKey)` (nav menu) — resolusi dari definisi literal `labelKey: "admin.layout.nav_x"` di tiap `src/modules/*/module.ts`, bukan dari call site-nya.
+- `t(key)` dari `ERROR_CODE_KEYS` (`src/lib/i18n/error-messages.ts`) — resolusi dari value map itu sendiri.
+
+## Placeholder parity, obsolete key, plural forms (Issue #694)
+
+- **Placeholder**: `{name}`-style adalah satu-satunya format placeholder yang dipakai katalog ini (tidak ada `%s`/`%d`). `bun run i18n:parity:check` gagal kalau `en.po` dan `id.po` punya set placeholder berbeda untuk key yang sama — translator yang lupa menyalin `{name}` akan tertangkap di CI, bukan diam-diam tampil sebagai teks `{name}` mentah.
+- **Obsolete key**: `bun run i18n:extract` melaporkan (bukan menghapus) key yang ada di `en.po` tapi tidak ditemukan di source manapun. Sebelum dihapus, pastikan bukan dynamic key (lihat bagian di atas); kalau memang tidak dipakai, tandai `#~ ` (gettext obsolete marker) di ketiga berkas alih-alih dihapus langsung.
+- **Plural forms**: katalog ini **tidak** memakai `msgid_plural`/`msgstr[n]` sama sekali (keputusan desain saat ini, bukan kelalaian — `po-parser.ts` juga belum mengimplementasikan parsing plural). `bun run i18n:parity:check` menyertakan tripwire yang gagal kalau `msgid_plural` pernah muncul.
 
 ## Resolusi locale — WAJIB di middleware, bukan di layout
 
@@ -44,7 +60,7 @@ Sumber kebenaran: **`docs/awcms-mini/14_ui_ux_design_system.md`** §Internationa
 
 - Ganti locale (switcher/cookie/`default_locale` tenant) → seluruh UI berpindah bahasa tanpa string tersisa hardcode, **termasuk konten halaman**, bukan cuma shell layout.
 - Tidak ada flash bahasa salah saat SSR.
-- `bun run check` hijau; keyset `.po` identik di tiga berkas (skrip verifikasi cepat: bandingkan key sorted dari ketiganya).
+- `bun run check` hijau (termasuk `i18n:pot:check` dan `i18n:parity:check`); keyset + placeholder `.po` identik di tiga berkas.
 - Formatter IDR/tanggal mengikuti locale/timezone yang benar.
 
 ## Skill terkait
