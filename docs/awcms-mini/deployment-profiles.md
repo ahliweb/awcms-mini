@@ -748,6 +748,102 @@ kebutuhan, bukan dijadwalkan terus-menerus:
 - `config:validate`/`production:preflight` — sebelum setiap deploy (lihat
   §Validasi konfigurasi sebelum boot di atas).
 
+## Shared worker runner (Issue #697)
+
+Sebelum Issue #697, setiap `scripts/*.ts` di atas mengimplementasikan sendiri
+pola yang sama: iterasi tenant, correlation id, bounded batching per
+tenant, dan exit code — masing-masing sedikit berbeda. `src/lib/jobs/`
+sekarang menyediakan runner generik yang mengekstrak pola itu jadi satu
+implementasi, dipakai secara **opsional dan inkremental** — script yang
+belum dimigrasi (`sync:objects:dispatch`, `email:dispatch`,
+`blog:publish:scheduled`, `form-drafts:purge`, `analytics:rollup`,
+`analytics:purge`) **tetap valid, tidak wajib migrasi sekaligus**. Dua job
+representatif sudah dimigrasi sebagai bukti: `logs:audit:purge` (tenant-
+iterating maintenance job dengan bounded batching) dan `modules:sync`
+(non-tenant-loop job, upsert registry global).
+
+```mermaid
+flowchart LR
+  Runner[runJob] --> Lock[withAdvisoryLock<br/>pg_try_advisory_lock per nama job]
+  Runner --> Batch[iterateTenantsInBatches<br/>bounded per tenant]
+  Runner --> Retry[classifyError<br/>retryable/not_retryable/unknown]
+  Runner --> Redact[sanitizeErrorForLog<br/>Issue #687, tidak baru]
+  Runner --> Telemetry[JobResult JSON<br/>stdout + --json-output]
+```
+
+**Modul:**
+
+- `src/lib/jobs/job-runner.ts` — `runJob(definition, options)`: menjalankan
+  `definition.handler` di bawah advisory lock per nama job, timeout
+  (`timeoutMs`, default 15 menit), dan cancellation SIGTERM/SIGINT-aware,
+  mengembalikan `JobResult` terstruktur (tidak pernah `throw`) —
+  `status`: `success` | `partial` | `failed` | `skipped` | `timeout` |
+  `terminated`. `applyJobExitCode(result)` menerapkan exit-code contract (0
+  untuk `success`/`skipped`, 1 untuk sisanya) — sama seperti pola
+  `process.exitCode = 1` yang sudah dipakai script existing.
+  `printJobTelemetry`/`writeJobTelemetry(result, jsonOutputPath)` mencetak
+  JSON, opsional ke file (pola `--json-output=<path>` yang sama dengan
+  `scripts/production-preflight.ts`, Issue #684).
+  `parseJobCliArgs(argv)` mem-parse `--dry-run`/`--json-output=<path>`.
+- `src/lib/jobs/advisory-lock.ts` — `acquireAdvisoryLock(sql, jobName)`:
+  generalisasi `pg_advisory_lock`/`pg_advisory_unlock` yang sudah dipakai
+  `scripts/db-migrate.ts` untuk migration lock, TAPI session-level (bukan
+  `pg_advisory_xact_lock` — lock harus bertahan lintas banyak
+  statement/transaksi sepanjang run job, bukan cuma satu transaksi) dan
+  non-blocking (`pg_try_advisory_lock`, bukan blocking seperti
+  `db-migrate.ts` — job terjadwal tidak boleh menunggu tak terbatas, harus
+  skip dan biarkan tick berikutnya coba lagi). Lock key: namespace tetap
+  (`JOB_LOCK_NAMESPACE`, beda dari key `db-migrate.ts`) + hash nama job —
+  **per nama job, bukan lock global tunggal** yang membuat semua job saling
+  block. Reserved connection terpisah dari koneksi yang dipakai handler,
+  jadi handler yang macet tidak pernah memblokir pelepasan lock-nya sendiri.
+- `src/lib/jobs/batching.ts` — `iterateTenantsInBatches`/
+  `runBoundedBatches`: generalisasi loop `MAX_PASSES_PER_TENANT` yang sudah
+  ada di beberapa script existing (`audit-log-purge.ts` dulu,
+  `form-draft-purge.ts`, dst.) — berhenti begitu satu pass melaporkan
+  `count: 0`, atau begitu `maxPasses` (default 50) tercapai (safety bound).
+  Batas item per pass tetap milik fungsi domain masing-masing (mis.
+  `purgeExpiredAuditEvents`'s `batchLimit`), bukan diklaim ulang di sini.
+- `src/lib/jobs/retry-classification.ts` — `classifyError(error)`:
+  `"retryable"` (koneksi terputus, `40001` serialization_failure, `40P01`
+  deadlock_detected, dsb — aman dicoba ulang di tick berikutnya) vs
+  `"not_retryable"` (constraint violation, data exception — akan gagal
+  identik berapa kali pun dicoba) vs `"unknown"`. TIDAK mengimplementasikan
+  retry-with-backoff sendiri (itu akan menjadikan runner ini job queue,
+  eksplisit di luar scope) — hanya diagnostik yang disertakan di
+  `JobResult.retryClassification`.
+
+**Redaksi**: seluruh error di `JobResult.error` sudah melalui
+`sanitizeErrorForLog` (Issue #687) — runner ini tidak menambah mekanisme
+redaksi baru.
+
+**Panduan adopsi inkremental (untuk migrasi job lain nanti):**
+
+1. Ganti loop tenant manual dengan `iterateTenantsInBatches`, bila job
+   iterasi tenant dengan bounded passes (lihat
+   `scripts/audit-log-purge.ts` sebagai contoh).
+2. Bungkus `main()`'s logic jadi satu `runJob({ name, description, handler })`
+   — `name` harus stabil (dipakai sebagai lock key); jangan ganti nama job
+   di rilis berikutnya tanpa memperhitungkan lock key berubah.
+3. Tambahkan `--dry-run` HANYA bila job punya cara wajar melakukan
+   preview read-only tanpa mutasi (lihat `scripts/audit-log-purge.ts`'s
+   `countPurgeableForTenant` dan `scripts/modules-sync.ts`'s pemakaian
+   `planModuleSync` langsung) — bila tidak praktis untuk suatu job,
+   dokumentasikan itu di komentar file job tersebut, jangan dipaksakan.
+4. Cetak `printJobTelemetry(result)` + `writeJobTelemetry(result,
+cliOptions.jsonOutputPath)` + `applyJobExitCode(result)` di akhir
+   `main()`.
+5. External provider call (WhatsApp/email/R2) TETAP di luar transaksi
+   database (ADR-0006) — runner ini tidak mengubah aturan itu; handler
+   yang memanggil provider harus tetap melakukannya di luar `withTenant`'s
+   transaction block, persis pola existing.
+
+Contoh cron/systemd/container TIDAK berubah untuk job yang sudah
+dimigrasi — `bun run logs:audit:purge`/`bun run modules:sync` tetap
+dipanggil dengan cara yang sama persis (lihat §Job registry lainnya di
+atas); `--dry-run`/`--json-output=<path>` adalah flag opsional tambahan,
+bukan pengganti pemanggilan default.
+
 ## Backup lokal (semua profil)
 
 `deploy/backup/backup-postgres.sh` dan `deploy/backup/restore-postgres.sh`

@@ -12,26 +12,53 @@
  * over the API (doc 04 §Aturan implementasi — purge is for "retention/legal
  * hold yang memenuhi syarat", an operational decision, not a user action).
  *
- * Iterates every `active` tenant and drains its expired backlog in bounded
- * batches (`AUDIT_EVENT_PURGE_BATCH_LIMIT` rows per call), looping per
- * tenant until a batch purges nothing or `MAX_PASSES_PER_TENANT` is hit —
- * the same safety bound `object-sync-dispatch.ts` uses so one huge backlog
- * cannot make a single scheduled run run forever.
+ * Migrated to the shared worker runner (`src/lib/jobs/job-runner.ts`, Issue
+ * #697, epic #679) as one of the 2 representative jobs the issue asks for —
+ * chosen because it is the canonical "tenant-iterating maintenance job with
+ * bounded per-tenant batching" shape (`iterateTenantsInBatches` below is a
+ * direct generalization of the `MAX_PASSES_PER_TENANT` loop this script used
+ * to hand-roll). Behavior for a normal (non-dry-run) invocation is
+ * UNCHANGED: same retention resolution, same `purgeExpiredAuditEvents` call
+ * per tenant per pass, same bounded-batch stop condition (a pass purging
+ * zero rows, or the same 50-pass safety bound `DEFAULT_MAX_PASSES` in
+ * `batching.ts` already matches) — only the orchestration (lock, timeout,
+ * correlation id, exit code, JSON telemetry) moved into the shared runner.
+ *
+ * New on top of the pre-migration behavior:
+ * - **Advisory lock** (`bun run logs:audit:purge` run twice concurrently:
+ *   the second instance now safely skips instead of both purging the same
+ *   backlog at once).
+ * - **`--dry-run`**: counts what WOULD be purged (a read-only
+ *   `count(*)` per tenant against the same cutoff) without deleting
+ *   anything or writing any purge audit event — safe to run in production
+ *   to preview impact before scheduling for real.
+ * - **`--json-output=<path>`**: structured, redacted run telemetry, same
+ *   pattern as `scripts/production-preflight.ts`.
  *
  * Retention is configurable per run, in this priority order: `--retention-
  * days=<n>` CLI flag, then `AUDIT_LOG_RETENTION_DAYS` env var (doc 18), then
  * `AUDIT_EVENT_DEFAULT_RETENTION_DAYS` (730 days / 2 years).
  */
 import { getWorkerDatabaseClient } from "../src/lib/database/client";
-import { logScriptFailure } from "../src/lib/logging/error-log";
+import { withTenant } from "../src/lib/database/tenant-context";
+import {
+  applyJobExitCode,
+  formatJobOutcomeLine,
+  isJobResultOk,
+  parseJobCliArgs,
+  printJobTelemetry,
+  runJob,
+  writeJobTelemetry,
+  type JobContext
+} from "../src/lib/jobs/job-runner";
+import {
+  fetchActiveTenants,
+  iterateTenantsInBatches
+} from "../src/lib/jobs/batching";
 import {
   AUDIT_EVENT_DEFAULT_RETENTION_DAYS,
   purgeExpiredAuditEvents
 } from "../src/modules/logging/application/audit-purge";
-
-const MAX_PASSES_PER_TENANT = 50;
-
-type TenantRow = { id: string };
 
 function resolveRetentionDays(): number {
   const flag = process.argv.find((arg) => arg.startsWith("--retention-days="));
@@ -57,45 +84,142 @@ function resolveRetentionDays(): number {
   return AUDIT_EVENT_DEFAULT_RETENTION_DAYS;
 }
 
+export type AuditLogPurgeOptions = {
+  /** Defaults to `resolveRetentionDays()` (reads CLI/env). */
+  retentionDays?: number;
+  /** Defaults to `new Date()`. Injectable for deterministic tests. */
+  now?: Date;
+  /** Forwarded to `purgeExpiredAuditEvents`'s own `batchLimit` (defaults to `AUDIT_EVENT_PURGE_BATCH_LIMIT`). Exposed here so tests can force a small per-pass limit and assert `iterateTenantsInBatches` correctly loops multiple bounded passes — not a new CLI flag, the production default is unchanged. */
+  batchLimit?: number;
+};
+
+export type AuditLogPurgeResult = {
+  tenantsChecked: number;
+  totalPurged: number;
+  cutoffIso: string;
+};
+
+/**
+ * Read-only preview for `--dry-run`: a `count(*)` per tenant against the
+ * exact same cutoff `purgeExpiredAuditEvents` would use, no `DELETE`, no
+ * purge audit event. Deliberately duplicates only the cutoff arithmetic (a
+ * one-line computation), not `purgeExpiredAuditEvents`'s own batching/audit
+ * logic — so a dry run can never drift from what a real run would compute
+ * as "past retention".
+ */
+async function countPurgeableForTenant(
+  sql: Bun.SQL,
+  tenantId: string,
+  cutoff: Date
+): Promise<number> {
+  return withTenant(
+    sql,
+    tenantId,
+    async (tx) => {
+      const rows = (await tx`
+        SELECT count(*)::int AS count
+        FROM awcms_mini_audit_events
+        WHERE tenant_id = ${tenantId} AND created_at < ${cutoff}
+      `) as { count: number }[];
+
+      return rows[0]?.count ?? 0;
+    },
+    { workClass: "maintenance" }
+  );
+}
+
+/**
+ * Core logic, extracted from `main()` so
+ * `tests/integration/audit-log-purge-job.integration.test.ts` can exercise
+ * it directly (real tenant iteration + dry-run/real-run parity) without
+ * spawning a subprocess, same pattern
+ * `purgeVisitorAnalyticsForAllTenants` (`scripts/visitor-analytics-purge.ts`)
+ * already established.
+ */
+export async function runAuditLogPurge(
+  sql: Bun.SQL,
+  ctx: Pick<JobContext, "dryRun" | "correlationId">,
+  options: AuditLogPurgeOptions = {}
+): Promise<AuditLogPurgeResult> {
+  const retentionDays = options.retentionDays ?? resolveRetentionDays();
+  const now = options.now ?? new Date();
+  const cutoff = new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
+
+  if (ctx.dryRun) {
+    const tenants = await fetchActiveTenants(sql);
+    let totalWouldPurge = 0;
+
+    for (const tenant of tenants) {
+      totalWouldPurge += await countPurgeableForTenant(sql, tenant.id, cutoff);
+    }
+
+    return {
+      tenantsChecked: tenants.length,
+      totalPurged: totalWouldPurge,
+      cutoffIso: cutoff.toISOString()
+    };
+  }
+
+  let cutoffIso = cutoff.toISOString();
+
+  const { tenants, totalCount } = await iterateTenantsInBatches(
+    sql,
+    async (tenantId) => {
+      const result = await purgeExpiredAuditEvents(sql, tenantId, {
+        retentionDays,
+        now,
+        batchLimit: options.batchLimit,
+        correlationId: ctx.correlationId
+      });
+
+      cutoffIso = result.cutoff.toISOString();
+      return { count: result.purgedCount };
+    }
+  );
+
+  return { tenantsChecked: tenants.length, totalPurged: totalCount, cutoffIso };
+}
+
 async function main() {
   // Issue #683 (epic #679): `awcms_mini_worker` role — see migration 045.
   const sql = getWorkerDatabaseClient();
-  const correlationId = crypto.randomUUID();
-  const retentionDays = resolveRetentionDays();
+  const cliOptions = parseJobCliArgs(process.argv.slice(2));
 
   try {
-    const tenants = (await sql`
-      SELECT id FROM awcms_mini_tenants WHERE status = 'active'
-    `) as TenantRow[];
+    const result = await runJob(
+      {
+        name: "logs:audit:purge",
+        description:
+          "Purges awcms_mini_audit_events rows past retention for every active tenant.",
+        handler: async (ctx) => {
+          const purgeResult = await runAuditLogPurge(sql, ctx);
 
-    let totalPurged = 0;
-    const now = new Date();
-    let cutoffIso = "";
+          console.log(
+            `logs:audit:purge complete — correlationId=${ctx.correlationId} ` +
+              `cutoff=${purgeResult.cutoffIso} tenants=${purgeResult.tenantsChecked} ` +
+              `purged=${purgeResult.totalPurged}` +
+              (ctx.dryRun ? " (dry-run: nothing was deleted)" : "")
+          );
 
-    for (const tenant of tenants) {
-      for (let pass = 0; pass < MAX_PASSES_PER_TENANT; pass += 1) {
-        const result = await purgeExpiredAuditEvents(sql, tenant.id, {
-          retentionDays,
-          now,
-          correlationId
-        });
-
-        totalPurged += result.purgedCount;
-        cutoffIso = result.cutoff.toISOString();
-
-        if (result.purgedCount === 0) {
-          break;
+          return {
+            itemCounts: {
+              tenantsChecked: purgeResult.tenantsChecked,
+              purged: purgeResult.totalPurged
+            }
+          };
         }
-      }
+      },
+      { sql, dryRun: cliOptions.dryRun }
+    );
+
+    printJobTelemetry(result);
+    await writeJobTelemetry(result, cliOptions.jsonOutputPath);
+
+    if (!isJobResultOk(result)) {
+      console.error(formatJobOutcomeLine(result));
     }
 
-    console.log(
-      `logs:audit:purge complete — correlationId=${correlationId} ` +
-        `retentionDays=${retentionDays} cutoff=${cutoffIso} ` +
-        `tenants=${tenants.length} purged=${totalPurged}`
-    );
-  } catch (error) {
-    logScriptFailure("logs:audit:purge FAILED", error);
+    applyJobExitCode(result);
   } finally {
     await sql.close({ timeout: 1 });
   }
