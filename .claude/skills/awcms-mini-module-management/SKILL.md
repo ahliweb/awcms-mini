@@ -114,6 +114,26 @@ dihapus. Verifikasi ini lewat test yang sudah ada
 (`tests/unit/module-presets.test.ts`'s "real registry's protected set is
 exactly module_management's own dependency closure").
 
+### `capabilities` — hubungan source-level, BEDA dari `dependencies` (Issue #681, epic #679)
+
+`ModuleDescriptor` punya field opsional baru, `capabilities?:
+{provides?: string[]; consumes?: {capability, providedBy, optional?}[]}`
+(`_shared/module-contract.ts`). Ini BUKAN bagian dari dependency-graph
+lifecycle di atas — `dependencies` tetap satu-satunya field yang dibaca
+`hasDependencyCycle`/`validateModuleDependencyGraph`/`evaluateModuleEnable`/
+`evaluateModuleDisable`. `capabilities` murni mendokumentasikan hubungan
+IMPORT SOURCE-LEVEL lewat pola ports-and-adapters (`_shared/ports/*.ts`)
+— lihat ADR-0011 dan skill `awcms-mini-news-portal`'s §681 untuk contoh
+nyata (`blog_content`/`news_portal`). Modul yang butuh kapabilitas dari
+modul lain TIDAK PERNAH meng-import `application`/`domain` modul itu
+langsung — hanya port interface (`_shared/ports/`) di layer
+`application`/`domain`, dengan adapter konkret disuntikkan pemanggil
+(route handler = composition root). `optional: true` di `consumes`
+berarti fitur pemanggil degradasi aman (bukan error) kalau kapabilitas
+itu resolve ke "tidak berlaku" untuk suatu tenant — bukan berarti kode
+bisa jalan tanpa modul lain ter-compile (ini monolith, semua source
+selalu ikut ter-bundle).
+
 ## Baca status tenant-enabled: plural vs singular
 
 `fetchTenantModuleEntries(tx, tenantId)` (semua modul terdaftar) vs

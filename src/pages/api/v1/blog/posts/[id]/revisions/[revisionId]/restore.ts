@@ -27,6 +27,7 @@ import {
   fetchBlogRevisionById
 } from "../../../../../../../../modules/blog-content/application/blog-revision-directory";
 import { validateNewsMediaReferencesForFullOnlineR2Mode } from "../../../../../../../../modules/blog-content/application/news-media-reference-gate";
+import { newsMediaPortAdapter } from "../../../../../../../../modules/news-portal/application/news-media-port-adapter";
 
 const RESTORE_GUARD = {
   moduleKey: "blog_content",
@@ -149,10 +150,15 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
     // revision-policy exclusion list), so only `contentJson` needs
     // re-checking here.
     const mediaReferenceValidation =
-      await validateNewsMediaReferencesForFullOnlineR2Mode(tx, tenantId, {
-        featuredMediaId: undefined,
-        contentJson: revision.contentJson
-      });
+      await validateNewsMediaReferencesForFullOnlineR2Mode(
+        tx,
+        tenantId,
+        {
+          featuredMediaId: undefined,
+          contentJson: revision.contentJson
+        },
+        newsMediaPortAdapter
+      );
 
     if (!mediaReferenceValidation.valid) {
       return fail(

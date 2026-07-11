@@ -1,6 +1,10 @@
 import { escapeHtml } from "../../../lib/html/escape";
-import { isAbsoluteHttpUrl } from "./seo-validation";
 import { collectGalleryImageReferences } from "./content-block-media-references";
+import {
+  renderGalleryBlockHtml,
+  type GalleryBlockItem,
+  type ResolvedGalleryMediaUrls
+} from "../../_shared/rendering/gallery-block-renderer";
 
 /**
  * Safe, whitelist-based renderer for `content_json` (Issue #540 §Content
@@ -28,17 +32,11 @@ import { collectGalleryImageReferences } from "./content-block-media-references"
  * table, ...) extends the `switch` below, not a general raw-HTML escape
  * hatch.
  */
-export type GalleryItem = {
-  mediaType: "image" | "video";
-  /** Legacy/non-R2-only-mode shape — a raw absolute URL. Mutually exclusive with `mediaObjectId` in practice (Issue #636 write-time validation rejects both being used together in full-online R2-only mode), but this renderer tolerates either being present. */
-  url?: string;
-  /** Issue #636 (full-online R2-only mode) shape — a verified news media registry object id. Resolved to a public URL via `resolvedMediaUrls` at render time; unresolved (or resolver not provided) silently skips the item, same "degrade, don't 500" convention as every other malformed item here. */
-  mediaObjectId?: string;
-  caption?: string;
-};
+/** Re-exported from `_shared/rendering/gallery-block-renderer.ts` (Issue #681) — kept under this file's established name (`GalleryItem`) for every existing importer, even though the actual gallery-item rendering logic now lives in neutral shared ground rather than here (see that file's header for why). */
+export type GalleryItem = GalleryBlockItem;
 
-/** `mediaObjectId -> public URL` for gallery items using the Issue #636 R2-only-mode reference shape — built by the caller (`resolveVerifiedNewsMediaReferences`, `blog-content/application/news-media-reference-gate.ts`) BEFORE rendering, since resolving a registry id requires a database round trip this renderer deliberately never performs itself (kept pure, same as every other function in this file). */
-export type ResolvedGalleryMediaUrls = ReadonlyMap<string, string>;
+/** `mediaObjectId -> public URL` for gallery items using the Issue #636 R2-only-mode reference shape — built by the caller (`resolveVerifiedNewsMediaReferences`) BEFORE rendering, since resolving a registry id requires a database round trip this renderer deliberately never performs itself (kept pure, same as every other function in this file). Re-exported from `_shared/rendering/gallery-block-renderer.ts` (Issue #681). */
+export type { ResolvedGalleryMediaUrls };
 
 export type ContentBlock =
   | { type: "paragraph"; text: string }
@@ -103,82 +101,6 @@ function renderQuote(text: unknown): string | null {
   return `<blockquote>${escapeHtml(text)}</blockquote>`;
 }
 
-/**
- * Gallery block (Issue #542 §Media/Gallery: "Support image and video
- * gallery display. Validate allowed file/media references."). Two mutually
- * exclusive image sources, both defense-in-depth re-checked at render time
- * (never trusting write-time validation alone):
- *
- * - `url` (legacy/non-R2-only-mode shape) — re-validated `isAbsoluteHttpUrl`
- *   (same defense-in-depth convention `resolveCanonicalUrl` uses).
- * - `mediaObjectId` (Issue #636, full-online R2-only mode) — looked up in
- *   `resolvedMediaUrls`, which the CALLER must have already populated via
- *   `resolveVerifiedNewsMediaReferences` (a real, `verified`/`attached`,
- *   same-tenant registry row) — an id absent from that map (never resolved,
- *   or resolved to an unsafe status) renders nothing for this item, the
- *   same "degrade, don't 500" convention every other block here follows.
- *
- * `<img>`/`<video controls>` only — no `<iframe>`/embed, so a gallery item
- * can never become an arbitrary-origin embed.
- */
-function renderGalleryItem(
-  item: unknown,
-  resolvedMediaUrls: ResolvedGalleryMediaUrls
-): string | null {
-  if (typeof item !== "object" || item === null || Array.isArray(item)) {
-    return null;
-  }
-
-  const record = item as Record<string, unknown>;
-
-  if (record.mediaType !== "image" && record.mediaType !== "video") {
-    return null;
-  }
-
-  let resolvedUrl: string | null = null;
-
-  if (typeof record.mediaObjectId === "string") {
-    resolvedUrl = resolvedMediaUrls.get(record.mediaObjectId) ?? null;
-  } else if (typeof record.url === "string" && isAbsoluteHttpUrl(record.url)) {
-    resolvedUrl = record.url;
-  }
-
-  if (resolvedUrl === null) {
-    return null;
-  }
-
-  const url = escapeHtml(resolvedUrl);
-  const caption =
-    typeof record.caption === "string" && record.caption.trim().length > 0
-      ? `<figcaption>${escapeHtml(record.caption)}</figcaption>`
-      : "";
-  const media =
-    record.mediaType === "image"
-      ? `<img src="${url}" alt="${caption ? escapeHtml(record.caption as string) : ""}">`
-      : `<video src="${url}" controls></video>`;
-
-  return `<figure>${media}${caption}</figure>`;
-}
-
-function renderGallery(
-  items: unknown,
-  resolvedMediaUrls: ResolvedGalleryMediaUrls
-): string | null {
-  if (!Array.isArray(items) || items.length === 0) {
-    return null;
-  }
-
-  const rendered = items
-    .map((item) => renderGalleryItem(item, resolvedMediaUrls))
-    .filter((html): html is string => html !== null);
-
-  if (rendered.length === 0) {
-    return null;
-  }
-
-  return `<div class="gallery">${rendered.join("\n")}</div>`;
-}
-
 function renderBlock(
   block: unknown,
   resolvedMediaUrls: ResolvedGalleryMediaUrls
@@ -197,7 +119,7 @@ function renderBlock(
     case "quote":
       return renderQuote(block.text);
     case "gallery":
-      return renderGallery(block.items, resolvedMediaUrls);
+      return renderGalleryBlockHtml(block.items, resolvedMediaUrls);
     default:
       return null;
   }

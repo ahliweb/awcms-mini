@@ -20,6 +20,7 @@ import {
 } from "../../../../../modules/blog-content/application/blog-taxonomy-directory";
 import { setPostTranslationGroup } from "../../../../../modules/blog-content/application/localized-content-directory";
 import { validateNewsMediaReferencesForFullOnlineR2Mode } from "../../../../../modules/blog-content/application/news-media-reference-gate";
+import { newsMediaPortAdapter } from "../../../../../modules/news-portal/application/news-media-port-adapter";
 import { validateCreateBlogPostInput } from "../../../../../modules/blog-content/domain/blog-post-validation";
 import {
   isBlogContentStatus,
@@ -163,10 +164,15 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     }
 
     const mediaReferenceValidation =
-      await validateNewsMediaReferencesForFullOnlineR2Mode(tx, tenantId, {
-        featuredMediaId: input.featuredMediaId,
-        contentJson: input.contentJson
-      });
+      await validateNewsMediaReferencesForFullOnlineR2Mode(
+        tx,
+        tenantId,
+        {
+          featuredMediaId: input.featuredMediaId,
+          contentJson: input.contentJson
+        },
+        newsMediaPortAdapter
+      );
 
     if (!mediaReferenceValidation.valid) {
       return fail(

@@ -1305,6 +1305,134 @@ lewat form edit yang sudah ada — TIDAK menambah endpoint baru untuk itu.
   `tests/foundation.test.ts` (migration list 044).
 - Changeset: `.changeset/news-portal-homepage-sections-issue-637.md`.
 
+## §681 — Capability ports menggantikan import langsung ke `blog_content` (epic #679, BUKAN epic ini — Selesai)
+
+**Issue ini bukan bagian epic `news_portal` (#631-#642/#649)** — ia datang
+dari epic terpisah `#679` (platform-hardening, audit statis repo), tapi
+mengubah cukup banyak file inti modul ini sehingga didokumentasikan di
+sini juga (lihat `[[platform-hardening-epic-progress]]` di memory kalau
+butuh konteks epic #679 penuh).
+
+### Masalah — cycle source-level nyata, bukan cuma di `dependencies`
+
+§636 dan §637 di atas masing-masing menulis eksplisit "cross-module
+TypeScript import BUKAN `dependencies` array, yang cuma mengatur urutan
+enable/disable" — benar untuk KONSEKUENSI lifecycle-nya, tapi hasil
+akhirnya tetap sebuah cycle nyata di level import SOURCE CODE:
+`blog-content/application/news-media-reference-gate.ts` meng-import
+`news-portal/application/news-media-object-directory.ts` (§636), sementara
+`news-portal/application/homepage-section-composer.ts` meng-import
+`blog-content/application/public-blog-directory.ts` DAN
+`blog-content/application/news-media-reference-gate.ts` (§637) — yang
+baru saja disebut BALIK meng-import `news-portal`. Rantai tiga-hop yang
+sama sekali tidak terlihat dari `module.ts`'s `dependencies` manapun.
+`news-portal/domain/homepage-section-rendering.ts` juga meng-import
+`blog-content/domain/content-block-rendering.ts` langsung (reuse gallery
+renderer).
+
+### Solusi — ports-and-adapters minimal, composition root = route handler
+
+Detail lengkap alasan/alternatif ada di **ADR-0011**
+(`docs/adr/0011-capability-ports-for-cross-module-collaboration.md`) —
+ringkasan:
+
+- **Port** (interface murni, TIDAK meng-import modul manapun):
+  `src/modules/_shared/ports/news-media-port.ts` (`NewsMediaPort` —
+  kapabilitas `news_portal`, dipakai `blog_content`) dan `.../public-
+content-port.ts` (`PublicContentPort` — kapabilitas `blog_content`,
+  dipakai `news_portal`). DTO di port SENGAJA bentuk sendiri, bukan
+  re-export tipe modul pemilik.
+- **Adapter** (implementasi konkret, hidup di modul PEMILIK kapabilitas):
+  `news-portal/application/news-media-port-adapter.ts` (folds in fungsi
+  `isNewsPortalFullOnlineR2ModeActiveForTenant` yang dulu di
+  `blog-content/application/news-portal-r2-mode-gate.ts` — **file itu
+  DIHAPUS**, seluruh histori "TIGA percobaan gagal" §636 di atas
+  dipindah verbatim ke header komentar adapter ini, JANGAN hilang saat
+  baca ulang §636 tanpa cek adapter ini juga) dan
+  `blog-content/application/public-content-port-adapter.ts`.
+- **Composition root** = route handler (`src/pages/api/v1/**`,
+  `src/pages/news/**`, `src/pages/blog/**`) — SUDAH jadi lapisan yang
+  boleh meng-import lintas-modul (konvensi lama, bukan baru), jadi tidak
+  butuh infrastruktur DI baru. Setiap route handler yang butuh kapabilitas
+  lintas-modul meng-import adapter konkret dan menyuntikkannya sebagai
+  parameter fungsi biasa (BUKAN default parameter — setiap pemanggil
+  WAJIB eksplisit menyuntikkan, supaya tidak ada jalur "lupa suntik jadi
+  diam-diam pakai import langsung lagi").
+- `renderContentJsonToHtml`'s gallery-rendering (dipakai KEDUA modul)
+  pindah ke `src/modules/_shared/rendering/gallery-block-renderer.ts` —
+  neutral ground, bukan salah satu modul "meminjam" dari yang lain.
+  `content-block-rendering.ts` (blog-content) dan
+  `homepage-section-rendering.ts` (news-portal) SAMA-SAMA memanggil
+  fungsi shared ini sekarang.
+- `_shared/module-contract.ts`'s `ModuleDescriptor` dapat field baru
+  opsional, `capabilities?: {provides, consumes}` — dokumentasi
+  terstruktur hubungan port ini, TERPISAH dari `dependencies` (yang tetap
+  murni untuk urutan enable/disable, keputusan #632 masih berlaku, TIDAK
+  diubah issue ini).
+- Test struktural baru, `tests/unit/module-boundary.test.ts` — men-scan
+  `blog-content`/`news-portal`'s `application`/`domain` tree untuk import
+  langsung ke tree modul lain (regex `from ["'].../(?:application|domain)/...["']`,
+  tidak false-positive ke prose komentar yang backtick-quote path, bukan
+  `from "..."` syntax). Gagal loud bila PR mana pun mengembalikan pola
+  lama.
+
+### Fungsi yang berubah signature — WAJIB baca sebelum menyentuh lagi
+
+Setiap fungsi berikut sekarang menerima port sebagai parameter tambahan
+(bukan lagi meng-import modul lain sendiri):
+
+- `blog-content/application/news-media-reference-gate.ts`'s
+  `validateNewsMediaReferencesForFullOnlineR2Mode(tx, tenantId, input,
+mediaPort: NewsMediaPort, env?)` — parameter `mediaPort` baru sebelum
+  `env`. `resolveVerifiedNewsMediaReferences` (fungsi render-time yang
+  dulu ada di file ini) **DIHAPUS SELURUHNYA** — setiap pemanggil (route
+  publik `blog_content` sendiri, homepage composer `news_portal`)
+  sekarang memanggil `NewsMediaPort.resolveMediaReferences` LANGSUNG
+  (adapter `newsMediaPortAdapter` dari `news-portal`), karena itu memang
+  murni kapabilitas port itu sendiri, tidak ada lagi yang perlu
+  ditambahkan file ini di atasnya.
+- `news-portal/application/homepage-section-reference-validation.ts`'s
+  `validateHomepageSectionReferences(tx, tenantId, sectionType, config,
+contentPort: PublicContentPort)` — parameter `contentPort` baru di
+  akhir. `mediaObjectIds` (`gallery_block`) TIDAK berubah — itu
+  `news-media-object-directory.ts` milik modul ini SENDIRI, bukan
+  cross-module.
+- `news-portal/application/homepage-section-composer.ts`'s
+  `composeHomepageSectionsHtml(tx, tenantId, basePath, contentPort:
+PublicContentPort, mediaPort: NewsMediaPort, now?)` — DUA parameter
+  port baru sebelum `now`.
+
+Setiap route handler pemanggil (5 di `blog_content` untuk gate #636, 3 di
+`news_portal` untuk composer/reference-validation #637, plus dua route
+publik detail post) diperbarui untuk meng-import adapter konkret yang
+relevan dan menyuntikkannya — lihat diff Issue #681/PR terkait untuk
+daftar file lengkap kalau butuh contoh call-site persis.
+
+### File yang dibuat/diubah/dihapus (referensi cepat)
+
+- **Baru**: `src/modules/_shared/ports/news-media-port.ts`,
+  `_shared/ports/public-content-port.ts`,
+  `_shared/rendering/gallery-block-renderer.ts`,
+  `news-portal/application/news-media-port-adapter.ts`,
+  `blog-content/application/public-content-port-adapter.ts`,
+  `tests/unit/module-boundary.test.ts`,
+  `docs/adr/0011-capability-ports-for-cross-module-collaboration.md`.
+- **Dihapus**: `blog-content/application/news-portal-r2-mode-gate.ts`
+  (logika pindah ke `news-media-port-adapter.ts`, histori "tiga percobaan
+  gagal" §636 dipindah verbatim).
+- **Diubah**: `blog-content/application/news-media-reference-gate.ts`
+  (terima `mediaPort`, `resolveVerifiedNewsMediaReferences` dihapus),
+  `blog-content/domain/content-block-rendering.ts` (delegasi gallery ke
+  shared renderer), `news-portal/application/homepage-section-composer.ts`,
+  `news-portal/application/homepage-section-reference-validation.ts`,
+  `news-portal/domain/homepage-section-rendering.ts` (semua terima
+  port/pakai shared renderer), `_shared/module-contract.ts`
+  (`capabilities` field baru), `blog-content/module.ts`,
+  `news-portal/module.ts` (deklarasi `capabilities.provides/consumes`),
+  10 route handler (5 blog_content create/update/restore, 2 route publik
+  detail, 3 news_portal homepage-sections/`/news` index) — wiring adapter
+  di composition root.
+
 ## §638-#640, #642, #649 — konsumsi media registry lanjutan (belum dikerjakan)
 
 Ringkasan objective per issue (detail lengkap ada di body issue

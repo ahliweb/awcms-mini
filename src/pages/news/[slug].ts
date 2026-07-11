@@ -9,7 +9,7 @@ import {
 import { log } from "../../lib/logging/logger";
 import { fetchPublicBlogPostBySlug } from "../../modules/blog-content/application/public-blog-directory";
 import { withNewsTenant } from "../../modules/blog-content/application/public-news-tenant-resolution";
-import { resolveVerifiedNewsMediaReferences } from "../../modules/blog-content/application/news-media-reference-gate";
+import { newsMediaPortAdapter } from "../../modules/news-portal/application/news-media-port-adapter";
 import {
   collectRenderableGalleryMediaObjectIds,
   renderContentJsonToHtml
@@ -68,7 +68,7 @@ export const GET: APIRoute = async ({ params, request, url }) => {
         const referencedMediaObjectIds = post.featuredMediaId
           ? [post.featuredMediaId, ...galleryMediaObjectIds]
           : galleryMediaObjectIds;
-        const resolvedMedia = await resolveVerifiedNewsMediaReferences(
+        const resolvedMedia = await newsMediaPortAdapter.resolveMediaReferences(
           tx,
           tenant.tenantId,
           referencedMediaObjectIds

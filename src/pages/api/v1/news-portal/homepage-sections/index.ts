@@ -15,6 +15,7 @@ import {
   listHomepageSections
 } from "../../../../../modules/news-portal/application/homepage-section-directory";
 import { validateHomepageSectionReferences } from "../../../../../modules/news-portal/application/homepage-section-reference-validation";
+import { publicContentPortAdapter } from "../../../../../modules/blog-content/application/public-content-port-adapter";
 import { validateCreateHomepageSectionInput } from "../../../../../modules/news-portal/domain/homepage-section-policy";
 
 const READ_GUARD = {
@@ -116,7 +117,8 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       tx,
       tenantId,
       input.sectionType,
-      input.config
+      input.config,
+      publicContentPortAdapter
     );
 
     if (!referenceValidation.valid) {
