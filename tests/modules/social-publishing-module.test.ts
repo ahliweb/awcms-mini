@@ -23,7 +23,7 @@ describe("social_publishing module descriptor (Issue #643)", () => {
     ]);
   });
 
-  test("declares exactly the ten permissions from the issue's suggested list", () => {
+  test("declares the ten permissions from the issue's suggested list plus accounts.verify (Issue #646)", () => {
     const permissions = socialPublishingModule.permissions ?? [];
     const keys = permissions.map((p) => `${p.activityCode}.${p.action}`).sort();
 
@@ -32,6 +32,7 @@ describe("social_publishing module descriptor (Issue #643)", () => {
         "accounts.read",
         "accounts.connect",
         "accounts.disconnect",
+        "accounts.verify",
         "rules.read",
         "rules.configure",
         "jobs.read",
@@ -75,7 +76,7 @@ describe("social_publishing module descriptor (Issue #643)", () => {
     expect(socialPublishingModule.events?.asyncApiPath).toBe(
       "asyncapi/awcms-mini-domain-events.asyncapi.yaml"
     );
-    expect(socialPublishingModule.events?.publishes?.length).toBe(15);
+    expect(socialPublishingModule.events?.publishes?.length).toBe(17);
   });
 
   test("settings/health remain undeclared — no per-tenant setting or health check exists yet for this module specifically", () => {

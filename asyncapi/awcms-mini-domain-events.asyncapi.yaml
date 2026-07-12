@@ -413,6 +413,28 @@ channels:
       provider and now requires reauthorization (Issue #643). Producer:
       `social-account-directory.ts`'s `markSocialAccountNeedsReauth`,
       called by the outbox dispatcher on a `needs_reauth` publish outcome.
+  awcms-mini.social-publishing.account.verified:
+    address: awcms-mini.social-publishing.account.verified
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A connected social account was verified — the provider adapter
+      confirmed the credential can post to the connected target (Issue
+      #646, the Telegram channel adapter's `verifyCredentials`). Producer:
+      `social-account-directory.ts`'s `recordSocialAccountVerification`,
+      called from `POST /api/v1/social-publishing/accounts/{id}/verify`.
+  awcms-mini.social-publishing.account.verification-failed:
+    address: awcms-mini.social-publishing.account.verification-failed
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A connected social account's verification check failed (e.g. the bot
+      lacks channel-administrator permission) (Issue #646). Informational —
+      does NOT itself change `connection_status`/`auto_publish_enabled`.
+      Producer: `social-account-directory.ts`'s
+      `recordSocialAccountVerification`.
   awcms-mini.social-publishing.rule.created:
     address: awcms-mini.social-publishing.rule.created
     messages:
@@ -748,6 +770,18 @@ operations:
       $ref: "#/channels/awcms-mini.social-publishing.account.needs-reauth"
     messages:
       - $ref: "#/channels/awcms-mini.social-publishing.account.needs-reauth/messages/DomainEvent"
+  publishSocialPublishingAccountVerified:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.social-publishing.account.verified"
+    messages:
+      - $ref: "#/channels/awcms-mini.social-publishing.account.verified/messages/DomainEvent"
+  publishSocialPublishingAccountVerificationFailed:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.social-publishing.account.verification-failed"
+    messages:
+      - $ref: "#/channels/awcms-mini.social-publishing.account.verification-failed/messages/DomainEvent"
   publishSocialPublishingRuleCreated:
     action: send
     channel:

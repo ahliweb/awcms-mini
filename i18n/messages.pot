@@ -2079,17 +2079,17 @@ msgid "admin.layout.nav_settings"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/social-publishing/module.ts:50
+#: src/modules/social-publishing/module.ts:52
 msgid "admin.layout.nav_social_publishing_accounts"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/social-publishing/module.ts:62
+#: src/modules/social-publishing/module.ts:64
 msgid "admin.layout.nav_social_publishing_jobs"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/social-publishing/module.ts:56
+#: src/modules/social-publishing/module.ts:58
 msgid "admin.layout.nav_social_publishing_rules"
 msgstr ""
 
@@ -2955,88 +2955,108 @@ msgstr ""
 msgid "admin.settings.timezone_legend"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:86
+#: src/pages/admin/social-publishing/accounts.astro:93
 msgid "admin.social_publishing.access_denied_body"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:85
+#: src/pages/admin/social-publishing/accounts.astro:92
 msgid "admin.social_publishing.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:206
+#: src/pages/admin/social-publishing/accounts.astro:232
 msgid "admin.social_publishing.accounts.connect_submit"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:47
+#: src/pages/admin/social-publishing/accounts.astro:50
 msgid "admin.social_publishing.accounts.connect_success"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:160
+#: src/pages/admin/social-publishing/accounts.astro:186
 msgid "admin.social_publishing.accounts.connect_summary"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:150
+#: src/pages/admin/social-publishing/accounts.astro:176
 msgid "admin.social_publishing.accounts.disconnect_button"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:53
+#: src/pages/admin/social-publishing/accounts.astro:56
 msgid "admin.social_publishing.accounts.disconnect_confirm"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:50
+#: src/pages/admin/social-publishing/accounts.astro:53
 msgid "admin.social_publishing.accounts.disconnect_reason_prompt"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:48
+#: src/pages/admin/social-publishing/accounts.astro:51
 msgid "admin.social_publishing.accounts.disconnect_success"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:136
+#: src/pages/admin/social-publishing/accounts.astro:162
 msgid "admin.social_publishing.accounts.field_auto_publish"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:173
+#: src/pages/admin/social-publishing/accounts.astro:136
+msgid "admin.social_publishing.accounts.field_last_verified"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:199
 msgid "admin.social_publishing.accounts.field_provider_account_id"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:179
+#: src/pages/admin/social-publishing/accounts.astro:205
 msgid "admin.social_publishing.accounts.field_provider_account_name"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:185
+#: src/pages/admin/social-publishing/accounts.astro:211
 msgid "admin.social_publishing.accounts.field_provider_account_type"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:164
+#: src/pages/admin/social-publishing/accounts.astro:190
 msgid "admin.social_publishing.accounts.field_provider_key"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:125
+#: src/pages/admin/social-publishing/accounts.astro:132
 msgid "admin.social_publishing.accounts.field_status"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:195
+#: src/pages/admin/social-publishing/accounts.astro:221
 msgid "admin.social_publishing.accounts.field_token_reference"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:113
+#: src/pages/admin/social-publishing/accounts.astro:120
 msgid "admin.social_publishing.accounts.no_accounts"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:139
+#: src/pages/admin/social-publishing/accounts.astro:142
+msgid "admin.social_publishing.accounts.not_verified"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:165
 msgid "admin.social_publishing.accounts.save_button"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:80
+#: src/pages/admin/social-publishing/accounts.astro:87
 msgid "admin.social_publishing.accounts.title"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:198
+#: src/pages/admin/social-publishing/accounts.astro:224
 msgid "admin.social_publishing.accounts.token_reference_hint"
 msgstr ""
 
-#: src/pages/admin/social-publishing/accounts.astro:49
+#: src/pages/admin/social-publishing/accounts.astro:52
 msgid "admin.social_publishing.accounts.update_success"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:151
+msgid "admin.social_publishing.accounts.verify_button"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:58
+msgid "admin.social_publishing.accounts.verify_failed_prefix"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:57
+msgid "admin.social_publishing.accounts.verify_success"
 msgstr ""
 
 #: src/pages/admin/social-publishing/jobs.astro:155

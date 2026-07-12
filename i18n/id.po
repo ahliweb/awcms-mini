@@ -2791,6 +2791,9 @@ msgstr "Akun sosial berhasil diputuskan."
 msgid "admin.social_publishing.accounts.field_auto_publish"
 msgstr "Auto-publish aktif"
 
+msgid "admin.social_publishing.accounts.field_last_verified"
+msgstr "Terakhir diverifikasi"
+
 msgid "admin.social_publishing.accounts.field_provider_account_id"
 msgstr "ID akun provider"
 
@@ -2812,6 +2815,9 @@ msgstr "Referensi token"
 msgid "admin.social_publishing.accounts.no_accounts"
 msgstr "Belum ada akun sosial yang terhubung."
 
+msgid "admin.social_publishing.accounts.not_verified"
+msgstr "Belum diverifikasi"
+
 msgid "admin.social_publishing.accounts.save_button"
 msgstr "Simpan"
 
@@ -2823,6 +2829,15 @@ msgstr "Referensi buram ke secret storage Anda (mis. nama key di secrets manager
 
 msgid "admin.social_publishing.accounts.update_success"
 msgstr "Akun sosial berhasil diperbarui."
+
+msgid "admin.social_publishing.accounts.verify_button"
+msgstr "Verifikasi"
+
+msgid "admin.social_publishing.accounts.verify_failed_prefix"
+msgstr "Verifikasi gagal:"
+
+msgid "admin.social_publishing.accounts.verify_success"
+msgstr "Akun terverifikasi — provider mengonfirmasi dapat memposting ke target ini."
 
 msgid "admin.social_publishing.jobs.approve_button"
 msgstr "Setujui"

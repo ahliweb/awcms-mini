@@ -782,8 +782,40 @@ polos di kolom pengaturan apa pun — `awcms_mini_social_accounts.token_referenc
 hanya referensi buram ke secret storage eksternal (lihat
 `social-account-validation.ts`'s `looksLikeRawSecretToken` heuristic yang
 menolak nilai berbentuk token/JWT asli). Tidak ada var env untuk kredensial
-provider spesifik di sini — itu didaftarkan per-adapter oleh issue #644/
-#645/#646 masing-masing.
+provider spesifik selain adapter Telegram di bawah — provider lain
+didaftarkan per-adapter oleh issue #644/#645 masing-masing.
+
+#### Telegram channel adapter (opsional, Issue #646)
+
+Adapter provider NYATA pertama di epic ini — `provider_key`
+`telegram_channel`. Gate KEDUA (`TELEGRAM_PROVIDER_ENABLED`), terpisah dari
+`SOCIAL_PUBLISHING_ENABLED` di atas
+(`src/modules/social-publishing/domain/telegram-config.ts`) — deployment
+bisa mengaktifkan social publishing untuk Meta/LinkedIn saja tanpa pernah
+menyalakan Telegram, atau sebaliknya.
+
+| Var                                   | Wajib        | Default | Sensitif | Fungsi                                                                       |
+| ------------------------------------- | ------------ | ------- | -------- | ---------------------------------------------------------------------------- |
+| `TELEGRAM_PROVIDER_ENABLED`           | –            | `false` | –        | Gate provider-specific Telegram (kedua, di atas `SOCIAL_PUBLISHING_ENABLED`) |
+| `TELEGRAM_BOT_TOKEN_SECRET_REFERENCE` | bila enabled | –       | Ya       | Referensi buram (`env:VAR_NAME`) ke token bot Telegram — BUKAN token asli    |
+| `TELEGRAM_DEFAULT_PARSE_MODE`         | –            | unset   | –        | Unset = plain text (aman); atau persis `MarkdownV2`/`HTML`                   |
+| `TELEGRAM_REQUEST_TIMEOUT_MS`         | –            | `10000` | –        | Timeout (ms) satu request Bot API (publish atau verify)                      |
+
+`bun run config:validate` (`checkTelegramProviderConfig`) menolak boot bila
+`TELEGRAM_PROVIDER_ENABLED=true` tapi `TELEGRAM_BOT_TOKEN_SECRET_REFERENCE`
+belum diisi atau berbentuk token bot asli (reuse `looksLikeRawSecretToken`
+yang sama dipakai `social-account-validation.ts` — **jangan** buat heuristic
+baru, lihat riwayat 3-ronde security-auditor PR #731), atau bila
+`TELEGRAM_DEFAULT_PARSE_MODE` diisi nilai selain `MarkdownV2`/`HTML` (mode
+legacy `Markdown` sengaja TIDAK didukung). `bun run security:readiness`
+(`checkTelegramProviderReadiness`, critical) menolak bila ada akun
+`telegram_channel` `connected` dengan `autoPublishEnabled=true` yang belum
+pernah diverifikasi (`POST /api/v1/social-publishing/accounts/{id}/verify`).
+
+Bot Telegram harus ditambahkan sebagai administrator channel target dengan
+izin "Post Messages" (`can_post_messages`) agar `verifyCredentials`/`publish`
+berhasil — lihat `.claude/skills/awcms-mini-social-publishing/SKILL.md` §646
+untuk detail izin lengkap.
 
 ### Blog content — automatic internal tag linking (opsional, Issue #641, epic `news_portal` #631-#642/#649)
 
