@@ -31,6 +31,8 @@ export const socialPublishingModule = defineModule({
       "awcms-mini.social-publishing.account.connected",
       "awcms-mini.social-publishing.account.disconnected",
       "awcms-mini.social-publishing.account.needs-reauth",
+      "awcms-mini.social-publishing.account.verified",
+      "awcms-mini.social-publishing.account.verification-failed",
       "awcms-mini.social-publishing.rule.created",
       "awcms-mini.social-publishing.rule.updated",
       "awcms-mini.social-publishing.rule.deleted",
@@ -81,6 +83,12 @@ export const socialPublishingModule = defineModule({
       activityCode: "accounts",
       action: "disconnect",
       description: "Disconnect a social publishing account"
+    },
+    {
+      activityCode: "accounts",
+      action: "verify",
+      description:
+        "Verify a connected social publishing account/channel can be posted to before enabling auto-posting"
     },
     {
       activityCode: "rules",

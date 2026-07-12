@@ -7389,6 +7389,58 @@ paths:
           $ref: "#/components/responses/PayloadTooLarge"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/social-publishing/accounts/{id}/verify:
+    post:
+      tags:
+        - Social Publishing
+      summary: Verify a connected account can be posted to
+      description: 'Generic, provider-neutral "verify connection" action (Issue #646) — calls the registered provider adapter''s `verifyCredentials` (e.g. the Telegram channel adapter checks the bot is a channel administrator with post permission). Requires `Idempotency-Key` (real outbound provider call, same external-call class as `accounts.connect`/ `.disconnect`), gated by `accounts.verify` (not classified high-risk — only updates `lastVerifiedAt`/`scopes`, never `tokenReference`). A failed check is still a `200` with `valid: false` — informational, never itself a state transition on the account.'
+      operationId: socialPublishingAccountsVerify
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Verification check result.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SocialAccountVerifyResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request, or the account is disconnected.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/social-publishing/jobs:
     get:
       tags:
@@ -13639,7 +13691,7 @@ components:
           format: uuid
         providerKey:
           type: string
-          description: Provider-neutral by design — not a fixed enum (see migration 050's header). Concrete values are minted by adapter issues (#644/#645/#646).
+          description: Provider-neutral by design — not a fixed enum (see migration 050's header). Concrete values are minted by adapter issues (#644/#645/#646) — `telegram_channel` is the first real one (Issue
         providerAccountId:
           type: string
         providerAccountName:
@@ -13688,6 +13740,30 @@ components:
         updatedAt:
           type: string
           format: date-time
+    SocialAccountVerifyResult:
+      type: object
+      required:
+        - accountId
+        - providerKey
+        - valid
+      additionalProperties: false
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        providerKey:
+          type: string
+        valid:
+          type: boolean
+        reason:
+          type: string
+          nullable: true
+          description: Sanitized, safe-to-display machine reason code (e.g. `missing_channel_permission`, `channel_not_found`) — never a raw provider error body.
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: The moment this check (or the most recent prior successful check) succeeded — `null` if never successfully verified.
     SocialPublishAttemptItem:
       type: object
       required:

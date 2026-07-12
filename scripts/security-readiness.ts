@@ -56,7 +56,12 @@ import {
 } from "../src/modules/news-portal/domain/news-media-r2-config";
 import { evaluateNewsPortalFullOnlineR2Readiness } from "../src/modules/news-portal/domain/news-portal-preset-readiness";
 import { isSocialPublishingEnabled } from "../src/modules/social-publishing/domain/social-publishing-config";
+import { isTelegramProviderEnabled } from "../src/modules/social-publishing/domain/telegram-config";
 import { getSocialProviderAdapter } from "../src/modules/social-publishing/infrastructure/social-provider-registry";
+// Issue #646 — side-effect import registers the real Telegram adapter into
+// the registry `checkSocialPublishingProviderReadiness` (below) checks
+// against, for this process.
+import "../src/modules/social-publishing/infrastructure/telegram-provider-registration";
 
 export type CheckSeverity = "critical" | "warning" | "info";
 export type CheckStatus = "pass" | "fail";
@@ -2196,6 +2201,111 @@ export async function checkSocialPublishingProviderReadiness(
   }
 }
 
+/**
+ * Telegram channel provider readiness (Issue #646). A no-op pass when
+ * `TELEGRAM_PROVIDER_ENABLED` is not `"true"` (mirrors every other
+ * conditional-feature readiness check in this file — and is intentionally
+ * INDEPENDENT of `SOCIAL_PUBLISHING_ENABLED`/`checkSocialPublishingProviderReadiness`
+ * above: the outer gate can be on for a deployment running only Meta/
+ * LinkedIn while Telegram is never enabled). When enabled, scans every
+ * active tenant's `connected` `telegram_channel` accounts with
+ * `auto_publish_enabled = true` and fails if any has never been verified
+ * (`last_verified_at IS NULL`) — "Adapter verifies bot can post to the
+ * target channel before enabling auto posting" (issue acceptance
+ * criterion) is enforced here as a readiness signal (an operator must run
+ * `POST /api/v1/social-publishing/accounts/{id}/verify` at least once)
+ * rather than a hard runtime gate on the connect/enable endpoints
+ * themselves (which would also apply to every OTHER provider and risk
+ * breaking #643's own already-shipped connect-then-enable flow for
+ * providers that have no such verify step yet).
+ */
+export async function checkTelegramProviderReadiness(
+  env: NodeJS.ProcessEnv = process.env
+): Promise<SecurityCheckResult> {
+  const name =
+    "Telegram channel: every auto-publishing account has been verified (Issue #646)";
+  const severity: CheckSeverity = "critical";
+
+  if (!isTelegramProviderEnabled(env)) {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        'TELEGRAM_PROVIDER_ENABLED is not "true" — Telegram channel publishing is disabled, no verification required.'
+    };
+  }
+
+  try {
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL is not set.");
+    }
+
+    const sql = getDatabaseClient();
+    const tenants = (await sql<{ id: string }[]>`
+      SELECT id FROM awcms_mini_tenants WHERE status = 'active'
+    `) as { id: string }[];
+
+    let unverifiedCount = 0;
+    const erroredTenants: string[] = [];
+
+    for (const tenant of tenants) {
+      const tenantId = assertUuid(tenant.id);
+
+      try {
+        await sql.begin(async (tx) => {
+          await tx.unsafe(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
+
+          const rows = (await tx`
+            SELECT count(*)::int AS count
+            FROM awcms_mini_social_accounts
+            WHERE provider_key = 'telegram_channel'
+              AND connection_status = 'connected'
+              AND auto_publish_enabled = true
+              AND last_verified_at IS NULL
+          `) as { count: number }[];
+
+          unverifiedCount += rows[0]?.count ?? 0;
+        });
+      } catch (error) {
+        erroredTenants.push(`${tenantId} (${errorMessage(error)})`);
+      }
+    }
+
+    if (unverifiedCount > 0 || erroredTenants.length > 0) {
+      const parts: string[] = [];
+
+      if (unverifiedCount > 0) {
+        parts.push(
+          `${unverifiedCount} connected telegram_channel account(s) have auto-publishing enabled but have never been verified via POST /api/v1/social-publishing/accounts/{id}/verify.`
+        );
+      }
+
+      if (erroredTenants.length > 0) {
+        parts.push(
+          `${erroredTenants.length} tenant(s) could not be checked: ${erroredTenants.join("; ")}.`
+        );
+      }
+
+      return { name, severity, status: "fail", evidence: parts.join(" ") };
+    }
+
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence: `Every auto-publishing telegram_channel account has been verified at least once across ${tenants.length} active tenant(s) (or none are connected yet).`
+    };
+  } catch (error) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `Could not verify Telegram channel readiness: ${errorMessage(error)}.`
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Out-of-scope items — printed as their own report section, never silently
 // dropped.
@@ -2276,6 +2386,7 @@ export async function runSecurityReadinessChecks(): Promise<
     checkNewsMediaR2PublicBaseUrlProductionSafe(),
     await checkNewsMediaR2NoStalePendingObjects(),
     await checkSocialPublishingProviderReadiness(),
+    await checkTelegramProviderReadiness(),
     await checkErrorsDontLeakStackTraces(),
     await checkSecurityHeadersPresent(),
     checkLoginRateLimitImplemented()

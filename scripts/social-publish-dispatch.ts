@@ -17,6 +17,11 @@
 import { getWorkerDatabaseClient } from "../src/lib/database/client";
 import { logScriptFailure } from "../src/lib/logging/error-log";
 import { dispatchSocialPublishQueue } from "../src/modules/social-publishing/application/social-publish-dispatch";
+// Issue #646 — side-effect import registers the real Telegram adapter into
+// `social-provider-registry.ts` for this process. See
+// `telegram-provider-registration.ts`'s own header comment for why this is
+// unconditional and why every adapter gets its own such import here.
+import "../src/modules/social-publishing/infrastructure/telegram-provider-registration";
 
 const MAX_PASSES_PER_TENANT = 20;
 

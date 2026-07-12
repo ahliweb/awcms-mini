@@ -46,6 +46,7 @@ import {
 } from "../../src/pages/api/v1/social-publishing/accounts/index";
 import { GET as getAccount } from "../../src/pages/api/v1/social-publishing/accounts/[id]";
 import { POST as disconnectAccount } from "../../src/pages/api/v1/social-publishing/accounts/[id]/disconnect";
+import { POST as verifyAccount } from "../../src/pages/api/v1/social-publishing/accounts/[id]/verify";
 import {
   GET as listRules,
   POST as createRule
@@ -58,6 +59,11 @@ import { POST as retryJob } from "../../src/pages/api/v1/social-publishing/jobs/
 
 import { dispatchSocialPublishQueue } from "../../src/modules/social-publishing/application/social-publish-dispatch";
 import type { SocialProviderAdapter } from "../../src/modules/social-publishing/domain/social-provider-adapter";
+import {
+  registerSocialProviderAdapter,
+  resetSocialProviderRegistryForTests
+} from "../../src/modules/social-publishing/infrastructure/social-provider-registry";
+import { createTelegramChannelProviderAdapter } from "../../src/modules/social-publishing/infrastructure/telegram-provider-adapter";
 
 const OWNER_LOGIN = "owner@example.com";
 const OWNER_PASSWORD = "integration-test-owner-password";
@@ -461,6 +467,295 @@ suite("social_publishing outbox foundation (Issue #643)", () => {
       body: { reason: "x" }
     });
     expect(result.status).toBe(400);
+  });
+
+  // -------------------------------------------------------------------
+  // Account verify (Issue #646) — route-level behavior (idempotency,
+  // permission, audit, redaction) via an injected fake adapter registered
+  // under the SAME "telegram_channel" key the real Telegram adapter also
+  // registers itself under at import time. The real Telegram HTTP client
+  // code is covered separately and exclusively by
+  // tests/unit/telegram-provider-adapter.test.ts (a local fake HTTP server,
+  // never a real network call) — this suite never exercises it, only the
+  // provider-neutral route/directory logic around whatever adapter the
+  // registry resolves.
+  // -------------------------------------------------------------------
+
+  describe("account verify (Issue #646)", () => {
+    // Each test re-registers its own fake adapter under "telegram_channel"
+    // (Map.set overwrites the previous entry for the same key — no reset
+    // needed between tests). The LAST test in this block deliberately
+    // clears the registry entirely, so `afterAll` restores the real
+    // Telegram adapter afterward — otherwise every test file sharing this
+    // process (Bun runs all test files in one process) would see an empty
+    // registry for the rest of the run, purely as a side effect of this
+    // block having executed.
+    afterAll(() => {
+      registerSocialProviderAdapter(createTelegramChannelProviderAdapter());
+    });
+
+    async function connectForVerify(owner: Bootstrap): Promise<string> {
+      const connected = await invoke<{ data: { id: string } }>(connectAccount, {
+        method: "POST",
+        path: "/api/v1/social-publishing/accounts",
+        headers: {
+          ...authHeaders(owner),
+          "idempotency-key": `connect-verify-${crypto.randomUUID()}`
+        },
+        body: CONNECT_BODY
+      });
+      expect(connected.status).toBe(200);
+      return connected.body.data.id;
+    }
+
+    test("requires Idempotency-Key", async () => {
+      const owner = await bootstrap();
+      const accountId = await connectForVerify(owner);
+
+      const result = await invoke(verifyAccount, {
+        method: "POST",
+        path: `/api/v1/social-publishing/accounts/${accountId}/verify`,
+        headers: authHeaders(owner),
+        params: { id: accountId },
+        body: {}
+      });
+      expect(result.status).toBe(400);
+    });
+
+    test("a tenant user without accounts.verify is denied (403)", async () => {
+      const restricted = await seedRestrictedSecondTenant("tenant-verify-403");
+      const result = await invoke(verifyAccount, {
+        method: "POST",
+        path: "/api/v1/social-publishing/accounts/00000000-0000-0000-0000-000000000000/verify",
+        headers: {
+          ...authHeaders(restricted),
+          "idempotency-key": "verify-403-1"
+        },
+        params: { id: "00000000-0000-0000-0000-000000000000" },
+        body: {}
+      });
+      expect(result.status).toBe(403);
+    });
+
+    test("returns 404 for an unknown account id", async () => {
+      const owner = await bootstrap();
+      const result = await invoke(verifyAccount, {
+        method: "POST",
+        path: "/api/v1/social-publishing/accounts/00000000-0000-0000-0000-000000000000/verify",
+        headers: { ...authHeaders(owner), "idempotency-key": "verify-404-1" },
+        params: { id: "00000000-0000-0000-0000-000000000000" },
+        body: {}
+      });
+      expect(result.status).toBe(404);
+    });
+
+    test("successful check sets lastVerifiedAt, records an audit event, and never leaks the token reference", async () => {
+      const owner = await bootstrap();
+      const accountId = await connectForVerify(owner);
+
+      let callCount = 0;
+      registerSocialProviderAdapter({
+        providerKey: "telegram_channel",
+        requiredEnvVars: [],
+        async publish() {
+          throw new Error("not used in this test");
+        },
+        async verifyCredentials(tokenReference) {
+          callCount += 1;
+          // The route must never let this value reach the HTTP response —
+          // asserted below via the response body, not here.
+          expect(tokenReference).toBe(CONNECT_BODY.tokenReference);
+          return {
+            valid: true,
+            details: {
+              botUsername: "test_bot",
+              permissions: ["can_post_messages"]
+            }
+          };
+        }
+      } satisfies SocialProviderAdapter);
+
+      const result = await invoke<{
+        data: {
+          valid: boolean;
+          reason: string | null;
+          verifiedAt: string | null;
+        };
+      }>(verifyAccount, {
+        method: "POST",
+        path: `/api/v1/social-publishing/accounts/${accountId}/verify`,
+        headers: {
+          ...authHeaders(owner),
+          "idempotency-key": "verify-success-1"
+        },
+        params: { id: accountId },
+        body: {}
+      });
+
+      expect(result.status).toBe(200);
+      expect(result.body.data.valid).toBe(true);
+      expect(result.body.data.verifiedAt).not.toBeNull();
+      expect(JSON.stringify(result.body)).not.toContain(
+        CONNECT_BODY.tokenReference
+      );
+      expect(callCount).toBe(1);
+
+      const admin = getAdminSql();
+      const rows = (await admin`
+        SELECT last_verified_at, scopes_json FROM awcms_mini_social_accounts WHERE id = ${accountId}
+      `) as { last_verified_at: Date | null; scopes_json: unknown }[];
+      expect(rows[0]!.last_verified_at).not.toBeNull();
+      expect(rows[0]!.scopes_json).toEqual(["can_post_messages"]);
+
+      const auditRows = (await admin`
+        SELECT action FROM awcms_mini_audit_events
+        WHERE tenant_id = ${owner.tenantId} AND resource_id = ${accountId}
+          AND action = 'social_publishing.account.verified'
+      `) as { action: string }[];
+      expect(auditRows.length).toBe(1);
+    });
+
+    test("a failed check (e.g. missing channel permission) is still a 200, does not flip connectionStatus, and records a warning audit event", async () => {
+      const owner = await bootstrap();
+      const accountId = await connectForVerify(owner);
+
+      registerSocialProviderAdapter({
+        providerKey: "telegram_channel",
+        requiredEnvVars: [],
+        async publish() {
+          throw new Error("not used in this test");
+        },
+        async verifyCredentials() {
+          return { valid: false, reason: "missing_channel_permission" };
+        }
+      } satisfies SocialProviderAdapter);
+
+      const result = await invoke<{
+        data: { valid: boolean; reason: string | null };
+      }>(verifyAccount, {
+        method: "POST",
+        path: `/api/v1/social-publishing/accounts/${accountId}/verify`,
+        headers: {
+          ...authHeaders(owner),
+          "idempotency-key": "verify-failed-1"
+        },
+        params: { id: accountId },
+        body: {}
+      });
+
+      expect(result.status).toBe(200);
+      expect(result.body.data.valid).toBe(false);
+      expect(result.body.data.reason).toBe("missing_channel_permission");
+
+      const admin = getAdminSql();
+      const accountRows = (await admin`
+        SELECT connection_status, last_verified_at FROM awcms_mini_social_accounts WHERE id = ${accountId}
+      `) as { connection_status: string; last_verified_at: Date | null }[];
+      expect(accountRows[0]!.connection_status).toBe("connected");
+      expect(accountRows[0]!.last_verified_at).toBeNull();
+
+      const auditRows = (await admin`
+        SELECT action, severity FROM awcms_mini_audit_events
+        WHERE tenant_id = ${owner.tenantId} AND resource_id = ${accountId}
+          AND action = 'social_publishing.account.verification_failed'
+      `) as { action: string; severity: string }[];
+      expect(auditRows.length).toBe(1);
+      expect(auditRows[0]!.severity).toBe("warning");
+    });
+
+    test("replays the same response for a repeated Idempotency-Key without calling the adapter twice", async () => {
+      const owner = await bootstrap();
+      const accountId = await connectForVerify(owner);
+
+      let callCount = 0;
+      registerSocialProviderAdapter({
+        providerKey: "telegram_channel",
+        requiredEnvVars: [],
+        async publish() {
+          throw new Error("not used in this test");
+        },
+        async verifyCredentials() {
+          callCount += 1;
+          return { valid: true };
+        }
+      } satisfies SocialProviderAdapter);
+
+      const headers = {
+        ...authHeaders(owner),
+        "idempotency-key": "verify-replay-1"
+      };
+
+      const first = await invoke(verifyAccount, {
+        method: "POST",
+        path: `/api/v1/social-publishing/accounts/${accountId}/verify`,
+        headers,
+        params: { id: accountId },
+        body: {}
+      });
+      expect(first.status).toBe(200);
+
+      const second = await invoke(verifyAccount, {
+        method: "POST",
+        path: `/api/v1/social-publishing/accounts/${accountId}/verify`,
+        headers,
+        params: { id: accountId },
+        body: {}
+      });
+      expect(second.status).toBe(200);
+      expect(callCount).toBe(1);
+    });
+
+    test("cannot verify a disconnected account (409)", async () => {
+      const owner = await bootstrap();
+      const accountId = await connectForVerify(owner);
+
+      const disconnectResult = await invoke(disconnectAccount, {
+        method: "POST",
+        path: `/api/v1/social-publishing/accounts/${accountId}/disconnect`,
+        headers: {
+          ...authHeaders(owner),
+          "idempotency-key": "verify-disconnect-1"
+        },
+        params: { id: accountId },
+        body: { reason: "test" }
+      });
+      expect(disconnectResult.status).toBe(200);
+
+      const result = await invoke(verifyAccount, {
+        method: "POST",
+        path: `/api/v1/social-publishing/accounts/${accountId}/verify`,
+        headers: {
+          ...authHeaders(owner),
+          "idempotency-key": "verify-after-disconnect-1"
+        },
+        params: { id: accountId },
+        body: {}
+      });
+      expect(result.status).toBe(409);
+    });
+
+    test("no adapter registered for the account's provider reports a 200 valid:false rather than an error", async () => {
+      const owner = await bootstrap();
+      const accountId = await connectForVerify(owner);
+      resetSocialProviderRegistryForTests();
+
+      const result = await invoke<{ data: { valid: boolean; reason: string } }>(
+        verifyAccount,
+        {
+          method: "POST",
+          path: `/api/v1/social-publishing/accounts/${accountId}/verify`,
+          headers: {
+            ...authHeaders(owner),
+            "idempotency-key": "verify-no-adapter-1"
+          },
+          params: { id: accountId },
+          body: {}
+        }
+      );
+      expect(result.status).toBe(200);
+      expect(result.body.data.valid).toBe(false);
+      expect(result.body.data.reason).toBe("provider_not_registered");
+    });
   });
 
   // -------------------------------------------------------------------

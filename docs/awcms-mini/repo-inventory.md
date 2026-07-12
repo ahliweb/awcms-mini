@@ -29,7 +29,7 @@
 
 ## Migrations
 
-54 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `054_awcms_mini_idn_admin_regions_schema.sql`).
+55 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `055_awcms_mini_social_publishing_verify_permission.sql`).
 
 | #   | File                                                              |
 | --- | ----------------------------------------------------------------- |
@@ -87,6 +87,7 @@
 | 052 | `052_awcms_mini_blog_content_internal_tag_links_permissions.sql`  |
 | 053 | `053_awcms_mini_social_publishing_schema.sql`                     |
 | 054 | `054_awcms_mini_idn_admin_regions_schema.sql`                     |
+| 055 | `055_awcms_mini_social_publishing_verify_permission.sql`          |
 
 ## Tables & Row-Level Security
 
@@ -112,7 +113,7 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 
 ## Tests
 
-239 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+242 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
@@ -120,11 +121,11 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 | `e2e`         | 9          |
 | `integration` | 78         |
 | `modules`     | 5          |
-| `unit`        | 101        |
+| `unit`        | 104        |
 
 ## Routes / Operations (summary)
 
-147 OpenAPI paths, 198 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
+148 OpenAPI paths, 199 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
 
 ## GitHub issue/label/milestone snapshot
 

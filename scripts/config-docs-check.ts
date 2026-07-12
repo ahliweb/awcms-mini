@@ -82,7 +82,12 @@ export const DOC18_NON_VARIABLE_TOKENS: ReadonlySet<string> = new Set([
   "DEPLOYMENT_PROFILE",
   "FILE_STORAGE_DRIVER",
   "LOCAL_FILE_UPLOADS_ENABLED",
-  "LOCAL_MEDIA_STORAGE_ENABLED"
+  "LOCAL_MEDIA_STORAGE_ENABLED",
+  // Issue #646: a valid VALUE of `TELEGRAM_DEFAULT_PARSE_MODE` (doc 18
+  // §Telegram channel adapter), not itself an env var name — `MarkdownV2`
+  // doesn't match the token regex (contains lowercase letters), but `HTML`
+  // is a standalone all-caps backtick span and needs an explicit exemption.
+  "HTML"
 ]);
 
 export type DriftProblem = {
