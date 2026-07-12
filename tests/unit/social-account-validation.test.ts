@@ -52,11 +52,47 @@ describe("looksLikeRawSecretToken (Issue #643)", () => {
     expect(looksLikeRawSecretToken("a".repeat(80))).toBe(true);
   });
 
+  test("flags a realistic Telegram Bot API token (Issue #731 review round 1, security-auditor High finding)", () => {
+    // Realistic shape: <bot_id 6-10 digits>:<35-char secret>. The original
+    // catch-all blob check exempted ANY colon-containing string from the
+    // entropy rejection, which incidentally whitelisted this exact shape —
+    // Telegram is the very next provider adapter this epic ships (#646).
+    expect(
+      looksLikeRawSecretToken("110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw")
+    ).toBe(true);
+    expect(
+      looksLikeRawSecretToken("5012345678:AAFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+    ).toBe(true);
+  });
+
   test("does not flag a short, structured secret-storage reference", () => {
     expect(looksLikeRawSecretToken("secretsmanager:social/fb-page-42")).toBe(
       false
     );
     expect(looksLikeRawSecretToken("env:SOCIAL_TOKEN_FB_PAGE_42")).toBe(false);
+  });
+
+  test("does not flag a reference using any known reference prefix, even a long one", () => {
+    expect(
+      looksLikeRawSecretToken(
+        `ref:${"a".repeat(80)}` // long, but shaped like a known reference prefix, not a bare blob.
+      )
+    ).toBe(false);
+    expect(
+      looksLikeRawSecretToken(`vault:secret/data/social/telegram#token`)
+    ).toBe(false);
+    expect(looksLikeRawSecretToken(`ssm:/social/telegram/bot-token`)).toBe(
+      false
+    );
+    expect(looksLikeRawSecretToken(`kms:alias/social-telegram-token`)).toBe(
+      false
+    );
+  });
+
+  test("a long blob-shaped value containing a colon but NOT matching a known reference prefix is still flagged (narrowed exemption)", () => {
+    expect(looksLikeRawSecretToken(`${"a".repeat(70)}:${"b".repeat(10)}`)).toBe(
+      true
+    );
   });
 });
 

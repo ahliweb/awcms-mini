@@ -82,6 +82,18 @@ export const GET: APIRoute = async ({ request, params, cookies }) => {
  * `rules.configure` (this changes whether rules for this account can ever
  * fire, the same permission that governs rule configuration), not
  * `accounts.connect`/`.disconnect` (this does not touch credentials).
+ *
+ * DELIBERATE (security-auditor M2, PR #731 review round 1): this means a
+ * role holding `rules.configure` but NOT `accounts.connect`/`.disconnect`
+ * can still flip `autoPublishEnabled` on an account it didn't itself
+ * connect. Reusing the issue's own fixed 10-permission list (see migration
+ * 050's header) rather than inventing an eleventh
+ * `accounts.configure`-shaped permission for one boolean field — the
+ * blast radius is bounded to "can this already-connected account
+ * auto-publish or not," never credential exposure/rotation (those stay
+ * behind `accounts.connect`/`.disconnect`). Documented here (and in
+ * `.claude/skills/awcms-mini-social-publishing/SKILL.md`) so it reads as
+ * an acknowledged tradeoff, not an oversight, if revisited later.
  */
 export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);

@@ -120,12 +120,26 @@ export async function listSocialPublishRules(
   return rows.map(toView);
 }
 
-/** Enabled rules matching a trigger event, joined with their account — used by `create-social-publish-jobs.ts` to decide which (rule, account) pairs get a job. Only `connected` + `auto_publish_enabled` accounts are returned (a rule for a disconnected/paused account never produces a job). */
+/**
+ * Enabled rules matching a trigger event, joined with their account — used
+ * by `create-social-publish-jobs.ts` to decide which (rule, account) pairs
+ * get a job. Only `connected` + `auto_publish_enabled` accounts are
+ * returned (a rule for a disconnected/paused account never produces a
+ * job).
+ *
+ * Deliberately does NOT select `token_reference` — job creation never
+ * needs a real credential (it only snapshots content + enqueues an outbox
+ * row, no provider call happens here per ADR-0006). Round 1
+ * security-auditor review (PR #731) found this row type used to carry
+ * `tokenReference` anyway even though nothing downstream ever read it —
+ * dead data with no consumer, removed rather than left as an unused extra
+ * `token_reference` read path outside the one sanctioned
+ * `fetchSocialAccountTokenReferenceForDispatch` (`social-account-directory.ts`).
+ */
 export type EligibleSocialPublishRuleRow = {
   ruleId: string;
   socialAccountId: string;
   providerKey: string;
-  tokenReference: string;
   requiresApproval: boolean;
   templateId: string | null;
 };
@@ -137,7 +151,7 @@ export async function listEligibleSocialPublishRulesForTrigger(
 ): Promise<EligibleSocialPublishRuleRow[]> {
   const rows = (await tx`
     SELECT r.id AS rule_id, r.social_account_id, a.provider_key,
-      a.token_reference, r.requires_approval, r.template_id
+      r.requires_approval, r.template_id
     FROM awcms_mini_social_publish_rules r
     JOIN awcms_mini_social_accounts a
       ON a.id = r.social_account_id AND a.tenant_id = r.tenant_id
@@ -148,7 +162,6 @@ export async function listEligibleSocialPublishRulesForTrigger(
     rule_id: string;
     social_account_id: string;
     provider_key: string;
-    token_reference: string | null;
     requires_approval: boolean;
     template_id: string | null;
   }[];
@@ -157,7 +170,6 @@ export async function listEligibleSocialPublishRulesForTrigger(
     ruleId: row.rule_id,
     socialAccountId: row.social_account_id,
     providerKey: row.provider_key,
-    tokenReference: row.token_reference ?? "",
     requiresApproval: row.requires_approval,
     templateId: row.template_id
   }));

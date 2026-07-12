@@ -484,6 +484,19 @@ export async function dispatchSocialPublishQueue(
             finalizeInput = toFinalizeInput(publishResult);
           } catch (error) {
             breaker.recordFailure(now);
+            // NOTE for future provider adapters (#644/#645/#646, noted by
+            // both reviewer and security-auditor on PR #731 as a
+            // forward-looking, non-blocking concern for THIS foundation
+            // issue): `error.message` here is stored verbatim into
+            // `last_error_message`/an attempt row, both readable via the
+            // admin API. A well-behaved adapter's own `publish()` should
+            // never let a thrown error carry a raw token/secret/full
+            // provider response body — pre-sanitize before throwing (or
+            // return a `SocialProviderPublishFailure` instead of throwing
+            // at all, which this dispatcher never re-serializes raw). This
+            // catch-all is a safety net for genuinely unexpected
+            // exceptions (network/bug), not a substitute for an adapter
+            // sanitizing its own expected error paths.
             finalizeInput = {
               kind: "failed",
               errorCode: "provider_call_exception",

@@ -29,10 +29,25 @@ export function isValidProviderKey(value: string): boolean {
  * rejects values SHAPED like an actual bearer credential someone
  * accidentally pasted into the wrong field: a 3-segment JWT, a Facebook/
  * Meta `EAA...` graph token prefix, a Google OAuth `ya29.`/`1//` prefix, a
- * GitHub-style `ghp_`/`gho_` token, or a long (64+) high-entropy-looking
- * hex/base64 blob with no separators at all (a `token_reference` naming
- * convention is expected to be short and structured, e.g. `provider:id` or
- * `env:VAR_NAME`).
+ * GitHub-style `ghp_`/`gho_` token, a Telegram Bot API token
+ * (`<bot_id>:<35-char secret>`, e.g.
+ * `"110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw"` — checked explicitly
+ * since Telegram is the next adapter this epic ships, Issue #646, so this
+ * is a live gap for the very next provider, not a hypothetical one), or a
+ * long (64+) high-entropy-looking hex/base64 blob that isn't shaped like a
+ * known secret-storage reference convention.
+ *
+ * Round 1 security-auditor review (PR #731) found the original catch-all
+ * blob check exempted ANY colon-containing string from the entropy
+ * rejection (intended to whitelist `provider:id`/`env:VAR_NAME`-shaped
+ * references) — which incidentally ALSO whitelisted a real Telegram bot
+ * token, since that shape contains a colon too. Fixed two ways: (1) an
+ * explicit Telegram-token-shaped rejection pattern below, checked before
+ * the reference exemption; (2) the exemption itself narrowed from "any
+ * colon-containing string" to `KNOWN_SECRET_REFERENCE_PREFIX_PATTERN`, an
+ * explicit allow-list of reference prefixes this codebase's own examples
+ * use — a value must actually look like one of those conventions to be
+ * exempt, not merely contain a colon anywhere.
  *
  * Documented as best-effort, NOT foolproof — a sufficiently-determined
  * caller could still smuggle a raw secret past this (e.g. wrapped in a
@@ -40,6 +55,9 @@ export function isValidProviderKey(value: string): boolean {
  * "no real secret-storage integration ships in this issue" being a known,
  * documented residual (see this module's README/SKILL.md).
  */
+const KNOWN_SECRET_REFERENCE_PREFIX_PATTERN =
+  /^(secretsmanager|env|ref|vault|kms|ssm):/i;
+
 export function looksLikeRawSecretToken(value: string): boolean {
   if (value.split(".").length === 3 && value.length > 40) {
     // JWT-shaped: header.payload.signature, each segment base64url.
@@ -58,7 +76,22 @@ export function looksLikeRawSecretToken(value: string): boolean {
     return true;
   }
 
-  if (/^[A-Za-z0-9+/_-]{64,}={0,2}$/.test(value) && !value.includes(":")) {
+  if (/^\d{6,10}:[A-Za-z0-9_-]{30,45}$/.test(value)) {
+    // Telegram Bot API token shape — checked before the reference-prefix
+    // exemption below so a real bot token is never exempted just because
+    // it happens to contain a colon.
+    return true;
+  }
+
+  if (
+    /^[A-Za-z0-9+/:_-]{64,}={0,2}$/.test(value) &&
+    !KNOWN_SECRET_REFERENCE_PREFIX_PATTERN.test(value)
+  ) {
+    // Charset deliberately INCLUDES `:` (unlike the original check) so a
+    // long, colon-containing value is not silently exempted from the
+    // entropy rejection purely because it contains a colon — it must
+    // actually start with one of `KNOWN_SECRET_REFERENCE_PREFIX_PATTERN`'s
+    // recognized prefixes to be exempt.
     return true;
   }
 

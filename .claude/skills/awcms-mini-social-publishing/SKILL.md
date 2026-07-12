@@ -87,14 +87,32 @@ menunjuk ke secret storage eksternal — repo ini **belum** punya integrasi
 secret-manager nyata (dicatat sebagai residual/follow-up, bukan
 diselesaikan issue ini). `social-account-validation.ts`'s
 `looksLikeRawSecretToken` menolak (400) nilai yang BERBENTUK token asli
-(JWT 3-segmen, prefix `EAA`/`ya29.`/`1//`/`ghp_`, blob base64/hex panjang
-tanpa separator) — best-effort, BUKAN jaminan sempurna (didokumentasikan
-eksplisit di komentar fungsi). `token_reference` **tidak pernah**
-diselect kembali oleh query mana pun kecuali SATU fungsi
+(JWT 3-segmen, prefix `EAA`/`ya29.`/`1//`/`ghp_`, token Bot API Telegram
+`<bot_id>:<35-char secret>`, blob base64/hex panjang tanpa
+prefix-referensi dikenal) — best-effort, BUKAN jaminan sempurna
+(didokumentasikan eksplisit di komentar fungsi). `token_reference`
+**tidak pernah** diselect kembali oleh query mana pun kecuali SATU fungsi
 `fetchSocialAccountTokenReferenceForDispatch` (INTERNAL ONLY, dipanggil
 dispatcher, tidak pernah dari route HTTP) — sama pola
 `tenant-domain-directory.ts`'s `verification_token_hash`. Disconnect
 membersihkan `token_reference` ke `NULL` (bukan sekadar flip status).
+
+**Temuan security-auditor round 1 (PR #731, High, DITUTUP)**: cek
+awal hanya punya 4 pola (JWT/EAA/ya29./gh[a-z]_) plus satu catch-all blob
+64+ karakter yang mengecualikan SEMUA string berisi titik dua — token Bot
+API Telegram asli (`110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw`, ~44
+karakter) lolos: terlalu pendek untuk catch-all, dan bentuknya tidak cocok
+4 pola lain. Ini gap nyata untuk provider BERIKUTNYA di epic ini (#646),
+bukan hipotetis. Diperbaiki dengan (1) pola penolakan eksplisit
+`^\d{6,10}:[A-Za-z0-9_-]{30,45}$` sebelum pengecualian referensi, DAN (2)
+`KNOWN_SECRET_REFERENCE_PREFIX_PATTERN` (allow-list prefix
+`secretsmanager`/`env`/`ref`/`vault`/`kms`/`ssm`) menggantikan "string
+apa pun berisi titik dua dikecualikan" — charset catch-all blob juga
+diperluas mencakup `:` supaya pengecualian prefix ini benar-benar
+teruji/reachable, bukan dead code. **Wajib untuk #644/#645/#646**: bila
+provider kalian punya bentuk token yang juga bisa lolos dari 5 pola yang
+ada sekarang, tambah pola penolakan eksplisit baru — jangan andalkan
+catch-all blob generik saja untuk token yang PENDEK.
 
 **Wajib untuk #644/#645/#646**: adapter nyata TIDAK boleh menyimpan
 token/secret client-nya sendiri di kolom lain manapun — resolusi
@@ -203,6 +221,21 @@ idempotency.ts`'s tabel HTTP `Idempotency-Key` generik (dipakai endpoint
 connect/disconnect/approve/cancel/retry) — job creation dipicu event
 internal, bukan request HTTP client, jadi butuh mekanisme idempotensi
 sendiri di level baris DB.
+
+### Keputusan kunci #9 — `PATCH /accounts/{id}` (toggle auto-publish) digerbang `rules.configure`, BUKAN permission `accounts.*` baru
+
+DISENGAJA (temuan security-auditor M2, PR #731 review round 1): role yang
+punya `rules.configure` tapi TIDAK punya `accounts.connect`/`.disconnect`
+tetap bisa mengubah `autoPublishEnabled` sebuah akun yang bukan ia
+hubungkan sendiri. Ini reuse dari 10 permission tetap yang sudah
+disarankan issue #643 sendiri (lihat header migration 050) — bukan
+menambah permission ke-11 (`accounts.configure` misalnya) hanya untuk satu
+field boolean. Blast radius dibatasi pada "boleh menyalakan/mematikan
+auto-publish akun yang SUDAH terhubung", tidak pernah menyentuh
+kredensial/token (itu tetap di belakang `accounts.connect`/`.disconnect`).
+Dicatat di sini SUPAYA terbaca sebagai tradeoff yang disadari, bukan
+kelalaian, bila ditinjau ulang nanti — lihat juga komentar header
+`pages/api/v1/social-publishing/accounts/[id].ts`'s `PATCH` handler.
 
 ### Retry/backoff — `evaluateSocialPublishRetry`/`evaluateSocialPublishRateLimitRetry`
 
