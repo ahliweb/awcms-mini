@@ -12,6 +12,7 @@ import { withNewsTenant } from "../../modules/blog-content/application/public-ne
 import { newsMediaPortAdapter } from "../../modules/news-portal/application/news-media-port-adapter";
 import {
   collectRenderableGalleryMediaObjectIds,
+  collectRenderableVideoNewsThumbnailMediaObjectIds,
   renderContentJsonToHtml
 } from "../../modules/blog-content/domain/content-block-rendering";
 import {
@@ -61,13 +62,23 @@ export const GET: APIRoute = async ({ params, request, url }) => {
         // media metadata in ONE bulk lookup, then thread the result into
         // both the gallery renderer and the og:image tags. An id that
         // isn't `verified`/`attached`/same-tenant simply never appears in
-        // `resolvedMedia` — never rendered, never thrown.
+        // `resolvedMedia` — never rendered, never thrown. Issue #639 adds
+        // `video_news` blocks' optional thumbnail ids to the SAME bulk
+        // lookup — they share the same news-media-registry id space, so
+        // `renderContentJsonToHtml`'s single `resolvedMediaUrls` map
+        // already serves both the gallery `<img>` and the video thumbnail.
         const galleryMediaObjectIds = collectRenderableGalleryMediaObjectIds(
           post.contentJson
         );
+        const videoThumbnailMediaObjectIds =
+          collectRenderableVideoNewsThumbnailMediaObjectIds(post.contentJson);
         const referencedMediaObjectIds = post.featuredMediaId
-          ? [post.featuredMediaId, ...galleryMediaObjectIds]
-          : galleryMediaObjectIds;
+          ? [
+              post.featuredMediaId,
+              ...galleryMediaObjectIds,
+              ...videoThumbnailMediaObjectIds
+            ]
+          : [...galleryMediaObjectIds, ...videoThumbnailMediaObjectIds];
         const resolvedMedia = await newsMediaPortAdapter.resolveMediaReferences(
           tx,
           tenant.tenantId,

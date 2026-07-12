@@ -1162,7 +1162,7 @@ msgid "admin.blog.posts.field_content_json"
 msgstr "Blok konten (JSON)"
 
 msgid "admin.blog.posts.content_json_hint"
-msgstr "Konten terstruktur berbentuk { \"blocks\": [...] } — hanya blok paragraph, heading, list, quote, dan gallery. Biarkan array blocks kosong bila ragu."
+msgstr "Konten terstruktur berbentuk { \"blocks\": [...] } — hanya blok paragraph, heading, list, quote, gallery, dan video_news. Biarkan array blocks kosong bila ragu."
 
 msgid "admin.blog.posts.field_visibility"
 msgstr "Visibilitas"

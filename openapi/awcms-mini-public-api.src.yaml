@@ -309,7 +309,7 @@ components:
           nullable: true
         contentJson:
           type: object
-          description: "Structured content (e.g. block/rich-text tree). Opaque to the API. When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url — a non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID."
+          description: "Structured content (e.g. block/rich-text tree). Opaque to the API. When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url — a non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID. A video_news block (Issue #639) requires an allowlisted provider (currently only youtube) and a valid videoId (normalized server-side); its optional thumbnailMediaObjectId is likewise verified when that mode is active."
         contentText:
           type: string
           description: Plain-text extraction of contentJson, used for search.
