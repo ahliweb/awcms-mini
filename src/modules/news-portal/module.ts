@@ -95,5 +95,19 @@ export const newsPortalModule = defineModule({
       action: "cancel",
       description: "Cancel one's own not-yet-uploaded news media upload session"
     }
+  ],
+  // Issue #690 (epic #679, platform-hardening): the first background job
+  // this module declares (`settings`/`health` remain undeclared — still no
+  // per-tenant setting or health check for this module specifically).
+  jobs: [
+    {
+      command: "bun run news-media:reconcile",
+      purpose:
+        "Reconcile awcms_mini_news_media_objects metadata against the real R2 bucket contents; clean up expired pending uploads and grace-period-expired orphans in bounded, race-safe batches (dry-run supported).",
+      recommendedSchedule: "Daily via cron/systemd timer.",
+      environmentNotes:
+        'No-op when NEWS_MEDIA_R2_ENABLED is not "true". Requires real network egress to the Cloudflare R2 API in addition to PostgreSQL — not a pure database operation.',
+      safeInOfflineLan: false
+    }
   ]
 });

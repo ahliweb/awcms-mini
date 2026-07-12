@@ -260,7 +260,8 @@ describe("database migration runner helpers", () => {
       "042_awcms_mini_news_media_permissions.sql",
       "043_awcms_mini_news_portal_tenant_state_schema.sql",
       "044_awcms_mini_news_portal_homepage_sections_schema.sql",
-      "045_awcms_mini_db_role_separation.sql"
+      "045_awcms_mini_db_role_separation.sql",
+      "046_awcms_mini_news_media_orphan_lifecycle.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

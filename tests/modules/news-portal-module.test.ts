@@ -26,14 +26,26 @@ describe("news_portal module descriptor (Issue #632, extended #634)", () => {
     ]);
   });
 
-  test("Issue #634 declares permissions + api now that a real HTTP surface exists; Issue #637 adds navigation (one admin page) but still leaves settings/jobs/health undeclared", () => {
-    // settings/jobs/health still have no real feature backing them (no
-    // per-tenant setting, no background job, no health check) — same
-    // "only claim a capability once it genuinely exists" convention
-    // visitor_analytics established (Issue #617).
+  test("Issue #634 declares permissions + api now that a real HTTP surface exists; Issue #637 adds navigation (one admin page); Issue #690 (epic #679) adds the first background job; settings/health remain undeclared", () => {
+    // settings/health still have no real feature backing them (no
+    // per-tenant setting, no health check) — same "only claim a capability
+    // once it genuinely exists" convention visitor_analytics established
+    // (Issue #617). `jobs` is now declared (Issue #690,
+    // `news-media:reconcile`) — the first background job this module ships.
     expect(newsPortalModule.settings).toBeUndefined();
-    expect(newsPortalModule.jobs).toBeUndefined();
     expect(newsPortalModule.health).toBeUndefined();
+
+    expect(newsPortalModule.jobs).toEqual([
+      {
+        command: "bun run news-media:reconcile",
+        purpose:
+          "Reconcile awcms_mini_news_media_objects metadata against the real R2 bucket contents; clean up expired pending uploads and grace-period-expired orphans in bounded, race-safe batches (dry-run supported).",
+        recommendedSchedule: "Daily via cron/systemd timer.",
+        environmentNotes:
+          'No-op when NEWS_MEDIA_R2_ENABLED is not "true". Requires real network egress to the Cloudflare R2 API in addition to PostgreSQL — not a pure database operation.',
+        safeInOfflineLan: false
+      }
+    ]);
 
     expect(newsPortalModule.api).toEqual({
       openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",

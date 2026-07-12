@@ -219,6 +219,281 @@ describe("createNewsMediaR2Client (Issue #634)", () => {
   });
 });
 
+describe("createNewsMediaR2Client listObjects/deleteObject (Issue #690)", () => {
+  function xmlListResponse(options: {
+    contents: { key: string; size: number; lastModified: string }[];
+    isTruncated?: boolean;
+    nextContinuationToken?: string;
+  }): string {
+    const entries = options.contents
+      .map(
+        (entry) =>
+          `<Contents><Key>${entry.key}</Key><LastModified>${entry.lastModified}</LastModified><Size>${entry.size}</Size></Contents>`
+      )
+      .join("");
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Name>test-bucket</Name>
+  <KeyCount>${options.contents.length}</KeyCount>
+  <MaxKeys>1000</MaxKeys>
+  <IsTruncated>${options.isTruncated ?? false}</IsTruncated>
+  ${options.nextContinuationToken ? `<NextContinuationToken>${options.nextContinuationToken}</NextContinuationToken>` : ""}
+  ${entries}
+</ListBucketResult>`;
+  }
+
+  test("listObjects: returns the real key/size/lastModified metadata reported by R2", async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        if (request.method === "GET") {
+          return new Response(
+            xmlListResponse({
+              contents: [
+                {
+                  key: "news-media/tenant-1/2026/07/aaa.jpg",
+                  size: 1234,
+                  lastModified: "2026-07-01T00:00:00.000Z"
+                }
+              ]
+            }),
+            { status: 200, headers: { "content-type": "application/xml" } }
+          );
+        }
+        return new Response("", { status: 404 });
+      }
+    });
+
+    try {
+      const client = createNewsMediaR2Client({
+        ...BASE_CONFIG,
+        endpoint: `http://127.0.0.1:${server.port}`
+      });
+      const result = await client.listObjects({
+        prefix: "news-media/tenant-1/"
+      });
+
+      expect(result).toEqual({
+        ok: true,
+        objects: [
+          {
+            key: "news-media/tenant-1/2026/07/aaa.jpg",
+            sizeBytes: 1234,
+            lastModified: "2026-07-01T00:00:00.000Z"
+          }
+        ],
+        isTruncated: false,
+        nextContinuationToken: undefined
+      });
+    } finally {
+      server.stop(true);
+    }
+  });
+
+  test("listObjects: pagination — isTruncated=true carries a nextContinuationToken", async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        const url = new URL(request.url);
+        const token = url.searchParams.get("continuation-token");
+
+        if (!token) {
+          return new Response(
+            xmlListResponse({
+              contents: [
+                {
+                  key: "a.jpg",
+                  size: 1,
+                  lastModified: "2026-07-01T00:00:00.000Z"
+                }
+              ],
+              isTruncated: true,
+              nextContinuationToken: "page-2"
+            }),
+            { status: 200, headers: { "content-type": "application/xml" } }
+          );
+        }
+
+        return new Response(
+          xmlListResponse({
+            contents: [
+              {
+                key: "b.jpg",
+                size: 2,
+                lastModified: "2026-07-02T00:00:00.000Z"
+              }
+            ],
+            isTruncated: false
+          }),
+          { status: 200, headers: { "content-type": "application/xml" } }
+        );
+      }
+    });
+
+    try {
+      const client = createNewsMediaR2Client({
+        ...BASE_CONFIG,
+        endpoint: `http://127.0.0.1:${server.port}`
+      });
+
+      const page1 = await client.listObjects({ prefix: "", maxKeys: 1 });
+      expect(page1).toEqual({
+        ok: true,
+        objects: [
+          {
+            key: "a.jpg",
+            sizeBytes: 1,
+            lastModified: "2026-07-01T00:00:00.000Z"
+          }
+        ],
+        isTruncated: true,
+        nextContinuationToken: "page-2"
+      });
+
+      const page2 = await client.listObjects({
+        prefix: "",
+        maxKeys: 1,
+        continuationToken: (page1 as { nextContinuationToken?: string })
+          .nextContinuationToken
+      });
+      expect(page2).toEqual({
+        ok: true,
+        objects: [
+          {
+            key: "b.jpg",
+            sizeBytes: 2,
+            lastModified: "2026-07-02T00:00:00.000Z"
+          }
+        ],
+        isTruncated: false,
+        nextContinuationToken: undefined
+      });
+    } finally {
+      server.stop(true);
+    }
+  });
+
+  test("listObjects: a provider error (5xx) trips the circuit breaker after repeated failures", async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        return new Response("simulated outage", { status: 500 });
+      }
+    });
+
+    try {
+      const client = createNewsMediaR2Client({
+        ...BASE_CONFIG,
+        endpoint: `http://127.0.0.1:${server.port}`,
+        timeoutMs: 2000
+      });
+
+      let lastResult;
+      for (let i = 0; i < 6; i += 1) {
+        lastResult = await client.listObjects({ prefix: "news-media/" });
+      }
+
+      expect(lastResult?.ok).toBe(false);
+    } finally {
+      server.stop(true);
+    }
+  });
+
+  test("listObjects: retry after a transient failure succeeds (simulated R2 API failure then success)", async () => {
+    let callCount = 0;
+    const server = Bun.serve({
+      port: 0,
+      fetch() {
+        callCount += 1;
+        if (callCount === 1) {
+          return new Response("simulated transient outage", { status: 500 });
+        }
+        return new Response(
+          xmlListResponse({
+            contents: [
+              {
+                key: "a.jpg",
+                size: 1,
+                lastModified: "2026-07-01T00:00:00.000Z"
+              }
+            ]
+          }),
+          { status: 200, headers: { "content-type": "application/xml" } }
+        );
+      }
+    });
+
+    try {
+      const client = createNewsMediaR2Client({
+        ...BASE_CONFIG,
+        endpoint: `http://127.0.0.1:${server.port}`,
+        timeoutMs: 2000
+      });
+
+      const first = await client.listObjects({ prefix: "" });
+      expect(first.ok).toBe(false);
+
+      const second = await client.listObjects({ prefix: "" });
+      expect(second.ok).toBe(true);
+      if (second.ok) {
+        expect(second.objects).toHaveLength(1);
+      }
+    } finally {
+      server.stop(true);
+    }
+  });
+
+  test("deleteObject: succeeds against a real 204 response", async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        if (request.method === "DELETE") {
+          return new Response(null, { status: 204 });
+        }
+        return new Response("", { status: 404 });
+      }
+    });
+
+    try {
+      const client = createNewsMediaR2Client({
+        ...BASE_CONFIG,
+        endpoint: `http://127.0.0.1:${server.port}`
+      });
+
+      const result = await client.deleteObject("news-media/tenant-1/x.jpg");
+      expect(result).toEqual({ ok: true });
+    } finally {
+      server.stop(true);
+    }
+  });
+
+  test("deleteObject: a real provider error is reported as ok:false, never thrown", async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        if (request.method === "DELETE") {
+          return new Response("simulated outage", { status: 500 });
+        }
+        return new Response("", { status: 404 });
+      }
+    });
+
+    try {
+      const client = createNewsMediaR2Client({
+        ...BASE_CONFIG,
+        endpoint: `http://127.0.0.1:${server.port}`,
+        timeoutMs: 2000
+      });
+
+      const result = await client.deleteObject("news-media/tenant-1/x.jpg");
+      expect(result.ok).toBe(false);
+    } finally {
+      server.stop(true);
+    }
+  });
+});
+
 describe("readCappedStream (Issue #634, PR #653 security-auditor Critical fix)", () => {
   test("stops reading and cancels the source stream as soon as maxBytes is exceeded — never accumulates more than maxBytes worth of chunks", async () => {
     const CHUNK_SIZE = 100;

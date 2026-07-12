@@ -495,6 +495,13 @@ export async function detachNewsMediaObject(
  * list (create/verify/attach/detach/delete/restore/purge) — this is routine
  * lifecycle bookkeeping performed by an automated job, not itself a
  * high-risk action; callers may still `log()` it structurally.
+ *
+ * Sets `orphaned_at = now()` (migration 046, Issue #690) — the moment the
+ * `NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS` grace period
+ * (`scripts/news-media-r2-reconcile.ts`) starts counting from. Nothing else
+ * in this file writes `orphaned_at` — it is set exactly once, here, and only
+ * read afterward (by the reconciliation job's stale-orphan sweep), so the
+ * grace period can never be silently reset/extended by an unrelated update.
  */
 export async function markNewsMediaObjectOrphaned(
   tx: Bun.SQL,
@@ -503,7 +510,7 @@ export async function markNewsMediaObjectOrphaned(
 ): Promise<NewsMediaObjectView | null> {
   const rows = (await tx`
     UPDATE awcms_mini_news_media_objects
-    SET status = 'orphaned', updated_at = now()
+    SET status = 'orphaned', orphaned_at = now(), updated_at = now()
     WHERE tenant_id = ${tenantId} AND id = ${id}
       AND status IN ('pending_upload', 'uploaded', 'verified') AND deleted_at IS NULL
     RETURNING id, tenant_id, module_key, owner_resource_type, owner_resource_id,
@@ -516,29 +523,249 @@ export async function markNewsMediaObjectOrphaned(
   return rows[0] ? toView(rows[0]) : null;
 }
 
+export type MarkNewsMediaObjectFailedOptions = {
+  /**
+   * Issue #690: when set, this transition ONLY claims rows also older than
+   * this cutoff (`created_at < olderThan`) — used by
+   * `scripts/news-media-r2-reconcile.ts` as the ATOMIC claim step for
+   * expired `pending_upload`/`uploaded` rows, the exact same "guarded
+   * UPDATE...WHERE, Postgres serializes concurrent writers" mutual-exclusion
+   * idiom `finalizeNewsMediaUploadSession`'s own claim
+   * (`markNewsMediaObjectUploaded`) already established: if a client's
+   * `finalize()` call concurrently transitions the SAME row away from
+   * `pending_upload`/`uploaded` first, this `UPDATE`'s `WHERE` no longer
+   * matches, so it claims zero rows here — the row is never yanked out from
+   * under a genuinely in-flight upload. Omitted (the pre-#690 default) for
+   * every other caller (verification rejection, R2 provider error at
+   * finalize time) — no age filter, exactly the original behavior.
+   */
+  olderThan?: Date;
+};
+
 /**
  * `pending_upload|uploaded -> failed` — upload or verification failed
- * (checksum mismatch, R2 error, disallowed content sniffed, etc). Same
+ * (checksum mismatch, R2 error, disallowed content sniffed, etc), OR (Issue
+ * #690, `options.olderThan` set) the row expired past
+ * `NEWS_MEDIA_R2_PENDING_TTL_MINUTES` without ever being finalized. Same
  * "not in the required audit list" reasoning as `markNewsMediaObjectOrphaned`.
  */
 export async function markNewsMediaObjectFailed(
   tx: Bun.SQL,
   tenantId: string,
-  id: string
+  id: string,
+  options: MarkNewsMediaObjectFailedOptions = {}
 ): Promise<NewsMediaObjectView | null> {
-  const rows = (await tx`
-    UPDATE awcms_mini_news_media_objects
-    SET status = 'failed', updated_at = now()
-    WHERE tenant_id = ${tenantId} AND id = ${id}
-      AND status IN ('pending_upload', 'uploaded') AND deleted_at IS NULL
-    RETURNING id, tenant_id, module_key, owner_resource_type, owner_resource_id,
-      storage_driver, bucket_name, object_key, original_filename, public_url,
-      mime_type, size_bytes, checksum_sha256, width, height, alt_text, caption,
-      status, created_by_tenant_user_id, created_at, updated_at,
-      deleted_at, deleted_by, delete_reason, restored_at, restored_by
-  `) as NewsMediaObjectRow[];
+  const rows = (
+    options.olderThan
+      ? await tx`
+        UPDATE awcms_mini_news_media_objects
+        SET status = 'failed', updated_at = now()
+        WHERE tenant_id = ${tenantId} AND id = ${id}
+          AND status IN ('pending_upload', 'uploaded') AND deleted_at IS NULL
+          AND created_at < ${options.olderThan}
+        RETURNING id, tenant_id, module_key, owner_resource_type, owner_resource_id,
+          storage_driver, bucket_name, object_key, original_filename, public_url,
+          mime_type, size_bytes, checksum_sha256, width, height, alt_text, caption,
+          status, created_by_tenant_user_id, created_at, updated_at,
+          deleted_at, deleted_by, delete_reason, restored_at, restored_by
+      `
+      : await tx`
+        UPDATE awcms_mini_news_media_objects
+        SET status = 'failed', updated_at = now()
+        WHERE tenant_id = ${tenantId} AND id = ${id}
+          AND status IN ('pending_upload', 'uploaded') AND deleted_at IS NULL
+        RETURNING id, tenant_id, module_key, owner_resource_type, owner_resource_id,
+          storage_driver, bucket_name, object_key, original_filename, public_url,
+          mime_type, size_bytes, checksum_sha256, width, height, alt_text, caption,
+          status, created_by_tenant_user_id, created_at, updated_at,
+          deleted_at, deleted_by, delete_reason, restored_at, restored_by
+      `
+  ) as NewsMediaObjectRow[];
 
   return rows[0] ? toView(rows[0]) : null;
+}
+
+/**
+ * Hard delete for a `status = 'failed'` row past
+ * `NEWS_MEDIA_R2_PENDING_TTL_MINUTES` (Issue #690,
+ * `scripts/news-media-r2-reconcile.ts`) — the row never became a real,
+ * referenceable resource (`r2-backup-lifecycle.md` §2: a stale `pending`
+ * row is "bukan resource yang pernah dipakai siapa pun"), so this is a hard
+ * DELETE, not the soft-delete path `softDeleteNewsMediaObject`/
+ * `purgeNewsMediaObject` use for a resource that WAS real. The `WHERE`
+ * guard (`status = 'failed' AND created_at < olderThan`) re-verifies
+ * eligibility atomically at delete time — this is called only AFTER the
+ * caller has already deleted (or confirmed the absence of) the R2 object
+ * for `object_key`, per this module's own ordering discipline (see
+ * `scripts/news-media-r2-reconcile.ts`'s header for the full DB-claim-first,
+ * R2-delete-second rationale and its self-healing relationship with
+ * "orphan-in-R2" detection).
+ */
+export async function purgeExpiredPendingNewsMediaObject(
+  tx: Bun.SQL,
+  tenantId: string,
+  id: string,
+  olderThan: Date
+): Promise<boolean> {
+  const rows = (await tx`
+    DELETE FROM awcms_mini_news_media_objects
+    WHERE tenant_id = ${tenantId} AND id = ${id}
+      AND status = 'failed' AND deleted_at IS NULL AND created_at < ${olderThan}
+    RETURNING object_key
+  `) as { object_key: string }[];
+
+  if (rows.length === 0) return false;
+
+  await recordAuditEvent(tx, {
+    tenantId,
+    moduleKey: AUDIT_MODULE_KEY,
+    action: "news_media.object.pending_expired_purged",
+    resourceType: AUDIT_RESOURCE_TYPE,
+    resourceId: id,
+    severity: "warning",
+    message: `News media object purged: expired pending upload past its TTL (${rows[0]!.object_key}).`,
+    attributes: { objectKey: rows[0]!.object_key }
+  });
+
+  return true;
+}
+
+/**
+ * `orphaned -> ` soft-deleted (Issue #690,
+ * `scripts/news-media-r2-reconcile.ts`) — physical R2 cleanup grace period
+ * (`NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS`, `r2-backup-lifecycle.md` §3) has
+ * elapsed for a row already flagged `orphaned`. Unlike
+ * `purgeExpiredPendingNewsMediaObject`, this is a SOFT delete — the row WAS
+ * a real, once-verified media object (§3's retention table: "Baris metadata
+ * `deleted` (soft delete): baris tetap ada (audit trail)... objek fisik R2
+ * dihapus setelah masa tenggang"). `status`/`orphaned_at` are left
+ * unchanged (soft delete stays orthogonal to `status`, same convention as
+ * every other transition in this file). No `actorTenantUserId` — this is a
+ * system job, not a human action; `deleted_by` stays `NULL`.
+ */
+export async function markStaleOrphanedNewsMediaObjectDeleted(
+  tx: Bun.SQL,
+  tenantId: string,
+  id: string,
+  olderThan: Date
+): Promise<boolean> {
+  const rows = (await tx`
+    UPDATE awcms_mini_news_media_objects
+    SET deleted_at = now(), delete_reason = 'r2_orphan_grace_period_expired',
+        updated_at = now()
+    WHERE tenant_id = ${tenantId} AND id = ${id}
+      AND status = 'orphaned' AND deleted_at IS NULL AND orphaned_at < ${olderThan}
+    RETURNING object_key
+  `) as { object_key: string }[];
+
+  if (rows.length === 0) return false;
+
+  await recordAuditEvent(tx, {
+    tenantId,
+    moduleKey: AUDIT_MODULE_KEY,
+    action: "news_media.object.orphan_expired_deleted",
+    resourceType: AUDIT_RESOURCE_TYPE,
+    resourceId: id,
+    severity: "warning",
+    message: `News media object soft deleted: orphan grace period expired (${rows[0]!.object_key}).`,
+    attributes: { objectKey: rows[0]!.object_key }
+  });
+
+  return true;
+}
+
+/**
+ * Point lookup used as the FINAL, immediate-before-delete gate for
+ * "orphan-in-R2" candidates (Issue #690,
+ * `scripts/news-media-r2-reconcile.ts`) — an R2 object whose key had NO
+ * matching row in the job's own earlier bulk DB scan. Between that scan and
+ * the moment the job is actually about to call `deleteObject`, a NEW row
+ * for the SAME key could have been created (this is impossible in the
+ * current upload flow, since `createPendingNewsMediaObject` always inserts
+ * the row BEFORE a client ever receives a presigned URL for that key — but
+ * this re-check exists precisely so the job's safety property does not rest
+ * on that invariant holding forever). Deliberately ignores `deleted_at`
+ * (ANY row for this key — soft-deleted or not — means "already tracked,
+ * do not treat as an untracked orphan-in-R2 object"), using the exact same
+ * `(tenant_id, object_key)` unique index `createPendingNewsMediaObject`'s
+ * own INSERT relies on.
+ */
+export async function objectKeyExistsForTenant(
+  tx: Bun.SQL,
+  tenantId: string,
+  objectKey: string
+): Promise<boolean> {
+  const rows = (await tx`
+    SELECT 1 AS exists_flag FROM awcms_mini_news_media_objects
+    WHERE tenant_id = ${tenantId} AND object_key = ${objectKey}
+    LIMIT 1
+  `) as { exists_flag: number }[];
+
+  return rows.length > 0;
+}
+
+export type NewsMediaReconciliationSnapshotRow = {
+  id: string;
+  objectKey: string;
+  status: NewsMediaObjectStatus;
+  createdAt: Date;
+  orphanedAt: Date | null;
+  deletedAt: Date | null;
+};
+
+/**
+ * Default safety bound for `fetchNewsMediaObjectsForReconciliation` —
+ * mirrors `src/lib/jobs/batching.ts`'s `DEFAULT_MAX_PASSES` reasoning (a
+ * single scheduled run must never load an unbounded number of rows into
+ * memory). A tenant with more than this many non-purged media rows only
+ * gets a PARTIAL snapshot this run (oldest rows first, so the longest-
+ * overdue cleanup candidates are prioritized) — `scripts/news-media-r2-
+ * reconcile.ts` surfaces this as `status: "partial"` job telemetry, same
+ * convention `audit-log-purge.ts`'s `hitPassLimit` uses, and the remainder
+ * is picked up on a LATER run (this snapshot is re-derived fresh every run,
+ * never a persisted cursor).
+ */
+export const NEWS_MEDIA_RECONCILIATION_SNAPSHOT_LIMIT = 20_000;
+
+/**
+ * The single DB-side input to `categorizeNewsMediaReconciliation`
+ * (`news-media-reconciliation-categorization.ts`, Issue #690) — every
+ * non-purged row for one tenant (any `status`, including already
+ * soft-deleted), so that module's `orphanInR2` category can correctly tell
+ * "genuinely no row references this R2 key" apart from "there IS a row, it
+ * just isn't one of the expected-present statuses". Ordered oldest-first
+ * (`created_at ASC`) so a snapshot truncated by
+ * `NEWS_MEDIA_RECONCILIATION_SNAPSHOT_LIMIT` always contains the
+ * longest-overdue cleanup candidates rather than an arbitrary subset.
+ */
+export async function fetchNewsMediaObjectsForReconciliation(
+  tx: Bun.SQL,
+  tenantId: string,
+  limit: number = NEWS_MEDIA_RECONCILIATION_SNAPSHOT_LIMIT
+): Promise<NewsMediaReconciliationSnapshotRow[]> {
+  const rows = (await tx`
+    SELECT id, object_key, status, created_at, orphaned_at, deleted_at
+    FROM awcms_mini_news_media_objects
+    WHERE tenant_id = ${tenantId}
+    ORDER BY created_at ASC
+    LIMIT ${limit}
+  `) as {
+    id: string;
+    object_key: string;
+    status: NewsMediaObjectStatus;
+    created_at: Date;
+    orphaned_at: Date | null;
+    deleted_at: Date | null;
+  }[];
+
+  return rows.map((row) => ({
+    id: row.id,
+    objectKey: row.object_key,
+    status: row.status,
+    createdAt: row.created_at,
+    orphanedAt: row.orphaned_at,
+    deletedAt: row.deleted_at
+  }));
 }
 
 /**

@@ -5,6 +5,7 @@ import {
   checkEmailConfig,
   checkGoogleOidcConfig,
   checkNewsMediaR2AllowedMimeTypesKnown,
+  checkNewsMediaR2OrphanGraceLowerBound,
   checkNewsMediaR2PresignedTtlUpperBound,
   checkOnlineAuthSecurityConfig,
   checkPublicRoutingConfig,
@@ -776,6 +777,34 @@ describe("checkNewsMediaR2PresignedTtlUpperBound (Issue #635)", () => {
 
     expect(result.status).toBe("fail");
     expect(result.detail).toContain("7200");
+  });
+});
+
+describe("checkNewsMediaR2OrphanGraceLowerBound (Issue #690)", () => {
+  test("passes when disabled", () => {
+    const result = checkNewsMediaR2OrphanGraceLowerBound({
+      NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS: "1"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("pass");
+  });
+
+  test("passes for the default grace period", () => {
+    const result = checkNewsMediaR2OrphanGraceLowerBound({
+      NEWS_MEDIA_R2_ENABLED: "true"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("pass");
+  });
+
+  test("fails when the grace period is below the 30-day minimum", () => {
+    const result = checkNewsMediaR2OrphanGraceLowerBound({
+      NEWS_MEDIA_R2_ENABLED: "true",
+      NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS: "5"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("fail");
+    expect(result.detail).toContain("5");
   });
 });
 

@@ -1473,6 +1473,98 @@ renderer yang sama (`content-block-rendering.ts`) — auto-linking tidak
 boleh membuka jalur raw-HTML baru (lihat `blog-content` README
 §Rendering publik tetap aman dari XSS).
 
+## §690 — R2 media lifecycle cleanup & reconciliation job (epic #679 platform-hardening, BUKAN epic ini — Selesai)
+
+Bukan bagian epic `news_portal` (#631-#642/#649) — datang dari epic
+terpisah `#679` (platform-hardening, "runtime/worker hardening" wave,
+setelah #691/#689/#694/#695/#687/#697), tapi menyentuh modul ini
+langsung (dicatat di sini untuk konteks tetap terpusat, sama seperti
+§681).
+
+### Yang diimplementasikan
+
+`bun run news-media:reconcile` (`scripts/news-media-r2-reconcile.ts`,
+logika di `news-media-reconciliation.ts` + `news-media-reconciliation-
+categorization.ts`) — job pertama modul ini di atas shared worker
+runner (#697). Mengisi TIGA celah yang `r2-backup-lifecycle.md` §2/§4
+sudah tulis sejak Issue #631/#633 tapi belum ada implementasinya:
+
+1. **Pending TTL cleanup** — baris `pending_upload`/`uploaded` (dan
+   `failed`, untuk retry-on-rerun) yang lewat
+   `NEWS_MEDIA_R2_PENDING_TTL_MINUTES` (klaim atomik ke `failed` dulu
+   — guard `WHERE status IN (...) AND created_at < cutoff` yang SAMA
+   dengan pola atomic-claim `finalizeNewsMediaUploadSession` #634 pakai
+   — baru hapus objek R2, baru hard-delete baris).
+2. **Stale-orphaned physical cleanup** — kolom BARU `orphaned_at`
+   (migration 046) di baris `status='orphaned'`, dipakai untuk mengukur
+   `NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS` (default+minimum 30 hari). Job ini
+   TIDAK menentukan sendiri kapan baris jadi `orphaned` (cross-
+   referencing ke seluruh titik referensi `blog_content` — §4's
+   "Implementasi konkret" — masih di luar cakupan, belum berubah).
+3. **Rekonsiliasi drift DB-vs-R2** — dua kategori BARU yang beda dari
+   status enum `orphaned` yang sudah ada: **orphan-in-DB** (row
+   `uploaded`/`verified`/`attached` tapi objek R2 hilang — report-only,
+   TIDAK PERNAH dimutasi otomatis) dan **orphan-in-R2** (objek R2 tanpa
+   baris DB sama sekali — celah nyata karena `purgeNewsMediaObject`
+   tidak menghapus objek R2-nya; dihapus fisik setelah lewat masa
+   tenggang yang sama, DENGAN pengecekan ulang tepat sebelum
+   penghapusan — `objectKeyExistsForTenant` — supaya baris baru yang
+   dibuat tepat sebelum delete tidak pernah kehilangan objeknya).
+
+### Kenapa urutan "klaim DB dulu, baru R2" — BUKAN "R2 dulu" seperti tertulis di `r2-backup-lifecycle.md` §2 aslinya
+
+Doc lifecycle (ditulis sebelum implementasi ada) minta "hapus objek R2
+dulu, baru baris metadata" murni untuk keamanan-terhadap-crash. Job ini
+membalik urutan itu karena ada concern LAIN yang lebih kritis: klaim DB
+harus terjadi PERTAMA supaya guard atomiknya bisa menyerialkan
+terhadap `finalize()` yang genuinely sedang berjalan bersamaan untuk
+baris yang sama (kalau R2 dihapus duluan, sebuah `finalize()` yang
+sedang berjalan bisa kehilangan objeknya di tengah jalan). Kegagalan-
+parsial yang doc aslinya khawatirkan (objek R2 yatim tanpa baris)
+tetap tertangani — bukan jalan buntu — karena persis itulah kategori
+orphan-in-R2 yang dideteksi/dibersihkan job ini sendiri di run
+berikutnya (self-healing lintas run, bukan hanya lintas pass dalam satu
+run).
+
+### Race-condition test yang paling kritis
+
+Acceptance criteria issue #690 eksplisit minta test untuk skenario:
+baris DB baru dibuat SESAAT SEBELUM reconciliation run menghapus objek
+yang (di titik snapshot awal) terlihat seperti orphan-in-R2.
+`tests/integration/news-media-r2-reconciliation-job.integration.test.ts`
+membuktikan ini dengan cara: wrap R2 client asli sehingga panggilan
+`listObjects` PERTAMA (yang terjadi tepat setelah snapshot DB diambil)
+JUGA menyisipkan baris baru untuk key yang sama — mensimulasikan race
+sungguhan — lalu assert `objectKeyExistsForTenant`'s pengecekan ulang
+(dijalankan tepat sebelum delete) menemukan baris baru itu dan
+membatalkan penghapusan (`raceAverted`), TIDAK PERNAH menghapus
+objeknya.
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `sql/046_awcms_mini_news_media_orphan_lifecycle.sql` — kolom
+  `orphaned_at` + CHECK constraint + GRANT `awcms_mini_worker`.
+- `src/modules/news-portal/domain/news-media-reconciliation-
+categorization.ts` — logika kategorisasi murni (tanpa I/O).
+- `src/modules/news-portal/application/news-media-reconciliation.ts` —
+  orkestrasi per-tenant/semua-tenant (DB + R2 client asli).
+- `src/modules/news-portal/application/news-media-object-directory.ts`
+  — fungsi atomik baru: `purgeExpiredPendingNewsMediaObject`,
+  `markStaleOrphanedNewsMediaObjectDeleted`, `objectKeyExistsForTenant`,
+  `fetchNewsMediaObjectsForReconciliation`;
+  `markNewsMediaObjectFailed` dapat parameter `olderThan` opsional;
+  `markNewsMediaObjectOrphaned` sekarang mengisi `orphaned_at`.
+- `src/modules/news-portal/infrastructure/news-media-r2-client.ts` —
+  `listObjects`/`deleteObject` baru (circuit breaker + timeout sama
+  seperti method lain di file ini).
+- `src/modules/news-portal/domain/news-media-r2-config.ts` —
+  `orphanGraceDays`/`NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS`/
+  `isOrphanGraceTooShort`.
+- `scripts/news-media-r2-reconcile.ts` — CLI, `bun run
+news-media:reconcile`, dibangun di atas `runJob` sejak awal.
+- `docs/awcms-mini/news-portal/r2-backup-lifecycle.md` — §2/§4 diupdate
+  - §Operator SOP baru.
+
 ## Prinsip yang wajib dipertahankan di setiap issue lanjutan
 
 1. **Full-online-only, opt-in eksplisit** — tidak ada perilaku epic ini
@@ -1499,7 +1591,8 @@ boleh membuka jalur raw-HTML baru (lihat `blog-content` README
 - `docs/awcms-mini/news-portal/r2-upload-sop.md` — SOP upload.
 - `docs/awcms-mini/news-portal/r2-security-checklist.md` — checklist keamanan.
 - `docs/awcms-mini/news-portal/r2-incident-response.md` — runbook insiden.
-- `docs/awcms-mini/news-portal/r2-backup-lifecycle.md` — backup/lifecycle/retensi.
+- `docs/awcms-mini/news-portal/r2-backup-lifecycle.md` — backup/lifecycle/retensi + §Operator SOP `news-media:reconcile` (Issue #690).
+- `docs/awcms-mini/deployment-profiles.md` §Shared worker runner / §Job registry lainnya — `news-media:reconcile` (Issue #690).
 - `docs/awcms-mini/news-portal/newsroom-user-guide.md` — panduan editor.
 - `src/modules/sync-storage/README.md` — R2 usage yang sudah ada (bucket terpisah, Keputusan kunci #1).
 - `src/modules/blog-content/README.md` §Media/Gallery, §Ads — perilaku sebelum #636 mengubahnya.
