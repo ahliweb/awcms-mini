@@ -2355,7 +2355,7 @@ drift antara render time dan preview time.
   preview), `src/pages/admin/blog/index.astro` (quick link baru).
 - `openapi/modules/blog-internal-tag-links.openapi.yaml` (baru),
   `openapi/awcms-mini-public-api.src.yaml` (`BlogPostItem.
-  autoInternalTagLinksDisabled`, tag baru), `openapi/modules/blog-posts.openapi.yaml`
+autoInternalTagLinksDisabled`, tag baru), `openapi/modules/blog-posts.openapi.yaml`
   (field request baru), `asyncapi/awcms-mini-domain-events.asyncapi.yaml`
   (channel + operation baru).
 - `src/lib/config/registry.ts`, `scripts/validate-env.ts`
