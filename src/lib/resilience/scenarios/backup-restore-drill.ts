@@ -14,6 +14,23 @@
  * documents and works around) and takes noticeably longer than the other
  * scenarios (a real `pg_dump`/`pg_restore` round trip).
  *
+ * KNOWN LIMITATION (reviewer finding on PR #716, tracked not fixed —
+ * full-tier-only, human-operated rehearsal, not a CI stability risk):
+ * this scenario's own `timeoutMs` is NOT actually enforceable.
+ * `Bun.spawnSync` (used here for `restore-drill.sh` and the pg_dump/
+ * pg_restore version probes) blocks Bun's JS event loop synchronously for
+ * as long as the child process runs — empirically confirmed a
+ * `setTimeout` scheduled before a `Bun.spawnSync` call does not fire
+ * until AFTER the sync call returns, regardless of the timer's delay.
+ * `scenario-runner.ts`'s `withTimeout` (built on `setTimeout` +
+ * `Promise.race`) therefore cannot preempt a stalled/slow-running
+ * `restore-drill.sh` invocation — if the real backup/restore round trip
+ * hangs or just runs long against a larger staging database, this drill
+ * will hang past its advertised budget rather than failing
+ * deterministically. Fixing this properly would mean replacing
+ * `Bun.spawnSync` with async `Bun.spawn` + an explicit kill-on-timeout,
+ * a larger change deferred to a follow-up rather than done here.
+ *
  * Phases:
  * - Setup: detect a version-compatible `pg_dump`/`pg_restore` (skip, not
  *   fail, if unavailable — an environment constraint, not a DR-mechanism

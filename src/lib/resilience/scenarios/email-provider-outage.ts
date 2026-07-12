@@ -56,6 +56,7 @@ import type {
   EmailProvider
 } from "../../../modules/email/domain/email-provider-contract";
 import { resetProviderCircuitBreakersForTests } from "../../database/circuit-breaker";
+import { withTenant } from "../../database/tenant-context";
 import type { ScenarioDefinition, ScenarioOutcome } from "../scenario-runner";
 
 const BASE_ENV = {
@@ -108,6 +109,10 @@ export function emailProviderOutageScenario(): ScenarioDefinition {
         // Setup.
         resetProviderCircuitBreakersForTests();
 
+        // `awcms_mini_tenants` has no RLS (root table, not tenant-scoped
+        // data — the same reasoning `email-dispatch.ts`'s own comment gives
+        // for querying it directly) — the only insert in this scenario
+        // that legitimately bypasses `withTenant`.
         await sql`
           INSERT INTO awcms_mini_tenants
             (id, tenant_code, tenant_name, legal_name, status, default_locale, default_theme)
@@ -116,30 +121,50 @@ export function emailProviderOutageScenario(): ScenarioDefinition {
             'DR Drill Tenant Legal', 'active', 'en', 'light'
           )
         `;
-        await sql`
-          INSERT INTO awcms_mini_email_templates
-            (tenant_id, template_key, name, subject_template, text_body_template, created_by, updated_by)
-          VALUES (
-            ${tenantId}, ${templateKey}, 'DR Drill Template',
-            ${{ en: "DR drill subject" }}, ${{ en: "Body {{note}}" }},
-            gen_random_uuid(), gen_random_uuid()
-          )
-        `;
+
+        // Reviewer finding on PR #716: `awcms_mini_email_templates`/
+        // `awcms_mini_email_messages` both have `FORCE ROW LEVEL SECURITY`
+        // (sql/020_awcms_mini_email_schema.sql) requiring `app.current_
+        // tenant_id` to be set — these inserts previously ran on the bare
+        // `sql` client with no `withTenant`, which only "worked" because
+        // this drill's CI wiring happens to use a privileged bootstrap
+        // role that bypasses RLS. Wrapped in `withTenant` so this scenario
+        // is genuinely correct against the least-privilege `awcms_mini_app`
+        // role too, not just accidentally passing under CI's role.
+        await withTenant(
+          sql,
+          tenantId,
+          (tx) => tx`
+            INSERT INTO awcms_mini_email_templates
+              (tenant_id, template_key, name, subject_template, text_body_template, created_by, updated_by)
+            VALUES (
+              ${tenantId}, ${templateKey}, 'DR Drill Template',
+              ${{ en: "DR drill subject" }}, ${{ en: "Body {{note}}" }},
+              gen_random_uuid(), gen_random_uuid()
+            )
+          `,
+          { workClass: "maintenance" }
+        );
 
         const normalized = normalizeIdentifier(
           "email",
           "dr-drill-recipient@example.com"
         );
-        const messageRows = (await sql`
-          INSERT INTO awcms_mini_email_messages
-            (tenant_id, category, template_key, to_address, to_address_hash, to_address_masked, subject, variables)
-          VALUES (
-            ${tenantId}, 'dr_drill.provider_outage', ${templateKey},
-            ${normalized}, ${hashIdentifier(normalized)}, ${maskIdentifier("email", normalized)},
-            'DR drill subject', ${{ note: "outage-test" }}
-          )
-          RETURNING id
-        `) as { id: string }[];
+        const messageRows = (await withTenant(
+          sql,
+          tenantId,
+          (tx) => tx`
+            INSERT INTO awcms_mini_email_messages
+              (tenant_id, category, template_key, to_address, to_address_hash, to_address_masked, subject, variables)
+            VALUES (
+              ${tenantId}, 'dr_drill.provider_outage', ${templateKey},
+              ${normalized}, ${hashIdentifier(normalized)}, ${maskIdentifier("email", normalized)},
+              'DR drill subject', ${{ note: "outage-test" }}
+            )
+            RETURNING id
+          `,
+          { workClass: "maintenance" }
+        )) as { id: string }[];
         const messageId = messageRows[0]!.id;
 
         const { provider, callCount } = createOutageThenRecoveredProvider();
@@ -150,9 +175,13 @@ export function emailProviderOutageScenario(): ScenarioDefinition {
           resolveProvider: () => provider
         });
 
-        const afterFirst = (await sql`
-          SELECT status FROM awcms_mini_email_messages WHERE id = ${messageId}
-        `) as { status: string }[];
+        const afterFirst = (await withTenant(
+          sql,
+          tenantId,
+          (tx) =>
+            tx`SELECT status FROM awcms_mini_email_messages WHERE id = ${messageId}`,
+          { workClass: "maintenance" }
+        )) as { status: string }[];
 
         // Verify: the local claim transaction committed independent of the
         // provider outage (the row still exists and was correctly moved to
@@ -173,25 +202,39 @@ export function emailProviderOutageScenario(): ScenarioDefinition {
         // Force the retry due now (this drill proves the mechanism, not
         // the real backoff wall-clock wait) and dispatch again: provider
         // "recovers" on its second call.
-        await sql`
-          UPDATE awcms_mini_email_messages
-          SET next_attempt_at = now() - interval '1 second'
-          WHERE id = ${messageId}
-        `;
+        await withTenant(
+          sql,
+          tenantId,
+          (tx) => tx`
+            UPDATE awcms_mini_email_messages
+            SET next_attempt_at = now() - interval '1 second'
+            WHERE id = ${messageId}
+          `,
+          { workClass: "maintenance" }
+        );
 
         const secondAttempt = await dispatchEmailQueue(sql, tenantId, {
           env: BASE_ENV,
           resolveProvider: () => provider
         });
 
-        const afterSecond = (await sql`
-          SELECT status FROM awcms_mini_email_messages WHERE id = ${messageId}
-        `) as { status: string }[];
-        const deliveryAttemptCountRows = (await sql`
-          SELECT count(*)::int AS count
-          FROM awcms_mini_email_delivery_attempts
-          WHERE message_id = ${messageId}
-        `) as { count: number }[];
+        const afterSecond = (await withTenant(
+          sql,
+          tenantId,
+          (tx) =>
+            tx`SELECT status FROM awcms_mini_email_messages WHERE id = ${messageId}`,
+          { workClass: "maintenance" }
+        )) as { status: string }[];
+        const deliveryAttemptCountRows = (await withTenant(
+          sql,
+          tenantId,
+          (tx) => tx`
+            SELECT count(*)::int AS count
+            FROM awcms_mini_email_delivery_attempts
+            WHERE message_id = ${messageId}
+          `,
+          { workClass: "maintenance" }
+        )) as { count: number }[];
         const deliveryAttemptCount = deliveryAttemptCountRows[0]?.count ?? 0;
 
         if (secondAttempt.claimed !== 1 || secondAttempt.sent !== 1) {
@@ -232,15 +275,29 @@ export function emailProviderOutageScenario(): ScenarioDefinition {
         };
       } finally {
         // Cleanup — only this scenario's own randomly-generated tenant id.
-        await sql`DELETE FROM awcms_mini_email_delivery_attempts WHERE tenant_id = ${tenantId}`.catch(
-          () => undefined
-        );
-        await sql`DELETE FROM awcms_mini_email_messages WHERE tenant_id = ${tenantId}`.catch(
-          () => undefined
-        );
-        await sql`DELETE FROM awcms_mini_email_templates WHERE tenant_id = ${tenantId}`.catch(
-          () => undefined
-        );
+        // Tenant-scoped tables (RLS) go through withTenant; the root
+        // awcms_mini_tenants row does not (see the setup comment above).
+        await withTenant(
+          sql,
+          tenantId,
+          (tx) =>
+            tx`DELETE FROM awcms_mini_email_delivery_attempts WHERE tenant_id = ${tenantId}`,
+          { workClass: "maintenance" }
+        ).catch(() => undefined);
+        await withTenant(
+          sql,
+          tenantId,
+          (tx) =>
+            tx`DELETE FROM awcms_mini_email_messages WHERE tenant_id = ${tenantId}`,
+          { workClass: "maintenance" }
+        ).catch(() => undefined);
+        await withTenant(
+          sql,
+          tenantId,
+          (tx) =>
+            tx`DELETE FROM awcms_mini_email_templates WHERE tenant_id = ${tenantId}`,
+          { workClass: "maintenance" }
+        ).catch(() => undefined);
         await sql`DELETE FROM awcms_mini_tenants WHERE id = ${tenantId}`.catch(
           () => undefined
         );
