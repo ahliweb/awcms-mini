@@ -32,6 +32,7 @@ import { POST as createPost } from "../../src/pages/api/v1/blog/posts/index";
 import { POST as schedulePost } from "../../src/pages/api/v1/blog/posts/[id]/schedule";
 import { POST as publishPost } from "../../src/pages/api/v1/blog/posts/[id]/publish";
 import { publishDueScheduledPosts } from "../../src/modules/blog-content/application/blog-scheduled-publish";
+import { newsMediaPortAdapter } from "../../src/modules/news-portal/application/news-media-port-adapter";
 
 const OWNER_LOGIN = "owner@example.com";
 const OWNER_PASSWORD = "integration-test-owner-password";
@@ -138,7 +139,11 @@ suite("blog scheduled publishing", () => {
     const past = new Date(Date.now() - 60 * 1000);
     await backdateScheduledAt(owner.tenantId, postId, past);
 
-    const result = await publishDueScheduledPosts(getTestSql(), owner.tenantId);
+    const result = await publishDueScheduledPosts(
+      getTestSql(),
+      owner.tenantId,
+      newsMediaPortAdapter
+    );
     expect(result.publishedCount).toBe(1);
     expect(result.publishedPostIds).toEqual([postId]);
 
@@ -174,7 +179,11 @@ suite("blog scheduled publishing", () => {
       body: { scheduledAt: future.toISOString() }
     });
 
-    const result = await publishDueScheduledPosts(getTestSql(), owner.tenantId);
+    const result = await publishDueScheduledPosts(
+      getTestSql(),
+      owner.tenantId,
+      newsMediaPortAdapter
+    );
     expect(result.publishedCount).toBe(0);
 
     const rows = (await getAdminSql()`
@@ -201,7 +210,11 @@ suite("blog scheduled publishing", () => {
       params: { id: postId }
     });
 
-    const result = await publishDueScheduledPosts(getTestSql(), owner.tenantId);
+    const result = await publishDueScheduledPosts(
+      getTestSql(),
+      owner.tenantId,
+      newsMediaPortAdapter
+    );
     expect(result.publishedCount).toBe(0);
   });
 
@@ -227,7 +240,11 @@ suite("blog scheduled publishing", () => {
     const past = new Date(Date.now() - 60 * 1000);
     await backdateScheduledAt(owner.tenantId, postId, past);
 
-    const first = await publishDueScheduledPosts(getTestSql(), owner.tenantId);
+    const first = await publishDueScheduledPosts(
+      getTestSql(),
+      owner.tenantId,
+      newsMediaPortAdapter
+    );
     expect(first.publishedCount).toBe(1);
 
     const rowsAfterFirst = (await getAdminSql()`
@@ -236,7 +253,11 @@ suite("blog scheduled publishing", () => {
     `) as { published_at: Date }[];
     const publishedAtAfterFirst = rowsAfterFirst[0]!.published_at;
 
-    const second = await publishDueScheduledPosts(getTestSql(), owner.tenantId);
+    const second = await publishDueScheduledPosts(
+      getTestSql(),
+      owner.tenantId,
+      newsMediaPortAdapter
+    );
     expect(second.publishedCount).toBe(0);
 
     const rowsAfterSecond = (await getAdminSql()`
@@ -267,7 +288,11 @@ suite("blog scheduled publishing", () => {
       WHERE tenant_id = ${owner.tenantId} AND id = ${postId}
     `;
 
-    const result = await publishDueScheduledPosts(getTestSql(), owner.tenantId);
+    const result = await publishDueScheduledPosts(
+      getTestSql(),
+      owner.tenantId,
+      newsMediaPortAdapter
+    );
     expect(result.publishedCount).toBe(1);
 
     const rows = (await getAdminSql()`
@@ -301,8 +326,16 @@ suite("blog scheduled publishing", () => {
     const past = new Date(Date.now() - 60 * 1000);
     await backdateScheduledAt(owner.tenantId, postId, past);
 
-    await publishDueScheduledPosts(getTestSql(), owner.tenantId);
-    await publishDueScheduledPosts(getTestSql(), owner.tenantId);
+    await publishDueScheduledPosts(
+      getTestSql(),
+      owner.tenantId,
+      newsMediaPortAdapter
+    );
+    await publishDueScheduledPosts(
+      getTestSql(),
+      owner.tenantId,
+      newsMediaPortAdapter
+    );
 
     const admin = getAdminSql();
     const executedRows = (await admin`

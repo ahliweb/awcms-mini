@@ -9,6 +9,7 @@
  */
 import type { UpdateBlogSettingsInput } from "../domain/blog-settings-policy";
 import type { BlogContentVisibility } from "../domain/post-status";
+import type { ChecklistPolicyOverrides } from "../domain/content-quality-checklist";
 
 export type BlogSettingsView = {
   tenantId: string;
@@ -21,6 +22,8 @@ export type BlogSettingsView = {
   defaultVisibility: BlogContentVisibility;
   seoDefaultTitle: string | null;
   seoDefaultDescription: string | null;
+  /** Issue #640 — tenant override of the content quality checklist's non-security rule severities; `{}` when the tenant never configured one (checklist falls back to its own defaults). */
+  contentQualityChecklistPolicy: ChecklistPolicyOverrides;
   updatedAt: string | null;
 };
 
@@ -61,6 +64,12 @@ function toView(
     defaultVisibility: row?.default_visibility ?? "public",
     seoDefaultTitle: row?.seo_default_title ?? null,
     seoDefaultDescription: row?.seo_default_description ?? null,
+    contentQualityChecklistPolicy:
+      typeof extras.contentQualityChecklistPolicy === "object" &&
+      extras.contentQualityChecklistPolicy !== null &&
+      !Array.isArray(extras.contentQualityChecklistPolicy)
+        ? (extras.contentQualityChecklistPolicy as ChecklistPolicyOverrides)
+        : {},
     updatedAt: row?.updated_at.toISOString() ?? null
   };
 }
@@ -113,7 +122,10 @@ export async function upsertBlogSettings(
         ? patch.blogDescription
         : existing.blogDescription,
     rssEnabled: patch.rssEnabled ?? existing.rssEnabled,
-    sitemapEnabled: patch.sitemapEnabled ?? existing.sitemapEnabled
+    sitemapEnabled: patch.sitemapEnabled ?? existing.sitemapEnabled,
+    contentQualityChecklistPolicy:
+      patch.contentQualityChecklistPolicy ??
+      existing.contentQualityChecklistPolicy
   };
 
   const rows = (await tx`

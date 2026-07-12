@@ -101,6 +101,7 @@ components:
         - defaultVisibility
         - seoDefaultTitle
         - seoDefaultDescription
+        - contentQualityChecklistPolicy
         - updatedAt
       additionalProperties: false
       properties:
@@ -134,10 +135,21 @@ components:
         seoDefaultDescription:
           type: string
           nullable: true
+        contentQualityChecklistPolicy:
+          $ref: "#/components/schemas/ContentQualityChecklistPolicy"
         updatedAt:
           type: string
           format: date-time
           nullable: true
+    ContentQualityChecklistPolicy:
+      type: object
+      description: "Tenant override of the content quality checklist's (Issue #640) non-security rule severities. Keys are restricted to excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists — a security rule id (e.g. unsafe_html_rejected, no_local_image_path) is rejected with 400, never accepted here, in any environment."
+      additionalProperties:
+        type: string
+        enum:
+          - blocking
+          - warning
+          - info
     UpdateBlogSettingsInput:
       type: object
       description: Partial update — only fields present are validated/changed. blogTitle/blogDescription/rssEnabled/sitemapEnabled live in the row's catch-all `settings` jsonb column; the rest have their own typed columns.
@@ -174,3 +186,5 @@ components:
           type: string
           maxLength: 300
           nullable: true
+        contentQualityChecklistPolicy:
+          $ref: "#/components/schemas/ContentQualityChecklistPolicy"

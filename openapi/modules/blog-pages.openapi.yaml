@@ -296,6 +296,58 @@ paths:
           $ref: "#/components/responses/PayloadTooLarge"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/blog/pages/{id}/quality-checklist:
+    get:
+      tags:
+        - Blog Pages
+      summary: Preview the content quality checklist for a blog page
+      operationId: blogPagesQualityChecklist
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Content quality checklist result (Issue #640), read-only preview for the admin page editor. `taxonomy_exists` is always non-applicable for pages (no category/tag assignment table). There is currently no publish/schedule lifecycle endpoint for pages in this API, so nothing server-side currently blocks a page transition using this result — it is preview-only until such an endpoint exists."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - pageId
+                          - qualityChecklist
+                        additionalProperties: false
+                        properties:
+                          pageId:
+                            type: string
+                            format: uuid
+                          qualityChecklist:
+                            $ref: "#/components/schemas/ContentQualityChecklistResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   schemas:
     BlogPageItem:

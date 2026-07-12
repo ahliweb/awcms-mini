@@ -3113,15 +3113,16 @@ Tenant-scoped blog post admin API (epic #536, Issue #538) — CRUD plus lifecycl
 
 **Responses**
 
-| Status | Description                                                                                                     | Schema                                                                                   |
-| ------ | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| 200    | Blog post moved to status "published".                                                                          | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPostItem`](#schema-blogpostitem)&gt; |
-| 400    | Validation or request error.                                                                                    | [`ApiError`](#standard-error-envelope)                                                   |
-| 401    | Authentication required or expired.                                                                             | [`ApiError`](#standard-error-envelope)                                                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                  | [`ApiError`](#standard-error-envelope)                                                   |
-| 404    | Resource not found or hidden by soft-delete policy.                                                             | [`ApiError`](#standard-error-envelope)                                                   |
-| 409    | Idempotency-Key reused with a different request, or the post's current status cannot transition to "published". | [`ApiError`](#standard-error-envelope)                                                   |
-| 500    | Internal server error without stack trace.                                                                      | [`ApiError`](#standard-error-envelope)                                                   |
+| Status | Description                                                                                                                                                                                                                                                                                                                                                                             | Schema                                                                                   |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 200    | Blog post moved to status "published". `data.qualityChecklist` (Issue #640) reports the content quality checklist result — `applicable: false` unless full-online R2-only news portal mode is active for this tenant.                                                                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPostItem`](#schema-blogpostitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                                                                                                                                                                                            | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                                                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                   |
+| 409    | Idempotency-Key reused with a different request, or the post's current status cannot transition to "published".                                                                                                                                                                                                                                                                         | [`ApiError`](#standard-error-envelope)                                                   |
+| 422    | CONTENT_QUALITY_CHECKLIST_BLOCKED (Issue #640) — full-online R2-only news portal mode is active for this tenant and at least one blocking content quality checklist rule failed (e.g. unverified/unsafe featured image, local image path, arbitrary external image URL, unverified gallery image, unsafe HTML). `error.details` lists each failed rule as `{ field: ruleId, message }`. | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                   |
 
 ### `POST /api/v1/blog/posts/{id}/purge` — Purge (hard delete) a blog post
 
@@ -3148,6 +3149,30 @@ Tenant-scoped blog post admin API (epic #536, Issue #538) — CRUD plus lifecycl
 | 404    | Resource not found or hidden by soft-delete policy.                                           | [`ApiError`](#standard-error-envelope)                   |
 | 409    | Idempotency-Key reused with a different request, or the post is not archived or soft-deleted. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.                                                    | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/blog/posts/{id}/quality-checklist` — Preview the content quality checklist for a blog post
+
+- **operationId**: `blogPostsQualityChecklist`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                        | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| 200    | Content quality checklist result (Issue #640) — the same evaluation `POST .../publish` and `POST .../schedule` run server-side, exposed read-only for the admin editor to preview before attempting either action. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                                | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                                | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                         | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/blog/posts/{id}/restore` — Restore a soft-deleted blog post
 
@@ -3193,16 +3218,17 @@ Tenant-scoped blog post admin API (epic #536, Issue #538) — CRUD plus lifecycl
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                   |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| 200    | Blog post moved to status "scheduled".                                                                                                                                                                           | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPostItem`](#schema-blogpostitem)&gt; |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                   |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                   |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                   |
-| 409    | Idempotency-Key reused with a different request, or the post's current status cannot transition to "scheduled".                                                                                                  | [`ApiError`](#standard-error-envelope)                                                   |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                   |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                   |
+| Status | Description                                                                                                                                                                                                                                              | Schema                                                                                   |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 200    | Blog post moved to status "scheduled". `data.qualityChecklist` (Issue #640) reports the content quality checklist result — `applicable: false` unless full-online R2-only news portal mode is active for this tenant.                                    | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPostItem`](#schema-blogpostitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                                                             | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                                                                      | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                                                           | [`ApiError`](#standard-error-envelope)                                                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                                                                      | [`ApiError`](#standard-error-envelope)                                                   |
+| 409    | Idempotency-Key reused with a different request, or the post's current status cannot transition to "scheduled".                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`.                                         | [`ApiError`](#standard-error-envelope)                                                   |
+| 422    | CONTENT_QUALITY_CHECKLIST_BLOCKED (Issue #640) — full-online R2-only news portal mode is active for this tenant and at least one blocking content quality checklist rule failed. `error.details` lists each failed rule as `{ field: ruleId, message }`. | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                                                               | [`ApiError`](#standard-error-envelope)                                                   |
 
 ### `POST /api/v1/blog/posts/{id}/submit-review` — Submit a draft blog post for review
 
@@ -3364,6 +3390,30 @@ Tenant-scoped static page admin API (epic #536, Issue #539) — plain CRUD only 
 | 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
 | 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/blog/pages/{id}/quality-checklist` — Preview the content quality checklist for a blog page
+
+- **operationId**: `blogPagesQualityChecklist`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                                                                                                                                                                                                           | Schema                                                   |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Content quality checklist result (Issue #640), read-only preview for the admin page editor. `taxonomy_exists` is always non-applicable for pages (no category/tag assignment table). There is currently no publish/schedule lifecycle endpoint for pages in this API, so nothing server-side currently blocks a page transition using this result — it is preview-only until such an endpoint exists. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                                                                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                                                                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                                                                                                                                                                                                        | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                                                                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                                                                                                                                                                                                            | [`ApiError`](#standard-error-envelope)                   |
 
 ## Blog Taxonomies
 
@@ -5347,34 +5397,35 @@ Every schema referenced by at least one operation above (excluding the standard 
 
 ### Schema: BlogPostItem
 
-| Field                | Type                                                          | Required | Nullable | Description                                                                                                                                                                                                                                                                                                                                                                         |
-| -------------------- | ------------------------------------------------------------- | -------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                 | string (uuid)                                                 | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `tenantId`           | string (uuid)                                                 | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `authorTenantUserId` | string (uuid)                                                 | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `title`              | string                                                        | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `slug`               | string                                                        | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `excerpt`            | string                                                        | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `contentJson`        | object                                                        | yes      | no       | Structured content (e.g. block/rich-text tree). Opaque to the API. When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url — a non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID. |
-| `contentText`        | string                                                        | yes      | no       | Plain-text extraction of contentJson, used for search.                                                                                                                                                                                                                                                                                                                              |
-| `status`             | enum(`draft`, `review`, `scheduled`, `published`, `archived`) | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `visibility`         | enum(`public`, `private`, `unlisted`)                         | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `featuredMediaId`    | string (uuid)                                                 | yes      | yes      | When full-online R2-only news portal mode is active for this tenant (Issue #636), must reference an existing, same-tenant media object (Issue #633) with status verified or attached — never a local path or arbitrary external URL. A non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID. Outside that mode, only the UUID shape is validated.             |
-| `seoTitle`           | string                                                        | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `metaDescription`    | string                                                        | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `canonicalUrl`       | string                                                        | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `locale`             | string                                                        | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `publishedAt`        | string (date-time)                                            | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `scheduledAt`        | string (date-time)                                            | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `createdAt`          | string (date-time)                                            | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `updatedAt`          | string (date-time)                                            | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `deletedAt`          | string (date-time)                                            | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `deletedBy`          | string (uuid)                                                 | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `deleteReason`       | string                                                        | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `restoredAt`         | string (date-time)                                            | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `restoredBy`         | string (uuid)                                                 | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `version`            | integer                                                       | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
-| `termIds`            | array of string (uuid)                                        | no       | no       | Category/tag ids currently assigned to this post (Issue #539). Only present on responses from endpoints that compute it (create/update/get detail), not on the list endpoint.                                                                                                                                                                                                       |
+| Field                | Type                                                                     | Required | Nullable | Description                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------- | ------------------------------------------------------------------------ | -------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                 | string (uuid)                                                            | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `tenantId`           | string (uuid)                                                            | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `authorTenantUserId` | string (uuid)                                                            | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `title`              | string                                                                   | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `slug`               | string                                                                   | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `excerpt`            | string                                                                   | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `contentJson`        | object                                                                   | yes      | no       | Structured content (e.g. block/rich-text tree). Opaque to the API. When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url — a non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID. |
+| `contentText`        | string                                                                   | yes      | no       | Plain-text extraction of contentJson, used for search.                                                                                                                                                                                                                                                                                                                              |
+| `status`             | enum(`draft`, `review`, `scheduled`, `published`, `archived`)            | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `visibility`         | enum(`public`, `private`, `unlisted`)                                    | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `featuredMediaId`    | string (uuid)                                                            | yes      | yes      | When full-online R2-only news portal mode is active for this tenant (Issue #636), must reference an existing, same-tenant media object (Issue #633) with status verified or attached — never a local path or arbitrary external URL. A non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID. Outside that mode, only the UUID shape is validated.             |
+| `seoTitle`           | string                                                                   | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `metaDescription`    | string                                                                   | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `canonicalUrl`       | string                                                                   | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `locale`             | string                                                                   | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `publishedAt`        | string (date-time)                                                       | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `scheduledAt`        | string (date-time)                                                       | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `createdAt`          | string (date-time)                                                       | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `updatedAt`          | string (date-time)                                                       | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `deletedAt`          | string (date-time)                                                       | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `deletedBy`          | string (uuid)                                                            | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `deleteReason`       | string                                                                   | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `restoredAt`         | string (date-time)                                                       | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `restoredBy`         | string (uuid)                                                            | yes      | yes      |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `version`            | integer                                                                  | yes      | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
+| `termIds`            | array of string (uuid)                                                   | no       | no       | Category/tag ids currently assigned to this post (Issue #539). Only present on responses from endpoints that compute it (create/update/get detail), not on the list endpoint.                                                                                                                                                                                                       |
+| `qualityChecklist`   | [`ContentQualityChecklistResult`](#schema-contentqualitychecklistresult) | no       | no       |                                                                                                                                                                                                                                                                                                                                                                                     |
 
 **Example**
 
@@ -5405,7 +5456,47 @@ Every schema referenced by at least one operation above (excluding the standard 
   "restoredAt": "2026-01-01T00:00:00.000Z",
   "restoredBy": "00000000-0000-0000-0000-000000000000",
   "version": 1,
-  "termIds": ["00000000-0000-0000-0000-000000000000"]
+  "termIds": ["00000000-0000-0000-0000-000000000000"],
+  "qualityChecklist": {
+    "applicable": false,
+    "passed": false,
+    "rules": [
+      {
+        "ruleId": "title_present",
+        "severity": "blocking",
+        "passed": false,
+        "applicable": false,
+        "message": "string"
+      }
+    ],
+    "blockers": [
+      {
+        "ruleId": "title_present",
+        "severity": "blocking",
+        "passed": false,
+        "applicable": false,
+        "message": "string"
+      }
+    ],
+    "warnings": [
+      {
+        "ruleId": "title_present",
+        "severity": "blocking",
+        "passed": false,
+        "applicable": false,
+        "message": "string"
+      }
+    ],
+    "info": [
+      {
+        "ruleId": "title_present",
+        "severity": "blocking",
+        "passed": false,
+        "applicable": false,
+        "message": "string"
+      }
+    ]
+  }
 }
 ```
 
@@ -5577,19 +5668,20 @@ Full revision detail — `GET /api/v1/blog/posts/{id}/revisions/{revisionId}`.
 
 ### Schema: BlogSettingsView
 
-| Field                   | Type                                  | Required | Nullable | Description |
-| ----------------------- | ------------------------------------- | -------- | -------- | ----------- |
-| `tenantId`              | string (uuid)                         | yes      | no       |             |
-| `blogTitle`             | string                                | yes      | no       |             |
-| `blogDescription`       | string                                | yes      | yes      |             |
-| `postsPerPage`          | integer                               | yes      | no       |             |
-| `rssEnabled`            | boolean                               | yes      | no       |             |
-| `sitemapEnabled`        | boolean                               | yes      | no       |             |
-| `defaultLocale`         | string                                | yes      | no       |             |
-| `defaultVisibility`     | enum(`public`, `private`, `unlisted`) | yes      | no       |             |
-| `seoDefaultTitle`       | string                                | yes      | yes      |             |
-| `seoDefaultDescription` | string                                | yes      | yes      |             |
-| `updatedAt`             | string (date-time)                    | yes      | yes      |             |
+| Field                           | Type                                                                     | Required | Nullable | Description |
+| ------------------------------- | ------------------------------------------------------------------------ | -------- | -------- | ----------- |
+| `tenantId`                      | string (uuid)                                                            | yes      | no       |             |
+| `blogTitle`                     | string                                                                   | yes      | no       |             |
+| `blogDescription`               | string                                                                   | yes      | yes      |             |
+| `postsPerPage`                  | integer                                                                  | yes      | no       |             |
+| `rssEnabled`                    | boolean                                                                  | yes      | no       |             |
+| `sitemapEnabled`                | boolean                                                                  | yes      | no       |             |
+| `defaultLocale`                 | string                                                                   | yes      | no       |             |
+| `defaultVisibility`             | enum(`public`, `private`, `unlisted`)                                    | yes      | no       |             |
+| `seoDefaultTitle`               | string                                                                   | yes      | yes      |             |
+| `seoDefaultDescription`         | string                                                                   | yes      | yes      |             |
+| `contentQualityChecklistPolicy` | [`ContentQualityChecklistPolicy`](#schema-contentqualitychecklistpolicy) | yes      | no       |             |
+| `updatedAt`                     | string (date-time)                                                       | yes      | yes      |             |
 
 **Example**
 
@@ -5605,6 +5697,7 @@ Full revision detail — `GET /api/v1/blog/posts/{id}/revisions/{revisionId}`.
   "defaultVisibility": "public",
   "seoDefaultTitle": "string",
   "seoDefaultDescription": "string",
+  "contentQualityChecklistPolicy": "(operation-specific payload)",
   "updatedAt": "2026-01-01T00:00:00.000Z"
 }
 ```
@@ -5766,6 +5859,100 @@ Whitelisted layout shape (Issue
   "sortOrder": 0,
   "createdAt": "2026-01-01T00:00:00.000Z",
   "updatedAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: ContentQualityChecklistPolicy
+
+Tenant override of the content quality checklist's (Issue #640) non-security rule severities. Keys are restricted to excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists — a security rule id (e.g. unsafe_html_rejected, no_local_image_path) is rejected with 400, never accepted here, in any environment.
+
+Tenant override of the content quality checklist's (Issue #640) non-security rule severities. Keys are restricted to excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists — a security rule id (e.g. unsafe_html_rejected, no_local_image_path) is rejected with 400, never accepted here, in any environment.
+
+**Example**
+
+```json
+{}
+```
+
+### Schema: ContentQualityChecklistResult
+
+Content quality checklist result (Issue #640). `applicable` is false, and every list empty, when full-online R2-only news portal mode isn't active for this tenant (Issue #632/#636) — the checklist is then a no-op and publish/schedule behave exactly as before this issue.
+
+| Field        | Type                                                                                        | Required | Nullable | Description                                               |
+| ------------ | ------------------------------------------------------------------------------------------- | -------- | -------- | --------------------------------------------------------- |
+| `applicable` | boolean                                                                                     | yes      | no       |                                                           |
+| `passed`     | boolean                                                                                     | yes      | no       | True unless at least one applicable blocking rule failed. |
+| `rules`      | array of [`ContentQualityChecklistRuleOutcome`](#schema-contentqualitychecklistruleoutcome) | yes      | no       |                                                           |
+| `blockers`   | array of [`ContentQualityChecklistRuleOutcome`](#schema-contentqualitychecklistruleoutcome) | yes      | no       |                                                           |
+| `warnings`   | array of [`ContentQualityChecklistRuleOutcome`](#schema-contentqualitychecklistruleoutcome) | yes      | no       |                                                           |
+| `info`       | array of [`ContentQualityChecklistRuleOutcome`](#schema-contentqualitychecklistruleoutcome) | yes      | no       |                                                           |
+
+**Example**
+
+```json
+{
+  "applicable": false,
+  "passed": false,
+  "rules": [
+    {
+      "ruleId": "title_present",
+      "severity": "blocking",
+      "passed": false,
+      "applicable": false,
+      "message": "string"
+    }
+  ],
+  "blockers": [
+    {
+      "ruleId": "title_present",
+      "severity": "blocking",
+      "passed": false,
+      "applicable": false,
+      "message": "string"
+    }
+  ],
+  "warnings": [
+    {
+      "ruleId": "title_present",
+      "severity": "blocking",
+      "passed": false,
+      "applicable": false,
+      "message": "string"
+    }
+  ],
+  "info": [
+    {
+      "ruleId": "title_present",
+      "severity": "blocking",
+      "passed": false,
+      "applicable": false,
+      "message": "string"
+    }
+  ]
+}
+```
+
+### Schema: ContentQualityChecklistRuleOutcome
+
+One content quality checklist rule's evaluation result (Issue
+
+| Field        | Type                                                                                                                                                                                                                                                                                                                                                                                                                                            | Required | Nullable | Description                                                                                                                                        |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ruleId`     | enum(`title_present`, `slug_valid`, `excerpt_present`, `meta_description_present`, `featured_image_exists`, `featured_image_verified_r2`, `featured_image_alt_text`, `featured_image_dimensions`, `featured_image_mime_allowed`, `featured_image_size_within_policy`, `og_image_trusted`, `no_local_image_path`, `no_external_image_url`, `gallery_images_verified`, `taxonomy_exists`, `unsafe_html_rejected`, `scheduled_publish_time_valid`) | yes      | no       |                                                                                                                                                    |
+| `severity`   | enum(`blocking`, `warning`, `info`)                                                                                                                                                                                                                                                                                                                                                                                                             | yes      | no       |                                                                                                                                                    |
+| `passed`     | boolean                                                                                                                                                                                                                                                                                                                                                                                                                                         | yes      | no       |                                                                                                                                                    |
+| `applicable` | boolean                                                                                                                                                                                                                                                                                                                                                                                                                                         | yes      | no       | false when this rule was skipped (e.g. no featured image set, or this isn't a scheduling request) — always reported as passed when not applicable. |
+| `message`    | string                                                                                                                                                                                                                                                                                                                                                                                                                                          | yes      | no       |                                                                                                                                                    |
+
+**Example**
+
+```json
+{
+  "ruleId": "title_present",
+  "severity": "blocking",
+  "passed": false,
+  "applicable": false,
+  "message": "string"
 }
 ```
 
@@ -8695,17 +8882,18 @@ Never includes verification_token_hash (an internal bearer-token hash) or any DN
 
 Partial update — only fields present are validated/changed. blogTitle/blogDescription/rssEnabled/sitemapEnabled live in the row's catch-all `settings` jsonb column; the rest have their own typed columns.
 
-| Field                   | Type                                  | Required | Nullable | Description |
-| ----------------------- | ------------------------------------- | -------- | -------- | ----------- |
-| `blogTitle`             | string                                | no       | no       |             |
-| `blogDescription`       | string                                | no       | yes      |             |
-| `postsPerPage`          | integer                               | no       | no       |             |
-| `rssEnabled`            | boolean                               | no       | no       |             |
-| `sitemapEnabled`        | boolean                               | no       | no       |             |
-| `defaultLocale`         | string                                | no       | no       |             |
-| `defaultVisibility`     | enum(`public`, `private`, `unlisted`) | no       | no       |             |
-| `seoDefaultTitle`       | string                                | no       | yes      |             |
-| `seoDefaultDescription` | string                                | no       | yes      |             |
+| Field                           | Type                                                                     | Required | Nullable | Description |
+| ------------------------------- | ------------------------------------------------------------------------ | -------- | -------- | ----------- |
+| `blogTitle`                     | string                                                                   | no       | no       |             |
+| `blogDescription`               | string                                                                   | no       | yes      |             |
+| `postsPerPage`                  | integer                                                                  | no       | no       |             |
+| `rssEnabled`                    | boolean                                                                  | no       | no       |             |
+| `sitemapEnabled`                | boolean                                                                  | no       | no       |             |
+| `defaultLocale`                 | string                                                                   | no       | no       |             |
+| `defaultVisibility`             | enum(`public`, `private`, `unlisted`)                                    | no       | no       |             |
+| `seoDefaultTitle`               | string                                                                   | no       | yes      |             |
+| `seoDefaultDescription`         | string                                                                   | no       | yes      |             |
+| `contentQualityChecklistPolicy` | [`ContentQualityChecklistPolicy`](#schema-contentqualitychecklistpolicy) | no       | no       |             |
 
 **Example**
 
@@ -8719,7 +8907,8 @@ Partial update — only fields present are validated/changed. blogTitle/blogDesc
   "defaultLocale": "string",
   "defaultVisibility": "public",
   "seoDefaultTitle": "string",
-  "seoDefaultDescription": "string"
+  "seoDefaultDescription": "string",
+  "contentQualityChecklistPolicy": "(operation-specific payload)"
 }
 ```
 

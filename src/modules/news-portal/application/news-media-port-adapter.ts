@@ -99,7 +99,11 @@ export const newsMediaPortAdapter: NewsMediaPort = {
       if (media && isNewsMediaObjectSafeForPublicReference(media.status)) {
         resolved.set(mediaObjectId, {
           publicUrl: media.publicUrl,
-          altText: media.altText
+          altText: media.altText,
+          mimeType: media.mimeType,
+          width: media.width,
+          height: media.height,
+          sizeBytes: media.sizeBytes
         });
       }
     }

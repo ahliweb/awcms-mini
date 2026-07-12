@@ -45,7 +45,7 @@ status + pointer, bukan menduplikasi isinya.
 | #637  | Editorial homepage section composer `/news` dengan render R2-only                                                            | **Selesai** — lihat §637 di bawah                    |
 | #638  | Preset placement iklan news portal dengan validasi gambar R2-only                                                            | Belum dikerjakan — lihat §638 di bawah               |
 | #639  | Content block `video_news` dengan thumbnail R2 wajib                                                                         | Belum dikerjakan — lihat §639 di bawah               |
-| #640  | Content quality checklist publishing dengan syarat gambar R2                                                                 | Belum dikerjakan — lihat §640 di bawah               |
+| #640  | Content quality checklist publishing dengan syarat gambar R2                                                                 | **Selesai** — lihat §640 di bawah                    |
 | #641  | Automatic internal tag linking untuk konten post/news                                                                        | Belum dikerjakan — lihat §641 di bawah               |
 | #642  | Public social share buttons di halaman artikel `/news`                                                                       | Belum dikerjakan — lihat §642 di bawah               |
 | #649  | SEO + social preview metadata lengkap di halaman artikel `/news`                                                             | Belum dikerjakan — lihat §649 di bawah               |
@@ -1433,7 +1433,7 @@ daftar file lengkap kalau butuh contoh call-site persis.
   detail, 3 news_portal homepage-sections/`/news` index) — wiring adapter
   di composition root.
 
-## §638-#640, #642, #649 — konsumsi media registry lanjutan (belum dikerjakan)
+## §638-#639, #642, #649 — konsumsi media registry lanjutan (belum dikerjakan)
 
 Ringkasan objective per issue (detail lengkap ada di body issue
 GitHub masing-masing, cek `gh issue view <n>` bila butuh acceptance
@@ -1449,9 +1449,6 @@ criteria penuh):
   eksternal seperti YouTube/embed kemungkinan tetap di luar cakupan R2,
   cek body issue untuk detail persis sebelum implementasi). **Setelah ini
   selesai**, tambahkan `video_block` ke whitelist yang sama.
-- **#640** — content quality checklist publishing dengan syarat gambar
-  R2 (mis. featured image wajib ada + confirmed sebelum status
-  `published` diizinkan).
 - **#642** — social share buttons publik di `/news` dengan canonical
   URL aman + Open Graph/Twitter Card + privacy-conscious.
 - **#649** — SEO + social preview metadata lengkap (title/excerpt/
@@ -1459,6 +1456,196 @@ criteria penuh):
 
 Semua issue ini **wajib** mengonsumsi media registry (#633) dan validasi
 `confirmed`-only (#636) — bukan re-derive validasi URL/MIME sendiri.
+
+## §640 — Content quality checklist publishing dengan syarat gambar R2 (Selesai)
+
+Implementasi lengkap: domain `blog-content/domain/content-quality-checklist.ts`
+(17 rule murni, tiga severity `blocking`/`warning`/`info`, lima rule
+security non-overridable), application
+`blog-content/application/content-quality-checklist-gate.ts` (orkestrasi
+DB/port), diwire ke `POST /api/v1/blog/posts/{id}/publish`,
+`POST /api/v1/blog/posts/{id}/schedule`, `blog-scheduled-publish.ts`'s
+`publishDueScheduledPosts` (Issue #541), dan dua endpoint preview baru
+`GET /api/v1/blog/posts/{id}/quality-checklist` /
+`GET /api/v1/blog/pages/{id}/quality-checklist`. **Tidak ada migration
+baru** — kebijakan override tenant disimpan di kolom catch-all
+`awcms_mini_blog_settings.settings` (Issue #543) yang sudah ada, bukan
+tabel baru.
+
+### Gate tunggal — mengikuti persis pola mode-gate #636, BUKAN blanket tightening ke seluruh `blog_content`
+
+Seluruh checklist (bukan cuma rule R2) adalah SATU no-op ketika full-online
+R2-only mode tidak aktif untuk tenant pemanggil
+(`mediaPort.isFullOnlineR2ModeActiveForTenant`) — publish/schedule tenant
+`blog_content`-only (mayoritas tenant hari ini) berperilaku identik sebelum
+issue ini, byte-for-byte. Ini keputusan sengaja, bukan kealpaan: memaksa
+rule editorial baru (meta description hilang, taxonomy kosong, dst) jadi
+warning/blocking untuk SEMUA tenant `blog_content` — termasuk yang tidak
+pernah mengaktifkan `news_portal` — akan menjadi "blanket tightening"
+persis pola kesalahan yang epic ini berulang kali dokumentasikan untuk
+dihindari (lihat §636's prinsip yang sama). `applicable: false` pada
+`ContentQualityChecklistResult` adalah sinyal itu.
+
+### Reuse — SATU pemanggilan mediaPort.resolveMediaReferences, bukan re-derive verifikasi R2
+
+`content-quality-checklist-gate.ts` memanggil
+`collectGalleryImageReferences` (domain #636, TIDAK diubah traversal-nya)
+dan `NewsMediaPort.resolveMediaReferences` (adapter #681,
+`news-portal/application/news-media-port-adapter.ts`) — SATU bulk lookup
+untuk featured image + semua gallery mediaObjectId, PERSIS primitif yang
+#636 sudah bangun. Checklist TIDAK memanggil registry/DB `news_portal`
+sendiri secara langsung dan TIDAK re-implement query "apakah media ini
+verified/attached" — itu sudah jadi tanggung jawab
+`isNewsMediaObjectSafeForPublicReference` di balik port, dipanggil satu
+tempat (`news-media-port-adapter.ts`).
+
+### Perubahan aditif ke file yang di-flag berbagi dengan Issue #639 (video block, dikerjakan paralel)
+
+Dua file yang disebut eksplisit berisiko konflik dengan #639 disentuh
+MINIMAL dan aditif murni:
+
+- `blog-content/domain/content-block-media-references.ts` —
+  `GalleryImageReferenceViolation` dapat field opsional baru `rawUrl?:
+string` (diisi hanya untuk `reason: "raw_url_not_allowed"`), supaya
+  checklist bisa mengklasifikasi local-path vs external-url TANPA
+  traversal kedua atas `contentJson` (lihat file itu sendiri untuk
+  alasan "satu traversal, jangan drift"). TIDAK ada perubahan pada
+  `mediaType: "video"` (tetap di luar cakupan, scope #639), TIDAK ada
+  perubahan pada urutan/isi array `violations` untuk consumer lama
+  (`news-media-reference-gate.ts`'s `violationMessage` hanya baca
+  `itemIndex`/`reason`, tidak terpengaruh field baru).
+- `content-block-rendering.ts` — **TIDAK disentuh sama sekali** oleh
+  issue ini (rendering bukan concern checklist — checklist hanya
+  membaca `contentJson`/registry, tidak pernah merender HTML).
+
+`_shared/ports/news-media-port.ts` juga diperluas aditif:
+`ResolvedNewsMediaReferenceDTO` dapat empat field metadata baru
+(`mimeType`, `width`, `height`, `sizeBytes`) di samping `publicUrl`/
+`altText` yang sudah ada — setiap consumer lama (homepage composer,
+render-time gallery/og:image resolution) tetap hanya membaca dua field
+lama, tidak terpengaruh.
+
+### Klasifikasi "featured image MIME/size" — tidak re-derive policy config, murni laporan metadata terverifikasi
+
+`featured_image_mime_allowed`/`featured_image_size_within_policy` TIDAK
+membaca `NEWS_MEDIA_R2_ALLOWED_MIME_TYPES`/`NEWS_MEDIA_R2_MAX_UPLOAD_BYTES`
+(itu akan jadi cross-module coupling baru ke config domain `news_portal`,
+dilarang `module-boundary.test.ts`). Sebagai gantinya: SETIAP objek yang
+mencapai status `verified`/`attached` SUDAH PASTI lolos sniffing MIME
+raster (empat tipe) dan byte-cap saat upload (Issue #634) — jadi kedua
+rule ini melaporkan metadata yang SUDAH terverifikasi (nilai `mimeType`/
+`sizeBytes` sungguhan dari registry), bukan mengulang keputusan
+allow/deny. Severity `info`, tidak overridable (tidak ada yang perlu
+di-override — rule ini secara struktural tidak bisa gagal untuk objek
+verified).
+
+### Lima rule security — TIDAK BISA di-downgrade tenant policy, di environment manapun (lebih ketat dari permintaan literal issue)
+
+`SECURITY_RULE_IDS` (`unsafe_html_rejected`, `no_local_image_path`,
+`no_external_image_url`, `featured_image_verified_r2`,
+`gallery_images_verified`) menolak override APA PUN, tanpa cabang
+`APP_ENV`. Issue #640's security notes hanya minta "tidak boleh
+di-downgrade DI PRODUKSI" — implementasi ini SENGAJA lebih ketat
+(menolak universal) karena itu trivially memenuhi syarat literalnya
+tanpa menambah percabangan env baru yang berisiko jadi footgun untuk
+staging yang mirror data produksi. `resolveSeverity` (domain) menolak
+override untuk id di luar `OVERRIDABLE_RULE_IDS` secara runtime —
+independen dari `blog-settings-policy.ts`'s validasi write-time (dua
+lapis, bukan satu titik kegagalan, sama pelajaran §636's restore-revision
+bypass).
+
+### Kebijakan tenant — disimpan di `awcms_mini_blog_settings.settings`, BUKAN mekanisme baru
+
+`contentQualityChecklistPolicy` (map rule id overridable -> severity)
+hidup di kolom catch-all `settings jsonb` milik `awcms_mini_blog_settings`
+(Issue #543, sudah tenant-writable via `PATCH /api/v1/blog/settings`,
+permission `blog_content.settings.configure`). Ini BUKAN pola anti-pattern
+§636 ("jangan taruh sinyal security di mekanisme generic-writable") —
+lima rule security di atas TIDAK PERNAH dibaca dari blob ini sama sekali
+(hard-coded di `content-quality-checklist.ts`), jadi tidak ada bypass
+yang mungkin lewat sini walau kolomnya generic-writable. `validateUpdateBlogSettingsInput`
+menolak (400) key yang bukan `OVERRIDABLE_RULE_IDS` atau severity yang
+tidak valid — termasuk percobaan menaruh rule security di sana.
+
+### Scheduled-publish worker — direstrukturisasi dari bulk UPDATE ke loop per-post
+
+`publishDueScheduledPosts` (Issue #541) sebelumnya satu `UPDATE ...
+RETURNING` set-based. Issue ini merestrukturisasi jadi `SELECT ... FOR
+UPDATE` lalu loop per-post: setiap post due dievaluasi checklist-nya
+sendiri; yang gagal DIBIARKAN `scheduled` (bukan silently published, bukan
+di-unschedule) + audit event `blog.post.scheduled_publish_blocked`; yang
+lolos baru di-`UPDATE` satu-per-satu ke `published`. Alasan: tanpa ini,
+tenant bisa bypass checklist sepenuhnya dengan men-schedule post SEBELUM
+mengaktifkan mode R2-only (atau sebelum media diverifikasi ulang), lalu
+menunggu due — celah kelas yang sama dengan §636's restore-revision
+bypass. `mediaPort` sekarang parameter WAJIB fungsi ini (disuntik
+`scripts/blog-scheduled-publish.ts` sebagai composition root) — signature
+lama `(sql, tenantId, options?)` berubah jadi `(sql, tenantId, mediaPort,
+options?)`, breaking change untuk pemanggil manapun.
+
+### Response envelope — `qualityChecklist` field aditif, `error.details` tetap `ErrorDetail[]`
+
+Response sukses `publish`/`schedule` (200) memakai pola PERSIS yang
+`termIds` sudah pakai di `BlogPostItem` (Issue #539: "hanya field
+opsional yang sebagian endpoint isi") — `ok({ ...updated, qualityChecklist
+})`, TIDAK membungkus `data` dalam wrapper baru. Response blocked (422,
+kode `CONTENT_QUALITY_CHECKLIST_BLOCKED`) memetakan setiap blocker ke
+`{ field: ruleId, message }` — bentuk `ErrorDetail` yang SUDAH ADA
+(dipakai `VALIDATION_ERROR`/`NEWS_MEDIA_REFERENCE_INVALID`), BUKAN objek
+checklist penuh di `error.details` (yang butuh perubahan skema `ApiError`
+shared) — checklist lengkap (termasuk warning/info) tetap didapat lewat
+endpoint preview `GET .../quality-checklist`.
+
+### Halaman (`blog_content` pages) — preview-only, TIDAK ada endpoint publish/schedule untuk pages sama sekali
+
+`GET /api/v1/blog/pages/{id}/quality-checklist` ada (memenuhi "Checklist
+tersedia di admin post/page editor"), tapi TIDAK ADA `POST
+/api/v1/blog/pages/{id}/publish`/`.../schedule` di codebase ini — pages
+dibuat langsung `status='draft'` tanpa rute transisi lifecycle apa pun
+(gap pra-eksisting, bukan sesuatu issue ini perbaiki, di luar scope atomic
+issue ini). `taxonomy_exists` selalu `applicable: false` untuk pages
+(tidak ada tabel `_terms` untuk pages, beda dari
+`awcms_mini_blog_post_terms` milik posts).
+
+### File yang dibuat/diubah (referensi cepat)
+
+- **Baru**: `src/modules/blog-content/domain/content-quality-checklist.ts`,
+  `src/modules/blog-content/application/content-quality-checklist-gate.ts`,
+  `src/pages/api/v1/blog/posts/[id]/quality-checklist.ts`,
+  `src/pages/api/v1/blog/pages/[id]/quality-checklist.ts`.
+- **Diubah (aditif)**: `src/modules/_shared/ports/news-media-port.ts`
+  (`ResolvedNewsMediaReferenceDTO` metadata baru),
+  `src/modules/news-portal/application/news-media-port-adapter.ts`
+  (mengisi metadata baru), `src/modules/blog-content/domain/content-block-media-references.ts`
+  (`rawUrl` opsional pada violation), `src/modules/blog-content/domain/blog-settings-policy.ts`
+  - `application/blog-settings-directory.ts` (`contentQualityChecklistPolicy`),
+    `src/pages/api/v1/blog/posts/[id]/publish.ts`, `.../schedule.ts` (gate +
+    audit + `qualityChecklist` di response), `src/modules/blog-content/application/blog-scheduled-publish.ts`
+  - `scripts/blog-scheduled-publish.ts` (restrukturisasi per-post + inject
+    `mediaPort`).
+- `openapi/awcms-mini-public-api.src.yaml` (`ContentQualityChecklistResult`/
+  `ContentQualityChecklistRuleOutcome` schema baru, `BlogPostItem.qualityChecklist`),
+  `openapi/modules/blog-posts.openapi.yaml` (422 baru di publish/schedule,
+  path `quality-checklist` baru), `openapi/modules/blog-pages.openapi.yaml`
+  (path `quality-checklist` baru), `openapi/modules/blog-settings.openapi.yaml`
+  (`ContentQualityChecklistPolicy` schema baru).
+- `src/lib/i18n/error-messages.ts` (`CONTENT_QUALITY_CHECKLIST_BLOCKED`),
+  `i18n/en.po`/`i18n/id.po` (error string + admin UI checklist panel +
+  settings policy field strings).
+- Admin UI: `src/pages/admin/blog/posts/[id].astro` (panel checklist baru),
+  `src/pages/admin/blog/pages/[id].astro` (panel checklist baru, read-only),
+  `src/pages/admin/blog/settings.astro` (textarea JSON kebijakan
+  checklist).
+- Test: `tests/unit/content-quality-checklist.test.ts`,
+  `tests/unit/content-quality-checklist-gate.test.ts`,
+  `tests/unit/blog-settings-policy.test.ts` (baru — scoped ke field baru
+  saja), `tests/integration/blog-content-quality-checklist.integration.test.ts`
+  (baru); diperbarui: `tests/unit/content-block-media-references.test.ts`
+  (assert `rawUrl` baru), `tests/integration/blog-content-scheduled-publish.integration.test.ts`
+  (signature `publishDueScheduledPosts` baru butuh `mediaPort`).
+- Changeset: `.changeset/blog-content-quality-checklist-issue-640.md`.
+- **Tidak ada migration baru** — lihat "Gate tunggal"/"Kebijakan tenant" di
+  atas untuk alasan.
 
 ## §641 — Automatic internal tag linking (belum dikerjakan)
 
