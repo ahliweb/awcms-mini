@@ -170,9 +170,7 @@ type FakeR2Object = { bytes: Uint8Array; lastModified: string };
  * servers in this test suite, e.g.
  * `news-media-upload-session-api.integration.test.ts`).
  */
-function startFakeR2Server(
-  options: { failListForPrefix?: string } = {}
-): {
+function startFakeR2Server(options: { failListForPrefix?: string } = {}): {
   server: ReturnType<typeof Bun.serve>;
   put: (key: string, lastModified?: string) => void;
   has: (key: string) => boolean;
@@ -432,8 +430,11 @@ suite("news media R2 lifecycle cleanup & reconciliation (Issue #690)", () => {
       );
       expect(gone).toBeNull();
 
-      const auditRows = (await withTenant(appSql, TENANT_A, (tx) =>
-        tx`
+      const auditRows = (await withTenant(
+        appSql,
+        TENANT_A,
+        (tx) =>
+          tx`
           SELECT action FROM awcms_mini_audit_events
           WHERE tenant_id = ${TENANT_A} AND resource_id = ${created.id}
         `
