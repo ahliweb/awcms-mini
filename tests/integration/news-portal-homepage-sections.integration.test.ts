@@ -67,7 +67,8 @@ const MEDIA_CONFIG: NewsMediaR2Config = {
   presignedUploadTtlSeconds: 300,
   maxUploadBytes: 10_485_760,
   allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
-  pendingTtlMinutes: 60
+  pendingTtlMinutes: 60,
+  orphanGraceDays: 30
 };
 
 type Bootstrap = {

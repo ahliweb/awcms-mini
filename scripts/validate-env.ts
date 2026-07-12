@@ -209,8 +209,10 @@ import {
 import {
   findNewsMediaR2SeparationViolations,
   findUnknownNewsMediaR2MimeTypes,
+  isOrphanGraceTooShort,
   isPresignedUploadTtlTooLong,
   NEWS_MEDIA_R2_MAX_PRESIGNED_UPLOAD_TTL_SECONDS,
+  NEWS_MEDIA_R2_MIN_ORPHAN_GRACE_DAYS,
   NEWS_MEDIA_R2_REQUIRED_WHEN_ENABLED,
   resolveNewsMediaR2Config
 } from "../src/modules/news-portal/domain/news-media-r2-config";
@@ -1114,6 +1116,32 @@ export function checkNewsMediaR2PresignedTtlUpperBound(
   };
 }
 
+/** Issue #690: the R2 lifecycle/reconciliation job's orphan grace period must be at least `NEWS_MEDIA_R2_MIN_ORPHAN_GRACE_DAYS` (`r2-backup-lifecycle.md` §3's "minimum 30 hari") — a shorter window would physically delete recently-orphaned media before an editor has a realistic chance to notice/undo an accidental unlink. */
+export function checkNewsMediaR2OrphanGraceLowerBound(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult {
+  const name = `NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS (lower bound)`;
+
+  if (isOrphanGraceTooShort(env)) {
+    const days = resolveNewsMediaR2Config(env).orphanGraceDays;
+
+    return {
+      name,
+      status: "fail",
+      detail: `NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS=${days} is below the minimum of ${NEWS_MEDIA_R2_MIN_ORPHAN_GRACE_DAYS} days (r2-backup-lifecycle.md §3) — too short a grace window risks scripts/news-media-r2-reconcile.ts physically deleting an orphaned object before an editor could realistically notice/undo an accidental unlink.`
+    };
+  }
+
+  return {
+    name,
+    status: "pass",
+    detail:
+      env.NEWS_MEDIA_R2_ENABLED === "true"
+        ? `NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS is at least the ${NEWS_MEDIA_R2_MIN_ORPHAN_GRACE_DAYS}-day minimum.`
+        : 'NEWS_MEDIA_R2_ENABLED is not "true" — no orphan grace period in effect.'
+  };
+}
+
 export function runEnvValidation(
   env: NodeJS.ProcessEnv = process.env
 ): EnvCheckResult[] {
@@ -1135,7 +1163,8 @@ export function runEnvValidation(
     ...checkNewsMediaR2Config(env),
     checkNewsMediaR2SeparationFromSyncR2(env),
     checkNewsMediaR2AllowedMimeTypesKnown(env),
-    checkNewsMediaR2PresignedTtlUpperBound(env)
+    checkNewsMediaR2PresignedTtlUpperBound(env),
+    checkNewsMediaR2OrphanGraceLowerBound(env)
   ];
 }
 

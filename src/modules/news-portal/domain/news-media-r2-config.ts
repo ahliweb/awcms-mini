@@ -71,12 +71,25 @@ export const NEWS_MEDIA_R2_KNOWN_MIME_TYPES = [
  */
 export const NEWS_MEDIA_R2_MAX_PRESIGNED_UPLOAD_TTL_SECONDS = 3600;
 
+/**
+ * Floor for `NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS` (Issue #690,
+ * `r2-backup-lifecycle.md` §3: "Masa tenggang minimum 30 hari sebelum hapus
+ * fisik, dapat dikonfigurasi operator"). Unlike
+ * `NEWS_MEDIA_R2_MAX_PRESIGNED_UPLOAD_TTL_SECONDS` (a ceiling), this is a
+ * FLOOR — the doc's own "minimum 30 hari" language, not a suggested default
+ * an operator is free to shrink arbitrarily. `isOrphanGraceTooShort` reports
+ * a value below this as unsafe (`security:readiness`, warning severity —
+ * same non-blocking-but-flagged pattern as `isPresignedUploadTtlTooLong`).
+ */
+export const NEWS_MEDIA_R2_MIN_ORPHAN_GRACE_DAYS = 30;
+
 export const NEWS_MEDIA_R2_DEFAULTS = {
   enabled: false,
   presignedUploadTtlSeconds: 300,
   maxUploadBytes: 10_485_760,
   allowedMimeTypes: [...NEWS_MEDIA_R2_DEFAULT_ALLOWED_MIME_TYPES] as string[],
-  pendingTtlMinutes: 60
+  pendingTtlMinutes: 60,
+  orphanGraceDays: NEWS_MEDIA_R2_MIN_ORPHAN_GRACE_DAYS
 } as const;
 
 /**
@@ -106,6 +119,8 @@ export type NewsMediaR2Config = {
   maxUploadBytes: number;
   allowedMimeTypes: string[];
   pendingTtlMinutes: number;
+  /** Grace period (days) between a media object becoming `orphaned` and `scripts/news-media-r2-reconcile.ts` (Issue #690) physically deleting its R2 object + soft-deleting its metadata row (`r2-backup-lifecycle.md` §3). Also reused as the age threshold (against the R2-reported `lastModified`) before that same job will physically delete an "orphan-in-R2" object (a bucket object with no matching metadata row at all — see that script's own header for why one config knob covers both cases). */
+  orphanGraceDays: number;
 };
 
 function isSet(value: string | undefined): boolean {
@@ -169,7 +184,10 @@ export function resolveNewsMediaR2Config(
     allowedMimeTypes: parseMimeList(env.NEWS_MEDIA_R2_ALLOWED_MIME_TYPES),
     pendingTtlMinutes:
       parsePositiveInt(env.NEWS_MEDIA_R2_PENDING_TTL_MINUTES) ??
-      NEWS_MEDIA_R2_DEFAULTS.pendingTtlMinutes
+      NEWS_MEDIA_R2_DEFAULTS.pendingTtlMinutes,
+    orphanGraceDays:
+      parsePositiveInt(env.NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS) ??
+      NEWS_MEDIA_R2_DEFAULTS.orphanGraceDays
   };
 }
 
@@ -279,6 +297,23 @@ export function isPresignedUploadTtlTooLong(
   return (
     resolveNewsMediaR2Config(env).presignedUploadTtlSeconds >
     NEWS_MEDIA_R2_MAX_PRESIGNED_UPLOAD_TTL_SECONDS
+  );
+}
+
+/**
+ * `true` when `NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS` is set below
+ * `NEWS_MEDIA_R2_MIN_ORPHAN_GRACE_DAYS` (Issue #690, `r2-backup-lifecycle.md`
+ * §3's "minimum 30 hari"). `false` when disabled or unset (falls back to the
+ * safe default, which already equals the floor).
+ */
+export function isOrphanGraceTooShort(
+  env: NodeJS.ProcessEnv = process.env
+): boolean {
+  if (env.NEWS_MEDIA_R2_ENABLED !== "true") return false;
+
+  return (
+    resolveNewsMediaR2Config(env).orphanGraceDays <
+    NEWS_MEDIA_R2_MIN_ORPHAN_GRACE_DAYS
   );
 }
 

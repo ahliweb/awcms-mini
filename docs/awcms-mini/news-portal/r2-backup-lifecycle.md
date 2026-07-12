@@ -27,19 +27,35 @@ ini adalah mitigasi untuk trade-off tersebut.
   (default 60 menit) — baik baris metadata (hard delete, bukan soft
   delete, karena baris `pending` bukan "resource" yang pernah dipakai
   siapa pun) maupun objek fisik di R2.
-- Job pembersihan ini mengikuti pola job terjadwal yang sudah ada di
-  repo (`sync:objects:dispatch`, `analytics:purge`, dsb. — lihat
-  `deployment-profiles.md` §Job registry lainnya): idempoten, aman
-  dijalankan berulang, tidak menjadi dependency kritis alur upload itu
-  sendiri (ADR-0006 — pembersihan adalah housekeeping, bukan bagian
-  jalur upload sinkron).
-- Implementor job ini (di luar cakupan Issue #631, kemungkinan bagian
-  dari #633/#634) **wajib** menghapus objek fisik R2 **dan** baris
-  metadata dalam urutan yang aman terhadap kegagalan parsial: hapus
-  objek R2 dulu, baru hapus baris metadata (bila proses gagal di
-  tengah, baris metadata `pending` basi tetap ada untuk retry
-  berikutnya — kebalikan urutan ini bisa meninggalkan objek R2 yatim
-  tanpa jejak metadata untuk retry).
+- **Implementasi (Issue #690, epic #679 platform-hardening):**
+  `bun run news-media:reconcile` (`scripts/news-media-r2-reconcile.ts`,
+  logika di `src/modules/news-portal/application/news-media-
+reconciliation.ts`) adalah job ini. Dibangun di atas shared worker
+  runner (`src/lib/jobs/job-runner.ts`, Issue #697) — advisory lock per
+  nama job, timeout, `--dry-run`, JSON telemetry — no-op sepenuhnya bila
+  `NEWS_MEDIA_R2_ENABLED` bukan `"true"`. Lihat §Operator SOP di bawah
+  untuk cara menjalankan/menjadwalkannya.
+- **Urutan mutasi yang sebenarnya diimplementasikan** — klaim baris DB
+  DULU (UPDATE/DELETE ber-guard atomik, `pending_upload`/`uploaded` ->
+  `failed`), baru hapus objek R2, baru hard-delete baris `failed`
+  tersebut. Ini deliberately BERBEDA dari urutan "hapus R2 dulu" yang
+  disebut di paragraf sebelumnya (ditulis sebelum implementasi ada):
+  klaim-DB-dulu diperlukan supaya klaim atomik yang sama dipakai
+  `finalizeNewsMediaUploadSession` (Issue #634, "atomic claim before R2
+  call") bisa menyerialkan job ini terhadap `finalize()` yang sedang
+  berjalan bersamaan — bila job ini menghapus objek R2 duluan, sebuah
+  `finalize()` yang genuinely sedang berjalan bisa kehilangan objeknya.
+  Konsekuensi kegagalan-parsial yang disebut di atas (baris metadata
+  basi tanpa objek R2 vs objek R2 yatim tanpa baris metadata) tetap
+  aman dengan urutan job-klaim-dulu ini: kegagalan R2-delete meninggalkan
+  baris `failed` (bukan `pending`) yang di-retry pass berikutnya oleh job
+  yang sama; kegagalan setelah R2-delete tapi sebelum hard-delete baris
+  meninggalkan objek R2 yatim tanpa baris — persis kategori
+  **orphan-in-R2** §4 yang dideteksi/dibersihkan job ini sendiri di run
+  berikutnya (self-healing, bukan jalan buntu).
+- Job ini idempoten by construction — sekali baris/objek dibersihkan,
+  tidak lagi cocok dengan kriteria kandidat pass berikutnya (tidak ada
+  bookkeeping "sudah diproses" terpisah).
 
 ## 3. Retention policy per klasifikasi data
 
@@ -60,18 +76,52 @@ sesuai sensitivitas/nilai data).
 Objek `confirmed` menjadi kandidat `orphaned` ketika tidak ada lagi
 referensi aktif dari `blog_content` (post/page/ads/gallery/video
 thumbnail) atau surface news-portal lain (Issue #637-#640, #649) yang
-menunjuknya. Implementasi konkret (di luar cakupan Issue #631):
+menunjuknya.
 
-- Job periodik membandingkan `object_key` berstatus `confirmed` terhadap
-  seluruh titik referensi yang diketahui (bukan hanya `featuredMediaId`
-  — juga block `gallery`/`video_news`, `ad.imageUrl` versi R2-only, SEO
-  share image) — daftar titik referensi ini **wajib** diperbarui setiap
-  kali issue lanjutan (#637-#640, #642, #649) menambah surface baru yang
-  bisa menunjuk media registry, supaya deteksi orphan tidak pernah
-  salah menandai objek yang sebenarnya masih dipakai.
-- Objek yang tidak ditemukan di titik referensi mana pun selama masa
-  tenggang (§3) ditandai `orphaned`, lalu dihapus fisik setelah masa
-  tenggang berakhir tanpa referensi baru muncul.
+**Status implementasi (Issue #690):** cross-referencing ke seluruh
+titik referensi `blog_content` di atas (bukan hanya `owner_resource_id`
+tabel registry sendiri) **masih di luar cakupan** — persis seperti
+dicatat semula ("daftar titik referensi ini wajib diperbarui setiap
+kali issue lanjutan menambah surface baru"), ini tetap benar dan belum
+dikerjakan. Yang SUDAH diimplementasikan Issue #690
+(`news-media-reconciliation.ts`) adalah DUA hal yang lebih sempit tapi
+saling melengkapi:
+
+1. **Physical cleanup untuk baris yang SUDAH ditandai `orphaned`** —
+   `bun run news-media:reconcile` menyapu baris `status='orphaned'`
+   yang `orphaned_at`-nya (kolom baru migration 046, diisi
+   `markNewsMediaObjectOrphaned`) sudah melewati masa tenggang §3
+   (`NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS`, default 30 hari, minimum 30
+   hari ditegakkan `config:validate`): objek R2 dihapus fisik, baris
+   metadata di-soft-delete (BUKAN hard delete — §3's retention table).
+   Job ini TIDAK menentukan sendiri kapan sebuah baris `attached`/
+   `verified` menjadi `orphaned` (itu bagian cross-referencing yang
+   masih di luar cakupan) — ia hanya bertindak begitu status itu SUDAH
+   ada, dari sumber mana pun (manual, atau issue masa depan yang
+   akhirnya mengimplementasikan cross-referencing di atas).
+2. **Rekonsiliasi drift DB-vs-R2** (bukan "orphan" dalam arti "tidak
+   direferensikan konten", tapi dalam arti "metadata DB dan objek fisik
+   R2 tidak sinkron") — dua kategori tambahan:
+   - **orphan-in-DB**: baris `uploaded`/`verified`/`attached`
+     (DB mengira objek ada) tapi objek TIDAK ditemukan di listing R2.
+     **Report-only** — job ini TIDAK PERNAH memutasi baris ini secara
+     otomatis (baris `attached` bisa jadi sedang aktif melayani konten
+     publish; mengubahnya tanpa keputusan manusia adalah persis jenis
+     mutasi mengejutkan yang harus dihindari). Lihat §Operator SOP di
+     bawah untuk remediasi.
+   - **orphan-in-R2**: objek R2 yang TIDAK PUNYA baris DB sama sekali
+     (status apa pun, termasuk yang sudah soft-deleted) — celah nyata
+     karena `purgeNewsMediaObject` (hard delete baris, endpoint purge)
+     tidak (dan sengaja tidak, ADR-0006: panggilan R2 tidak pernah di
+     dalam transaksi DB) menghapus objek R2-nya sendiri secara
+     sinkron. Job ini menutup celah itu secara asinkron: objek seperti
+     ini dihapus fisik setelah umurnya (dari `LastModified` R2 sendiri,
+     satu-satunya timestamp yang tersedia karena tidak ada baris DB)
+     melewati masa tenggang §3 yang sama, DAN setelah pengecekan ulang
+     tepat sebelum penghapusan (point lookup langsung ke DB,
+     `objectKeyExistsForTenant`) memastikan tidak ada baris baru yang
+     baru saja dibuat untuk key yang sama — inilah yang mencegah race
+     condition (baris baru dibuat tepat sebelum job menghapus).
 
 ## 5. Strategi backup (di luar retensi lifecycle di atas)
 
@@ -140,10 +190,62 @@ strategi backup sama sekali, mengingat §1 di atas).
   privasi di scope epic ini (dicatat sebagai keterbatasan, bukan
   diabaikan).
 
-## 8. Referensi
+## 8. Operator SOP — `bun run news-media:reconcile` (Issue #690)
 
-- `full-online-r2-architecture.md` §16 (ISO 22301), §15 (ISO 27018/27701).
+**Prasyarat**: `NEWS_MEDIA_R2_ENABLED=true`. Job ini `skipped` tanpa efek
+apa pun bila tidak.
+
+**Langkah rutin (dijadwalkan)**:
+
+1. Jadwalkan `bun run news-media:reconcile` harian via cron/systemd
+   timer (sama seperti job terjadwal lain — lihat
+   `deployment-profiles.md` §Job registry/§Shared worker runner). Job
+   ini memakai advisory lock per nama (`src/lib/jobs/job-runner.ts`) —
+   aman dijalankan lebih sering; instance kedua yang tumpang tindih
+   otomatis di-skip, bukan error.
+2. Sebelum mengaktifkan jadwal pertama kali (atau setelah insiden),
+   jalankan `bun run news-media:reconcile --dry-run` dulu untuk melihat
+   kategori/jumlah TANPA mutasi apa pun:
+   `healthy` / `orphanInDb` / `expiredPending` / `staleOrphaned` /
+   `orphanInR2`. Output JSON (`itemCounts`) dan ringkasan satu baris
+   dicetak ke stdout; `--json-output=<path>` untuk menyimpan ke file.
+3. Bila `tenantsWithR2ListFailure > 0` di telemetry — outage/kredensial
+   R2 sementara. Job TIDAK crash, TIDAK memblokir tenant lain, TIDAK
+   perlu intervensi manual — coba lagi pada jadwal berikutnya. Bila
+   berulang di banyak run berturut-turut, periksa kredensial
+   `NEWS_MEDIA_R2_*`/status Cloudflare R2.
+
+**Remediasi kategori `orphan-in-DB`** (baris DB mengharapkan objek R2
+yang ternyata hilang — job ini TIDAK PERNAH memutasi baris ini secara
+otomatis, murni laporan):
+
+1. Identifikasi baris dari `orphanInDb` (objectId/objectKey/status)
+   di log/telemetry (TIDAK PERNAH berisi signed URL/kredensial — hanya
+   object key, yang tidak mengandung PII, §7).
+2. Bila `status='attached'` — periksa apakah konten yang mereferensikan
+   objek ini (`owner_resource_type`/`owner_resource_id`) sudah publish
+   dengan gambar rusak; komunikasikan ke redaksi, minta re-upload
+   gambar pengganti (attach ulang) atau unlink dari editorial UI.
+3. Bila `status='uploaded'/'verified'` tanpa attach — kemungkinan
+   upload yang gagal secara tidak normal (mis. proses R2 mati di
+   tengah `finalize`); aman dihapus manual (soft delete lewat editorial
+   UI/endpoint) karena belum pernah dipakai konten apa pun.
+4. Tidak ada mekanisme auto-remediation di scope Issue #690 ini —
+   keputusan tetap di tangan operator/editor, sesuai desain "jangan
+   pernah memutasi baris yang berpotensi masih direferensikan tanpa
+   keputusan manusia".
+
+**Retensi/privasi**: job ini tidak menyimpan/menampilkan data baru di
+luar yang sudah ada di §7 — telemetry hanya berisi `object_key`
+(bukan PII), status, dan angka. `NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS`
+(default 30 hari, minimum 30 hari) mengikuti kebijakan retensi §3 yang
+sama; mengubahnya di bawah minimum ditolak `config:validate`.
+
+## 9. Referensi
+
+- `full-online-r2-architecture.md` §16 (ISO 22301), §15 (ISO 27018/27701), §4 (env vars termasuk `NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS`, Issue #690).
 - `r2-security-checklist.md` §Monitoring & audit.
 - `r2-incident-response.md` §Object exposure publik.
 - `deploy/backup/README.md` — backup PostgreSQL yang sudah ada (metadata saja).
 - `docs/awcms-mini/visitor-analytics.md` §Retensi — pola retensi bertingkat yang direplikasi di sini.
+- `docs/awcms-mini/deployment-profiles.md` §Shared worker runner — `news-media:reconcile` sebagai salah satu job terdaftar.

@@ -50,6 +50,7 @@
     "email:dispatch": "bun scripts/email-dispatch.ts",
     "email:provider:health": "bun scripts/email-provider-health.ts",
     "email:templates:seed-defaults": "bun scripts/email-templates-seed-defaults.ts",
+    "news-media:reconcile": "bun scripts/news-media-r2-reconcile.ts",
     "modules:sync": "bun scripts/modules-sync.ts",
     "modules:dag:check": "bun scripts/validate-module-graph.ts",
     "i18n:extract": "bun scripts/i18n-extract.ts",

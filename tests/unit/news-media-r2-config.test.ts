@@ -7,9 +7,11 @@ import {
   findNewsMediaR2SeparationViolations,
   findUnknownNewsMediaR2MimeTypes,
   isNewsMediaR2Enabled,
+  isOrphanGraceTooShort,
   isPresignedUploadTtlTooLong,
   NEWS_MEDIA_R2_DEFAULTS,
   NEWS_MEDIA_R2_MAX_PRESIGNED_UPLOAD_TTL_SECONDS,
+  NEWS_MEDIA_R2_MIN_ORPHAN_GRACE_DAYS,
   NEWS_MEDIA_R2_REQUIRED_WHEN_ENABLED,
   resolveNewsMediaR2Config
 } from "../../src/modules/news-portal/domain/news-media-r2-config";
@@ -34,6 +36,7 @@ describe("resolveNewsMediaR2Config", () => {
     expect(config.pendingTtlMinutes).toBe(
       NEWS_MEDIA_R2_DEFAULTS.pendingTtlMinutes
     );
+    expect(config.orphanGraceDays).toBe(NEWS_MEDIA_R2_DEFAULTS.orphanGraceDays);
   });
 
   test("parses a fully-configured enabled env", () => {
@@ -47,7 +50,8 @@ describe("resolveNewsMediaR2Config", () => {
       NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS: "120",
       NEWS_MEDIA_R2_MAX_UPLOAD_BYTES: "2048",
       NEWS_MEDIA_R2_ALLOWED_MIME_TYPES: "image/jpeg, image/png",
-      NEWS_MEDIA_R2_PENDING_TTL_MINUTES: "15"
+      NEWS_MEDIA_R2_PENDING_TTL_MINUTES: "15",
+      NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS: "45"
     } as NodeJS.ProcessEnv);
 
     expect(config).toEqual({
@@ -60,7 +64,8 @@ describe("resolveNewsMediaR2Config", () => {
       presignedUploadTtlSeconds: 120,
       maxUploadBytes: 2048,
       allowedMimeTypes: ["image/jpeg", "image/png"],
-      pendingTtlMinutes: 15
+      pendingTtlMinutes: 15,
+      orphanGraceDays: 45
     });
   });
 
@@ -68,7 +73,8 @@ describe("resolveNewsMediaR2Config", () => {
     const config = resolveNewsMediaR2Config({
       NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS: "not-a-number",
       NEWS_MEDIA_R2_MAX_UPLOAD_BYTES: "-5",
-      NEWS_MEDIA_R2_PENDING_TTL_MINUTES: "0"
+      NEWS_MEDIA_R2_PENDING_TTL_MINUTES: "0",
+      NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS: "not-a-number"
     } as NodeJS.ProcessEnv);
 
     expect(config.presignedUploadTtlSeconds).toBe(
@@ -78,6 +84,7 @@ describe("resolveNewsMediaR2Config", () => {
     expect(config.pendingTtlMinutes).toBe(
       NEWS_MEDIA_R2_DEFAULTS.pendingTtlMinutes
     );
+    expect(config.orphanGraceDays).toBe(NEWS_MEDIA_R2_DEFAULTS.orphanGraceDays);
   });
 });
 
@@ -264,6 +271,46 @@ describe("isPresignedUploadTtlTooLong (Issue #635)", () => {
         NEWS_MEDIA_R2_ENABLED: "true",
         NEWS_MEDIA_R2_PRESIGNED_UPLOAD_TTL_SECONDS: String(
           NEWS_MEDIA_R2_MAX_PRESIGNED_UPLOAD_TTL_SECONDS + 1
+        )
+      } as NodeJS.ProcessEnv)
+    ).toBe(true);
+  });
+});
+
+describe("isOrphanGraceTooShort (Issue #690)", () => {
+  test("false when disabled, regardless of the grace value", () => {
+    expect(
+      isOrphanGraceTooShort({
+        NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS: "1"
+      } as NodeJS.ProcessEnv)
+    ).toBe(false);
+  });
+
+  test("false for the default grace period", () => {
+    expect(
+      isOrphanGraceTooShort({
+        NEWS_MEDIA_R2_ENABLED: "true"
+      } as NodeJS.ProcessEnv)
+    ).toBe(false);
+  });
+
+  test("false exactly at the minimum", () => {
+    expect(
+      isOrphanGraceTooShort({
+        NEWS_MEDIA_R2_ENABLED: "true",
+        NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS: String(
+          NEWS_MEDIA_R2_MIN_ORPHAN_GRACE_DAYS
+        )
+      } as NodeJS.ProcessEnv)
+    ).toBe(false);
+  });
+
+  test("true just below the minimum", () => {
+    expect(
+      isOrphanGraceTooShort({
+        NEWS_MEDIA_R2_ENABLED: "true",
+        NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS: String(
+          NEWS_MEDIA_R2_MIN_ORPHAN_GRACE_DAYS - 1
         )
       } as NodeJS.ProcessEnv)
     ).toBe(true);

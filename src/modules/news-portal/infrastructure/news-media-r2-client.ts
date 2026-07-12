@@ -17,7 +17,31 @@
  * place that touches R2 credentials/config, and keeping that discipline
  * uniform (rather than "only the genuinely-networked calls count") avoids
  * a future refactor accidentally moving a real network call inside a
- * transaction by analogy with this one.
+ * transaction by analogy with this one. `listObjects`/`deleteObject`
+ * (Issue #690, epic #679 — R2 lifecycle cleanup & reconciliation job) are no
+ * exception: `scripts/news-media-r2-reconcile.ts` calls both strictly
+ * between (never inside) its per-tenant `withTenant` transactions.
+ *
+ * ## `listObjects`/`deleteObject` (Issue #690)
+ *
+ * Added for `scripts/news-media-r2-reconcile.ts`'s dry-run-first
+ * reconciliation between this table's metadata and the R2 bucket's actual
+ * contents. Same circuit breaker + timeout + truncated-error discipline as
+ * every other method here — a reconciliation run against an R2 outage must
+ * fail safely (report the provider error, skip that tenant/page, never
+ * crash the whole job or block unrelated DB-only work), not retry forever
+ * or throw an unhandled rejection.
+ *
+ * `listObjects` wraps `Bun.S3Client.list()` (a real `ListObjectsV2` call —
+ * paginated via `continuationToken`/`nextContinuationToken`, exactly the S3
+ * REST API shape, verified empirically against a fake local XML-serving
+ * `Bun.serve()` server the same way `tests/unit/news-media-r2-client.test.ts`
+ * already does for `headObject`/`getObject`). `deleteObject` wraps
+ * `Bun.S3Client.file(key).delete()` — real S3/R2 `DELETE` semantics are
+ * already idempotent (deleting an already-absent key succeeds, per the S3
+ * API spec), so this method does not itself special-case "not found" as
+ * success; a genuine HTTP-level failure (5xx, timeout, network error) is
+ * the only path that reports `ok: false`.
  *
  * ## `getObject` streaming size cap (security-auditor Critical finding, PR #653 review)
  *
@@ -76,6 +100,33 @@ export type NewsMediaR2GetResult =
   | { ok: true; sizeExceeded: true }
   | { ok: false; error: string };
 
+export type NewsMediaR2ObjectSummary = {
+  key: string;
+  /** `undefined` only if R2 itself omits it from the listing response — never expected in practice, but not assumed. */
+  sizeBytes?: number;
+  /** ISO 8601 string, as reported by R2's `LastModified` — used as the age signal for "orphan-in-R2" objects (no matching DB row, so no DB-side timestamp exists), never parsed as a source of truth about DB state. */
+  lastModified?: string;
+};
+
+export type NewsMediaR2ListObjectsInput = {
+  prefix: string;
+  continuationToken?: string;
+  maxKeys?: number;
+};
+
+export type NewsMediaR2ListObjectsResult =
+  | {
+      ok: true;
+      objects: NewsMediaR2ObjectSummary[];
+      isTruncated: boolean;
+      /** Present iff `isTruncated` — pass back in as `continuationToken` for the next page. */
+      nextContinuationToken?: string;
+    }
+  | { ok: false; error: string };
+
+export type NewsMediaR2DeleteResult =
+  { ok: true } | { ok: false; error: string };
+
 export type NewsMediaR2Client = {
   /**
    * Presigned `PUT` URL scoped to exactly one server-generated object key,
@@ -100,6 +151,26 @@ export type NewsMediaR2Client = {
    * swapped object is a normal rejection outcome, not an error path.
    */
   getObject(objectKey: string, maxBytes: number): Promise<NewsMediaR2GetResult>;
+  /**
+   * Lists (up to) `input.maxKeys` (R2/S3 default 1000) objects under
+   * `input.prefix` — Issue #690's reconciliation job always scopes this to
+   * a single tenant's own prefix (`news-media/{tenantId}/`), never an
+   * unscoped bucket-wide listing, even though the bucket itself has no
+   * tenant-level access control of its own (R2 credentials are shared
+   * across tenants for this bucket — the object KEY prefix is the only
+   * tenant boundary at the storage layer). Paginate by passing the previous
+   * call's `nextContinuationToken` back in as `input.continuationToken`
+   * until `isTruncated` is `false`.
+   */
+  listObjects(
+    input: NewsMediaR2ListObjectsInput
+  ): Promise<NewsMediaR2ListObjectsResult>;
+  /**
+   * Deletes one object by key. Idempotent by the underlying S3/R2 API's own
+   * semantics (deleting an already-absent key is not an error) — this
+   * method does not add its own "already gone" special case on top.
+   */
+  deleteObject(objectKey: string): Promise<NewsMediaR2DeleteResult>;
 };
 
 /**
@@ -243,6 +314,74 @@ export function createNewsMediaR2Client(
         }
 
         return { ok: true, sizeExceeded: false, bytes };
+      } catch (error) {
+        breaker.recordFailure(new Date());
+        const message = error instanceof Error ? error.message : String(error);
+        return { ok: false, error: truncateError(message) };
+      }
+    },
+
+    async listObjects({ prefix, continuationToken, maxKeys }) {
+      const attemptedAt = new Date();
+
+      if (!breaker.canAttempt(attemptedAt)) {
+        return {
+          ok: false,
+          error: "News media R2 circuit breaker is open; skipping attempt."
+        };
+      }
+
+      try {
+        const response = await withTimeout(
+          client.list({ prefix, continuationToken, maxKeys }),
+          timeoutMs,
+          `news-media-r2 LIST ${prefix}`
+        );
+
+        breaker.recordSuccess(new Date());
+
+        const objects: NewsMediaR2ObjectSummary[] = (
+          response.contents ?? []
+        ).map((entry) => ({
+          key: entry.key,
+          sizeBytes: entry.size,
+          lastModified: entry.lastModified
+        }));
+
+        return {
+          ok: true,
+          objects,
+          isTruncated: response.isTruncated ?? false,
+          nextContinuationToken: response.isTruncated
+            ? response.nextContinuationToken
+            : undefined
+        };
+      } catch (error) {
+        breaker.recordFailure(new Date());
+        const message = error instanceof Error ? error.message : String(error);
+        return { ok: false, error: truncateError(message) };
+      }
+    },
+
+    async deleteObject(objectKey) {
+      const attemptedAt = new Date();
+
+      if (!breaker.canAttempt(attemptedAt)) {
+        return {
+          ok: false,
+          error: "News media R2 circuit breaker is open; skipping attempt."
+        };
+      }
+
+      try {
+        await withTimeout(
+          client.file(objectKey).delete(),
+          timeoutMs,
+          `news-media-r2 DELETE ${objectKey}`
+        );
+
+        breaker.recordSuccess(new Date());
+        return { ok: true };
       } catch (error) {
         breaker.recordFailure(new Date());
         const message = error instanceof Error ? error.message : String(error);

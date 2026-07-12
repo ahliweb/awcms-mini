@@ -88,6 +88,7 @@ describe("fetchModuleJobs", () => {
         "bun run email:templates:seed-defaults",
         "bun run form-drafts:purge",
         "bun run logs:audit:purge",
+        "bun run news-media:reconcile",
         "bun run production:preflight",
         "bun run security:readiness",
         "bun run sync:objects:dispatch"

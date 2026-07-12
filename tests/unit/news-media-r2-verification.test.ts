@@ -23,6 +23,18 @@ const JPEG_BYTES = new Uint8Array([
   0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46
 ]);
 
+/** `listObjects`/`deleteObject` (Issue #690) are not exercised by this file's orchestration-only tests — `verifyNewsMediaR2Object` never calls either. */
+function unusedListObjects(): never {
+  throw new Error(
+    "listObjects should not be called by verifyNewsMediaR2Object"
+  );
+}
+function unusedDeleteObject(): never {
+  throw new Error(
+    "deleteObject should not be called by verifyNewsMediaR2Object"
+  );
+}
+
 function fakeClient(overrides: {
   head?: NewsMediaR2HeadResult;
   get?: NewsMediaR2GetResult;
@@ -36,7 +48,9 @@ function fakeClient(overrides: {
         sizeBytes: JPEG_BYTES.byteLength
       },
     getObject: async () =>
-      overrides.get ?? { ok: true, sizeExceeded: false, bytes: JPEG_BYTES }
+      overrides.get ?? { ok: true, sizeExceeded: false, bytes: JPEG_BYTES },
+    listObjects: unusedListObjects,
+    deleteObject: unusedDeleteObject
   };
 }
 
@@ -49,7 +63,9 @@ describe("verifyNewsMediaR2Object (Issue #634)", () => {
       getObject: async () => {
         getCalled = true;
         return { ok: true, sizeExceeded: false, bytes: JPEG_BYTES };
-      }
+      },
+      listObjects: unusedListObjects,
+      deleteObject: unusedDeleteObject
     };
 
     const result = await verifyNewsMediaR2Object(client, {
@@ -76,7 +92,9 @@ describe("verifyNewsMediaR2Object (Issue #634)", () => {
       getObject: async () => {
         getCalled = true;
         return { ok: true, sizeExceeded: false, bytes: JPEG_BYTES };
-      }
+      },
+      listObjects: unusedListObjects,
+      deleteObject: unusedDeleteObject
     };
 
     const result = await verifyNewsMediaR2Object(client, {
