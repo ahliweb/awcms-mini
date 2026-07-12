@@ -6,9 +6,12 @@ import {
   renderContentJsonToHtml
 } from "../src/modules/blog-content/domain/content-block-rendering";
 import {
+  deriveArticleSectionAndTags,
   resolveCanonicalUrl,
   resolveMetaDescription,
   resolveOgImageUrl,
+  resolveOgLocale,
+  resolveRobotsMetaContent,
   resolveSeoTitle
 } from "../src/modules/blog-content/domain/seo-rendering";
 import {
@@ -665,6 +668,230 @@ describe("resolveOgImageUrl (Issue #636)", () => {
 
   test("null for an unsafe URL (defense-in-depth even though the registry's publicUrl is already trusted)", () => {
     expect(resolveOgImageUrl("javascript:alert(1)")).toBeNull();
+  });
+});
+
+describe("resolveRobotsMetaContent (Issue #649)", () => {
+  test("public visibility gets index,follow,max-image-preview:large", () => {
+    expect(resolveRobotsMetaContent("public")).toBe(
+      "index,follow,max-image-preview:large"
+    );
+  });
+
+  test("unlisted visibility gets noindex,nofollow", () => {
+    expect(resolveRobotsMetaContent("unlisted")).toBe("noindex,nofollow");
+  });
+
+  test("private visibility gets noindex,nofollow (never actually reached by a real route, defense-in-depth)", () => {
+    expect(resolveRobotsMetaContent("private")).toBe("noindex,nofollow");
+  });
+});
+
+describe("resolveOgLocale (Issue #649)", () => {
+  test("maps id -> id_ID and en -> en_US", () => {
+    expect(resolveOgLocale("id")).toBe("id_ID");
+    expect(resolveOgLocale("en")).toBe("en_US");
+  });
+
+  test("passes through an already-formatted xx_XX value unchanged", () => {
+    expect(resolveOgLocale("fr_FR")).toBe("fr_FR");
+  });
+
+  test("falls back to the raw locale for an unknown short code", () => {
+    expect(resolveOgLocale("zz")).toBe("zz");
+  });
+});
+
+describe("deriveArticleSectionAndTags (Issue #649)", () => {
+  test("first category term becomes section, tag terms become tags", () => {
+    const result = deriveArticleSectionAndTags([
+      { taxonomyType: "tag", name: "breaking" },
+      { taxonomyType: "category", name: "Politics" },
+      { taxonomyType: "category", name: "World" },
+      { taxonomyType: "tag", name: "election" }
+    ]);
+    expect(result.section).toBe("Politics");
+    expect(result.tags).toEqual(["breaking", "election"]);
+  });
+
+  test("no category term: section is null", () => {
+    const result = deriveArticleSectionAndTags([
+      { taxonomyType: "tag", name: "breaking" }
+    ]);
+    expect(result.section).toBeNull();
+    expect(result.tags).toEqual(["breaking"]);
+  });
+
+  test("empty terms: section null, tags empty", () => {
+    expect(deriveArticleSectionAndTags([])).toEqual({
+      section: null,
+      tags: []
+    });
+  });
+});
+
+describe("renderPublicPageShell — Issue #649 extensions", () => {
+  test("og:locale is always rendered, derived from the shell's own locale field", () => {
+    const idHtml = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "id"
+    });
+    expect(idHtml).toContain('<meta property="og:locale" content="id_ID" />');
+
+    const enHtml = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en"
+    });
+    expect(enHtml).toContain('<meta property="og:locale" content="en_US" />');
+  });
+
+  test("og:type, article:published_time/modified_time/section/tag rendered only when ogType is article", () => {
+    const html = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: "https://example.com/post",
+      bodyHtml: "<p>body</p>",
+      locale: "en",
+      ogType: "article",
+      articlePublishedTime: "2026-01-01T00:00:00.000Z",
+      articleModifiedTime: "2026-01-02T00:00:00.000Z",
+      articleSection: "Politics",
+      articleTags: ["breaking", "<script>"]
+    });
+
+    expect(html).toContain('<meta property="og:type" content="article" />');
+    expect(html).toContain(
+      '<meta property="article:published_time" content="2026-01-01T00:00:00.000Z" />'
+    );
+    expect(html).toContain(
+      '<meta property="article:modified_time" content="2026-01-02T00:00:00.000Z" />'
+    );
+    expect(html).toContain(
+      '<meta property="article:section" content="Politics" />'
+    );
+    expect(html).toContain(
+      '<meta property="article:tag" content="breaking" />'
+    );
+    expect(html).toContain(
+      '<meta property="article:tag" content="&lt;script&gt;" />'
+    );
+    expect(html).not.toContain("<script>");
+  });
+
+  test("article:* tags omitted entirely when ogType is not article (list/category/tag/search pages, byte-identical to before this issue)", () => {
+    const html = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en",
+      articleSection: "Politics",
+      articleTags: ["breaking"]
+    });
+
+    expect(html).not.toContain("og:type");
+    expect(html).not.toContain("article:section");
+    expect(html).not.toContain("article:tag");
+  });
+
+  test("og:image:type/width/height/secure_url and twitter:image:alt rendered alongside og:image", () => {
+    const html = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en",
+      ogImageUrl: "https://media.example.test/a.jpg",
+      ogImageAlt: "A photo",
+      ogImageMimeType: "image/jpeg",
+      ogImageWidth: 1200,
+      ogImageHeight: 630
+    });
+
+    expect(html).toContain(
+      '<meta property="og:image:secure_url" content="https://media.example.test/a.jpg" />'
+    );
+    expect(html).toContain(
+      '<meta property="og:image:type" content="image/jpeg" />'
+    );
+    expect(html).toContain('<meta property="og:image:width" content="1200" />');
+    expect(html).toContain('<meta property="og:image:height" content="630" />');
+    expect(html).toContain(
+      '<meta name="twitter:image:alt" content="A photo" />'
+    );
+  });
+
+  test("no og:image:type/width/height/secure_url/twitter:image:alt when there is no og:image", () => {
+    const html = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en"
+    });
+
+    expect(html).not.toContain("og:image:secure_url");
+    expect(html).not.toContain("og:image:type");
+    expect(html).not.toContain("og:image:width");
+    expect(html).not.toContain("twitter:image:alt");
+  });
+
+  test("robots meta rendered only when robotsContent is provided", () => {
+    const withRobots = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en",
+      robotsContent: "index,follow,max-image-preview:large"
+    });
+    expect(withRobots).toContain(
+      '<meta name="robots" content="index,follow,max-image-preview:large" />'
+    );
+
+    const withoutRobots = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en"
+    });
+    expect(withoutRobots).not.toContain("robots");
+  });
+
+  test("structuredDataJsonLd is serialized into a safe <script> tag, escaping </script> break-out attempts", () => {
+    const html = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en",
+      structuredDataJsonLd: {
+        "@type": "NewsArticle",
+        headline: "</script><script>alert(1)</script>"
+      }
+    });
+
+    expect(html).toContain('<script type="application/ld+json">');
+    expect(html).not.toContain("</script><script>alert(1)</script>");
+    expect(html).toContain("\\u003c/script>");
+  });
+
+  test("no structured data script when structuredDataJsonLd is omitted/null", () => {
+    const html = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en"
+    });
+    expect(html).not.toContain("application/ld+json");
   });
 });
 

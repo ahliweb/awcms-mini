@@ -28,7 +28,7 @@
 
 ## Migrations
 
-51 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `051_awcms_mini_blog_content_internal_tag_links_permissions.sql`).
+52 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `052_awcms_mini_blog_content_internal_tag_links_permissions.sql`).
 
 | #   | File                                                              |
 | --- | ----------------------------------------------------------------- |
@@ -81,8 +81,9 @@
 | 047 | `047_awcms_mini_observability_metrics_permission.sql`             |
 | 048 | `048_awcms_mini_idn_admin_regions_permissions.sql`                |
 | 049 | `049_awcms_mini_news_portal_ad_placements_schema.sql`             |
-| 050 | `050_awcms_mini_blog_content_internal_tag_links_schema.sql`       |
-| 051 | `051_awcms_mini_blog_content_internal_tag_links_permissions.sql`  |
+| 050 | `050_awcms_mini_blog_posts_seo_image.sql`                         |
+| 051 | `051_awcms_mini_blog_content_internal_tag_links_schema.sql`       |
+| 052 | `052_awcms_mini_blog_content_internal_tag_links_permissions.sql`  |
 
 ## Tables & Row-Level Security
 
@@ -106,15 +107,15 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 
 ## Tests
 
-228 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+231 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
 | `(root)`      | 46         |
 | `e2e`         | 9          |
-| `integration` | 75         |
+| `integration` | 76         |
 | `modules`     | 4          |
-| `unit`        | 94         |
+| `unit`        | 96         |
 
 ## Routes / Operations (summary)
 

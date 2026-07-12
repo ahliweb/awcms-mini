@@ -28,11 +28,18 @@ export type BlogSettingsView = {
   seoDefaultDescription: string | null;
   /** Issue #640 — tenant override of the content quality checklist's non-security rule severities; `{}` when the tenant never configured one (checklist falls back to its own defaults). */
   contentQualityChecklistPolicy: ChecklistPolicyOverrides;
+  /** Issue #649 — tenant-level R2 fallback social preview image id (source priority #4); `null` when never configured. Re-verified at render time, never trusted from this stored value alone (see `blog-settings-policy.ts`'s field comment). */
+  socialPreviewFallbackImageMediaId: string | null;
+  /** Issue #649 — whether the "first verified R2 image in content" fallback (source priority #3) is allowed; default `true`. */
+  socialPreviewContentImageFallbackEnabled: boolean;
   updatedAt: string | null;
 };
 
 const DEFAULT_BLOG_TITLE = "Blog";
 const DEFAULT_POSTS_PER_PAGE = 10;
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type BlogSettingsRow = {
   tenant_id: string;
@@ -80,6 +87,24 @@ function sanitizeChecklistPolicyOverrides(
   return sanitized;
 }
 
+/**
+ * Defense-in-depth re-check for `socialPreviewFallbackImageMediaId` — same
+ * "don't trust a single enforcement point" reasoning as
+ * `sanitizeChecklistPolicyOverrides` above. Even if a malformed value ever
+ * reached this jsonb column (bypassing `blog-settings-policy.ts`'s
+ * write-time UUID check), it is never actually TRUSTED as a media reference
+ * anyway — the render route always re-resolves it through
+ * `NewsMediaPort.resolveMediaReferences`, which fails closed on anything
+ * that isn't a real, verified, same-tenant object id. This function only
+ * prevents an obviously-invalid string from being handed to that resolver
+ * at all.
+ */
+function sanitizeSocialPreviewFallbackImageMediaId(
+  raw: unknown
+): string | null {
+  return typeof raw === "string" && UUID_PATTERN.test(raw) ? raw : null;
+}
+
 function toView(
   tenantId: string,
   row: BlogSettingsRow | null
@@ -106,6 +131,12 @@ function toView(
     contentQualityChecklistPolicy: sanitizeChecklistPolicyOverrides(
       extras.contentQualityChecklistPolicy
     ),
+    socialPreviewFallbackImageMediaId:
+      sanitizeSocialPreviewFallbackImageMediaId(
+        extras.socialPreviewFallbackImageMediaId
+      ),
+    socialPreviewContentImageFallbackEnabled:
+      extras.socialPreviewContentImageFallbackEnabled !== false,
     updatedAt: row?.updated_at.toISOString() ?? null
   };
 }
@@ -161,7 +192,14 @@ export async function upsertBlogSettings(
     sitemapEnabled: patch.sitemapEnabled ?? existing.sitemapEnabled,
     contentQualityChecklistPolicy:
       patch.contentQualityChecklistPolicy ??
-      existing.contentQualityChecklistPolicy
+      existing.contentQualityChecklistPolicy,
+    socialPreviewFallbackImageMediaId:
+      patch.socialPreviewFallbackImageMediaId !== undefined
+        ? patch.socialPreviewFallbackImageMediaId
+        : existing.socialPreviewFallbackImageMediaId,
+    socialPreviewContentImageFallbackEnabled:
+      patch.socialPreviewContentImageFallbackEnabled ??
+      existing.socialPreviewContentImageFallbackEnabled
   };
 
   const rows = (await tx`

@@ -709,47 +709,47 @@ msgstr ""
 msgid "admin.blog.internal_tag_links.deployment_legend"
 msgstr ""
 
-#: src/pages/admin/blog/internal-tag-links.astro:197
+#: src/pages/admin/blog/internal-tag-links.astro:195
 msgid "admin.blog.internal_tag_links.disabled_tags_hint"
 msgstr ""
 
-#: src/pages/admin/blog/internal-tag-links.astro:142
+#: src/pages/admin/blog/internal-tag-links.astro:140
 msgid "admin.blog.internal_tag_links.exclude_headings"
 msgstr ""
 
-#: src/pages/admin/blog/internal-tag-links.astro:170
+#: src/pages/admin/blog/internal-tag-links.astro:168
 msgid "admin.blog.internal_tag_links.field_case_insensitive"
 msgstr ""
 
-#: src/pages/admin/blog/internal-tag-links.astro:174
+#: src/pages/admin/blog/internal-tag-links.astro:172
 msgid "admin.blog.internal_tag_links.field_disabled_tags"
 msgstr ""
 
-#: src/pages/admin/blog/internal-tag-links.astro:162
+#: src/pages/admin/blog/internal-tag-links.astro:160
 msgid "admin.blog.internal_tag_links.field_enabled"
 msgstr ""
 
-#: src/pages/admin/blog/internal-tag-links.astro:133
+#: src/pages/admin/blog/internal-tag-links.astro:131
 msgid "admin.blog.internal_tag_links.link_first_occurrence_only"
 msgstr ""
 
-#: src/pages/admin/blog/internal-tag-links.astro:120
+#: src/pages/admin/blog/internal-tag-links.astro:118
 msgid "admin.blog.internal_tag_links.max_per_post"
 msgstr ""
 
-#: src/pages/admin/blog/internal-tag-links.astro:124
+#: src/pages/admin/blog/internal-tag-links.astro:122
 msgid "admin.blog.internal_tag_links.max_per_tag"
 msgstr ""
 
-#: src/pages/admin/blog/internal-tag-links.astro:128
+#: src/pages/admin/blog/internal-tag-links.astro:126
 msgid "admin.blog.internal_tag_links.min_term_length"
 msgstr ""
 
-#: src/pages/admin/blog/internal-tag-links.astro:178
+#: src/pages/admin/blog/internal-tag-links.astro:176
 msgid "admin.blog.internal_tag_links.no_tags"
 msgstr ""
 
-#: src/pages/admin/blog/internal-tag-links.astro:203
+#: src/pages/admin/blog/internal-tag-links.astro:201
 msgid "admin.blog.internal_tag_links.save_button"
 msgstr ""
 
@@ -757,7 +757,7 @@ msgstr ""
 msgid "admin.blog.internal_tag_links.save_success"
 msgstr ""
 
-#: src/pages/admin/blog/internal-tag-links.astro:153
+#: src/pages/admin/blog/internal-tag-links.astro:151
 msgid "admin.blog.internal_tag_links.tenant_legend"
 msgstr ""
 
@@ -1045,7 +1045,7 @@ msgstr ""
 msgid "admin.blog.posts.featured_media_hint"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:519
+#: src/pages/admin/blog/posts/[id].astro:530
 msgid "admin.blog.posts.field_auto_internal_tag_links_disabled"
 msgstr ""
 
@@ -1053,7 +1053,7 @@ msgstr ""
 msgid "admin.blog.posts.field_canonical_url"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:447
+#: src/pages/admin/blog/posts/[id].astro:458
 msgid "admin.blog.posts.field_categories"
 msgstr ""
 
@@ -1081,6 +1081,14 @@ msgstr ""
 msgid "admin.blog.posts.field_meta_description"
 msgstr ""
 
+#: src/pages/admin/blog/posts/[id].astro:446
+msgid "admin.blog.posts.field_seo_image_media_id"
+msgstr ""
+
+#: src/pages/admin/blog/posts/[id].astro:453
+msgid "admin.blog.posts.field_seo_image_media_id_hint"
+msgstr ""
+
 #: src/pages/admin/blog/pages/[id].astro:298
 msgid "admin.blog.posts.field_seo_title"
 msgstr ""
@@ -1089,7 +1097,7 @@ msgstr ""
 msgid "admin.blog.posts.field_slug"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:469
+#: src/pages/admin/blog/posts/[id].astro:480
 msgid "admin.blog.posts.field_tags"
 msgstr ""
 
@@ -1145,7 +1153,7 @@ msgstr ""
 msgid "admin.blog.posts.new_title"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:449
+#: src/pages/admin/blog/posts/[id].astro:460
 msgid "admin.blog.posts.no_categories"
 msgstr ""
 
@@ -1153,11 +1161,11 @@ msgstr ""
 msgid "admin.blog.posts.no_posts"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:532
+#: src/pages/admin/blog/posts/[id].astro:543
 msgid "admin.blog.posts.no_revisions"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:471
+#: src/pages/admin/blog/posts/[id].astro:482
 msgid "admin.blog.posts.no_tags"
 msgstr ""
 
@@ -1249,23 +1257,23 @@ msgstr ""
 msgid "admin.blog.posts.restore_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:544
+#: src/pages/admin/blog/posts/[id].astro:555
 msgid "admin.blog.posts.revision_actions_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:542
+#: src/pages/admin/blog/posts/[id].astro:553
 msgid "admin.blog.posts.revision_created_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:541
+#: src/pages/admin/blog/posts/[id].astro:552
 msgid "admin.blog.posts.revision_note_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:538
+#: src/pages/admin/blog/posts/[id].astro:549
 msgid "admin.blog.posts.revision_number_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:564
+#: src/pages/admin/blog/posts/[id].astro:575
 msgid "admin.blog.posts.revision_restore_button"
 msgstr ""
 
@@ -1277,19 +1285,19 @@ msgstr ""
 msgid "admin.blog.posts.revision_restore_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:540
+#: src/pages/admin/blog/posts/[id].astro:551
 msgid "admin.blog.posts.revision_status_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:539
+#: src/pages/admin/blog/posts/[id].astro:550
 msgid "admin.blog.posts.revision_title_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:530
+#: src/pages/admin/blog/posts/[id].astro:541
 msgid "admin.blog.posts.revisions_title"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:523
+#: src/pages/admin/blog/posts/[id].astro:534
 msgid "admin.blog.posts.save_button"
 msgstr ""
 
@@ -1405,7 +1413,15 @@ msgstr ""
 msgid "admin.blog.settings.field_sitemap_enabled"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:249
+#: src/pages/admin/blog/settings.astro:247
+msgid "admin.blog.settings.field_social_preview_content_image_fallback_enabled"
+msgstr ""
+
+#: src/pages/admin/blog/settings.astro:229
+msgid "admin.blog.settings.field_social_preview_fallback_image"
+msgstr ""
+
+#: src/pages/admin/blog/settings.astro:272
 msgid "admin.blog.settings.field_theme_mode"
 msgstr ""
 
@@ -1417,7 +1433,7 @@ msgstr ""
 msgid "admin.blog.settings.invalid_checklist_policy_json"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:231
+#: src/pages/admin/blog/settings.astro:254
 msgid "admin.blog.settings.save_button"
 msgstr ""
 
@@ -1425,30 +1441,34 @@ msgstr ""
 msgid "admin.blog.settings.save_success"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:244
+#: src/pages/admin/blog/settings.astro:236
+msgid "admin.blog.settings.social_preview_fallback_image_hint"
+msgstr ""
+
+#: src/pages/admin/blog/settings.astro:267
 msgid "admin.blog.settings.theme_inherited_note"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:240
+#: src/pages/admin/blog/settings.astro:263
 msgid "admin.blog.settings.theme_legend"
 msgstr ""
 
 #. dynamic key family "admin.blog.settings.theme_mode_" — concrete suffix from src/modules/blog-content/domain/theme-policy.ts BLOG_THEME_MODES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/settings.astro:253
+#: src/pages/admin/blog/settings.astro:276
 msgid "admin.blog.settings.theme_mode_dark"
 msgstr ""
 
 #. dynamic key family "admin.blog.settings.theme_mode_" — concrete suffix from src/modules/blog-content/domain/theme-policy.ts BLOG_THEME_MODES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/settings.astro:253
+#: src/pages/admin/blog/settings.astro:276
 msgid "admin.blog.settings.theme_mode_light"
 msgstr ""
 
 #. dynamic key family "admin.blog.settings.theme_mode_" — concrete suffix from src/modules/blog-content/domain/theme-policy.ts BLOG_THEME_MODES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/settings.astro:253
+#: src/pages/admin/blog/settings.astro:276
 msgid "admin.blog.settings.theme_mode_system"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:243
+#: src/pages/admin/blog/settings.astro:266
 msgid "admin.blog.settings.theme_override_note"
 msgstr ""
 
@@ -3364,7 +3384,7 @@ msgstr ""
 msgid "common.next_page"
 msgstr ""
 
-#: src/pages/admin/blog/internal-tag-links.astro:116
+#: src/pages/admin/blog/internal-tag-links.astro:114
 msgid "common.no"
 msgstr ""
 
@@ -3396,7 +3416,7 @@ msgstr ""
 msgid "common.submit"
 msgstr ""
 
-#: src/pages/admin/blog/internal-tag-links.astro:115
+#: src/pages/admin/blog/internal-tag-links.astro:114
 msgid "common.yes"
 msgstr ""
 

@@ -9,6 +9,9 @@ import {
 import { log } from "../../lib/logging/logger";
 import { listPublicBlogPostsForFeed } from "../../modules/blog-content/application/public-blog-directory";
 import { withNewsTenant } from "../../modules/blog-content/application/public-news-tenant-resolution";
+import { fetchBlogSettings } from "../../modules/blog-content/application/blog-settings-directory";
+import { resolveNewsArticlePreviewImage } from "../../modules/blog-content/application/news-article-seo-metadata";
+import { newsMediaPortAdapter } from "../../modules/news-portal/application/news-media-port-adapter";
 
 /**
  * `GET /news/sitemap-news.xml` (Issue #560) — sitemap protocol 0.9,
@@ -34,20 +37,39 @@ export const GET: APIRoute = async ({ request, url }) => {
         }
 
         const posts = await listPublicBlogPostsForFeed(tx, tenant.tenantId);
+        const blogSettings = await fetchBlogSettings(tx, tenant.tenantId);
         const channelLink = `${url.origin}${routeSettings.publicBasePath}`;
 
-        const urls = posts
-          .map((post) => {
-            const link = `${channelLink}/${post.slug}`;
-            return `<url>
+        // Issue #649 — "sitemap/news sitemap should use canonical public
+        // URLs and verified R2 preview images where applicable" (the
+        // `image` sitemap extension namespace). Resolved sequentially, one
+        // query at a time on the shared transaction (same reasoning as
+        // `feed.xml.ts`).
+        const urlParts: string[] = [];
+        for (const post of posts) {
+          const link = `${channelLink}/${post.slug}`;
+          const previewImage = await resolveNewsArticlePreviewImage(
+            tx,
+            tenant.tenantId,
+            newsMediaPortAdapter,
+            blogSettings,
+            post
+          );
+          const imageTag = previewImage
+            ? `<image:image><image:loc>${escapeHtml(previewImage.url)}</image:loc></image:image>`
+            : "";
+
+          urlParts.push(`<url>
 <loc>${escapeHtml(link)}</loc>
 <lastmod>${post.publishedAt.toISOString()}</lastmod>
-</url>`;
-          })
-          .join("\n");
+${imageTag}
+</url>`);
+        }
+
+        const urls = urlParts.join("\n");
 
         const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 <url>
 <loc>${escapeHtml(channelLink)}</loc>
 </url>

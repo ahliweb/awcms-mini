@@ -12,6 +12,8 @@ import { log } from "../../../lib/logging/logger";
 import { listPublicBlogPostsForFeed } from "../../../modules/blog-content/application/public-blog-directory";
 import { fetchBlogSettings } from "../../../modules/blog-content/application/blog-settings-directory";
 import { isLegacyTenantRouteEnabled } from "../../../modules/blog-content/application/public-route-settings";
+import { resolveNewsArticlePreviewImage } from "../../../modules/blog-content/application/news-article-seo-metadata";
+import { newsMediaPortAdapter } from "../../../modules/news-portal/application/news-media-port-adapter";
 
 /**
  * `GET /blog/{tenantCode}/sitemap-blog.xml` (Issue #540) — sitemap
@@ -51,18 +53,33 @@ export const GET: APIRoute = async ({ params, url }) => {
       const posts = await listPublicBlogPostsForFeed(tx, tenant.tenantId);
       const channelLink = `${url.origin}/blog/${tenantCode}`;
 
-      const urls = posts
-        .map((post) => {
-          const link = `${channelLink}/${post.slug}`;
-          return `<url>
+      // Issue #649 — see `/news/sitemap-news.xml.ts`'s identical comment:
+      // resolved sequentially, one query at a time on the shared transaction.
+      const urlParts: string[] = [];
+      for (const post of posts) {
+        const link = `${channelLink}/${post.slug}`;
+        const previewImage = await resolveNewsArticlePreviewImage(
+          tx,
+          tenant.tenantId,
+          newsMediaPortAdapter,
+          settings,
+          post
+        );
+        const imageTag = previewImage
+          ? `<image:image><image:loc>${escapeHtml(previewImage.url)}</image:loc></image:image>`
+          : "";
+
+        urlParts.push(`<url>
 <loc>${escapeHtml(link)}</loc>
 <lastmod>${post.publishedAt.toISOString()}</lastmod>
-</url>`;
-        })
-        .join("\n");
+${imageTag}
+</url>`);
+      }
+
+      const urls = urlParts.join("\n");
 
       const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 <url>
 <loc>${escapeHtml(channelLink)}</loc>
 </url>

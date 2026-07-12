@@ -1179,6 +1179,12 @@ msgstr "Locale"
 msgid "admin.blog.posts.field_featured_media_id"
 msgstr "Referensi media unggulan (UUID)"
 
+msgid "admin.blog.posts.field_seo_image_media_id"
+msgstr "Referensi gambar pratinjau sosial/SEO (UUID)"
+
+msgid "admin.blog.posts.field_seo_image_media_id_hint"
+msgstr "Opsional. Menggantikan gambar unggulan untuk og:image, twitter:image, dan JSON-LD saat tautan yang dibagikan perlu menampilkan gambar berbeda."
+
 msgid "admin.blog.posts.featured_media_hint"
 msgstr "Opsional. Belum ada pustaka media — cukup masukkan referensi UUID."
 
@@ -1624,7 +1630,16 @@ msgid "admin.blog.settings.field_checklist_policy"
 msgstr "Kebijakan checklist kualitas konten (JSON)"
 
 msgid "admin.blog.settings.checklist_policy_hint"
-msgstr "Memetakan excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists ke blocking, warning, atau info. Aturan keamanan tidak bisa di-override di sini."
+msgstr "Memetakan excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists, social_preview_image_ready, social_preview_image_alt_text ke blocking, warning, atau info. Aturan keamanan tidak bisa di-override di sini."
+
+msgid "admin.blog.settings.field_social_preview_fallback_image"
+msgstr "Referensi gambar pratinjau sosial cadangan (UUID)"
+
+msgid "admin.blog.settings.social_preview_fallback_image_hint"
+msgstr "Dipakai untuk og:image/twitter:image/JSON-LD hanya ketika sebuah post tidak punya gambar SEO eksplisit, gambar unggulan, maupun gambar terverifikasi yang bisa dipakai di dalam kontennya sendiri."
+
+msgid "admin.blog.settings.field_social_preview_content_image_fallback_enabled"
+msgstr "Izinkan memakai gambar terverifikasi pertama di dalam konten post sebagai pratinjau sosial saat tidak ada gambar SEO eksplisit atau gambar unggulan"
 
 msgid "admin.blog.settings.invalid_checklist_policy_json"
 msgstr "Kebijakan checklist kualitas konten harus berupa JSON yang valid."

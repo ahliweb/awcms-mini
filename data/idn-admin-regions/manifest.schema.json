@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ahliweb/awcms-mini/blob/main/data/idn-admin-regions/manifest.schema.json",
+  "title": "AWCMS-Mini idn_admin_regions vendored dataset manifest",
+  "description": "Describes the shape of data/idn-admin-regions/manifest.json — the provenance record for third-party files vendored from cahyadsn/wilayah (Issue #656, epic #654). One manifest.json is committed at the dataset root; it is hand-maintained until Issue #660's import pipeline reads it, and Issue #659's validation gate is expected to validate manifest.json against this schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "datasetCode",
+    "moduleKey",
+    "upstream",
+    "importedAt",
+    "officialReferenceCaveat",
+    "files",
+    "normalizedFiles"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Relative path back to this schema file, for editor tooling."
+    },
+    "datasetCode": {
+      "type": "string",
+      "const": "idn_admin_regions",
+      "description": "Stable dataset identifier. Matches the idn_admin_regions module key (src/modules/idn-admin-regions/module.ts) and is expected to match the dataset_code column Issue #657's schema introduces."
+    },
+    "datasetName": {
+      "type": "string",
+      "description": "Human-readable dataset name."
+    },
+    "moduleKey": {
+      "type": "string",
+      "const": "idn_admin_regions",
+      "description": "The AWCMS-Mini module key this dataset belongs to (src/modules/index.ts listModules())."
+    },
+    "upstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "sourcePath",
+        "branch",
+        "commit",
+        "commitDate",
+        "license",
+        "licenseFile"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "format": "uri",
+          "const": "https://github.com/cahyadsn/wilayah",
+          "description": "Upstream GitHub repository URL. Must be preserved verbatim per Issue #656's rules."
+        },
+        "sourcePath": {
+          "type": "string",
+          "format": "uri",
+          "description": "Upstream folder the vendored files were sourced from."
+        },
+        "branch": {
+          "type": "string",
+          "description": "Upstream branch the commit SHA below was resolved from."
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "description": "Full 40-character upstream git commit SHA that was imported."
+        },
+        "commitDate": {
+          "type": "string",
+          "description": "Upstream commit's own author/committer date, as recorded by `git log`, in its original timezone offset."
+        },
+        "license": {
+          "type": "string",
+          "const": "MIT",
+          "description": "Upstream repository's license identifier (SPDX-style short name)."
+        },
+        "licenseFile": {
+          "type": "string",
+          "description": "Path, relative to this manifest's directory, to the verbatim upstream LICENSE file."
+        }
+      }
+    },
+    "importedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC timestamp (ISO 8601, Z-suffixed) when this import was performed."
+    },
+    "officialReferenceCaveat": {
+      "type": "string",
+      "description": "Must match IDN_ADMIN_REGIONS_OFFICIAL_REFERENCE_CAVEAT in src/modules/idn-admin-regions/domain/source-provenance.ts verbatim — this dataset is a third-party community package, not an official Kemendagri publication."
+    },
+    "files": {
+      "type": "array",
+      "description": "Raw upstream files vendored verbatim under upstream/cahyadsn-wilayah/. Never hand-edited (Issue #656 rule).",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256", "bytes", "role"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path relative to data/idn-admin-regions/."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "SHA-256 checksum of the file's exact committed bytes (see the data/idn-admin-regions/upstream/** binary .gitattributes rule that prevents line-ending normalization from invalidating this)."
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "File size in bytes."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["license", "raw-upstream-sql"],
+            "description": "What kind of vendored artifact this file is."
+          }
+        }
+      }
+    },
+    "normalizedFiles": {
+      "type": "array",
+      "description": "Generated/normalized derivatives of the raw files above, stored separately under data/idn-admin-regions/normalized/ per Issue #656's rule ('if normalized files are generated, store them separately'). Empty as of Issue #656 — Issue #658 introduces the parser/normalizer that will populate this array and the normalized/ directory.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256", "bytes", "generatedFrom"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path relative to data/idn-admin-regions/, expected to start with normalized/."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "generatedFrom": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Paths (relative to data/idn-admin-regions/) of the raw file(s) this normalized file was derived from."
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Free-text notes about scoping decisions (e.g. upstream files intentionally not vendored)."
+    }
+  }
+}

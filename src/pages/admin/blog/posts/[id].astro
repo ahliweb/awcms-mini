@@ -442,6 +442,17 @@ const canSoftDelete = data !== null && !data.post.deletedAt && CAN_DELETE;
                 value={data.post.featuredMediaId ?? ""}
               />
             </label>
+            <label>
+              {t("admin.blog.posts.field_seo_image_media_id")}
+              <input
+                type="text"
+                name="seoImageMediaId"
+                value={data.post.seoImageMediaId ?? ""}
+              />
+              <span class="field-hint">
+                {t("admin.blog.posts.field_seo_image_media_id_hint")}
+              </span>
+            </label>
 
             <fieldset class="term-picker">
               <legend>{t("admin.blog.posts.field_categories")}</legend>
@@ -1106,6 +1117,8 @@ const canSoftDelete = data !== null && !data.post.deletedAt && CAN_DELETE;
             visibility: formData.get("visibility"),
             featuredMediaId:
               String(formData.get("featuredMediaId") ?? "").trim() || null,
+            seoImageMediaId:
+              String(formData.get("seoImageMediaId") ?? "").trim() || null,
             seoTitle: String(formData.get("seoTitle") ?? "").trim() || null,
             metaDescription:
               String(formData.get("metaDescription") ?? "").trim() || null,

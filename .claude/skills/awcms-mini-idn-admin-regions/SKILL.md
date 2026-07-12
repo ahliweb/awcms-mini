@@ -55,7 +55,7 @@ menginvestigasi ulang dari nol.
 | Issue | Scope                                                                                          | Status                            |
 | ----- | ---------------------------------------------------------------------------------------------- | --------------------------------- |
 | #655  | Scaffold modul `idn_admin_regions` (descriptor, permission catalog, README)                    | **Selesai** — lihat §655 di bawah |
-| #656  | Vendor source metadata + license `cahyadsn/wilayah` di bawah `data/idn-admin-regions/`         | Belum dikerjakan                  |
+| #656  | Vendor source metadata + license `cahyadsn/wilayah` di bawah `data/idn-admin-regions/`         | **Selesai** — lihat §656 di bawah |
 | #657  | Schema PostgreSQL versioned (`awcms_mini_idn_region_datasets`, `awcms_mini_idn_admin_regions`) | Belum dikerjakan                  |
 | #658  | Parser & normalizer SQL dump upstream `cahyadsn/wilayah` (MySQL-style insert dumps)            | Belum dikerjakan                  |
 | #659  | Validation gate repository untuk file dataset yang di-vendor/dinormalisasi                     | Belum dikerjakan                  |
@@ -167,15 +167,89 @@ DO NOTHING`, tidak ada mekanisme baru yang ditemukan. Migration ini HANYA
   (regenerated).
 - Changeset: `.changeset/idn-admin-regions-scaffold-issue-655.md`.
 
-## Catatan untuk issue lanjutan (#656-#664)
+## §656 — Vendor source metadata + license (Selesai)
 
-- **#656 (vendoring)**: taruh file upstream di `data/idn-admin-regions/`
-  (BUKAN `src/modules/idn-admin-regions/`) sesuai struktur eksplisit di
-  body issue #656 — file vendor bukan source TypeScript, jadi wajar hidup
-  di luar `src/`. Wajib `NOTICE.md`, `SOURCE.md` (commit SHA, timestamp
-  import), `LICENSE` upstream verbatim, `manifest.json` + `checksums.sha256`.
-  Jangan edit file SQL upstream mentah secara manual (issue body sendiri
-  melarang) — file ternormalisasi taruh terpisah di `normalized/`.
+Implementasi lengkap: `data/idn-admin-regions/` (BUKAN
+`src/modules/idn-admin-regions/` — file vendor bukan source TypeScript,
+jadi hidup di luar `src/` sesuai struktur eksplisit di body issue #656),
+berisi `README.md`, `NOTICE.md` (atribusi upstream + caveat
+official-reference), `manifest.schema.json` (JSON Schema untuk
+`manifest.json`), `manifest.json` (dataset code, upstream repo/branch/
+commit/license, file list dengan sha256+bytes+role, `normalizedFiles: []`
+kosong), `checksums.sha256` (top-level, mencakup seluruh file vendor), dan
+`upstream/cahyadsn-wilayah/` (LICENSE upstream verbatim, `SOURCE.md`,
+`checksums.sha256` sendiri, `db/wilayah.sql` + `wilayah_pulau.sql` +
+`wilayah_penduduk.sql` + `wilayah_luas.sql` — persis empat file yang
+diminta body issue, BUKAN kelima file yang ada di `db/` upstream:
+`wilayah_level_1_2.sql` dan folder `archive/` sengaja TIDAK divendor
+karena di luar scope).
+
+### Fakta import (mengikat untuk issue lanjutan yang membaca dataset ini)
+
+- **Commit SHA upstream**: `cae306278e5be616c83ba2d8096b00767f45b5fe`
+  (branch `master`, di-resolve via shallow `git clone` sungguhan terhadap
+  `https://github.com/cahyadsn/wilayah.git` — bukan nilai rekaan).
+- **Waktu import**: `2026-07-12T11:40:47Z` (UTC).
+- Kelima checksum SHA-256 (LICENSE + 4 file `.sql`) dihitung dari byte
+  file yang benar-benar di-commit (`sha256sum`), diverifikasi ulang
+  identik terhadap file asli hasil clone sebelum ditulis ke
+  `manifest.json`/`checksums.sha256`.
+
+### Keputusan/judgment call issue ini (mengikat untuk issue lanjutan)
+
+1. **`.gitattributes` override untuk `data/idn-admin-regions/upstream/**`
+   → `binary`** — `db/wilayah.sql` upstream memakai CRLF line ending
+   (tiga file `.sql` lain + `LICENSE` memakai LF). Konvensi repo ini
+   (`* text=auto eol=lf`) akan menormalisasi CRLF→LF saat `git add`,
+   yang diam-diam mengubah byte file vendor dan langsung membuat checksum
+   yang direkam menjadi salah/basi pada commit yang sama. Override
+   `binary` (meniru pola `*.png binary` yang sudah ada) mematikan
+   normalisasi EOL sepenuhnya untuk seluruh subtree `upstream/`, sehingga
+   byte yang ter-commit persis sama dengan byte upstream — diverifikasi
+   langsung (`git show ":<path>" | sha256sum` dibandingkan `sha256sum`
+   pada file asli hasil clone, hasilnya identik untuk kelima file).
+   **Issue lanjutan yang menambah file vendor upstream baru ke bawah
+   `data/idn-admin-regions/upstream/` otomatis ikut aturan ini** (pattern
+   sudah mencakup seluruh subtree), tidak perlu override baru per file.
+2. **`manifest.schema.json` sengaja tidak divalidasi otomatis oleh
+   tooling apa pun issue ini** — repo tidak punya dependency validator
+   JSON Schema (`ajv` dsb.) terpasang. Validasi terhadap schema ini
+   dilakukan manual (baca berdampingan) untuk issue ini; Issue #659
+   ("Validation gate repository untuk file dataset yang di-vendor/
+   dinormalisasi") adalah tempat yang tepat untuk menambahkan validator
+   otomatis nyata (bisa memilih dependency Bun-compatible atau validator
+   tulisan tangan) — jangan anggap schema ini sudah divalidasi machine-
+   enforced sampai #659 benar-benar menambahkannya.
+3. **`normalizedFiles: []` kosong di `manifest.json`, tidak ada folder
+   `normalized/` dibuat** — sesuai scope tree eksplisit body issue #656
+   (tidak menyebutkan `normalized/`) dan rule "if normalized files are
+   generated, store them separately" (kondisional — belum ada file
+   ternormalisasi apa pun di issue ini). Issue #658 (parser/normalizer)
+   yang pertama kali mengisi direktori ini dan array ini.
+4. **Empat file `.sql` yang divendor PERSIS yang diminta body issue**,
+   bukan seluruh isi `db/` upstream — `db/wilayah_level_1_2.sql` (dataset
+   provinsi/kab-kota dengan koordinat/elevation/timezone/luas/penduduk/
+   boundaries, jauh lebih besar) dan `db/archive/` (dataset tahun-tahun
+   sebelumnya) TIDAK divendor. Issue lanjutan yang butuh salah satu file
+   ini harus menambah entry vendor baru secara eksplisit (bukan asumsi
+   sudah ada).
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `data/idn-admin-regions/{README.md,NOTICE.md,manifest.schema.json,
+manifest.json,checksums.sha256}`.
+- `data/idn-admin-regions/upstream/cahyadsn-wilayah/{LICENSE,SOURCE.md,
+checksums.sha256,db/wilayah.sql,db/wilayah_pulau.sql,
+db/wilayah_penduduk.sql,db/wilayah_luas.sql}`.
+- `.gitattributes` (tambah rule `data/idn-admin-regions/upstream/** binary`).
+- Docs: `.claude/skills/awcms-mini-idn-admin-regions/SKILL.md` (file ini),
+  `src/modules/idn-admin-regions/README.md` (status tabel).
+- Changeset: `.changeset/idn-admin-regions-vendor-source-issue-656.md`.
+- Tidak ada perubahan `src/`, migration, endpoint, atau test kode —
+  murni vendoring data + metadata provenance, sesuai scope issue.
+
+## Catatan untuk issue lanjutan (#657-#664)
+
 - **#657 (schema)**: dua tabel — `awcms_mini_idn_region_datasets`
   (metadata dataset per-import: source repo/path/commit SHA/license/
   checksum/status/row count) dan `awcms_mini_idn_admin_regions` (region
