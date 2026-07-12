@@ -362,6 +362,45 @@ statuses, unlisted-reachable-by-direct-link, canonical URL under `/news`,
 feed/sitemap links under `/news`, module-disabled 404, `tenant_code_legacy`
 404, cross-tenant isolation).
 
+### Public social share buttons + expanded OG/Twitter metadata — Issue #642 (epic `news_portal`)
+
+Both post detail routes (`/news/{slug}`, `/blog/{tenantCode}/{slug}`) now
+render a public share widget (native Web Share API, copy-link, WhatsApp,
+Telegram, Facebook, LinkedIn, X, email) and expanded Open Graph/Twitter
+Card metadata. New pure modules:
+`domain/social-share-links.ts` (`buildSocialShareLinks` — six-platform
+fixed allowlist, every URL `encodeURIComponent`-encoded;
+`renderSocialShareButtonsHtml` — full widget markup) and
+`src/modules/news-portal/domain/news-share-config.ts`
+(`resolveNewsShareConfig` — per-platform `NEWS_SHARE_*_ENABLED` env
+flags, all defaulting `true`; see that file's header comment for why this
+deviates from this repo's usual "opt-in, default off" feature-flag
+convention). See `.claude/skills/awcms-mini-news-portal/SKILL.md` §642 for
+the full design rationale (Instagram has no supported web-share URL so
+never gets a dedicated button; the canonical URL — never the request's
+raw querystring — is the only URL ever shared; the native-share/copy-link
+client script is a same-origin static file, `public/js/news-share.js`,
+never inline, so it adds zero Content-Security-Policy surface).
+
+`public-page-rendering.ts`'s `renderPublicPageShell` now also emits
+`og:title`/`og:description`/`og:url`/`og:site_name` (derived from the same
+`title`/`description`/`canonicalUrl` fields it already renders as
+`<title>`/`<meta name="description">`/`<link rel="canonical">` — one
+source of truth, `siteName` new and optional from
+`PublicTenantResolution.tenantName`) and `twitter:title`/
+`twitter:description`/`twitter:card` (now always present — `summary`
+without an image, `summary_large_image` with one). `og:image`/
+`twitter:image`/`og:image:alt` are unchanged from Issue #636 (still gated
+on a verified R2 media object).
+
+Test: `tests/unit/social-share-links.test.ts`, `tests/unit/news-share-config.test.ts`,
+`tests/unit/news-share-client-script.test.ts`,
+`tests/integration/news-portal-share-buttons.integration.test.ts` (real
+`/news/{slug}`/`/blog/{tenantCode}/{slug}` routes — default-enabled
+widget, master-switch/per-platform disable, draft never renders it,
+canonical URL used even when the request URL carries tracking
+querystring parameters).
+
 ## `/news` (default) vs `/blog/{tenantCode}` (legacy) — Issue #561
 
 Two public route families exist side by side, and neither is going away.
