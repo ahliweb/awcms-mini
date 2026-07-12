@@ -9,10 +9,12 @@
  * (pending_verification/active/suspended/failed), and other admin screens —
  * doc 14 §Konsistensi ("semua layar memakai token & komponen yang sama").
  *
- * Uses the `-strong` solid-fill tokens for the `success`/`danger` variants,
- * not the plain `--color-success`/`--color-danger` tokens — Issue #434's
- * own audit measured the plain tokens at 2.91–4.06:1 with white text (below
- * WCAG AA's 4.5:1) when used as a *fill* rather than *text* color. Status is
+ * Uses the `-strong` solid-fill tokens for the `success`/`danger`/`info`
+ * variants, not the plain `--color-success`/`--color-danger`/`--color-info`
+ * tokens — Issue #434's own audit measured the plain tokens at 2.91–4.06:1
+ * with white text (below WCAG AA's 4.5:1) when used as a *fill* rather than
+ * *text* color (the `info` gap was found later, on PR #720's own review —
+ * 3.68:1/2.43:1 — and fixed the same way). Status is
  * still conveyed by the visible text label passed in `label`, never by
  * color alone (doc 14 §Aksesibilitas — "jangan mengandalkan warna saja").
  */
@@ -65,8 +67,11 @@ const { label, variant } = Astro.props;
   }
 
   .status-badge[data-variant="info"] {
-    background: var(--color-info);
-    border-color: var(--color-info);
+    /* -strong, not the plain --color-info token (reviewer Medium finding on
+       PR #720): the plain token only reached 3.68:1/2.43:1 with white text
+       as a solid fill, below the 4.5:1 this file's own docblock promises. */
+    background: var(--color-info-strong);
+    border-color: var(--color-info-strong);
     color: var(--color-primary-contrast);
   }
 </style>
