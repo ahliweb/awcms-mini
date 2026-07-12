@@ -303,6 +303,51 @@ describe("database migration runner helpers", () => {
     ).not.toThrow();
   });
 
+  test("stripNonExecutableSqlSpans does not mistake a plain string's leading E/e for an escape-string prefix when it is really the trailing letter of a longer word (reviewer + security-auditor finding, round 3 on PR #723)", () => {
+    // Postgres's typed-literal syntax (`typename'literal'`, e.g.
+    // `date'2024-01-01'`) is ordinary SQL — any type/identifier ending in
+    // e/E immediately followed by a quote (no whitespace) must NOT be
+    // misread as a fresh E'...' escape-string prefix, or a backslash inside
+    // that plain string gets wrongly treated as an escape, extending the
+    // "string" span past its real closing quote and swallowing whatever
+    // sits between there and the NEXT quote — including a genuine
+    // top-level ROLLBACK;/COMMIT;/BEGIN;.
+    const dateCase = "SELECT date'\\';\nROLLBACK;\nSELECT 'z';";
+    expect(stripNonExecutableSqlSpans(dateCase)).toContain("ROLLBACK");
+    expect(() =>
+      assertNoTransactionControl(dateCase, "999_bad_typed_literal_date.sql")
+    ).toThrow("transaction control");
+
+    const daterangeCase = "SELECT daterange'\\';\nROLLBACK;\nSELECT 'z';";
+    expect(stripNonExecutableSqlSpans(daterangeCase)).toContain("ROLLBACK");
+    expect(() =>
+      assertNoTransactionControl(
+        daterangeCase,
+        "999_bad_typed_literal_daterange.sql"
+      )
+    ).toThrow("transaction control");
+
+    const uppercaseCase = "SELECT VALUE'\\';\nCOMMIT;\nSELECT 'z';";
+    expect(stripNonExecutableSqlSpans(uppercaseCase)).toContain("COMMIT");
+    expect(() =>
+      assertNoTransactionControl(
+        uppercaseCase,
+        "999_bad_typed_literal_uppercase.sql"
+      )
+    ).toThrow("transaction control");
+
+    // A genuine standalone E'...' escape-string (preceded by whitespace,
+    // not a longer word) must still be recognized and still correctly
+    // catch a real ROLLBACK; hiding behind its escaped quote.
+    const genuineEscapeString = "SELECT E'it\\'s escaped';\nROLLBACK;";
+    expect(stripNonExecutableSqlSpans(genuineEscapeString)).toContain(
+      "ROLLBACK"
+    );
+    expect(() =>
+      assertNoTransactionControl(genuineEscapeString, "999_bad_estring2.sql")
+    ).toThrow("transaction control");
+  });
+
   test("applied checksum mismatch fails fast", () => {
     expect(() =>
       validateAppliedChecksums(

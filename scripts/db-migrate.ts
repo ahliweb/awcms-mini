@@ -131,6 +131,23 @@ export function stripSingleQuotedStringLiterals(sql: string): string {
  * identifier quoting) — there is no independent second pass that could ever
  * misread one mode's delimiter as another's.
  */
+/**
+ * Postgres word-continuation characters for a bare (unquoted) identifier —
+ * letters, digits, underscore. `$` and `E`/`e` are both valid NON-FIRST
+ * characters of a bare identifier (e.g. `name`, `date`, `col$1`) AND are
+ * also this scanner's own prefix markers for dollar-quoting and
+ * escape-strings respectively — so a maximal-munch identifier like `name`
+ * immediately followed by `'...'` must NOT have its trailing `e` reread as
+ * a fresh `E'...'` prefix. Security-auditor finding (PR #723, round 3):
+ * without this guard, `name'trap\';\nROLLBACK;\nSELECT 'trailer';` was
+ * misparsed — the trailing `e` of `name` was treated as an escape-string
+ * prefix, so the backslash-escape rule consumed past the real closing
+ * quote and silently swallowed the genuine top-level `ROLLBACK;`.
+ */
+function isIdentifierContinuationChar(ch: string): boolean {
+  return /[A-Za-z0-9_]/.test(ch);
+}
+
 export function stripNonExecutableSqlSpans(sql: string): string {
   let output = "";
   const n = sql.length;
@@ -139,6 +156,8 @@ export function stripNonExecutableSqlSpans(sql: string): string {
   while (i < n) {
     const ch = sql[i];
     const next = i + 1 < n ? sql[i + 1] : "";
+    const precededByIdentifierChar =
+      i > 0 && isIdentifierContinuationChar(sql[i - 1] ?? "");
 
     if (ch === "-" && next === "-") {
       i += 2;
@@ -163,7 +182,7 @@ export function stripNonExecutableSqlSpans(sql: string): string {
       continue;
     }
 
-    if (ch === "$") {
+    if (ch === "$" && !precededByIdentifierChar) {
       const tagMatch = /^\$\w*\$/.exec(sql.slice(i));
       if (tagMatch) {
         const tag = tagMatch[0];
@@ -175,7 +194,8 @@ export function stripNonExecutableSqlSpans(sql: string): string {
       }
     }
 
-    const isEscapeStringPrefix = (ch === "E" || ch === "e") && next === "'";
+    const isEscapeStringPrefix =
+      (ch === "E" || ch === "e") && next === "'" && !precededByIdentifierChar;
 
     if (isEscapeStringPrefix || ch === "'") {
       i += isEscapeStringPrefix ? 2 : 1;
