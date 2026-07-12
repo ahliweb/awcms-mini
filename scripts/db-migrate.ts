@@ -88,10 +88,47 @@ export function stripSingleQuotedStringLiterals(sql: string): string {
   return sql.replace(/'(?:[^']|'')*'/g, "''");
 }
 
+/**
+ * Single left-to-right pass that removes every SQL span that must never be
+ * scanned for top-level transaction-control keywords: line comments
+ * (`-- ...`), block comments (`/* ... *&#47;`), dollar-quoted bodies
+ * (`$$...$$`/`$tag$...$tag$`), single-quoted string literals, and
+ * double-quoted identifiers — in ONE combined regex, not a sequence of
+ * independent full-text passes.
+ *
+ * Security-auditor Critical finding on PR #723: chaining
+ * `stripDollarQuotedBlocks` then `stripSingleQuotedStringLiterals` as two
+ * INDEPENDENT full-text scans let an apostrophe belonging to a `--` comment
+ * (an ordinary English contraction like "don't"/"won't") or to a
+ * double-quoted identifier (`"peter's_table"`) get misread by the
+ * string-literal regex as a string delimiter — bracketing, and silently
+ * deleting, a genuine top-level `ROLLBACK;`/`COMMIT;`/`BEGIN;` sitting
+ * between them before the keyword scan ever saw it. Empirically confirmed
+ * bypassable via:
+ *   -- don't do this
+ *   ROLLBACK;
+ *   -- won't stop
+ * and:
+ *   CREATE TABLE "peter's_table" (id int);
+ *   COMMIT;
+ * A single alternation regex closes this: the left-to-right scan advances
+ * to whichever token's own opening delimiter occurs first, and that
+ * alternative alone consumes all the way to ITS OWN closing delimiter — an
+ * apostrophe inside a comment or a double-quoted identifier is never
+ * separately visible to the string-literal alternative at all, so it can
+ * never be mistaken for one.
+ */
+export function stripNonExecutableSqlSpans(sql: string): string {
+  return sql.replace(
+    /--[^\n]*|\/\*[\s\S]*?\*\/|\$(\w*)\$[\s\S]*?\$\1\$|'(?:[^']|'')*'|"(?:[^"]|"")*"/g,
+    ""
+  );
+}
+
 export function assertNoTransactionControl(sql: string, migrationName: string) {
   if (
     /\b(BEGIN|COMMIT|ROLLBACK|START\s+TRANSACTION)\b/i.test(
-      stripSingleQuotedStringLiterals(stripDollarQuotedBlocks(sql))
+      stripNonExecutableSqlSpans(sql)
     )
   ) {
     throw new Error(

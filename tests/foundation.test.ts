@@ -14,6 +14,7 @@ import {
   discoverMigrationFiles,
   redactDatabaseUrl,
   stripDollarQuotedBlocks,
+  stripNonExecutableSqlSpans,
   stripOptionalTransactionWrapper,
   stripSingleQuotedStringLiterals,
   validateAppliedChecksums
@@ -219,6 +220,56 @@ describe("database migration runner helpers", () => {
     // But a real top-level ROLLBACK; is still rejected.
     expect(() =>
       assertNoTransactionControl("BEGIN;\nROLLBACK;", "999_bad.sql")
+    ).toThrow("transaction control");
+  });
+
+  test("stripNonExecutableSqlSpans does not let a comment's apostrophes bracket away a real top-level ROLLBACK;", () => {
+    // Security-auditor Critical finding on PR #723: chaining
+    // stripDollarQuotedBlocks + stripSingleQuotedStringLiterals as two
+    // independent full-text passes let the two apostrophes in "don't"/
+    // "won't" (ordinary English contractions inside `--` comments) be
+    // misread as a string-literal pair, silently deleting a real ROLLBACK;
+    // sitting between them along with the "string". A single combined pass
+    // must treat the whole comment line as one already-opaque span instead.
+    const adversarial = "-- don't do this\nROLLBACK;\n-- won't stop\nSELECT 1;";
+    expect(stripNonExecutableSqlSpans(adversarial)).toContain("ROLLBACK");
+    expect(() =>
+      assertNoTransactionControl(adversarial, "999_bad_comment.sql")
+    ).toThrow("transaction control");
+  });
+
+  test("stripNonExecutableSqlSpans does not let a double-quoted identifier's apostrophe bracket away a real top-level COMMIT;", () => {
+    const adversarial =
+      'CREATE TABLE "peter\'s_table" (id int);\nCOMMIT;\nSELECT * FROM "no one\'s_business";';
+    expect(stripNonExecutableSqlSpans(adversarial)).toContain("COMMIT");
+    expect(() =>
+      assertNoTransactionControl(adversarial, "999_bad_identifier.sql")
+    ).toThrow("transaction control");
+  });
+
+  test("stripNonExecutableSqlSpans does not let a single stray apostrophe in a comment pair up with a LATER, unrelated string literal to bracket away a real top-level ROLLBACK;", () => {
+    // Reviewer's exact repro on PR #723: a single apostrophe in an ordinary
+    // possessive/contraction comment (already this repo's house style — 33
+    // of 48 existing migration files have one) has no matching quote of its
+    // own, but the OLD sequential-regex approach would pair it with the
+    // NEXT unrelated quote anywhere later in the file (here, the string
+    // literal in `SELECT 'foo';`), silently deleting everything between —
+    // including the real ROLLBACK; — even though neither quote is actually
+    // a string-literal delimiter in the comment's case.
+    const adversarial =
+      "-- it's fine, nothing to see here\nROLLBACK;\nSELECT 'foo';";
+    expect(stripNonExecutableSqlSpans(adversarial)).toContain("ROLLBACK");
+    expect(() =>
+      assertNoTransactionControl(adversarial, "999_bad_single_apostrophe.sql")
+    ).toThrow("transaction control");
+  });
+
+  test("stripNonExecutableSqlSpans strips block comments too, without letting their contents bracket away real statements", () => {
+    const adversarial =
+      "/* it's a note */\nROLLBACK;\n/* another note's here */\nSELECT 1;";
+    expect(stripNonExecutableSqlSpans(adversarial)).toContain("ROLLBACK");
+    expect(() =>
+      assertNoTransactionControl(adversarial, "999_bad_block_comment.sql")
     ).toThrow("transaction control");
   });
 
