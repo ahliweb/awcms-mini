@@ -404,13 +404,20 @@ describe("database migration runner helpers", () => {
     ["whitespace", " "],
     ["open paren", "("],
     ["comma", ","],
-    ["start of string", ""]
+    ["start of string", ""],
+    // Round-5 reviewer finding: a dollar-quoted token's own CLOSING `$` is
+    // a genuine token boundary in real Postgres (the token is already
+    // complete), even though `$` is itself an identifier-continuation
+    // character — a single-character-lookback guard can't tell these
+    // apart from a `$` that's still mid-identifier (e.g. `price$e`).
+    ["anonymous dollar-quote close ($$...$$)", "$$body$$"],
+    ["tagged dollar-quote close ($tag$...$tag$)", "$tag$body$tag$"]
   ] as const;
 
   test.each(GENUINE_TOKEN_BOUNDARY_PRECEDING_CHARS)(
-    "boundary matrix: preceding char is %s — a genuine standalone E'...' string is still recognized and still catches a real ROLLBACK; after it",
-    (_label, prefixChar) => {
-      const sql = `${prefixChar}E'it\\'s a value';\nROLLBACK;`;
+    "boundary matrix: preceding token is %s — a genuine standalone E'...' string is still recognized and still catches a real ROLLBACK; after it",
+    (_label, prefix) => {
+      const sql = `${prefix}E'it\\'s a value';\nROLLBACK;`;
       expect(stripNonExecutableSqlSpans(sql)).toContain("ROLLBACK");
       expect(() =>
         assertNoTransactionControl(sql, "999_boundary_matrix_genuine.sql")

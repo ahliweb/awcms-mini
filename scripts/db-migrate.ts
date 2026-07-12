@@ -163,16 +163,37 @@ export function stripNonExecutableSqlSpans(sql: string): string {
   let output = "";
   const n = sql.length;
   let i = 0;
+  /**
+   * Tracks whether the character immediately behind the current scan
+   * position was itself part of an ONGOING plain bare-identifier scan —
+   * NOT merely "the raw character happens to match the identifier-
+   * continuation class." Reviewer round-5 finding: a single-character
+   * lookback at raw `sql[i-1]` text can't distinguish "this `$` is mid-
+   * identifier" from "this `$` is the closing delimiter of an
+   * already-COMPLETE dollar-quoted token" — both look identical as raw
+   * text, but only the former is a real token-continuation in Postgres's
+   * own lexer. `$$body$$E'it\'s a value';` is two independent, back-to-
+   * back tokens (a complete dollar-quoted string, then a fresh
+   * `E'...'` escape-string) — the previous version misread the
+   * dollar-quote's own closing `$` as if it were still building an
+   * identifier, so it wrongly suppressed the genuine `E'...'` escape
+   * parsing, mis-closed the string early, and swallowed a real top-level
+   * `ROLLBACK;` after it. Explicitly resetting this flag to `false` at
+   * every point a special token (comment/dollar-quote/string/identifier)
+   * finishes — regardless of what its last raw character happened to be —
+   * closes this by construction: only a plain, uninterrupted run of
+   * identifier-continuation characters ever leaves it `true`.
+   */
+  let precededByIdentifierChar = false;
 
   while (i < n) {
     const ch = sql[i];
     const next = i + 1 < n ? sql[i + 1] : "";
-    const precededByIdentifierChar =
-      i > 0 && isIdentifierContinuationChar(sql[i - 1] ?? "");
 
     if (ch === "-" && next === "-") {
       i += 2;
       while (i < n && sql[i] !== "\n") i++;
+      precededByIdentifierChar = false;
       continue;
     }
 
@@ -190,6 +211,7 @@ export function stripNonExecutableSqlSpans(sql: string): string {
           i++;
         }
       }
+      precededByIdentifierChar = false;
       continue;
     }
 
@@ -200,6 +222,7 @@ export function stripNonExecutableSqlSpans(sql: string): string {
         const closeIndex = sql.indexOf(tag, i + tag.length);
         if (closeIndex !== -1) {
           i = closeIndex + tag.length;
+          precededByIdentifierChar = false;
           continue;
         }
       }
@@ -225,6 +248,7 @@ export function stripNonExecutableSqlSpans(sql: string): string {
         }
         i++;
       }
+      precededByIdentifierChar = false;
       continue;
     }
 
@@ -241,10 +265,12 @@ export function stripNonExecutableSqlSpans(sql: string): string {
         }
         i++;
       }
+      precededByIdentifierChar = false;
       continue;
     }
 
     output += ch;
+    precededByIdentifierChar = isIdentifierContinuationChar(ch ?? "");
     i++;
   }
 
