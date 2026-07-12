@@ -26,6 +26,7 @@ Closes #
 - [ ] Soft delete diterapkan untuk resource deletable; data posted tetap immutable.
 - [ ] Test relevan lulus; `bun run build` lulus (bila menyentuh kode).
 - [ ] Dokumentasi diperbarui.
+- [ ] Bila PR ini menambah/mengubah kategori modul (Core/System/Official Optional Module) atau provider eksternal baru: sudah mengikuti `docs/awcms-mini/21_module_admission_governance.md` + `docs/awcms-mini/templates/module-admission-decision-checklist.md`.
 - [ ] Changeset ditambahkan bila perubahan mempengaruhi perilaku (`bun run changeset`).
 - [ ] **Tidak ada** secret, kredensial, dump DB, atau data pengguna asli dalam diff.
 
