@@ -130,6 +130,23 @@ function nowIso(date: Date): string {
  * `METRIC_DEFINITIONS` in `metrics-port.ts`), so this is safe to call
  * unconditionally.
  */
+/**
+ * `itemName` (an `itemCounts` object key, e.g. `"purged"`/`"tenantsChecked"`)
+ * is the one label in this file NOT covered by `METRIC_DEFINITIONS`'s
+ * compile-time `allowedLabelKeys` enforcement — `JobHandlerResult.itemCounts`
+ * is typed `Record<string, number>`, so nothing stops a FUTURE job handler
+ * from writing `itemCounts: { [someTenantId]: 1 }` or a raw email as a key.
+ * Every job migrated onto `runJob` today only ever uses safe literal keys
+ * (verified: `audit-log-purge.ts`, `modules-sync.ts`,
+ * `news-media-r2-reconcile.ts`) — this pattern-match is defense-in-depth
+ * against a future handler doing otherwise, matching the same spirit as
+ * `metrics-port.ts`'s `allowedLabelKeys` filtering (security-auditor
+ * finding on PR #721). A short, lowercase-start, alphanumeric+underscore
+ * identifier can never be a UUID (which has dashes) or an email (which has
+ * `@`/`.`) or a tenant-scoped string like `sso:<tenantId>:okta`.
+ */
+const SAFE_ITEM_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]{0,40}$/;
+
 function emitJobRunMetrics(result: JobResult): void {
   recordCounter("job_run_total", {
     jobName: result.jobName,
@@ -141,6 +158,8 @@ function emitJobRunMetrics(result: JobResult): void {
 
   if (result.itemCounts) {
     for (const [itemName, value] of Object.entries(result.itemCounts)) {
+      if (!SAFE_ITEM_NAME_PATTERN.test(itemName)) continue;
+
       recordGauge("job_run_item_count", value, {
         jobName: result.jobName,
         itemName

@@ -108,6 +108,41 @@ describe("runJob metrics (Issue #698)", () => {
     ).toBe(3);
   });
 
+  test("an unsafe itemCounts key (not a plain code-defined identifier) is silently dropped, never forwarded as a label — security-auditor Medium finding on PR #721", async () => {
+    const port = createInMemoryMetricsPort();
+    setMetricsPort(port);
+
+    const tenantLikeKey = "11111111-1111-1111-1111-111111111111";
+    const emailLikeKey = "someone@example.com";
+    const taggedKey = "sso-oidc-discovery:tenant-abc:okta";
+
+    await runJob(
+      definition({
+        handler: async () => ({
+          itemCounts: {
+            [tenantLikeKey]: 1,
+            [emailLikeKey]: 1,
+            [taggedKey]: 1,
+            purged: 5 // still-safe key, must still come through
+          }
+        })
+      }),
+      { sql: createFakeLockSql() }
+    );
+
+    const snapshot = port.getSnapshot();
+    const gaugeKeys = Object.keys(snapshot.gauges);
+
+    expect(gaugeKeys.some((key) => key.includes(tenantLikeKey))).toBe(false);
+    expect(gaugeKeys.some((key) => key.includes(emailLikeKey))).toBe(false);
+    expect(gaugeKeys.some((key) => key.includes(taggedKey))).toBe(false);
+    expect(
+      snapshot.gauges[
+        "job_run_item_count{itemName=purged,jobName=test:metrics-job}"
+      ]
+    ).toBe(5);
+  });
+
   test("a failed run is recorded under status=failed, not success", async () => {
     const port = createInMemoryMetricsPort();
     setMetricsPort(port);
