@@ -44,10 +44,10 @@ status + pointer, bukan menduplikasi isinya.
 | #636  | `blog_content` wajib referensi R2 media object untuk gambar berita saat mode aktif                                           | **Selesai** — lihat §636 di bawah                    |
 | #637  | Editorial homepage section composer `/news` dengan render R2-only                                                            | **Selesai** — lihat §637 di bawah                    |
 | #638  | Preset placement iklan news portal dengan validasi gambar R2-only                                                            | Belum dikerjakan — lihat §638 di bawah               |
-| #639  | Content block `video_news` dengan thumbnail R2 wajib                                                                         | Belum dikerjakan — lihat §639 di bawah               |
+| #639  | Content block `video_news` dengan thumbnail R2 wajib                                                                         | **Selesai** — lihat §639 di bawah                    |
 | #640  | Content quality checklist publishing dengan syarat gambar R2                                                                 | Belum dikerjakan — lihat §640 di bawah               |
 | #641  | Automatic internal tag linking untuk konten post/news                                                                        | Belum dikerjakan — lihat §641 di bawah               |
-| #642  | Public social share buttons di halaman artikel `/news`                                                                       | Belum dikerjakan — lihat §642 di bawah               |
+| #642  | Public social share buttons di halaman artikel `/news`                                                                       | **Selesai** — lihat §642 di bawah                    |
 | #649  | SEO + social preview metadata lengkap di halaman artikel `/news`                                                             | Belum dikerjakan — lihat §649 di bawah               |
 
 Urutan dependency yang disarankan (dari objective masing-masing issue):
@@ -1305,6 +1305,165 @@ lewat form edit yang sudah ada — TIDAK menambah endpoint baru untuk itu.
   `tests/foundation.test.ts` (migration list 044).
 - Changeset: `.changeset/news-portal-homepage-sections-issue-637.md`.
 
+## §639 — Content block `video_news` dengan thumbnail R2 wajib (Selesai)
+
+Implementasi lengkap: domain baru
+`blog-content/domain/video-news-block-validation.ts` (allowlist provider +
+normalisasi videoId, UNCONDITIONAL — tidak digerbangi mode R2-only),
+application baru
+`blog-content/application/video-news-thumbnail-reference-gate.ts` (verifikasi
+`thumbnailMediaObjectId`, mode-gated — pola PERSIS sama `news-media-
+reference-gate.ts` #636), renderer baru `_shared/rendering/video-news-block-
+renderer.ts` (iframe `youtube-nocookie.com` aman). **Tidak ada migration
+baru** — `owner_resource_type` enum (migration 041, #633) sudah memuat
+`'video_thumbnail'` sejak awal, dan thumbnail video tidak pernah di-`attach`
+(persis pola gallery image #636 — hanya diverifikasi `verified`/`attached`,
+tidak pernah menulis `owner_resource_type`/`owner_resource_id`).
+
+### Keputusan desain kunci — DUA lapis validasi, hanya SATU yang mode-gated
+
+Berbeda dari #636 (yang semuanya mode-gated), issue ini memisahkan dua
+kelas kontrol:
+
+1. **UNCONDITIONAL (selalu berlaku, tidak peduli mode R2-only aktif atau
+   tidak)** — allowlist `provider` (hanya `"youtube"` hari ini) dan
+   validasi/normalisasi `videoId` (dari id mentah 11 karakter ATAU URL
+   YouTube umum: `watch?v=`, `youtu.be/`, `/embed/`, `/shorts/`, semuanya
+   dinormalisasi ke id kanonik sebelum disimpan). Alasan: body issue sendiri
+   membingkai ini sebagai kontrol keamanan embed ("treat video embeds as
+   high-risk content"), bukan kebijakan penyimpanan R2 — jadi berlaku untuk
+   SEMUA tenant, bukan hanya yang mengaktifkan preset `news_portal_full_online_r2`.
+   Dijalankan di `validateAndNormalizeContentJsonVideoBlocks` (pure, tanpa
+   akses DB), dipanggil route handler SEBELUM `withTenant` (tidak butuh
+   transaksi).
+2. **MODE-GATED (hanya saat `isFullOnlineR2ModeActiveForTenant` true)** —
+   `thumbnailMediaObjectId` (opsional — body issue eksplisit "tenant policy
+   may optionally allow provider default thumbnail") wajib menunjuk objek
+   registry R2 yang ada/verified-atau-attached/tenant-sama, PERSIS pola
+   `featuredMediaId`/gallery `mediaObjectId` (#636). Di luar mode itu, field
+   ini bahkan TIDAK divalidasi format-nya sama sekali (sengaja meniru
+   perlakuan gallery `mediaObjectId` yang juga tidak pernah dicek shape-nya
+   di luar mode aktif) — nilai apa pun yang tidak resolve hanya tidak pernah
+   dirender, tidak pernah dianggap error.
+
+"Raw iframe HTML/script harus ditolak" (Rules issue ini) SENGAJA TIDAK
+diimplementasikan sebagai regex baru khusus blok ini — proteksi yang sudah
+ada (`content-validation.ts`'s `containsUnsafeHtml`, Issue #538,
+unconditional, men-scan SELURUH `contentJson` yang di-`JSON.stringify`)
+SUDAH menutup ini untuk block type apa pun termasuk `video_news`. Lapis
+kedua yang genuinely baru:
+`validateAndNormalizeContentJsonVideoBlocks` MEMBANGUN ULANG setiap blok
+`video_news` HANYA dari field yang dikenal (`provider`/`videoId`
+ternormalisasi/`title`/`caption`/`thumbnailMediaObjectId`/
+`durationSeconds`/`sourceLabel`) — field asing apa pun (mis. `rawEmbedHtml`)
+otomatis hilang saat disimpan, bukan cuma diblok regex.
+
+### Kenapa DUA file terpisah untuk thumbnail-reference, bukan extend `news-media-reference-gate.ts` (#636) langsung
+
+Issue paralel #640 (content quality checklist) berjalan bersamaan dan sama-
+sama menyentuh permukaan validasi/rendering content-block. Untuk
+meminimalkan risiko conflict merge, ekstensi issue ini dibuat SEADITIF
+mungkin:
+
+- `content-block-media-references.ts` (#636): HANYA menambah fungsi baru
+  `collectVideoNewsThumbnailReferences` + tipe barunya — fungsi
+  `collectGalleryImageReferences` yang sudah ada SAMA SEKALI tidak disentuh.
+- `content-block-rendering.ts` (#636): HANYA menambah import baru, satu
+  union member baru (`video_news`), satu `case` baru di `renderBlock`'s
+  `switch`, dan satu fungsi re-export baru
+  (`collectRenderableVideoNewsThumbnailMediaObjectIds`) — signature
+  `renderContentJsonToHtml`/`renderBlock` TIDAK berubah sama sekali (thumbnail
+  video memakai `resolvedMediaUrls` map yang SAMA dengan gallery, karena
+  keduanya berbagi id space registry media yang sama — tidak perlu parameter
+  kedua).
+- `news-media-reference-gate.ts` (#636) SENGAJA TIDAK disentuh SAMA SEKALI —
+  dibuat file sibling baru
+  `video-news-thumbnail-reference-gate.ts` dengan fungsi
+  `validateVideoNewsThumbnailReferencesForFullOnlineR2Mode` yang polanya
+  identik tapi hidup independen. Route handler memanggil KEDUA gate secara
+  berurutan (gallery/featured dulu, lalu video thumbnail) — sedikit boilerplate
+  ekstra di route handler, tapi nol risiko konflik pada fungsi #636 yang
+  sudah lolos tiga putaran review.
+
+### Renderer — iframe `youtube-nocookie.com`, CSP `frame-src` diperluas
+
+`_shared/rendering/video-news-block-renderer.ts` (pola sama
+`gallery-block-renderer.ts`, Issue #681 — neutral ground, tidak meng-import
+dari `blog_content`/`news_portal` mana pun) membangun `<iframe src="https://
+www.youtube-nocookie.com/embed/{videoId}">` HANYA dari `provider`+`videoId`
+tervalidasi — TIDAK PERNAH dari field HTML mentah apa pun (tidak ada field
+seperti itu dalam skema block ini sama sekali). `astro.config.mjs`'s CSP
+`frame-src` diperluas menambahkan origin ini (pola sama penambahan
+Cloudflare Turnstile, Issue #588) — tanpa ini, browser akan MEMBLOKIR iframe
+tersebut meski markup-nya sudah aman. Thumbnail kustom (bila resolve)
+dirender sebagai `<img class="video-news-thumbnail">` terpisah SEBELUM
+iframe; `sourceLabel`/`caption` dirender sebagai teks ter-escape sesudahnya.
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `src/modules/blog-content/domain/video-news-block-validation.ts` (baru).
+- `src/modules/blog-content/application/video-news-thumbnail-reference-gate.ts`
+  (baru).
+- `src/modules/_shared/rendering/video-news-block-renderer.ts` (baru).
+- `src/modules/blog-content/domain/content-block-media-references.ts`:
+  tambah `collectVideoNewsThumbnailReferences` (aditif).
+- `src/modules/blog-content/domain/content-block-rendering.ts`: tambah
+  union `video_news`, `case` baru di `renderBlock`, fungsi
+  `collectRenderableVideoNewsThumbnailMediaObjectIds` (aditif).
+- `astro.config.mjs`: `frame-src` tambah `https://www.youtube-nocookie.com`.
+- `src/pages/api/v1/blog/posts/index.ts`, `[id].ts`,
+  `src/pages/api/v1/blog/pages/index.ts`, `[id].ts`,
+  `src/pages/api/v1/blog/posts/[id]/revisions/[revisionId]/restore.ts`:
+  panggil `validateAndNormalizeContentJsonVideoBlocks` (unconditional,
+  400 VALIDATION_ERROR) DAN
+  `validateVideoNewsThumbnailReferencesForFullOnlineR2Mode` (mode-gated,
+  422 NEWS_MEDIA_REFERENCE_INVALID, reuse kode error yang sama dengan #636).
+- `src/pages/news/[slug].ts`, `src/pages/blog/[tenantCode]/[slug].ts`:
+  gabungkan id thumbnail video ke bulk `resolveMediaReferences` yang sama
+  dengan featured+gallery.
+- `i18n/en.po`/`i18n/id.po`:
+  `admin.blog.posts.content_json_hint` diperbarui menyebut `video_news`.
+- `openapi/awcms-mini-public-api.openapi.yaml`: deskripsi `contentJson`
+  (enam lokasi) dan respons 422 (lima lokasi) diperbarui menyebut
+  `video_news`/thumbnail — bentuk schema TIDAK berubah (`contentJson` tetap
+  `type: object` generik).
+- Test: `tests/unit/video-news-block-validation.test.ts`,
+  `tests/unit/video-news-thumbnail-reference-gate.test.ts` (baru);
+  diperbarui: `tests/unit/content-block-media-references.test.ts` (describe
+  block baru untuk `collectVideoNewsThumbnailReferences`),
+  `tests/blog-content-public-rendering.test.ts` (describe block baru untuk
+  rendering `video_news` +
+  `collectRenderableVideoNewsThumbnailMediaObjectIds`); baru:
+  `tests/integration/blog-content-video-news-block.integration.test.ts`
+  (file TERPISAH dari `blog-content-news-media-r2-references.integration.test.ts`
+  #636 — end-to-end: normalisasi videoId dari URL, provider ditolak,
+  videoId tidak valid ditolak, iframe/script mentah ditolak, field asing
+  di-strip, cross-tenant/status-tidak-aman thumbnail ditolak, render publik
+  iframe+thumbnail).
+- Changeset: `.changeset/news-portal-video-news-block-issue-639.md`.
+
+### Belum/di luar cakupan issue ini (untuk issue lanjutan)
+
+- **Provider selain YouTube** (Vimeo, dll) — `VIDEO_NEWS_PROVIDERS`
+  sengaja hanya `["youtube"]` (body issue: "Initial provider allowlist:
+  youtube"). Menambah provider lain butuh fungsi normalisasi id baru per
+  provider di `video-news-block-validation.ts` DAN entry `frame-src` CSP
+  baru di `astro.config.mjs`.
+- **Tenant policy toggle eksplisit** untuk "izinkan thumbnail default
+  provider vs wajib custom R2" — body issue menyebut ini sebagai opsi
+  ("Tenant policy may optionally allow provider default thumbnail"), TIDAK
+  diimplementasikan sebagai setting nyata (thumbnail sudah opsional secara
+  struktural — tidak ada mekanisme "wajibkan custom thumbnail" terpisah).
+  Issue lanjutan yang butuh mode itu boleh menambah field
+  `module_settings` baru, mengikuti pola yang sudah ada.
+- **Homepage section `video_block`** (`homepage-section-policy.ts`'s
+  whitelist, #637's catatan) — dependency (`video_news` block ini) sekarang
+  SUDAH ada, tapi mewiring `sectionType` baru itu sendiri tetap scope issue
+  terpisah, tidak diklaim di sini.
+- **Admin UI picker visual** untuk memilih video/thumbnail — sama seperti
+  #636/#637, admin tetap mengetik JSON `contentJson` manual (textarea yang
+  sudah ada); hanya hint teksnya yang diperbarui.
+
 ## §681 — Capability ports menggantikan import langsung ke `blog_content` (epic #679, BUKAN epic ini — Selesai)
 
 **Issue ini bukan bagian epic `news_portal` (#631-#642/#649)** — ia datang
@@ -1433,7 +1592,7 @@ daftar file lengkap kalau butuh contoh call-site persis.
   detail, 3 news_portal homepage-sections/`/news` index) — wiring adapter
   di composition root.
 
-## §638-#640, #642, #649 — konsumsi media registry lanjutan (belum dikerjakan)
+## §638-#640, #649 — konsumsi media registry lanjutan (belum dikerjakan)
 
 Ringkasan objective per issue (detail lengkap ada di body issue
 GitHub masing-masing, cek `gh issue view <n>` bila butuh acceptance
@@ -1452,13 +1611,159 @@ criteria penuh):
 - **#640** — content quality checklist publishing dengan syarat gambar
   R2 (mis. featured image wajib ada + confirmed sebelum status
   `published` diizinkan).
-- **#642** — social share buttons publik di `/news` dengan canonical
-  URL aman + Open Graph/Twitter Card + privacy-conscious.
 - **#649** — SEO + social preview metadata lengkap (title/excerpt/
-  canonical/gambar R2 terverifikasi) untuk crawler share.
+  canonical/gambar R2 terverifikasi) untuk crawler share. §642 di bawah
+  sudah menambah irisan minimal `og:title`/`og:description`/`og:url`/
+  `og:site_name` + `twitter:title`/`twitter:description`/`twitter:card`
+  (selalu `summary`, naik ke `summary_large_image` saat ada gambar R2) —
+  #649 kemungkinan menambah structured data (JSON-LD)/polish lebih lanjut,
+  bukan membangun ulang dasar OG/Twitter yang sudah ada.
 
-Semua issue ini **wajib** mengonsumsi media registry (#633) dan validasi
-`confirmed`-only (#636) — bukan re-derive validasi URL/MIME sendiri.
+Kedua issue di atas (#638/#639/#640) **wajib** mengonsumsi media registry
+(#633) dan validasi `confirmed`-only (#636) — bukan re-derive validasi
+URL/MIME sendiri.
+
+## §642 — Public social share buttons (Selesai)
+
+Implementasi lengkap: domain baru
+`src/modules/news-portal/domain/news-share-config.ts` (resolver env
+`NEWS_SHARE_*`, pure),
+`src/modules/blog-content/domain/social-share-links.ts` (link builder
+allowlisted per platform + renderer HTML widget), script client statis
+`public/js/news-share.js` (native share + copy-link, progressive
+enhancement), dan perluasan
+`src/modules/blog-content/domain/public-page-rendering.ts` (og:title/
+og:description/og:url/og:site_name + twitter:title/twitter:description/
+twitter:card selalu ada). **Tidak ada migration baru** — murni
+UI/rendering/config, tidak ada data baru yang dipersist (highest migration
+tetap `047` di saat issue ini dikerjakan; awasi nomor yang benar-benar
+terbaru di `sql/` sebelum issue lanjutan menambah migration, karena issue
+lain di epic yang sama bisa jalan paralel).
+
+### Kenapa config resolver di `news-portal`, tapi link-builder+renderer di `blog-content`
+
+`NEWS_SHARE_*` env var **dimiliki** modul `news-portal` (konvensi
+CONFIG_REGISTRY: prefix `NEWS_` = `ownerModule: "news-portal"`, sama
+seperti `NEWS_PORTAL_ENABLED`/`NEWS_MEDIA_R2_*`) — jadi resolver env
+(`resolveNewsShareConfig`) hidup di sana. Tapi fungsi murni yang membangun
+URL share per platform + merender widget HTML
+(`buildSocialShareLinks`/`renderSocialShareButtonsHtml`) hidup di
+`blog-content` karena beroperasi pada konsep `blog_content` murni
+(title/excerpt/canonical URL post) dan dipanggil dari route yang sama
+(`/news/[slug].ts`, `/blog/[tenantCode]/[slug].ts`) yang sudah merender
+`seo-rendering.ts`/`public-page-rendering.ts` — TIDAK ada dependency
+fungsional ke media registry R2 sama sekali untuk fitur ini (beda dari
+#636). `SocialShareRenderConfig` (di `blog-content`) sengaja punya field
+yang sama persis dengan `NewsShareConfig` (di `news-portal`) TANPA
+cross-module import — struktural TypeScript cukup, route (composition
+root) yang memanggil keduanya langsung, sama pola "route mengimpor dari
+dua modul sekaligus" yang sudah ada (`[slug].ts` sudah mengimpor
+`newsMediaPortAdapter` dari `news-portal/application/` langsung sebelum
+issue ini).
+
+### Instagram — TIDAK ada tombol/URL, hanya catatan teks
+
+Tidak ada URL web-share Instagram yang didukung untuk sharing dari URL
+eksternal sembarang (beda dari WhatsApp/Telegram/Facebook/LinkedIn/X yang
+semuanya punya endpoint share-intent resmi) — jadi `STATIC_SHARE_LINK_BUILDERS`
+di `social-share-links.ts` TIDAK PERNAH punya entry Instagram.
+`NEWS_SHARE_INSTAGRAM_NATIVE_ONLY` (default `true`) hanya menggerbang
+sebuah catatan teks statis di dekat tombol native-share, menjelaskan
+Instagram dibagikan lewat native share (`navigator.share`, saat OS
+menampilkannya sebagai target) atau copy-link — tidak pernah membangun
+tombol/URL baru untuk itu. Test `social-share-links.test.ts`'s "never
+emits a fake Instagram share link/button" menegakkan ini secara eksplisit
+(grep `instagram.com`/`news-share__link--instagram` tidak pernah ada di
+output manapun).
+
+### Canonical URL, bukan querystring — dijamin struktural, bukan filter
+
+Setiap link/atribut `data-share-url` dibangun HANYA dari `canonicalUrl`
+yang sudah di-resolve `resolveCanonicalUrl` (server-side, dari
+`url.origin` + slug post) — tidak pernah dari `request.url`/`Astro.url`
+mentah. Karena `canonicalUrl` server-generated tidak pernah membawa
+querystring/tracking parameter/session id sama sekali, syarat issue "do
+not leak admin preview URLs, draft URLs, session IDs, or private query
+parameters" terpenuhi secara struktural (nilai itu memang tidak pernah
+ada di sana), bukan oleh sebuah filter yang bisa lupa memfilter sesuatu.
+Test integrasi membuktikan ini dengan memanggil route dengan
+`?utm_source=newsletter&session_id=abc123` di URL request dan menegaskan
+tidak satupun string itu muncul di respons.
+
+### Script client — file statis same-origin, BUKAN inline (CSP)
+
+`native_web_share`/`copy_link` butuh JS (Web Share API, Clipboard API) —
+semua platform lain adalah `<a href>` statis tanpa JS sama sekali.
+`public/js/news-share.js` dimuat via `<script src="/js/news-share.js"
+defer>` (same-origin, `public/` Astro default) — **bukan** `<script>`
+inline. Ini sengaja menghindari seluruh kerumitan CSP hash/nonce yang
+`astro.config.mjs`/`theme-init-script.ts` sudah dokumentasikan
+(Astro's `security.csp` hanya meng-hash script yang **ia proses**
+sendiri — script yang dirender lewat `.ts` API route seperti
+`/news/[slug].ts` bukan `.astro` component, jadi TIDAK pernah lewat
+pipeline hashing Astro sama sekali; sebuah `<script>` inline di sini
+berisiko diblokir CSP browser nyata tanpa test headless-Chrome yang bisa
+mendeteksinya lewat `curl`). `script-src 'self'` (default Astro) sudah
+cukup untuk file statis same-origin — nol entri hash baru diperlukan.
+Tombol native-share dirender `hidden` di server, hanya di-unhide oleh
+script ini setelah deteksi fitur nyata (`window.isSecureContext &&
+navigator.share`) — issue: "native share uses `navigator.share` only
+after user activation and only in secure context." Tidak ada dependency
+eksternal, tidak ada `fetch`/`import` ke origin manapun selain halaman itu
+sendiri — `tests/unit/news-share-client-script.test.ts` menegaskan tidak
+ada string `http(s)://` eksternal apa pun di file ini.
+
+### Konfigurasi — semua flag default `true`, deviasi sengaja dari kebiasaan repo
+
+Setiap flag `NEWS_SHARE_*` default `true` (lihat header comment
+`news-share-config.ts` untuk alasan lengkap) — berbeda dari kebiasaan
+"opt-in, default off" var lain di repo ini (`NEWS_PORTAL_ENABLED`,
+`VISITOR_ANALYTICS_ENABLED`, dst.) karena fitur ini tidak mengumpulkan
+data/memuat script eksternal/butuh kredensial apa pun untuk diaktifkan.
+Tidak ada flag terpisah untuk copy-link (selalu ada begitu
+`NEWS_SHARE_BUTTONS_ENABLED=true`) — body issue #642 tidak
+menyarankannya, dan copy-link adalah fallback universal yang seharusnya
+selalu tersedia.
+
+### Meta tag OG/Twitter — perluasan `renderPublicPageShell`, bukan fungsi baru
+
+`og:title`/`og:description`/`og:url` + `twitter:title`/
+`twitter:description` diturunkan dari field `title`/`description`/
+`canonicalUrl` yang SUDAH ada di `PublicPageShellOptions` (satu sumber
+kebenaran per field — tidak ada kolom kedua yang bisa drift).
+`twitter:card` sekarang SELALU dirender (`summary` tanpa gambar,
+`summary_large_image` dengan `og:image` — beda dari sebelum issue ini,
+yang meng-omit `twitter:card` sama sekali tanpa gambar). `og:image`/
+`twitter:image`/`og:image:alt` TIDAK berubah — tetap gerbang R2-only
+Issue #636 (`resolveOgImageUrl`, hanya media `verified`/`attached`).
+`og:site_name` baru, opsional, dari `PublicTenantResolution.tenantName` —
+diteruskan kedua route (`/news/[slug].ts`, `/blog/[tenantCode]/[slug].ts`)
+tanpa lookup tambahan (tenant sudah di-resolve untuk gerbang tenant/module
+yang sudah ada).
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `src/modules/news-portal/domain/news-share-config.ts` (baru).
+- `src/modules/blog-content/domain/social-share-links.ts` (baru).
+- `public/js/news-share.js` (baru).
+- `src/modules/blog-content/domain/public-page-rendering.ts`: `PublicPageShellOptions`
+  gains `siteName`; `renderOpenGraphMetaTags` baru (og:title/description/
+  url/site_name + twitter:title/description/card selalu ada).
+- `src/pages/news/[slug].ts`, `src/pages/blog/[tenantCode]/[slug].ts`:
+  panggil `resolveNewsShareConfig()` + `renderSocialShareButtonsHtml`,
+  teruskan `siteName: tenant.tenantName` ke shell.
+- `src/lib/config/registry.ts`: sembilan entri `NEWS_SHARE_*` baru
+  (`ownerModule: "news-portal"`, `profiles: ALL_PROFILES`, semua
+  default `"true"`).
+- `.env.example`, `18_configuration_env_reference.md` §News portal —
+  public social share buttons (tabel + fenced block ringkas).
+- Test: `tests/unit/news-share-config.test.ts`,
+  `tests/unit/social-share-links.test.ts`,
+  `tests/unit/news-share-client-script.test.ts`,
+  `tests/integration/news-portal-share-buttons.integration.test.ts`;
+  diperbarui: `tests/blog-content-public-rendering.test.ts` (og:title/
+  description/url/site_name/twitter:card selalu ada).
+- Changeset: `.changeset/news-portal-social-share-buttons-issue-642.md`.
 
 ## §641 — Automatic internal tag linking (belum dikerjakan)
 

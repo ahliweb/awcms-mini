@@ -712,6 +712,44 @@ lokal untuk media berita yang perlu dimatikan — lihat
 `tests/unit/news-portal-no-local-fallback.test.ts` dan architecture doc
 §3.3-3.4).
 
+### News portal — public social share buttons (opsional, Issue #642, epic `news_portal` #631-#642/#649)
+
+Widget share publik (`src/modules/blog-content/domain/social-share-links.ts`,
+`public/js/news-share.js`) di halaman detail artikel `/news/{slug}` dan
+`/blog/{tenantCode}/{slug}` — `native_web_share`, `copy_link`, WhatsApp,
+Telegram, Facebook, LinkedIn, X, email. Setiap flag di bawah default
+`true` — **deviasi sengaja** dari kebiasaan "default off" var lain di
+dokumen ini (lihat header comment
+`src/modules/news-portal/domain/news-share-config.ts`): fitur ini tidak
+mengumpulkan data apa pun dan tidak memuat script pihak ketiga apa pun,
+tidak seperti `NEWS_PORTAL_ENABLED`/`VISITOR_ANALYTICS_ENABLED`/dst. yang
+menyalakan integrasi eksternal/pengumpulan data baru.
+
+| Var                                | Wajib | Default | Sensitif | Fungsi                                                                                                                                 |
+| ---------------------------------- | ----- | ------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEWS_SHARE_BUTTONS_ENABLED`       | –     | `true`  | –        | Master switch seluruh widget share (termasuk copy-link, yang tidak punya flag sendiri)                                                 |
+| `NEWS_SHARE_NATIVE_ENABLED`        | –     | `true`  | –        | Tombol Web Share API — tetap `hidden` sampai `public/js/news-share.js` mendeteksi `navigator.share` tersedia di secure context         |
+| `NEWS_SHARE_WHATSAPP_ENABLED`      | –     | `true`  | –        | Link share WhatsApp (`wa.me`)                                                                                                          |
+| `NEWS_SHARE_TELEGRAM_ENABLED`      | –     | `true`  | –        | Link share Telegram (`t.me/share`)                                                                                                     |
+| `NEWS_SHARE_FACEBOOK_ENABLED`      | –     | `true`  | –        | Link Facebook Share Dialog                                                                                                             |
+| `NEWS_SHARE_LINKEDIN_ENABLED`      | –     | `true`  | –        | Link LinkedIn share-offsite                                                                                                            |
+| `NEWS_SHARE_X_ENABLED`             | –     | `true`  | –        | Link X/Twitter intent/tweet                                                                                                            |
+| `NEWS_SHARE_EMAIL_ENABLED`         | –     | `true`  | –        | Link `mailto:`                                                                                                                         |
+| `NEWS_SHARE_INSTAGRAM_NATIVE_ONLY` | –     | `true`  | –        | TIDAK menggerbang tombol Instagram (tidak ada URL web-share Instagram yang didukung) — hanya catatan teks di dekat tombol native share |
+
+Setiap link platform dibangun oleh fungsi murni allowlisted
+(`buildSocialShareLinks`, satu builder tetap per platform) dari canonical URL
+yang SUDAH di-resolve server (`resolveCanonicalUrl`) — tidak pernah dari
+querystring/tracking URL request asli — dengan setiap nilai
+`encodeURIComponent`-ed. Semua link eksternal memakai
+`rel="noopener noreferrer"`. `native_web_share`/`copy_link` diimplementasi
+oleh satu file script statis same-origin (`public/js/news-share.js`,
+`<script src>` — bukan inline, jadi tidak menambah entri hash CSP apa pun
+di `astro.config.mjs`); tidak ada script pihak ketiga yang dimuat. Widget
+hanya dirender untuk post yang sudah lolos gerbang publik/published yang
+sama (`fetchPublicBlogPostBySlug`) — draft/private/scheduled/soft-deleted
+tetap 404 sebelum widget ini pernah dipertimbangkan.
+
 ### Provider CRM (opsional) — contoh domain retail/POS
 
 | Var                    | Wajib      | Default | Sensitif | Fungsi             |
@@ -829,6 +867,11 @@ VISITOR_ANALYTICS_GEO_ENABLED=false
 # `news_portal`). Tidak di-set sama sekali = preset tidak aktif.
 NEWS_PORTAL_ENABLED=false
 NEWS_MEDIA_R2_ENABLED=false
+
+# News portal — public social share buttons (opsional — Issue #642, epic
+# `news_portal`). Default true, lihat §"News portal — public social share
+# buttons" di bawah untuk alasan lengkap.
+NEWS_SHARE_BUTTONS_ENABLED=true
 
 # Provider opsional (default off) — contoh domain retail/POS
 STARSENDER_ENABLED=false

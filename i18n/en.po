@@ -1163,7 +1163,7 @@ msgid "admin.blog.posts.field_content_json"
 msgstr "Content blocks (JSON)"
 
 msgid "admin.blog.posts.content_json_hint"
-msgstr "Structured content as { \"blocks\": [...] } — paragraph, heading, list, quote, and gallery blocks only. Leave as an empty blocks array if unsure."
+msgstr "Structured content as { \"blocks\": [...] } — paragraph, heading, list, quote, gallery, and video_news blocks only. Leave as an empty blocks array if unsure."
 
 msgid "admin.blog.posts.field_visibility"
 msgstr "Visibility"

@@ -78,6 +78,16 @@ referensi aktif dari `blog_content` (post/page/ads/gallery/video
 thumbnail) atau surface news-portal lain (Issue #637-#640, #649) yang
 menunjuknya.
 
+**Titik referensi baru ditambahkan Issue #639:** blok `video_news`
+content_json's `thumbnailMediaObjectId` (opsional) — diverifikasi
+`verified`/`attached`/tenant-sama saat mode R2-only aktif, PERSIS pola
+`featuredMediaId`/gallery `mediaObjectId` (#636). Sama seperti keduanya,
+thumbnail video TIDAK PERNAH ditandai `attached` (tidak pernah menulis
+`owner_resource_type`/`owner_resource_id`) — jadi belum menambah cross-
+referencing NYATA untuk deteksi orphan di bawah, hanya menambah satu
+lagi titik referensi yang WAJIB masuk daftar begitu cross-referencing itu
+akhirnya dibangun.
+
 **Status implementasi (Issue #690):** cross-referencing ke seluruh
 titik referensi `blog_content` di atas (bukan hanya `owner_resource_id`
 tabel registry sendiri) **masih di luar cakupan** — persis seperti
