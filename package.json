@@ -61,6 +61,7 @@
     "config:docs:check": "bun scripts/config-docs-check.ts",
     "logging:lint:check": "bun scripts/logging-lint-check.ts",
     "production:preflight": "bun scripts/production-preflight.ts",
+    "resilience:dr-drill": "bun scripts/dr-drill.ts",
     "github:snapshot:refresh": "bun scripts/github-snapshot-refresh.ts",
     "changesets:policy:check": "bun scripts/changeset-policy-check.ts",
     "release:verify": "bun scripts/release-verify.ts",

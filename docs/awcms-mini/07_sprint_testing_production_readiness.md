@@ -379,6 +379,15 @@ Validasi:
 terjadwal: backup → restore ke database disposable → verifikasi migrasi
 schema, tenant isolation (RLS), dan sample record → laporan RTO/RPO.
 
+`bun run resilience:dr-drill` (Issue #699, lihat
+[`resilience-dr-verification.md`](resilience-dr-verification.md))
+memperluas ini menjadi failure-injection terkontrol: disconnect
+PostgreSQL (level klien), pool saturation, worker interruption (SIGTERM
+nyata), dan partial provider outage (SSO/email — R2 cross-verified),
+plus tier `--full` yang menjalankan `restore-drill.sh` di atas. Interlock
+keamanannya menolak eksekusi secara default terhadap target mirip-produksi
+tanpa kemungkinan override untuk `APP_ENV=production`.
+
 ## Go-live plan
 
 ```mermaid
