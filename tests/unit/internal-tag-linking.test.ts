@@ -312,6 +312,28 @@ describe("applyInternalTagLinksToHtml (Issue #641)", () => {
     expect(result.html).toContain('data-tag-id="&quot;&gt;&lt;script&gt;');
   });
 
+  test("XSS safety: a malicious tag NAME (the realistic vector, not just tagId) is only ever matched in its escaped form and never introduces a real <script> tag", async () => {
+    // Tag names, unlike slugs/ids, have no character restriction at write
+    // time -- this is the actual attacker-controlled field the issue's
+    // security note is about. The article HTML the matcher receives is
+    // already-escaped (the whitelist renderer's own output), so a mention
+    // of this name in prose would already read as escaped entities.
+    const maliciousName = '"><script>alert(1)</script>';
+    const html =
+      '<p>Warning: &quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt; was mentioned.</p>';
+    const result = await applyInternalTagLinksToHtml(
+      html,
+      [candidate("t1", maliciousName, "/news/tag/malicious")],
+      BASE_POLICY
+    );
+
+    expect(result.html).not.toContain("<script>alert(1)</script>");
+    expect(result.html).toContain(
+      '<a href="/news/tag/malicious" class="auto-internal-link" data-tag-id="t1" rel="tag">&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;</a>'
+    );
+    expect(result.matches).toHaveLength(1);
+  });
+
   test("XSS safety: content containing a raw <script>-like text node is never re-interpreted as markup by the matcher itself", async () => {
     // `renderContentJsonToHtml` never emits this shape in practice (its own
     // whitelist rejects raw HTML), but this module must not assume that --
