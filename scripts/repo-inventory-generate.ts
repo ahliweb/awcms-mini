@@ -190,7 +190,13 @@ async function countTestFiles(
 }
 
 function mdEscape(value: string): string {
-  return value.replace(/\|/g, "\\|");
+  // Escape backslashes FIRST, then pipes (same CodeQL "incomplete string
+  // escaping" class already fixed once in api-docs-generate.ts, Issue #700
+  // PR #717): escaping only `|` leaves a literal backslash already in a
+  // module key/version/status/dependency string untouched, so a value
+  // ending in `\` immediately before a template-inserted `|` cell delimiter
+  // could merge with the escape and desync the table.
+  return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 }
 
 /**
