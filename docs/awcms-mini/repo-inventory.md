@@ -6,28 +6,29 @@
 
 ## Modules
 
-14 modules registered in `src/modules/index.ts` `listModules()`.
+15 modules registered in `src/modules/index.ts` `listModules()`.
 
-| Key                 | Version | Status   | Type     | Dependencies                                               |
-| ------------------- | ------- | -------- | -------- | ---------------------------------------------------------- |
-| `blog_content`      | `0.8.0` | `active` | `domain` | `tenant_admin`, `identity_access`                          |
-| `email`             | `0.5.0` | `active` | `-`      | `tenant_admin`, `profile_identity`, `identity_access`      |
-| `form_drafts`       | `1.0.0` | `active` | `-`      | `identity_access`                                          |
-| `identity_access`   | `1.0.0` | `active` | `-`      | `tenant_admin`, `profile_identity`                         |
-| `logging`           | `1.0.0` | `active` | `-`      | `tenant_admin`                                             |
-| `module_management` | `0.1.0` | `active` | `system` | `tenant_admin`, `identity_access`                          |
-| `news_portal`       | `0.3.0` | `active` | `domain` | `tenant_admin`, `identity_access`                          |
-| `profile_identity`  | `1.0.0` | `active` | `-`      | `tenant_admin`                                             |
-| `reporting`         | `1.1.0` | `active` | `-`      | `tenant_admin`, `identity_access`, `sync_storage`, `email` |
-| `sync_storage`      | `1.0.0` | `active` | `-`      | `tenant_admin`                                             |
-| `tenant_admin`      | `1.0.0` | `active` | `-`      | -                                                          |
-| `tenant_domain`     | `0.1.0` | `active` | `system` | `tenant_admin`, `identity_access`                          |
-| `visitor_analytics` | `0.1.0` | `active` | `system` | `tenant_admin`, `identity_access`, `logging`, `reporting`  |
-| `workflow`          | `1.0.0` | `active` | `-`      | `tenant_admin`, `identity_access`                          |
+| Key                 | Version | Status         | Type     | Dependencies                                               |
+| ------------------- | ------- | -------------- | -------- | ---------------------------------------------------------- |
+| `blog_content`      | `0.8.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                          |
+| `email`             | `0.5.0` | `active`       | `-`      | `tenant_admin`, `profile_identity`, `identity_access`      |
+| `form_drafts`       | `1.0.0` | `active`       | `-`      | `identity_access`                                          |
+| `identity_access`   | `1.0.0` | `active`       | `-`      | `tenant_admin`, `profile_identity`                         |
+| `idn_admin_regions` | `0.1.0` | `experimental` | `base`   | `identity_access`, `logging`, `module_management`          |
+| `logging`           | `1.0.0` | `active`       | `-`      | `tenant_admin`                                             |
+| `module_management` | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`                          |
+| `news_portal`       | `0.3.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                          |
+| `profile_identity`  | `1.0.0` | `active`       | `-`      | `tenant_admin`                                             |
+| `reporting`         | `1.1.0` | `active`       | `-`      | `tenant_admin`, `identity_access`, `sync_storage`, `email` |
+| `sync_storage`      | `1.0.0` | `active`       | `-`      | `tenant_admin`                                             |
+| `tenant_admin`      | `1.0.0` | `active`       | `-`      | -                                                          |
+| `tenant_domain`     | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`                          |
+| `visitor_analytics` | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`, `logging`, `reporting`  |
+| `workflow`          | `1.0.0` | `active`       | `-`      | `tenant_admin`, `identity_access`                          |
 
 ## Migrations
 
-47 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `047_awcms_mini_observability_metrics_permission.sql`).
+48 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `048_awcms_mini_idn_admin_regions_permissions.sql`).
 
 | #   | File                                                              |
 | --- | ----------------------------------------------------------------- |
@@ -78,6 +79,7 @@
 | 045 | `045_awcms_mini_db_role_separation.sql`                           |
 | 046 | `046_awcms_mini_news_media_orphan_lifecycle.sql`                  |
 | 047 | `047_awcms_mini_observability_metrics_permission.sql`             |
+| 048 | `048_awcms_mini_idn_admin_regions_permissions.sql`                |
 
 ## Tables & Row-Level Security
 
@@ -101,15 +103,15 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 
 ## Tests
 
-219 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+221 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
 | `(root)`      | 46         |
 | `e2e`         | 9          |
 | `integration` | 73         |
-| `modules`     | 3          |
-| `unit`        | 88         |
+| `modules`     | 4          |
+| `unit`        | 89         |
 
 ## Routes / Operations (summary)
 

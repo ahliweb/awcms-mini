@@ -40,6 +40,7 @@ Skill Claude Code tingkat-proyek untuk AWCMS-Mini. Setiap skill meng-encode stan
 | `awcms-mini-auth-online-hardening`                     | Kerjakan bagian mana pun epic full-online auth security hardening (Issue #587-#593)         | auth-online-hardening/SKILL.md |
 | `awcms-mini-visitor-analytics`                         | Kerjakan bagian mana pun epic visitor analytics (Issue #617-#624)                           | visitor-analytics/SKILL.md     |
 | `awcms-mini-news-portal`                               | Kerjakan bagian mana pun epic news_portal full-online R2-only media (Issue #631-#642, #649) | news-portal/SKILL.md           |
+| `awcms-mini-idn-admin-regions`                         | Kerjakan bagian mana pun epic master data wilayah administratif Indonesia (Issue #655-#664) | idn-admin-regions/SKILL.md     |
 
 ## Katalog peningkatan (improvement/hardening)
 

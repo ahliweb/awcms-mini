@@ -142,21 +142,25 @@ suite("tenant module preset application service", () => {
     for (const key of ["tenant_domain", "blog_content", "email", "reporting"]) {
       expect(changeByKey.has(key)).toBe(false);
     }
-    // logging/workflow/form_drafts/visitor_analytics/news_portal aren't
-    // listed and nothing (that stays enabled) depends on them, so they're
-    // safely disabled to actually produce the profile. visitor_analytics
-    // itself depends on logging/reporting, but nothing depends on
-    // visitor_analytics — a pure leaf — so it disables cleanly and, once
-    // it's gone, unblocks logging the same way. news_portal (Issue #632)
-    // deliberately declares no hard dependency on blog_content/
-    // tenant_domain/visitor_analytics (see its own module.ts comment), so
-    // it is likewise a pure leaf here.
+    // logging/workflow/form_drafts/visitor_analytics/news_portal/
+    // idn_admin_regions aren't listed and nothing (that stays enabled)
+    // depends on them, so they're safely disabled to actually produce the
+    // profile. visitor_analytics itself depends on logging/reporting, but
+    // nothing depends on visitor_analytics — a pure leaf — so it disables
+    // cleanly and, once it's gone, unblocks logging the same way.
+    // news_portal (Issue #632) deliberately declares no hard dependency on
+    // blog_content/tenant_domain/visitor_analytics (see its own module.ts
+    // comment), so it is likewise a pure leaf here. idn_admin_regions
+    // (Issue #655) depends on identity_access/logging/module_management,
+    // all of which stay enabled, but nothing depends on idn_admin_regions
+    // itself — also a pure leaf.
     for (const key of [
       "logging",
       "workflow",
       "form_drafts",
       "visitor_analytics",
-      "news_portal"
+      "news_portal",
+      "idn_admin_regions"
     ]) {
       expect(changeByKey.get(key)?.outcome).toBe("applied");
       expect(changeByKey.get(key)?.action).toBe("disabled");
@@ -180,6 +184,7 @@ suite("tenant module preset application service", () => {
     expect(state.get("form_drafts")).toBe(false);
     expect(state.get("visitor_analytics")).toBe(false);
     expect(state.get("news_portal")).toBe(false);
+    expect(state.get("idn_admin_regions")).toBe(false);
 
     const auditRows = await fetchAuditActions(owner.tenantId);
     const disabledResourceIds = auditRows
@@ -192,7 +197,8 @@ suite("tenant module preset application service", () => {
         "logging",
         "workflow",
         "visitor_analytics",
-        "news_portal"
+        "news_portal",
+        "idn_admin_regions"
       ].sort()
     );
     // No audit event for modules that were already in the target state.
@@ -280,7 +286,8 @@ suite("tenant module preset application service", () => {
       "workflow",
       "form_drafts",
       "visitor_analytics",
-      "news_portal"
+      "news_portal",
+      "idn_admin_regions"
     ]) {
       expect(state.get(key)).toBe(false);
     }
