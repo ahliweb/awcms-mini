@@ -72,12 +72,7 @@ describe("looksLikeRawSecretToken (Issue #643)", () => {
     expect(looksLikeRawSecretToken("env:SOCIAL_TOKEN_FB_PAGE_42")).toBe(false);
   });
 
-  test("does not flag a reference using any known reference prefix, even a long one", () => {
-    expect(
-      looksLikeRawSecretToken(
-        `ref:${"a".repeat(80)}` // long, but shaped like a known reference prefix, not a bare blob.
-      )
-    ).toBe(false);
+  test("does not flag a reference using any known reference prefix, as long as the remainder itself is short/low-entropy", () => {
     expect(
       looksLikeRawSecretToken(`vault:secret/data/social/telegram#token`)
     ).toBe(false);
@@ -89,10 +84,83 @@ describe("looksLikeRawSecretToken (Issue #643)", () => {
     );
   });
 
+  test("a known reference prefix does NOT exempt a long high-entropy remainder (Issue #731 review round 2 — a prefix only ever exempts a short/low-entropy remainder, never a suffix that itself looks secret-shaped)", () => {
+    expect(looksLikeRawSecretToken(`ref:${"a".repeat(80)}`)).toBe(true);
+  });
+
   test("a long blob-shaped value containing a colon but NOT matching a known reference prefix is still flagged (narrowed exemption)", () => {
     expect(looksLikeRawSecretToken(`${"a".repeat(70)}:${"b".repeat(10)}`)).toBe(
       true
     );
+  });
+
+  describe("adversarial: prefixing a real secret with a recognized reference prefix (Issue #731 review round 2, security-auditor High finding)", () => {
+    // Round 1's fix exempted the WHOLE string from every check whenever it
+    // started with a recognized reference prefix — every shape check here
+    // (JWT excepted) is `^`-anchored to a literal prefix, so prepending
+    // ANY recognized prefix (e.g. "env:", literally what this endpoint's
+    // own validation error tells a rejected caller to use) made a real
+    // token no longer start with its own tell-tale shape, defeating every
+    // check. Fixed by stripping the recognized prefix and re-running the
+    // SAME checks against the remainder, so the remainder itself must
+    // still not look like a raw secret.
+    test("env: + a real Meta/Facebook graph-token-shaped suffix is still flagged", () => {
+      expect(
+        looksLikeRawSecretToken(
+          "env:EAABwzZCZCpvNsBAA1234567890abcdefghijklmnopqrstuvwxyz"
+        )
+      ).toBe(true);
+    });
+
+    test("secretsmanager: + a real Google OAuth-shaped suffix is still flagged", () => {
+      expect(
+        looksLikeRawSecretToken(
+          "secretsmanager:ya29.a0AfH6SMBx1234567890abcdefghijklmnop"
+        )
+      ).toBe(true);
+    });
+
+    test("env: + a real GitHub-style token suffix is still flagged", () => {
+      expect(
+        looksLikeRawSecretToken(
+          "env:ghp_1234567890abcdefghijklmnopqrstuvwxyzABCD"
+        )
+      ).toBe(true);
+    });
+
+    test("env: + a realistic Telegram Bot API token suffix is still flagged", () => {
+      expect(
+        looksLikeRawSecretToken(
+          "env:110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw"
+        )
+      ).toBe(true);
+    });
+
+    test("ref: + a JWT-shaped suffix is still flagged", () => {
+      expect(
+        looksLikeRawSecretToken(
+          "ref:not-a-real-jwt-header-segment.not-a-real-jwt-payload-segment.not-a-real-jwt-signature-segment"
+        )
+      ).toBe(true);
+    });
+
+    test("stacking recognized prefixes on top of a real secret is still flagged", () => {
+      expect(
+        looksLikeRawSecretToken(
+          "env:secretsmanager:EAABwzZCZCpvNsBAA1234567890abcdefghijklmnopqrstuvwxyz"
+        )
+      ).toBe(true);
+    });
+
+    test("legitimate short references still pass after the fix", () => {
+      expect(looksLikeRawSecretToken("secretsmanager:social/fb-page-42")).toBe(
+        false
+      );
+      expect(looksLikeRawSecretToken("env:SOCIAL_TOKEN_FB_PAGE_42")).toBe(
+        false
+      );
+      expect(looksLikeRawSecretToken("env:TELEGRAM_BOT_TOKEN")).toBe(false);
+    });
   });
 });
 

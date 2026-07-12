@@ -37,28 +37,64 @@ export function isValidProviderKey(value: string): boolean {
  * long (64+) high-entropy-looking hex/base64 blob that isn't shaped like a
  * known secret-storage reference convention.
  *
- * Round 1 security-auditor review (PR #731) found the original catch-all
- * blob check exempted ANY colon-containing string from the entropy
- * rejection (intended to whitelist `provider:id`/`env:VAR_NAME`-shaped
- * references) — which incidentally ALSO whitelisted a real Telegram bot
- * token, since that shape contains a colon too. Fixed two ways: (1) an
- * explicit Telegram-token-shaped rejection pattern below, checked before
- * the reference exemption; (2) the exemption itself narrowed from "any
- * colon-containing string" to `KNOWN_SECRET_REFERENCE_PREFIX_PATTERN`, an
- * explicit allow-list of reference prefixes this codebase's own examples
- * use — a value must actually look like one of those conventions to be
- * exempt, not merely contain a colon anywhere.
+ * ## Round 1 -> round 2 security-auditor history (PR #731) — read before
+ * touching this function again
+ *
+ * Round 1 found the original catch-all blob check exempted ANY
+ * colon-containing string from the entropy rejection (intended to
+ * whitelist `provider:id`/`env:VAR_NAME`-shaped references) — which
+ * incidentally ALSO whitelisted a real Telegram bot token, since that
+ * shape contains a colon too. First fix attempt: added an explicit
+ * Telegram-token-shaped rejection pattern, and replaced the blanket
+ * "exempt any colon-containing string" with a `KNOWN_SECRET_REFERENCE_
+ * PREFIX_PATTERN` allow-list, applied by exempting the WHOLE string from
+ * every check whenever it started with a recognized prefix.
+ *
+ * Round 2 proved that "whole string" exemption was itself a NEW, easier
+ * bypass: every shape check here (JWT excepted) is anchored with `^` —
+ * they test "does the value START WITH this known-bad shape." Prepending
+ * ANY recognized prefix (e.g. `env:` — literally the string this
+ * endpoint's own validation error tells a rejected caller to use) makes a
+ * real `EAA...`/`ya29....`/`gh_...`/Telegram-shaped token no longer START
+ * WITH that shape, so every anchored regex naturally stops matching —
+ * concretely reproduced for all four provider shapes prefixed with
+ * `env:`/`secretsmanager:`. Only the JWT check survived (it counts
+ * dot-separated segments, not a fixed literal prefix).
+ *
+ * Fixed by NOT exempting the whole string at all: `looksLikeRawSecretToken`
+ * strips at most `MAX_REFERENCE_PREFIX_STRIPS` recognized reference
+ * prefixes one at a time and re-runs the SAME shape checks
+ * (`matchesKnownRawSecretShape`) against whatever remains after each
+ * strip — a `env:`/`secretsmanager:`-style prefix only ever exempts a
+ * short, low-entropy remainder (an env var name, a short path segment)
+ * from the entropy catch-all; it can never exempt a remainder that itself
+ * still looks like a raw JWT/EAA/ya29/gh_/Telegram token, no matter how
+ * many recognized prefixes are stacked in front of it. Exhausting the
+ * strip budget without reaching a clean, non-secret-shaped remainder is
+ * itself treated as suspicious (a legitimate reference should never need
+ * more than one, maybe two, nested prefixes).
  *
  * Documented as best-effort, NOT foolproof — a sufficiently-determined
- * caller could still smuggle a raw secret past this (e.g. wrapped in a
- * plausible-looking reference string). It complements, never replaces,
- * "no real secret-storage integration ships in this issue" being a known,
- * documented residual (see this module's README/SKILL.md).
+ * caller could still smuggle a raw secret past this (e.g. wrapped in some
+ * shape this function doesn't yet recognize). It complements, never
+ * replaces, "no real secret-storage integration ships in this issue"
+ * being a known, documented residual (see this module's README/SKILL.md).
  */
 const KNOWN_SECRET_REFERENCE_PREFIX_PATTERN =
   /^(secretsmanager|env|ref|vault|kms|ssm):/i;
 
-export function looksLikeRawSecretToken(value: string): boolean {
+/** A legitimate reference should never need more nested prefixes than this — exhausting the budget is itself treated as suspicious (see `looksLikeRawSecretToken`). */
+const MAX_REFERENCE_PREFIX_STRIPS = 5;
+
+/**
+ * The actual shape checks, applied identically whether `value` is the
+ * caller's original, unprefixed input OR the remainder left after
+ * stripping one or more recognized reference prefixes. Never applies any
+ * prefix-based exemption itself — that logic lives only in
+ * `looksLikeRawSecretToken`, which decides WHEN to call this (on the raw
+ * value, and again on each successively-stripped remainder).
+ */
+function matchesKnownRawSecretShape(value: string): boolean {
   if (value.split(".").length === 3 && value.length > 40) {
     // JWT-shaped: header.payload.signature, each segment base64url.
     return true;
@@ -77,25 +113,44 @@ export function looksLikeRawSecretToken(value: string): boolean {
   }
 
   if (/^\d{6,10}:[A-Za-z0-9_-]{30,45}$/.test(value)) {
-    // Telegram Bot API token shape — checked before the reference-prefix
-    // exemption below so a real bot token is never exempted just because
-    // it happens to contain a colon.
+    // Telegram Bot API token shape.
     return true;
   }
 
-  if (
-    /^[A-Za-z0-9+/:_-]{64,}={0,2}$/.test(value) &&
-    !KNOWN_SECRET_REFERENCE_PREFIX_PATTERN.test(value)
-  ) {
-    // Charset deliberately INCLUDES `:` (unlike the original check) so a
-    // long, colon-containing value is not silently exempted from the
-    // entropy rejection purely because it contains a colon — it must
-    // actually start with one of `KNOWN_SECRET_REFERENCE_PREFIX_PATTERN`'s
-    // recognized prefixes to be exempt.
+  if (/^[A-Za-z0-9+/:_-]{64,}={0,2}$/.test(value)) {
+    // Long, high-entropy-looking blob — charset includes `:` so a value
+    // is never exempted from this purely for containing one; the only
+    // way a colon-containing value avoids this check is via the
+    // recognized-prefix-strip-and-recheck flow in
+    // `looksLikeRawSecretToken`, never here.
     return true;
   }
 
   return false;
+}
+
+export function looksLikeRawSecretToken(value: string): boolean {
+  let remainder = value;
+
+  for (let strips = 0; strips <= MAX_REFERENCE_PREFIX_STRIPS; strips += 1) {
+    if (matchesKnownRawSecretShape(remainder)) {
+      return true;
+    }
+
+    const prefixMatch = remainder.match(KNOWN_SECRET_REFERENCE_PREFIX_PATTERN);
+
+    if (!prefixMatch) {
+      return false;
+    }
+
+    remainder = remainder.slice(prefixMatch[0].length);
+  }
+
+  // Exhausted the strip budget without the remainder ever resolving to
+  // either a recognized raw-secret shape or a prefix-free, non-secret-
+  // shaped value — too many nested reference prefixes for a legitimate
+  // reference to plausibly need. Treat as suspicious.
+  return true;
 }
 
 export type CreateSocialAccountInput = {
