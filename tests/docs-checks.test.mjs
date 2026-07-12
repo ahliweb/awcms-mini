@@ -11,7 +11,9 @@ import {
   checkNaming,
   extractLinks,
   classifyLink,
-  splitTarget
+  splitTarget,
+  parseComposeServiceNames,
+  checkComposeServiceNames
 } from "../scripts/lib/docs-checks.mjs";
 
 /** @param {string} s */
@@ -175,5 +177,87 @@ describe("splitTarget", () => {
       path: "./a/b.md",
       hash: undefined
     });
+  });
+});
+
+describe("parseComposeServiceNames", () => {
+  test("mengekstrak service dari blok services: saja", () => {
+    const yaml = [
+      "services:",
+      "  db:",
+      "    image: postgres:18.4",
+      "  app:",
+      "    build: .",
+      "volumes:",
+      "  awcms-mini-db-data:",
+      "networks:",
+      "  default:"
+    ].join("\n");
+    expect(parseComposeServiceNames(yaml)).toEqual(new Set(["db", "app"]));
+  });
+
+  test("tidak salah tangkap key top-level lain sebagai service", () => {
+    const yaml = ["volumes:", "  db-data:", "services:", "  app:"].join("\n");
+    expect(parseComposeServiceNames(yaml)).toEqual(new Set(["app"]));
+  });
+});
+
+describe("checkComposeServiceNames", () => {
+  const services = new Set(["db", "app", "pgbouncer"]);
+
+  test("service benar (fenced block) tidak menghasilkan temuan", () => {
+    const md = ["```bash", "docker compose up -d db", "```"].join("\n");
+    expect(checkComposeServiceNames("f.md", md, services)).toEqual([]);
+  });
+
+  test("service salah dilaporkan dengan nomor baris", () => {
+    const md = ["```bash", "docker compose up -d postgres", "```"].join("\n");
+    const problems = checkComposeServiceNames("f.md", md, services);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]?.line).toBe(2);
+    expect(problems[0]?.message).toContain("postgres");
+  });
+
+  test("baris komentar penuh (# di awal) tetap divalidasi", () => {
+    const md = ["```bash", "# docker compose up -d postgres", "```"].join("\n");
+    const problems = checkComposeServiceNames("f.md", md, services);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]?.message).toContain("postgres");
+  });
+
+  test("komentar shell trailing di akhir baris diabaikan (bukan argumen)", () => {
+    const md = [
+      "```bash",
+      "docker compose up --build           # app + db saja",
+      "```"
+    ].join("\n");
+    expect(checkComposeServiceNames("f.md", md, services)).toEqual([]);
+  });
+
+  test("exec/run: hanya token pertama divalidasi sebagai service", () => {
+    const ok = "`docker compose exec -T app bun run email:dispatch`";
+    expect(checkComposeServiceNames("f.md", ok, services)).toEqual([]);
+
+    const bad = "`docker compose exec -T postgres bun run email:dispatch`";
+    const problems = checkComposeServiceNames("f.md", bad, services);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]?.message).toContain("postgres");
+  });
+
+  test("subcommand tanpa semantik service (config) tidak divalidasi", () => {
+    const md = "bukan hanya `docker compose config`: catatan lain di sini";
+    expect(checkComposeServiceNames("f.md", md, services)).toEqual([]);
+  });
+
+  test("prosa narasi setelah span kode pada baris yang sama tidak ikut tertelan", () => {
+    const md =
+      "diverifikasi lewat `docker compose config` di atas issue ini adalah backlog";
+    expect(checkComposeServiceNames("f.md", md, services)).toEqual([]);
+  });
+
+  test("dokumen tanpa docker compose menghasilkan array kosong", () => {
+    expect(
+      checkComposeServiceNames("f.md", "teks biasa saja", services)
+    ).toEqual([]);
   });
 });

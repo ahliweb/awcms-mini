@@ -37,7 +37,7 @@ flowchart LR
 ```bash
 bun install
 # foundation skeleton sudah tersedia; jalankan gate penuh:
-# docker compose up -d postgres
+# docker compose up -d db
 # cp .env.example .env
 # bun run db:migrate && bun run dev
 ```

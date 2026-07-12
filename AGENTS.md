@@ -135,9 +135,10 @@ AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode sta
 
 **Maintenance/tooling (jaga artefak mekanis tetap sinkron):**
 
-| Butuh…                                               | Skill                        |
-| ---------------------------------------------------- | ---------------------------- |
-| Refresh snapshot docs GitHub (issue/label/milestone) | `awcms-mini-github-snapshot` |
+| Butuh…                                                    | Skill                        |
+| --------------------------------------------------------- | ---------------------------- |
+| Refresh snapshot docs GitHub (issue/label/milestone)      | `awcms-mini-github-snapshot` |
+| Regenerate inventori modul/migration/tabel-RLS/test/route | `awcms-mini-repo-inventory`  |
 
 ```mermaid
 flowchart LR
@@ -215,7 +216,7 @@ berjalan, bukan target/rencana:
 
 ```bash
 bun install
-bun run check                    # gate lengkap: lint + check:docs + api:spec:check + api:docs:check + modules:dag:check + i18n:pot:check + i18n:parity:check + config:docs:check + logging:lint:check + typecheck + test + build
+bun run check                    # gate lengkap: lint + check:docs + api:spec:check + api:docs:check + repo:inventory:check + modules:dag:check + i18n:pot:check + i18n:parity:check + config:docs:check + logging:lint:check + typecheck + test + build
 bun run dev                      # bun --bun astro dev
 bun run build                    # bun --bun astro build
 bun run preview                  # bun --bun astro preview
@@ -225,6 +226,8 @@ bun run api:spec:check           # validasi OpenAPI/AsyncAPI baseline (route par
 bun run openapi:bundle           # generate openapi/awcms-mini-public-api.openapi.yaml dari fragment openapi/awcms-mini-public-api.src.yaml + openapi/modules/*.yaml (Issue #695) — jalankan sebelum commit tiap kali fragment sumber berubah
 bun run api:docs:generate        # generate docs/awcms-mini/api-reference.md (referensi API & event manusiawi) dari kontrak OpenAPI/AsyncAPI ter-bundle (Issue #700) — jalankan sebelum commit tiap kali kontrak ter-bundle berubah
 bun run api:docs:check           # validasi docs/awcms-mini/api-reference.md tidak stale relatif kontrak ter-bundle (read-only, bagian dari `bun run check`, Issue #700)
+bun run repo:inventory:generate  # generate docs/awcms-mini/repo-inventory.md (modul, migration, tabel/RLS, test) dari registry/sql/tests/kontrak ter-bundle (Issue #688, epic #679) — jalankan sebelum commit tiap kali modul/migration/test/route berubah
+bun run repo:inventory:check     # validasi docs/awcms-mini/repo-inventory.md tidak stale relatif regenerasi (read-only, bagian dari `bun run check`, Issue #688)
 bun run lint                     # prettier --check
 bun run format                   # prettier --write
 bun run check:docs               # validasi mermaid, tautan internal, penamaan
@@ -303,11 +306,22 @@ awcms-mini/
 
 ## Peta modul
 
-`_shared`, `tenant-admin`, `identity-access`, `profile-identity`, `sync-storage`, `localization-ui`, `observability-logging`, `database-connectivity`, `workflow-approval`, `management-reporting`, `ui-experience`, `production-security-readiness`.
+Modul **base generik** yang terdaftar di registry (`src/modules/index.ts` `listModules()`, lihat juga inventori GENERATED `docs/awcms-mini/repo-inventory.md` §Modules untuk daftar hidup key/versi/status):
 
-Ini adalah modul **base generik** milik AWCMS-Mini sendiri. Modul domain (mis. katalog produk, POS, gudang, pajak, CRM, AI analyst) pada umumnya **bukan bagian repo ini** — itu ditambahkan di aplikasi turunan contoh (mis. AWPOS) di atas base ini; lihat `docs/awcms-mini/README.md` §Reusable vs domain turunan.
+`tenant-admin` (`tenant_admin`), `profile-identity` (`profile_identity`), `identity-access` (`identity_access`), `sync-storage` (`sync_storage`), `reporting` (`reporting`), `logging` (`logging`), `workflow-approval` (`workflow`), `form-drafts` (`form_drafts`), `email` (`email`), `module-management` (`module_management`).
 
-**Pengecualian:** `blog-content` (`src/modules/blog-content`, key `blog_content`) adalah modul domain pertama yang didaftarkan **langsung** di repo base ini (epic #536, Issue #537 dst., `docs/adr/0009-public-tenant-scoped-routes.md`) — bukan di aplikasi turunan terpisah. Perlakukan sebagai contoh referensi domain module di atas base, bukan preseden untuk memindahkan modul domain lain (POS, gudang, dst.) ke repo ini.
+`_shared` (`src/modules/_shared`) bukan modul terdaftar — berisi kontrak/tipe bersama (`module-contract.ts`, dsb.) yang dipakai seluruh modul lain.
+
+Sejumlah concern lintas-modul (i18n/localization, observability wiring, database pooling, komponen UI, production/security readiness) **tidak** punya direktori `src/modules/` sendiri — mereka hidup di `src/lib/` (`i18n/`, `observability/`, `database/`, `security/`, dst.), `src/components/ui/`, dan `scripts/` (mis. `security-readiness.ts`, `production-preflight.ts`). Jangan cari/tambahkan direktori modul untuk concern ini; ikuti struktur yang sudah ada.
+
+Modul domain (mis. katalog produk, POS, gudang, pajak, CRM, AI analyst) pada umumnya **bukan bagian repo ini** — itu ditambahkan di aplikasi turunan contoh (mis. AWPOS) di atas base ini; lihat `docs/awcms-mini/README.md` §Reusable vs domain turunan.
+
+**Pengecualian:** empat modul domain didaftarkan **langsung** di repo base ini sebagai contoh referensi (bukan preseden untuk memindahkan modul domain lain seperti POS/gudang ke repo ini):
+
+- `blog-content` (`blog_content`) — epic #536, Issue #537 dst., `docs/adr/0009-public-tenant-scoped-routes.md`.
+- `tenant-domain` (`tenant_domain`) — epic #555 tenant domain routing, `docs/adr/0010-public-host-tenant-routing.md`.
+- `visitor-analytics` (`visitor_analytics`) — epic #617-#624.
+- `news-portal` (`news_portal`) — epic #631-#642, #649.
 
 Struktur tiap modul: `module.ts`, `domain/`, `application/`, `infrastructure/`, `api/`, `README.md`.
 
@@ -391,6 +405,7 @@ Next recommended step:
 | Keputusan arsitektural (ADR)                                       | `docs/adr/README.md`                                        |
 | Tata kelola, kontribusi, keamanan repo                             | `GOVERNANCE.md`, `CONTRIBUTING.md`, `SECURITY.md`           |
 | Snapshot GitHub issue aktual, label, milestone, dan proses refresh | `docs/awcms-mini/github/README.md`                          |
+| Inventori GENERATED modul/migration/tabel-RLS/test/route           | `docs/awcms-mini/repo-inventory.md`                         |
 
 ## Mulai dari sini
 

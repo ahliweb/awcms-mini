@@ -40,7 +40,7 @@ git clone <repo-awcms-mini>
 cd awcms-mini
 bun install
 cp .env.example .env
-docker compose up -d postgres
+docker compose up -d db
 bun run db:migrate
 bun run api:spec:check
 bun run build

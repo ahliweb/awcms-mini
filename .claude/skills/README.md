@@ -57,9 +57,10 @@ Skill di bawah bersifat **peningkatan** — menilai & menaikkan mutu artefak yan
 Skill di bawah bukan build fitur maupun audit — murni menjaga artefak
 mekanis (docs snapshot, dsb.) tetap sinkron dengan state eksternal.
 
-| Skill                        | Kapan dipakai                                                                                    | Sumber docs      |
-| ---------------------------- | ------------------------------------------------------------------------------------------------ | ---------------- |
-| `awcms-mini-github-snapshot` | Refresh `docs/awcms-mini/github/` setelah issue/label/milestone/security alert berubah di GitHub | github/README.md |
+| Skill                        | Kapan dipakai                                                                                    | Sumber docs             |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------- |
+| `awcms-mini-github-snapshot` | Refresh `docs/awcms-mini/github/` setelah issue/label/milestone/security alert berubah di GitHub | github/README.md        |
+| `awcms-mini-repo-inventory`  | Regenerate `docs/awcms-mini/repo-inventory.md` setelah menambah modul/migration/tabel/test/route | repo-inventory/SKILL.md |
 
 ## Peta pemakaian
 

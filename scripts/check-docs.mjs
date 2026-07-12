@@ -6,6 +6,8 @@
  *  1. Mermaid: setiap blok ```mermaid tertutup dan diawali tipe diagram dikenal.
  *  2. Tautan relatif Markdown menunjuk ke berkas/anchor yang ada.
  *  3. Regresi penamaan identifier `awcms-mini_` / `AWCMS-Mini_`.
+ *  4. Nama service `docker compose`/`docker-compose` dalam prosa benar-benar
+ *     ada di `docker-compose*.yml` (Issue #688, epic #679).
  *
  * Logika murni ada di `scripts/lib/docs-checks.mjs`; berkas ini menangani
  * I/O (git, filesystem) dan exit code. Jalankan: `bun run check:docs`.
@@ -19,10 +21,32 @@ import {
   extractLinks,
   classifyLink,
   splitTarget,
-  headingSlugs
+  headingSlugs,
+  parseComposeServiceNames,
+  checkComposeServiceNames
 } from "./lib/docs-checks.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
+
+/**
+ * Union of service names from every `docker-compose*.yml` at repo root —
+ * Issue #688. Both files are read once at startup; a service defined in
+ * either is considered valid in prose (docs don't distinguish which
+ * compose file a given walkthrough targets).
+ * @returns {Set<string>}
+ */
+function loadComposeServiceNames() {
+  /** @type {Set<string>} */
+  const names = new Set();
+  for (const file of ["docker-compose.yml", "docker-compose.prod.yml"]) {
+    const full = join(ROOT, file);
+    if (!existsSync(full)) continue;
+    for (const name of parseComposeServiceNames(readFileSync(full, "utf8"))) {
+      names.add(name);
+    }
+  }
+  return names;
+}
 
 /** @typedef {import("./lib/docs-checks.mjs").Problem} Problem */
 
@@ -96,12 +120,16 @@ function checkLinks(file, content) {
 export function runChecks() {
   /** @type {Problem[]} */
   const problems = [];
+  const composeServiceNames = loadComposeServiceNames();
   for (const file of listMarkdown()) {
     const content = readFileSync(join(ROOT, file), "utf8");
     const lines = content.split("\n");
     problems.push(...checkMermaid(file, lines));
     problems.push(...checkLinks(file, content));
     problems.push(...checkNaming(file, lines));
+    problems.push(
+      ...checkComposeServiceNames(file, content, composeServiceNames)
+    );
   }
   return problems;
 }
@@ -114,5 +142,7 @@ if (import.meta.main) {
       console.error(`  - ${p.file}:${p.line}: ${p.message}`);
     process.exit(1);
   }
-  console.log("check:docs OK — mermaid, tautan internal, dan penamaan valid.");
+  console.log(
+    "check:docs OK — mermaid, tautan internal, penamaan, dan nama service docker compose valid."
+  );
 }
