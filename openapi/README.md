@@ -46,6 +46,20 @@ Both `bun run openapi:bundle` and `bun run api:spec:check` run entirely
 offline against files already in the repo — no network access, no external
 CLI.
 
+## Readable reference documentation (Issue #700)
+
+[`docs/awcms-mini/api-reference.md`](../docs/awcms-mini/api-reference.md) is
+a GENERATED, human-readable Markdown reference — built from this bundled
+OpenAPI file plus
+[`asyncapi/awcms-mini-domain-events.asyncapi.yaml`](../asyncapi/awcms-mini-domain-events.asyncapi.yaml)
+by `bun run api:docs:generate` (`scripts/api-docs-generate.ts`). It covers
+every operation/event, the standard success/error envelope, auth/tenant
+context/pagination/idempotency/correlation conventions, and the
+deprecation policy, with synthetic (never real) example values. Regenerate
+it whenever the bundled contracts change; `bun run api:docs:check` (part of
+`bun run check`) fails the build if it's stale, same pattern as
+`checkBundleFreshness` above.
+
 ## What `api:spec:check` verifies (`scripts/api-spec-check.ts`)
 
 - OpenAPI/AsyncAPI documents are present, well-formed, and declare the
