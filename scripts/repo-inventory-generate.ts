@@ -147,11 +147,30 @@ function extractTables(sqlContent: string, fileLabel: string): TableInfo[] {
   return tables;
 }
 
-function extractRlsEnabledTables(sqlContent: string): Set<string> {
+/**
+ * Strips `--` line comments before RLS-statement matching so a
+ * commented-out `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` (e.g. left
+ * behind while debugging a migration) isn't counted as actually enabling
+ * RLS — reviewer finding on PR #722: the previous version matched against
+ * raw file content, so a disabled statement was indistinguishable from a
+ * live one. `extractTables`'s `CREATE TABLE` match is already per-line
+ * anchored (`^CREATE TABLE`) and unaffected by this same class of bug.
+ */
+function stripSqlLineComments(sqlContent: string): string {
+  return sqlContent
+    .split("\n")
+    .map((line) => {
+      const idx = line.indexOf("--");
+      return idx === -1 ? line : line.slice(0, idx);
+    })
+    .join("\n");
+}
+
+export function extractRlsEnabledTables(sqlContent: string): Set<string> {
   const enabled = new Set<string>();
   const pattern =
     /ALTER TABLE (?:IF EXISTS )?([a-zA-Z0-9_.]+) ENABLE ROW LEVEL SECURITY/g;
-  for (const match of sqlContent.matchAll(pattern)) {
+  for (const match of stripSqlLineComments(sqlContent).matchAll(pattern)) {
     enabled.add(match[1]!);
   }
   return enabled;
@@ -189,7 +208,7 @@ async function countTestFiles(
   return { file: total, dirCounts };
 }
 
-function mdEscape(value: string): string {
+export function mdEscape(value: string): string {
   // Escape backslashes FIRST, then pipes (same CodeQL "incomplete string
   // escaping" class already fixed once in api-docs-generate.ts, Issue #700
   // PR #717): escaping only `|` leaves a literal backslash already in a

@@ -12,7 +12,9 @@ import path from "node:path";
 import {
   REPO_INVENTORY_PATH,
   RLS_EXEMPT_TABLES,
-  buildRepoInventoryMarkdown
+  buildRepoInventoryMarkdown,
+  extractRlsEnabledTables,
+  mdEscape
 } from "../../scripts/repo-inventory-generate";
 import { runRepoInventoryCheck } from "../../scripts/repo-inventory-check";
 import { listModules } from "../../src/modules";
@@ -70,6 +72,40 @@ describe("buildRepoInventoryMarkdown content coverage", () => {
     const markdown = await buildRepoInventoryMarkdown();
     expect(markdown).toContain("GENERATED FILE");
     expect(markdown).toContain("bun run repo:inventory:generate");
+  });
+});
+
+describe("extractRlsEnabledTables", () => {
+  test("a commented-out ALTER TABLE ... ENABLE ROW LEVEL SECURITY is not counted as enabled (reviewer finding, PR #722)", () => {
+    const sql = [
+      "CREATE TABLE example (id uuid PRIMARY KEY, tenant_id uuid NOT NULL);",
+      "-- ALTER TABLE example ENABLE ROW LEVEL SECURITY;"
+    ].join("\n");
+    expect(extractRlsEnabledTables(sql).has("example")).toBe(false);
+  });
+
+  test("a live (uncommented) statement is still counted as enabled", () => {
+    const sql = [
+      "CREATE TABLE example (id uuid PRIMARY KEY, tenant_id uuid NOT NULL);",
+      "ALTER TABLE example ENABLE ROW LEVEL SECURITY;"
+    ].join("\n");
+    expect(extractRlsEnabledTables(sql).has("example")).toBe(true);
+  });
+});
+
+describe("mdEscape", () => {
+  test("a literal backslash immediately before a pipe does not leave the pipe unescaped (CodeQL js/incomplete-sanitization, PR #722)", () => {
+    // Escaping only `|` (the pre-fix version) would turn `a\|b` into
+    // `a\\|b` — an even number of backslashes in front of the pipe means
+    // the pipe is still a live, unescaped table-cell delimiter under GFM's
+    // backslash-escaping rules. Escaping backslashes first closes this.
+    const escaped = mdEscape("a\\|b");
+    const backslashesBeforePipeIndex = escaped.indexOf("|");
+    let runLength = 0;
+    for (let i = backslashesBeforePipeIndex - 1; escaped[i] === "\\"; i--) {
+      runLength++;
+    }
+    expect(runLength % 2).toBe(1);
   });
 });
 

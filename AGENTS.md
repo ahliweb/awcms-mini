@@ -316,12 +316,12 @@ Sejumlah concern lintas-modul (i18n/localization, observability wiring, database
 
 Modul domain (mis. katalog produk, POS, gudang, pajak, CRM, AI analyst) pada umumnya **bukan bagian repo ini** — itu ditambahkan di aplikasi turunan contoh (mis. AWPOS) di atas base ini; lihat `docs/awcms-mini/README.md` §Reusable vs domain turunan.
 
-**Pengecualian:** empat modul domain didaftarkan **langsung** di repo base ini sebagai contoh referensi (bukan preseden untuk memindahkan modul domain lain seperti POS/gudang ke repo ini):
+**Pengecualian:** empat modul didaftarkan **langsung** di repo base ini sebagai contoh referensi (bukan preseden untuk memindahkan modul domain lain seperti POS/gudang ke repo ini) — dua bertipe `domain` (fitur bisnis tenant) dan dua bertipe `system` (infrastruktur platform bersama, lihat kolom Type di `docs/awcms-mini/repo-inventory.md` §Modules untuk status hidup):
 
-- `blog-content` (`blog_content`) — epic #536, Issue #537 dst., `docs/adr/0009-public-tenant-scoped-routes.md`.
-- `tenant-domain` (`tenant_domain`) — epic #555 tenant domain routing, `docs/adr/0010-public-host-tenant-routing.md`.
-- `visitor-analytics` (`visitor_analytics`) — epic #617-#624.
-- `news-portal` (`news_portal`) — epic #631-#642, #649.
+- `blog-content` (`blog_content`, `type: domain`) — epic #536, Issue #537 dst., `docs/adr/0009-public-tenant-scoped-routes.md`.
+- `news-portal` (`news_portal`, `type: domain`) — epic #631-#642, #649.
+- `tenant-domain` (`tenant_domain`, `type: system`) — epic #555 tenant domain routing, `docs/adr/0010-public-host-tenant-routing.md`.
+- `visitor-analytics` (`visitor_analytics`, `type: system`) — epic #617-#624.
 
 Struktur tiap modul: `module.ts`, `domain/`, `application/`, `infrastructure/`, `api/`, `README.md`.
 

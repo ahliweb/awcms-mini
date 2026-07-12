@@ -274,6 +274,17 @@ const COMPOSE_VALUE_FLAGS = new Set([
   "--env-file"
 ]);
 
+/**
+ * Per-subcommand override: flags that are BOOLEAN for that specific
+ * subcommand even though `COMPOSE_VALUE_FLAGS` lists the same token as
+ * value-taking elsewhere — `-f`/`--follow` means "tail the log stream" for
+ * `docker compose logs`, not "read this compose file", so it must never
+ * swallow the next token (which is the actual service name being checked).
+ */
+const COMPOSE_BOOLEAN_FLAG_OVERRIDES = new Map([
+  ["logs", new Set(["-f", "--follow"])]
+]);
+
 const COMPOSE_COMMAND_PATTERN =
   /\bdocker(?:-compose|\s+compose)\s+([a-zA-Z][\w-]*)((?:\s+\S+)*)/g;
 
@@ -295,12 +306,14 @@ function findComposeServiceCandidates(snippet) {
   const rest = (match[2] ?? "").trim();
   const tokens = rest.length > 0 ? rest.split(/\s+/) : [];
 
+  const booleanOverrides = COMPOSE_BOOLEAN_FLAG_OVERRIDES.get(subcommand);
+
   /** @type {string[]} */
   const positional = [];
   for (let t = 0; t < tokens.length; t++) {
     const token = tokens[t] ?? "";
     if (token.startsWith("-")) {
-      if (COMPOSE_VALUE_FLAGS.has(token)) t++;
+      if (!booleanOverrides?.has(token) && COMPOSE_VALUE_FLAGS.has(token)) t++;
       continue;
     }
     positional.push(token);

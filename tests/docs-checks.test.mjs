@@ -260,4 +260,19 @@ describe("checkComposeServiceNames", () => {
       checkComposeServiceNames("f.md", "teks biasa saja", services)
     ).toEqual([]);
   });
+
+  test("logs -f: -f berarti --follow (boolean), bukan file value — service sesudahnya tetap divalidasi (reviewer finding, PR #722)", () => {
+    const ok = "`docker compose logs -f app`";
+    expect(checkComposeServiceNames("f.md", ok, services)).toEqual([]);
+
+    const bad = "`docker compose logs -f totallyfakeservice`";
+    const problems = checkComposeServiceNames("f.md", bad, services);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]?.message).toContain("totallyfakeservice");
+  });
+
+  test("build --env-file: -f override tetap khusus subcommand logs, tidak bocor ke subcommand lain", () => {
+    const md = "`docker compose build --env-file .env.ci app`";
+    expect(checkComposeServiceNames("f.md", md, services)).toEqual([]);
+  });
 });
