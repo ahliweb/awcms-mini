@@ -320,7 +320,7 @@ describe("applyInternalTagLinksToHtml (Issue #641)", () => {
     // of this name in prose would already read as escaped entities.
     const maliciousName = '"><script>alert(1)</script>';
     const html =
-      '<p>Warning: &quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt; was mentioned.</p>';
+      "<p>Warning: &quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt; was mentioned.</p>";
     const result = await applyInternalTagLinksToHtml(
       html,
       [candidate("t1", maliciousName, "/news/tag/malicious")],
