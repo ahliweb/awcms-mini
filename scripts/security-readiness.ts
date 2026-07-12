@@ -57,6 +57,10 @@ import {
 import { evaluateNewsPortalFullOnlineR2Readiness } from "../src/modules/news-portal/domain/news-portal-preset-readiness";
 import { isSocialPublishingEnabled } from "../src/modules/social-publishing/domain/social-publishing-config";
 import { getSocialProviderAdapter } from "../src/modules/social-publishing/infrastructure/social-provider-registry";
+import {
+  isMetaProviderEnabled,
+  loadMetaProviderConfig
+} from "../src/modules/social-publishing/domain/meta-provider-config";
 
 export type CheckSeverity = "critical" | "warning" | "info";
 export type CheckStatus = "pass" | "fail";
@@ -2176,6 +2180,171 @@ export async function checkSocialPublishingProviderReadiness(
   }
 }
 
+const META_SOCIAL_PUBLISHING_PROVIDER_KEYS = [
+  "meta_facebook_page",
+  "meta_instagram"
+];
+
+/**
+ * Meta adapter account-level readiness (Issue #644 acceptance criterion:
+ * "Readiness check reports missing Meta config, missing scopes, expired
+ * token, or unsupported account type"). The "missing Meta config" half is
+ * `checkMetaSocialPublishingProviderConfig` (`bun run config:validate`) —
+ * this is the OTHER half, which needs real tenant data (connected account
+ * rows) `config:validate` never touches. No-op pass when
+ * `SOCIAL_PUBLISHING_ENABLED` or `META_PROVIDER_ENABLED` isn't `"true"`,
+ * same conditional-feature convention every other check in this file uses.
+ */
+export async function checkMetaSocialPublishingAccountReadiness(
+  env: NodeJS.ProcessEnv = process.env
+): Promise<SecurityCheckResult> {
+  const name =
+    "Social publishing: Meta connected accounts are configured and healthy (Issue #644)";
+  const severity: CheckSeverity = "critical";
+
+  if (!isSocialPublishingEnabled(env)) {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        'SOCIAL_PUBLISHING_ENABLED is not "true" — social publishing is disabled, no Meta account readiness required.'
+    };
+  }
+
+  if (!isMetaProviderEnabled(env)) {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        'META_PROVIDER_ENABLED is not "true" — Meta adapter is disabled, no Meta account readiness required.'
+    };
+  }
+
+  const config = loadMetaProviderConfig(env);
+
+  if (!config) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence:
+        "META_PROVIDER_ENABLED=true but META_* config is missing/malformed — see checkMetaSocialPublishingProviderConfig (bun run config:validate)."
+    };
+  }
+
+  try {
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL is not set.");
+    }
+
+    const sql = getDatabaseClient();
+    const tenants = (await sql<{ id: string }[]>`
+      SELECT id FROM awcms_mini_tenants WHERE status = 'active'
+    `) as { id: string }[];
+
+    const problems: string[] = [];
+    const erroredTenants: string[] = [];
+
+    for (const tenant of tenants) {
+      const tenantId = assertUuid(tenant.id);
+
+      try {
+        await sql.begin(async (tx) => {
+          await tx.unsafe(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
+
+          const rows = (await tx`
+            SELECT id, provider_key, provider_account_type, expires_at, scopes_json
+            FROM awcms_mini_social_accounts
+            WHERE connection_status = 'connected'
+              AND provider_key = ANY(${tx.array(META_SOCIAL_PUBLISHING_PROVIDER_KEYS, "text")})
+          `) as {
+            id: string;
+            provider_key: string;
+            provider_account_type: string;
+            expires_at: Date | null;
+            scopes_json: unknown;
+          }[];
+
+          for (const row of rows) {
+            const adapter = getSocialProviderAdapter(row.provider_key);
+
+            if (
+              adapter?.supportedAccountTypes &&
+              !adapter.supportedAccountTypes.includes(
+                row.provider_account_type as never
+              )
+            ) {
+              problems.push(
+                `account ${row.id} (tenant ${tenantId}): unsupported account type "${row.provider_account_type}" for provider "${row.provider_key}"`
+              );
+            }
+
+            if (
+              row.expires_at &&
+              new Date(row.expires_at).getTime() < Date.now()
+            ) {
+              problems.push(
+                `account ${row.id} (tenant ${tenantId}): token expired at ${new Date(row.expires_at).toISOString()}`
+              );
+            }
+
+            const grantedScopes = Array.isArray(row.scopes_json)
+              ? (row.scopes_json as unknown[]).filter(
+                  (scope): scope is string => typeof scope === "string"
+                )
+              : [];
+            const missingScopes = config.requiredScopes.filter(
+              (scope) => !grantedScopes.includes(scope)
+            );
+
+            if (missingScopes.length > 0) {
+              problems.push(
+                `account ${row.id} (tenant ${tenantId}): missing required scope(s) ${missingScopes.join(", ")}`
+              );
+            }
+          }
+        });
+      } catch (error) {
+        erroredTenants.push(`${tenantId} (${errorMessage(error)})`);
+      }
+    }
+
+    if (problems.length > 0 || erroredTenants.length > 0) {
+      const parts: string[] = [];
+
+      if (problems.length > 0) {
+        parts.push(
+          `${problems.length} Meta account readiness problem(s): ${problems.join("; ")}.`
+        );
+      }
+
+      if (erroredTenants.length > 0) {
+        parts.push(
+          `${erroredTenants.length} tenant(s) could not be checked: ${erroredTenants.join("; ")}.`
+        );
+      }
+
+      return { name, severity, status: "fail", evidence: parts.join(" ") };
+    }
+
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence: `Every connected Meta account across ${tenants.length} active tenant(s) has a supported account type, unexpired token, and all required scopes (or none are connected yet).`
+    };
+  } catch (error) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `Could not verify Meta social publishing account readiness: ${errorMessage(error)}.`
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Out-of-scope items — printed as their own report section, never silently
 // dropped.
@@ -2256,6 +2425,7 @@ export async function runSecurityReadinessChecks(): Promise<
     checkNewsMediaR2PublicBaseUrlProductionSafe(),
     await checkNewsMediaR2NoStalePendingObjects(),
     await checkSocialPublishingProviderReadiness(),
+    await checkMetaSocialPublishingAccountReadiness(),
     await checkErrorsDontLeakStackTraces(),
     await checkSecurityHeadersPresent(),
     checkLoginRateLimitImplemented()

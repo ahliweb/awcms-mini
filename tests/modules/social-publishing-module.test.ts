@@ -75,7 +75,12 @@ describe("social_publishing module descriptor (Issue #643)", () => {
     expect(socialPublishingModule.events?.asyncApiPath).toBe(
       "asyncapi/awcms-mini-domain-events.asyncapi.yaml"
     );
-    expect(socialPublishingModule.events?.publishes?.length).toBe(15);
+    // 15 from Issue #643 (foundation) + 1 from Issue #644 (Meta adapter's
+    // "verify connection" success outcome, `account.verified`).
+    expect(socialPublishingModule.events?.publishes?.length).toBe(16);
+    expect(socialPublishingModule.events?.publishes).toContain(
+      "awcms-mini.social-publishing.account.verified"
+    );
   });
 
   test("settings/health remain undeclared — no per-tenant setting or health check exists yet for this module specifically", () => {

@@ -117,6 +117,15 @@ msgstr "Sistem sedang sibuk. Coba lagi sebentar."
 msgid "error.provider_error"
 msgstr "Layanan eksternal gagal. Coba lagi."
 
+msgid "error.provider_not_registered"
+msgstr "Tidak ada adapter provider yang terdaftar untuk koneksi ini."
+
+msgid "error.social_account_needs_reauth"
+msgstr "Koneksi akun ini sudah tidak valid dan harus dihubungkan ulang."
+
+msgid "error.social_account_unsupported_type"
+msgstr "Provider ini tidak mendukung tipe akun tersebut."
+
 msgid "error.internal_error"
 msgstr "Terjadi kesalahan. Coba lagi."
 
@@ -2823,6 +2832,12 @@ msgstr "Referensi buram ke secret storage Anda (mis. nama key di secrets manager
 
 msgid "admin.social_publishing.accounts.update_success"
 msgstr "Akun sosial berhasil diperbarui."
+
+msgid "admin.social_publishing.accounts.verify_button"
+msgstr "Verifikasi koneksi"
+
+msgid "admin.social_publishing.accounts.verify_success"
+msgstr "Koneksi terverifikasi — kredensial saat ini valid."
 
 msgid "admin.social_publishing.jobs.approve_button"
 msgstr "Setujui"

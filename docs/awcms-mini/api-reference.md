@@ -4932,6 +4932,35 @@ High-risk mutation — clears `tokenReference`, stops all auto-publishing for th
 | 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                             |
 | 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                             |
 
+### `POST /api/v1/social-publishing/accounts/{id}/verify` — Verify a connected account's credentials live against its provider
+
+- **operationId**: `socialPublishingAccountsVerify`
+- **Security**: bearerAuth + tenantHeader
+
+Issue #644 — calls the account's registered provider adapter's `verifyCredentials` (e.g. Meta's `debug_token` for `meta_facebook_page`/`meta_instagram`) OUTSIDE any DB transaction. Gated by `accounts.connect` (same permission as connect/reconnect — this touches the same credential, read-only). Not an idempotency-keyed mutation (on-demand diagnostic action, same class as `POST /api/v1/modules/{moduleKey}/health/check`). On success, updates `lastVerifiedAt` only. On a finding that the token/scopes are no longer valid, transitions the account to `needs_reauth` (same transition the outbox dispatcher itself performs) and returns `409 SOCIAL_ACCOUNT_NEEDS_REAUTH`.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                        | Schema                                                                                             |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| 200    | Connection verified — credentials are currently valid.                                                                                                                                                             | [`ApiSuccess`](#standard-success-envelope)&lt;[`SocialAccountItem`](#schema-socialaccountitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                             |
+| 401    | Authentication required or expired.                                                                                                                                                                                | [`ApiError`](#standard-error-envelope)                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                             |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                                | [`ApiError`](#standard-error-envelope)                                                             |
+| 409    | Credentials are no longer valid — the account was transitioned to `needs_reauth`. `details.reason` is a safe, fixed diagnostic code (e.g. `token_expired`, `missing_scopes:...`), never a raw provider error body. | [`ApiError`](#standard-error-envelope)                                                             |
+| 422    | No provider adapter is registered for this account's `providerKey`, or the provider adapter does not support this account's `providerAccountType`.                                                                 | [`ApiError`](#standard-error-envelope)                                                             |
+| 500    | Internal server error without stack trace.                                                                                                                                                                         | [`ApiError`](#standard-error-envelope)                                                             |
+| 503    | The provider's circuit breaker is currently open.                                                                                                                                                                  | [`ApiError`](#standard-error-envelope)                                                             |
+
 ### `GET /api/v1/social-publishing/jobs` — List this tenant's social publish jobs
 
 - **operationId**: `socialPublishingJobsList`
@@ -10725,7 +10754,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (49)
+### Channels (50)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -10763,6 +10792,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.social-publishing.account.connected` — A social account was connected or reconnected/reauthorized (Issue #643). Documented contract only, same producer convention as every other event in this file — the structured JSON logger, invoked from `social-publishing/application/social-account-directory.ts`'s `connectSocialAccount` (`social_publishing.account.connected` audit event + log line).
 - `awcms-mini.social-publishing.account.disconnected` — A social account was disconnected (Issue #643) — a status transition, not a delete. Producer: `social-account-directory.ts`'s `disconnectSocialAccount`.
 - `awcms-mini.social-publishing.account.needs-reauth` — A connected social account's token expired/was rejected by its provider and now requires reauthorization (Issue #643). Producer: `social-account-directory.ts`'s `markSocialAccountNeedsReauth`, called by the outbox dispatcher on a `needs_reauth` publish outcome.
+- `awcms-mini.social-publishing.account.verified` — A connected social account's credentials were verified live against its provider and found valid (Issue #644 — the "verify connection" admin action, `POST /api/v1/social-publishing/accounts/{id}/verify`). Only ever the SUCCESS outcome — a failed verification instead transitions the account to `needs_reauth` (see `awcms-mini.social-publishing.account.needs-reauth` above, whose producer, `social-account-directory.ts`'s `markSocialAccountNeedsReauth`, this action also calls on failure). Producer: `social-account-directory.ts`'s `recordSocialAccountVerificationSuccess`, called from `application/social-account-verification.ts`'s `verifySocialAccountConnection`.
 - `awcms-mini.social-publishing.job.approved` — A job pending approval was approved and may now be dispatched to its provider (Issue #643). Producer: `social-publish-job-directory.ts`'s `approveSocialPublishJob`.
 - `awcms-mini.social-publishing.job.cancelled` — A job was cancelled (Issue #643), from any non-terminal-success status. Producer: `social-publish-job-directory.ts`'s `cancelSocialPublishJob`.
 - `awcms-mini.social-publishing.job.created` — An outbox job was created after an eligible article publish event (Issue #643 acceptance criterion: "Publishing jobs are created after eligible article publish event"). Idempotent per article/account/action (deterministic idempotency key). Producer: `social-publishing/application/create-social-publish-jobs.ts`'s `createSocialPublishJobsForArticle`, invoked by `blog_content`'s publish route/scheduled-publish worker via `SocialPublishingPort`.

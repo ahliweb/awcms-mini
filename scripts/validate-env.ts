@@ -191,6 +191,8 @@ import {
 } from "../src/modules/tenant-domain/domain/tenant-domain-dns-config";
 import { isOnlineSecurityEnabled } from "../src/lib/auth/online-security-config";
 import { isSocialPublishingEnabled } from "../src/modules/social-publishing/domain/social-publishing-config";
+import { isMetaProviderEnabled } from "../src/modules/social-publishing/domain/meta-provider-config";
+import { looksLikeRawSecretToken } from "../src/modules/social-publishing/domain/social-account-validation";
 import {
   isTurnstileEnabled,
   TURNSTILE_REQUIRED_WHEN_ENABLED
@@ -1198,6 +1200,105 @@ export function checkSocialPublishingProfileConfig(
   };
 }
 
+const GRAPH_API_VERSION_PATTERN = /^v\d{1,2}\.\d{1,2}$/;
+
+/**
+ * Issue #644: `META_PROVIDER_ENABLED` is an adapter-level gate independent
+ * of `SOCIAL_PUBLISHING_ENABLED` (see `meta-provider-config.ts`'s header).
+ * When enabled, every one of `META_APP_ID`/`META_APP_SECRET_REFERENCE`/
+ * `META_GRAPH_API_VERSION`/`META_OAUTH_REDIRECT_URI`/`META_REQUIRED_SCOPES`
+ * must be set and well-shaped. `META_APP_SECRET_REFERENCE` reuses
+ * `social-account-validation.ts`'s `looksLikeRawSecretToken` verbatim
+ * (per this epic's own hard-won lesson, `.claude/skills/
+ * awcms-mini-social-publishing/SKILL.md` §643 Keputusan kunci #3 — every
+ * new place that validates a Meta app/access token or its reference must
+ * reuse this exact function rather than inventing a new heuristic).
+ */
+export function checkMetaSocialPublishingProviderConfig(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult {
+  const name = "META_* (Meta social publishing adapter, Issue #644)";
+
+  if (!isMetaProviderEnabled(env)) {
+    return {
+      name,
+      status: "pass",
+      detail:
+        'META_PROVIDER_ENABLED is not "true" — Meta social publishing adapter is disabled, no META_* config required.'
+    };
+  }
+
+  const problems: string[] = [];
+
+  if (!env.META_APP_ID || env.META_APP_ID.trim().length === 0) {
+    problems.push("META_APP_ID is required");
+  }
+
+  const appSecretReference = env.META_APP_SECRET_REFERENCE;
+
+  if (!appSecretReference || appSecretReference.trim().length === 0) {
+    problems.push("META_APP_SECRET_REFERENCE is required");
+  } else if (looksLikeRawSecretToken(appSecretReference)) {
+    problems.push(
+      "META_APP_SECRET_REFERENCE looks like a raw secret, not a secret-storage reference"
+    );
+  }
+
+  const graphApiVersion = env.META_GRAPH_API_VERSION;
+
+  if (!graphApiVersion || graphApiVersion.trim().length === 0) {
+    problems.push("META_GRAPH_API_VERSION is required");
+  } else if (!GRAPH_API_VERSION_PATTERN.test(graphApiVersion)) {
+    problems.push(
+      `META_GRAPH_API_VERSION "${graphApiVersion}" does not match ^v\\d{1,2}\\.\\d{1,2}$ (e.g. "v21.0")`
+    );
+  }
+
+  const redirectUri = env.META_OAUTH_REDIRECT_URI;
+
+  if (!redirectUri || redirectUri.trim().length === 0) {
+    problems.push("META_OAUTH_REDIRECT_URI is required");
+  } else {
+    try {
+      const parsed = new URL(redirectUri);
+
+      if (parsed.protocol !== "https:") {
+        problems.push("META_OAUTH_REDIRECT_URI must be an absolute HTTPS URL");
+      }
+    } catch {
+      problems.push("META_OAUTH_REDIRECT_URI must be an absolute HTTPS URL");
+    }
+  }
+
+  const requiredScopes = env.META_REQUIRED_SCOPES;
+
+  if (!requiredScopes || requiredScopes.trim().length === 0) {
+    problems.push("META_REQUIRED_SCOPES is required");
+  } else if (
+    requiredScopes
+      .split(",")
+      .map((scope) => scope.trim())
+      .filter((scope) => scope.length > 0).length === 0
+  ) {
+    problems.push("META_REQUIRED_SCOPES must contain at least one scope");
+  }
+
+  if (problems.length > 0) {
+    return {
+      name,
+      status: "fail",
+      detail: `META_PROVIDER_ENABLED=true requires valid META_* config: ${problems.join("; ")}.`
+    };
+  }
+
+  return {
+    name,
+    status: "pass",
+    detail:
+      "META_PROVIDER_ENABLED=true and every META_* variable is present and well-formed."
+  };
+}
+
 /** Issue #641: `BLOG_AUTO_INTERNAL_TAG_LINKS_MAX_PER_POST`/`_MAX_PER_TAG`/`_MIN_TERM_LENGTH` must each be within their documented reasonable bounds (`internal-tag-linking-config.ts`'s ceiling constants) — an out-of-range value would either no-op the feature or risk turning normal prose into a link farm. */
 export function checkBlogAutoInternalTagLinksConfig(
   env: NodeJS.ProcessEnv = process.env
@@ -1245,6 +1346,7 @@ export function runEnvValidation(
     checkNewsMediaR2PresignedTtlUpperBound(env),
     checkNewsMediaR2OrphanGraceLowerBound(env),
     checkSocialPublishingProfileConfig(env),
+    checkMetaSocialPublishingProviderConfig(env),
     checkBlogAutoInternalTagLinksConfig(env)
   ];
 }
