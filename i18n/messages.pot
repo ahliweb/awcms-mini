@@ -2260,7 +2260,7 @@ msgstr ""
 msgid "admin.news_portal.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:302
+#: src/pages/admin/news-portal/ad-placements.astro:322
 msgid "admin.news_portal.ad_placements.create_submit"
 msgstr ""
 
@@ -2268,11 +2268,11 @@ msgstr ""
 msgid "admin.news_portal.ad_placements.create_success"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:249
+#: src/pages/admin/news-portal/ad-placements.astro:263
 msgid "admin.news_portal.ad_placements.create_summary"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:239
+#: src/pages/admin/news-portal/ad-placements.astro:253
 msgid "admin.news_portal.ad_placements.delete_button"
 msgstr ""
 
@@ -2288,63 +2288,63 @@ msgstr ""
 msgid "admin.news_portal.ad_placements.delete_success"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:226
+#: src/pages/admin/news-portal/ad-placements.astro:240
 msgid "admin.news_portal.ad_placements.field_active"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:213
+#: src/pages/admin/news-portal/ad-placements.astro:227
 msgid "admin.news_portal.ad_placements.field_ends_at"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:177
+#: src/pages/admin/news-portal/ad-placements.astro:188
 msgid "admin.news_portal.ad_placements.field_link_url"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:166
+#: src/pages/admin/news-portal/ad-placements.astro:175
 msgid "admin.news_portal.ad_placements.field_media_object_id"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:152
+#: src/pages/admin/news-portal/ad-placements.astro:158
 msgid "admin.news_portal.ad_placements.field_name"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:121
+#: src/pages/admin/news-portal/ad-placements.astro:124
 msgid "admin.news_portal.ad_placements.field_placement_key"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:195
+#: src/pages/admin/news-portal/ad-placements.astro:209
 msgid "admin.news_portal.ad_placements.field_priority"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:185
+#: src/pages/admin/news-portal/ad-placements.astro:196
 msgid "admin.news_portal.ad_placements.field_rotation_mode"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:205
+#: src/pages/admin/news-portal/ad-placements.astro:219
 msgid "admin.news_portal.ad_placements.field_starts_at"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:173
+#: src/pages/admin/news-portal/ad-placements.astro:182
 msgid "admin.news_portal.ad_placements.media_object_id_hint"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:140
+#: src/pages/admin/news-portal/ad-placements.astro:146
 msgid "admin.news_portal.ad_placements.no_placements"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:117
+#: src/pages/admin/news-portal/ad-placements.astro:118
 msgid "admin.news_portal.ad_placements.preset_guide_summary"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:123
+#: src/pages/admin/news-portal/ad-placements.astro:129
 msgid "admin.news_portal.ad_placements.preset_max_items"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:122
+#: src/pages/admin/news-portal/ad-placements.astro:127
 msgid "admin.news_portal.ad_placements.preset_recommended_size"
 msgstr ""
 
-#: src/pages/admin/news-portal/ad-placements.astro:229
+#: src/pages/admin/news-portal/ad-placements.astro:243
 msgid "admin.news_portal.ad_placements.save_button"
 msgstr ""
 
