@@ -620,13 +620,18 @@ suite("blog_content video_news content block (Issue #639)", () => {
       `<img class="video-news-thumbnail" src="${thumbnail.publicUrl}"`
     );
     // The video_news block itself must never echo a raw stored <script>/
-    // iframe (Issue #639's actual safety property) — the page's ONLY
-    // <script> tag is the unrelated, safe, same-origin news-share widget
-    // script (Issue #642, merged after this test was first written), so
-    // assert that specifically rather than banning all <script> tags
-    // outright.
+    // iframe (Issue #639's actual safety property). The page legitimately
+    // carries two other <script> tags unrelated to this block: the safe,
+    // same-origin news-share widget script (Issue #642) and the JSON-LD
+    // structured-data script (Issue #649, type="application/ld+json").
+    // Assert the widget script specifically and exclude the JSON-LD one
+    // by its type attribute, rather than banning/counting all <script>
+    // tags outright.
     const scriptTags = [...response.text.matchAll(/<script\b[^>]*>/gi)];
-    expect(scriptTags.length).toBe(1);
-    expect(scriptTags[0]![0]).toContain('src="/js/news-share.js"');
+    const nonJsonLdScriptTags = scriptTags.filter(
+      (match) => !match[0].includes('type="application/ld+json"')
+    );
+    expect(nonJsonLdScriptTags.length).toBe(1);
+    expect(nonJsonLdScriptTags[0]![0]).toContain('src="/js/news-share.js"');
   });
 });
