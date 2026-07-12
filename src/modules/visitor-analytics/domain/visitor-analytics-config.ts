@@ -18,6 +18,22 @@
  * aggregate-only `basic` collection from a future `detailed` mode with
  * richer session/event granularity — it never implies the raw-detail
  * flags below turn on by itself).
+ *
+ * BINDING (Issue #624 repository audit addendum, 2026-07-11): the
+ * module's master switch (`enabled`) now defaults to `false` — a fresh
+ * installation collects nothing until an operator explicitly sets
+ * `VISITOR_ANALYTICS_ENABLED=true` after making their own lawful-
+ * purpose/consent decision (this software setting is a technical
+ * switch, never itself the legal basis required by UU PDP). This is a
+ * deliberate change from the module's original Issue #617 default
+ * (`true`): an existing deployment that already sets
+ * `VISITOR_ANALYTICS_ENABLED=true` explicitly in its own environment is
+ * completely unaffected — explicit values always win over the default
+ * here. Only a deployment that relied on the previous *implicit*
+ * default without ever setting the var loses collection on upgrade, and
+ * must add the var explicitly to keep its previous behavior. See
+ * `docs/awcms-mini/visitor-analytics.md` §Default opt-in dan upgrade
+ * path for the full operator-facing migration note.
  */
 export const VISITOR_ANALYTICS_MODES = ["basic", "detailed"] as const;
 
@@ -46,11 +62,23 @@ export type VisitorAnalyticsConfig = {
   rawDetailRetentionDays: number;
   rollupRetentionDays: number;
   hashSalt: string;
+  /**
+   * Lifetime (days) of the anonymous `awcms_mini_visitor_key` cookie
+   * (Issue #624 repository audit addendum). Deliberately short — the
+   * cookie is a persistent anonymous identifier, so its lifetime is
+   * bounded to the same order of magnitude as the module's *shortest*
+   * sensitive-data retention window (`rawDetailRetentionDays`, 30 days
+   * default) rather than the previous hardcoded 2-year (`63_072_000`s)
+   * constant. `src/middleware.ts` reads this via
+   * `resolveVisitorKeyCookieMaxAgeSeconds` — never re-derives its own
+   * TTL constant.
+   */
+  visitorKeyCookieTtlDays: number;
 };
 
 /** Safe defaults matching the issue's `.env.example` block exactly. */
 export const VISITOR_ANALYTICS_DEFAULTS: VisitorAnalyticsConfig = {
-  enabled: true,
+  enabled: false,
   mode: "basic",
   collectAdmin: true,
   collectPublic: true,
@@ -65,7 +93,8 @@ export const VISITOR_ANALYTICS_DEFAULTS: VisitorAnalyticsConfig = {
   eventRetentionDays: 90,
   rawDetailRetentionDays: 30,
   rollupRetentionDays: 730,
-  hashSalt: ""
+  hashSalt: "",
+  visitorKeyCookieTtlDays: 30
 };
 
 /**
@@ -78,7 +107,8 @@ export const VISITOR_ANALYTICS_POSITIVE_INT_VARS = [
   "VISITOR_ANALYTICS_ONLINE_WINDOW_SECONDS",
   "VISITOR_ANALYTICS_EVENT_RETENTION_DAYS",
   "VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS",
-  "VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS"
+  "VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS",
+  "VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS"
 ] as const;
 
 function isSet(value: string | undefined): boolean {
@@ -175,7 +205,10 @@ export function resolveVisitorAnalyticsConfig(
       parsePositiveInt(env.VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS) ??
       VISITOR_ANALYTICS_DEFAULTS.rollupRetentionDays,
     hashSalt:
-      env.VISITOR_ANALYTICS_HASH_SALT ?? VISITOR_ANALYTICS_DEFAULTS.hashSalt
+      env.VISITOR_ANALYTICS_HASH_SALT ?? VISITOR_ANALYTICS_DEFAULTS.hashSalt,
+    visitorKeyCookieTtlDays:
+      parsePositiveInt(env.VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS) ??
+      VISITOR_ANALYTICS_DEFAULTS.visitorKeyCookieTtlDays
   };
 }
 
@@ -188,4 +221,15 @@ export function isVisitorAnalyticsEnabled(
   env: NodeJS.ProcessEnv = process.env
 ): boolean {
   return resolveVisitorAnalyticsConfig(env).enabled;
+}
+
+/**
+ * Converts `visitorKeyCookieTtlDays` into the `maxAge` seconds value the
+ * cookie API expects — the single place that does this conversion so
+ * `src/middleware.ts` and its tests never hardcode `86_400` themselves.
+ */
+export function resolveVisitorKeyCookieMaxAgeSeconds(
+  config: Pick<VisitorAnalyticsConfig, "visitorKeyCookieTtlDays">
+): number {
+  return config.visitorKeyCookieTtlDays * 86_400;
 }

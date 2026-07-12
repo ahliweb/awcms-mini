@@ -5,6 +5,7 @@ import {
   isVisitorAnalyticsEnabled,
   parsePositiveInt,
   resolveVisitorAnalyticsConfig,
+  resolveVisitorKeyCookieMaxAgeSeconds,
   VISITOR_ANALYTICS_DEFAULTS,
   VISITOR_ANALYTICS_MODES
 } from "../../src/modules/visitor-analytics/domain/visitor-analytics-config";
@@ -117,8 +118,16 @@ describe("resolveVisitorAnalyticsConfig", () => {
 });
 
 describe("isVisitorAnalyticsEnabled", () => {
-  test("true by default (unset env)", () => {
-    expect(isVisitorAnalyticsEnabled({} as NodeJS.ProcessEnv)).toBe(true);
+  test("false by default (unset env) — Issue #624 repository audit addendum: default-off for new installs", () => {
+    expect(isVisitorAnalyticsEnabled({} as NodeJS.ProcessEnv)).toBe(false);
+  });
+
+  test("true when explicitly enabled (existing deployments that already set this var are unaffected)", () => {
+    expect(
+      isVisitorAnalyticsEnabled({
+        VISITOR_ANALYTICS_ENABLED: "true"
+      } as NodeJS.ProcessEnv)
+    ).toBe(true);
   });
 
   test("false when explicitly disabled", () => {
@@ -133,5 +142,41 @@ describe("isVisitorAnalyticsEnabled", () => {
 describe("VISITOR_ANALYTICS_MODES", () => {
   test("is exactly [basic, detailed]", () => {
     expect(VISITOR_ANALYTICS_MODES).toEqual(["basic", "detailed"]);
+  });
+});
+
+describe("visitorKeyCookieTtlDays (Issue #624 repository audit addendum)", () => {
+  test("defaults to 30 days", () => {
+    expect(
+      resolveVisitorAnalyticsConfig({} as NodeJS.ProcessEnv)
+        .visitorKeyCookieTtlDays
+    ).toBe(30);
+  });
+
+  test("falls back to the default for a malformed value — never throws", () => {
+    expect(
+      resolveVisitorAnalyticsConfig({
+        VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS: "not-a-number"
+      } as NodeJS.ProcessEnv).visitorKeyCookieTtlDays
+    ).toBe(30);
+  });
+
+  test("respects an explicit override", () => {
+    expect(
+      resolveVisitorAnalyticsConfig({
+        VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS: "7"
+      } as NodeJS.ProcessEnv).visitorKeyCookieTtlDays
+    ).toBe(7);
+  });
+});
+
+describe("resolveVisitorKeyCookieMaxAgeSeconds", () => {
+  test("converts days to seconds", () => {
+    expect(
+      resolveVisitorKeyCookieMaxAgeSeconds({ visitorKeyCookieTtlDays: 30 })
+    ).toBe(30 * 86_400);
+    expect(
+      resolveVisitorKeyCookieMaxAgeSeconds({ visitorKeyCookieTtlDays: 1 })
+    ).toBe(86_400);
   });
 });

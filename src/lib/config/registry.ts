@@ -1041,8 +1041,9 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
     ownerModule: "visitor-analytics",
     sensitivity: "non-secret",
     profiles: ALL_PROFILES,
-    default: "true",
-    description: "Master switch for visitor telemetry collection."
+    default: "false",
+    description:
+      "Master switch for visitor telemetry collection. Default-off since Issue #624 (2026-07-11 audit) — new installs collect nothing until explicitly enabled."
   },
   {
     name: "VISITOR_ANALYTICS_MODE",
@@ -1201,6 +1202,18 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
     profiles: ALL_PROFILES,
     default: "",
     description: "Salt for pseudonymous visitor fingerprinting (Issue #619)."
+  },
+  {
+    name: "VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS",
+    type: "integer",
+    required: "optional",
+    ownerModule: "visitor-analytics",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "30",
+    description:
+      "Anonymous visitor-key cookie lifetime (days). Issue #624 audit addendum — replaces a previous hardcoded ~2-year lifetime with a short, configurable one.",
+    validatorGroup: "checkVisitorAnalyticsConfig"
   },
 
   // ---------------------------------------------------------------------

@@ -19,7 +19,10 @@ import { resolvePublicTenantFromRequest } from "./lib/tenant/public-host-tenant-
 import { log } from "./lib/logging/logger";
 import { resolveVisitorAnalyticsConfig } from "./modules/visitor-analytics/domain/visitor-analytics-config";
 import { determineArea } from "./modules/visitor-analytics/domain/request-area";
-import { resolveVisitorKey } from "./modules/visitor-analytics/domain/visitor-key";
+import {
+  planVisitorKeyCookie,
+  shouldRevokeVisitorKeyCookie
+} from "./modules/visitor-analytics/domain/visitor-key-cookie";
 import { resolveAnalyticsClientIp } from "./modules/visitor-analytics/domain/client-ip";
 import { resolveGeoEnrichment } from "./modules/visitor-analytics/domain/geo-enrichment";
 import {
@@ -30,9 +33,16 @@ import {
 const PROTECTED_PREFIX = "/admin";
 const API_PREFIX = "/api/";
 const CORRELATION_ID_HEADER = "X-Correlation-ID";
+/**
+ * Cookie name + lifecycle policy: Issue #624 repository audit addendum
+ * (2026-07-11). Lifetime is no longer a hardcoded 2-year constant here —
+ * `planVisitorKeyCookie`/`resolveVisitorKeyCookieMaxAgeSeconds`
+ * (`domain/visitor-key-cookie.ts`) decide set/delete/no-op and the
+ * configurable TTL (`VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS`,
+ * default 30 days) — this file only translates that plan into real
+ * `context.cookies` calls.
+ */
 const VISITOR_KEY_COOKIE_NAME = "awcms_mini_visitor_key";
-/** 2 years — a conventional analytics cookie lifetime, same order of magnitude as `VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS`'s default. */
-const VISITOR_KEY_COOKIE_MAX_AGE_SECONDS = 63_072_000;
 
 /**
  * Correlation ID propagation (Issue 10.1 — Add Structured Logging and Audit
@@ -139,6 +149,27 @@ export async function collectRequestAnalytics(
 ): Promise<void> {
   try {
     const config = resolveVisitorAnalyticsConfig();
+
+    // Issue #624 repository audit addendum: never set/renew the visitor
+    // cookie while the module is disabled, and actively revoke a
+    // pre-existing one (e.g. left over from before this deployment
+    // disabled the module, or from before this default flipped to
+    // off — see `docs/awcms-mini/visitor-analytics.md` §Default opt-in
+    // dan upgrade path). Checked before the path/area gate below since
+    // this is a hard global switch, independent of trackability.
+    if (
+      shouldRevokeVisitorKeyCookie({
+        config,
+        existingValue: context.cookies.get(VISITOR_KEY_COOKIE_NAME)?.value
+      })
+    ) {
+      context.cookies.delete(VISITOR_KEY_COOKIE_NAME, { path: "/" });
+    }
+
+    if (!config.enabled) {
+      return;
+    }
+
     const pathname = context.url.pathname;
     const area = determineArea(pathname);
 
@@ -173,14 +204,18 @@ export async function collectRequestAnalytics(
     const existingVisitorKey = context.cookies.get(
       VISITOR_KEY_COOKIE_NAME
     )?.value;
-    const visitorKey = resolveVisitorKey(existingVisitorKey);
+    const cookiePlan = planVisitorKeyCookie({
+      config,
+      existingValue: existingVisitorKey
+    });
+    const visitorKey = cookiePlan.value;
 
-    if (visitorKey !== existingVisitorKey) {
+    if (cookiePlan.shouldSetCookie) {
       context.cookies.set(VISITOR_KEY_COOKIE_NAME, visitorKey, {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
-        maxAge: VISITOR_KEY_COOKIE_MAX_AGE_SECONDS,
+        maxAge: cookiePlan.maxAgeSeconds,
         secure: process.env.AUTH_COOKIE_SECURE === "true"
       });
     }

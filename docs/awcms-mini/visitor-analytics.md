@@ -14,7 +14,7 @@ Referensi terkait:
   cross-issue, keputusan yang sudah dibuat, apa yang tidak boleh
   di-re-derive.
 - `18_configuration_env_reference.md` §Visitor analytics — referensi
-  penuh 16 env var.
+  penuh 17 env var.
 - `20_threat_model_security_architecture.md` §Standar tambahan dipicu
   epic visitor analytics — model ancaman.
 - `04_erd_data_dictionary.md` §Visitor Analytics dan §Retention awal —
@@ -33,14 +33,19 @@ SECURITY`.
 
 Prinsip inti yang mengikat setiap mode operasi di bawah:
 
-1. **Default aman tanpa konfigurasi apa pun.** Modul aktif secara
-   default (`VISITOR_ANALYTICS_ENABLED=true`) tapi tiga sub-fitur paling
-   sensitif — raw IP, raw user-agent, geolokasi — semuanya mati secara
-   default dan independen satu sama lain. `bun run config:validate`
-   selalu lulus tanpa satu pun `VISITOR_ANALYTICS_*` di-set.
+1. **Default MATI tanpa konfigurasi apa pun (Issue #624 audit addendum,
+   2026-07-11).** Instalasi baru tidak mengumpulkan telemetry apa pun
+   sampai operator secara eksplisit men-set
+   `VISITOR_ANALYTICS_ENABLED=true` — lihat §Default opt-in dan upgrade
+   path di bawah. Begitu diaktifkan, tiga sub-fitur paling sensitif —
+   raw IP, raw user-agent, geolokasi — tetap mati secara default dan
+   independen satu sama lain. `bun run config:validate` selalu lulus
+   tanpa satu pun `VISITOR_ANALYTICS_*` di-set.
 2. **Retensi lebih pendek untuk data lebih sensitif.** Raw detail (30
    hari default) < event (90 hari default) < rollup agregat (730 hari
-   default). Lihat §Retensi di bawah untuk detail per kolom.
+   default). Cookie anonim `awcms_mini_visitor_key` juga jauh lebih
+   pendek dari sebelumnya (30 hari default, dulu ~2 tahun) — lihat
+   §Cookie anonim di bawah. Lihat §Retensi untuk detail per kolom.
 3. **`raw_detail.read` terpisah dari `dashboard.read`.** Operator bisa
    memberi akses dashboard agregat tanpa memberi akses IP/user-agent
    mentah.
@@ -48,19 +53,89 @@ Prinsip inti yang mengikat setiap mode operasi di bawah:
    header Cloudflare (`CF-IPCountry`) yang sudah ada di request, bukan
    API pihak ketiga — konsisten dengan modul yang berjalan penuh
    offline/LAN.
+5. **Software setting bukan dasar hukum.** Men-set
+   `VISITOR_ANALYTICS_ENABLED=true` adalah switch teknis, bukan
+   pengganti keputusan dasar hukum/tujuan pemrosesan yang wajib diambil
+   operator sendiri di bawah UU PDP sebelum mengaktifkan koleksi apa
+   pun.
+
+## Default opt-in dan upgrade path (Issue #624 audit addendum, 2026-07-11)
+
+`VISITOR_ANALYTICS_ENABLED` defaultnya sekarang `false` (sebelumnya
+`true` di Issue #617). Ringkasan dampak:
+
+- **Instalasi baru**: tidak mengumpulkan apa pun secara default. Operator
+  harus secara sadar men-set `VISITOR_ANALYTICS_ENABLED=true`, idealnya
+  setelah menetapkan dasar hukum/tujuan pemrosesan (statistik operasional
+  internal) yang sesuai UU PDP — software ini tidak dan tidak bisa
+  menjadi dasar hukum itu sendiri.
+- **Deployment existing yang sudah men-set `VISITOR_ANALYTICS_ENABLED=true`
+  secara eksplisit** di environment mereka sendiri: **tidak terdampak
+  sama sekali**. Nilai eksplisit selalu menang atas default —
+  `resolveVisitorAnalyticsConfig` (`src/modules/visitor-analytics/domain/visitor-analytics-config.ts`)
+  hanya jatuh ke default ketika var benar-benar tidak di-set.
+- **Deployment existing yang mengandalkan default implisit lama** (tidak
+  pernah men-set var ini, mengandalkan default `true` Issue #617): akan
+  KEHILANGAN koleksi setelah upgrade ke versi ini. Tambahkan
+  `VISITOR_ANALYTICS_ENABLED=true` secara eksplisit di environment untuk
+  mempertahankan perilaku sebelumnya — data historis yang sudah tersimpan
+  (`awcms_mini_visitor_sessions`/`awcms_mini_visit_events`/
+  `awcms_mini_visitor_daily_rollups`) tidak dihapus/dimodifikasi oleh
+  perubahan default ini; hanya koleksi ke depan yang berhenti sampai
+  var di-set eksplisit.
+- **Tidak ada migration data untuk perubahan ini** — perubahan default
+  murni di layer konfigurasi (`.env.example`/`src/lib/config/registry.ts`),
+  tidak menyentuh skema/tabel apa pun.
+
+## Cookie anonim: umur, rotation, dan revocation (Issue #624 audit addendum)
+
+Cookie `awcms_mini_visitor_key` (anonim, `httpOnly`+`sameSite=lax`,
+dipakai untuk dedup sesi pengunjung tanpa identitas nyata):
+
+- **Umur configurable, jauh lebih pendek dari sebelumnya** —
+  `VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS` (default 30 hari,
+  sebelumnya hardcoded ~2 tahun/`63_072_000` detik). Operator bisa
+  memperpendek lebih lanjut sesuai kebutuhan; `bun run security:readiness`'s
+  `checkVisitorAnalyticsVisitorKeyCookieTtlReady` (warning) menandai
+  nilai yang melebihi 400 hari (kira-kira mengikuti orde besaran
+  panduan umum masa berlaku cookie consent, mis. ~13 bulan pada
+  EU ePrivacy Directive) sebagai konfigurasi yang sebaiknya dipersempit.
+- **Rotation alami** — begitu cookie expired di browser, kunjungan
+  berikutnya tidak membawa nilai lama sama sekali; `resolveVisitorKey`
+  (Issue #619) melihat "tidak ada nilai existing" dan mencetak identifier
+  anonim baru. Tidak ada bookkeeping server tambahan untuk ini — TTL
+  cookie itu sendiri yang mengatur siklus rotasi.
+- **Revocation saat modul dinonaktifkan** — `shouldRevokeVisitorKeyCookie`
+  (`domain/visitor-key-cookie.ts`), dipanggil `src/middleware.ts` SEBELUM
+  gate path/area, secara aktif menghapus cookie yang masih ada begitu
+  `VISITOR_ANALYTICS_ENABLED` bukan `"true"` — baik karena operator
+  menonaktifkan modul secara sadar, maupun karena upgrade ke default-off
+  baru ini (lihat §Default opt-in dan upgrade path). Browser yang sudah
+  membawa identifier lama tidak menyimpannya tanpa batas waktu hanya
+  karena tidak ada lagi yang memperbaruinya.
+- **Tidak ada cookie/write sama sekali saat modul mati** — `shouldCollectRequest`
+  (dipanggil setelah revocation check) dan gate `config.enabled` di
+  `src/middleware.ts`'s `collectRequestAnalytics` memastikan tidak ada
+  `Set-Cookie` baru DAN tidak ada baris session/event yang pernah ditulis
+  selama modul nonaktif — diverifikasi
+  `tests/unit/visitor-analytics-visitor-key-cookie.test.ts` dan
+  `tests/unit/visitor-analytics-collector.test.ts`.
 
 ## Mode operasi
 
-### Mode offline/LAN (default)
+### Mode offline/LAN
 
 Deployment yang tidak pernah tersambung internet publik — atau memang
-sengaja LAN-only — menjalankan modul ini tanpa mengubah satu env var
-pun. Statistik dasar (dashboard `/admin/analytics`: pengunjung unik,
+sengaja LAN-only — bisa menjalankan modul ini dengan hanya menyalakan
+satu var (`VISITOR_ANALYTICS_ENABLED=true`) di atas default privacy-first
+lainnya. Statistik dasar (dashboard `/admin/analytics`: pengunjung unik,
 pageview, top paths/browsers/devices, traffic bot) berfungsi penuh:
 
-- `VISITOR_ANALYTICS_ENABLED=true` (default) — koleksi tetap jalan,
-  murni operasi database lokal (INSERT ke `awcms_mini_visit_events`
-  lewat middleware, tidak pernah keluar proses).
+- `VISITOR_ANALYTICS_ENABLED=true` — **wajib di-set eksplisit sejak
+  Issue #624** (defaultnya sekarang `false`, lihat §Default opt-in dan
+  upgrade path di atas) — koleksi murni operasi database lokal (INSERT
+  ke `awcms_mini_visit_events` lewat middleware, tidak pernah keluar
+  proses) setelah diaktifkan.
 - `VISITOR_ANALYTICS_RAW_IP_ENABLED=false`,
   `_RAW_USER_AGENT_ENABLED=false`, `_GEO_ENABLED=false` (semua default)
   — tidak ada IP mentah, user-agent mentah, atau negara pengunjung yang
@@ -131,12 +206,13 @@ dibutuhkan (mis. investigasi keamanan jangka pendek, debugging abuse):
 
 ## Retensi data (per tabel/kolom)
 
-| Data                                                                 | Retensi default                                  | Env var                                       | Mekanisme purge                                            |
-| -------------------------------------------------------------------- | ------------------------------------------------ | --------------------------------------------- | ---------------------------------------------------------- |
-| `awcms_mini_visit_events` (seluruh baris)                            | 90 hari                                          | `VISITOR_ANALYTICS_EVENT_RETENTION_DAYS`      | Hard delete (`bun run analytics:purge`)                    |
-| `awcms_mini_visitor_sessions.ip_address`/`login_identifier_snapshot` | 30 hari (dari `last_seen_at`)                    | `VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS` | Cleared in place (row tetap ada)                           |
-| `awcms_mini_visitor_sessions` (seluruh baris)                        | 90 hari (dari `last_seen_at`, sama dengan event) | `VISITOR_ANALYTICS_EVENT_RETENTION_DAYS`      | Hard delete, hanya bila tanpa event tersisa (`NOT EXISTS`) |
-| `awcms_mini_visitor_daily_rollups` (seluruh baris)                   | 730 hari                                         | `VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS`     | Hard delete (`bun run analytics:purge`)                    |
+| Data                                                                           | Retensi default                                    | Env var                                         | Mekanisme purge                                                                                |
+| ------------------------------------------------------------------------------ | -------------------------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `awcms_mini_visit_events` (seluruh baris)                                      | 90 hari                                            | `VISITOR_ANALYTICS_EVENT_RETENTION_DAYS`        | Hard delete (`bun run analytics:purge`)                                                        |
+| `awcms_mini_visitor_sessions.ip_address`/`login_identifier_snapshot`           | 30 hari (dari `last_seen_at`)                      | `VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS`   | Cleared in place (row tetap ada)                                                               |
+| `awcms_mini_visitor_sessions` (seluruh baris)                                  | 90 hari (dari `last_seen_at`, sama dengan event)   | `VISITOR_ANALYTICS_EVENT_RETENTION_DAYS`        | Hard delete, hanya bila tanpa event tersisa (`NOT EXISTS`)                                     |
+| `awcms_mini_visitor_daily_rollups` (seluruh baris)                             | 730 hari                                           | `VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS`       | Hard delete (`bun run analytics:purge`)                                                        |
+| Cookie anonim `awcms_mini_visitor_key` (di browser pengunjung, bukan tabel DB) | 30 hari (Issue #624 audit addendum, dulu ~2 tahun) | `VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS` | Expiry browser (natural rotation) + revocation aktif saat modul dinonaktifkan (§Cookie anonim) |
 
 Urutan retensi (raw detail ≤ event ≤ rollup) adalah invarian yang
 ditegakkan `bun run security:readiness`'s
@@ -234,26 +310,28 @@ lainnya di repo ini (`checkOnlineAuthSecurityConfig`/`Ready`,
 
 - **`bun run config:validate`** (`scripts/validate-env.ts`'s
   `checkVisitorAnalyticsConfig`, Issue #617) — validasi SHAPE saja:
-  `VISITOR_ANALYTICS_MODE` enum dikenal, empat var retensi/jendela
-  integer positif bila diisi. Tidak ada aturan cross-field di sini
-  (dan sengaja tidak ditambah di Issue #624 — lihat keputusan desain di
-  bawah).
+  `VISITOR_ANALYTICS_MODE` enum dikenal, lima var retensi/jendela/TTL
+  (termasuk `VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS`, audit
+  addendum) integer positif bila diisi. Tidak ada aturan cross-field di
+  sini (dan sengaja tidak ditambah di Issue #624 — lihat keputusan desain
+  di bawah).
 - **`bun run security:readiness`** (`scripts/security-readiness.ts`,
-  Issue #624) — lima check cross-field baru, semua reuse
+  Issue #624) — enam check cross-field baru, semua reuse
   `resolveVisitorAnalyticsConfig` (tidak pernah baca `process.env`
   langsung):
 
-  | Check                                             | Severity | Kondisi fail                                                                               |
-  | ------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------ |
-  | `checkVisitorAnalyticsRawIpRetentionReady`        | critical | Raw IP aktif dan retensi raw detail > retensi event                                        |
-  | `checkVisitorAnalyticsRawUserAgentRetentionReady` | warning  | Raw user-agent aktif dan retensi raw detail > retensi event (flag ini sendiri masih no-op) |
-  | `checkVisitorAnalyticsGeoTrustedSourceReady`      | critical | Geo aktif tanpa `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`                                       |
-  | `checkVisitorAnalyticsRetentionOrderingReady`     | warning  | Retensi raw detail > event, ATAU retensi rollup < event                                    |
-  | `checkVisitorAnalyticsHashSaltReady`              | warning  | Modul aktif dan `VISITOR_ANALYTICS_HASH_SALT` kosong                                       |
+  | Check                                             | Severity | Kondisi fail                                                                                |
+  | ------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------- |
+  | `checkVisitorAnalyticsRawIpRetentionReady`        | critical | Raw IP aktif dan retensi raw detail > retensi event                                         |
+  | `checkVisitorAnalyticsRawUserAgentRetentionReady` | warning  | Raw user-agent aktif dan retensi raw detail > retensi event (flag ini sendiri masih no-op)  |
+  | `checkVisitorAnalyticsGeoTrustedSourceReady`      | critical | Geo aktif tanpa `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`                                        |
+  | `checkVisitorAnalyticsRetentionOrderingReady`     | warning  | Retensi raw detail > event, ATAU retensi rollup < event                                     |
+  | `checkVisitorAnalyticsHashSaltReady`              | warning  | Modul aktif dan `VISITOR_ANALYTICS_HASH_SALT` kosong                                        |
+  | `checkVisitorAnalyticsVisitorKeyCookieTtlReady`   | warning  | Modul aktif dan `VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS` > 400 hari (audit addendum) |
 
   Hanya `critical` yang memblokir go-live (exit non-zero); `warning`
   dilaporkan tapi tidak memblokir — default privacy-first (semua var
-  tidak di-set) selalu lulus BERSIH tanpa satu pun finding dari kelima
+  tidak di-set) selalu lulus BERSIH tanpa satu pun finding dari keenam
   check ini.
 
 **Keputusan desain — kenapa cross-field rule ada di `security-readiness.ts`,
@@ -263,11 +341,12 @@ sudah mapan di repo ini (`checkOnlineAuthSecurityConfig` vs
 valid" (`validate-env.ts`, tidak butuh judgment call keamanan) dari
 "apakah KOMBINASI var ini aman untuk go-live" (`security-readiness.ts`,
 punya `CheckSeverity` critical/warning/info dan `OUT_OF_SCOPE_ITEMS`
-untuk kejujuran cakupan). Lima aturan Issue #624 di atas semuanya
+untuk kejujuran cakupan). Enam aturan Issue #624 di atas semuanya
 judgment call keamanan lintas-field (raw IP + retensi, geo + trust,
-retensi rollup vs event, salt + status aktif) — bukan validasi bentuk
-satu var — jadi mengikuti pola yang sama menghindari duplikasi konsep
-`CheckSeverity` di `validate-env.ts` yang tidak pernah punya itu.
+retensi rollup vs event, salt + status aktif, umur cookie anonim) —
+bukan validasi bentuk satu var — jadi mengikuti pola yang sama
+menghindari duplikasi konsep `CheckSeverity` di `validate-env.ts` yang
+tidak pernah punya itu.
 
 ## Pemetaan kepatuhan
 
@@ -278,13 +357,27 @@ umum.
 
 ### UU PDP (Undang-Undang Pelindungan Data Pribadi, UU No. 27/2022)
 
-| Prinsip UU PDP                                                            | Implementasi                                                                                                                                                                                                                                                     |
-| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Minimisasi data** (Pasal 16 — pemrosesan sesuai tujuan, tidak berlebih) | Raw IP/user-agent/geolokasi (kelas data yang paling mudah mengidentifikasi individu) semuanya mati secara default; hanya hash (`ip_hash`/`user_agent_hash`, HMAC-SHA256 keyed salt deployment) dan field agregat (browser/device/negara) yang tersimpan default. |
-| **Batasan penyimpanan** (Pasal 16 — data disimpan sepanjang perlu saja)   | Retensi bertingkat (raw detail 30 hari < event 90 hari < rollup 730 hari), ditegakkan job terjadwal `analytics:purge` + diverifikasi ulang tiap `security:readiness` (§Retensi di atas).                                                                         |
-| **Keamanan pemrosesan** (Pasal 39 — langkah teknis melindungi data)       | RLS `ENABLE`+`FORCE` per tenant (isolasi lintas-tenant di level database, bukan hanya filter aplikasi), ABAC default-deny untuk setiap endpoint baca (`authorizeInTransaction`), permission `raw_detail.read` terpisah dari `dashboard.read`.                    |
-| **Hak subjek data — akses terbatas ke pihak berwenang saja**              | Dashboard `/admin/analytics` dan endpoint `GET /api/v1/analytics/*` (Issue #621) hanya untuk actor dengan permission eksplisit; pengunjung publik tidak punya antarmuka untuk melihat data mereka sendiri (di luar cakupan — modul ini observability internal).  |
-| **Akuntabilitas pemrosesan** (Pasal 44 — dokumentasi pemrosesan)          | Dokumen ini + `src/modules/visitor-analytics/README.md` + skill mendokumentasikan seluruh alur data: apa yang dikumpulkan, kapan, berapa lama disimpan, siapa yang bisa akses.                                                                                   |
+| Prinsip UU PDP                                                                                   | Implementasi                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Minimisasi data** (Pasal 16 — pemrosesan sesuai tujuan, tidak berlebih)                        | Raw IP/user-agent/geolokasi (kelas data yang paling mudah mengidentifikasi individu) semuanya mati secara default; hanya hash (`ip_hash`/`user_agent_hash`, HMAC-SHA256 keyed salt deployment) dan field agregat (browser/device/negara) yang tersimpan default.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| **Batasan penyimpanan** (Pasal 16 — data disimpan sepanjang perlu saja)                          | Retensi bertingkat (raw detail 30 hari < event 90 hari < rollup 730 hari), ditegakkan job terjadwal `analytics:purge` + diverifikasi ulang tiap `security:readiness` (§Retensi di atas).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Keamanan pemrosesan** (Pasal 39 — langkah teknis melindungi data)                              | RLS `ENABLE`+`FORCE` per tenant (isolasi lintas-tenant di level database, bukan hanya filter aplikasi), ABAC default-deny untuk setiap endpoint baca (`authorizeInTransaction`), permission `raw_detail.read` terpisah dari `dashboard.read`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **Hak subjek data — akses terbatas ke pihak berwenang saja**                                     | Dashboard `/admin/analytics` dan endpoint `GET /api/v1/analytics/*` (Issue #621) hanya untuk actor dengan permission eksplisit; pengunjung publik tidak punya antarmuka untuk melihat data mereka sendiri (di luar cakupan — modul ini observability internal).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| **Hak subjek data — penghapusan/anonymisasi** (Pasal 16/26 — hak untuk memusnahkan data pribadi) | Data pengunjung anonim tidak punya identitas yang bisa diminta dihapus secara individual (tidak ada login/email/nomor telepon yang terhubung ke pengunjung publik) — penghapusan bekerja lewat retensi bertingkat otomatis (`analytics:purge`, §Retensi di atas), bukan permintaan per-individu. Untuk pengunjung yang KEBETULAN terautentikasi (`/admin/*`), `identity_id` hanya dihapus bersamaan dengan baris event/session induknya lewat retensi yang sama — tidak ada tabel/kolom analytics terpisah yang bertahan lebih lama dari identitas induknya. Cookie anonim itu sendiri bisa "dihapus" secara efektif oleh pengunjung kapan pun (hapus cookie browser) atau oleh operator (nonaktifkan modul → `shouldRevokeVisitorKeyCookie` menghapusnya otomatis, lihat §Cookie anonim). |
+| **Akuntabilitas pemrosesan** (Pasal 44 — dokumentasi pemrosesan)                                 | Dokumen ini + `src/modules/visitor-analytics/README.md` + skill mendokumentasikan seluruh alur data: apa yang dikumpulkan, kapan, berapa lama disimpan, siapa yang bisa akses.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **Dasar hukum bukan pengaturan software** (Pasal 20 — persetujuan/dasar sah lain)                | `VISITOR_ANALYTICS_ENABLED=true` adalah switch teknis operator, bukan pengganti penetapan dasar hukum/tujuan pemrosesan yang wajib dilakukan operator sendiri sebelum mengaktifkan koleksi apa pun — didokumentasikan eksplisit di §Default opt-in dan upgrade path.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+
+**Kontrol tenant-admin**: setiap tenant hanya melihat/mengelola data
+pengunjungnya sendiri (RLS `FORCE` per `tenant_id`, tidak ada view
+lintas-tenant). Permission `visitor_analytics.retention.purge` memberi
+tenant-admin kontrol eksplisit untuk memicu purge on-demand
+(`POST /api/v1/analytics/retention/purge`, Issue #621) di luar jadwal
+otomatis `analytics:purge` — mis. untuk merespons permintaan penghapusan
+yang lebih cepat dari siklus retensi terjadwal. Tidak ada tenant-admin
+yang bisa memperpanjang retensi lebih dari yang diizinkan
+`security:readiness`'s check `critical` (raw IP) tanpa mengubah env var
+deployment (bukan lewat UI runtime) — mencegah satu tenant diam-diam
+melonggarkan kontrol privasi seluruh deployment.
 
 ### PP PSTE (Penyelenggaraan Sistem dan Transaksi Elektronik, PP No. 71/2019 + turunannya)
 
@@ -346,7 +439,14 @@ diterima secara eksplisit (bukan diabaikan diam-diam):
   menggagalkan setiap deployment default yang sudah ada tanpa manfaat
   proporsional (lihat tabel severity di §Config dan readiness checks).
 
-### ISO/IEC 27701:2019 (ekstensi privasi untuk ISO 27001, PIMS)
+### ISO/IEC 27701:2025 (ekstensi privasi untuk ISO 27001, PIMS)
+
+Catatan versi: dokumen ini sebelumnya merujuk ISO/IEC 27701:2019; audit
+repositori 2026-07-11 (Issue #624 addendum) memutakhirkan referensi ke
+edisi 2025 yang lebih baru — pemetaan kontrol di bawah tetap berlaku
+karena prinsip inti (PIMS di atas ISMS, privacy by design/default,
+kontrol pengunjung/subjek data) tidak berubah antar edisi untuk cakupan
+praktis modul ini.
 
 Modul ini beroperasi sebagai **PII controller** untuk data pengunjung
 tenant sendiri (bukan PII processor pihak ketiga — tidak ada data
@@ -355,12 +455,28 @@ dikirim ke provider eksternal manapun):
 - **6.2 Kondisi pengumpulan dan pemrosesan** — koleksi dibatasi tujuan
   (statistik operasional), tidak pernah dipakai untuk profiling
   individu di luar cakupan modul (tidak ada targeting/personalisasi).
+  Sejak Issue #624 addendum, koleksi juga tidak pernah mulai sama sekali
+  tanpa keputusan opt-in eksplisit operator (§Default opt-in dan upgrade
+  path) — memperkuat syarat "kondisi pengumpulan" ini di titik paling
+  awal siklus data (sebelum baris pertama pernah ditulis).
 - **7.4 Minimisasi PII (privasi berdasarkan desain)** — privacy-first
   default adalah penerapan langsung "privacy by design and by default"
   yang menjadi inti 27701 — bukan opt-out, tapi opt-in eksplisit per
-  flag sensitif.
+  flag sensitif, termasuk flag master (`VISITOR_ANALYTICS_ENABLED`)
+  sendiri sejak audit addendum ini.
 - **7.9 Penghapusan PII** — job purge terjadwal + retensi bertingkat
-  (§Retensi/§Purge di atas).
+  (§Retensi/§Purge di atas), plus revocation cookie anonim otomatis saat
+  modul dinonaktifkan (§Cookie anonim) — identifier pengunjung berhenti
+  bertahan begitu tujuan pengumpulannya berakhir, bukan hanya datanya di
+  server.
+- **7.3.9/7.2.8 Kontrol subjek data (hak akses/koreksi/penghapusan
+  praktis)** — untuk pengunjung anonim, kontrol praktis yang setara
+  adalah: (a) menghapus cookie browser sendiri kapan pun, (b) retensi
+  bertingkat otomatis yang membatasi seberapa lama data bertahan tanpa
+  perlu permintaan eksplisit. Untuk tenant sebagai controller, kontrol
+  administratif tersedia lewat `visitor_analytics.retention.purge`
+  (purge on-demand) — lihat §Pemetaan kepatuhan UU PDP di atas untuk
+  detail kontrol tenant-admin.
 
 ### OWASP ASVS (Application Security Verification Standard, level L1/L2 relevan)
 
