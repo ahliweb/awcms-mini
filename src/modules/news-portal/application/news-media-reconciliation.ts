@@ -9,16 +9,17 @@
  * same convention `runAuditLogPurge` (`scripts/audit-log-purge.ts`)
  * established.
  *
- * ## Ordering discipline — DB claim FIRST, R2 delete SECOND (both cleanup paths)
+ * ## Ordering discipline — two DIFFERENT orderings, each independently justified
  *
- * `r2-backup-lifecycle.md` §2 asks for "hapus objek R2 dulu, baru hapus
- * baris metadata" for CRASH safety (a mid-run process death leaves a stale
- * DB row for retry, never an untraceable orphan R2 object). This module
- * instead claims/re-verifies the DB row FIRST (an atomic, guarded
- * UPDATE/DELETE — see `news-media-object-directory.ts`'s
- * `markNewsMediaObjectFailed`/`purgeExpiredPendingNewsMediaObject`/
- * `markStaleOrphanedNewsMediaObjectDeleted`), then deletes the R2 object.
- * This is deliberate, not an oversight of the doc's guidance:
+ * (Corrected — reviewer finding on PR #718: this header previously claimed
+ * a single "DB claim first" ordering applied to "both cleanup paths." It
+ * does not; the two paths are ordered oppositely, for two different
+ * reasons, neither of which is an oversight.)
+ *
+ * **`expiredPending` (`cleanupExpiredPending`): DB claim FIRST, R2 delete
+ * SECOND.** `r2-backup-lifecycle.md` §2 asks for "hapus objek R2 dulu, baru
+ * hapus baris metadata" for CRASH safety, but this path claims the DB row
+ * first instead — deliberately:
  *
  * - The DB claim uses the SAME "guarded UPDATE...WHERE, Postgres serializes
  *   concurrent writers" idiom `finalizeNewsMediaUploadSession` already uses
@@ -27,19 +28,25 @@
  *   job already deleted the object out from under it. Claiming in the DB
  *   first is what makes "never delete a row that is genuinely still being
  *   finalized" possible at all (this repo's critical acceptance criterion
- *   for this job).
+ *   for this job) — `pending_upload`/`uploaded` rows CAN be raced against a
+ *   real, concurrently-running upload/finalize flow.
  * - The failure mode the doc's ordering avoids (a stray R2 object with no
  *   matching DB row) is NOT a dead end here — it is EXACTLY the
  *   `orphanInR2` category `news-media-reconciliation-categorization.ts`
  *   independently detects and eventually cleans up on a LATER run. A crash
  *   between this module's DB claim and its R2 delete therefore self-heals,
  *   just on the next scheduled run instead of instantly.
- * - `expiredPending`'s R2-delete-then-purge halves are still sequenced R2
- *   FIRST relative to EACH OTHER (delete the object, THEN hard-delete the
- *   row) for the reason the doc actually cares about: if the R2 delete
- *   fails, the row survives (still `failed`, `deleted_at IS NULL`) so the
- *   NEXT run's snapshot picks it up again — see `categorizeNewsMediaReconciliation`'s
- *   header for why `failed` rows are included in `expiredPending`.
+ *
+ * **`staleOrphaned` (`cleanupStaleOrphaned`): R2 delete FIRST, DB soft-
+ * delete SECOND** — the doc's original ordering, unmodified. This path has
+ * no equivalent race to guard against: no other code path in
+ * `news-media-object-directory.ts` ever transitions a row OUT of
+ * `status = 'orphaned'` (there is no "un-orphan" operation), so there is no
+ * concurrently-running flow that could be racing this cleanup the way
+ * `finalize()` races `expiredPending`. R2-delete-first here matches the
+ * doc's own crash-safety reasoning: a crash after the R2 delete but before
+ * the DB soft-delete just leaves a row pointing at an already-gone object,
+ * which the NEXT run's `orphanInDb`/retry naturally reconciles.
  *
  * ## Idempotency across reruns
  *

@@ -202,7 +202,26 @@ export function categorizeNewsMediaReconciliation(
   const staleOrphaned: NewsMediaStaleOrphanedEntry[] = [];
 
   for (const row of dbRows) {
-    if (row.deletedAt === null && EXPECTED_PRESENT_STATUSES.has(row.status)) {
+    // Security-auditor Medium finding on PR #718: `"uploaded"` is a member
+    // of BOTH `EXPECTED_PRESENT_STATUSES` (healthy/orphanInDb) and
+    // `EXPIRED_PENDING_STATUSES` (expiredPending) — without this guard, a
+    // single `status='uploaded'` row past `pendingTtlMinutes` was counted
+    // in BOTH lists at once: reported as "healthy: no action" (or
+    // "orphanInDb: never mutated") in the same run this job actually
+    // claims it into `expiredPending` and deletes it, contradicting this
+    // module's own documented invariant for those two categories. Compute
+    // the expiredPending membership once and gate the first block on NOT
+    // being expiredPending, so every row lands in exactly one category.
+    const isExpiredPending =
+      row.deletedAt === null &&
+      EXPIRED_PENDING_STATUSES.has(row.status) &&
+      row.createdAt < pendingCutoff;
+
+    if (
+      row.deletedAt === null &&
+      !isExpiredPending &&
+      EXPECTED_PRESENT_STATUSES.has(row.status)
+    ) {
       if (r2KeySet.has(row.objectKey)) {
         healthy.push({ id: row.id, objectKey: row.objectKey });
       } else {
@@ -215,11 +234,7 @@ export function categorizeNewsMediaReconciliation(
       }
     }
 
-    if (
-      row.deletedAt === null &&
-      EXPIRED_PENDING_STATUSES.has(row.status) &&
-      row.createdAt < pendingCutoff
-    ) {
+    if (isExpiredPending) {
       expiredPending.push({
         id: row.id,
         objectKey: row.objectKey,

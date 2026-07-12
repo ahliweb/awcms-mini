@@ -139,6 +139,46 @@ describe("categorizeNewsMediaReconciliation (Issue #690)", () => {
     ).toEqual(["failed-stale", "uploaded-stale"]);
   });
 
+  test("mutual exclusivity (security-auditor Medium finding on PR #718): a stale 'uploaded' row past the TTL is expiredPending ONLY — never simultaneously counted as healthy or orphan-in-db, even when its R2 object exists or is missing", () => {
+    const staleCreatedAt = new Date(
+      NOW.getTime() - (PENDING_TTL_MINUTES + 1) * 60_000
+    );
+
+    // Case A: R2 object present — would satisfy "healthy" if not excluded.
+    const withObject = categorize(
+      [
+        row({
+          objectKey: "uploaded-stale-with-object",
+          status: "uploaded",
+          createdAt: staleCreatedAt
+        })
+      ],
+      [{ key: "uploaded-stale-with-object" }]
+    );
+    expect(withObject.expiredPending.map((e) => e.objectKey)).toEqual([
+      "uploaded-stale-with-object"
+    ]);
+    expect(withObject.healthy).toHaveLength(0);
+    expect(withObject.orphanInDb).toHaveLength(0);
+
+    // Case B: R2 object missing — would satisfy "orphan-in-db" if not excluded.
+    const withoutObject = categorize(
+      [
+        row({
+          objectKey: "uploaded-stale-without-object",
+          status: "uploaded",
+          createdAt: staleCreatedAt
+        })
+      ],
+      []
+    );
+    expect(withoutObject.expiredPending.map((e) => e.objectKey)).toEqual([
+      "uploaded-stale-without-object"
+    ]);
+    expect(withoutObject.healthy).toHaveLength(0);
+    expect(withoutObject.orphanInDb).toHaveLength(0);
+  });
+
   test("expired-pending never includes an already soft-deleted row", () => {
     const staleCreatedAt = new Date(
       NOW.getTime() - (PENDING_TTL_MINUTES + 1) * 60_000
