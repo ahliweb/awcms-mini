@@ -17,9 +17,16 @@ import {
 } from "./lib/security/request-body-limit";
 import { resolvePublicTenantFromRequest } from "./lib/tenant/public-host-tenant-resolver";
 import { log } from "./lib/logging/logger";
+import {
+  recordCounter,
+  recordHistogram
+} from "./lib/observability/metrics-port";
 import { resolveVisitorAnalyticsConfig } from "./modules/visitor-analytics/domain/visitor-analytics-config";
 import { determineArea } from "./modules/visitor-analytics/domain/request-area";
-import { resolveVisitorKey } from "./modules/visitor-analytics/domain/visitor-key";
+import {
+  planVisitorKeyCookie,
+  shouldRevokeVisitorKeyCookie
+} from "./modules/visitor-analytics/domain/visitor-key-cookie";
 import { resolveAnalyticsClientIp } from "./modules/visitor-analytics/domain/client-ip";
 import { resolveGeoEnrichment } from "./modules/visitor-analytics/domain/geo-enrichment";
 import {
@@ -30,9 +37,16 @@ import {
 const PROTECTED_PREFIX = "/admin";
 const API_PREFIX = "/api/";
 const CORRELATION_ID_HEADER = "X-Correlation-ID";
+/**
+ * Cookie name + lifecycle policy: Issue #624 repository audit addendum
+ * (2026-07-11). Lifetime is no longer a hardcoded 2-year constant here —
+ * `planVisitorKeyCookie`/`resolveVisitorKeyCookieMaxAgeSeconds`
+ * (`domain/visitor-key-cookie.ts`) decide set/delete/no-op and the
+ * configurable TTL (`VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS`,
+ * default 30 days) — this file only translates that plan into real
+ * `context.cookies` calls.
+ */
 const VISITOR_KEY_COOKIE_NAME = "awcms_mini_visitor_key";
-/** 2 years — a conventional analytics cookie lifetime, same order of magnitude as `VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS`'s default. */
-const VISITOR_KEY_COOKIE_MAX_AGE_SECONDS = 63_072_000;
 
 /**
  * Correlation ID propagation (Issue 10.1 — Add Structured Logging and Audit
@@ -139,6 +153,27 @@ export async function collectRequestAnalytics(
 ): Promise<void> {
   try {
     const config = resolveVisitorAnalyticsConfig();
+
+    // Issue #624 repository audit addendum: never set/renew the visitor
+    // cookie while the module is disabled, and actively revoke a
+    // pre-existing one (e.g. left over from before this deployment
+    // disabled the module, or from before this default flipped to
+    // off — see `docs/awcms-mini/visitor-analytics.md` §Default opt-in
+    // dan upgrade path). Checked before the path/area gate below since
+    // this is a hard global switch, independent of trackability.
+    if (
+      shouldRevokeVisitorKeyCookie({
+        config,
+        existingValue: context.cookies.get(VISITOR_KEY_COOKIE_NAME)?.value
+      })
+    ) {
+      context.cookies.delete(VISITOR_KEY_COOKIE_NAME, { path: "/" });
+    }
+
+    if (!config.enabled) {
+      return;
+    }
+
     const pathname = context.url.pathname;
     const area = determineArea(pathname);
 
@@ -173,14 +208,18 @@ export async function collectRequestAnalytics(
     const existingVisitorKey = context.cookies.get(
       VISITOR_KEY_COOKIE_NAME
     )?.value;
-    const visitorKey = resolveVisitorKey(existingVisitorKey);
+    const cookiePlan = planVisitorKeyCookie({
+      config,
+      existingValue: existingVisitorKey
+    });
+    const visitorKey = cookiePlan.value;
 
-    if (visitorKey !== existingVisitorKey) {
+    if (cookiePlan.shouldSetCookie) {
       context.cookies.set(VISITOR_KEY_COOKIE_NAME, visitorKey, {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
-        maxAge: VISITOR_KEY_COOKIE_MAX_AGE_SECONDS,
+        maxAge: cookiePlan.maxAgeSeconds,
         secure: process.env.AUTH_COOKIE_SECURE === "true"
       });
     }
@@ -255,6 +294,38 @@ function applyResponseHeaders(
 }
 
 /**
+ * `http_requests_total`/`http_request_duration_ms` (Issue #698, epic #679
+ * "operational proof" wave) — called at every one of this middleware's
+ * response-producing branches below. `routePattern` is Astro's own static,
+ * file-based route pattern (`context.routePattern`, e.g.
+ * `"/api/v1/modules/[moduleKey]/health"`) — the literal bracketed
+ * placeholder, never the concrete id from the actual request — so this
+ * label is bounded by the app's fixed route table, not by traffic. Both
+ * `recordCounter`/`recordHistogram` already contain any adapter error
+ * internally (see `metrics-port.ts`), so this never needs its own
+ * try/catch and can never delay or break a response.
+ */
+function recordHttpRequestMetrics(
+  context: APIContext,
+  status: number,
+  startedAt: number
+): void {
+  const durationMs = performance.now() - startedAt;
+  const method = context.request.method;
+  const routePattern = context.routePattern || "unknown";
+
+  recordCounter("http_requests_total", {
+    method,
+    routePattern,
+    statusCode: String(status)
+  });
+  recordHistogram("http_request_duration_ms", durationMs, {
+    method,
+    routePattern
+  });
+}
+
+/**
  * Guards `/admin/*` (Issue 8.1 — Build Admin Layout Shell).
  *
  * Found during live verification: returning `Astro.redirect(...)` from
@@ -269,6 +340,10 @@ function applyResponseHeaders(
  * doesn't need to re-run the session lookup.
  */
 export const onRequest = defineMiddleware(async (context, next) => {
+  // Issue #698 — captured as the very first statement so recorded latency
+  // includes everything below, not just `next()`'s own render time.
+  const requestStartedAt = performance.now();
+
   context.locals.correlationId = resolveCorrelationId(context.request);
   // Cookie-only resolution (no DB call) for every request — good enough for
   // pre-auth pages (`/`, `/login`) where no tenant is known yet. Re-resolved
@@ -295,6 +370,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
       context.locals.correlationId
     );
 
+    recordHttpRequestMetrics(context, response.status, requestStartedAt);
+
     return applyResponseHeaders(response, context.locals.correlationId);
   }
 
@@ -306,6 +383,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     );
 
     await collectRequestAnalytics(context, response, null, false);
+    recordHttpRequestMetrics(context, response.status, requestStartedAt);
 
     return applyResponseHeaders(response, context.locals.correlationId);
   }
@@ -313,6 +391,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const ssrContext = await resolveSsrContext(context.cookies, new Date());
 
   if (!ssrContext) {
+    // Astro's `context.redirect(path)` defaults to a 302 status.
+    recordHttpRequestMetrics(context, 302, requestStartedAt);
+
     return context.redirect("/login");
   }
 
@@ -331,6 +412,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const response = await next();
 
   await collectRequestAnalytics(context, response, ssrContext.identityId, true);
+  recordHttpRequestMetrics(context, response.status, requestStartedAt);
 
   return applyResponseHeaders(response, context.locals.correlationId);
 });

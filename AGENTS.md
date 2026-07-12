@@ -102,7 +102,7 @@ AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode sta
 | Idempotency mutation high-risk                                         | `awcms-mini-idempotency`           |
 | ABAC default-deny + RLS                                                | `awcms-mini-abac-guard`            |
 | Audit high-risk + redaction                                            | `awcms-mini-audit-log`             |
-| Correlation ID otomatis, retensi/purge log                             | `awcms-mini-observability`         |
+| Correlation ID otomatis, retensi/purge log, metrics port               | `awcms-mini-observability`         |
 | Masking data sensitif                                                  | `awcms-mini-sensitive-data`        |
 | Sync HMAC + anti-replay                                                | `awcms-mini-sync-hmac`             |
 | Review keamanan modul                                                  | `awcms-mini-security-review`       |

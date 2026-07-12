@@ -16,6 +16,7 @@ import {
   checkVisitorAnalyticsRawIpRetentionReady,
   checkVisitorAnalyticsRawUserAgentRetentionReady,
   checkVisitorAnalyticsRetentionOrderingReady,
+  checkVisitorAnalyticsVisitorKeyCookieTtlReady,
   scanLineForHardcodedSecret
 } from "../scripts/security-readiness";
 
@@ -489,20 +490,60 @@ describe("checkVisitorAnalyticsHashSaltReady", () => {
     expect(result.status).toBe("pass");
   });
 
-  test("fails (warning) when enabled (the default) with no hash salt configured", () => {
-    const result = checkVisitorAnalyticsHashSaltReady({} as NodeJS.ProcessEnv);
+  test("fails (warning) when explicitly enabled with no hash salt configured", () => {
+    const result = checkVisitorAnalyticsHashSaltReady({
+      VISITOR_ANALYTICS_ENABLED: "true"
+    } as NodeJS.ProcessEnv);
 
     expect(result.severity).toBe("warning");
     expect(result.status).toBe("fail");
   });
 
-  test("passes when enabled and a hash salt is configured", () => {
+  test("passes when explicitly enabled and a hash salt is configured", () => {
     const result = checkVisitorAnalyticsHashSaltReady({
+      VISITOR_ANALYTICS_ENABLED: "true",
       VISITOR_ANALYTICS_HASH_SALT: "a-real-deployment-salt"
     } as NodeJS.ProcessEnv);
 
     expect(result.severity).toBe("warning");
     expect(result.status).toBe("pass");
+  });
+
+  test("is warning/pass when the default (unset, disabled) config is used — Issue #624 default-off", () => {
+    const result = checkVisitorAnalyticsHashSaltReady({} as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("warning");
+    expect(result.status).toBe("pass");
+  });
+});
+
+describe("checkVisitorAnalyticsVisitorKeyCookieTtlReady (Issue #624 repository audit addendum)", () => {
+  test("passes when visitor analytics is disabled entirely (the default)", () => {
+    const result = checkVisitorAnalyticsVisitorKeyCookieTtlReady(
+      {} as NodeJS.ProcessEnv
+    );
+
+    expect(result.severity).toBe("warning");
+    expect(result.status).toBe("pass");
+  });
+
+  test("passes when explicitly enabled with the default (30-day) TTL", () => {
+    const result = checkVisitorAnalyticsVisitorKeyCookieTtlReady({
+      VISITOR_ANALYTICS_ENABLED: "true"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("warning");
+    expect(result.status).toBe("pass");
+  });
+
+  test("fails (warning) when the cookie TTL is unreasonably long", () => {
+    const result = checkVisitorAnalyticsVisitorKeyCookieTtlReady({
+      VISITOR_ANALYTICS_ENABLED: "true",
+      VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS: "730"
+    } as NodeJS.ProcessEnv);
+
+    expect(result.severity).toBe("warning");
+    expect(result.status).toBe("fail");
   });
 });
 

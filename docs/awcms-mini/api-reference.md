@@ -1923,6 +1923,28 @@ Cross-module audit trail (awcms_mini_audit_events) and its read API. Complements
 | 403    | Access denied by RBAC, ABAC, or tenant policy.                  | [`ApiError`](#standard-error-envelope)                                                                       |
 | 500    | Internal server error without stack trace.                      | [`ApiError`](#standard-error-envelope)                                                                       |
 
+### `GET /api/v1/logs/observability/dependency-health` — Authorized dependency health — local database vs optional external providers, distinguished (Issue
+
+- **operationId**: `logsGetObservabilityDependencyHealth`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                                                                        | Schema                                                                                                           |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Local dependency (database circuit/pool state) and optional external provider (email, object storage, SSO/OIDC, Cloudflare DNS, ...) circuit-breaker health, aggregated by provider family. Never a tenant id, per-tenant breakdown, or raw provider registry key. | [`ApiSuccess`](#standard-success-envelope)&lt;[`DependencyHealthResponse`](#schema-dependencyhealthresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                           |
+| 401    | Authentication required or expired.                                                                                                                                                                                                                                | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.                                                                                                                                                                                                                         | [`ApiError`](#standard-error-envelope)                                                                           |
+
 ## Profile Identity
 
 Profile lifecycle (soft delete/restore/purge) demonstrating the audit trail end-to-end. Full profile CRUD (create/update/list) remains out of scope/backlog.
@@ -6136,6 +6158,99 @@ Whitelisted layout shape (Issue
     }
   ],
   "nextCursor": "string"
+}
+```
+
+### Schema: DependencyHealthLocalDependency
+
+| Field                 | Type                                                                                      | Required | Nullable | Description |
+| --------------------- | ----------------------------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `name`                | string                                                                                    | yes      | no       |             |
+| `status`              | enum(`healthy`, `degraded`, `unhealthy`)                                                  | yes      | no       |             |
+| `circuitBreakerState` | enum(`closed`, `open`, `half_open`)                                                       | yes      | no       |             |
+| `workClasses`         | array of [`DependencyHealthWorkClassSnapshot`](#schema-dependencyhealthworkclasssnapshot) | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "name": "string",
+  "status": "healthy",
+  "circuitBreakerState": "closed",
+  "workClasses": [
+    {
+      "workClass": "critical_transaction",
+      "active": 0,
+      "max": 0,
+      "queued": 0
+    }
+  ]
+}
+```
+
+### Schema: DependencyHealthOptionalProvider
+
+| Field                 | Type                                | Required | Nullable | Description                                                                                                                                       |
+| --------------------- | ----------------------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `family`              | string                              | yes      | no       | Bounded, code-defined provider family label (e.g. "email", "object-storage", "sso-oidc-discovery") — never a raw per-tenant breaker registry key. |
+| `circuitBreakerState` | enum(`closed`, `open`, `half_open`) | yes      | no       |                                                                                                                                                   |
+
+**Example**
+
+```json
+{
+  "family": "string",
+  "circuitBreakerState": "closed"
+}
+```
+
+### Schema: DependencyHealthResponse
+
+| Field               | Type                                                                                    | Required | Nullable | Description |
+| ------------------- | --------------------------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `generatedAt`       | string (date-time)                                                                      | yes      | no       |             |
+| `localDependencies` | array of [`DependencyHealthLocalDependency`](#schema-dependencyhealthlocaldependency)   | yes      | no       |             |
+| `optionalProviders` | array of [`DependencyHealthOptionalProvider`](#schema-dependencyhealthoptionalprovider) | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "generatedAt": "2026-01-01T00:00:00.000Z",
+  "localDependencies": [
+    {
+      "name": "string",
+      "status": "healthy",
+      "circuitBreakerState": "closed",
+      "workClasses": []
+    }
+  ],
+  "optionalProviders": [
+    {
+      "family": "string",
+      "circuitBreakerState": "closed"
+    }
+  ]
+}
+```
+
+### Schema: DependencyHealthWorkClassSnapshot
+
+| Field       | Type                                                                                       | Required | Nullable | Description |
+| ----------- | ------------------------------------------------------------------------------------------ | -------- | -------- | ----------- |
+| `workClass` | enum(`critical_transaction`, `interactive`, `reporting`, `background_sync`, `maintenance`) | yes      | no       |             |
+| `active`    | integer                                                                                    | yes      | no       |             |
+| `max`       | integer                                                                                    | yes      | no       |             |
+| `queued`    | integer                                                                                    | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "workClass": "critical_transaction",
+  "active": 0,
+  "max": 0,
+  "queued": 0
 }
 ```
 

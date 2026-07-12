@@ -6,10 +6,18 @@ import {
   type VisitorAnalyticsConfig
 } from "../../src/modules/visitor-analytics/domain/visitor-analytics-config";
 
+/**
+ * Defaults to `enabled: true` (overridable) — Issue #624 repository
+ * audit addendum flipped `VISITOR_ANALYTICS_DEFAULTS.enabled` itself to
+ * `false`, but most tests in this file are about the per-area gating
+ * flags (`collectAdmin`/`collectApi`/`collectPublic`), not the module's
+ * master switch, so they need the module enabled to exercise that logic
+ * at all.
+ */
 function configWith(
   overrides: Partial<VisitorAnalyticsConfig>
 ): VisitorAnalyticsConfig {
-  return { ...VISITOR_ANALYTICS_DEFAULTS, ...overrides };
+  return { ...VISITOR_ANALYTICS_DEFAULTS, enabled: true, ...overrides };
 }
 
 describe("shouldCollectRequest", () => {
@@ -89,26 +97,52 @@ describe("shouldCollectRequest", () => {
     ).toBe(false);
   });
 
-  test("default config collects admin and public but not API", () => {
+  test("VISITOR_ANALYTICS_DEFAULTS is disabled by default (Issue #624 repository audit addendum) — nothing is collected out of the box", () => {
     expect(
       shouldCollectRequest({
         pathname: "/admin/dashboard",
         area: "admin",
         config: VISITOR_ANALYTICS_DEFAULTS
       })
-    ).toBe(true);
+    ).toBe(false);
     expect(
       shouldCollectRequest({
         pathname: "/news",
         area: "public",
         config: VISITOR_ANALYTICS_DEFAULTS
       })
-    ).toBe(true);
+    ).toBe(false);
     expect(
       shouldCollectRequest({
         pathname: "/api/v1/health",
         area: "api",
         config: VISITOR_ANALYTICS_DEFAULTS
+      })
+    ).toBe(false);
+  });
+
+  test("once explicitly enabled, the default per-area flags collect admin and public but not API", () => {
+    const enabledDefaults = configWith({});
+
+    expect(
+      shouldCollectRequest({
+        pathname: "/admin/dashboard",
+        area: "admin",
+        config: enabledDefaults
+      })
+    ).toBe(true);
+    expect(
+      shouldCollectRequest({
+        pathname: "/news",
+        area: "public",
+        config: enabledDefaults
+      })
+    ).toBe(true);
+    expect(
+      shouldCollectRequest({
+        pathname: "/api/v1/health",
+        area: "api",
+        config: enabledDefaults
       })
     ).toBe(false);
   });

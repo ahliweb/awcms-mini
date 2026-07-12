@@ -476,16 +476,18 @@ pemetaan kepatuhan penuh ada di `docs/awcms-mini/visitor-analytics.md`
 tidak mengulang kontrol generik (RLS, ABAC default-deny, audit) yang
 sudah berlaku sama di sini.
 
-| Kategori risiko                                                            | Mitigasi                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Re-identifikasi pengunjung lewat IP/user-agent mentah**                  | Privacy-first default: `VISITOR_ANALYTICS_RAW_IP_ENABLED`/`_RAW_USER_AGENT_ENABLED`/`_GEO_ENABLED` semuanya mati secara default (Issue #617) — hanya `ip_hash`/`user_agent_hash` (HMAC-SHA256 keyed `VISITOR_ANALYTICS_HASH_SALT`, Issue #619) dan field browser/device/OS hasil parse tersimpan. Raw value, bila diaktifkan eksplisit, dibatasi retensi pendek (`VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS`, default 30 hari) dan dibersihkan job purge terjadwal (Issue #624, lihat baris purge di bawah).                  |
-| **Existence oracle lintas-tenant lewat FK yang tidak dilindungi RLS**      | Ditemukan security-auditor di Issue #618 (FK `identity_id`/`visitor_session_id` tidak ditegakkan RLS Postgres — dokumentasi resmi `CREATE POLICY`), **ditutup di Issue #620**: `identity_id` selalu di-derive server-side dari sesi terautentikasi pemanggil sendiri, `visitor_session_id` selalu dari row yang baru saja dicari/dibuat fungsi collector sendiri di dalam tenant context-nya — tidak pernah dari UUID mentah yang bisa dikontrol client. Lihat skill `awcms-mini-visitor-analytics` §Schema untuk detail penuh. |
-| **Data sensitif bocor lewat query-string yang ikut ter-log**               | `sanitizePath` (Issue #619) membuang minimum 11 parameter sensitif (`token`/`code`/`password`/`secret`/`email`/`phone`/`authorization`/`access_token`/`refresh_token`/`reset_token`/`mfaChallengeToken`) sebelum path masuk `path_sanitized` — fail SAFE (buang seluruh query string, bukan echo raw input) untuk input yang gagal di-parse `URL()` (post-review fix, PR #627).                                                                                                                                                 |
-| **Geolokasi diam-diam tidak aktif meski dikira aktif (operator mismatch)** | `resolveGeoEnrichment` (Issue #623) mensyaratkan DUA gate (`VISITOR_ANALYTICS_GEO_ENABLED` DAN `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`) — salah satu mati menghasilkan semua field `null` (fail-safe, tidak pernah geolokasi keliru dari header yang tidak tepercaya). `bun run security:readiness`'s `checkVisitorAnalyticsGeoTrustedSourceReady` (Issue #624, critical) menangkap kombinasi "geo diaktifkan tanpa trust Cloudflare" sebelum go-live, supaya operator tidak mengira fitur aktif padahal diam-diam kosong.         |
-| **Header forwarded ambigu meracuni IP/geolokasi**                          | `resolveAnalyticsClientIp` (Issue #623) menolak `X-Forwarded-For`/`CF-Connecting-IP` yang membawa >1 nilai comma-separated (anomali → log warning → fallback ke sumber berikutnya), pola sama `X-Forwarded-Host` di epic tenant-domain-routing. Proxy tepercaya yang benar wajib MENIMPA (bukan menambahkan) header ini di setiap request (kontrak sama `PUBLIC_TRUST_PROXY`, doc 18).                                                                                                                                          |
-| **Retensi data yang tidak proporsional dengan sensitivitas**               | Prinsip urutan retensi ditegakkan: raw detail (30 hari default) < event (90 hari default) < rollup agregat (730 hari default) — dari Issue #617's config. Issue #624 menambah `checkVisitorAnalyticsRetentionOrderingReady` (warning) yang memverifikasi urutan ini setiap `security:readiness`, dan `checkVisitorAnalyticsRawIpRetentionReady` (critical) yang GAGAL bila raw IP aktif dengan retensi raw detail melebihi retensi event.                                                                                       |
-| **Purge terjadwal gagal/berhenti diam-diam**                               | `bun run analytics:purge` (Issue #624, `scripts/visitor-analytics-purge.ts`) memanggil `purgeVisitorAnalyticsData` yang SAMA dengan `POST /api/v1/analytics/retention/purge` (Issue #621, tidak pernah re-derive rule purge) untuk setiap tenant `active`, mencatat audit `critical` `retention_purged` per tenant yang benar-benar terpurge (bukan log silent), dan exit non-zero bila terjadi error — operator penjadwal (cron/systemd timer) melihat kegagalan lewat exit code, bukan berhenti diam-diam.                    |
-| **Rollup dihitung dobel saat job dijalankan ulang**                        | `rollupVisitorAnalyticsForDate` (Issue #624) UPSERT penuh (`ON CONFLICT (tenant_id, date, area) DO UPDATE SET ... = EXCLUDED...`) — setiap run merekomputasi total dari `awcms_mini_visit_events` mentah dan MENIMPA, tidak pernah menambah ke nilai lama. Rerun tanggal yang sama menghasilkan baris identik; diverifikasi `tests/integration/visitor-analytics-rollup.integration.test.ts`.                                                                                                                                   |
+| Kategori risiko                                                                             | Mitigasi                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Re-identifikasi pengunjung lewat IP/user-agent mentah**                                   | Privacy-first default: `VISITOR_ANALYTICS_RAW_IP_ENABLED`/`_RAW_USER_AGENT_ENABLED`/`_GEO_ENABLED` semuanya mati secara default (Issue #617) — hanya `ip_hash`/`user_agent_hash` (HMAC-SHA256 keyed `VISITOR_ANALYTICS_HASH_SALT`, Issue #619) dan field browser/device/OS hasil parse tersimpan. Raw value, bila diaktifkan eksplisit, dibatasi retensi pendek (`VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS`, default 30 hari) dan dibersihkan job purge terjadwal (Issue #624, lihat baris purge di bawah).                                             |
+| **Existence oracle lintas-tenant lewat FK yang tidak dilindungi RLS**                       | Ditemukan security-auditor di Issue #618 (FK `identity_id`/`visitor_session_id` tidak ditegakkan RLS Postgres — dokumentasi resmi `CREATE POLICY`), **ditutup di Issue #620**: `identity_id` selalu di-derive server-side dari sesi terautentikasi pemanggil sendiri, `visitor_session_id` selalu dari row yang baru saja dicari/dibuat fungsi collector sendiri di dalam tenant context-nya — tidak pernah dari UUID mentah yang bisa dikontrol client. Lihat skill `awcms-mini-visitor-analytics` §Schema untuk detail penuh.                            |
+| **Data sensitif bocor lewat query-string yang ikut ter-log**                                | `sanitizePath` (Issue #619) membuang minimum 11 parameter sensitif (`token`/`code`/`password`/`secret`/`email`/`phone`/`authorization`/`access_token`/`refresh_token`/`reset_token`/`mfaChallengeToken`) sebelum path masuk `path_sanitized` — fail SAFE (buang seluruh query string, bukan echo raw input) untuk input yang gagal di-parse `URL()` (post-review fix, PR #627).                                                                                                                                                                            |
+| **Geolokasi diam-diam tidak aktif meski dikira aktif (operator mismatch)**                  | `resolveGeoEnrichment` (Issue #623) mensyaratkan DUA gate (`VISITOR_ANALYTICS_GEO_ENABLED` DAN `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`) — salah satu mati menghasilkan semua field `null` (fail-safe, tidak pernah geolokasi keliru dari header yang tidak tepercaya). `bun run security:readiness`'s `checkVisitorAnalyticsGeoTrustedSourceReady` (Issue #624, critical) menangkap kombinasi "geo diaktifkan tanpa trust Cloudflare" sebelum go-live, supaya operator tidak mengira fitur aktif padahal diam-diam kosong.                                    |
+| **Header forwarded ambigu meracuni IP/geolokasi**                                           | `resolveAnalyticsClientIp` (Issue #623) menolak `X-Forwarded-For`/`CF-Connecting-IP` yang membawa >1 nilai comma-separated (anomali → log warning → fallback ke sumber berikutnya), pola sama `X-Forwarded-Host` di epic tenant-domain-routing. Proxy tepercaya yang benar wajib MENIMPA (bukan menambahkan) header ini di setiap request (kontrak sama `PUBLIC_TRUST_PROXY`, doc 18).                                                                                                                                                                     |
+| **Retensi data yang tidak proporsional dengan sensitivitas**                                | Prinsip urutan retensi ditegakkan: raw detail (30 hari default) < event (90 hari default) < rollup agregat (730 hari default) — dari Issue #617's config. Issue #624 menambah `checkVisitorAnalyticsRetentionOrderingReady` (warning) yang memverifikasi urutan ini setiap `security:readiness`, dan `checkVisitorAnalyticsRawIpRetentionReady` (critical) yang GAGAL bila raw IP aktif dengan retensi raw detail melebihi retensi event.                                                                                                                  |
+| **Purge terjadwal gagal/berhenti diam-diam**                                                | `bun run analytics:purge` (Issue #624, `scripts/visitor-analytics-purge.ts`) memanggil `purgeVisitorAnalyticsData` yang SAMA dengan `POST /api/v1/analytics/retention/purge` (Issue #621, tidak pernah re-derive rule purge) untuk setiap tenant `active`, mencatat audit `critical` `retention_purged` per tenant yang benar-benar terpurge (bukan log silent), dan exit non-zero bila terjadi error — operator penjadwal (cron/systemd timer) melihat kegagalan lewat exit code, bukan berhenti diam-diam.                                               |
+| **Rollup dihitung dobel saat job dijalankan ulang**                                         | `rollupVisitorAnalyticsForDate` (Issue #624) UPSERT penuh (`ON CONFLICT (tenant_id, date, area) DO UPDATE SET ... = EXCLUDED...`) — setiap run merekomputasi total dari `awcms_mini_visit_events` mentah dan MENIMPA, tidak pernah menambah ke nilai lama. Rerun tanggal yang sama menghasilkan baris identik; diverifikasi `tests/integration/visitor-analytics-rollup.integration.test.ts`.                                                                                                                                                              |
+| **Instalasi baru mengumpulkan telemetry tanpa keputusan sadar operator (audit 2026-07-11)** | `VISITOR_ANALYTICS_ENABLED` default sekarang `false` (sebelumnya `true` di Issue #617) — koleksi tidak pernah mulai tanpa operator secara eksplisit mengaktifkannya, setelah operator menetapkan dasar hukum/tujuan pemrosesan sendiri (UU PDP; software ini bukan dasar hukum itu sendiri). Deployment existing yang sudah men-set var ini `true` eksplisit tidak terdampak — lihat `docs/awcms-mini/visitor-analytics.md` §Default opt-in dan upgrade path.                                                                                              |
+| **Cookie anonim persisten bertahan lama tanpa batas meski modul dinonaktifkan**             | `awcms_mini_visitor_key` sebelumnya hardcoded ~2 tahun; sekarang configurable (`VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS`, 30 hari default) DAN direvokasi secara aktif (`shouldRevokeVisitorKeyCookie`, `domain/visitor-key-cookie.ts`) begitu `VISITOR_ANALYTICS_ENABLED` bukan `"true"` — browser yang sudah membawa identifier lama tidak menyimpannya tanpa batas hanya karena tidak ada lagi yang memperbaruinya. `bun run security:readiness`'s `checkVisitorAnalyticsVisitorKeyCookieTtlReady` (warning) menandai TTL yang melebihi 400 hari. |
 
 ### Batasan yang dicatat, bukan diabaikan (visitor analytics)
 
@@ -796,3 +798,59 @@ bentuk secret. Kalau pesan error tidak cukup jelas untuk mendiagnosis:
    tambahkan `"relative/path:line"` ke `LOGGING_LINT_EXEMPTIONS` di
    `scripts/logging-lint-check.ts` dengan alasan tercatat di komentar,
    jangan hapus/lemahkan pattern generiknya.
+
+## Standar tambahan dipicu epic platform-hardening (Issue #698, epic #679)
+
+Konsep BARU, komplementer terhadap (bukan pengganti) fondasi structured
+logging/audit trail Issue 10.1/#447 di atas: `src/lib/observability/metrics-port.ts`
+menambah counter/histogram/gauge berkardinalitas rendah untuk request
+HTTP, saturasi pool DB, status/backlog job, dan outcome/latency/circuit
+state provider. Detail arsitektur, tabel kardinalitas/privasi per metrik,
+dan SLI/SLO ada di [`observability-metrics.md`](observability-metrics.md)
+— bagian ini hanya mencatat guardrail keamanan/privasi yang mengikat
+model ancaman.
+
+**Guardrail non-negotiable (badan isu #698)**:
+
+- **Tidak boleh ada tenant ID, route dengan ID tak terbatas, email/IP,
+  object key, token, prompt, atau isi percakapan di LABEL metrik apa
+  pun.** Ini beda dari redaksi nilai (`redactSensitiveAttributes`/
+  `redactSecretsInText` di atas, yang untuk teks bebas di log/audit) —
+  di sini masalahnya CARDINALITY EXPLOSION (satu series per tenant/id
+  selamanya) DAN privasi di level label metrik itu sendiri. Mekanisme
+  konkret: `METRIC_DEFINITIONS`'s `allowedLabelKeys` membuang (bukan
+  menolak dengan error) key label mana pun yang tidak dideklarasikan
+  untuk metrik itu sebelum sampai ke adapter mana pun — bahkan bug di
+  call site tidak bisa membuat label tak-terduga sampai ke adapter.
+- **Kasus paling berisiko**: `getProviderCircuitBreaker`'s registry key
+  bisa tenant-scoped (`sso-oidc-discovery:<tenantId>:<providerKey>`,
+  Issue #610). `deriveProviderFamilyLabel` (`circuit-breaker.ts`)
+  memotong ke prefix literal sebelum `:` pertama — mengubahnya jadi
+  `"sso-oidc-discovery"` saja. Fungsi yang sama dipakai baik oleh label
+  metrik `provider` MAUPUN endpoint dependency-health di bawah, jadi
+  keduanya tidak pernah berbeda perilaku.
+- **Metrics BUKAN sumber otorisasi.** Tidak ada kode di modul ini atau
+  pemanggilnya yang membaca nilai metrik untuk membuat keputusan
+  ABAC/RLS/autentikasi — metrics murni observasional.
+- **Offline/LAN tetap berjalan tanpa collector eksternal apa pun** —
+  adapter default adalah no-op total (`createNoopMetricsPort`); setiap
+  deployment yang tidak pernah memanggil `setMetricsPort` tidak
+  membutuhkan koneksi keluar apa pun untuk fitur ini.
+
+**Endpoint baru** `GET /api/v1/logs/observability/dependency-health`
+(migration `047_awcms_mini_observability_metrics_permission.sql`,
+permission `logging.observability.read`) adalah endpoint TERAUTENTIKASI
+pertama yang membedakan "local dependency" (database) dari "optional
+external provider" secara eksplisit di respons — berbeda dari
+`/api/v1/health`/`/api/v1/database/pool/health` yang publik dan tidak
+membedakan. `optionalProviders[].family` memakai fungsi bounding yang
+sama seperti label metrik `provider`, tidak pernah raw registry key atau
+tenant ID — dibuktikan oleh
+`tests/integration/observability-dependency-health.integration.test.ts`
+("never contain the raw tenant-scoped key/tenant id").
+
+Baris A.8.16 di matrix kepatuhan di atas TIDAK berubah statusnya (⚠) —
+metrics agregat bukan SIEM/alerting terpusat; tetap tanggung jawab
+lapisan operasional aplikasi turunan untuk memasang adapter nyata
+(Prometheus/OpenTelemetry, lihat `observability-metrics.md`) dan
+alerting di atasnya.

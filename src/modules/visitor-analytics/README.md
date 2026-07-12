@@ -94,24 +94,41 @@ passing and the module behaving safely for offline/LAN deployments.
 issues (#619 identity helpers, #620 middleware collector) should call
 rather than re-reading `process.env.VISITOR_ANALYTICS_*` themselves.
 
-| Var                                           | Default | Notes                                                                                                                                                             |
-| --------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VISITOR_ANALYTICS_ENABLED`                   | `true`  | Master switch. `false` disables collection entirely.                                                                                                              |
-| `VISITOR_ANALYTICS_MODE`                      | `basic` | `basic` \| `detailed` (`VISITOR_ANALYTICS_MODES`). Unknown value falls back to `basic`.                                                                           |
-| `VISITOR_ANALYTICS_COLLECT_ADMIN`             | `true`  | Collect telemetry for `/admin/*` routes.                                                                                                                          |
-| `VISITOR_ANALYTICS_COLLECT_PUBLIC`            | `true`  | Collect telemetry for public routes.                                                                                                                              |
-| `VISITOR_ANALYTICS_COLLECT_API`               | `false` | Collect telemetry for `/api/v1/*` calls.                                                                                                                          |
-| `VISITOR_ANALYTICS_DETAILED_ENABLED`          | `false` | Reserved for `detailed` mode's richer session/event granularity.                                                                                                  |
-| `VISITOR_ANALYTICS_RAW_IP_ENABLED`            | `false` | Store the raw IP address. Privacy-first default: off.                                                                                                             |
-| `VISITOR_ANALYTICS_RAW_USER_AGENT_ENABLED`    | `false` | Reserved — no raw-user-agent column exists yet (migration 039 only has `user_agent_hash` + parsed fields). Currently a no-op regardless of value; see §Collector. |
-| `VISITOR_ANALYTICS_GEO_ENABLED`               | `false` | Enable geolocation enrichment (Issue #623). Privacy-first default: off.                                                                                           |
-| `VISITOR_ANALYTICS_TRUST_PROXY`               | `false` | Trust `X-Forwarded-For`/similar headers. Only set `true` behind a trusted reverse proxy.                                                                          |
-| `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`          | `false` | Trust Cloudflare-specific headers (`CF-Connecting-IP`, `CF-IPCountry`). Only behind Cloudflare.                                                                   |
-| `VISITOR_ANALYTICS_ONLINE_WINDOW_SECONDS`     | `300`   | Positive integer. Real-time "online now" window.                                                                                                                  |
-| `VISITOR_ANALYTICS_EVENT_RETENTION_DAYS`      | `90`    | Positive integer.                                                                                                                                                 |
-| `VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS` | `30`    | Positive integer. Shorter than event retention — raw detail is the most sensitive data class.                                                                     |
-| `VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS`     | `730`   | Positive integer. Aggregated rollups can be kept far longer than raw events.                                                                                      |
-| `VISITOR_ANALYTICS_HASH_SALT`                 | `""`    | Optional salt for the pseudonymous visitor fingerprint (Issue #619). Never a real secret here.                                                                    |
+| Var                                             | Default | Notes                                                                                                                                                             |
+| ----------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VISITOR_ANALYTICS_ENABLED`                     | `false` | Master switch. Default-off since the Issue #624 repository audit addendum (2026-07-11, previously `true`) — see §Default opt-in and upgrade path below.           |
+| `VISITOR_ANALYTICS_MODE`                        | `basic` | `basic` \| `detailed` (`VISITOR_ANALYTICS_MODES`). Unknown value falls back to `basic`.                                                                           |
+| `VISITOR_ANALYTICS_COLLECT_ADMIN`               | `true`  | Collect telemetry for `/admin/*` routes.                                                                                                                          |
+| `VISITOR_ANALYTICS_COLLECT_PUBLIC`              | `true`  | Collect telemetry for public routes.                                                                                                                              |
+| `VISITOR_ANALYTICS_COLLECT_API`                 | `false` | Collect telemetry for `/api/v1/*` calls.                                                                                                                          |
+| `VISITOR_ANALYTICS_DETAILED_ENABLED`            | `false` | Reserved for `detailed` mode's richer session/event granularity.                                                                                                  |
+| `VISITOR_ANALYTICS_RAW_IP_ENABLED`              | `false` | Store the raw IP address. Privacy-first default: off.                                                                                                             |
+| `VISITOR_ANALYTICS_RAW_USER_AGENT_ENABLED`      | `false` | Reserved — no raw-user-agent column exists yet (migration 039 only has `user_agent_hash` + parsed fields). Currently a no-op regardless of value; see §Collector. |
+| `VISITOR_ANALYTICS_GEO_ENABLED`                 | `false` | Enable geolocation enrichment (Issue #623). Privacy-first default: off.                                                                                           |
+| `VISITOR_ANALYTICS_TRUST_PROXY`                 | `false` | Trust `X-Forwarded-For`/similar headers. Only set `true` behind a trusted reverse proxy.                                                                          |
+| `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`            | `false` | Trust Cloudflare-specific headers (`CF-Connecting-IP`, `CF-IPCountry`). Only behind Cloudflare.                                                                   |
+| `VISITOR_ANALYTICS_ONLINE_WINDOW_SECONDS`       | `300`   | Positive integer. Real-time "online now" window.                                                                                                                  |
+| `VISITOR_ANALYTICS_EVENT_RETENTION_DAYS`        | `90`    | Positive integer.                                                                                                                                                 |
+| `VISITOR_ANALYTICS_RAW_DETAIL_RETENTION_DAYS`   | `30`    | Positive integer. Shorter than event retention — raw detail is the most sensitive data class.                                                                     |
+| `VISITOR_ANALYTICS_ROLLUP_RETENTION_DAYS`       | `730`   | Positive integer. Aggregated rollups can be kept far longer than raw events.                                                                                      |
+| `VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS` | `30`    | Positive integer. Anonymous visitor-key cookie lifetime (days) — Issue #624 audit addendum, replaces a previous hardcoded ~2-year constant.                       |
+| `VISITOR_ANALYTICS_HASH_SALT`                   | `""`    | Optional salt for the pseudonymous visitor fingerprint (Issue #619). Never a real secret here.                                                                    |
+
+### Default opt-in and upgrade path (Issue #624 repository audit addendum, 2026-07-11)
+
+`VISITOR_ANALYTICS_ENABLED` defaults to `false` — a fresh installation
+collects nothing until an operator explicitly sets it to `true`, after
+making their own lawful-purpose/consent decision (this setting is a
+technical switch, never itself the legal basis UU PDP requires). An
+existing deployment that already sets `VISITOR_ANALYTICS_ENABLED=true`
+explicitly in its own environment is completely unaffected by this
+change — explicit values always win over the default. Only a deployment
+that relied on the module's original (Issue #617) implicit default,
+without ever setting the var, loses collection on upgrade and must add
+`VISITOR_ANALYTICS_ENABLED=true` explicitly to keep its previous
+behavior. While disabled, no `awcms_mini_visitor_key` cookie is ever set
+(and a pre-existing one is actively deleted — see §Collector's
+"Revocation" note), and no session/event row is ever written.
 
 `bun run config:validate`'s `checkVisitorAnalyticsConfig` validates
 `VISITOR_ANALYTICS_MODE` against `VISITOR_ANALYTICS_MODES` and each
@@ -230,9 +247,11 @@ nothing. A future issue must either wire it to a new column or this flag
 should be removed rather than left silently non-functional.
 
 - **Gate**: `shouldCollectRequest` (pure, unit-tested) — `false` unless
-  `VISITOR_ANALYTICS_ENABLED=true`, the path is trackable
-  (`isTrackablePath`), and the per-area flag is on
-  (`VISITOR_ANALYTICS_COLLECT_ADMIN` for `/admin/*`,
+  `VISITOR_ANALYTICS_ENABLED=true` (default-off since the Issue #624
+  repository audit addendum, 2026-07-11 — see
+  `docs/awcms-mini/visitor-analytics.md` §Default opt-in dan upgrade
+  path), the path is trackable (`isTrackablePath`), and the per-area
+  flag is on (`VISITOR_ANALYTICS_COLLECT_ADMIN` for `/admin/*`,
   `VISITOR_ANALYTICS_COLLECT_API` for anything under `/api`,
   `VISITOR_ANALYTICS_COLLECT_PUBLIC` for everything else, including
   `/login` — a page render, not an API call).
@@ -246,10 +265,22 @@ should be removed rather than left silently non-functional.
   `resolvePublicTenantFromRequest` (Issue #559) — best-effort; a request
   whose tenant can't be resolved (unknown host, no public routing
   configured) is simply not collected, never a hard failure.
-- **Visitor cookie**: `awcms_mini_visitor_key`, `httpOnly`/`sameSite=lax`/
-  2-year `maxAge`, set only when a request is actually collected (not on
-  every request). Value resolved via `resolveVisitorKey` (#619) — reuses
-  a valid existing cookie, mints a new one otherwise.
+- **Visitor cookie** (`domain/visitor-key-cookie.ts`, revised by the
+  Issue #624 repository audit addendum): `awcms_mini_visitor_key`,
+  `httpOnly`/`sameSite=lax`, configurable `maxAge`
+  (`VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS`, 30 days by default —
+  previously a hardcoded ~2-year constant), set only when a request is
+  actually collected (not on every request). Value resolved via
+  `resolveVisitorKey` (#619) — reuses a valid existing cookie, mints a
+  new one otherwise (natural rotation once the browser expires the old
+  one). **Revocation**: `shouldRevokeVisitorKeyCookie`, checked in
+  `src/middleware.ts` BEFORE the path/area gate above, actively deletes
+  a pre-existing cookie the moment `VISITOR_ANALYTICS_ENABLED` is not
+  `"true"` — a browser that already carries the old identifier (e.g.
+  from before this deployment disabled the module, or from before this
+  default flipped to off) doesn't keep it indefinitely just because
+  nothing renews it. No cookie is ever set, and no event/session row is
+  ever written, while the module is disabled.
 - **Client IP**: `domain/client-ip.ts`'s `resolveAnalyticsClientIp` — a
   deliberately more conservative sibling of `lib/security/rate-limit.ts`'s
   `resolveClientIp`; only trusts `CF-Connecting-IP`/`X-Forwarded-For` when
@@ -283,8 +314,13 @@ should be removed rather than left silently non-functional.
   cross-tenant-existence-oracle reasoning this closes.
 
 Test: `tests/unit/visitor-analytics-collector.test.ts` (`shouldCollectRequest`,
-pure), `tests/unit/visitor-analytics-request-area.test.ts`,
+pure — including the default-off/enabled-once-opted-in split from the
+Issue #624 repository audit addendum), `tests/unit/visitor-analytics-request-area.test.ts`,
 `tests/unit/visitor-analytics-client-ip.test.ts`,
+`tests/unit/visitor-analytics-visitor-key-cookie.test.ts`
+(`shouldRevokeVisitorKeyCookie`/`planVisitorKeyCookie`, pure — no-cookie
+when disabled, revocation of a pre-existing cookie, rotation via mint-
+on-no-existing-value, configurable TTL),
 `tests/integration/visitor-analytics-collector.integration.test.ts`
 (session/event creation, sensitive-param stripping, bot classification,
 raw-IP opt-in, session throttle/reuse, session-boundary rollover after the
@@ -541,24 +577,25 @@ gating (only a tenant with an actual effect gets audited).
 ## Config and readiness checks (Issue #624, `scripts/security-readiness.ts`)
 
 `scripts/validate-env.ts`'s `checkVisitorAnalyticsConfig` (Issue #617)
-stays shape-only (enum/positive-int format) — Issue #624 adds five
+stays shape-only (enum/positive-int format) — Issue #624 adds six
 cross-field SAFETY checks to `bun run security:readiness` instead,
 following the same `validate-env.ts` (shape) vs `security-readiness.ts`
 (safety/severity judgment) split every other gated feature in this repo
 already uses (`checkOnlineAuthSecurityConfig`/`Ready`,
-`checkTurnstileConfig`/`Ready`, etc.). All five reuse
+`checkTurnstileConfig`/`Ready`, etc.). All six reuse
 `resolveVisitorAnalyticsConfig` — never re-read
 `process.env.VISITOR_ANALYTICS_*` directly:
 
-| Check                                             | Severity | Fails when                                                                    |
-| ------------------------------------------------- | -------- | ----------------------------------------------------------------------------- |
-| `checkVisitorAnalyticsRawIpRetentionReady`        | critical | Raw IP enabled and raw-detail retention exceeds event retention               |
-| `checkVisitorAnalyticsRawUserAgentRetentionReady` | warning  | Raw user-agent enabled (still a no-op today) and the same retention is unsafe |
-| `checkVisitorAnalyticsGeoTrustedSourceReady`      | critical | Geo enabled without `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`                      |
-| `checkVisitorAnalyticsRetentionOrderingReady`     | warning  | Raw detail retention > event retention, OR rollup retention < event retention |
-| `checkVisitorAnalyticsHashSaltReady`              | warning  | Module enabled and `VISITOR_ANALYTICS_HASH_SALT` is empty                     |
+| Check                                             | Severity | Fails when                                                                                                                 |
+| ------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `checkVisitorAnalyticsRawIpRetentionReady`        | critical | Raw IP enabled and raw-detail retention exceeds event retention                                                            |
+| `checkVisitorAnalyticsRawUserAgentRetentionReady` | warning  | Raw user-agent enabled (still a no-op today) and the same retention is unsafe                                              |
+| `checkVisitorAnalyticsGeoTrustedSourceReady`      | critical | Geo enabled without `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`                                                                   |
+| `checkVisitorAnalyticsRetentionOrderingReady`     | warning  | Raw detail retention > event retention, OR rollup retention < event retention                                              |
+| `checkVisitorAnalyticsHashSaltReady`              | warning  | Module enabled and `VISITOR_ANALYTICS_HASH_SALT` is empty                                                                  |
+| `checkVisitorAnalyticsVisitorKeyCookieTtlReady`   | warning  | Module enabled and `VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS` exceeds 400 days (Issue #624 repository audit addendum) |
 
-Every default (privacy-first, nothing set) passes all five checks
+Every default (privacy-first, nothing set) passes all six checks
 cleanly — only `critical` findings block `security:readiness`'s exit
 code; `warning` findings are reported but never block. Full rationale
 per check, plus a compliance mapping (UU PDP, PP PSTE, ISO/IEC
@@ -573,15 +610,22 @@ check above, both the pass/fail branches for each).
 - `docs/awcms-mini/visitor-analytics.md` (new) — operational guide:
   offline/LAN vs full-online vs trusted-proxy/Cloudflare mode, retention
   table per column, rollup/purge job behavior, config/readiness check
-  table, and the full compliance mapping.
+  table, and the full compliance mapping. Extended by the 2026-07-11
+  repository audit addendum with new §Default opt-in dan upgrade path
+  and §Cookie anonim sections, a data-subject deletion/anonymization
+  mapping under UU PDP, and an ISO/IEC 27701:2025 reference update
+  (previously 2019).
 - `docs/awcms-mini/18_configuration_env_reference.md` §Visitor
-  analytics — documents the five new cross-field readiness rules
-  alongside the existing shape-only `config:validate` rules.
-- `docs/awcms-mini/deployment-profiles.md` — new §Visitor analytics
-  section (per-profile guidance) and two new rows in §Job registry
-  lainnya (`analytics:rollup`/`analytics:purge`).
-- `docs/awcms-mini/20_threat_model_security_architecture.md` — new
-  §Standar tambahan dipicu epic visitor analytics section.
+  analytics — documents the six cross-field readiness rules (five
+  original + `checkVisitorAnalyticsVisitorKeyCookieTtlReady` from the
+  audit addendum) alongside the existing shape-only `config:validate`
+  rules, and the new `VISITOR_ANALYTICS_ENABLED=false` default.
+- `docs/awcms-mini/deployment-profiles.md` — §Visitor analytics section
+  (per-profile guidance) updated for the default-off change, and two
+  rows in §Job registry lainnya (`analytics:rollup`/`analytics:purge`).
+- `docs/awcms-mini/20_threat_model_security_architecture.md` — §Standar
+  tambahan dipicu epic visitor analytics section, with two new rows for
+  the default-off change and the cookie lifetime/revocation change.
 - `docs/awcms-mini/04_erd_data_dictionary.md` — retention table rows and
   the module's own section updated to reflect the epic as complete
   rather than "fast-follow Issue #624".
@@ -591,5 +635,6 @@ The `api.basePath`/navigation `path` in `module.ts` were pre-declared in
 `tenant_domain`'s descriptor followed ahead of Issue #562) — both are now
 real: the API (Issue #621) and the dashboard (Issue #622) have shipped.
 
-With Issue #624 complete, every issue in the visitor analytics epic
-(#617-#624) is now done.
+With Issue #624 (including its 2026-07-11 repository audit addendum)
+complete, every issue in the visitor analytics epic (#617-#624) is now
+done.

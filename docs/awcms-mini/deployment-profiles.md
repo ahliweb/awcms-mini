@@ -216,21 +216,30 @@ hardening).
 
 ## Visitor analytics (opsional, privacy-first — Issue #617-#624)
 
-Berbeda dari full-online auth hardening di atas, modul `visitor_analytics`
-**aktif di semua profil secara default** (`VISITOR_ANALYTICS_ENABLED=true`)
-— termasuk offline/LAN, karena statistik pengunjung agregat (human
-pageviews, top paths/browsers/devices) tidak butuh koneksi internet apa
-pun; hanya tiga sub-fitur yang benar-benar online-dependent dan
-default-mati (`VISITOR_ANALYTICS_RAW_IP_ENABLED`/`_RAW_USER_AGENT_ENABLED`/
+Modul `visitor_analytics` **default MATI di semua profil** sejak Issue
+#624 repository audit addendum (2026-07-11) —
+`VISITOR_ANALYTICS_ENABLED=false` kecuali operator secara eksplisit
+mengaktifkannya (lihat `docs/awcms-mini/visitor-analytics.md` §Default
+opt-in dan upgrade path untuk migration note deployment existing yang
+sudah men-set var ini `true`). Statistik pengunjung agregat (human
+pageviews, top paths/browsers/devices) sendiri tidak butuh koneksi
+internet apa pun begitu diaktifkan — bekerja sama baik di offline/LAN
+maupun online; hanya tiga sub-fitur yang benar-benar online-dependent
+dan tetap default-mati begitu modul aktif
+(`VISITOR_ANALYTICS_RAW_IP_ENABLED`/`_RAW_USER_AGENT_ENABLED`/
 `_GEO_ENABLED`). Lihat `docs/awcms-mini/visitor-analytics.md` untuk
 panduan lengkap privacy-first default, retensi, dan pemetaan kepatuhan;
 ringkasan per profil:
 
-- **offline/LAN & development**: biarkan semua `VISITOR_ANALYTICS_*`
-  tidak di-set. Statistik pengunjung dasar (dashboard `/admin/analytics`)
+- **offline/LAN & development**: set `VISITOR_ANALYTICS_ENABLED=true`
+  saja bila statistik pengunjung dasar diinginkan (biarkan semua
+  `VISITOR_ANALYTICS_*` lain tidak di-set). Dashboard `/admin/analytics`
   tetap berfungsi penuh tanpa IP mentah, user-agent mentah, atau
   geolokasi apa pun tersimpan — cocok untuk deployment yang tidak pernah
-  tersambung internet publik.
+  tersambung internet publik. Bila var ini tidak pernah di-set, modul
+  tetap sepenuhnya mati (tidak ada cookie, tidak ada baris session/event)
+  — pilihan default yang aman untuk instalasi yang belum mengambil
+  keputusan dasar hukum/tujuan pemrosesan.
 - **staging/production (online), di belakang Cloudflare**: hanya bila
   operator memang menempatkan origin di belakang Cloudflare DAN
   memfirewall origin agar hanya bisa diakses lewat edge Cloudflare, boleh
@@ -931,6 +940,30 @@ worker interruption, partial provider outage) plus tier `--full` yang
 menjalankan `restore-drill.sh` — lihat
 [`resilience-dr-verification.md`](resilience-dr-verification.md).
 
+## Metrics dan observabilitas operasional (Issue #698)
+
+Sejak Issue #698, `src/lib/observability/metrics-port.ts` menyediakan port
+metrics kecil (counter/histogram/gauge berkardinalitas rendah untuk
+request HTTP, saturasi pool DB, status/backlog job, dan
+outcome/latency/circuit state provider) — **default adalah adapter no-op**
+(`createNoopMetricsPort`), jadi **setiap profil, termasuk offline/LAN,
+berjalan penuh tanpa collector eksternal apa pun** dan tanpa biaya runtime
+tambahan sampai sebuah aplikasi turunan secara eksplisit memanggil
+`setMetricsPort(...)`. Ini konsep terpisah dari (bukan pengganti)
+structured logging/audit trail Issue #447 — lihat
+[`observability-metrics.md`](observability-metrics.md) untuk arsitektur
+lengkap, tabel kardinalitas/privasi per metrik, SLI/SLO awal +
+panduan burn-rate, dan contoh adapter Prometheus/OpenTelemetry (opsional,
+tidak meng-couple runtime inti ke satu SaaS tertentu).
+
+Endpoint baru `GET /api/v1/logs/observability/dependency-health`
+(terautentikasi, guard `logging.observability.read`) melengkapi
+`/api/v1/health` (liveness publik) dan `/api/v1/database/pool/health`
+(agregat lokal publik) dengan pembeda eksplisit "local dependency"
+(database) vs "optional external provider" (email, object storage,
+SSO/OIDC, Cloudflare DNS, …) — lihat doc tersebut §Authorized dependency
+health endpoint.
+
 ## Lihat juga
 
 - [`deploy-coolify.md`](deploy-coolify.md) — panduan deploy Coolify
@@ -939,6 +972,8 @@ menjalankan `restore-drill.sh` — lihat
 - [`18_configuration_env_reference.md`](18_configuration_env_reference.md)
   — referensi environment variable lengkap dan topologi LAN-first.
 - [`database-pooling.md`](database-pooling.md) — kapan PgBouncer relevan.
+- [`observability-metrics.md`](observability-metrics.md) — metrics port,
+  SLI/SLO awal, dependency health endpoint (Issue #698).
 - [`07_sprint_testing_production_readiness.md`](07_sprint_testing_production_readiness.md)
   — checklist production readiness dan go-live plan.
 - `.claude/skills/awcms-mini-production-preflight/SKILL.md` — command

@@ -1574,6 +1574,62 @@ export function checkVisitorAnalyticsHashSaltReady(
   };
 }
 
+/**
+ * Issue #624 repository audit addendum (2026-07-11): the anonymous
+ * `awcms_mini_visitor_key` cookie used to have a hardcoded ~2-year
+ * lifetime; it is now operator-configurable
+ * (`VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS`, 30-day default).
+ * `warning`, not `critical` — an overly long TTL widens the window a
+ * single anonymous visitor stays linkable across sessions, but the
+ * value stored behind it is still a pseudonymous cookie value (never
+ * raw PII by itself), so this is a hygiene/minimization concern, not a
+ * live data leak. The 400-day ceiling mirrors the same order of
+ * magnitude as common cookie-lifetime guidance (e.g. the EU ePrivacy
+ * Directive's commonly-cited ~13-month/396-day maximum for consent
+ * cookies) — a deployment that deliberately needs longer for a
+ * documented reason can still accept the warning (only `critical`
+ * blocks go-live).
+ */
+const VISITOR_KEY_COOKIE_TTL_WARNING_THRESHOLD_DAYS = 400;
+
+export function checkVisitorAnalyticsVisitorKeyCookieTtlReady(
+  env: NodeJS.ProcessEnv = process.env
+): SecurityCheckResult {
+  const name =
+    "Visitor analytics anonymous cookie lifetime is short-lived (Issue #624)";
+  const severity: CheckSeverity = "warning";
+  const config = resolveVisitorAnalyticsConfig(env);
+
+  if (!config.enabled) {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        'VISITOR_ANALYTICS_ENABLED is not "true" — no visitor-key cookie is ever set.'
+    };
+  }
+
+  if (
+    config.visitorKeyCookieTtlDays >
+    VISITOR_KEY_COOKIE_TTL_WARNING_THRESHOLD_DAYS
+  ) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS (${config.visitorKeyCookieTtlDays}) exceeds ${VISITOR_KEY_COOKIE_TTL_WARNING_THRESHOLD_DAYS} days — the anonymous visitor-key cookie stays linkable for an unusually long time. Prefer a shorter, privacy-minimizing lifetime unless explicitly justified for this deployment.`
+    };
+  }
+
+  return {
+    name,
+    severity,
+    status: "pass",
+    evidence: `VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS (${config.visitorKeyCookieTtlDays}) is within the recommended range.`
+  };
+}
+
 // ---------------------------------------------------------------------------
 // 10. Errors don't leak stack traces (warning/info, best-effort)
 // ---------------------------------------------------------------------------
@@ -2090,6 +2146,7 @@ export async function runSecurityReadinessChecks(): Promise<
     checkVisitorAnalyticsGeoTrustedSourceReady(),
     checkVisitorAnalyticsRetentionOrderingReady(),
     checkVisitorAnalyticsHashSaltReady(),
+    checkVisitorAnalyticsVisitorKeyCookieTtlReady(),
     checkNewsPortalFullOnlineR2PresetReady(),
     checkNewsMediaR2SvgNotAllowed(),
     checkNewsMediaR2PublicBaseUrlProductionSafe(),
