@@ -99,6 +99,15 @@ export async function buildNewsArticleSeoMetadata(
   const socialPreviewCandidates: SocialPreviewImageCandidates = {
     explicitSocialImageMediaId: input.post.seoImageMediaId,
     featuredMediaId: input.post.featuredMediaId,
+    // Priority tier #3 ("first verified R2 image in content") deliberately
+    // considers only gallery-block images, never `video_news` block
+    // thumbnails — `videoThumbnailMediaObjectIds` is bulk-resolved above
+    // for `resolvedGalleryUrls` (the video thumbnail `<img>` itself needs
+    // it) but is intentionally excluded here: a video thumbnail is a
+    // still frame representing embedded video, not an editorial photo, so
+    // using it as the article's own social/SEO preview image would be a
+    // scope expansion beyond the issue's "image in content" wording, not
+    // an oversight.
     contentImageMediaIds: blogSettings.socialPreviewContentImageFallbackEnabled
       ? galleryMediaObjectIds
       : [],
@@ -224,6 +233,9 @@ export async function resolveNewsArticlePreviewImage(
     {
       explicitSocialImageMediaId: post.seoImageMediaId,
       featuredMediaId: post.featuredMediaId,
+      // Gallery images only, never video_news thumbnails — same deliberate
+      // scope decision as `buildNewsArticleSeoMetadata` above, see its
+      // comment for the full reasoning.
       contentImageMediaIds:
         blogSettings.socialPreviewContentImageFallbackEnabled
           ? galleryMediaObjectIds
