@@ -1921,7 +1921,7 @@ msgid "admin.layout.nav_aria_label"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/blog-content/module.ts:29
+#: src/modules/blog-content/module.ts:45
 msgid "admin.layout.nav_blog"
 msgstr ""
 
@@ -1956,6 +1956,21 @@ msgstr ""
 
 #: src/layouts/AdminLayout.astro:295
 msgid "admin.layout.nav_settings"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/social-publishing/module.ts:50
+msgid "admin.layout.nav_social_publishing_accounts"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/social-publishing/module.ts:62
+msgid "admin.layout.nav_social_publishing_jobs"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/social-publishing/module.ts:56
+msgid "admin.layout.nav_social_publishing_rules"
 msgstr ""
 
 #: src/layouts/AdminLayout.astro:285
@@ -2818,6 +2833,270 @@ msgstr ""
 
 #: src/pages/admin/settings.astro:163
 msgid "admin.settings.timezone_legend"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:86
+msgid "admin.social_publishing.access_denied_body"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:85
+msgid "admin.social_publishing.access_denied_title"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:206
+msgid "admin.social_publishing.accounts.connect_submit"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:47
+msgid "admin.social_publishing.accounts.connect_success"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:160
+msgid "admin.social_publishing.accounts.connect_summary"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:150
+msgid "admin.social_publishing.accounts.disconnect_button"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:53
+msgid "admin.social_publishing.accounts.disconnect_confirm"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:50
+msgid "admin.social_publishing.accounts.disconnect_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:48
+msgid "admin.social_publishing.accounts.disconnect_success"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:136
+msgid "admin.social_publishing.accounts.field_auto_publish"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:173
+msgid "admin.social_publishing.accounts.field_provider_account_id"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:179
+msgid "admin.social_publishing.accounts.field_provider_account_name"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:185
+msgid "admin.social_publishing.accounts.field_provider_account_type"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:164
+msgid "admin.social_publishing.accounts.field_provider_key"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:125
+msgid "admin.social_publishing.accounts.field_status"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:195
+msgid "admin.social_publishing.accounts.field_token_reference"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:113
+msgid "admin.social_publishing.accounts.no_accounts"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:139
+msgid "admin.social_publishing.accounts.save_button"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:80
+msgid "admin.social_publishing.accounts.title"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:198
+msgid "admin.social_publishing.accounts.token_reference_hint"
+msgstr ""
+
+#: src/pages/admin/social-publishing/accounts.astro:49
+msgid "admin.social_publishing.accounts.update_success"
+msgstr ""
+
+#: src/pages/admin/social-publishing/jobs.astro:155
+msgid "admin.social_publishing.jobs.approve_button"
+msgstr ""
+
+#: src/pages/admin/social-publishing/jobs.astro:47
+msgid "admin.social_publishing.jobs.approve_success"
+msgstr ""
+
+#: src/pages/admin/social-publishing/jobs.astro:182
+msgid "admin.social_publishing.jobs.attempts_summary"
+msgstr ""
+
+#: src/pages/admin/social-publishing/jobs.astro:175
+msgid "admin.social_publishing.jobs.cancel_button"
+msgstr ""
+
+#: src/pages/admin/social-publishing/jobs.astro:51
+msgid "admin.social_publishing.jobs.cancel_confirm"
+msgstr ""
+
+#: src/pages/admin/social-publishing/jobs.astro:50
+msgid "admin.social_publishing.jobs.cancel_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/social-publishing/jobs.astro:48
+msgid "admin.social_publishing.jobs.cancel_success"
+msgstr ""
+
+#: src/pages/admin/social-publishing/jobs.astro:132
+msgid "admin.social_publishing.jobs.field_attempts"
+msgstr ""
+
+#: src/pages/admin/social-publishing/jobs.astro:191
+msgid "admin.social_publishing.jobs.field_error"
+msgstr ""
+
+#: src/pages/admin/social-publishing/jobs.astro:137
+msgid "admin.social_publishing.jobs.field_external_url"
+msgstr ""
+
+#: src/pages/admin/social-publishing/jobs.astro:189
+msgid "admin.social_publishing.jobs.field_outcome"
+msgstr ""
+
+#: src/pages/admin/social-publishing/jobs.astro:193
+msgid "admin.social_publishing.jobs.field_started_at"
+msgstr ""
+
+#: src/pages/admin/social-publishing/jobs.astro:120
+msgid "admin.social_publishing.jobs.no_jobs"
+msgstr ""
+
+#: src/pages/admin/social-publishing/jobs.astro:163
+msgid "admin.social_publishing.jobs.retry_button"
+msgstr ""
+
+#: src/pages/admin/social-publishing/jobs.astro:49
+msgid "admin.social_publishing.jobs.retry_success"
+msgstr ""
+
+#: src/pages/admin/social-publishing/jobs.astro:88
+msgid "admin.social_publishing.jobs.title"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:279
+msgid "admin.social_publishing.rules.caption_template_hint"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:211
+msgid "admin.social_publishing.rules.create_submit"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:41
+msgid "admin.social_publishing.rules.create_success"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:181
+msgid "admin.social_publishing.rules.create_summary"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:171
+msgid "admin.social_publishing.rules.delete_button"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:45
+msgid "admin.social_publishing.rules.delete_confirm"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:44
+msgid "admin.social_publishing.rules.delete_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:43
+msgid "admin.social_publishing.rules.delete_success"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:185
+msgid "admin.social_publishing.rules.field_account"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:240
+msgid "admin.social_publishing.rules.field_active"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:229
+msgid "admin.social_publishing.rules.field_caption_template"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:142
+msgid "admin.social_publishing.rules.field_enabled"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:267
+msgid "admin.social_publishing.rules.field_name"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:134
+msgid "admin.social_publishing.rules.field_requires_approval"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:145
+msgid "admin.social_publishing.rules.field_template"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:195
+msgid "admin.social_publishing.rules.field_trigger_event"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:117
+msgid "admin.social_publishing.rules.no_rules"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:148
+msgid "admin.social_publishing.rules.no_template"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:220
+msgid "admin.social_publishing.rules.no_templates"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:161
+msgid "admin.social_publishing.rules.save_button"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:114
+msgid "admin.social_publishing.rules.section_rules"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:217
+msgid "admin.social_publishing.rules.section_templates"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:283
+msgid "admin.social_publishing.rules.template_create_submit"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:46
+msgid "admin.social_publishing.rules.template_create_success"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:263
+msgid "admin.social_publishing.rules.template_create_summary"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:52
+msgid "admin.social_publishing.rules.template_delete_success"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:49
+msgid "admin.social_publishing.rules.template_update_success"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:83
+msgid "admin.social_publishing.rules.title"
+msgstr ""
+
+#: src/pages/admin/social-publishing/rules.astro:42
+msgid "admin.social_publishing.rules.update_success"
 msgstr ""
 
 #: src/pages/admin/sync.astro:143

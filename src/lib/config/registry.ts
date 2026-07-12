@@ -1460,6 +1460,35 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
     default: "true",
     description:
       "There is no supported Instagram web-share intent URL, so this never renders a dedicated Instagram button — it only toggles a short text note clarifying that Instagram sharing goes through native share (when NEWS_SHARE_NATIVE_ENABLED=true) or copy-link, never a fake Instagram URL."
+  },
+
+  // ---------------------------------------------------------------------
+  // Social publishing — provider-neutral auto-posting outbox foundation
+  // (Issue #643, epic `social_publishing` #643-#647)
+  // ---------------------------------------------------------------------
+  {
+    name: "SOCIAL_PUBLISHING_ENABLED",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "social-publishing",
+    sensitivity: "non-secret",
+    profiles: ONLINE_PROFILES,
+    default: "false",
+    description:
+      "Full-online-only master switch for the social publishing outbox/dispatcher (Issue #643) — src/modules/social-publishing/domain/social-publishing-config.ts.",
+    validatorGroup: "checkSocialPublishingProfileConfig"
+  },
+  {
+    name: "SOCIAL_PUBLISHING_PROFILE",
+    type: "enum",
+    required: "conditional",
+    ownerModule: "social-publishing",
+    sensitivity: "non-secret",
+    profiles: ONLINE_PROFILES,
+    default: "disabled",
+    description:
+      'Must be exactly "full_online" when SOCIAL_PUBLISHING_ENABLED=true.',
+    validatorGroup: "checkSocialPublishingProfileConfig"
   }
 ];
 

@@ -370,6 +370,149 @@ channels:
       replacement for it. Documented contract only; producer is the
       structured JSON logger, invoked from `pages/api/v1/blog/theme/
       index.ts`'s `PATCH` handler (`blog-content.theme.updated` log line).
+  awcms-mini.social-publishing.account.connected:
+    address: awcms-mini.social-publishing.account.connected
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A social account was connected or reconnected/reauthorized (Issue
+      #643). Documented contract only, same producer convention as every
+      other event in this file — the structured JSON logger, invoked from
+      `social-publishing/application/social-account-directory.ts`'s
+      `connectSocialAccount` (`social_publishing.account.connected` audit
+      event + log line).
+  awcms-mini.social-publishing.account.disconnected:
+    address: awcms-mini.social-publishing.account.disconnected
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A social account was disconnected (Issue #643) — a status
+      transition, not a delete. Producer:
+      `social-account-directory.ts`'s `disconnectSocialAccount`.
+  awcms-mini.social-publishing.account.needs-reauth:
+    address: awcms-mini.social-publishing.account.needs-reauth
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A connected social account's token expired/was rejected by its
+      provider and now requires reauthorization (Issue #643). Producer:
+      `social-account-directory.ts`'s `markSocialAccountNeedsReauth`,
+      called by the outbox dispatcher on a `needs_reauth` publish outcome.
+  awcms-mini.social-publishing.rule.created:
+    address: awcms-mini.social-publishing.rule.created
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A social publish rule was created (Issue #643). Producer:
+      `social-publish-rule-directory.ts`'s `createSocialPublishRule`.
+  awcms-mini.social-publishing.rule.updated:
+    address: awcms-mini.social-publishing.rule.updated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A social publish rule was updated (Issue #643). Producer:
+      `social-publish-rule-directory.ts`'s `updateSocialPublishRule`.
+  awcms-mini.social-publishing.rule.deleted:
+    address: awcms-mini.social-publishing.rule.deleted
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A social publish rule was soft-deleted (Issue #643). Producer:
+      `social-publish-rule-directory.ts`'s `softDeleteSocialPublishRule`.
+  awcms-mini.social-publishing.job.created:
+    address: awcms-mini.social-publishing.job.created
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      An outbox job was created after an eligible article publish event
+      (Issue #643 acceptance criterion: "Publishing jobs are created after
+      eligible article publish event"). Idempotent per
+      article/account/action (deterministic idempotency key). Producer:
+      `social-publishing/application/create-social-publish-jobs.ts`'s
+      `createSocialPublishJobsForArticle`, invoked by `blog_content`'s
+      publish route/scheduled-publish worker via `SocialPublishingPort`.
+  awcms-mini.social-publishing.job.approved:
+    address: awcms-mini.social-publishing.job.approved
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A job pending approval was approved and may now be dispatched to its
+      provider (Issue #643). Producer:
+      `social-publish-job-directory.ts`'s `approveSocialPublishJob`.
+  awcms-mini.social-publishing.job.cancelled:
+    address: awcms-mini.social-publishing.job.cancelled
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A job was cancelled (Issue #643), from any non-terminal-success
+      status. Producer: `social-publish-job-directory.ts`'s
+      `cancelSocialPublishJob`.
+  awcms-mini.social-publishing.job.retry-requested:
+    address: awcms-mini.social-publishing.job.retry-requested
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A manual retry was requested for a failed/rate-limited/needs-reauth
+      job (Issue #643) — `attemptCount` is not reset. Producer:
+      `social-publish-job-directory.ts`'s `retrySocialPublishJob`.
+  awcms-mini.social-publishing.job.published:
+    address: awcms-mini.social-publishing.job.published
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A job was successfully published to its provider (Issue #643) —
+      `externalPostId`/`externalPostUrl` now set. This foundation issue
+      ships zero real provider adapters, so this event is only ever
+      producible once an adapter (#644/#645/#646) is registered. Producer:
+      `social-publishing/application/social-publish-dispatch.ts`'s
+      `dispatchSocialPublishQueue`.
+  awcms-mini.social-publishing.job.publish-failed:
+    address: awcms-mini.social-publishing.job.publish-failed
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A publish attempt failed but is still eligible for exponential
+      backoff retry (Issue #643). Producer: `social-publish-dispatch.ts`.
+  awcms-mini.social-publishing.job.publish-failed-terminal:
+    address: awcms-mini.social-publishing.job.publish-failed-terminal
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A job permanently failed after exhausting its retry budget (Issue
+      #643 acceptance criterion: "terminal failed state"). Producer:
+      `social-publish-dispatch.ts`.
+  awcms-mini.social-publishing.job.rate-limited:
+    address: awcms-mini.social-publishing.job.rate-limited
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A provider reported a rate limit for a publish attempt (Issue #643)
+      — backoff seeded from the provider's own `retryAfterSeconds` hint
+      when present. Producer: `social-publish-dispatch.ts`.
+  awcms-mini.social-publishing.job.needs-reauth:
+    address: awcms-mini.social-publishing.job.needs-reauth
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A provider reported an expired/invalid token for a publish attempt
+      (Issue #643 acceptance criterion: "Support reauthorization flow when
+      token expires") — the linked account is also flipped to
+      `needs_reauth`. Producer: `social-publish-dispatch.ts`.
 operations:
   publishSyncPushRequested:
     action: send
@@ -569,6 +712,96 @@ operations:
       $ref: "#/channels/awcms-mini.blog-content.theme.updated"
     messages:
       - $ref: "#/channels/awcms-mini.blog-content.theme.updated/messages/DomainEvent"
+  publishSocialPublishingAccountConnected:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.social-publishing.account.connected"
+    messages:
+      - $ref: "#/channels/awcms-mini.social-publishing.account.connected/messages/DomainEvent"
+  publishSocialPublishingAccountDisconnected:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.social-publishing.account.disconnected"
+    messages:
+      - $ref: "#/channels/awcms-mini.social-publishing.account.disconnected/messages/DomainEvent"
+  publishSocialPublishingAccountNeedsReauth:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.social-publishing.account.needs-reauth"
+    messages:
+      - $ref: "#/channels/awcms-mini.social-publishing.account.needs-reauth/messages/DomainEvent"
+  publishSocialPublishingRuleCreated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.social-publishing.rule.created"
+    messages:
+      - $ref: "#/channels/awcms-mini.social-publishing.rule.created/messages/DomainEvent"
+  publishSocialPublishingRuleUpdated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.social-publishing.rule.updated"
+    messages:
+      - $ref: "#/channels/awcms-mini.social-publishing.rule.updated/messages/DomainEvent"
+  publishSocialPublishingRuleDeleted:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.social-publishing.rule.deleted"
+    messages:
+      - $ref: "#/channels/awcms-mini.social-publishing.rule.deleted/messages/DomainEvent"
+  publishSocialPublishingJobCreated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.social-publishing.job.created"
+    messages:
+      - $ref: "#/channels/awcms-mini.social-publishing.job.created/messages/DomainEvent"
+  publishSocialPublishingJobApproved:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.social-publishing.job.approved"
+    messages:
+      - $ref: "#/channels/awcms-mini.social-publishing.job.approved/messages/DomainEvent"
+  publishSocialPublishingJobCancelled:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.social-publishing.job.cancelled"
+    messages:
+      - $ref: "#/channels/awcms-mini.social-publishing.job.cancelled/messages/DomainEvent"
+  publishSocialPublishingJobRetryRequested:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.social-publishing.job.retry-requested"
+    messages:
+      - $ref: "#/channels/awcms-mini.social-publishing.job.retry-requested/messages/DomainEvent"
+  publishSocialPublishingJobPublished:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.social-publishing.job.published"
+    messages:
+      - $ref: "#/channels/awcms-mini.social-publishing.job.published/messages/DomainEvent"
+  publishSocialPublishingJobPublishFailed:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.social-publishing.job.publish-failed"
+    messages:
+      - $ref: "#/channels/awcms-mini.social-publishing.job.publish-failed/messages/DomainEvent"
+  publishSocialPublishingJobPublishFailedTerminal:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.social-publishing.job.publish-failed-terminal"
+    messages:
+      - $ref: "#/channels/awcms-mini.social-publishing.job.publish-failed-terminal/messages/DomainEvent"
+  publishSocialPublishingJobRateLimited:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.social-publishing.job.rate-limited"
+    messages:
+      - $ref: "#/channels/awcms-mini.social-publishing.job.rate-limited/messages/DomainEvent"
+  publishSocialPublishingJobNeedsReauth:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.social-publishing.job.needs-reauth"
+    messages:
+      - $ref: "#/channels/awcms-mini.social-publishing.job.needs-reauth/messages/DomainEvent"
 components:
   securitySchemes:
     syncHmac:

@@ -1,0 +1,1485 @@
+# Source fragment for the "Social Publishing" module/tag (Issue #643, epic
+# `social_publishing` #643-#647).
+#
+# Owns every path tagged "Social Publishing" and every schema referenced ONLY
+# by this tag's operations. Schemas shared with another module/tag live in
+# the root file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# This is a FOUNDATION issue — no provider-specific (Meta/LinkedIn/Telegram)
+# endpoint exists; every operation here is provider-neutral (account
+# connect/disconnect, rule/template CRUD, job/attempt read, approve/cancel/
+# retry, per-tenant settings).
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/social-publishing/accounts:
+    get:
+      tags:
+        - Social Publishing
+      summary: List this tenant's connected/disconnected social accounts
+      operationId: socialPublishingAccountsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Social accounts. `token_reference` is never included in any response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - accounts
+                        properties:
+                          accounts:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/SocialAccountItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Social Publishing
+      summary: Connect (or reconnect/reauthorize) a social account
+      description: High-risk mutation — writes a `tokenReference` (opaque secret-storage pointer, never a raw token/JWT — rejected by write-time validation if it looks like one). Requires `Idempotency-Key`. Upserts on `(providerKey, providerAccountId)` — reconnecting an already-known account (e.g. after `needs_reauth`) IS the reauthorization flow.
+      operationId: socialPublishingAccountsConnect
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SocialAccountConnectRequest"
+      responses:
+        "200":
+          description: Social account connected.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SocialAccountItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/social-publishing/accounts/{id}:
+    get:
+      tags:
+        - Social Publishing
+      summary: Get a social account by id
+      operationId: socialPublishingAccountsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Social account.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SocialAccountItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Social Publishing
+      summary: Toggle per-account auto-publish enablement
+      description: Only touches `autoPublishEnabled` — no credential change, gated by `rules.configure` (not `accounts.connect`/`.disconnect`).
+      operationId: socialPublishingAccountsUpdateAutoPublish
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - autoPublishEnabled
+              properties:
+                autoPublishEnabled:
+                  type: boolean
+      responses:
+        "200":
+          description: Social account updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SocialAccountItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/social-publishing/accounts/{id}/disconnect:
+    post:
+      tags:
+        - Social Publishing
+      summary: Disconnect a social account
+      description: High-risk mutation — clears `tokenReference`, stops all auto-publishing for this account. Requires `Idempotency-Key`. A status transition, not a delete (no `accounts.delete` permission exists).
+      operationId: socialPublishingAccountsDisconnect
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Social account disconnected.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SocialAccountItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/social-publishing/rules:
+    get:
+      tags:
+        - Social Publishing
+      summary: List this tenant's social publish rules
+      operationId: socialPublishingRulesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Social publish rules.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - rules
+                        properties:
+                          rules:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/SocialPublishRuleItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Social Publishing
+      summary: Create a social publish rule
+      description: Not idempotent (same low-risk admin-config-mutation class as ad placement/homepage section creation). `socialAccountId` must reference an existing account for this tenant.
+      operationId: socialPublishingRulesCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SocialPublishRuleCreateRequest"
+      responses:
+        "200":
+          description: Social publish rule created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SocialPublishRuleItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          description: socialAccountId does not reference an existing account for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/social-publishing/rules/{id}:
+    patch:
+      tags:
+        - Social Publishing
+      summary: Update a social publish rule
+      operationId: socialPublishingRulesUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SocialPublishRuleUpdateRequest"
+      responses:
+        "200":
+          description: Social publish rule updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SocialPublishRuleItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Social Publishing
+      summary: Soft-delete a social publish rule
+      operationId: socialPublishingRulesDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Social publish rule deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - id
+                          - deleted
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/social-publishing/templates:
+    get:
+      tags:
+        - Social Publishing
+      summary: List this tenant's caption templates
+      description: Gated by `rules.read` — templates are configured alongside rules, no separate `templates.*` permission.
+      operationId: socialPublishingTemplatesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Caption templates.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - templates
+                        properties:
+                          templates:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/SocialPublishTemplateItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Social Publishing
+      summary: Create a caption template
+      operationId: socialPublishingTemplatesCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SocialPublishTemplateCreateRequest"
+      responses:
+        "200":
+          description: Caption template created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SocialPublishTemplateItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/social-publishing/templates/{id}:
+    patch:
+      tags:
+        - Social Publishing
+      summary: Update a caption template
+      operationId: socialPublishingTemplatesUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SocialPublishTemplateUpdateRequest"
+      responses:
+        "200":
+          description: Caption template updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SocialPublishTemplateItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Social Publishing
+      summary: Soft-delete a caption template
+      operationId: socialPublishingTemplatesDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Caption template deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - id
+                          - deleted
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/social-publishing/jobs:
+    get:
+      tags:
+        - Social Publishing
+      summary: List this tenant's social publish jobs
+      description: Bounded list (max 200), optional `status` filter. Full keyset pagination is a documented follow-up, not implemented in this foundation issue.
+      operationId: socialPublishingJobsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - requires_approval
+              - approved
+              - scheduled
+              - publishing
+              - published
+              - failed
+              - cancelled
+              - skipped
+              - rate_limited
+              - needs_reauth
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Social publish jobs.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - jobs
+                        properties:
+                          jobs:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/SocialPublishJobItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/social-publishing/jobs/{id}:
+    get:
+      tags:
+        - Social Publishing
+      summary: Get a social publish job with its full attempt history
+      operationId: socialPublishingJobsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Social publish job with attempts.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: "#/components/schemas/SocialPublishJobItem"
+                          - type: object
+                            required:
+                              - attempts
+                            properties:
+                              attempts:
+                                type: array
+                                items:
+                                  $ref: "#/components/schemas/SocialPublishAttemptItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/social-publishing/jobs/{id}/approve:
+    post:
+      tags:
+        - Social Publishing
+      summary: Approve a job pending external posting
+      description: High-risk mutation — unblocks external posting. Requires `Idempotency-Key`. Only valid from `requires_approval`.
+      operationId: socialPublishingJobsApprove
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note:
+                  type: string
+                  nullable: true
+      responses:
+        "200":
+          description: Job approved.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SocialPublishJobItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Idempotency-Key reused with a different request, or the job is not awaiting approval.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/social-publishing/jobs/{id}/cancel:
+    post:
+      tags:
+        - Social Publishing
+      summary: Cancel a job
+      description: Requires `Idempotency-Key`. Valid from any non-terminal-success status.
+      operationId: socialPublishingJobsCancel
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Job cancelled.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SocialPublishJobItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Idempotency-Key reused with a different request, or the job cannot be cancelled from its current status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/social-publishing/jobs/{id}/retry:
+    post:
+      tags:
+        - Social Publishing
+      summary: Retry a failed/rate-limited/needs-reauth job
+      description: Requires `Idempotency-Key`. Valid from `failed`/`rate_limited`/`needs_reauth`, only while the retry budget (`attemptCount < maxAttempts`) is not exhausted. `attemptCount` is NOT reset by a manual retry.
+      operationId: socialPublishingJobsRetry
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Job retry requested.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SocialPublishJobItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Idempotency-Key reused with a different request, or the job cannot be retried from its current status/retry budget.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/social-publishing/settings:
+    get:
+      tags:
+        - Social Publishing
+      summary: Get this tenant's social publishing settings
+      description: The tenant half of "Auto-posting can be disabled globally and per tenant" (the global half is the deployment-level `SOCIAL_PUBLISHING_ENABLED`/`SOCIAL_PUBLISHING_PROFILE` env gate).
+      operationId: socialPublishingSettingsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Social publishing settings.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SocialPublishingSettingsItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Social Publishing
+      summary: Toggle the tenant-wide auto-posting master switch
+      operationId: socialPublishingSettingsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - autoPublishingEnabled
+              properties:
+                autoPublishingEnabled:
+                  type: boolean
+      responses:
+        "200":
+          description: Social publishing settings updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SocialPublishingSettingsItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    SocialAccountItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - providerKey
+        - providerAccountId
+        - providerAccountName
+        - providerAccountType
+        - connectionStatus
+        - scopes
+        - autoPublishEnabled
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        providerKey:
+          type: string
+          description: Provider-neutral by design — not a fixed enum (see migration 050's header). Concrete values are minted by adapter issues (#644/#645/#646).
+        providerAccountId:
+          type: string
+        providerAccountName:
+          type: string
+        providerAccountType:
+          type: string
+          enum:
+            - page
+            - profile
+            - channel
+            - group
+            - organization
+        connectionStatus:
+          type: string
+          enum:
+            - pending
+            - connected
+            - disconnected
+            - needs_reauth
+            - error
+        scopes:
+          type: array
+          items:
+            type: string
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastVerifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        autoPublishEnabled:
+          type: boolean
+        connectedAt:
+          type: string
+          format: date-time
+          nullable: true
+        disconnectedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    SocialAccountConnectRequest:
+      type: object
+      required:
+        - providerKey
+        - providerAccountId
+        - providerAccountName
+        - providerAccountType
+        - tokenReference
+      properties:
+        providerKey:
+          type: string
+          pattern: "^[a-z][a-z0-9_]{1,49}$"
+        providerAccountId:
+          type: string
+          maxLength: 200
+        providerAccountName:
+          type: string
+          maxLength: 200
+        providerAccountType:
+          type: string
+          enum:
+            - page
+            - profile
+            - channel
+            - group
+            - organization
+        tokenReference:
+          type: string
+          maxLength: 500
+          description: Opaque reference into external secret storage — NEVER a raw access/refresh token or JWT. Rejected by write-time validation if it looks like one.
+        scopes:
+          type: array
+          items:
+            type: string
+          default: []
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        autoPublishEnabled:
+          type: boolean
+          default: false
+    SocialPublishRuleItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - socialAccountId
+        - triggerEvent
+        - requiresApproval
+        - isEnabled
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        socialAccountId:
+          type: string
+          format: uuid
+        triggerEvent:
+          type: string
+          enum:
+            - post_published
+            - scheduled_published
+            - manual_editor_action
+        requiresApproval:
+          type: boolean
+        isEnabled:
+          type: boolean
+        templateId:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    SocialPublishRuleCreateRequest:
+      type: object
+      required:
+        - socialAccountId
+        - triggerEvent
+      properties:
+        socialAccountId:
+          type: string
+          format: uuid
+        triggerEvent:
+          type: string
+          enum:
+            - post_published
+            - scheduled_published
+            - manual_editor_action
+        requiresApproval:
+          type: boolean
+          default: true
+        isEnabled:
+          type: boolean
+          default: true
+        templateId:
+          type: string
+          format: uuid
+          nullable: true
+    SocialPublishRuleUpdateRequest:
+      type: object
+      properties:
+        requiresApproval:
+          type: boolean
+        isEnabled:
+          type: boolean
+        templateId:
+          type: string
+          format: uuid
+          nullable: true
+    SocialPublishTemplateItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - name
+        - captionTemplate
+        - isDefault
+        - isActive
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        providerKey:
+          type: string
+          nullable: true
+        name:
+          type: string
+        captionTemplate:
+          type: string
+          description: "Plain-text placeholder template — supports {{title}}, {{excerpt}}, {{canonicalUrl}}."
+        isDefault:
+          type: boolean
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    SocialPublishTemplateCreateRequest:
+      type: object
+      required:
+        - name
+        - captionTemplate
+      properties:
+        providerKey:
+          type: string
+          pattern: "^[a-z][a-z0-9_]{1,49}$"
+          nullable: true
+        name:
+          type: string
+          maxLength: 200
+        captionTemplate:
+          type: string
+          maxLength: 2000
+        isDefault:
+          type: boolean
+          default: false
+        isActive:
+          type: boolean
+          default: true
+    SocialPublishTemplateUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        captionTemplate:
+          type: string
+          maxLength: 2000
+        isDefault:
+          type: boolean
+        isActive:
+          type: boolean
+    SocialPublishJobItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - socialAccountId
+        - articleId
+        - providerKey
+        - triggerEvent
+        - action
+        - status
+        - requiresApproval
+        - title
+        - canonicalUrl
+        - attemptCount
+        - maxAttempts
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        socialAccountId:
+          type: string
+          format: uuid
+        ruleId:
+          type: string
+          format: uuid
+          nullable: true
+        articleId:
+          type: string
+          format: uuid
+        providerKey:
+          type: string
+        triggerEvent:
+          type: string
+          enum:
+            - post_published
+            - scheduled_published
+            - manual_editor_action
+        action:
+          type: string
+          enum:
+            - publish
+        status:
+          type: string
+          enum:
+            - pending
+            - requires_approval
+            - approved
+            - scheduled
+            - publishing
+            - published
+            - failed
+            - cancelled
+            - skipped
+            - rate_limited
+            - needs_reauth
+        requiresApproval:
+          type: boolean
+        title:
+          type: string
+        excerptOrCaption:
+          type: string
+          nullable: true
+        canonicalUrl:
+          type: string
+        imageUrl:
+          type: string
+          nullable: true
+        approvedBy:
+          type: string
+          format: uuid
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        attemptCount:
+          type: integer
+          minimum: 0
+        maxAttempts:
+          type: integer
+          minimum: 1
+        nextAttemptAt:
+          type: string
+          format: date-time
+          nullable: true
+        externalPostId:
+          type: string
+          nullable: true
+        externalPostUrl:
+          type: string
+          nullable: true
+        lastErrorCode:
+          type: string
+          nullable: true
+          description: Sanitized, safe-to-display error code — never a raw provider error body.
+        lastErrorMessage:
+          type: string
+          nullable: true
+          description: Sanitized, safe-to-display error message.
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
+        cancelReason:
+          type: string
+          nullable: true
+        correlationId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    SocialPublishAttemptItem:
+      type: object
+      required:
+        - id
+        - jobId
+        - attemptNumber
+        - outcome
+        - startedAt
+        - finishedAt
+        - createdAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        jobId:
+          type: string
+          format: uuid
+        attemptNumber:
+          type: integer
+          minimum: 1
+        outcome:
+          type: string
+          enum:
+            - success
+            - failed
+            - rate_limited
+            - needs_reauth
+            - skipped
+        errorCode:
+          type: string
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+        externalPostId:
+          type: string
+          nullable: true
+        externalPostUrl:
+          type: string
+          nullable: true
+        correlationId:
+          type: string
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    SocialPublishingSettingsItem:
+      type: object
+      required:
+        - tenantId
+        - autoPublishingEnabled
+        - updatedAt
+      additionalProperties: false
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        autoPublishingEnabled:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time

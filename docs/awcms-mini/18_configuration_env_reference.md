@@ -750,6 +750,41 @@ hanya dirender untuk post yang sudah lolos gerbang publik/published yang
 sama (`fetchPublicBlogPostBySlug`) — draft/private/scheduled/soft-deleted
 tetap 404 sebelum widget ini pernah dipertimbangkan.
 
+### Social publishing — auto-posting outbox foundation (opsional, Issue #643, epic `social_publishing` #643-#647)
+
+Modul `social_publishing` (`src/modules/social-publishing/`). Fondasi
+provider-neutral: koneksi akun, rule publishing, outbox job/attempt,
+approval, retry/backoff. Full-online-only, gate DUA-flag sama pola
+`AUTH_ONLINE_SECURITY_ENABLED`/`_PROFILE`
+(`src/lib/auth/online-security-config.ts`) — **bukan** reuse
+`NEWS_PORTAL_ENABLED`/`_PROFILE` (keputusan deployment berbeda, lihat
+`.claude/skills/awcms-mini-social-publishing/SKILL.md`). Issue ini TIDAK
+mengirim satu pun panggilan HTTP nyata ke Meta/LinkedIn/Telegram — adapter
+provider nyata adalah issue terpisah (#644/#645/#646) yang mendaftar ke
+`social-provider-registry.ts`'s registry (kosong secara default).
+
+| Var                         | Wajib        | Default | Sensitif | Fungsi                                                      |
+| --------------------------- | ------------ | ------- | -------- | ----------------------------------------------------------- |
+| `SOCIAL_PUBLISHING_ENABLED` | –            | `false` | –        | Master switch outbox/dispatcher social publishing           |
+| `SOCIAL_PUBLISHING_PROFILE` | bila enabled | –       | –        | Wajib `full_online` (satu-satunya nilai valid selain unset) |
+
+`bun run config:validate` (`checkSocialPublishingProfileConfig`) menolak
+boot bila `SOCIAL_PUBLISHING_ENABLED=true` tapi `SOCIAL_PUBLISHING_PROFILE`
+bukan `full_online`. `bun run security:readiness`
+(`checkSocialPublishingProviderReadiness`, critical) menolak (fail) bila
+ada tenant dengan akun sosial `connected` yang `provider_key`-nya belum
+punya adapter terdaftar — memberi sinyal jelas begitu operator
+menghubungkan akun sebelum adapter provider sungguhan (#644/#645/#646)
+di-deploy.
+
+Token OAuth/API key platform sosial TIDAK PERNAH disimpan sebagai teks
+polos di kolom pengaturan apa pun — `awcms_mini_social_accounts.token_reference`
+hanya referensi buram ke secret storage eksternal (lihat
+`social-account-validation.ts`'s `looksLikeRawSecretToken` heuristic yang
+menolak nilai berbentuk token/JWT asli). Tidak ada var env untuk kredensial
+provider spesifik di sini — itu didaftarkan per-adapter oleh issue #644/
+#645/#646 masing-masing.
+
 ### Provider CRM (opsional) — contoh domain retail/POS
 
 | Var                    | Wajib      | Default | Sensitif | Fungsi             |

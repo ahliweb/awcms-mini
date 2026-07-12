@@ -18,10 +18,26 @@ export const blogContentModule = defineModule({
   // validation (Issue #636). Neither direction is a `dependencies` edge —
   // see that field's own comment above and `news_portal/module.ts`'s
   // identical note for why (Issue #632's original reasoning still holds).
+  // Issue #643 (epic `social_publishing`) additionally CONSUMES
+  // `social_publishing`'s own `social_publishing` capability
+  // (`_shared/ports/social-publishing-port.ts`) — the manual publish route
+  // (`pages/api/v1/blog/posts/[id]/publish.ts`) and the scheduled-publish
+  // worker (`application/blog-scheduled-publish.ts`, wired by
+  // `scripts/blog-scheduled-publish.ts`) both call
+  // `SocialPublishingPort.onArticlePublished(...)` right after a post
+  // transitions to `published`, inside the SAME transaction (plain DB
+  // outbox-row writes, no external call — ADR-0006 compliant). `optional:
+  // true` because a deployment that never enables `social_publishing`
+  // (the default) must publish articles exactly as before.
   capabilities: {
     provides: ["public_content"],
     consumes: [
-      { capability: "news_media", providedBy: "news_portal", optional: true }
+      { capability: "news_media", providedBy: "news_portal", optional: true },
+      {
+        capability: "social_publishing",
+        providedBy: "social_publishing",
+        optional: true
+      }
     ]
   },
   navigation: [

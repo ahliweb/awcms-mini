@@ -149,6 +149,14 @@
  *     credential between a private sync queue and a public media bucket is
  *     never a valid configuration in this repo, not just a risky one.
  *
+ * 12. Social publishing full-online-only gate (Issue #643, epic
+ *     `social_publishing` #643-#647): `SOCIAL_PUBLISHING_ENABLED` left unset
+ *     (or anything other than "true") requires nothing else — mirrors
+ *     `checkOnlineAuthSecurityConfig`'s exact shape (item 7). Only
+ *     `SOCIAL_PUBLISHING_ENABLED=true` gates `SOCIAL_PUBLISHING_PROFILE`,
+ *     which must then be exactly "full_online"
+ *     (`../src/modules/social-publishing/domain/social-publishing-config`).
+ *
  * Never prints actual secret values — only which variable name is
  * missing/invalid (doc 18: "Var wajib hilang → gagal start dengan pesan
  * jelas (tanpa membocorkan nilai)"). Exits non-zero on any failure. None of
@@ -182,6 +190,7 @@ import {
   TENANT_DOMAIN_CLOUDFLARE_REQUIRED_WHEN_SELECTED
 } from "../src/modules/tenant-domain/domain/tenant-domain-dns-config";
 import { isOnlineSecurityEnabled } from "../src/lib/auth/online-security-config";
+import { isSocialPublishingEnabled } from "../src/modules/social-publishing/domain/social-publishing-config";
 import {
   isTurnstileEnabled,
   TURNSTILE_REQUIRED_WHEN_ENABLED
@@ -1142,6 +1151,52 @@ export function checkNewsMediaR2OrphanGraceLowerBound(
   };
 }
 
+/**
+ * Full-online-only social publishing gate (Issue #643, epic
+ * `social_publishing` #643-#647). `SOCIAL_PUBLISHING_ENABLED` left unset (or
+ * anything other than `"true"`) requires nothing else and `config:validate`
+ * passes exactly as it does today — mirrors `checkOnlineAuthSecurityConfig`'s
+ * "manual/unset requires nothing" shape verbatim. Only
+ * `SOCIAL_PUBLISHING_ENABLED=true` gates `SOCIAL_PUBLISHING_PROFILE`, which
+ * must then be exactly `"full_online"` (the only other known value,
+ * `"disabled"`, would be a contradiction — enabled but explicitly disabled
+ * profile).
+ */
+export function checkSocialPublishingProfileConfig(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult {
+  const name =
+    "SOCIAL_PUBLISHING_PROFILE (conditional on SOCIAL_PUBLISHING_ENABLED)";
+
+  if (!isSocialPublishingEnabled(env)) {
+    return {
+      name,
+      status: "pass",
+      detail:
+        'SOCIAL_PUBLISHING_ENABLED is not "true" — social publishing outbox/dispatcher is disabled; no social publishing config required.'
+    };
+  }
+
+  const profile = env.SOCIAL_PUBLISHING_PROFILE;
+
+  if (profile !== "full_online") {
+    return {
+      name,
+      status: "fail",
+      detail: `SOCIAL_PUBLISHING_ENABLED=true requires SOCIAL_PUBLISHING_PROFILE=full_online; got ${
+        profile ? `"${profile}"` : "unset"
+      }.`
+    };
+  }
+
+  return {
+    name,
+    status: "pass",
+    detail:
+      "SOCIAL_PUBLISHING_ENABLED=true and SOCIAL_PUBLISHING_PROFILE=full_online."
+  };
+}
+
 export function runEnvValidation(
   env: NodeJS.ProcessEnv = process.env
 ): EnvCheckResult[] {
@@ -1164,7 +1219,8 @@ export function runEnvValidation(
     checkNewsMediaR2SeparationFromSyncR2(env),
     checkNewsMediaR2AllowedMimeTypesKnown(env),
     checkNewsMediaR2PresignedTtlUpperBound(env),
-    checkNewsMediaR2OrphanGraceLowerBound(env)
+    checkNewsMediaR2OrphanGraceLowerBound(env),
+    checkSocialPublishingProfileConfig(env)
   ];
 }
 

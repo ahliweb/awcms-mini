@@ -1,0 +1,481 @@
+---
+/**
+ * Social publishing account manager (Issue #643). Same "cards + plain form
+ * fields" convention `admin/news-portal/ad-placements.astro` uses.
+ * `tokenReference` is a write-only field — connect/reconnect submits it,
+ * but no read path (SSR list or API response) ever returns it back (see
+ * `social-account-directory.ts`'s header comment). Connect/disconnect are
+ * high-risk mutations requiring a fresh `Idempotency-Key` per submit
+ * (`newIdempotencyKey()`), same pattern `admin/tenant/domains.astro`'s
+ * verify/set-primary buttons use.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import { listSocialAccounts } from "../../../modules/social-publishing/application/social-account-directory";
+import { SOCIAL_ACCOUNT_TYPES } from "../../../modules/social-publishing/domain/social-account-validation";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/social-publishing/accounts.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ = context.permissions.has(
+  permissionKey("social_publishing", "accounts", "read")
+);
+const CAN_CONNECT = context.permissions.has(
+  permissionKey("social_publishing", "accounts", "connect")
+);
+const CAN_DISCONNECT = context.permissions.has(
+  permissionKey("social_publishing", "accounts", "disconnect")
+);
+const CAN_CONFIGURE = context.permissions.has(
+  permissionKey("social_publishing", "rules", "configure")
+);
+
+const clientStrings = {
+  connectSuccess: t("admin.social_publishing.accounts.connect_success"),
+  disconnectSuccess: t("admin.social_publishing.accounts.disconnect_success"),
+  updateSuccess: t("admin.social_publishing.accounts.update_success"),
+  disconnectReasonPrompt: t(
+    "admin.social_publishing.accounts.disconnect_reason_prompt"
+  ),
+  disconnectConfirm: t("admin.social_publishing.accounts.disconnect_confirm"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+let accounts: Awaited<ReturnType<typeof listSocialAccounts>> = [];
+let loadError = false;
+
+if (CAN_READ) {
+  try {
+    accounts = await withTenant(
+      getDatabaseClient(),
+      context.tenantId,
+      async (tx) => listSocialAccounts(tx, context.tenantId)
+    );
+  } catch (error) {
+    logAdminPageError(
+      "admin/social-publishing/accounts.astro: failed to load social accounts",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
+    loadError = true;
+  }
+}
+---
+
+<AdminLayout title={t("admin.social_publishing.accounts.title")}>
+  {
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.social_publishing.access_denied_title")}
+        body={t("admin.social_publishing.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ && !loadError && (
+      <div class="config-manager">
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        {accounts.length === 0 ? (
+          <p class="empty-state">
+            {t("admin.social_publishing.accounts.no_accounts")}
+          </p>
+        ) : (
+          accounts.map((account) => (
+            <section class="section-card">
+              <h2>
+                {account.providerAccountName}{" "}
+                <span class="section-type-badge">
+                  {account.providerKey} / {account.providerAccountType}
+                </span>
+              </h2>
+              <p class="status-line">
+                {t("admin.social_publishing.accounts.field_status")}:{" "}
+                <strong>{account.connectionStatus}</strong>
+              </p>
+              {CAN_CONFIGURE && (
+                <form class="auto-publish-form" data-id={account.id}>
+                  <label class="checkbox-label">
+                    <input
+                      type="checkbox"
+                      name="autoPublishEnabled"
+                      checked={account.autoPublishEnabled}
+                    />
+                    {t("admin.social_publishing.accounts.field_auto_publish")}
+                  </label>
+                  <button type="submit">
+                    {t("admin.social_publishing.accounts.save_button")}
+                  </button>
+                </form>
+              )}
+              {CAN_DISCONNECT &&
+                account.connectionStatus !== "disconnected" && (
+                  <button
+                    type="button"
+                    class="disconnect-button"
+                    data-id={account.id}
+                  >
+                    {t("admin.social_publishing.accounts.disconnect_button")}
+                  </button>
+                )}
+            </section>
+          ))
+        )}
+
+        {CAN_CONNECT && (
+          <details class="create-config">
+            <summary>
+              {t("admin.social_publishing.accounts.connect_summary")}
+            </summary>
+            <form id="connect-form" class="create-config-form">
+              <label>
+                {t("admin.social_publishing.accounts.field_provider_key")}
+                <input
+                  type="text"
+                  name="providerKey"
+                  required
+                  pattern="^[a-z][a-z0-9_]{1,49}$"
+                />
+              </label>
+              <label>
+                {t(
+                  "admin.social_publishing.accounts.field_provider_account_id"
+                )}
+                <input type="text" name="providerAccountId" required />
+              </label>
+              <label>
+                {t(
+                  "admin.social_publishing.accounts.field_provider_account_name"
+                )}
+                <input type="text" name="providerAccountName" required />
+              </label>
+              <label>
+                {t(
+                  "admin.social_publishing.accounts.field_provider_account_type"
+                )}
+                <select name="providerAccountType" required>
+                  {SOCIAL_ACCOUNT_TYPES.map((accountType) => (
+                    <option value={accountType}>{accountType}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                {t("admin.social_publishing.accounts.field_token_reference")}
+                <input type="text" name="tokenReference" required />
+                <span class="field-hint">
+                  {t("admin.social_publishing.accounts.token_reference_hint")}
+                </span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" name="autoPublishEnabled" />
+                {t("admin.social_publishing.accounts.field_auto_publish")}
+              </label>
+              <button type="submit">
+                {t("admin.social_publishing.accounts.connect_submit")}
+              </button>
+            </form>
+          </details>
+        )}
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .config-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+  }
+
+  .action-banner[data-variant="success"] {
+    background: color-mix(
+      in srgb,
+      var(--color-success) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-success);
+  }
+
+  .action-banner[data-variant="error"] {
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-danger);
+  }
+
+  .empty-state {
+    color: var(--color-text-muted);
+  }
+
+  .section-card {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+  }
+
+  .section-card h2 {
+    font-size: var(--fs-md);
+    margin: 0 0 var(--sp-2);
+  }
+
+  .section-type-badge {
+    font-size: var(--fs-xs);
+    font-weight: 400;
+    color: var(--color-text-muted);
+  }
+
+  .status-line {
+    font-size: var(--fs-sm);
+    color: var(--color-text-muted);
+  }
+
+  .auto-publish-form,
+  .create-config-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    max-width: 560px;
+  }
+
+  .auto-publish-form label,
+  .create-config-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+
+  .checkbox-label {
+    flex-direction: row !important;
+    align-items: center;
+    gap: var(--sp-2) !important;
+  }
+
+  .auto-publish-form input,
+  .auto-publish-form select,
+  .create-config-form input,
+  .create-config-form select {
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .field-hint {
+    color: var(--color-text-muted);
+    font-size: var(--fs-xs);
+  }
+
+  .auto-publish-form button,
+  .create-config-form button {
+    align-self: flex-start;
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-3);
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  .disconnect-button {
+    margin-top: var(--sp-2);
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-danger-strong);
+    color: var(--color-danger-strong);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-2);
+    min-height: 44px;
+    cursor: pointer;
+    font-size: var(--fs-xs);
+  }
+
+  .create-config {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+  }
+
+  .create-config summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  input:focus-visible,
+  select:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    newIdempotencyKey,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface AccountManagerStrings {
+    connectSuccess: string;
+    disconnectSuccess: string;
+    updateSuccess: string;
+    disconnectReasonPrompt: string;
+    disconnectConfirm: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<AccountManagerStrings>();
+
+  function submitButtonOf(form: HTMLFormElement): HTMLButtonElement | null {
+    return form.querySelector('button[type="submit"]');
+  }
+
+  document
+    .getElementById("connect-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = submitButtonOf(form);
+      if (button?.disabled) return;
+
+      const formData = new FormData(form);
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+
+      try {
+        const result = await submitJson(
+          "/api/v1/social-publishing/accounts",
+          "POST",
+          {
+            providerKey: formData.get("providerKey"),
+            providerAccountId: formData.get("providerAccountId"),
+            providerAccountName: formData.get("providerAccountName"),
+            providerAccountType: formData.get("providerAccountType"),
+            tokenReference: formData.get("tokenReference"),
+            autoPublishEnabled: formData.get("autoPublishEnabled") === "on"
+          },
+          strings,
+          { "Idempotency-Key": newIdempotencyKey() }
+        );
+
+        showBanner(
+          "action-banner",
+          result.ok ? strings.connectSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
+    });
+
+  document.querySelectorAll(".auto-publish-form").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const el = event.target as HTMLFormElement;
+      const button = submitButtonOf(el);
+      if (button?.disabled) return;
+
+      const formData = new FormData(el);
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+
+      try {
+        const id = el.dataset.id!;
+
+        const result = await submitJson(
+          `/api/v1/social-publishing/accounts/${id}`,
+          "PATCH",
+          { autoPublishEnabled: formData.get("autoPublishEnabled") === "on" },
+          strings
+        );
+
+        showBanner(
+          "action-banner",
+          result.ok ? strings.updateSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
+    });
+  });
+
+  document.querySelectorAll(".disconnect-button").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const el = button as HTMLButtonElement;
+      if (el.disabled) return;
+
+      const reason = window.prompt(strings.disconnectReasonPrompt);
+      if (!reason || reason.trim().length === 0) return;
+      if (!window.confirm(strings.disconnectConfirm)) return;
+
+      const unlock = lockElement(el, strings.pleaseWait);
+      try {
+        const id = el.dataset.id!;
+        const result = await submitJson(
+          `/api/v1/social-publishing/accounts/${id}/disconnect`,
+          "POST",
+          { reason },
+          strings,
+          { "Idempotency-Key": newIdempotencyKey() }
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.disconnectSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock();
+      }
+    });
+  });
+</script>

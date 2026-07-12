@@ -47,7 +47,14 @@ export type AccessAction =
   // `retry`'s documented precedent (`isHighRiskAction` is metadata, not a
   // gate on idempotency/audit requirements).
   | "verify"
-  | "set_primary";
+  | "set_primary"
+  // Issue #643 (social_publishing): `accounts.connect`/`accounts.disconnect`
+  // — connecting/reconnecting a social account writes a `token_reference`
+  // (secret-storage pointer) and disconnecting clears it; both classified
+  // `HIGH_RISK_ACTIONS` below since they change credential-bearing state,
+  // matching `configure`'s classification rather than `verify`'s.
+  | "connect"
+  | "disconnect";
 
 export type AccessRequest = {
   moduleKey: string;
@@ -73,7 +80,9 @@ const HIGH_RISK_ACTIONS: ReadonlySet<AccessAction> = new Set([
   "assign",
   "configure",
   "restore",
-  "purge"
+  "purge",
+  "connect",
+  "disconnect"
 ]);
 
 export function isHighRiskAction(action: AccessAction): boolean {
