@@ -8,6 +8,8 @@ body:
     attributes:
       value: |
         Untuk fitur **domain aplikasi turunan** (mis. katalog, POS, gudang), buat issue di repo aplikasi tersebut — AWCMS-Mini hanya berisi kemampuan **base generik**. Lihat `docs/awcms-mini/README.md` §Reusable vs domain turunan.
+
+        Bila usulan ini adalah **modul baru** (bukan perubahan modul yang sudah ada), baca dulu kebijakan admission modul: `docs/awcms-mini/21_module_admission_governance.md` (kategori, pohon keputusan, kriteria) dan isi `docs/awcms-mini/templates/module-proposal-template.md` sebagai lampiran/komentar issue ini sebelum scaffold dimulai.
   - type: textarea
     id: problem
     attributes:
