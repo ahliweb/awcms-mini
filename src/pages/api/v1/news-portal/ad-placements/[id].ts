@@ -47,7 +47,7 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
 
   const bodyRead = await readJsonBody<Record<string, unknown>>(
     request,
-    "large"
+    "default"
   );
 
   if (bodyRead.tooLarge) {

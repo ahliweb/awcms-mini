@@ -90,7 +90,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
 
   const bodyRead = await readJsonBody<Record<string, unknown>>(
     request,
-    "large"
+    "default"
   );
 
   if (bodyRead.tooLarge) {

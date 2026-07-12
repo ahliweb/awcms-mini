@@ -180,6 +180,9 @@ export type ValidationError = {
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Same cap as `content-validation.ts`'s `MAX_TITLE_LENGTH`/`blog-settings-policy.ts`'s `MAX_BLOG_TITLE_LENGTH` — security-auditor Low finding on PR #727: `name` previously had no upper bound. */
+const MAX_AD_PLACEMENT_NAME_LENGTH = 200;
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -271,6 +274,11 @@ export function validateCreateAdPlacementInput(
 
   if (!isNonEmptyString(record.name)) {
     errors.push({ field: "name", message: "name is required." });
+  } else if (record.name.length > MAX_AD_PLACEMENT_NAME_LENGTH) {
+    errors.push({
+      field: "name",
+      message: `name must be at most ${MAX_AD_PLACEMENT_NAME_LENGTH} characters.`
+    });
   }
 
   if (!isUuid(record.mediaObjectId)) {
@@ -392,6 +400,11 @@ export function validateUpdateAdPlacementInput(
       errors.push({
         field: "name",
         message: "name must be a non-empty string."
+      });
+    } else if (record.name.length > MAX_AD_PLACEMENT_NAME_LENGTH) {
+      errors.push({
+        field: "name",
+        message: `name must be at most ${MAX_AD_PLACEMENT_NAME_LENGTH} characters.`
       });
     } else {
       value.name = record.name.trim();

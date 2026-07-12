@@ -125,6 +125,26 @@ describe("validateCreateAdPlacementInput (Issue #638)", () => {
     expect(fields).toContain("mediaObjectId");
   });
 
+  test("rejects a name longer than 200 characters (security-auditor Low finding, PR #727)", () => {
+    const result = validateCreateAdPlacementInput({
+      placementKey: "header_banner",
+      name: "x".repeat(201),
+      mediaObjectId: VALID_MEDIA_ID
+    });
+    expect(result.valid).toBe(false);
+    if (result.valid) return;
+    expect(result.errors.some((e) => e.field === "name")).toBe(true);
+  });
+
+  test("accepts a name exactly 200 characters", () => {
+    const result = validateCreateAdPlacementInput({
+      placementKey: "header_banner",
+      name: "x".repeat(200),
+      mediaObjectId: VALID_MEDIA_ID
+    });
+    expect(result.valid).toBe(true);
+  });
+
   test("rejects a local path or arbitrary shape for mediaObjectId (must be a UUID)", () => {
     const result = validateCreateAdPlacementInput({
       placementKey: "header_banner",
