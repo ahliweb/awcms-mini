@@ -12,10 +12,11 @@
  * availability across tenants") reads like a genuine multi-tenant matrix.
  * This repo's identity model is strictly 1:1 tenant-scoped —
  * `awcms_mini_identities.tenant_id` has no cross-tenant linking anywhere in
- * the schema (`identity-access/README.md` line ~74), and
- * `src/components/TenantSwitcher.astro` is a permanently-disabled stub for
- * exactly this reason ("switch tenant sungguhan tidak punya target untuk
- * saat ini"). Every other `/admin/*` screen in this app
+ * the schema (`identity-access/README.md` §Tenant badge), and
+ * `src/components/TenantBadge.astro` (Issue #693, formerly
+ * `TenantSwitcher.astro`) renders a non-interactive badge for exactly this
+ * reason ("switch tenant sungguhan tidak punya target untuk saat ini").
+ * Every other `/admin/*` screen in this app
  * (`admin/modules.astro`, `admin/blog/*`, `admin/tenant/domains.astro`)
  * operates within exactly one tenant's `withTenant`/RLS-scoped session —
  * none are cross-tenant.

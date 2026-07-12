@@ -58,6 +58,16 @@ msgstr "Yes"
 msgid "common.no"
 msgstr "No"
 
+#. ConfirmDialog.astro (Issue #693, epic #679 platform-hardening)
+msgid "common.confirm_button"
+msgstr "Confirm"
+
+msgid "common.cancel_button"
+msgstr "Cancel"
+
+msgid "common.reason_required_error"
+msgstr "A reason is required."
+
 #. error codes (doc 05 §Error code standard)
 msgid "error.validation_error"
 msgstr "The submitted data is invalid."
@@ -243,6 +253,12 @@ msgstr "Log out"
 msgid "admin.layout.nav_aria_label"
 msgstr "Main navigation"
 
+#. Responsive sidebar/drawer hamburger toggle (Issue #693, epic #679
+#. platform-hardening) — visible only below `--bp-md`; open/closed state is
+#. conveyed via `aria-expanded`, not a separate label per state.
+msgid "admin.layout.nav_toggle_aria_label"
+msgstr "Toggle navigation menu"
+
 msgid "admin.layout.nav_dashboard"
 msgstr "Dashboard"
 
@@ -416,6 +432,12 @@ msgstr "Unassign role {role}"
 msgid "admin.access_users.assign_role_placeholder"
 msgstr "+ assign role"
 
+#. Accessible name for the per-user role-assign <select> (Issue #693 a11y
+#. smoke test found it had none — the visible "+ assign role" placeholder
+#. option text is not a substitute for a real accessible name).
+msgid "admin.access_users.assign_role_select_aria_label"
+msgstr "Assign a role to {user}"
+
 msgid "admin.access_users.assign_button"
 msgstr "Assign"
 
@@ -511,6 +533,13 @@ msgstr "Role unassigned successfully."
 
 msgid "admin.access_users.delete_role_prompt"
 msgstr "Reason for deleting this role:"
+
+#. ConfirmDialog title/body for role deletion (Issue #693)
+msgid "admin.access_users.delete_role_confirm_title"
+msgstr "Delete role?"
+
+msgid "admin.access_users.delete_role_confirm_body"
+msgstr "This role will be removed and unassigned from any users who have it. This action is recorded in the audit log."
 
 #. admin.sync
 msgid "admin.sync.access_denied_title"
@@ -2014,6 +2043,10 @@ msgstr "Verify"
 msgid "admin.tenant_domain.verify_confirm"
 msgstr "Verify this domain now? This marks it active based on your attestation that DNS/ownership is correct."
 
+#. ConfirmDialog title (Issue #693)
+msgid "admin.tenant_domain.verify_confirm_title"
+msgstr "Verify domain?"
+
 msgid "admin.tenant_domain.verify_success"
 msgstr "Domain verified."
 
@@ -2022,6 +2055,10 @@ msgstr "Set as primary"
 
 msgid "admin.tenant_domain.set_primary_confirm"
 msgstr "Set this domain as the tenant's primary domain?"
+
+#. ConfirmDialog title (Issue #693)
+msgid "admin.tenant_domain.set_primary_confirm_title"
+msgstr "Set as primary domain?"
 
 msgid "admin.tenant_domain.set_primary_success"
 msgstr "Primary domain updated."
@@ -2034,6 +2071,10 @@ msgstr "Reason for deleting this domain mapping:"
 
 msgid "admin.tenant_domain.delete_confirm"
 msgstr "Delete this domain mapping? This cannot be undone from this screen."
+
+#. ConfirmDialog title (Issue #693)
+msgid "admin.tenant_domain.delete_confirm_title"
+msgstr "Delete domain mapping?"
 
 msgid "admin.tenant_domain.delete_success"
 msgstr "Domain mapping deleted."

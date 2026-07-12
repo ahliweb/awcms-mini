@@ -43,10 +43,14 @@
   --color-primary-strong: #2563eb;
   --color-success-strong: #12873d;
   --color-danger-strong: #dc2626;
+  /* Reviewer Medium finding on PR #720: StatusBadge's `info` variant used
+     the plain --color-info token as a solid fill with white text, only
+     3.68:1 (light) / 2.43:1 (dark) — below the 4.5:1 this same doc-comment
+     already promises. Measured: 5.36:1 against white in both themes. */
+  --color-info-strong: #0e7490;
 
   /* Font */
-  --font-sans:
-    system-ui, -apple-system, "Inter", "Segoe UI", sans-serif;
+  --font-sans: system-ui, -apple-system, "Inter", "Segoe UI", sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", "Menlo", monospace;
 
   /* Font size (xs .. 2xl) */
@@ -81,6 +85,11 @@
 
   /* Z-index */
   --z-nav: 100;
+  /* Mobile admin sidebar drawer + its scrim (Issue #693) — above the sticky
+     topbar (`--z-nav`) so the drawer visually overlays it when open, below
+     `--z-dropdown` since a dropdown opened from within the drawer (if any)
+     must still render on top of the drawer itself. */
+  --z-drawer: 150;
   --z-dropdown: 200;
   --z-dialog: 300;
   --z-toast: 400;
@@ -116,6 +125,10 @@
   --color-primary-strong: #3472d8;
   --color-success-strong: #178841;
   --color-danger-strong: #d73d3d;
+  /* Reviewer Medium finding on PR #720 — see :root's --color-info-strong
+     comment. Same value works in both themes since the contrast math is
+     against the constant white fill-text, not the page background. */
+  --color-info-strong: #0e7490;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);

@@ -1,0 +1,117 @@
+---
+/**
+ * Pagination — shared keyset prev/next control (Issue #693, epic #679
+ * platform-hardening).
+ *
+ * Doc 14 §Component library specifies keyset pagination ("next/prev, bukan
+ * offset besar") over large-offset pagination. No existing admin list in
+ * this repo paginates server-side yet today (each currently returns a
+ * single bounded page — e.g. `tenant/domains.astro`'s own comment: "does
+ * not add cursor pagination on top ... a tenant with over 100 domain
+ * mappings is not an expected shape today"), so this component is a new,
+ * previously-missing primitive rather than a migration of existing markup
+ * — added now so the next screen that outgrows a single unpaginated page
+ * has a ready-made, accessible control instead of a bespoke one.
+ *
+ * Deliberately dumb: it only renders two buttons and reports which one was
+ * pressed via a `CustomEvent("awcms:paginate", { detail: { direction } })`
+ * dispatched on the component's own root element (bubbles, so a page-level
+ * listener on any ancestor can catch it) — fetching the next/previous
+ * cursor page is entirely the caller's responsibility (same "primitive
+ * provides chrome, page provides behavior" split as `FilterBar.astro`).
+ *
+ * Accessibility: `nav`/`aria-label` landmark, `disabled` (not just visually
+ * dimmed) when a direction has no further page, so keyboard/AT users can't
+ * activate a no-op control silently.
+ */
+interface Props {
+  id?: string;
+  hasPrevious: boolean;
+  hasNext: boolean;
+  previousLabel: string;
+  nextLabel: string;
+  navLabel: string;
+}
+
+const { id, hasPrevious, hasNext, previousLabel, nextLabel, navLabel } =
+  Astro.props;
+---
+
+<nav id={id} class="pagination" aria-label={navLabel}>
+  <button
+    type="button"
+    class="pagination-button"
+    data-pagination-direction="previous"
+    disabled={!hasPrevious}
+  >
+    {previousLabel}
+  </button>
+  <button
+    type="button"
+    class="pagination-button"
+    data-pagination-direction="next"
+    disabled={!hasNext}
+  >
+    {nextLabel}
+  </button>
+</nav>
+
+<style>
+  .pagination {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--sp-2);
+  }
+
+  .pagination-button {
+    min-height: 44px;
+    padding: var(--sp-1) var(--sp-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    font-size: var(--fs-sm);
+    cursor: pointer;
+  }
+
+  .pagination-button:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  .pagination-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  @media (max-width: 640px) {
+    .pagination {
+      justify-content: stretch;
+    }
+
+    .pagination-button {
+      flex: 1;
+    }
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLElement>(".pagination").forEach((nav) => {
+    if (nav.dataset.awcmsPaginationBound === "true") return;
+    nav.dataset.awcmsPaginationBound = "true";
+
+    nav.addEventListener("click", (event) => {
+      const button = (event.target as HTMLElement)?.closest(
+        "button[data-pagination-direction]"
+      ) as HTMLButtonElement | null;
+      if (!button || button.disabled) return;
+
+      nav.dispatchEvent(
+        new CustomEvent("awcms:paginate", {
+          bubbles: true,
+          detail: { direction: button.dataset.paginationDirection }
+        })
+      );
+    });
+  });
+</script>

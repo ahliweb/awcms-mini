@@ -1,0 +1,67 @@
+---
+/**
+ * FilterBar — shared toolbar container for list filter controls (Issue
+ * #693, epic #679 platform-hardening).
+ *
+ * `admin/analytics.astro` already has an ad-hoc filter toolbar (range
+ * select + area/type selects) with its own one-off layout CSS; this
+ * component gives that pattern a reusable, responsive (wraps to a column
+ * below `--bp-sm`) container other list screens can adopt instead of
+ * re-inventing the flex/gap/label layout each time (doc 14 §Component
+ * library's own `FilterBar` entry, added by this issue).
+ *
+ * Intentionally NOT responsible for the actual filtering logic (debounce,
+ * client-side narrowing, refetch) — that stays page-specific, same
+ * division of responsibility `DataTable.astro` documents for row
+ * rendering. `role="search"` + the required `label` mark this region as a
+ * filter/search landmark for assistive tech (WCAG 2.2 AA — every filter
+ * control still needs its own explicit `<label>`, `FilterBar` only wraps
+ * the group).
+ */
+interface Props {
+  label: string;
+}
+
+const { label } = Astro.props;
+---
+
+<div class="filter-bar" role="search" aria-label={label}>
+  <slot />
+</div>
+
+<style>
+  .filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--sp-3);
+    padding: var(--sp-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-2);
+  }
+
+  .filter-bar :global(label) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+
+  .filter-bar :global(select),
+  .filter-bar :global(input) {
+    min-height: 44px;
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  @media (max-width: 640px) {
+    .filter-bar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
+</style>

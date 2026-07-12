@@ -24,9 +24,24 @@
  *   - identity_access.access_control.read     -> see the Roles table
  *   - identity_access.access_control.configure -> create/edit/delete role
  *   - identity_access.access_control.assign    -> assign/unassign role chips
+ *
+ * Migrated to the shared `src/components/ui` primitives (Issue #693, epic
+ * #679 platform-hardening) as one of that issue's two representative
+ * large-page migrations — chosen because it exercises nearly every new
+ * primitive in one file: two `DataTable`s, `StatusBadge` (user status),
+ * `ActionBanner` (mutation feedback), `FormField` (create-user/create-role/
+ * edit-role text inputs), and `ConfirmDialog` (delete-role, replacing a
+ * `window.prompt` reason capture with no confirmation step at all before
+ * this). See `docs/awcms-mini/14_ui_ux_design_system.md` §Component library
+ * and §Migrated reference pages for the adoption note.
  */
 import AdminLayout from "../../layouts/AdminLayout.astro";
 import StateNotice from "../../components/ui/StateNotice.astro";
+import ActionBanner from "../../components/ui/ActionBanner.astro";
+import DataTable from "../../components/ui/DataTable.astro";
+import StatusBadge from "../../components/ui/StatusBadge.astro";
+import FormField from "../../components/ui/FormField.astro";
+import ConfirmDialog from "../../components/ui/ConfirmDialog.astro";
 import { getDatabaseClient } from "../../lib/database/client";
 import { withTenant } from "../../lib/database/tenant-context";
 import { permissionKey } from "../../modules/identity-access/domain/access-control";
@@ -63,6 +78,11 @@ const clientStrings = {
   assignRoleSuccess: t("admin.access_users.assign_role_success"),
   unassignRoleSuccess: t("admin.access_users.unassign_role_success"),
   deleteRolePrompt: t("admin.access_users.delete_role_prompt"),
+  deleteRoleConfirmTitle: t("admin.access_users.delete_role_confirm_title"),
+  deleteRoleConfirmBody: t("admin.access_users.delete_role_confirm_body"),
+  confirmButton: t("common.confirm_button"),
+  cancelButton: t("common.cancel_button"),
+  reasonRequiredError: t("common.reason_required_error"),
   networkError: t("common.network_error"),
   pleaseWait: t("common.please_wait"),
   errorMessages: buildClientErrorMessages(t)
@@ -159,7 +179,12 @@ if (data) {
   {
     data && (
       <div class="access-users">
-        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <ActionBanner />
+        <ConfirmDialog
+          id="au-confirm-dialog"
+          confirmLabel={clientStrings.confirmButton}
+          cancelLabel={clientStrings.cancelButton}
+        />
         <script
           type="application/json"
           id="i18n-strings"
@@ -172,140 +197,162 @@ if (data) {
               <h2>{t("admin.access_users.users_title")}</h2>
             </div>
 
-            <div class="table-scroll">
-              <table class="au-table">
-                <thead>
-                  <tr>
-                    <th>{t("admin.access_users.name_column")}</th>
-                    <th>{t("admin.access_users.login_column")}</th>
-                    <th>{t("admin.access_users.status_column")}</th>
-                    <th>{t("admin.access_users.role_column")}</th>
-                    {(CAN_UPDATE_USERS || CAN_ASSIGN) && (
-                      <th>{t("admin.access_users.actions_column")}</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.users.length === 0 && (
-                    <tr>
-                      <td colspan={CAN_UPDATE_USERS || CAN_ASSIGN ? 5 : 4}>
-                        {t("admin.access_users.no_users")}
-                      </td>
-                    </tr>
+            <DataTable
+              caption={t("admin.access_users.users_title")}
+              columnCount={CAN_UPDATE_USERS || CAN_ASSIGN ? 5 : 4}
+              isEmpty={data.users.length === 0}
+              emptyMessage={t("admin.access_users.no_users")}
+            >
+              <Fragment slot="head">
+                <tr>
+                  <th>{t("admin.access_users.name_column")}</th>
+                  <th>{t("admin.access_users.login_column")}</th>
+                  <th>{t("admin.access_users.status_column")}</th>
+                  <th>{t("admin.access_users.role_column")}</th>
+                  {(CAN_UPDATE_USERS || CAN_ASSIGN) && (
+                    <th>{t("admin.access_users.actions_column")}</th>
                   )}
-                  {data.users.map((user) => (
-                    <tr data-user-row={user.tenantUserId}>
-                      <td>{user.displayName}</td>
-                      <td>{user.loginIdentifier}</td>
-                      <td>
-                        <span class="status-pill" data-status={user.status}>
-                          {user.status === "active"
-                            ? t("common.status_active")
-                            : t("common.status_inactive")}
+                </tr>
+              </Fragment>
+              {data.users.map((user) => (
+                <tr data-user-row={user.tenantUserId}>
+                  <td>{user.displayName}</td>
+                  <td>{user.loginIdentifier}</td>
+                  <td>
+                    <StatusBadge
+                      variant={user.status === "active" ? "success" : "danger"}
+                      label={
+                        user.status === "active"
+                          ? t("common.status_active")
+                          : t("common.status_inactive")
+                      }
+                    />
+                  </td>
+                  <td>
+                    <div class="role-chip-list">
+                      {user.roles.length === 0 && (
+                        <span class="role-chip-empty">
+                          {t("admin.layout.no_role")}
                         </span>
-                      </td>
-                      <td>
-                        <div class="role-chip-list">
-                          {user.roles.length === 0 && (
-                            <span class="role-chip-empty">
-                              {t("admin.layout.no_role")}
-                            </span>
-                          )}
-                          {user.roles.map((role) => (
-                            <span class="role-chip">
-                              {role.roleName}
-                              {CAN_ASSIGN && (
-                                <button
-                                  type="button"
-                                  class="role-chip-remove"
-                                  data-unassign-user={user.tenantUserId}
-                                  data-unassign-role={role.roleId}
-                                  aria-label={t(
-                                    "admin.access_users.unassign_role_aria_label",
-                                    { role: role.roleName }
-                                  )}
-                                >
-                                  &times;
-                                </button>
-                              )}
-                            </span>
-                          ))}
-                        </div>
-                        {CAN_ASSIGN && (
-                          <form
-                            class="assign-role-form"
-                            data-assign-user={user.tenantUserId}
-                          >
-                            <select name="roleId" required>
-                              <option value="">
-                                {t(
-                                  "admin.access_users.assign_role_placeholder"
-                                )}
-                              </option>
-                              {data.roles
-                                .filter(
-                                  (role) =>
-                                    !user.roles.some(
-                                      (r) => r.roleId === role.roleId
-                                    )
-                                )
-                                .map((role) => (
-                                  <option value={role.roleId}>
-                                    {role.roleName}
-                                  </option>
-                                ))}
-                            </select>
-                            <button type="submit">
-                              {t("admin.access_users.assign_button")}
-                            </button>
-                          </form>
-                        )}
-                      </td>
-                      {(CAN_UPDATE_USERS || CAN_ASSIGN) && (
-                        <td>
-                          {CAN_UPDATE_USERS && (
+                      )}
+                      {user.roles.map((role) => (
+                        <span class="role-chip">
+                          {role.roleName}
+                          {CAN_ASSIGN && (
                             <button
                               type="button"
-                              class="toggle-status-button"
-                              data-toggle-user={user.tenantUserId}
-                              data-next-status={
-                                user.status === "active" ? "inactive" : "active"
-                              }
+                              class="role-chip-remove"
+                              data-unassign-user={user.tenantUserId}
+                              data-unassign-role={role.roleId}
+                              aria-label={t(
+                                "admin.access_users.unassign_role_aria_label",
+                                { role: role.roleName }
+                              )}
                             >
-                              {user.status === "active"
-                                ? t("admin.access_users.deactivate_button")
-                                : t("admin.access_users.activate_button")}
+                              &times;
                             </button>
                           )}
-                        </td>
+                        </span>
+                      ))}
+                    </div>
+                    {CAN_ASSIGN && (
+                      <form
+                        class="assign-role-form"
+                        data-assign-user={user.tenantUserId}
+                      >
+                        <select
+                          name="roleId"
+                          required
+                          aria-label={t(
+                            "admin.access_users.assign_role_select_aria_label",
+                            { user: user.displayName }
+                          )}
+                        >
+                          <option value="">
+                            {t("admin.access_users.assign_role_placeholder")}
+                          </option>
+                          {data.roles
+                            .filter(
+                              (role) =>
+                                !user.roles.some(
+                                  (r) => r.roleId === role.roleId
+                                )
+                            )
+                            .map((role) => (
+                              <option value={role.roleId}>
+                                {role.roleName}
+                              </option>
+                            ))}
+                        </select>
+                        <button type="submit">
+                          {t("admin.access_users.assign_button")}
+                        </button>
+                      </form>
+                    )}
+                  </td>
+                  {(CAN_UPDATE_USERS || CAN_ASSIGN) && (
+                    <td>
+                      {CAN_UPDATE_USERS && (
+                        <button
+                          type="button"
+                          class="toggle-status-button"
+                          data-toggle-user={user.tenantUserId}
+                          data-next-status={
+                            user.status === "active" ? "inactive" : "active"
+                          }
+                        >
+                          {user.status === "active"
+                            ? t("admin.access_users.deactivate_button")
+                            : t("admin.access_users.activate_button")}
+                        </button>
                       )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </DataTable>
 
             {CAN_CREATE_USERS && (
               <details class="au-create">
                 <summary>{t("admin.access_users.create_user_summary")}</summary>
                 <form id="create-user-form" class="au-form">
-                  <label>
-                    {t("admin.access_users.name_label")}
-                    <input type="text" name="displayName" required />
-                  </label>
-                  <label>
-                    {t("admin.access_users.login_identifier_label")}
-                    <input type="text" name="loginIdentifier" required />
-                  </label>
-                  <label>
-                    {t("admin.access_users.password_label")}
+                  <FormField
+                    id="create-user-display-name"
+                    label={t("admin.access_users.name_label")}
+                    required
+                  >
                     <input
+                      id="create-user-display-name"
+                      type="text"
+                      name="displayName"
+                      required
+                    />
+                  </FormField>
+                  <FormField
+                    id="create-user-login-identifier"
+                    label={t("admin.access_users.login_identifier_label")}
+                    required
+                  >
+                    <input
+                      id="create-user-login-identifier"
+                      type="text"
+                      name="loginIdentifier"
+                      required
+                    />
+                  </FormField>
+                  <FormField
+                    id="create-user-password"
+                    label={t("admin.access_users.password_label")}
+                    required
+                  >
+                    <input
+                      id="create-user-password"
                       type="password"
                       name="password"
                       minlength="8"
                       required
                     />
-                  </label>
+                  </FormField>
                   <fieldset class="role-checkbox-group">
                     <legend>
                       {t("admin.access_users.initial_roles_legend")}
@@ -336,124 +383,125 @@ if (data) {
               <h2>{t("admin.access_users.roles_title")}</h2>
             </div>
 
-            <div class="table-scroll">
-              <table class="au-table">
-                <thead>
-                  <tr>
-                    <th>{t("admin.access_users.role_column")}</th>
-                    <th>{t("admin.access_users.code_column")}</th>
-                    <th>{t("admin.access_users.permission_column")}</th>
-                    <th>{t("admin.access_users.users_column")}</th>
-                    {CAN_CONFIGURE_ROLES && (
-                      <th>{t("admin.access_users.actions_column")}</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.roles.length === 0 && (
-                    <tr>
-                      <td colspan={CAN_CONFIGURE_ROLES ? 5 : 4}>
-                        {t("admin.access_users.no_roles")}
-                      </td>
-                    </tr>
+            <DataTable
+              caption={t("admin.access_users.roles_title")}
+              columnCount={CAN_CONFIGURE_ROLES ? 5 : 4}
+              isEmpty={data.roles.length === 0}
+              emptyMessage={t("admin.access_users.no_roles")}
+            >
+              <Fragment slot="head">
+                <tr>
+                  <th>{t("admin.access_users.role_column")}</th>
+                  <th>{t("admin.access_users.code_column")}</th>
+                  <th>{t("admin.access_users.permission_column")}</th>
+                  <th>{t("admin.access_users.users_column")}</th>
+                  {CAN_CONFIGURE_ROLES && (
+                    <th>{t("admin.access_users.actions_column")}</th>
                   )}
-                  {data.roles.map((role) => (
-                    <tr>
-                      <td>
-                        {role.roleName}
-                        {role.isSystem && (
-                          <em class="system-role-badge">
-                            {t("admin.access_users.system_role_badge")}
-                          </em>
-                        )}
-                      </td>
-                      <td>
-                        <code>{role.roleCode}</code>
-                      </td>
-                      <td>{role.permissionIds.length}</td>
-                      <td>{role.assignedUserCount}</td>
-                      {CAN_CONFIGURE_ROLES && (
-                        <td>
-                          <details>
-                            <summary>
-                              {t("admin.access_users.edit_summary")}
-                            </summary>
-                            <form
-                              class="edit-role-form"
-                              data-role-id={role.roleId}
-                              data-role-system={
-                                role.isSystem ? "true" : "false"
-                              }
-                            >
-                              <label>
-                                {t("admin.access_users.role_name_label")}
-                                <input
-                                  type="text"
-                                  name="roleName"
-                                  value={role.roleName}
-                                  required
-                                />
-                              </label>
-                              <fieldset
-                                class="role-checkbox-group"
-                                disabled={role.isSystem}
-                              >
-                                <legend>
-                                  {t("admin.access_users.permission_legend")}
-                                  {role.isSystem &&
-                                    ` ${t("admin.access_users.system_role_note")}`}
-                                </legend>
-                                {[...permissionGroups.entries()].map(
-                                  ([moduleKey, perms]) => (
-                                    <div class="permission-module-group">
-                                      <strong>{moduleKey}</strong>
-                                      {perms.map((permission) => (
-                                        <label class="checkbox-label">
-                                          <input
-                                            type="checkbox"
-                                            name="permissionIds"
-                                            value={permission.permissionId}
-                                            checked={role.permissionIds.includes(
-                                              permission.permissionId
-                                            )}
-                                          />
-                                          {permission.activityCode}.
-                                          {permission.action}
-                                        </label>
-                                      ))}
-                                    </div>
-                                  )
-                                )}
-                              </fieldset>
-                              <button type="submit">
-                                {t("admin.access_users.save_button")}
-                              </button>
-                            </form>
-                          </details>
-                          {!role.isSystem && (
-                            <button
-                              type="button"
-                              class="delete-role-button"
-                              data-delete-role={role.roleId}
-                            >
-                              {t("admin.access_users.delete_button")}
-                            </button>
-                          )}
-                        </td>
+                </tr>
+              </Fragment>
+              {data.roles.map((role) => (
+                <tr>
+                  <td>
+                    {role.roleName}
+                    {role.isSystem && (
+                      <em class="system-role-badge">
+                        {t("admin.access_users.system_role_badge")}
+                      </em>
+                    )}
+                  </td>
+                  <td>
+                    <code>{role.roleCode}</code>
+                  </td>
+                  <td>{role.permissionIds.length}</td>
+                  <td>{role.assignedUserCount}</td>
+                  {CAN_CONFIGURE_ROLES && (
+                    <td>
+                      <details>
+                        <summary>
+                          {t("admin.access_users.edit_summary")}
+                        </summary>
+                        <form
+                          class="edit-role-form"
+                          data-role-id={role.roleId}
+                          data-role-system={role.isSystem ? "true" : "false"}
+                        >
+                          <FormField
+                            id={`edit-role-name-${role.roleId}`}
+                            label={t("admin.access_users.role_name_label")}
+                            required
+                          >
+                            <input
+                              id={`edit-role-name-${role.roleId}`}
+                              type="text"
+                              name="roleName"
+                              value={role.roleName}
+                              required
+                            />
+                          </FormField>
+                          <fieldset
+                            class="role-checkbox-group"
+                            disabled={role.isSystem}
+                          >
+                            <legend>
+                              {t("admin.access_users.permission_legend")}
+                              {role.isSystem &&
+                                ` ${t("admin.access_users.system_role_note")}`}
+                            </legend>
+                            {[...permissionGroups.entries()].map(
+                              ([moduleKey, perms]) => (
+                                <div class="permission-module-group">
+                                  <strong>{moduleKey}</strong>
+                                  {perms.map((permission) => (
+                                    <label class="checkbox-label">
+                                      <input
+                                        type="checkbox"
+                                        name="permissionIds"
+                                        value={permission.permissionId}
+                                        checked={role.permissionIds.includes(
+                                          permission.permissionId
+                                        )}
+                                      />
+                                      {permission.activityCode}.
+                                      {permission.action}
+                                    </label>
+                                  ))}
+                                </div>
+                              )
+                            )}
+                          </fieldset>
+                          <button type="submit">
+                            {t("admin.access_users.save_button")}
+                          </button>
+                        </form>
+                      </details>
+                      {!role.isSystem && (
+                        <button
+                          type="button"
+                          class="delete-role-button"
+                          data-delete-role={role.roleId}
+                        >
+                          {t("admin.access_users.delete_button")}
+                        </button>
                       )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </DataTable>
 
             {CAN_CONFIGURE_ROLES && (
               <details class="au-create">
                 <summary>{t("admin.access_users.create_role_summary")}</summary>
                 <form id="create-role-form" class="au-form">
-                  <label>
-                    {t("admin.access_users.role_code_label")}
+                  <FormField
+                    id="create-role-code"
+                    label={t("admin.access_users.role_code_label")}
+                    hint={t("admin.access_users.role_code_placeholder")}
+                    required
+                  >
                     <input
+                      id="create-role-code"
                       type="text"
                       name="roleCode"
                       pattern="^[a-z][a-z0-9_]*$"
@@ -462,11 +510,19 @@ if (data) {
                       )}
                       required
                     />
-                  </label>
-                  <label>
-                    {t("admin.access_users.role_name_label")}
-                    <input type="text" name="roleName" required />
-                  </label>
+                  </FormField>
+                  <FormField
+                    id="create-role-name"
+                    label={t("admin.access_users.role_name_label")}
+                    required
+                  >
+                    <input
+                      id="create-role-name"
+                      type="text"
+                      name="roleName"
+                      required
+                    />
+                  </FormField>
                   <fieldset class="role-checkbox-group">
                     <legend>{t("admin.access_users.permission_legend")}</legend>
                     {[...permissionGroups.entries()].map(
@@ -507,81 +563,14 @@ if (data) {
     gap: var(--sp-6);
   }
 
-  .action-banner {
-    padding: var(--sp-2) var(--sp-3);
-    border-radius: var(--radius-sm);
-    font-size: var(--fs-sm);
-  }
-
-  .action-banner[data-variant="success"] {
-    background: color-mix(
-      in srgb,
-      var(--color-success) 15%,
-      var(--color-surface)
-    );
-    border: 1px solid var(--color-success);
-  }
-
-  .action-banner[data-variant="error"] {
-    background: color-mix(
-      in srgb,
-      var(--color-danger) 15%,
-      var(--color-surface)
-    );
-    border: 1px solid var(--color-danger);
-  }
-
+  /* `.action-banner`, `.table-scroll`/`.au-table`, and `.status-pill` were
+     previously hand-rolled here — now supplied by `ActionBanner.astro`,
+     `DataTable.astro`, and `StatusBadge.astro` respectively (Issue #693).
+     `.au-section-header h2` stays: it is page-specific section-heading
+     spacing, not part of any shared primitive. */
   .au-section-header h2 {
     margin: 0 0 var(--sp-3);
     font-size: var(--fs-md);
-  }
-
-  /* Responsive (doc 14 §Responsif) — a wide table scrolls inside its own
-     container on tablet instead of forcing the whole page to scroll
-     horizontally. */
-  .table-scroll {
-    overflow-x: auto;
-    margin-bottom: var(--sp-3);
-  }
-
-  .au-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  .au-table th,
-  .au-table td {
-    text-align: left;
-    padding: var(--sp-2);
-    border-bottom: 1px solid var(--color-border);
-    font-size: var(--fs-sm);
-    vertical-align: top;
-  }
-
-  /*
-   * Solid-fill badge (Issue #434 UX/UI audit): the previous style used
-   * `--color-success`/`--color-danger` as *text* color on `--color-surface-2`
-   * — measured at 2.91:1 (active, light) and 4.06:1 (inactive, dark),
-   * both below the WCAG AA 4.5:1 minimum for text. A solid fill paired with
-   * `--color-primary-contrast` (white) using the "-strong" tokens (tuned for
-   * exactly this pairing, see tokens.css) fixes contrast in both themes.
-   * Status is still conveyed by the text label too ("Aktif"/"Tidak aktif"),
-   * not color alone.
-   */
-  .status-pill {
-    display: inline-block;
-    padding: 0 var(--sp-2);
-    border-radius: var(--radius-full);
-    font-size: var(--fs-xs);
-    color: var(--color-primary-contrast);
-  }
-
-  .status-pill[data-status="active"] {
-    background: var(--color-success-strong);
-  }
-
-  .status-pill[data-status="inactive"] {
-    background: var(--color-danger-strong);
   }
 
   .role-chip-list {
@@ -685,21 +674,9 @@ if (data) {
     max-width: 480px;
   }
 
-  .au-form label {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-1);
-    font-size: var(--fs-sm);
-  }
-
-  .au-form input[type="text"],
-  .au-form input[type="password"] {
-    padding: var(--sp-1) var(--sp-2);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-surface);
-    color: var(--color-text);
-  }
+  /* Plain text/password fields now render via `FormField.astro` (Issue
+     #693), which supplies its own label/input styling — only the
+     checkbox-group fieldset below stays page-specific. */
 
   .role-checkbox-group {
     border: 1px solid var(--color-border);
@@ -762,6 +739,7 @@ if (data) {
     showBanner,
     submitJson
   } from "../../lib/ui/admin-form-client";
+  import { openConfirmDialog } from "../../lib/ui/confirm-dialog-client";
 
   interface AccessUsersStrings {
     createUserSuccess: string;
@@ -772,6 +750,11 @@ if (data) {
     assignRoleSuccess: string;
     unassignRoleSuccess: string;
     deleteRolePrompt: string;
+    deleteRoleConfirmTitle: string;
+    deleteRoleConfirmBody: string;
+    confirmButton: string;
+    cancelButton: string;
+    reasonRequiredError: string;
     networkError: string;
     pleaseWait: string;
     errorMessages?: Record<string, string>;
@@ -898,8 +881,17 @@ if (data) {
       if (el.disabled) return;
 
       const roleId = el.dataset.deleteRole!;
-      const reason = window.prompt(strings.deleteRolePrompt);
-      if (!reason || reason.trim().length === 0) return;
+      const confirmation = await openConfirmDialog("au-confirm-dialog", {
+        title: strings.deleteRoleConfirmTitle,
+        body: strings.deleteRoleConfirmBody,
+        confirmLabel: strings.confirmButton,
+        cancelLabel: strings.cancelButton,
+        requireReason: true,
+        reasonLabel: strings.deleteRolePrompt,
+        reasonRequiredError: strings.reasonRequiredError
+      });
+      if (!confirmation.confirmed || !confirmation.reason) return;
+      const reason = confirmation.reason;
 
       const unlock = lockElement(el, strings.pleaseWait);
       try {

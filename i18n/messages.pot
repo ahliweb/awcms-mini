@@ -5,179 +5,191 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/pages/admin/access-users.astro:144
+#: src/pages/admin/access-users.astro:164
 msgid "admin.access_users.access_denied_body"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:143
+#: src/pages/admin/access-users.astro:163
 msgid "admin.access_users.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:184
+#: src/pages/admin/access-users.astro:213
 msgid "admin.access_users.actions_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:277
+#: src/pages/admin/access-users.astro:306
 msgid "admin.access_users.activate_button"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:259
+#: src/pages/admin/access-users.astro:288
 msgid "admin.access_users.assign_button"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:241
+#: src/pages/admin/access-users.astro:272
 msgid "admin.access_users.assign_role_placeholder"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:63
+#: src/pages/admin/access-users.astro:266
+msgid "admin.access_users.assign_role_select_aria_label"
+msgstr ""
+
+#: src/pages/admin/access-users.astro:78
 msgid "admin.access_users.assign_role_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:344
+#: src/pages/admin/access-users.astro:395
 msgid "admin.access_users.code_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:491
+#: src/pages/admin/access-users.astro:547
 msgid "admin.access_users.create_role_submit"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:59
+#: src/pages/admin/access-users.astro:74
 msgid "admin.access_users.create_role_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:452
+#: src/pages/admin/access-users.astro:495
 msgid "admin.access_users.create_role_summary"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:325
+#: src/pages/admin/access-users.astro:372
 msgid "admin.access_users.create_user_submit"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:58
+#: src/pages/admin/access-users.astro:73
 msgid "admin.access_users.create_user_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:290
+#: src/pages/admin/access-users.astro:317
 msgid "admin.access_users.create_user_summary"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:276
+#: src/pages/admin/access-users.astro:305
 msgid "admin.access_users.deactivate_button"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:439
+#: src/pages/admin/access-users.astro:484
 msgid "admin.access_users.delete_button"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:65
+#: src/pages/admin/access-users.astro:82
+msgid "admin.access_users.delete_role_confirm_body"
+msgstr ""
+
+#: src/pages/admin/access-users.astro:81
+msgid "admin.access_users.delete_role_confirm_title"
+msgstr ""
+
+#: src/pages/admin/access-users.astro:80
 msgid "admin.access_users.delete_role_prompt"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:61
+#: src/pages/admin/access-users.astro:76
 msgid "admin.access_users.delete_role_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:379
+#: src/pages/admin/access-users.astro:422
 msgid "admin.access_users.edit_summary"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:311
+#: src/pages/admin/access-users.astro:358
 msgid "admin.access_users.initial_roles_legend"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:180
+#: src/pages/admin/access-users.astro:209
 msgid "admin.access_users.login_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:297
+#: src/pages/admin/access-users.astro:333
 msgid "admin.access_users.login_identifier_label"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:179
+#: src/pages/admin/access-users.astro:208
 msgid "admin.access_users.name_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:293
+#: src/pages/admin/access-users.astro:321
 msgid "admin.access_users.name_label"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:356
+#: src/pages/admin/access-users.astro:390
 msgid "admin.access_users.no_roles"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:192
+#: src/pages/admin/access-users.astro:204
 msgid "admin.access_users.no_users"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:301
+#: src/pages/admin/access-users.astro:345
 msgid "admin.access_users.password_label"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:345
+#: src/pages/admin/access-users.astro:396
 msgid "admin.access_users.permission_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:402
+#: src/pages/admin/access-users.astro:447
 msgid "admin.access_users.permission_legend"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:455
+#: src/pages/admin/access-users.astro:499
 msgid "admin.access_users.role_code_label"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:460
+#: src/pages/admin/access-users.astro:500
 msgid "admin.access_users.role_code_placeholder"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:182
+#: src/pages/admin/access-users.astro:211
 msgid "admin.access_users.role_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:389
+#: src/pages/admin/access-users.astro:431
 msgid "admin.access_users.role_name_label"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:336
+#: src/pages/admin/access-users.astro:383
 msgid "admin.access_users.roles_title"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:429
+#: src/pages/admin/access-users.astro:474
 msgid "admin.access_users.save_button"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:181
+#: src/pages/admin/access-users.astro:210
 msgid "admin.access_users.status_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:366
+#: src/pages/admin/access-users.astro:409
 msgid "admin.access_users.system_role_badge"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:404
+#: src/pages/admin/access-users.astro:449
 msgid "admin.access_users.system_role_note"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:223
+#: src/pages/admin/access-users.astro:247
 msgid "admin.access_users.unassign_role_aria_label"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:64
+#: src/pages/admin/access-users.astro:79
 msgid "admin.access_users.unassign_role_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:60
+#: src/pages/admin/access-users.astro:75
 msgid "admin.access_users.update_role_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:62
+#: src/pages/admin/access-users.astro:77
 msgid "admin.access_users.update_status_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:346
+#: src/pages/admin/access-users.astro:397
 msgid "admin.access_users.users_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:172
+#: src/pages/admin/access-users.astro:197
 msgid "admin.access_users.users_title"
 msgstr ""
 
@@ -1844,27 +1856,27 @@ msgstr ""
 msgid "admin.examples.wizard.validation_title_required"
 msgstr ""
 
-#: src/layouts/AdminLayout.astro:183
+#: src/layouts/AdminLayout.astro:207
 msgid "admin.layout.active_tenant_aria_label"
 msgstr ""
 
-#: src/layouts/AdminLayout.astro:281
+#: src/layouts/AdminLayout.astro:315
 msgid "admin.layout.breadcrumb_aria_label"
 msgstr ""
 
-#: src/layouts/AdminLayout.astro:199
+#: src/layouts/AdminLayout.astro:223
 msgid "admin.layout.language_switcher_aria_label"
 msgstr ""
 
-#: src/layouts/AdminLayout.astro:214
+#: src/layouts/AdminLayout.astro:238
 msgid "admin.layout.logout"
 msgstr ""
 
-#: src/layouts/AdminLayout.astro:239
+#: src/layouts/AdminLayout.astro:273
 msgid "admin.layout.nav_access_users"
 msgstr ""
 
-#: src/layouts/AdminLayout.astro:221
+#: src/layouts/AdminLayout.astro:255
 msgid "admin.layout.nav_aria_label"
 msgstr ""
 
@@ -1873,7 +1885,7 @@ msgstr ""
 msgid "admin.layout.nav_blog"
 msgstr ""
 
-#: src/layouts/AdminLayout.astro:229
+#: src/layouts/AdminLayout.astro:263
 msgid "admin.layout.nav_dashboard"
 msgstr ""
 
@@ -1897,11 +1909,11 @@ msgstr ""
 msgid "admin.layout.nav_security"
 msgstr ""
 
-#: src/layouts/AdminLayout.astro:261
+#: src/layouts/AdminLayout.astro:295
 msgid "admin.layout.nav_settings"
 msgstr ""
 
-#: src/layouts/AdminLayout.astro:251
+#: src/layouts/AdminLayout.astro:285
 msgid "admin.layout.nav_sync"
 msgstr ""
 
@@ -1910,40 +1922,44 @@ msgstr ""
 msgid "admin.layout.nav_tenant_domains"
 msgstr ""
 
+#: src/layouts/AdminLayout.astro:200
+msgid "admin.layout.nav_toggle_aria_label"
+msgstr ""
+
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
 #: src/modules/visitor-analytics/module.ts:39
 msgid "admin.layout.nav_visitor_analytics"
 msgstr ""
 
-#: src/layouts/AdminLayout.astro:206
+#: src/layouts/AdminLayout.astro:230
 msgid "admin.layout.no_role"
 msgstr ""
 
-#: src/layouts/AdminLayout.astro:176
+#: src/layouts/AdminLayout.astro:190
 msgid "admin.layout.skip_to_content"
 msgstr ""
 
-#: src/layouts/AdminLayout.astro:188
+#: src/layouts/AdminLayout.astro:212
 msgid "admin.layout.sync_active"
 msgstr ""
 
-#: src/layouts/AdminLayout.astro:189
+#: src/layouts/AdminLayout.astro:213
 msgid "admin.layout.sync_inactive"
 msgstr ""
 
-#: src/layouts/AdminLayout.astro:195
+#: src/layouts/AdminLayout.astro:219
 msgid "admin.layout.theme_dark"
 msgstr ""
 
-#: src/layouts/AdminLayout.astro:194
+#: src/layouts/AdminLayout.astro:218
 msgid "admin.layout.theme_light"
 msgstr ""
 
-#: src/layouts/AdminLayout.astro:193
+#: src/layouts/AdminLayout.astro:217
 msgid "admin.layout.theme_system"
 msgstr ""
 
-#: src/layouts/AdminLayout.astro:192
+#: src/layouts/AdminLayout.astro:216
 msgid "admin.layout.theme_toggle_aria_label"
 msgstr ""
 
@@ -1955,7 +1971,7 @@ msgstr ""
 msgid "admin.modules.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:248
+#: src/pages/admin/modules/tenants.astro:249
 msgid "admin.modules.actions_column"
 msgstr ""
 
@@ -2027,7 +2043,7 @@ msgstr ""
 msgid "admin.modules.enabled_label"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:215
+#: src/pages/admin/modules/tenants.astro:216
 msgid "admin.modules.filter_all"
 msgstr ""
 
@@ -2035,15 +2051,15 @@ msgstr ""
 msgid "admin.modules.filter_health_label"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:222
+#: src/pages/admin/modules/tenants.astro:223
 msgid "admin.modules.filter_status_label"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:213
+#: src/pages/admin/modules/tenants.astro:214
 msgid "admin.modules.filter_type_label"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:210
+#: src/pages/admin/modules/tenants.astro:211
 msgid "admin.modules.filters_aria_label"
 msgstr ""
 
@@ -2055,7 +2071,7 @@ msgstr ""
 msgid "admin.modules.health_check_success"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:244
+#: src/pages/admin/modules/tenants.astro:245
 msgid "admin.modules.health_column"
 msgstr ""
 
@@ -2087,27 +2103,27 @@ msgstr ""
 msgid "admin.modules.jobs_legend"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:327
+#: src/pages/admin/modules/tenants.astro:328
 msgid "admin.modules.matrix_dependency_warning_prefix"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:232
+#: src/pages/admin/modules/tenants.astro:233
 msgid "admin.modules.matrix_filter_warning_label"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:197
+#: src/pages/admin/modules/tenants.astro:198
 msgid "admin.modules.matrix_intro"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:333
+#: src/pages/admin/modules/tenants.astro:334
 msgid "admin.modules.matrix_reverse_dependency_warning_prefix"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:173
+#: src/pages/admin/modules/tenants.astro:174
 msgid "admin.modules.matrix_title"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:240
+#: src/pages/admin/modules/tenants.astro:241
 msgid "admin.modules.module_column"
 msgstr ""
 
@@ -2143,7 +2159,7 @@ msgstr ""
 msgid "admin.modules.no_jobs"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:257
+#: src/pages/admin/modules/tenants.astro:258
 msgid "admin.modules.no_modules"
 msgstr ""
 
@@ -2167,7 +2183,7 @@ msgstr ""
 msgid "admin.modules.permissions_legend"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:291
+#: src/pages/admin/modules/tenants.astro:292
 msgid "admin.modules.protected_label"
 msgstr ""
 
@@ -2211,7 +2227,7 @@ msgstr ""
 msgid "admin.modules.tenant_enablement_legend"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:243
+#: src/pages/admin/modules/tenants.astro:244
 msgid "admin.modules.tenant_status_column"
 msgstr ""
 
@@ -2223,11 +2239,11 @@ msgstr ""
 msgid "admin.modules.version_column"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:363
+#: src/pages/admin/modules/tenants.astro:364
 msgid "admin.modules.view_detail_link"
 msgstr ""
 
-#: src/pages/admin/modules/tenants.astro:245
+#: src/pages/admin/modules/tenants.astro:246
 msgid "admin.modules.warnings_column"
 msgstr ""
 
@@ -2779,255 +2795,267 @@ msgstr ""
 msgid "admin.sync.update_node_success"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:169
+#: src/pages/admin/tenant/domains.astro:209
 msgid "admin.tenant_domain.access_denied_body"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:168
+#: src/pages/admin/tenant/domains.astro:208
 msgid "admin.tenant_domain.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:205
+#: src/pages/admin/tenant/domains.astro:251
 msgid "admin.tenant_domain.actions_column"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:260
+#: src/pages/admin/tenant/domains.astro:300
 msgid "admin.tenant_domain.copy_button"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:104
+#: src/pages/admin/tenant/domains.astro:122
 msgid "admin.tenant_domain.copy_error"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:103
+#: src/pages/admin/tenant/domains.astro:121
 msgid "admin.tenant_domain.copy_success"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:550
+#: src/pages/admin/tenant/domains.astro:560
 msgid "admin.tenant_domain.create_submit"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:93
+#: src/pages/admin/tenant/domains.astro:108
 msgid "admin.tenant_domain.create_success"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:478
+#: src/pages/admin/tenant/domains.astro:488
 msgid "admin.tenant_domain.create_summary"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:465
+#: src/pages/admin/tenant/domains.astro:478
 msgid "admin.tenant_domain.delete_button"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:99
+#: src/pages/admin/tenant/domains.astro:114
 msgid "admin.tenant_domain.delete_confirm"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:98
+#: src/pages/admin/tenant/domains.astro:115
+msgid "admin.tenant_domain.delete_confirm_title"
+msgstr ""
+
+#: src/pages/admin/tenant/domains.astro:113
 msgid "admin.tenant_domain.delete_reason_prompt"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:95
+#: src/pages/admin/tenant/domains.astro:110
 msgid "admin.tenant_domain.delete_success"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.domain_type." — concrete suffix from src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_TYPES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:227
+#: src/pages/admin/tenant/domains.astro:272
 msgid "admin.tenant_domain.domain_type.custom_domain"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.domain_type." — concrete suffix from src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_TYPES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:227
+#: src/pages/admin/tenant/domains.astro:272
 msgid "admin.tenant_domain.domain_type.subdomain"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:326
+#: src/pages/admin/tenant/domains.astro:361
 msgid "admin.tenant_domain.edit_summary"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:333
+#: src/pages/admin/tenant/domains.astro:364
 msgid "admin.tenant_domain.field_domain_type"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:481
+#: src/pages/admin/tenant/domains.astro:491
 msgid "admin.tenant_domain.field_hostname"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:491
+#: src/pages/admin/tenant/domains.astro:501
 msgid "admin.tenant_domain.field_hostname_hint"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:426
+#: src/pages/admin/tenant/domains.astro:441
 msgid "admin.tenant_domain.field_record_name"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:435
+#: src/pages/admin/tenant/domains.astro:450
 msgid "admin.tenant_domain.field_record_value"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:449
+#: src/pages/admin/tenant/domains.astro:464
 msgid "admin.tenant_domain.field_redirect_to_primary"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:348
+#: src/pages/admin/tenant/domains.astro:377
 msgid "admin.tenant_domain.field_route_mode"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:363
+#: src/pages/admin/tenant/domains.astro:390
 msgid "admin.tenant_domain.field_status"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:390
+#: src/pages/admin/tenant/domains.astro:413
 msgid "admin.tenant_domain.field_status_active_hint"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:373
+#: src/pages/admin/tenant/domains.astro:400
 msgid "admin.tenant_domain.field_status_no_change"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:397
+#: src/pages/admin/tenant/domains.astro:418
 msgid "admin.tenant_domain.field_verification_method"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:405
+#: src/pages/admin/tenant/domains.astro:424
 msgid "admin.tenant_domain.field_verification_method_none_option"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:201
+#: src/pages/admin/tenant/domains.astro:247
 msgid "admin.tenant_domain.hostname_column"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:102
+#: src/pages/admin/tenant/domains.astro:120
 msgid "admin.tenant_domain.invalid_hostname"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:195
+#: src/pages/admin/tenant/domains.astro:243
 msgid "admin.tenant_domain.no_domains"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:282
+#: src/pages/admin/tenant/domains.astro:318
 msgid "admin.tenant_domain.no_record_configured"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:318
+#: src/pages/admin/tenant/domains.astro:354
 msgid "admin.tenant_domain.preview_hint"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:320
+#: src/pages/admin/tenant/domains.astro:356
 msgid "admin.tenant_domain.preview_link"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:216
+#: src/pages/admin/tenant/domains.astro:261
 msgid "admin.tenant_domain.primary_badge_label"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:249
+#: src/pages/admin/tenant/domains.astro:292
 msgid "admin.tenant_domain.record_name_label"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:264
+#: src/pages/admin/tenant/domains.astro:303
 msgid "admin.tenant_domain.record_value_label"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.route_mode." — concrete suffix from src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_ROUTE_MODES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:355
+#: src/pages/admin/tenant/domains.astro:384
 msgid "admin.tenant_domain.route_mode.canonical"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.route_mode." — concrete suffix from src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_ROUTE_MODES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:355
+#: src/pages/admin/tenant/domains.astro:384
 msgid "admin.tenant_domain.route_mode.legacy_blog"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:454
+#: src/pages/admin/tenant/domains.astro:467
 msgid "admin.tenant_domain.save_button"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:309
+#: src/pages/admin/tenant/domains.astro:345
 msgid "admin.tenant_domain.set_primary_button"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:101
+#: src/pages/admin/tenant/domains.astro:118
 msgid "admin.tenant_domain.set_primary_confirm"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:97
+#: src/pages/admin/tenant/domains.astro:119
+msgid "admin.tenant_domain.set_primary_confirm_title"
+msgstr ""
+
+#: src/pages/admin/tenant/domains.astro:112
 msgid "admin.tenant_domain.set_primary_success"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.status." — concrete suffix from sql/031_awcms_mini_tenant_domain_schema.sql CHECK (status IN ('pending_verification','active','suspended','failed')); src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_UPDATABLE_STATUSES covers all but 'active' (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:233
+#: src/pages/admin/tenant/domains.astro:277
 msgid "admin.tenant_domain.status.active"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.status." — concrete suffix from sql/031_awcms_mini_tenant_domain_schema.sql CHECK (status IN ('pending_verification','active','suspended','failed')); src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_UPDATABLE_STATUSES covers all but 'active' (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:233
+#: src/pages/admin/tenant/domains.astro:277
 msgid "admin.tenant_domain.status.failed"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.status." — concrete suffix from sql/031_awcms_mini_tenant_domain_schema.sql CHECK (status IN ('pending_verification','active','suspended','failed')); src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_UPDATABLE_STATUSES covers all but 'active' (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:233
+#: src/pages/admin/tenant/domains.astro:277
 msgid "admin.tenant_domain.status.pending_verification"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.status." — concrete suffix from sql/031_awcms_mini_tenant_domain_schema.sql CHECK (status IN ('pending_verification','active','suspended','failed')); src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_UPDATABLE_STATUSES covers all but 'active' (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:233
+#: src/pages/admin/tenant/domains.astro:277
 msgid "admin.tenant_domain.status.suspended"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:203
+#: src/pages/admin/tenant/domains.astro:249
 msgid "admin.tenant_domain.status_column"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:163
+#: src/pages/admin/tenant/domains.astro:203
 msgid "admin.tenant_domain.title"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:202
+#: src/pages/admin/tenant/domains.astro:248
 msgid "admin.tenant_domain.type_column"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:94
+#: src/pages/admin/tenant/domains.astro:109
 msgid "admin.tenant_domain.update_success"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:204
+#: src/pages/admin/tenant/domains.astro:250
 msgid "admin.tenant_domain.verification_column"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.verification_method." — concrete suffix from src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_VERIFICATION_METHODS (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:240
+#: src/pages/admin/tenant/domains.astro:284
 msgid "admin.tenant_domain.verification_method.dns_cname"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.verification_method." — concrete suffix from src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_VERIFICATION_METHODS (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:240
+#: src/pages/admin/tenant/domains.astro:284
 msgid "admin.tenant_domain.verification_method.dns_txt"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.verification_method." — concrete suffix from src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_VERIFICATION_METHODS (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:240
+#: src/pages/admin/tenant/domains.astro:284
 msgid "admin.tenant_domain.verification_method.file"
 msgstr ""
 
 #. dynamic key family "admin.tenant_domain.verification_method." — concrete suffix from src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_VERIFICATION_METHODS (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/tenant/domains.astro:240
+#: src/pages/admin/tenant/domains.astro:284
 msgid "admin.tenant_domain.verification_method.manual"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:289
+#: src/pages/admin/tenant/domains.astro:325
 msgid "admin.tenant_domain.verification_method_none"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:300
+#: src/pages/admin/tenant/domains.astro:336
 msgid "admin.tenant_domain.verify_button"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:100
+#: src/pages/admin/tenant/domains.astro:116
 msgid "admin.tenant_domain.verify_confirm"
 msgstr ""
 
-#: src/pages/admin/tenant/domains.astro:96
+#: src/pages/admin/tenant/domains.astro:117
+msgid "admin.tenant_domain.verify_confirm_title"
+msgstr ""
+
+#: src/pages/admin/tenant/domains.astro:111
 msgid "admin.tenant_domain.verify_success"
 msgstr ""
 
@@ -3063,11 +3091,19 @@ msgstr ""
 msgid "common.back"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:153
+#: src/pages/admin/access-users.astro:84
+msgid "common.cancel_button"
+msgstr ""
+
+#: src/pages/admin/access-users.astro:83
+msgid "common.confirm_button"
+msgstr ""
+
+#: src/pages/admin/access-users.astro:173
 msgid "common.error_body"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:152
+#: src/pages/admin/access-users.astro:172
 msgid "common.error_title"
 msgstr ""
 
@@ -3075,7 +3111,7 @@ msgstr ""
 msgid "common.filter_all"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:66
+#: src/pages/admin/access-users.astro:86
 msgid "common.network_error"
 msgstr ""
 
@@ -3091,7 +3127,7 @@ msgstr ""
 msgid "common.no"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:67
+#: src/pages/admin/access-users.astro:87
 msgid "common.please_wait"
 msgstr ""
 
@@ -3099,15 +3135,19 @@ msgstr ""
 msgid "common.previous_page"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:154
+#: src/pages/admin/access-users.astro:85
+msgid "common.reason_required_error"
+msgstr ""
+
+#: src/pages/admin/access-users.astro:174
 msgid "common.retry"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:203
+#: src/pages/admin/access-users.astro:226
 msgid "common.status_active"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:204
+#: src/pages/admin/access-users.astro:227
 msgid "common.status_inactive"
 msgstr ""
 

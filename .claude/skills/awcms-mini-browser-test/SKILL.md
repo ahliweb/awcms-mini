@@ -154,8 +154,18 @@ test:e2e` (atau `bunx playwright test`) diam-diam menjalankan proses
 
 ## Status
 
-Lapisan E2E ini baru mencakup `/login`. Belum ada spec untuk admin page
-lain (`tenant/domains`, `blog/*`, dst) — tambahkan sesuai kebutuhan issue,
-jangan retrofit semua admin page sekaligus tanpa alasan konkret (lihat
-prinsip repo ini: jangan bangun cakupan di luar scope issue yang sedang
-dikerjakan).
+Selain `login.e2e.ts`, sudah ada spec untuk `/admin/analytics`,
+`/admin/security` (kedua profil gate), dan — sejak Issue #693 (epic #679
+platform-hardening) — `admin-responsive-nav.e2e.ts` (sidebar/drawer
+responsif: toggle, scrim, Escape, focus management, skip link),
+`admin-access-users-migrated.e2e.ts`/`admin-tenant-domains-migrated.e2e.ts`
+(migrasi ke primitive `DataTable`/`StatusBadge`/`ConfirmDialog`), dan
+`admin-a11y-smoke.e2e.ts` (smoke test aksesibilitas otomatis berbasis
+`@axe-core/playwright`, ditambahkan sebagai devDependency khusus untuk
+issue ini — lihat docblock file itu untuk kenapa ini bukan pelanggaran
+"Bun-only", AGENTS.md #14: itu soal runtime/tooling build, bukan dependency
+yang dipakai dari dalam proses `bun --bun playwright test` yang sudah
+berjalan di Bun). Belum ada spec untuk admin page lain (`blog/*`, dst) —
+tambahkan sesuai kebutuhan issue, jangan retrofit semua admin page
+sekaligus tanpa alasan konkret (lihat prinsip repo ini: jangan bangun
+cakupan di luar scope issue yang sedang dikerjakan).

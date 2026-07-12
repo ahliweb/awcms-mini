@@ -1,0 +1,122 @@
+---
+/**
+ * TenantBadge — non-interactive current-tenant indicator (Issue #693, epic
+ * #679 platform-hardening; supersedes `TenantSwitcher.astro`, Issue 8.1).
+ *
+ * Issue #693's own evidence: "tenant switching is visually present but
+ * disabled" — the previous `TenantSwitcher.astro` rendered a `<select
+ * disabled>` styled like a real dropdown control. That is exactly the
+ * shape of UI the issue's acceptance criterion forbids: "No authorization
+ * decision relies on hidden/disabled UI alone." A `disabled` form control
+ * is a CLIENT-SIDE presentation attribute only — nothing stops a user from
+ * removing it via devtools, and more importantly it visually implies an
+ * interactive capability that does not actually exist anywhere server-side
+ * to gate. A real security boundary must never look like "a switcher that
+ * happens to be turned off"; it must be either (a) not rendered as a
+ * switcher at all, or (b) rendered as a real switcher whose OPTIONS come
+ * from server-verified data and whose target action is independently
+ * enforced by the backend.
+ *
+ * Current backend reality (`awcms_mini_identities.tenant_id`, doc 04): a
+ * 1:1 tenant-scoped column — there is no cross-tenant identity linking
+ * anywhere in the schema, so an identity can never actually belong to more
+ * than one tenant. There is therefore nothing today for any admin to
+ * switch *to*, for ANY role/permission — this is not a permission gate,
+ * it is a structural fact of the current data model. Per doc 14 §Layout
+ * shell single-tenant guidance (Issue #693): single-tenant deployments show
+ * a plain, non-interactive badge — never a fake disabled control.
+ *
+ * `availableTenants` is the deliberate extensibility seam for the day
+ * cross-tenant identity linking (if ever added) makes a real switcher
+ * possible: it must be a list the SERVER already computed from verified
+ * authorization data (e.g. "tenants this identity is actually linked to"),
+ * never a client-side flag. `AdminLayout.astro` currently always passes an
+ * empty/undefined list (nothing to pass yet), so this always renders the
+ * badge branch — this is the real enforcement (no list = no switcher
+ * markup at all, not a hidden/disabled one), not a placeholder to remove
+ * later without a matching backend capability.
+ */
+interface Props {
+  tenantName: string;
+  ariaLabel: string;
+  /**
+   * Server-verified list of tenants this identity may actually switch to
+   * (excluding the current one). Must come from a real authorization
+   * check — never populate this from client state. Empty/undefined ->
+   * non-interactive badge (today's only real case, see doc comment above).
+   */
+  availableTenants?: ReadonlyArray<{ id: string; name: string }>;
+}
+
+const { tenantName, ariaLabel, availableTenants = [] } = Astro.props;
+const canSwitch = availableTenants.length > 0;
+---
+
+{
+  canSwitch ? (
+    // Real switcher path — intentionally unreachable today (see doc
+    // comment): `availableTenants` is never populated by any current
+    // backend capability. Kept implemented rather than omitted so a future
+    // real capability has a ready, accessible control instead of tempting
+    // whoever adds it to just "un-disable" a fake one again.
+    <form
+      class="tenant-badge tenant-switch-form"
+      method="get"
+      action="/admin/tenant/switch"
+    >
+      <label class="sr-only" for="tenant-switch-select">
+        {ariaLabel}
+      </label>
+      <select
+        id="tenant-switch-select"
+        name="tenantId"
+        class="tenant-switch-select"
+        aria-label={ariaLabel}
+      >
+        {availableTenants.map((tenant) => (
+          <option value={tenant.id}>{tenant.name}</option>
+        ))}
+      </select>
+    </form>
+  ) : (
+    <div class="tenant-badge" role="status" aria-label={ariaLabel}>
+      <span class="tenant-badge-text">{tenantName}</span>
+    </div>
+  )
+}
+
+<style>
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .tenant-badge {
+    display: inline-flex;
+    align-items: center;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-3);
+    font-size: var(--fs-sm);
+    color: var(--color-text);
+  }
+
+  .tenant-switch-select {
+    appearance: none;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-3);
+    min-height: 44px;
+    font-size: var(--fs-sm);
+    color: var(--color-text);
+  }
+</style>

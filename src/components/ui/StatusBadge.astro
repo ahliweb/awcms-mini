@@ -1,0 +1,77 @@
+---
+/**
+ * StatusBadge — shared lifecycle/status pill (Issue #693, epic #679
+ * platform-hardening).
+ *
+ * Generalizes the `.status-pill`/`.status-pill[data-status="..."]` markup
+ * duplicated (with slightly different variant sets each time) across
+ * `admin/access-users.astro` (active/inactive), `admin/tenant/domains.astro`
+ * (pending_verification/active/suspended/failed), and other admin screens —
+ * doc 14 §Konsistensi ("semua layar memakai token & komponen yang sama").
+ *
+ * Uses the `-strong` solid-fill tokens for the `success`/`danger`/`info`
+ * variants, not the plain `--color-success`/`--color-danger`/`--color-info`
+ * tokens — Issue #434's own audit measured the plain tokens at 2.91–4.06:1
+ * with white text (below WCAG AA's 4.5:1) when used as a *fill* rather than
+ * *text* color (the `info` gap was found later, on PR #720's own review —
+ * 3.68:1/2.43:1 — and fixed the same way). Status is
+ * still conveyed by the visible text label passed in `label`, never by
+ * color alone (doc 14 §Aksesibilitas — "jangan mengandalkan warna saja").
+ */
+export type StatusBadgeVariant =
+  "success" | "warning" | "danger" | "info" | "neutral";
+
+interface Props {
+  label: string;
+  variant: StatusBadgeVariant;
+}
+
+const { label, variant } = Astro.props;
+---
+
+<span class="status-badge" data-variant={variant}>{label}</span>
+
+<style>
+  .status-badge {
+    display: inline-block;
+    padding: 0 var(--sp-2);
+    border-radius: var(--radius-full);
+    font-size: var(--fs-xs);
+    line-height: 1.6;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface-2);
+    color: var(--color-text);
+  }
+
+  .status-badge[data-variant="success"] {
+    background: var(--color-success-strong);
+    border-color: var(--color-success-strong);
+    color: var(--color-primary-contrast);
+  }
+
+  .status-badge[data-variant="warning"] {
+    background: var(--color-warning);
+    border-color: var(--color-warning);
+    /* Fixed dark text (not the theme-following `--color-text` token): both
+       themes' `--color-warning` are mid-brightness amber/orange (#d97706
+       light, #f59e0b dark) — a fixed dark navy stays >=4.5:1 against both,
+       whereas `--color-text` flips to near-white in dark mode and would
+       fail badly against this same light-amber fill. */
+    color: #1a1f26;
+  }
+
+  .status-badge[data-variant="danger"] {
+    background: var(--color-danger-strong);
+    border-color: var(--color-danger-strong);
+    color: var(--color-primary-contrast);
+  }
+
+  .status-badge[data-variant="info"] {
+    /* -strong, not the plain --color-info token (reviewer Medium finding on
+       PR #720): the plain token only reached 3.68:1/2.43:1 with white text
+       as a solid fill, below the 4.5:1 this file's own docblock promises. */
+    background: var(--color-info-strong);
+    border-color: var(--color-info-strong);
+    color: var(--color-primary-contrast);
+  }
+</style>
