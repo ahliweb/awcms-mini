@@ -47,7 +47,7 @@ status + pointer, bukan menduplikasi isinya.
 | #639  | Content block `video_news` dengan thumbnail R2 wajib                                                                         | **Selesai** — lihat §639 di bawah                    |
 | #640  | Content quality checklist publishing dengan syarat gambar R2                                                                 | Belum dikerjakan — lihat §640 di bawah               |
 | #641  | Automatic internal tag linking untuk konten post/news                                                                        | Belum dikerjakan — lihat §641 di bawah               |
-| #642  | Public social share buttons di halaman artikel `/news`                                                                       | Belum dikerjakan — lihat §642 di bawah               |
+| #642  | Public social share buttons di halaman artikel `/news`                                                                       | **Selesai** — lihat §642 di bawah                    |
 | #649  | SEO + social preview metadata lengkap di halaman artikel `/news`                                                             | Belum dikerjakan — lihat §649 di bawah               |
 
 Urutan dependency yang disarankan (dari objective masing-masing issue):
@@ -1592,7 +1592,7 @@ daftar file lengkap kalau butuh contoh call-site persis.
   detail, 3 news_portal homepage-sections/`/news` index) — wiring adapter
   di composition root.
 
-## §638-#640, #642, #649 — konsumsi media registry lanjutan (belum dikerjakan)
+## §638-#640, #649 — konsumsi media registry lanjutan (belum dikerjakan)
 
 Ringkasan objective per issue (detail lengkap ada di body issue
 GitHub masing-masing, cek `gh issue view <n>` bila butuh acceptance
@@ -1611,13 +1611,159 @@ criteria penuh):
 - **#640** — content quality checklist publishing dengan syarat gambar
   R2 (mis. featured image wajib ada + confirmed sebelum status
   `published` diizinkan).
-- **#642** — social share buttons publik di `/news` dengan canonical
-  URL aman + Open Graph/Twitter Card + privacy-conscious.
 - **#649** — SEO + social preview metadata lengkap (title/excerpt/
-  canonical/gambar R2 terverifikasi) untuk crawler share.
+  canonical/gambar R2 terverifikasi) untuk crawler share. §642 di bawah
+  sudah menambah irisan minimal `og:title`/`og:description`/`og:url`/
+  `og:site_name` + `twitter:title`/`twitter:description`/`twitter:card`
+  (selalu `summary`, naik ke `summary_large_image` saat ada gambar R2) —
+  #649 kemungkinan menambah structured data (JSON-LD)/polish lebih lanjut,
+  bukan membangun ulang dasar OG/Twitter yang sudah ada.
 
-Semua issue ini **wajib** mengonsumsi media registry (#633) dan validasi
-`confirmed`-only (#636) — bukan re-derive validasi URL/MIME sendiri.
+Kedua issue di atas (#638/#639/#640) **wajib** mengonsumsi media registry
+(#633) dan validasi `confirmed`-only (#636) — bukan re-derive validasi
+URL/MIME sendiri.
+
+## §642 — Public social share buttons (Selesai)
+
+Implementasi lengkap: domain baru
+`src/modules/news-portal/domain/news-share-config.ts` (resolver env
+`NEWS_SHARE_*`, pure),
+`src/modules/blog-content/domain/social-share-links.ts` (link builder
+allowlisted per platform + renderer HTML widget), script client statis
+`public/js/news-share.js` (native share + copy-link, progressive
+enhancement), dan perluasan
+`src/modules/blog-content/domain/public-page-rendering.ts` (og:title/
+og:description/og:url/og:site_name + twitter:title/twitter:description/
+twitter:card selalu ada). **Tidak ada migration baru** — murni
+UI/rendering/config, tidak ada data baru yang dipersist (highest migration
+tetap `047` di saat issue ini dikerjakan; awasi nomor yang benar-benar
+terbaru di `sql/` sebelum issue lanjutan menambah migration, karena issue
+lain di epic yang sama bisa jalan paralel).
+
+### Kenapa config resolver di `news-portal`, tapi link-builder+renderer di `blog-content`
+
+`NEWS_SHARE_*` env var **dimiliki** modul `news-portal` (konvensi
+CONFIG_REGISTRY: prefix `NEWS_` = `ownerModule: "news-portal"`, sama
+seperti `NEWS_PORTAL_ENABLED`/`NEWS_MEDIA_R2_*`) — jadi resolver env
+(`resolveNewsShareConfig`) hidup di sana. Tapi fungsi murni yang membangun
+URL share per platform + merender widget HTML
+(`buildSocialShareLinks`/`renderSocialShareButtonsHtml`) hidup di
+`blog-content` karena beroperasi pada konsep `blog_content` murni
+(title/excerpt/canonical URL post) dan dipanggil dari route yang sama
+(`/news/[slug].ts`, `/blog/[tenantCode]/[slug].ts`) yang sudah merender
+`seo-rendering.ts`/`public-page-rendering.ts` — TIDAK ada dependency
+fungsional ke media registry R2 sama sekali untuk fitur ini (beda dari
+#636). `SocialShareRenderConfig` (di `blog-content`) sengaja punya field
+yang sama persis dengan `NewsShareConfig` (di `news-portal`) TANPA
+cross-module import — struktural TypeScript cukup, route (composition
+root) yang memanggil keduanya langsung, sama pola "route mengimpor dari
+dua modul sekaligus" yang sudah ada (`[slug].ts` sudah mengimpor
+`newsMediaPortAdapter` dari `news-portal/application/` langsung sebelum
+issue ini).
+
+### Instagram — TIDAK ada tombol/URL, hanya catatan teks
+
+Tidak ada URL web-share Instagram yang didukung untuk sharing dari URL
+eksternal sembarang (beda dari WhatsApp/Telegram/Facebook/LinkedIn/X yang
+semuanya punya endpoint share-intent resmi) — jadi `STATIC_SHARE_LINK_BUILDERS`
+di `social-share-links.ts` TIDAK PERNAH punya entry Instagram.
+`NEWS_SHARE_INSTAGRAM_NATIVE_ONLY` (default `true`) hanya menggerbang
+sebuah catatan teks statis di dekat tombol native-share, menjelaskan
+Instagram dibagikan lewat native share (`navigator.share`, saat OS
+menampilkannya sebagai target) atau copy-link — tidak pernah membangun
+tombol/URL baru untuk itu. Test `social-share-links.test.ts`'s "never
+emits a fake Instagram share link/button" menegakkan ini secara eksplisit
+(grep `instagram.com`/`news-share__link--instagram` tidak pernah ada di
+output manapun).
+
+### Canonical URL, bukan querystring — dijamin struktural, bukan filter
+
+Setiap link/atribut `data-share-url` dibangun HANYA dari `canonicalUrl`
+yang sudah di-resolve `resolveCanonicalUrl` (server-side, dari
+`url.origin` + slug post) — tidak pernah dari `request.url`/`Astro.url`
+mentah. Karena `canonicalUrl` server-generated tidak pernah membawa
+querystring/tracking parameter/session id sama sekali, syarat issue "do
+not leak admin preview URLs, draft URLs, session IDs, or private query
+parameters" terpenuhi secara struktural (nilai itu memang tidak pernah
+ada di sana), bukan oleh sebuah filter yang bisa lupa memfilter sesuatu.
+Test integrasi membuktikan ini dengan memanggil route dengan
+`?utm_source=newsletter&session_id=abc123` di URL request dan menegaskan
+tidak satupun string itu muncul di respons.
+
+### Script client — file statis same-origin, BUKAN inline (CSP)
+
+`native_web_share`/`copy_link` butuh JS (Web Share API, Clipboard API) —
+semua platform lain adalah `<a href>` statis tanpa JS sama sekali.
+`public/js/news-share.js` dimuat via `<script src="/js/news-share.js"
+defer>` (same-origin, `public/` Astro default) — **bukan** `<script>`
+inline. Ini sengaja menghindari seluruh kerumitan CSP hash/nonce yang
+`astro.config.mjs`/`theme-init-script.ts` sudah dokumentasikan
+(Astro's `security.csp` hanya meng-hash script yang **ia proses**
+sendiri — script yang dirender lewat `.ts` API route seperti
+`/news/[slug].ts` bukan `.astro` component, jadi TIDAK pernah lewat
+pipeline hashing Astro sama sekali; sebuah `<script>` inline di sini
+berisiko diblokir CSP browser nyata tanpa test headless-Chrome yang bisa
+mendeteksinya lewat `curl`). `script-src 'self'` (default Astro) sudah
+cukup untuk file statis same-origin — nol entri hash baru diperlukan.
+Tombol native-share dirender `hidden` di server, hanya di-unhide oleh
+script ini setelah deteksi fitur nyata (`window.isSecureContext &&
+navigator.share`) — issue: "native share uses `navigator.share` only
+after user activation and only in secure context." Tidak ada dependency
+eksternal, tidak ada `fetch`/`import` ke origin manapun selain halaman itu
+sendiri — `tests/unit/news-share-client-script.test.ts` menegaskan tidak
+ada string `http(s)://` eksternal apa pun di file ini.
+
+### Konfigurasi — semua flag default `true`, deviasi sengaja dari kebiasaan repo
+
+Setiap flag `NEWS_SHARE_*` default `true` (lihat header comment
+`news-share-config.ts` untuk alasan lengkap) — berbeda dari kebiasaan
+"opt-in, default off" var lain di repo ini (`NEWS_PORTAL_ENABLED`,
+`VISITOR_ANALYTICS_ENABLED`, dst.) karena fitur ini tidak mengumpulkan
+data/memuat script eksternal/butuh kredensial apa pun untuk diaktifkan.
+Tidak ada flag terpisah untuk copy-link (selalu ada begitu
+`NEWS_SHARE_BUTTONS_ENABLED=true`) — body issue #642 tidak
+menyarankannya, dan copy-link adalah fallback universal yang seharusnya
+selalu tersedia.
+
+### Meta tag OG/Twitter — perluasan `renderPublicPageShell`, bukan fungsi baru
+
+`og:title`/`og:description`/`og:url` + `twitter:title`/
+`twitter:description` diturunkan dari field `title`/`description`/
+`canonicalUrl` yang SUDAH ada di `PublicPageShellOptions` (satu sumber
+kebenaran per field — tidak ada kolom kedua yang bisa drift).
+`twitter:card` sekarang SELALU dirender (`summary` tanpa gambar,
+`summary_large_image` dengan `og:image` — beda dari sebelum issue ini,
+yang meng-omit `twitter:card` sama sekali tanpa gambar). `og:image`/
+`twitter:image`/`og:image:alt` TIDAK berubah — tetap gerbang R2-only
+Issue #636 (`resolveOgImageUrl`, hanya media `verified`/`attached`).
+`og:site_name` baru, opsional, dari `PublicTenantResolution.tenantName` —
+diteruskan kedua route (`/news/[slug].ts`, `/blog/[tenantCode]/[slug].ts`)
+tanpa lookup tambahan (tenant sudah di-resolve untuk gerbang tenant/module
+yang sudah ada).
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `src/modules/news-portal/domain/news-share-config.ts` (baru).
+- `src/modules/blog-content/domain/social-share-links.ts` (baru).
+- `public/js/news-share.js` (baru).
+- `src/modules/blog-content/domain/public-page-rendering.ts`: `PublicPageShellOptions`
+  gains `siteName`; `renderOpenGraphMetaTags` baru (og:title/description/
+  url/site_name + twitter:title/description/card selalu ada).
+- `src/pages/news/[slug].ts`, `src/pages/blog/[tenantCode]/[slug].ts`:
+  panggil `resolveNewsShareConfig()` + `renderSocialShareButtonsHtml`,
+  teruskan `siteName: tenant.tenantName` ke shell.
+- `src/lib/config/registry.ts`: sembilan entri `NEWS_SHARE_*` baru
+  (`ownerModule: "news-portal"`, `profiles: ALL_PROFILES`, semua
+  default `"true"`).
+- `.env.example`, `18_configuration_env_reference.md` §News portal —
+  public social share buttons (tabel + fenced block ringkas).
+- Test: `tests/unit/news-share-config.test.ts`,
+  `tests/unit/social-share-links.test.ts`,
+  `tests/unit/news-share-client-script.test.ts`,
+  `tests/integration/news-portal-share-buttons.integration.test.ts`;
+  diperbarui: `tests/blog-content-public-rendering.test.ts` (og:title/
+  description/url/site_name/twitter:card selalu ada).
+- Changeset: `.changeset/news-portal-social-share-buttons-issue-642.md`.
 
 ## §641 — Automatic internal tag linking (belum dikerjakan)
 

@@ -580,6 +580,76 @@ describe("renderPublicPageShell", () => {
     expect(html).toContain('<meta property="og:image"');
     expect(html).not.toContain("og:image:alt");
   });
+
+  test("Issue #642: emits escaped og:title/og:description/twitter:title/twitter:description derived from title/description", () => {
+    const html = renderPublicPageShell({
+      title: "<b>Title</b>",
+      description: "<i>desc</i>",
+      canonicalUrl: "https://example.com/post",
+      bodyHtml: "<p>body</p>",
+      locale: "en"
+    });
+    expect(html).toContain(
+      '<meta property="og:title" content="&lt;b&gt;Title&lt;/b&gt;" />'
+    );
+    expect(html).toContain(
+      '<meta property="og:description" content="&lt;i&gt;desc&lt;/i&gt;" />'
+    );
+    expect(html).toContain(
+      '<meta name="twitter:title" content="&lt;b&gt;Title&lt;/b&gt;" />'
+    );
+    expect(html).toContain(
+      '<meta name="twitter:description" content="&lt;i&gt;desc&lt;/i&gt;" />'
+    );
+    expect(html).toContain(
+      '<meta property="og:url" content="https://example.com/post" />'
+    );
+  });
+
+  test("Issue #642: omits og:url when canonicalUrl is null", () => {
+    const html = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en"
+    });
+    expect(html).not.toContain("og:url");
+  });
+
+  test("Issue #642: emits twitter:card=summary (not summary_large_image) when there is no og:image", () => {
+    const html = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en"
+    });
+    expect(html).toContain('<meta name="twitter:card" content="summary" />');
+  });
+
+  test("Issue #642: emits og:site_name only when siteName is provided", () => {
+    const withSiteName = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en",
+      siteName: "Acme <News>"
+    });
+    expect(withSiteName).toContain(
+      '<meta property="og:site_name" content="Acme &lt;News&gt;" />'
+    );
+
+    const withoutSiteName = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en"
+    });
+    expect(withoutSiteName).not.toContain("og:site_name");
+  });
 });
 
 describe("resolveOgImageUrl (Issue #636)", () => {
