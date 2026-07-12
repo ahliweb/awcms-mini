@@ -940,6 +940,30 @@ worker interruption, partial provider outage) plus tier `--full` yang
 menjalankan `restore-drill.sh` — lihat
 [`resilience-dr-verification.md`](resilience-dr-verification.md).
 
+## Metrics dan observabilitas operasional (Issue #698)
+
+Sejak Issue #698, `src/lib/observability/metrics-port.ts` menyediakan port
+metrics kecil (counter/histogram/gauge berkardinalitas rendah untuk
+request HTTP, saturasi pool DB, status/backlog job, dan
+outcome/latency/circuit state provider) — **default adalah adapter no-op**
+(`createNoopMetricsPort`), jadi **setiap profil, termasuk offline/LAN,
+berjalan penuh tanpa collector eksternal apa pun** dan tanpa biaya runtime
+tambahan sampai sebuah aplikasi turunan secara eksplisit memanggil
+`setMetricsPort(...)`. Ini konsep terpisah dari (bukan pengganti)
+structured logging/audit trail Issue #447 — lihat
+[`observability-metrics.md`](observability-metrics.md) untuk arsitektur
+lengkap, tabel kardinalitas/privasi per metrik, SLI/SLO awal +
+panduan burn-rate, dan contoh adapter Prometheus/OpenTelemetry (opsional,
+tidak meng-couple runtime inti ke satu SaaS tertentu).
+
+Endpoint baru `GET /api/v1/logs/observability/dependency-health`
+(terautentikasi, guard `logging.observability.read`) melengkapi
+`/api/v1/health` (liveness publik) dan `/api/v1/database/pool/health`
+(agregat lokal publik) dengan pembeda eksplisit "local dependency"
+(database) vs "optional external provider" (email, object storage,
+SSO/OIDC, Cloudflare DNS, …) — lihat doc tersebut §Authorized dependency
+health endpoint.
+
 ## Lihat juga
 
 - [`deploy-coolify.md`](deploy-coolify.md) — panduan deploy Coolify
@@ -948,6 +972,8 @@ menjalankan `restore-drill.sh` — lihat
 - [`18_configuration_env_reference.md`](18_configuration_env_reference.md)
   — referensi environment variable lengkap dan topologi LAN-first.
 - [`database-pooling.md`](database-pooling.md) — kapan PgBouncer relevan.
+- [`observability-metrics.md`](observability-metrics.md) — metrics port,
+  SLI/SLO awal, dependency health endpoint (Issue #698).
 - [`07_sprint_testing_production_readiness.md`](07_sprint_testing_production_readiness.md)
   — checklist production readiness dan go-live plan.
 - `.claude/skills/awcms-mini-production-preflight/SKILL.md` — command

@@ -27,7 +27,17 @@
  *
  * These add up to well under `DATABASE_POOL_MAX` (default 20), leaving
  * headroom in the underlying `Bun.SQL` pool itself.
+ *
+ * Issue #698 (epic #679, "operational proof" wave): `db_pool_work_class_active`/
+ * `db_pool_work_class_queued` gauges are emitted from `emitWorkClassGauges`
+ * below, called at every point `active`/`queue.length` change (acquire,
+ * hand-off on release, decrement on release, timeout eviction) — the
+ * `/database/pool/health` endpoint and `getWorkClassSaturation` themselves
+ * need no changes; they already read the same `gates` state this now also
+ * mirrors into metrics.
  */
+import { recordGauge } from "../observability/metrics-port";
+
 export type WorkClass =
   | "critical_transaction"
   | "interactive"
@@ -82,6 +92,14 @@ function createGateState(): Record<WorkClass, GateState> {
 
 let gates = createGateState();
 
+/** Mirrors `gates[workClass]`'s current active/queued counts into gauges — called at every point either number changes. `workClass` is a fixed 5-value enum, so this is always a safe, low-cardinality label. */
+function emitWorkClassGauges(workClass: WorkClass): void {
+  const gate = gates[workClass];
+
+  recordGauge("db_pool_work_class_active", gate.active, { workClass });
+  recordGauge("db_pool_work_class_queued", gate.queue.length, { workClass });
+}
+
 function makeSlot(workClass: WorkClass): WorkClassSlot {
   let released = false;
 
@@ -106,10 +124,12 @@ function releaseSlot(workClass: WorkClass): void {
     // Active count stays the same: the freed slot is handed directly to the
     // next queued waiter instead of being decremented then re-incremented.
     next.resolve(makeSlot(workClass));
+    emitWorkClassGauges(workClass);
     return;
   }
 
   gate.active = Math.max(0, gate.active - 1);
+  emitWorkClassGauges(workClass);
 }
 
 /**
@@ -126,6 +146,7 @@ export function acquireWorkClassSlot(
 
   if (gate.active < max) {
     gate.active += 1;
+    emitWorkClassGauges(workClass);
 
     return Promise.resolve(makeSlot(workClass));
   }
@@ -141,11 +162,13 @@ export function acquireWorkClassSlot(
           gate.queue.splice(index, 1);
         }
 
+        emitWorkClassGauges(workClass);
         reject(new WorkClassTimeoutError(workClass, timeoutMs));
       }, timeoutMs)
     };
 
     gate.queue.push(waiter);
+    emitWorkClassGauges(workClass);
   });
 }
 

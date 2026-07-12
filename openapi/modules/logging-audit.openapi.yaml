@@ -65,8 +65,130 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/logs/observability/dependency-health:
+    get:
+      tags:
+        - Logging & Audit
+      summary: Authorized dependency health — local database vs optional external providers, distinguished (Issue #698)
+      operationId: logsGetObservabilityDependencyHealth
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Local dependency (database circuit/pool state) and optional external provider (email, object storage, SSO/OIDC, Cloudflare DNS, ...) circuit-breaker health, aggregated by provider family. Never a tenant id, per-tenant breakdown, or raw provider registry key.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/DependencyHealthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   schemas:
+    DependencyHealthWorkClassSnapshot:
+      type: object
+      required:
+        - workClass
+        - active
+        - max
+        - queued
+      additionalProperties: false
+      properties:
+        workClass:
+          type: string
+          enum:
+            - critical_transaction
+            - interactive
+            - reporting
+            - background_sync
+            - maintenance
+        active:
+          type: integer
+          minimum: 0
+        max:
+          type: integer
+          minimum: 0
+        queued:
+          type: integer
+          minimum: 0
+    DependencyHealthLocalDependency:
+      type: object
+      required:
+        - name
+        - status
+        - circuitBreakerState
+        - workClasses
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+            - healthy
+            - degraded
+            - unhealthy
+        circuitBreakerState:
+          type: string
+          enum:
+            - closed
+            - open
+            - half_open
+        workClasses:
+          type: array
+          items:
+            $ref: "#/components/schemas/DependencyHealthWorkClassSnapshot"
+    DependencyHealthOptionalProvider:
+      type: object
+      required:
+        - family
+        - circuitBreakerState
+      additionalProperties: false
+      properties:
+        family:
+          type: string
+          description: Bounded, code-defined provider family label (e.g. "email", "object-storage", "sso-oidc-discovery") — never a raw per-tenant breaker registry key.
+        circuitBreakerState:
+          type: string
+          enum:
+            - closed
+            - open
+            - half_open
+    DependencyHealthResponse:
+      type: object
+      required:
+        - generatedAt
+        - localDependencies
+        - optionalProviders
+      additionalProperties: false
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        localDependencies:
+          type: array
+          items:
+            $ref: "#/components/schemas/DependencyHealthLocalDependency"
+        optionalProviders:
+          type: array
+          items:
+            $ref: "#/components/schemas/DependencyHealthOptionalProvider"
     AuditEventEntry:
       type: object
       required:

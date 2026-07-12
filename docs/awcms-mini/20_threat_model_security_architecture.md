@@ -798,3 +798,59 @@ bentuk secret. Kalau pesan error tidak cukup jelas untuk mendiagnosis:
    tambahkan `"relative/path:line"` ke `LOGGING_LINT_EXEMPTIONS` di
    `scripts/logging-lint-check.ts` dengan alasan tercatat di komentar,
    jangan hapus/lemahkan pattern generiknya.
+
+## Standar tambahan dipicu epic platform-hardening (Issue #698, epic #679)
+
+Konsep BARU, komplementer terhadap (bukan pengganti) fondasi structured
+logging/audit trail Issue 10.1/#447 di atas: `src/lib/observability/metrics-port.ts`
+menambah counter/histogram/gauge berkardinalitas rendah untuk request
+HTTP, saturasi pool DB, status/backlog job, dan outcome/latency/circuit
+state provider. Detail arsitektur, tabel kardinalitas/privasi per metrik,
+dan SLI/SLO ada di [`observability-metrics.md`](observability-metrics.md)
+— bagian ini hanya mencatat guardrail keamanan/privasi yang mengikat
+model ancaman.
+
+**Guardrail non-negotiable (badan isu #698)**:
+
+- **Tidak boleh ada tenant ID, route dengan ID tak terbatas, email/IP,
+  object key, token, prompt, atau isi percakapan di LABEL metrik apa
+  pun.** Ini beda dari redaksi nilai (`redactSensitiveAttributes`/
+  `redactSecretsInText` di atas, yang untuk teks bebas di log/audit) —
+  di sini masalahnya CARDINALITY EXPLOSION (satu series per tenant/id
+  selamanya) DAN privasi di level label metrik itu sendiri. Mekanisme
+  konkret: `METRIC_DEFINITIONS`'s `allowedLabelKeys` membuang (bukan
+  menolak dengan error) key label mana pun yang tidak dideklarasikan
+  untuk metrik itu sebelum sampai ke adapter mana pun — bahkan bug di
+  call site tidak bisa membuat label tak-terduga sampai ke adapter.
+- **Kasus paling berisiko**: `getProviderCircuitBreaker`'s registry key
+  bisa tenant-scoped (`sso-oidc-discovery:<tenantId>:<providerKey>`,
+  Issue #610). `deriveProviderFamilyLabel` (`circuit-breaker.ts`)
+  memotong ke prefix literal sebelum `:` pertama — mengubahnya jadi
+  `"sso-oidc-discovery"` saja. Fungsi yang sama dipakai baik oleh label
+  metrik `provider` MAUPUN endpoint dependency-health di bawah, jadi
+  keduanya tidak pernah berbeda perilaku.
+- **Metrics BUKAN sumber otorisasi.** Tidak ada kode di modul ini atau
+  pemanggilnya yang membaca nilai metrik untuk membuat keputusan
+  ABAC/RLS/autentikasi — metrics murni observasional.
+- **Offline/LAN tetap berjalan tanpa collector eksternal apa pun** —
+  adapter default adalah no-op total (`createNoopMetricsPort`); setiap
+  deployment yang tidak pernah memanggil `setMetricsPort` tidak
+  membutuhkan koneksi keluar apa pun untuk fitur ini.
+
+**Endpoint baru** `GET /api/v1/logs/observability/dependency-health`
+(migration `047_awcms_mini_observability_metrics_permission.sql`,
+permission `logging.observability.read`) adalah endpoint TERAUTENTIKASI
+pertama yang membedakan "local dependency" (database) dari "optional
+external provider" secara eksplisit di respons — berbeda dari
+`/api/v1/health`/`/api/v1/database/pool/health` yang publik dan tidak
+membedakan. `optionalProviders[].family` memakai fungsi bounding yang
+sama seperti label metrik `provider`, tidak pernah raw registry key atau
+tenant ID — dibuktikan oleh
+`tests/integration/observability-dependency-health.integration.test.ts`
+("never contain the raw tenant-scoped key/tenant id").
+
+Baris A.8.16 di matrix kepatuhan di atas TIDAK berubah statusnya (⚠) —
+metrics agregat bukan SIEM/alerting terpusat; tetap tanggung jawab
+lapisan operasional aplikasi turunan untuk memasang adapter nyata
+(Prometheus/OpenTelemetry, lihat `observability-metrics.md`) dan
+alerting di atasnya.
