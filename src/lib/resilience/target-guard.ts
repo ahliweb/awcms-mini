@@ -70,6 +70,21 @@ const KNOWN_PRODUCTION_HOST_PATTERNS: RegExp[] = [
  * simply always denied, fail-safe not fail-open) but corrected so they
  * now actually authorize like every other loopback form.
  */
+/**
+ * Exact-match (case-sensitive), reviewer finding on PR #716: `"test"` is
+ * included because `ci.yml`'s safe-tier drill step sets `APP_ENV=test`,
+ * not one of `validate-env.ts`'s own app-wide `KNOWN_APP_ENV_VALUES`
+ * (`development`/`staging`/`production`) — this drill-specific set is
+ * deliberately narrower AND has its own additional value, so it is kept
+ * separate rather than importing that constant. `"production"` is never
+ * a member here, in any casing — see `authorizeDrDrill`.
+ */
+const KNOWN_NON_PRODUCTION_APP_ENV_VALUES = new Set([
+  "development",
+  "staging",
+  "test"
+]);
+
 const KNOWN_SAFE_HOSTS = new Set([
   "localhost",
   "127.0.0.1",
@@ -153,6 +168,35 @@ export function authorizeDrDrill(
         'APP_ENV="production" — DR/chaos drills are never permitted against ' +
         "a production-flagged environment. Unlike production:preflight's " +
         "migration-apply gate, this refusal has NO override flag."
+    };
+  }
+
+  // Reviewer Critical finding on PR #716: the bare `=== "production"` check
+  // above only catches an EXACT lowercase match — `APP_ENV="Production"` (a
+  // plausible casing typo, not an exotic attack) would silently sail past
+  // it. This matters concretely because `"db"` is in KNOWN_SAFE_HOSTS as a
+  // recognized local/isolated host, but this repo's own deployment-
+  // profiles.md documents `db` as the real hostname for the LAN-first
+  // single-server PRODUCTION topology too — so a cased/typo'd APP_ENV
+  // combined with that real production host would otherwise authorize a
+  // destructive drill (worker SIGTERM, real row mutation, a real
+  // DROP DATABASE in --full mode) against production. Default-deny any
+  // value that isn't EXACTLY one of the known non-production values,
+  // mirroring how isProductionLikeTarget already treats an unrecognized
+  // host as unsafe rather than assuming it's fine.
+  if (
+    options.appEnv !== undefined &&
+    !KNOWN_NON_PRODUCTION_APP_ENV_VALUES.has(options.appEnv)
+  ) {
+    return {
+      ok: false,
+      reason:
+        `APP_ENV="${options.appEnv}" is not one of ` +
+        `${[...KNOWN_NON_PRODUCTION_APP_ENV_VALUES].join("/")} exactly ` +
+        "(case-sensitive) — refusing by default. This also catches any " +
+        'casing variant of "production" (e.g. "Production"), which must ' +
+        "never be treated as safe just because it doesn't literally equal " +
+        'the lowercase string "production".'
     };
   }
 

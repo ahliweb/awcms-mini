@@ -35,7 +35,7 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import type { ScenarioDefinition, ScenarioOutcome } from "../scenario-runner";
 
@@ -76,24 +76,63 @@ function databaseUrlToPgEnv(databaseUrl: string): Record<string, string> {
   };
 }
 
+/**
+ * Runs `Bun.spawnSync` and returns `null` (never throws) if the binary
+ * itself is entirely missing from PATH. Reviewer finding on PR #716:
+ * `Bun.spawnSync` THROWS (`"Executable not found in $PATH"`), it does not
+ * return a failed result, for a fully-absent binary — that throw was
+ * previously uncaught here, escaping to `runScenario`'s generic catch and
+ * turning a plain "not installed" environment constraint into a hard
+ * `"fail"`, contradicting this scenario's own documented "skip, not fail,
+ * if unavailable" contract.
+ */
+function trySpawnSync(
+  ...args: Parameters<typeof Bun.spawnSync>
+): ReturnType<typeof Bun.spawnSync> | null {
+  try {
+    return Bun.spawnSync(...args);
+  } catch {
+    return null;
+  }
+}
+
 /** Same client/server major-version compatibility probe `backup-restore-drill.integration.test.ts` (Issue #691) already uses — pg_dump refuses to dump from a server newer than itself. */
 function detectPgBinOverride(databaseUrl: string): {
   pathPrefix?: string;
   skipReason?: string;
 } {
-  const serverProbe = Bun.spawnSync(
+  const serverProbe = trySpawnSync(
     ["psql", "-tAc", "SHOW server_version_num"],
     {
       env: { ...process.env, ...databaseUrlToPgEnv(databaseUrl) }
     }
   );
-  const serverVersionRaw = Number(serverProbe.stdout.toString().trim());
+
+  if (!serverProbe) {
+    return { skipReason: "psql is not installed / not found on PATH" };
+  }
+
+  const serverVersionRaw = Number(
+    (serverProbe.stdout?.toString() ?? "").trim()
+  );
   const serverMajor = Number.isFinite(serverVersionRaw)
     ? Math.floor(serverVersionRaw / 10000)
     : undefined;
 
-  const clientProbe = Bun.spawnSync(["pg_dump", "--version"]);
-  const clientMajor = parseMajorVersion(clientProbe.stdout.toString());
+  const clientProbe = trySpawnSync(["pg_dump", "--version"]);
+
+  if (!clientProbe) {
+    return { skipReason: "pg_dump is not installed / not found on PATH" };
+  }
+
+  if (!existsSync(join(dirname(Bun.which("pg_dump") ?? ""), "pg_restore"))) {
+    return {
+      skipReason:
+        "pg_restore is not installed / not found alongside pg_dump on PATH"
+    };
+  }
+
+  const clientMajor = parseMajorVersion(clientProbe.stdout?.toString() ?? "");
 
   if (serverMajor === undefined || clientMajor === undefined) {
     return {

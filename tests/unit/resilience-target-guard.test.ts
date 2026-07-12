@@ -78,6 +78,26 @@ describe("authorizeDrDrill", () => {
     expect(result.ok).toBe(false);
   });
 
+  test("refuses a cased/typo'd variant of 'production' (e.g. 'Production'), even against the real 'db' hostname and a matching confirmation — reviewer Critical finding on PR #716", () => {
+    const result = authorizeDrDrill({
+      appEnv: "Production",
+      databaseUrl: "postgres://user:pass@db:5432/awcms-mini",
+      confirmNonProduction: "Production"
+    });
+
+    expect(result.ok).toBe(false);
+  });
+
+  test("refuses an APP_ENV value that isn't exactly one of the known non-production values (e.g. a typo like 'developement')", () => {
+    const result = authorizeDrDrill({
+      appEnv: "developement",
+      databaseUrl: safeDatabaseUrl,
+      confirmNonProduction: "developement"
+    });
+
+    expect(result.ok).toBe(false);
+  });
+
   test("refuses a production-like database host even when APP_ENV is not production", () => {
     const result = authorizeDrDrill({
       appEnv: "test",
