@@ -22,10 +22,10 @@ deprecation policy section (ADR-0008) that auto-lists any
 `deprecated: true` operation/schema/channel.
 
 All example values are synthesized from JSON Schema shape alone (nil UUID,
-fixed placeholder dates, `example.com`/`localhost:4321` hostnames only) —
-never copied from real config/logs/fixtures, so no secret or production
-hostname can enter the document. Generation is fully deterministic and
-offline (no network access, no external CLI, no SaaS).
+fixed placeholder dates, `example.com` hostnames only) — never copied from
+real config/logs/fixtures, so no secret or production hostname can enter
+the document. Generation is fully deterministic and offline (no network
+access, no external CLI, no SaaS).
 
 A new read-only `bun run api:docs:check` (`scripts/api-docs-check.ts`),
 wired into `bun run check`, regenerates the doc in memory and fails the
