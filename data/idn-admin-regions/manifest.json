@@ -1,0 +1,55 @@
+{
+  "$schema": "./manifest.schema.json",
+  "datasetCode": "idn_admin_regions",
+  "datasetName": "Indonesia Administrative Regions",
+  "moduleKey": "idn_admin_regions",
+  "upstream": {
+    "repository": "https://github.com/cahyadsn/wilayah",
+    "sourcePath": "https://github.com/cahyadsn/wilayah/tree/master/db",
+    "branch": "master",
+    "commit": "cae306278e5be616c83ba2d8096b00767f45b5fe",
+    "commitDate": "2026-07-10T20:37:13+07:00",
+    "license": "MIT",
+    "licenseFile": "upstream/cahyadsn-wilayah/LICENSE"
+  },
+  "importedAt": "2026-07-12T11:40:47Z",
+  "officialReferenceCaveat": "This dataset is a third-party, community-packaged copy of Indonesia administrative region data (cahyadsn/wilayah, MIT License), not an official Kementerian Dalam Negeri (Kemendagri) API or export. It should not be treated as a substitute for an operator's own official legal/compliance reference.",
+  "files": [
+    {
+      "path": "upstream/cahyadsn-wilayah/LICENSE",
+      "sha256": "bd2e18e40a01567ce518c9b866041ad212838dd51df3596e0b97425b52e3fdcb",
+      "bytes": 1071,
+      "role": "license"
+    },
+    {
+      "path": "upstream/cahyadsn-wilayah/db/wilayah.sql",
+      "sha256": "c4c3396d9380d4edee072af1d9dff83573b574d7cd00a6562cf82e200e954031",
+      "bytes": 2947579,
+      "role": "raw-upstream-sql"
+    },
+    {
+      "path": "upstream/cahyadsn-wilayah/db/wilayah_pulau.sql",
+      "sha256": "6bebd693d96f7b55cf887392921d8a663b8f74fd5450883d64003a2f04c0c6a2",
+      "bytes": 1251530,
+      "role": "raw-upstream-sql"
+    },
+    {
+      "path": "upstream/cahyadsn-wilayah/db/wilayah_penduduk.sql",
+      "sha256": "b0b6b9dc70fa6a4fdb9e05bf00ec549ed8f6cf0bb82f6407281dfac674b10447",
+      "bytes": 34429,
+      "role": "raw-upstream-sql"
+    },
+    {
+      "path": "upstream/cahyadsn-wilayah/db/wilayah_luas.sql",
+      "sha256": "3ffd506eaabaa2bfa101fb24c5e40582cf9548be38adba53a561d0ed7478c043",
+      "bytes": 26322,
+      "role": "raw-upstream-sql"
+    }
+  ],
+  "normalizedFiles": [],
+  "notes": [
+    "Upstream db/ also contains wilayah_level_1_2.sql (a larger provinsi/kab-kota dataset with coordinates/elevation/timezone/boundaries) and an archive/ folder of superseded prior-year datasets — neither is in Issue #656's scope and neither was vendored.",
+    "normalizedFiles is intentionally empty: Issue #656 only vendors raw upstream files. Issue #658 introduces the SQL parser/normalizer that will populate data/idn-admin-regions/normalized/ and this array.",
+    "This is global reference data, not tenant-scoped — see src/modules/idn-admin-regions/README.md."
+  ]
+}
