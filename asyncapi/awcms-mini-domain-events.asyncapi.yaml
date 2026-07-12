@@ -370,6 +370,18 @@ channels:
       replacement for it. Documented contract only; producer is the
       structured JSON logger, invoked from `pages/api/v1/blog/theme/
       index.ts`'s `PATCH` handler (`blog-content.theme.updated` log line).
+  awcms-mini.blog-content.internal-tag-linking-policy.updated:
+    address: awcms-mini.blog-content.internal-tag-linking-policy.updated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      This tenant's automatic internal tag linking policy (enabled,
+      caseInsensitive, disabledTagIds — `awcms_mini_blog_internal_tag_link_
+      settings`) was updated (Issue #641). Documented contract only;
+      producer is the structured JSON logger, invoked from
+      `pages/api/v1/blog/internal-tag-links/settings.ts`'s `PATCH` handler
+      (`blog-content.internal-tag-linking-policy.updated` log line).
 operations:
   publishSyncPushRequested:
     action: send
@@ -569,6 +581,12 @@ operations:
       $ref: "#/channels/awcms-mini.blog-content.theme.updated"
     messages:
       - $ref: "#/channels/awcms-mini.blog-content.theme.updated/messages/DomainEvent"
+  publishBlogContentInternalTagLinkingPolicyUpdated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.blog-content.internal-tag-linking-policy.updated"
+    messages:
+      - $ref: "#/channels/awcms-mini.blog-content.internal-tag-linking-policy.updated/messages/DomainEvent"
 components:
   securitySchemes:
     syncHmac:

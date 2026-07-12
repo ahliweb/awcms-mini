@@ -1,0 +1,392 @@
+---
+/**
+ * Automatic internal tag linking settings (Issue #641, epic `news_portal`).
+ * `GET`/`PATCH /api/v1/blog/internal-tag-links/settings` backs the
+ * tenant-overridable fields (`enabled`, `caseInsensitive`,
+ * `disabledTagIds`); the six `BLOG_AUTO_INTERNAL_TAG_LINKS_*` deployment
+ * knobs are shown read-only (env-only, never editable from any UI — see
+ * that endpoint's own doc comment). A dedicated screen/permission, not
+ * folded into `/admin/blog/settings` — see migration 050's header for why.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import { fetchInternalTagLinkingSettings } from "../../../modules/blog-content/application/internal-tag-link-settings-directory";
+import { listBlogTerms } from "../../../modules/blog-content/application/blog-taxonomy-directory";
+import { resolveBlogAutoInternalTagLinksConfig } from "../../../modules/blog-content/domain/internal-tag-linking-config";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/blog/internal-tag-links.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ = context.permissions.has(
+  permissionKey("blog_content", "internal_links", "read")
+);
+const CAN_CONFIGURE = context.permissions.has(
+  permissionKey("blog_content", "internal_links", "configure")
+);
+
+const clientStrings = {
+  saveSuccess: t("admin.blog.internal_tag_links.save_success"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+const deploymentConfig = resolveBlogAutoInternalTagLinksConfig();
+
+let settings: Awaited<
+  ReturnType<typeof fetchInternalTagLinkingSettings>
+> | null = null;
+let tags: Awaited<ReturnType<typeof listBlogTerms>> = [];
+let loadError = false;
+
+if (CAN_READ) {
+  try {
+    await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
+      settings = await fetchInternalTagLinkingSettings(tx, context.tenantId);
+      tags = await listBlogTerms(tx, context.tenantId, {
+        taxonomyType: "tag"
+      });
+    });
+  } catch (error) {
+    logAdminPageError(
+      "admin/blog/internal-tag-links.astro: failed to load settings",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
+    loadError = true;
+  }
+}
+---
+
+<AdminLayout title={t("admin.blog.internal_tag_links.title")}>
+  {
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.blog.access_denied_title")}
+        body={t("admin.blog.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ && !loadError && settings && (
+      <div class="internal-tag-links-settings">
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        <section class="settings-section">
+          <h2>{t("admin.blog.internal_tag_links.deployment_legend")}</h2>
+          <p class="field-hint">
+            {t("admin.blog.internal_tag_links.deployment_hint")}
+          </p>
+          <dl class="deployment-config">
+            <div>
+              <dt>{t("admin.blog.internal_tag_links.deployment_enabled")}</dt>
+              <dd>
+                {deploymentConfig.enabled ? t("common.yes") : t("common.no")}
+              </dd>
+            </div>
+            <div>
+              <dt>{t("admin.blog.internal_tag_links.max_per_post")}</dt>
+              <dd>{deploymentConfig.maxPerPost}</dd>
+            </div>
+            <div>
+              <dt>{t("admin.blog.internal_tag_links.max_per_tag")}</dt>
+              <dd>{deploymentConfig.maxPerTag}</dd>
+            </div>
+            <div>
+              <dt>{t("admin.blog.internal_tag_links.min_term_length")}</dt>
+              <dd>{deploymentConfig.minTermLength}</dd>
+            </div>
+            <div>
+              <dt>
+                {t("admin.blog.internal_tag_links.link_first_occurrence_only")}
+              </dt>
+              <dd>
+                {deploymentConfig.linkFirstOccurrenceOnly
+                  ? t("common.yes")
+                  : t("common.no")}
+              </dd>
+            </div>
+            <div>
+              <dt>{t("admin.blog.internal_tag_links.exclude_headings")}</dt>
+              <dd>
+                {deploymentConfig.excludeHeadings
+                  ? t("common.yes")
+                  : t("common.no")}
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="settings-section">
+          <h2>{t("admin.blog.internal_tag_links.tenant_legend")}</h2>
+          <form id="internal-tag-links-form" class="settings-form">
+            <fieldset disabled={!CAN_CONFIGURE}>
+              <label class="checkbox-label">
+                <input
+                  type="checkbox"
+                  name="enabled"
+                  checked={settings.enabled}
+                />
+                {t("admin.blog.internal_tag_links.field_enabled")}
+              </label>
+              <label class="checkbox-label">
+                <input
+                  type="checkbox"
+                  name="caseInsensitive"
+                  checked={settings.caseInsensitive}
+                />
+                {t("admin.blog.internal_tag_links.field_case_insensitive")}
+              </label>
+              <fieldset class="term-picker">
+                <legend>
+                  {t("admin.blog.internal_tag_links.field_disabled_tags")}
+                </legend>
+                {tags.length === 0 ? (
+                  <p class="field-hint">
+                    {t("admin.blog.internal_tag_links.no_tags")}
+                  </p>
+                ) : (
+                  <select
+                    name="disabledTagIds"
+                    multiple
+                    size={Math.min(tags.length, 8)}
+                  >
+                    {tags.map((term) => (
+                      <option
+                        value={term.id}
+                        selected={settings!.disabledTagIds.includes(term.id)}
+                      >
+                        {term.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <span class="field-hint">
+                  {t("admin.blog.internal_tag_links.disabled_tags_hint")}
+                </span>
+              </fieldset>
+            </fieldset>
+            {CAN_CONFIGURE && (
+              <button type="submit">
+                {t("admin.blog.internal_tag_links.save_button")}
+              </button>
+            )}
+          </form>
+        </section>
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .internal-tag-links-settings {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-6);
+  }
+
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+  }
+
+  .action-banner[data-variant="success"] {
+    background: color-mix(
+      in srgb,
+      var(--color-success) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-success);
+  }
+
+  .action-banner[data-variant="error"] {
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-danger);
+  }
+
+  .settings-section h2 {
+    margin: 0 0 var(--sp-3);
+    font-size: var(--fs-md);
+  }
+
+  .field-hint {
+    color: var(--color-text-muted);
+    font-size: var(--fs-xs);
+  }
+
+  .deployment-config {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--sp-3);
+    max-width: 720px;
+  }
+
+  .deployment-config dt {
+    font-size: var(--fs-xs);
+    color: var(--color-text-muted);
+  }
+
+  .deployment-config dd {
+    margin: 0;
+    font-size: var(--fs-sm);
+  }
+
+  .settings-form fieldset {
+    border: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    max-width: 560px;
+  }
+
+  .settings-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+
+  .settings-form .checkbox-label {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--sp-2);
+  }
+
+  .term-picker {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-3);
+  }
+
+  .settings-form input,
+  .settings-form select {
+    padding: var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: inherit;
+  }
+
+  .settings-form button[type="submit"] {
+    align-self: flex-start;
+    margin-top: var(--sp-3);
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-2) var(--sp-5);
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  .settings-form button:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  input:focus-visible,
+  select:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface SettingsStrings {
+    saveSuccess: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<SettingsStrings>();
+
+  document
+    .getElementById("internal-tag-links-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (button?.disabled) return;
+
+      const formData = new FormData(form);
+      const disabledTagIds = Array.from(
+        form.querySelectorAll<HTMLOptionElement>(
+          'select[name="disabledTagIds"] option:checked'
+        )
+      ).map((option) => option.value);
+
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+
+      try {
+        const result = await submitJson(
+          "/api/v1/blog/internal-tag-links/settings",
+          "PATCH",
+          {
+            enabled: formData.get("enabled") === "on",
+            caseInsensitive: formData.get("caseInsensitive") === "on",
+            disabledTagIds
+          },
+          strings
+        );
+
+        showBanner(
+          "action-banner",
+          result.ok ? strings.saveSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
+    });
+</script>

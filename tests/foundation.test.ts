@@ -115,7 +115,7 @@ describe("module registry", () => {
     });
     expect(getModuleByKey("blog_content")).toMatchObject({
       key: "blog_content",
-      version: "0.8.0",
+      version: "0.9.0",
       status: "active",
       type: "domain",
       dependencies: ["tenant_admin", "identity_access"]
@@ -507,7 +507,9 @@ describe("database migration runner helpers", () => {
       "046_awcms_mini_news_media_orphan_lifecycle.sql",
       "047_awcms_mini_observability_metrics_permission.sql",
       "048_awcms_mini_idn_admin_regions_permissions.sql",
-      "049_awcms_mini_news_portal_ad_placements_schema.sql"
+      "049_awcms_mini_news_portal_ad_placements_schema.sql",
+      "050_awcms_mini_blog_content_internal_tag_links_schema.sql",
+      "051_awcms_mini_blog_content_internal_tag_links_permissions.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

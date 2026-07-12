@@ -1,0 +1,252 @@
+# Source fragment for the "Blog Internal Tag Links" module/tag (Issue #641).
+#
+# Owns every path tagged "Blog Internal Tag Links" and every schema referenced ONLY
+# by this tag's operations. Schemas shared with another module/tag live in the root
+# file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/blog/internal-tag-links/settings:
+    get:
+      tags:
+        - Blog Internal Tag Links
+      summary: Read this tenant's automatic internal tag linking settings
+      operationId: blogInternalTagLinksSettingsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Effective automatic internal tag linking configuration (deployment-wide knobs plus this tenant's own overridable policy)."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/InternalTagLinkingSettingsView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Blog Internal Tag Links
+      summary: Update this tenant's automatic internal tag linking settings
+      operationId: blogInternalTagLinksSettingsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateInternalTagLinkingSettingsInput"
+      responses:
+        "200":
+          description: "Settings updated (partial update — only fields present in the request body are changed)."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/InternalTagLinkingSettingsView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/posts/{id}/internal-links/preview:
+    get:
+      tags:
+        - Blog Internal Tag Links
+      summary: Preview which terms would be automatically linked in a post's rendered content
+      operationId: blogPostInternalLinksPreview
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Which tag terms would be auto-linked in this post's current content, before publishing."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/InternalTagLinkingPreviewResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    InternalTagLinkingSettingsView:
+      type: object
+      description: "Effective automatic internal tag linking configuration (Issue #641)."
+      required:
+        - enabled
+        - deploymentEnabled
+        - tenantEnabled
+        - caseInsensitive
+        - disabledTagIds
+        - maxPerPost
+        - maxPerTag
+        - minTermLength
+        - linkFirstOccurrenceOnly
+        - excludeHeadings
+        - updatedAt
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
+          description: "Final resolved enabled flag (deploymentEnabled AND tenantEnabled)."
+        deploymentEnabled:
+          type: boolean
+          description: "Deployment-wide BLOG_AUTO_INTERNAL_TAG_LINKS_ENABLED kill switch — read-only from this endpoint."
+        tenantEnabled:
+          type: boolean
+          description: "This tenant's own enable/disable override."
+        caseInsensitive:
+          type: boolean
+        disabledTagIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        maxPerPost:
+          type: integer
+          description: "Deployment-wide BLOG_AUTO_INTERNAL_TAG_LINKS_MAX_PER_POST — read-only from this endpoint."
+        maxPerTag:
+          type: integer
+          description: "Deployment-wide BLOG_AUTO_INTERNAL_TAG_LINKS_MAX_PER_TAG — read-only from this endpoint."
+        minTermLength:
+          type: integer
+          description: "Deployment-wide BLOG_AUTO_INTERNAL_TAG_LINKS_MIN_TERM_LENGTH — read-only from this endpoint."
+        linkFirstOccurrenceOnly:
+          type: boolean
+          description: "Deployment-wide BLOG_AUTO_INTERNAL_TAG_LINKS_LINK_FIRST_OCCURRENCE_ONLY — read-only from this endpoint."
+        excludeHeadings:
+          type: boolean
+          description: "Deployment-wide BLOG_AUTO_INTERNAL_TAG_LINKS_EXCLUDE_HEADINGS — read-only from this endpoint."
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    UpdateInternalTagLinkingSettingsInput:
+      type: object
+      description: "Partial update — only fields present are validated/changed. disabledTagIds must reference existing, same-tenant, non-deleted taxonomy_type=tag terms."
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
+        caseInsensitive:
+          type: boolean
+        disabledTagIds:
+          type: array
+          maxItems: 500
+          items:
+            type: string
+            format: uuid
+    InternalTagLinkMatch:
+      type: object
+      required:
+        - tagId
+        - tagName
+        - url
+        - matchedText
+      additionalProperties: false
+      properties:
+        tagId:
+          type: string
+          format: uuid
+        tagName:
+          type: string
+        url:
+          type: string
+        matchedText:
+          type: string
+    InternalTagLinkingPreviewResult:
+      type: object
+      required:
+        - postId
+        - enabled
+        - disabledReason
+        - matches
+        - totalLinked
+        - maxPerPost
+        - maxPerTag
+      additionalProperties: false
+      properties:
+        postId:
+          type: string
+          format: uuid
+        enabled:
+          type: boolean
+        disabledReason:
+          type: string
+          nullable: true
+          enum:
+            - deployment_disabled
+            - tenant_disabled
+            - post_disabled
+            - null
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/InternalTagLinkMatch"
+        totalLinked:
+          type: integer
+        maxPerPost:
+          type: integer
+        maxPerTag:
+          type: integer

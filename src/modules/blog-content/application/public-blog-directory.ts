@@ -33,6 +33,8 @@ export type PublicBlogPostDetail = {
   publishedAt: Date;
   /** Issue #636 — added so public detail routes can resolve it to a verified R2 media object for gallery/og:image rendering (`resolveVerifiedNewsMediaReferences`). Not previously selected here since nothing rendered it before this issue. */
   featuredMediaId: string | null;
+  /** Issue #641 — per-post opt-out of automatic internal tag linking, read by the public detail routes before calling `renderContentHtmlWithInternalTagLinks`. */
+  autoInternalTagLinksDisabled: boolean;
 };
 
 type PublicBlogPostDetailRow = {
@@ -48,6 +50,7 @@ type PublicBlogPostDetailRow = {
   locale: string;
   published_at: Date;
   featured_media_id: string | null;
+  auto_internal_tag_links_disabled: boolean;
 };
 
 function toDetail(row: PublicBlogPostDetailRow): PublicBlogPostDetail {
@@ -63,7 +66,8 @@ function toDetail(row: PublicBlogPostDetailRow): PublicBlogPostDetail {
     canonicalUrl: row.canonical_url,
     locale: row.locale,
     publishedAt: row.published_at,
-    featuredMediaId: row.featured_media_id
+    featuredMediaId: row.featured_media_id,
+    autoInternalTagLinksDisabled: row.auto_internal_tag_links_disabled
   };
 }
 
@@ -74,7 +78,8 @@ export async function fetchPublicBlogPostBySlug(
 ): Promise<PublicBlogPostDetail | null> {
   const rows = (await tx`
     SELECT id, title, slug, excerpt, content_json, content_text, seo_title,
-      meta_description, canonical_url, locale, published_at, featured_media_id
+      meta_description, canonical_url, locale, published_at, featured_media_id,
+      auto_internal_tag_links_disabled
     FROM awcms_mini_blog_posts
     WHERE tenant_id = ${tenantId} AND slug = ${slug}
       AND status = 'published' AND visibility IN ('public', 'unlisted')

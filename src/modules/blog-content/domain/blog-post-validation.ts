@@ -34,6 +34,8 @@ export type CreateBlogPostInput = {
   canonicalUrl: string | null;
   termIds: string[] | undefined;
   translationGroupId: string | null;
+  /** Issue #641 — manual per-post opt-out of automatic internal tag linking. Defaults `false` (linking behaves exactly as before this issue unless an editor explicitly opts a post out). */
+  autoInternalTagLinksDisabled: boolean;
 };
 
 export type CreateBlogPostValidationResult =
@@ -148,6 +150,18 @@ export function validateCreateBlogPostInput(
     });
   }
 
+  let autoInternalTagLinksDisabled = false;
+  if (record.autoInternalTagLinksDisabled !== undefined) {
+    if (typeof record.autoInternalTagLinksDisabled !== "boolean") {
+      errors.push({
+        field: "autoInternalTagLinksDisabled",
+        message: "autoInternalTagLinksDisabled must be a boolean."
+      });
+    } else {
+      autoInternalTagLinksDisabled = record.autoInternalTagLinksDisabled;
+    }
+  }
+
   if (
     errors.length > 0 ||
     !coreResult.valid ||
@@ -169,7 +183,8 @@ export function validateCreateBlogPostInput(
       metaDescription: seoResult.value.metaDescription ?? null,
       canonicalUrl: seoResult.value.canonicalUrl ?? null,
       termIds: termIdsResult.value,
-      translationGroupId: translationGroupIdResult.value
+      translationGroupId: translationGroupIdResult.value,
+      autoInternalTagLinksDisabled
     }
   };
 }
@@ -188,6 +203,8 @@ export type UpdateBlogPostInput = {
   canonicalUrl?: string | null;
   termIds?: string[];
   translationGroupId?: string | null;
+  /** Issue #641 — manual per-post opt-out of automatic internal tag linking. */
+  autoInternalTagLinksDisabled?: boolean;
 };
 
 export type UpdateBlogPostValidationResult =
@@ -326,6 +343,17 @@ export function validateUpdateBlogPostInput(
       });
     } else {
       value.translationGroupId = translationGroupIdResult.value;
+    }
+  }
+
+  if (record.autoInternalTagLinksDisabled !== undefined) {
+    if (typeof record.autoInternalTagLinksDisabled !== "boolean") {
+      errors.push({
+        field: "autoInternalTagLinksDisabled",
+        message: "autoInternalTagLinksDisabled must be a boolean."
+      });
+    } else {
+      value.autoInternalTagLinksDisabled = record.autoInternalTagLinksDisabled;
     }
   }
 
