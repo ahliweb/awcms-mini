@@ -4,12 +4,21 @@ AWCMS-Mini is the Bun + Astro 7 + PostgreSQL baseline for AhliWeb application de
 
 ## Supported Versions
 
-| Version                        | Supported                                     |
-| ------------------------------ | --------------------------------------------- |
-| `main`                         | Yes, planning baseline and active development |
-| Tagged releases before `0.1.0` | No                                            |
+| Version                            | Supported                                                        |
+| ---------------------------------- | ---------------------------------------------------------------- |
+| `main` / latest tagged release     | Yes — actively developed and supported                           |
+| Older tagged releases (not latest) | Best-effort only; upgrading to latest is the primary remediation |
 
-The first production-support target is `0.1.0` after the foundation scaffold is implemented.
+`package.json` is the release version (SemVer, Changesets-driven — see
+`CHANGELOG.md`). The base generic backlog
+(`docs/awcms-mini/06_github_issues_detail.md`, 18 issues) is complete, so
+there is no separate lower "first production-support target" version — the
+version currently released on `main` is the supported one. Contract
+(OpenAPI/AsyncAPI `info.version`) and module descriptor
+(`src/modules/*/module.ts` `version`/`status`) follow their own independent
+SemVer policy (ADR-0008,
+[`docs/adr/0008-independent-contract-and-module-versioning.md`](docs/adr/0008-independent-contract-and-module-versioning.md))
+and are not mechanically tied to the package release version.
 
 ## Reporting A Vulnerability
 

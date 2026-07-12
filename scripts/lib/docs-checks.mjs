@@ -210,3 +210,193 @@ export function splitTarget(target) {
   const [path, hash] = target.split("#");
   return { path: path ?? "", hash };
 }
+
+/**
+ * Parse top-level `services:` keys out of a `docker-compose*.yml` file's
+ * raw text — Issue #688 (epic #679 platform-hardening). Pure string
+ * parsing, no YAML library dependency: only 2-space-indented `name:` keys
+ * while the current top-level (column-0) section is `services` are
+ * collected, so sibling top-level sections with the same indent style
+ * (`volumes:`, `networks:`) never get misread as service names.
+ * @param {string} content
+ * @returns {Set<string>}
+ */
+export function parseComposeServiceNames(content) {
+  /** @type {Set<string>} */
+  const names = new Set();
+  let section = "";
+  for (const rawLine of content.split("\n")) {
+    const topLevel = /^([A-Za-z][A-Za-z0-9_-]*):\s*(#.*)?$/.exec(rawLine);
+    if (topLevel) {
+      section = topLevel[1] ?? "";
+      continue;
+    }
+    if (section !== "services") continue;
+    const serviceKey = /^ {2}([A-Za-z0-9][A-Za-z0-9_.-]*):\s*(#.*)?$/.exec(
+      rawLine
+    );
+    if (serviceKey) names.add(serviceKey[1] ?? "");
+  }
+  return names;
+}
+
+/**
+ * `docker compose`/`docker-compose` subcommands that take zero or more
+ * service names as trailing positional arguments (Issue #688).
+ */
+const COMPOSE_SERVICE_LIST_SUBCOMMANDS = new Set([
+  "up",
+  "down",
+  "restart",
+  "stop",
+  "start",
+  "logs",
+  "ps",
+  "kill",
+  "pause",
+  "unpause",
+  "top",
+  "build",
+  "pull",
+  "rm"
+]);
+
+/** Subcommands whose FIRST positional argument is a service name, and everything after it is a command run inside that service's container (never validated as a service). */
+const COMPOSE_SERVICE_THEN_COMMAND_SUBCOMMANDS = new Set(["exec", "run"]);
+
+/** Global/subcommand flags known to take a separate value token (skipped along with the flag itself) — e.g. `-f docker-compose.prod.yml`. Any other `-`-prefixed token is treated as a valueless flag. */
+const COMPOSE_VALUE_FLAGS = new Set([
+  "-f",
+  "--file",
+  "-p",
+  "--project-name",
+  "--profile",
+  "--env-file"
+]);
+
+/**
+ * Per-subcommand override: flags that are BOOLEAN for that specific
+ * subcommand even though `COMPOSE_VALUE_FLAGS` lists the same token as
+ * value-taking elsewhere — `-f`/`--follow` means "tail the log stream" for
+ * `docker compose logs`, not "read this compose file", so it must never
+ * swallow the next token (which is the actual service name being checked).
+ */
+const COMPOSE_BOOLEAN_FLAG_OVERRIDES = new Map([
+  ["logs", new Set(["-f", "--follow"])]
+]);
+
+const COMPOSE_COMMAND_PATTERN =
+  /\bdocker(?:-compose|\s+compose)\s+([a-zA-Z][\w-]*)((?:\s+\S+)*)/g;
+
+/**
+ * Cari referensi service dalam SATU snippet kode yang sudah terisolasi
+ * (satu baris di dalam fenced code block, atau isi satu inline code span)
+ * — tidak pernah dipanggil dengan teks prosa mentah, itulah yang membuat
+ * pemotongan token di bawah aman: tidak ada kalimat lanjutan setelah span
+ * kode yang bisa ikut tertelan.
+ * @param {string} snippet
+ * @returns {{ subcommand: string, candidates: string[] } | null}
+ */
+function findComposeServiceCandidates(snippet) {
+  COMPOSE_COMMAND_PATTERN.lastIndex = 0;
+  const match = COMPOSE_COMMAND_PATTERN.exec(snippet);
+  if (!match) return null;
+
+  const subcommand = match[1] ?? "";
+  const rest = (match[2] ?? "").trim();
+  const tokens = rest.length > 0 ? rest.split(/\s+/) : [];
+
+  const booleanOverrides = COMPOSE_BOOLEAN_FLAG_OVERRIDES.get(subcommand);
+
+  /** @type {string[]} */
+  const positional = [];
+  for (let t = 0; t < tokens.length; t++) {
+    const token = tokens[t] ?? "";
+    if (token.startsWith("-")) {
+      if (!booleanOverrides?.has(token) && COMPOSE_VALUE_FLAGS.has(token)) t++;
+      continue;
+    }
+    positional.push(token);
+  }
+
+  if (COMPOSE_SERVICE_LIST_SUBCOMMANDS.has(subcommand)) {
+    return { subcommand, candidates: positional };
+  }
+  if (
+    COMPOSE_SERVICE_THEN_COMMAND_SUBCOMMANDS.has(subcommand) &&
+    positional.length > 0
+  ) {
+    return { subcommand, candidates: [positional[0] ?? ""] };
+  }
+  return { subcommand, candidates: [] };
+}
+
+/**
+ * Verifikasi bahwa setiap service name referenced in a `docker compose`/
+ * `docker-compose` command actually exists in the given compose service
+ * set — Issue #688 (epic #679 platform-hardening). Catches drift like
+ * `docker compose up -d postgres` when the real service is `db` (found
+ * stale in `CONTRIBUTING.md`/doc 08 by the 2026-07-11 repo audit).
+ *
+ * Deliberately scoped to CODE ONLY — fenced ```` ```...``` ```` block lines
+ * and inline `` `...` `` code spans — never raw prose. A first version of
+ * this check ran the same regex against whole prose lines and matched deep
+ * into narrative sentences following a code span on the same line (e.g.
+ * "... bukan hanya \`docker compose config\`: **Catatan** ... issue ini
+ * adalah ..." misread "issue"/"ini"/"adalah" as candidate service names).
+ * Isolating to code content first makes that structurally impossible: a
+ * prose sentence outside backticks is never inspected at all. A trailing
+ * same-line shell comment (`# ...`) inside a fenced block is stripped
+ * before tokenizing, since `#` starts a comment in bash, not an argument.
+ *
+ * Also deliberately narrow on WHICH subcommands are validated: only a
+ * RECOGNIZED subcommand immediately after `docker compose`/`docker-compose`
+ * is checked (`up`/`down`/`exec`/`run`/... — see the two subcommand sets
+ * above). `docker compose config`, `docker compose` with no subcommand,
+ * etc. are skipped, never guessed at.
+ * @param {string} file
+ * @param {string} content
+ * @param {ReadonlySet<string>} serviceNames
+ * @returns {Problem[]}
+ */
+export function checkComposeServiceNames(file, content, serviceNames) {
+  /** @type {Problem[]} */
+  const problems = [];
+  let inFence = false;
+
+  content.split("\n").forEach((rawLine, i) => {
+    if (/^\s*```/.test(rawLine)) {
+      inFence = !inFence;
+      return;
+    }
+
+    /** @type {string[]} */
+    const snippets = [];
+    if (inFence) {
+      snippets.push(rawLine.replace(/\s+#.*$/, ""));
+    } else {
+      const inlineRe = /`([^`\n]+)`/g;
+      let m;
+      while ((m = inlineRe.exec(rawLine))) {
+        snippets.push((m[1] ?? "").replace(/\s+#.*$/, ""));
+      }
+    }
+
+    for (const snippet of snippets) {
+      const found = findComposeServiceCandidates(snippet);
+      if (!found) continue;
+      for (const candidate of found.candidates) {
+        if (candidate.length === 0) continue;
+        if (!serviceNames.has(candidate)) {
+          problems.push({
+            file,
+            line: i + 1,
+            message: `docker compose service tidak dikenal: "${candidate}" (subcommand "${found.subcommand}") — cek nama service di docker-compose.yml`
+          });
+        }
+      }
+    }
+  });
+
+  return problems;
+}
