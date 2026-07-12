@@ -20,7 +20,8 @@ import type { Translator } from "./translate";
  * `SSO_TOKEN_EXCHANGE_FAILED`/`SSO_ID_TOKEN_INVALID`/
  * `SSO_ACCOUNT_NOT_LINKED`/`SSO_ALREADY_LINKED`/`SSO_NOT_LINKED`/
  * `SSO_MISCONFIGURED`/`SSO_PROVIDER_KEY_CONFLICT`/`BREAK_GLASS_REQUIRED`/
- * `PASSWORD_LOGIN_DISABLED`) to i18n catalog keys
+ * `PASSWORD_LOGIN_DISABLED`/Issue #638's `AD_PLACEMENT_REFERENCE_INVALID`)
+ * to i18n catalog keys
  * under the `error.` namespace. Used both server-side (SSR error panels)
  * and to build the
  * client-string JSON blob admin pages inline for their fetch-based action
@@ -85,7 +86,8 @@ export const ERROR_CODE_KEYS: Record<string, string> = {
   NEWS_MEDIA_REFERENCE_INVALID: "error.news_media_reference_invalid",
   HOMEPAGE_SECTION_REFERENCE_INVALID:
     "error.homepage_section_reference_invalid",
-  HOMEPAGE_SECTION_KEY_CONFLICT: "error.homepage_section_key_conflict"
+  HOMEPAGE_SECTION_KEY_CONFLICT: "error.homepage_section_key_conflict",
+  AD_PLACEMENT_REFERENCE_INVALID: "error.ad_placement_reference_invalid"
 };
 
 /**

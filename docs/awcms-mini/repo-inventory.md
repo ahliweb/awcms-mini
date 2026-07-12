@@ -16,7 +16,7 @@
 | `identity_access`   | `1.0.0` | `active` | `-`      | `tenant_admin`, `profile_identity`                         |
 | `logging`           | `1.0.0` | `active` | `-`      | `tenant_admin`                                             |
 | `module_management` | `0.1.0` | `active` | `system` | `tenant_admin`, `identity_access`                          |
-| `news_portal`       | `0.3.0` | `active` | `domain` | `tenant_admin`, `identity_access`                          |
+| `news_portal`       | `0.4.0` | `active` | `domain` | `tenant_admin`, `identity_access`                          |
 | `profile_identity`  | `1.0.0` | `active` | `-`      | `tenant_admin`                                             |
 | `reporting`         | `1.1.0` | `active` | `-`      | `tenant_admin`, `identity_access`, `sync_storage`, `email` |
 | `sync_storage`      | `1.0.0` | `active` | `-`      | `tenant_admin`                                             |
@@ -27,7 +27,7 @@
 
 ## Migrations
 
-47 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `047_awcms_mini_observability_metrics_permission.sql`).
+48 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `048_awcms_mini_news_portal_ad_placements_schema.sql`).
 
 | #   | File                                                              |
 | --- | ----------------------------------------------------------------- |
@@ -78,10 +78,11 @@
 | 045 | `045_awcms_mini_db_role_separation.sql`                           |
 | 046 | `046_awcms_mini_news_media_orphan_lifecycle.sql`                  |
 | 047 | `047_awcms_mini_observability_metrics_permission.sql`             |
+| 048 | `048_awcms_mini_news_portal_ad_placements_schema.sql`             |
 
 ## Tables & Row-Level Security
 
-76 tables created across all migrations; 68 carry a `tenant_id` column; 67 have an `ENABLE ROW LEVEL SECURITY` statement; 9 are on the reviewed RLS-exempt allow-list.
+77 tables created across all migrations; 69 carry a `tenant_id` column; 68 have an `ENABLE ROW LEVEL SECURITY` statement; 9 are on the reviewed RLS-exempt allow-list.
 
 No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` statement, or is on the reviewed exempt allow-list below.
 
@@ -101,19 +102,19 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 
 ## Tests
 
-208 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+211 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
 | `(root)`      | 46         |
 | `e2e`         | 9          |
-| `integration` | 70         |
+| `integration` | 71         |
 | `modules`     | 3          |
-| `unit`        | 80         |
+| `unit`        | 82         |
 
 ## Routes / Operations (summary)
 
-128 OpenAPI paths, 169 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
+130 OpenAPI paths, 173 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
 
 ## GitHub issue/label/milestone snapshot
 

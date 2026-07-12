@@ -43,7 +43,7 @@ status + pointer, bukan menduplikasi isinya.
 | #635  | Config validation + readiness checks (`config:validate`/`security:readiness`/`production:preflight`) untuk R2 image delivery | **Selesai** — lihat §635 di bawah                    |
 | #636  | `blog_content` wajib referensi R2 media object untuk gambar berita saat mode aktif                                           | **Selesai** — lihat §636 di bawah                    |
 | #637  | Editorial homepage section composer `/news` dengan render R2-only                                                            | **Selesai** — lihat §637 di bawah                    |
-| #638  | Preset placement iklan news portal dengan validasi gambar R2-only                                                            | Belum dikerjakan — lihat §638 di bawah               |
+| #638  | Preset placement iklan news portal dengan validasi gambar R2-only                                                            | **Selesai** — lihat §638 di bawah                    |
 | #639  | Content block `video_news` dengan thumbnail R2 wajib                                                                         | Belum dikerjakan — lihat §639 di bawah               |
 | #640  | Content quality checklist publishing dengan syarat gambar R2                                                                 | Belum dikerjakan — lihat §640 di bawah               |
 | #641  | Automatic internal tag linking untuk konten post/news                                                                        | Belum dikerjakan — lihat §641 di bawah               |
@@ -1433,17 +1433,244 @@ daftar file lengkap kalau butuh contoh call-site persis.
   detail, 3 news_portal homepage-sections/`/news` index) — wiring adapter
   di composition root.
 
-## §638-#640, #642, #649 — konsumsi media registry lanjutan (belum dikerjakan)
+## §638 — R2-only advertisement placement presets (Selesai)
+
+Implementasi lengkap: migration
+`sql/048_awcms_mini_news_portal_ad_placements_schema.sql` (tabel BARU
+`awcms_mini_news_portal_ad_placements`, RLS ENABLE+FORCE), domain
+`news-portal/domain/ad-placement-policy.ts` (whitelist dua belas
+`placementKey` persis dari body issue + preset metadata statis
+`AD_PLACEMENT_PRESETS` + validator create/update) dan
+`domain/ad-placement-rotation.ts` (`selectAdsForRotation`, murni, empat
+mode rotasi), application `application/ad-placement-directory.ts` (CRUD
+tenant-scoped + query render publik + renderer whitelist) dan
+`application/ad-placement-reference-validation.ts` (verifikasi
+`mediaObjectId`), endpoint admin `POST/GET /api/v1/news-portal/ad-placements`,
+`PATCH/DELETE .../{id}`, dan admin UI
+`admin/news-portal/ad-placements.astro`.
+
+### Rekonsiliasi — tabel BARU di `news_portal`, BUKAN ekstensi `awcms_mini_blog_ads`
+
+Body issue #638 menulis "blog_content already includes advertisement
+capabilities" seolah issue ini memperluas `awcms_mini_blog_ads`/
+`awcms_mini_blog_ad_placements` (`blog_content`, migration 029, Issue
+#542) yang `image_url`-nya HARI INI masih URL http(s) bebas. TIDAK
+diikuti — persis alasan migration 044 (#637) sudah dokumentasikan untuk
+dilema yang sama: menambah validasi R2-only ke tabel generik itu akan
+mematahkan tenant non-full-online-R2 yang sah memakai `awcms_mini_blog_ads`
+dengan URL gambar eksternal biasa. Sebagai gantinya: tabel BARU dan
+SEMPIT, `awcms_mini_news_portal_ad_placements`, dimiliki modul
+`news_portal` (bukan `blog_content`) — pola identik
+`awcms_mini_news_portal_homepage_sections` (#637): "tabel baru, nol baris
+pra-eksisting, tidak perlu gerbang mode R2-only runtime" (lihat §637's
+"Reference validation — TANPA GERBANG..." di atas, alasan yang SAMA
+berlaku di sini). R2-only-ness berlaku BY CONSTRUCTION: kolom
+`media_object_id` adalah FK nyata ke `awcms_mini_news_media_objects`, TIDAK
+ADA kolom `image_url` bebas teks sama sekali pada tabel ini — beda dengan
+`awcms_mini_blog_ads` yang tetap dipertahankan PERSIS seperti sebelumnya
+(tidak disentuh issue ini) untuk tenant yang tidak memakai preset
+full-online-R2.
+
+Karena tabel ini hidup DI DALAM modul `news_portal` sendiri (bukan lintas
+modul seperti gate #636's `blog_content`↔`news_portal`), validasi
+`mediaObjectId` (`ad-placement-reference-validation.ts`) memanggil
+`fetchNewsMediaObjectById`/`isNewsMediaObjectSafeForPublicReference`
+(`news-media-object-directory.ts`, #633) LANGSUNG — TIDAK butuh
+`_shared/ports/news-media-port.ts` (port #681) sama sekali, sama seperti
+`homepage-section-reference-validation.ts`'s `mediaObjectIds`
+(`gallery_block`) check. Ini PERSIS pola "verified-media-reference
+validation" yang diminta prompt orchestrator untuk dipakai ulang dari
+`content-block-media-references.ts`/`news-media-reference-gate.ts` (#636)
+— bedanya hanya lapisan mana yang melakukan pengecekan existence+status
+(di sini: application layer `news_portal` sendiri, bukan gate lintas
+modul `blog_content`), bukan pola validasinya sendiri (predikat
+`isNewsMediaObjectSafeForPublicReference` yang sama, dipanggil dengan
+argumen yang sama).
+
+### `placementKey` BUKAN immutable — kontras eksplisit dengan `sectionType` #637
+
+`homepage-section-policy.ts`'s `sectionType` immutable setelah dibuat
+karena `config_json` per tipe punya BENTUK BERBEDA (mengganti tipe berarti
+config lama jadi sampah tak tervalidasi untuk tipe baru). Tabel ad
+placement ini TIDAK punya masalah itu — SETIAP `placementKey` berbagi
+BENTUK BARIS YANG SAMA PERSIS (`mediaObjectId` + `linkUrl` + jadwal +
+knob rotasi), jadi mengizinkan admin memindahkan satu ad yang sudah ada
+ke `placementKey` lain lewat PATCH tidak menciptakan bahaya bentuk data
+apa pun — `validateUpdateAdPlacementInput` menerima `placementKey` sebagai
+field biasa yang bisa diubah, dan endpoint PATCH me-re-validasi
+`mediaObjectId` (existing atau baru) terhadap `allowedMediaTypes`
+placement TARGET (baru atau lama) setiap kali salah satu dari keduanya
+berubah.
+
+### `recommended_size`/`allowed_media_types`/`max_items` — metadata preset statis di kode, BUKAN kolom tabel
+
+Sesuai pola `homepage-section-policy.ts`'s `HomepageSectionType` whitelist
+(bentuk config per tipe hidup di kode, DB hanya `CHECK`-constrain key-nya):
+`AD_PLACEMENT_PRESETS` (`ad-placement-policy.ts`) adalah `Record` statis
+memetakan setiap `placementKey` ke `{recommendedSize, allowedMediaTypes,
+maxItems}` — bukan kolom di `awcms_mini_news_portal_ad_placements`.
+Keputusan desain per field (mengikat implementor lanjutan yang menyentuh
+whitelist ini):
+
+- **`recommendedSize`** — ADVISORY UI saja (ditampilkan admin, bukan
+  ditegakkan terhadap `width`/`height` media yang sebenarnya sudah
+  terverifikasi). Menegakkan kecocokan piksel persis/mendekati berisiko
+  menolak gambar yang sah tapi sudah di-crop berbeda, dan tidak diminta
+  acceptance criteria issue.
+- **`allowedMediaTypes`** — SEMUA dua belas preset hari ini berbagi set
+  default yang SAMA (empat tipe raster yang sudah divalidasi pipeline
+  upload R2 — SVG tetap dilarang, Keputusan kunci #5), jadi
+  `validateAdPlacementMediaReference`'s pengecekan mime-per-placement
+  SAAT INI redundan dengan jaminan pipeline upload — tetap diimplementasikan
+  sebagai defense-in-depth nyata + teruji supaya placement MASA DEPAN bisa
+  mempersempit allow-list-nya (mis. melarang GIF beranimasi di slot banner
+  sempit) tanpa migration baru atau mekanisme validasi baru.
+- **`maxItems`** — HANYA ditegakkan sebagai batas seleksi RENDER-TIME
+  (`selectAdsForRotation` memotong hasil ke `maxItems`), BUKAN batas
+  write-time jumlah baris yang boleh dikonfigurasi admin untuk satu
+  `placementKey`. Admin boleh mengonfigurasi lebih banyak kandidat ad
+  daripada `maxItems` (mis. sepuluh ad `header_banner` terjadwal di
+  rentang tanggal berbeda); rotasi memilih subset yang tampil saat baca.
+
+### Empat mode rotasi — pure function, `randomFn` injectable untuk test
+
+`ad-placement-rotation.ts`'s `selectAdsForRotation(candidates, rotationMode,
+maxItems, randomFn = Math.random)` — TIDAK ada I/O/`Bun.SQL`, sama pola
+pemisahan "seleksi murni, keberadaan/keamanan diputuskan aplikasi"
+`homepage-section-rendering.ts` pakai. `latest` (urut `createdAt DESC`),
+`priority` (urut `priority DESC`, tie-break `createdAt DESC`, deterministik
+— beda dari `weighted`), `random_safe` (Fisher-Yates shuffle, setiap
+permutasi sama-rata mungkin), `weighted` (sampling tanpa pengembalian,
+bobot = `priority + 1` — SENGAJA `+1`, bukan `priority` polos, supaya baris
+`priority: 0` tetap punya peluang terpilih, tidak pernah terkunci permanen
+kalau ada baris berprioritas lebih tinggi). `randomFn` yang bisa disuntik
+BUKAN untuk keamanan (ini murni memutuskan urutan/subset tampilan dari ad
+yang SUDAH diotorisasi tampil, bukan kontrol akses) — `Math.random` default
+sudah tepat, tidak butuh `crypto.getRandomValues`.
+
+### Safe link URL — predikat diduplikasi, BUKAN diimpor dari `blog_content`
+
+`isSafeAdLinkUrl` (`ad-placement-policy.ts`) menerapkan aturan absolute
+http(s) yang SAMA persis dengan `blog-content/domain/seo-validation.ts`'s
+`isAbsoluteHttpUrl`/`ad-policy.ts` — SENGAJA diduplikasi sebagai literal
+dua baris, BUKAN diimpor: `tests/unit/module-boundary.test.ts` (#681)
+melarang file `domain`/`application` `news_portal` mengimpor tree
+`domain`/`application` `blog_content` manapun. Predikat murni sekecil ini
+lebih murah dipertahankan sinkron dengan mata daripada dilewatkan lewat
+port lintas modul baru.
+
+### Tidak perlu gerbang mode R2-only — R2-only berlaku by construction
+
+Berbeda dari `blog_content`'s Issue #636 gate
+(`isNewsPortalFullOnlineR2ModeActiveForTenant`, lewat `NewsMediaPort`),
+validasi di sini TIDAK BERSYARAT sama sekali — tidak ada pengecekan
+"apakah preset full-online-R2 aktif untuk tenant ini". Alasannya SAMA
+dengan §637's homepage sections: tabel baru, nol baris warisan, jadi tidak
+ada kekhawatiran kompatibilitas mundur yang memaksa perilaku lama tetap
+jalan untuk tenant yang belum mengaktifkan preset R2-only.
+
+### `ad_slot` homepage-section integration — TETAP di luar cakupan issue ini
+
+§637's catatan menulis "setelah #638 selesai, `homepage-section-policy.ts`'s
+whitelist WAJIB diperluas dengan `ad_slot`" — body issue #638 GitHub
+sendiri TIDAK menyebut homepage composer/`ad_slot` sama sekali (scope-nya
+murni preset placement iklan + validasi gambar R2-only). Menambah
+`ad_slot` ke `homepage-section-policy.ts`/migration 044's `CHECK`
+constraint sekarang akan melebarkan scope issue ini ke sistem lain
+(composer #637) tanpa acceptance criteria yang memintanya — DITUNDA
+sebagai pekerjaan lanjutan terpisah (belum ada issue yang mengklaimnya).
+Implementor yang akhirnya mengerjakan integrasi itu punya semua yang
+dibutuhkan sudah siap: `ad-placement-directory.ts`'s
+`selectAndRenderActiveAdsForPlacement(tx, tenantId, placementKey, now?)`
+mengembalikan array string HTML siap-render per placement, tinggal
+dipanggil dari `homepage-section-composer.ts` untuk `sectionType:
+"ad_slot"` yang config-nya berisi `placementKey`.
+
+### Residual risk — `media_object_id` FK nyata vs. `purgeNewsMediaObject` masa depan
+
+Berbeda dari `owner_resource_id` polymorphic (§633, sengaja tanpa FK),
+`media_object_id` di tabel ini adalah FK nyata ke
+`awcms_mini_news_media_objects` — pilihan sah karena tabel ini hidup DI
+DALAM modul yang sama dengan registry-nya. Konsekuensi didokumentasikan di
+header migration 048: `purgeNewsMediaObject` (hard DELETE, sudah ada sejak
+#633, TAPI belum ada route yang memanggilnya sampai hari ini — diverifikasi
+`src/pages/api/v1/media/news-images/` hanya berisi create/finalize/cancel
+upload session) akan gagal dengan Postgres FK-violation mentah, bukan
+409/422 aplikasi yang rapi, bila dipanggil terhadap media object yang masih
+direferensikan baris di tabel ini. Laten, bukan bug aktif (tidak ada jalur
+API yang bisa memicunya hari ini) — implementor issue yang akhirnya
+menambah endpoint purge nyata WAJIB menangani constraint ini (tangkap error
+atau precheck referensi) sebelum merilis endpoint itu.
+
+### Rendering publik — query + renderer teruji, belum dipasang ke rute manapun
+
+`listActiveAdPlacementsForRendering`/`renderAdPlacementHtml`/
+`selectAndRenderActiveAdsForPlacement` (`ad-placement-directory.ts`) sudah
+lengkap dan teruji end-to-end (lihat §Test di bawah) — TIDAK dipasang ke
+`/news` atau rute publik manapun di issue ini, sama persis precedent
+"tested public-safe helper, wiring is a later issue's job" yang
+`ads-directory.ts`'s `listActiveAdsForPlacement`/`renderAdHtml` (#542)
+sudah tetapkan lebih dulu, dan yang §637 secara eksplisit tunda untuk
+`ad_slot`. Whitelist render `<img>`/`<a rel="sponsored noopener
+noreferrer">` — tidak ada field embed/iframe/raw-HTML apa pun di skema
+tabel ini, jadi rendering TIDAK BISA jadi kanal XSS apa pun isi request-nya
+(sama argumen `ads-directory.ts`'s `renderAdHtml` §542 pakai).
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `sql/048_awcms_mini_news_portal_ad_placements_schema.sql` (baru).
+- `src/modules/news-portal/domain/ad-placement-policy.ts`,
+  `domain/ad-placement-rotation.ts` (keduanya baru).
+- `src/modules/news-portal/application/ad-placement-directory.ts`,
+  `application/ad-placement-reference-validation.ts` (keduanya baru).
+- `src/pages/api/v1/news-portal/ad-placements/index.ts` (create/list),
+  `.../[id].ts` (update/delete) — baru.
+- `src/pages/admin/news-portal/ad-placements.astro` — baru, pola sama
+  `admin/news-portal/homepage-sections.astro` (form field datar, tanpa
+  textarea JSON — setiap field di sini adalah skalar, bukan `config_json`
+  berbentuk-bervariasi).
+- Diperbarui: `src/modules/news-portal/module.ts` (permissions
+  `ad_placements.{read,configure}`, navigation entry kedua, version
+  0.3.0→0.4.0), `src/lib/i18n/error-messages.ts`
+  (`AD_PLACEMENT_REFERENCE_INVALID`), `i18n/en.po`/`i18n/id.po`.
+- `openapi/modules/news-portal-ad-placements.openapi.yaml` (fragment baru
+  — lihat `openapi/README.md` untuk alur split-source; JANGAN edit
+  `openapi/awcms-mini-public-api.openapi.yaml` langsung, itu file
+  GENERATED oleh `bun run openapi:bundle`), tag baru di
+  `awcms-mini-public-api.src.yaml`.
+- Test: `tests/unit/ad-placement-policy.test.ts`,
+  `tests/unit/ad-placement-rotation.test.ts`,
+  `tests/integration/news-portal-ad-placements.integration.test.ts`
+  (CRUD, validasi mediaObjectId tidak ada/tidak terverifikasi/cross-tenant,
+  linkUrl tidak aman, RLS 404 lintas tenant, ABAC 403 tanpa permission,
+  rendering publik hanya emit public URL registry, ad
+  inactive/future/expired/placement-lain dikecualikan, media yang
+  soft-delete setelah placement dibuat dikecualikan, rotasi memotong ke
+  `maxItems`); diperbarui: `tests/foundation.test.ts` (migration list 048),
+  `tests/modules/news-portal-module.test.ts` (navigation dua entri,
+  permission pair `ad_placements` baru).
+- Changeset: `.changeset/news-portal-ad-placements-issue-638.md`.
+
+### Belum/di luar cakupan issue ini (untuk issue lanjutan)
+
+- **Integrasi `ad_slot` ke homepage composer** (#637) — lihat subbagian di
+  atas. Butuh menambah `ad_slot` ke `HOMEPAGE_SECTION_TYPES`/migration
+  044's `CHECK` constraint DAN memanggil
+  `selectAndRenderActiveAdsForPlacement` dari
+  `homepage-section-composer.ts`.
+- **Wiring rendering publik ke `/news`/halaman artikel** — query+renderer
+  sudah ada dan teruji, belum dipasang ke rute publik manapun (sama
+  precedent `awcms_mini_blog_ads` §542).
+- **UI picker media visual** — admin tetap mengetik UUID `mediaObjectId`
+  manual, sama gap yang dicatat `awcms-mini-blog-content`/§636/§637.
+- **Click fraud detection** — eksplisit di luar cakupan per body issue.
+
+## §639-#640, #642, #649 — konsumsi media registry lanjutan (belum dikerjakan)
 
 Ringkasan objective per issue (detail lengkap ada di body issue
 GitHub masing-masing, cek `gh issue view <n>` bila butuh acceptance
 criteria penuh):
 
-- **#638** — preset placement iklan dengan validasi gambar R2-only
-  (memperluas `awcms_mini_blog_ads`'s `image_url` yang saat ini bebas
-  URL http(s) — lihat `blog-content` README §Ads). **Setelah ini selesai**,
-  `homepage-section-policy.ts`'s whitelist WAJIB diperluas dengan
-  `ad_slot` (lihat §637's "Rekonsiliasi" di atas).
 - **#639** — content block `video_news` baru dengan thumbnail R2 wajib
   (thumbnail, bukan video itu sendiri, yang wajib R2 — video hosting
   eksternal seperti YouTube/embed kemungkinan tetap di luar cakupan R2,

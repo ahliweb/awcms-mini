@@ -58,6 +58,12 @@ describe("news_portal module descriptor (Issue #632, extended #634)", () => {
         path: "/admin/news-portal/homepage-sections",
         order: 80,
         requiredPermission: "news_portal.homepage_sections.read"
+      },
+      {
+        labelKey: "admin.layout.nav_news_portal_ad_placements",
+        path: "/admin/news-portal/ad-placements",
+        order: 81,
+        requiredPermission: "news_portal.ad_placements.read"
       }
     ]);
 
@@ -88,6 +94,21 @@ describe("news_portal module descriptor (Issue #632, extended #634)", () => {
   test("Issue #637 declares exactly the homepage_sections read/configure permission pair", () => {
     const permissions = (newsPortalModule.permissions ?? []).filter(
       (p) => p.activityCode === "homepage_sections"
+    );
+
+    expect(permissions.map((p) => p.action).sort()).toEqual([
+      "configure",
+      "read"
+    ]);
+
+    for (const permission of permissions) {
+      expect(permission.description.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("Issue #638 declares exactly the ad_placements read/configure permission pair", () => {
+    const permissions = (newsPortalModule.permissions ?? []).filter(
+      (p) => p.activityCode === "ad_placements"
     );
 
     expect(permissions.map((p) => p.action).sort()).toEqual([

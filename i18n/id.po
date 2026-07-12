@@ -243,6 +243,9 @@ msgstr "Section ini merujuk konten yang tidak ada, bukan milik tenant ini, atau 
 msgid "error.homepage_section_key_conflict"
 msgstr "Section key tersebut sudah dipakai."
 
+msgid "error.ad_placement_reference_invalid"
+msgstr "Iklan ini merujuk objek media yang tidak ada, bukan milik tenant ini, belum terverifikasi, atau bukan tipe gambar yang diizinkan untuk penempatan ini."
+
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"
 msgstr "Tanpa role"
@@ -1942,6 +1945,79 @@ msgstr "Hapus section homepage ini?"
 msgid "admin.news_portal.homepage_sections.delete_success"
 msgstr "Section homepage berhasil dihapus."
 
+#. admin.news_portal.ad_placements (Issue #638)
+msgid "admin.news_portal.ad_placements.title"
+msgstr "Penempatan Iklan"
+
+msgid "admin.news_portal.ad_placements.no_placements"
+msgstr "Belum ada penempatan iklan."
+
+msgid "admin.news_portal.ad_placements.preset_guide_summary"
+msgstr "Panduan preset penempatan"
+
+msgid "admin.news_portal.ad_placements.preset_recommended_size"
+msgstr "Ukuran yang disarankan"
+
+msgid "admin.news_portal.ad_placements.preset_max_items"
+msgstr "Maks item ditampilkan sekaligus"
+
+msgid "admin.news_portal.ad_placements.field_name"
+msgstr "Nama"
+
+msgid "admin.news_portal.ad_placements.field_placement_key"
+msgstr "Penempatan"
+
+msgid "admin.news_portal.ad_placements.field_media_object_id"
+msgstr "ID objek media"
+
+msgid "admin.news_portal.ad_placements.media_object_id_hint"
+msgstr "Harus berupa ID objek media R2 terverifikasi milik tenant ini."
+
+msgid "admin.news_portal.ad_placements.field_link_url"
+msgstr "URL tautan (opsional)"
+
+msgid "admin.news_portal.ad_placements.field_rotation_mode"
+msgstr "Mode rotasi"
+
+msgid "admin.news_portal.ad_placements.field_priority"
+msgstr "Prioritas"
+
+msgid "admin.news_portal.ad_placements.field_starts_at"
+msgstr "Mulai pada"
+
+msgid "admin.news_portal.ad_placements.field_ends_at"
+msgstr "Berakhir pada"
+
+msgid "admin.news_portal.ad_placements.field_active"
+msgstr "Aktif"
+
+msgid "admin.news_portal.ad_placements.save_button"
+msgstr "Simpan"
+
+msgid "admin.news_portal.ad_placements.delete_button"
+msgstr "Hapus penempatan"
+
+msgid "admin.news_portal.ad_placements.create_summary"
+msgstr "Tambah penempatan iklan"
+
+msgid "admin.news_portal.ad_placements.create_submit"
+msgstr "Buat penempatan"
+
+msgid "admin.news_portal.ad_placements.create_success"
+msgstr "Penempatan iklan berhasil dibuat."
+
+msgid "admin.news_portal.ad_placements.update_success"
+msgstr "Penempatan iklan berhasil diperbarui."
+
+msgid "admin.news_portal.ad_placements.delete_reason_prompt"
+msgstr "Alasan menghapus penempatan iklan ini:"
+
+msgid "admin.news_portal.ad_placements.delete_confirm"
+msgstr "Hapus penempatan iklan ini?"
+
+msgid "admin.news_portal.ad_placements.delete_success"
+msgstr "Penempatan iklan berhasil dihapus."
+
 #. admin.tenant_domain (Issue #563)
 msgid "admin.tenant_domain.title"
 msgstr "Domain Tenant"
@@ -2352,6 +2428,10 @@ msgstr "Analitik Pengunjung"
 #. admin.layout.nav_news_portal_homepage_sections (Issue #637, epic: news_portal #631-#642/#649)
 msgid "admin.layout.nav_news_portal_homepage_sections"
 msgstr "Section Homepage"
+
+#. admin.layout.nav_news_portal_ad_placements (Issue #638, epic: news_portal #631-#642/#649)
+msgid "admin.layout.nav_news_portal_ad_placements"
+msgstr "Penempatan Iklan"
 
 #. admin.analytics (Issue #622, epic: visitor analytics #617-#624) — dashboard /admin/analytics
 msgid "admin.analytics.heading"
