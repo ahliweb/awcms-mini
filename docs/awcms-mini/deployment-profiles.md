@@ -216,21 +216,30 @@ hardening).
 
 ## Visitor analytics (opsional, privacy-first — Issue #617-#624)
 
-Berbeda dari full-online auth hardening di atas, modul `visitor_analytics`
-**aktif di semua profil secara default** (`VISITOR_ANALYTICS_ENABLED=true`)
-— termasuk offline/LAN, karena statistik pengunjung agregat (human
-pageviews, top paths/browsers/devices) tidak butuh koneksi internet apa
-pun; hanya tiga sub-fitur yang benar-benar online-dependent dan
-default-mati (`VISITOR_ANALYTICS_RAW_IP_ENABLED`/`_RAW_USER_AGENT_ENABLED`/
+Modul `visitor_analytics` **default MATI di semua profil** sejak Issue
+#624 repository audit addendum (2026-07-11) —
+`VISITOR_ANALYTICS_ENABLED=false` kecuali operator secara eksplisit
+mengaktifkannya (lihat `docs/awcms-mini/visitor-analytics.md` §Default
+opt-in dan upgrade path untuk migration note deployment existing yang
+sudah men-set var ini `true`). Statistik pengunjung agregat (human
+pageviews, top paths/browsers/devices) sendiri tidak butuh koneksi
+internet apa pun begitu diaktifkan — bekerja sama baik di offline/LAN
+maupun online; hanya tiga sub-fitur yang benar-benar online-dependent
+dan tetap default-mati begitu modul aktif
+(`VISITOR_ANALYTICS_RAW_IP_ENABLED`/`_RAW_USER_AGENT_ENABLED`/
 `_GEO_ENABLED`). Lihat `docs/awcms-mini/visitor-analytics.md` untuk
 panduan lengkap privacy-first default, retensi, dan pemetaan kepatuhan;
 ringkasan per profil:
 
-- **offline/LAN & development**: biarkan semua `VISITOR_ANALYTICS_*`
-  tidak di-set. Statistik pengunjung dasar (dashboard `/admin/analytics`)
+- **offline/LAN & development**: set `VISITOR_ANALYTICS_ENABLED=true`
+  saja bila statistik pengunjung dasar diinginkan (biarkan semua
+  `VISITOR_ANALYTICS_*` lain tidak di-set). Dashboard `/admin/analytics`
   tetap berfungsi penuh tanpa IP mentah, user-agent mentah, atau
   geolokasi apa pun tersimpan — cocok untuk deployment yang tidak pernah
-  tersambung internet publik.
+  tersambung internet publik. Bila var ini tidak pernah di-set, modul
+  tetap sepenuhnya mati (tidak ada cookie, tidak ada baris session/event)
+  — pilihan default yang aman untuk instalasi yang belum mengambil
+  keputusan dasar hukum/tujuan pemrosesan.
 - **staging/production (online), di belakang Cloudflare**: hanya bila
   operator memang menempatkan origin di belakang Cloudflare DAN
   memfirewall origin agar hanya bisa diakses lewat edge Cloudflare, boleh

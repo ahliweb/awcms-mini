@@ -24,30 +24,39 @@ spesifik** yang menjembatani beberapa issue sekaligus.
 
 ## Status per issue (jangan bangun ulang yang sudah ada)
 
-| Issue | Scope                                                          | Status                                                                            |
-| ----- | -------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| #617  | Module descriptor, permission catalog, config gate             | **Selesai** — lihat §Config di bawah                                              |
-| #618  | Visitor session/event/rollup schema + RLS                      | **Selesai** — lihat §Schema di bawah                                              |
-| #619  | Visitor identity, user-agent, human/bot classification helpers | **Selesai** — lihat §Domain helpers di bawah                                      |
-| #620  | Middleware telemetry collection (admin + public)               | **Selesai** — lihat §Collector di bawah                                           |
-| #621  | Analytics API + OpenAPI contract (`/api/v1/analytics`)         | **Selesai** — lihat §API di bawah                                                 |
-| #623  | Trusted online geolocation enrichment                          | **Selesai** — lihat §Geo enrichment di bawah                                      |
-| #622  | Admin visitor analytics dashboard UI (`/admin/analytics`)      | **Selesai** — lihat §Dashboard UI di bawah                                        |
-| #624  | Rollup job, retention purge job, readiness checks, docs pass   | **Selesai** — lihat §Rollup job, §Retention purge job, §Readiness checks di bawah |
+| Issue | Scope                                                                                                                                             | Status                                                                                                                            |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| #617  | Module descriptor, permission catalog, config gate                                                                                                | **Selesai** — lihat §Config di bawah                                                                                              |
+| #618  | Visitor session/event/rollup schema + RLS                                                                                                         | **Selesai** — lihat §Schema di bawah                                                                                              |
+| #619  | Visitor identity, user-agent, human/bot classification helpers                                                                                    | **Selesai** — lihat §Domain helpers di bawah                                                                                      |
+| #620  | Middleware telemetry collection (admin + public)                                                                                                  | **Selesai** — lihat §Collector di bawah                                                                                           |
+| #621  | Analytics API + OpenAPI contract (`/api/v1/analytics`)                                                                                            | **Selesai** — lihat §API di bawah                                                                                                 |
+| #623  | Trusted online geolocation enrichment                                                                                                             | **Selesai** — lihat §Geo enrichment di bawah                                                                                      |
+| #622  | Admin visitor analytics dashboard UI (`/admin/analytics`)                                                                                         | **Selesai** — lihat §Dashboard UI di bawah                                                                                        |
+| #624  | Rollup job, retention purge job, readiness checks, docs pass; REOPENED 2026-07-11 dengan repository audit addendum (default-off, cookie lifetime) | **Selesai** (termasuk addendum) — lihat §Rollup job, §Retention purge job, §Readiness checks, §Repository audit addendum di bawah |
 
 Urutan dependency (dari body issue masing-masing): 617 → 618 → 619 → 620 →
 621 → 622; 623 boleh setelah 620 (paralel dengan 621/622); 624 butuh
-617+618+620+621 dan melengkapi 622/623. **Epic #617-#624 selesai penuh.**
+617+618+620+621 dan melengkapi 622/623. **Epic #617-#624 selesai penuh**,
+termasuk repository audit addendum #624 (2026-07-11, epic
+platform-hardening #679) — lihat §Repository audit addendum di bawah
+sebelum menganggap default lama (`ENABLED=true`, cookie 2 tahun) masih
+berlaku.
 
 ## Yang sudah ada — pakai ulang, jangan re-derive
 
 ### Config (Issue #617, `src/modules/visitor-analytics/domain/visitor-analytics-config.ts`)
 
-Enam belas env var, semuanya **opsional** dan privacy-first — kalau tidak
-di-set sama sekali, `config:validate` tetap PASS dan tidak ada raw IP/raw
-user-agent/geolokasi yang tersimpan:
+Tujuh belas env var, semuanya **opsional** dan privacy-first — kalau tidak
+di-set sama sekali, `config:validate` tetap PASS, modul TIDAK aktif
+(§Repository audit addendum), dan tidak ada raw IP/raw user-agent/
+geolokasi yang tersimpan:
 
-- `VISITOR_ANALYTICS_ENABLED` (default `true`) — master switch.
+- `VISITOR_ANALYTICS_ENABLED` (default `false` sejak Issue #624
+  repository audit addendum, 2026-07-11 — sebelumnya `true` di rilis
+  awal Issue #617) — master switch. Deployment existing yang sudah
+  men-set var ini `true` eksplisit tidak terdampak; lihat §Repository
+  audit addendum untuk migration note lengkap.
 - `VISITOR_ANALYTICS_MODE` (default `basic`) — enum `basic | detailed`
   (`VISITOR_ANALYTICS_MODES`, `isKnownVisitorAnalyticsMode`). Nilai tak
   dikenal jatuh ke `basic`, tidak pernah throw.
@@ -64,11 +73,13 @@ user-agent/geolokasi yang tersimpan:
   `awcms-mini-tenant-domain-routing`) — hanya `true` di belakang proxy
   tepercaya yang benar-benar mengisi ulang header, bukan meneruskan nilai
   klien.
-- Empat var retensi/jendela — `VISITOR_ANALYTICS_ONLINE_WINDOW_SECONDS`
+- Lima var retensi/jendela/TTL — `VISITOR_ANALYTICS_ONLINE_WINDOW_SECONDS`
   (300), `_EVENT_RETENTION_DAYS` (90), `_RAW_DETAIL_RETENTION_DAYS` (30),
-  `_ROLLUP_RETENTION_DAYS` (730) — divalidasi `parsePositiveInt`, wajib
-  integer positif **bila diisi**; tak diisi → default di atas, tidak
-  pernah gagal validasi.
+  `_ROLLUP_RETENTION_DAYS` (730), `_VISITOR_KEY_COOKIE_TTL_DAYS` (30,
+  Issue #624 repository audit addendum — sebelumnya hardcoded
+  ~2 tahun/`63_072_000` detik di `src/middleware.ts`, bukan env var sama
+  sekali) — divalidasi `parsePositiveInt`, wajib integer positif **bila
+  diisi**; tak diisi → default di atas, tidak pernah gagal validasi.
 - `VISITOR_ANALYTICS_HASH_SALT` (default `""`) — salt untuk fingerprint
   visitor pseudonymous, dikonsumsi `domain/visitor-key.ts`'s
   `hashVisitorKey`/`hashIpAddress`/`hashUserAgent` (Issue #619) — lihat
@@ -243,8 +254,18 @@ cabang pre-admin dan `/admin/*`), jadi `response.status` sudah diketahui.
   ada (redirect guard sudah jalan lebih dulu). Area lain pakai
   `resolvePublicTenantFromRequest` (#559) — best-effort, tenant tidak
   resolve = tidak dikoleksi, bukan hard failure.
-- **Cookie visitor**: `awcms_mini_visitor_key`, `httpOnly`+`sameSite=lax`+
-  maxAge 2 tahun, di-set hanya saat request benar-benar dikoleksi.
+- **Cookie visitor**: `awcms_mini_visitor_key`, `httpOnly`+`sameSite=lax`,
+  di-set hanya saat request benar-benar dikoleksi. **Diubah Issue #624
+  repository audit addendum**: maxAge sekarang configurable
+  (`VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS`, 30 hari default —
+  bukan lagi hardcoded 2 tahun), dan `src/middleware.ts` memanggil
+  `shouldRevokeVisitorKeyCookie`/`planVisitorKeyCookie`
+  (`domain/visitor-key-cookie.ts`, fungsi pure baru) SEBELUM gate
+  path/area: cookie yang sudah ada dihapus aktif begitu
+  `VISITOR_ANALYTICS_ENABLED` bukan `"true"`, dan tidak ada cookie/event
+  baru yang pernah ditulis selama modul nonaktif. Jangan re-derive logic
+  set/delete cookie langsung di `src/middleware.ts` lagi — kedua fungsi
+  pure itu satu-satunya tempat keputusannya.
 - **Session find-or-create**: lookup `(tenant_id, visitor_key_hash,
 area)` (index baru migration 040). Dalam window
   `VISITOR_ANALYTICS_ONLINE_WINDOW_SECONDS` → reuse row, tapi UPDATE
@@ -471,20 +492,78 @@ di `security-readiness.ts` (bukan `validate-env.ts`) — pola yang sama
 `checkOnlineAuthSecurityConfig`/`Ready` dkk. sudah pakai (shape vs
 safety/severity). Semua reuse `resolveVisitorAnalyticsConfig`:
 
-| Check                                             | Severity | Gagal saat                                                   |
-| ------------------------------------------------- | -------- | ------------------------------------------------------------ |
-| `checkVisitorAnalyticsRawIpRetentionReady`        | critical | Raw IP aktif + retensi raw detail > retensi event            |
-| `checkVisitorAnalyticsRawUserAgentRetentionReady` | warning  | Raw user-agent aktif (masih no-op) + retensi sama tidak aman |
-| `checkVisitorAnalyticsGeoTrustedSourceReady`      | critical | Geo aktif tanpa `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`         |
-| `checkVisitorAnalyticsRetentionOrderingReady`     | warning  | Retensi raw detail > event, ATAU rollup < event              |
-| `checkVisitorAnalyticsHashSaltReady`              | warning  | Modul aktif + `VISITOR_ANALYTICS_HASH_SALT` kosong           |
+| Check                                             | Severity | Gagal saat                                                                                                      |
+| ------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------- |
+| `checkVisitorAnalyticsRawIpRetentionReady`        | critical | Raw IP aktif + retensi raw detail > retensi event                                                               |
+| `checkVisitorAnalyticsRawUserAgentRetentionReady` | warning  | Raw user-agent aktif (masih no-op) + retensi sama tidak aman                                                    |
+| `checkVisitorAnalyticsGeoTrustedSourceReady`      | critical | Geo aktif tanpa `VISITOR_ANALYTICS_TRUST_CLOUDFLARE`                                                            |
+| `checkVisitorAnalyticsRetentionOrderingReady`     | warning  | Retensi raw detail > event, ATAU rollup < event                                                                 |
+| `checkVisitorAnalyticsHashSaltReady`              | warning  | Modul aktif + `VISITOR_ANALYTICS_HASH_SALT` kosong                                                              |
+| `checkVisitorAnalyticsVisitorKeyCookieTtlReady`   | warning  | Modul aktif + `VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS` > 400 hari (Issue #624 repository audit addendum) |
 
-Default privacy-first (semua var tidak di-set) lulus BERSIH kelima
+Default privacy-first (semua var tidak di-set) lulus BERSIH keenam
 check ini. Hanya `critical` yang memblokir go-live. Jangan re-derive
 aturan ini di `validate-env.ts` — kalau butuh dipakai script lain,
 import dari `security-readiness.ts` seperti check lain sudah lakukan.
 
 Test: `tests/security-readiness.test.ts`.
+
+### Repository audit addendum (Issue #624, reopened 2026-07-11, epic platform-hardening #679)
+
+Setelah Issue #624's scope asli (rollup/purge/readiness/docs) selesai,
+audit repositori 2026-07-11 menemukan dua celah default privasi dan
+menambah scope ke issue yang SAMA (bukan issue baru):
+
+1. **`.env.example` mengaktifkan analytics secara default** — DITUTUP:
+   `VISITOR_ANALYTICS_ENABLED` sekarang default `false` di
+   `VISITOR_ANALYTICS_DEFAULTS` (`domain/visitor-analytics-config.ts`),
+   `.env.example`, dan `src/lib/config/registry.ts` sekaligus (ketiganya
+   harus tetap sinkron — `tests/unit/config-docs-check.test.ts`'s
+   `runConfigDocsCheck` menegakkan kehadiran var yang sama di ketiganya,
+   BUKAN kesamaan nilai default). Deployment existing yang sudah men-set
+   var ini `true` eksplisit tidak terdampak — hanya deployment yang
+   mengandalkan default implisit lama yang perlu menambahkan var ini
+   secara eksplisit setelah upgrade. Tidak ada migration data — perubahan
+   murni di layer config.
+2. **Cookie visitor-key berumur ~2 tahun** — DITUTUP: field baru
+   `visitorKeyCookieTtlDays` (default 30, env
+   `VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS`) di
+   `VisitorAnalyticsConfig`, dikonsumsi
+   `resolveVisitorKeyCookieMaxAgeSeconds`. Dua fungsi pure baru di
+   `domain/visitor-key-cookie.ts` — `shouldRevokeVisitorKeyCookie`
+   (dipanggil SEBELUM gate `shouldCollectRequest`, true hanya saat modul
+   nonaktif DAN cookie valid masih ada → middleware menghapusnya) dan
+   `planVisitorKeyCookie` (dipanggil SESUDAH gate lolos, HANYA saat modul
+   aktif — selalu resolve nilai + tandai perlu `Set-Cookie` atau tidak,
+   mempertahankan invarian lama "cookie di-set hanya saat request
+   benar-benar dikoleksi", bukan di setiap request).
+3. **"Jangan set cookie / tulis event saat disabled"** — sudah otomatis
+   benar secara struktural: `collectRequestAnalytics`
+   (`src/middleware.ts`) mengecek `config.enabled` SEBELUM apa pun lain
+   (setelah revocation check di atas) dan `return` langsung bila mati —
+   tidak ada jalur kode yang bisa sampai ke `context.cookies.set`/
+   `collectVisitorTelemetry` saat modul nonaktif. Diverifikasi
+   `tests/unit/visitor-analytics-visitor-key-cookie.test.ts` dan
+   `tests/unit/visitor-analytics-collector.test.ts` (kasus
+   `VISITOR_ANALYTICS_DEFAULTS` disabled-by-default).
+4. **Dokumentasi data-subject deletion/anonymization + UU PDP/ISO
+   27701:2025** — ditambahkan ke
+   `docs/awcms-mini/visitor-analytics.md` (§Default opt-in dan upgrade
+   path, §Cookie anonim, baris baru tabel UU PDP, bagian ISO/IEC
+   27701:2025 dimutakhirkan dari referensi 2019 sebelumnya).
+
+**Yang TIDAK berubah** (di luar scope addendum, jangan disentuh issue
+lanjutan tanpa alasan baru): raw IP/raw user-agent/geo tetap default
+mati (sudah begitu sejak #617, addendum hanya menegaskan ulang), tidak
+ada perubahan skema/tabel (migration baru TIDAK dibutuhkan — perubahan
+ini murni config + middleware), tidak ada endpoint API baru.
+
+Test baru: `tests/unit/visitor-analytics-visitor-key-cookie.test.ts`
+(pure, `shouldRevokeVisitorKeyCookie`/`planVisitorKeyCookie`). Test yang
+diperbarui (bukan baru) untuk mencerminkan default baru:
+`tests/unit/visitor-analytics-config.test.ts`,
+`tests/unit/visitor-analytics-collector.test.ts`,
+`tests/security-readiness.test.ts`.
 
 ## Prinsip yang wajib dipertahankan di setiap issue lanjutan
 
@@ -510,6 +589,17 @@ Test: `tests/security-readiness.test.ts`.
 6. **`VISITOR_ANALYTICS_HASH_SALT` bukan credential provider** — dipakai
    untuk fingerprint pseudonymous (dedup visitor tanpa cookie persisten),
    bukan untuk autentikasi apa pun. Jangan expose di response/log/audit.
+7. **Default-off untuk instalasi baru** (Issue #624 repository audit
+   addendum) — `VISITOR_ANALYTICS_ENABLED` default `false`. Jangan
+   pernah membalik ini kembali ke `true` tanpa keputusan sadar yang
+   didokumentasikan ulang — ini adalah keputusan privasi/kepatuhan
+   eksplisit, bukan preferensi teknis.
+8. **Cookie visitor-key pendek + revocable** — jangan pernah
+   memperpanjang default `VISITOR_ANALYTICS_VISITOR_KEY_COOKIE_TTL_DAYS`
+   kembali ke orde tahun tanpa justifikasi eksplisit, dan jangan
+   menghapus logic `shouldRevokeVisitorKeyCookie` (revocation saat modul
+   nonaktif) — keduanya bagian dari keputusan privasi addendum ini, bukan
+   detail implementasi yang bebas diubah.
 
 ## Referensi
 
