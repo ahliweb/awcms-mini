@@ -15,6 +15,7 @@ import { newsMediaPortAdapter } from "../../../modules/news-portal/application/n
 import { resolveNewsShareConfig } from "../../../modules/news-portal/domain/news-share-config";
 import {
   collectRenderableGalleryMediaObjectIds,
+  collectRenderableVideoNewsThumbnailMediaObjectIds,
   renderContentJsonToHtml
 } from "../../../modules/blog-content/domain/content-block-rendering";
 import {
@@ -72,13 +73,20 @@ export const GET: APIRoute = async ({ params, url }) => {
       // Issue #636 — see `/news/[slug].ts`'s identical comment: bulk-resolve
       // every referenced mediaObjectId (featured image + gallery) to
       // verified R2 media metadata in one lookup, feed both the gallery
-      // renderer and the og:image tags from it.
+      // renderer and the og:image tags from it. Issue #639 adds
+      // `video_news` blocks' optional thumbnail ids to the same lookup.
       const galleryMediaObjectIds = collectRenderableGalleryMediaObjectIds(
         post.contentJson
       );
+      const videoThumbnailMediaObjectIds =
+        collectRenderableVideoNewsThumbnailMediaObjectIds(post.contentJson);
       const referencedMediaObjectIds = post.featuredMediaId
-        ? [post.featuredMediaId, ...galleryMediaObjectIds]
-        : galleryMediaObjectIds;
+        ? [
+            post.featuredMediaId,
+            ...galleryMediaObjectIds,
+            ...videoThumbnailMediaObjectIds
+          ]
+        : [...galleryMediaObjectIds, ...videoThumbnailMediaObjectIds];
       const resolvedMedia = await newsMediaPortAdapter.resolveMediaReferences(
         tx,
         tenant.tenantId,

@@ -107,7 +107,7 @@ paths:
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
         "422":
-          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and featuredMediaId or a contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object."
+          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636; extended by Issue #639 for a video_news block's thumbnailMediaObjectId) — full-online R2-only news portal mode is active for this tenant and featuredMediaId, a contentJson image gallery item, or a video_news block's thumbnailMediaObjectId does not reference an existing, same-tenant, verified/attached R2 media object."
           content:
             application/json:
               schema:
@@ -214,7 +214,7 @@ paths:
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
         "422":
-          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and a submitted featuredMediaId or contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object."
+          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636; extended by Issue #639 for a video_news block's thumbnailMediaObjectId) — full-online R2-only news portal mode is active for this tenant and a submitted featuredMediaId, contentJson image gallery item, or video_news block's thumbnailMediaObjectId does not reference an existing, same-tenant, verified/attached R2 media object."
           content:
             application/json:
               schema:
@@ -684,7 +684,7 @@ components:
           nullable: true
         contentJson:
           type: object
-          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url."
+          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url. A video_news block (Issue #639) requires an allowlisted provider (currently only youtube) and a valid videoId (normalized server-side from a bare id or common video URL); its optional thumbnailMediaObjectId, when full-online R2-only mode is active, must likewise reference a verified/attached same-tenant media object."
         contentText:
           type: string
         locale:
@@ -743,7 +743,7 @@ components:
           nullable: true
         contentJson:
           type: object
-          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url."
+          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url. A video_news block (Issue #639) requires an allowlisted provider (currently only youtube) and a valid videoId (normalized server-side from a bare id or common video URL); its optional thumbnailMediaObjectId, when full-online R2-only mode is active, must likewise reference a verified/attached same-tenant media object."
         contentText:
           type: string
         locale:

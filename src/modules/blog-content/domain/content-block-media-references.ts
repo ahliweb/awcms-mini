@@ -1,18 +1,21 @@
 /**
- * Pure extraction of image-gallery media references from `content_json`
- * (Issue #636, epic `news_portal`). Deliberately separate from
- * `content-block-rendering.ts`'s renderer: this module answers "what does
- * this content claim to reference" (used by the application layer to
- * verify those references exist/are safe before a post/page is
- * written), while the renderer answers "how do I safely turn already-
- * write-time-validated content into HTML." Neither depends on the other.
+ * Pure extraction of media references from `content_json` (Issue #636,
+ * epic `news_portal`; extended by Issue #639 for the `video_news` block's
+ * thumbnail). Deliberately separate from `content-block-rendering.ts`'s
+ * renderer: this module answers "what does this content claim to
+ * reference" (used by the application layer to verify those references
+ * exist/are safe before a post/page is written), while the renderer
+ * answers "how do I safely turn already-write-time-validated content into
+ * HTML." Neither depends on the other.
  *
- * Only `mediaType: "image"` gallery items are in scope — `"video"` items
- * are untouched by Issue #636 (a video news thumbnail requirement is
- * Issue #639's separate, not-yet-implemented scope; forcing video items
- * through this same gate now would be building ahead of a dependency that
- * doesn't exist yet, the exact mistake this epic's other issues have
- * repeatedly documented avoiding).
+ * `collectGalleryImageReferences` only ever looked at `mediaType: "image"`
+ * gallery items — `"video"` gallery items were, and remain, untouched by
+ * it (that was never this file's job; a video news block is a distinct
+ * block TYPE, not a gallery item). Issue #639 adds a second, independent
+ * extraction function below (`collectVideoNewsThumbnailReferences`) for
+ * the new `video_news` block type's OPTIONAL `thumbnailMediaObjectId`
+ * field — additive, does not modify `collectGalleryImageReferences` at
+ * all.
  */
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -86,6 +89,64 @@ export function collectGalleryImageReferences(
       mediaObjectIds.add(item.mediaObjectId);
     });
   }
+
+  return { mediaObjectIds: [...mediaObjectIds], violations };
+}
+
+export type VideoNewsThumbnailReferenceViolation = {
+  /** 0-based index of the offending block within `contentJson.blocks`. */
+  blockIndex: number;
+  reason: "media_object_id_malformed";
+};
+
+export type VideoNewsThumbnailReferences = {
+  /** Deduplicated, well-formed-UUID `thumbnailMediaObjectId`s referenced by `video_news` blocks — candidates for existence/status verification. */
+  mediaObjectIds: string[];
+  /** `video_news` blocks whose PRESENT `thumbnailMediaObjectId` cannot possibly be valid, independent of whether it actually resolves. */
+  violations: VideoNewsThumbnailReferenceViolation[];
+};
+
+/**
+ * Scans every `video_news` block for its optional `thumbnailMediaObjectId`
+ * (Issue #639). A custom thumbnail is OPTIONAL (the issue's own Rules allow
+ * a tenant to fall back to the provider's default thumbnail instead), so a
+ * MISSING `thumbnailMediaObjectId` is never a violation — only a PRESENT
+ * but malformed (non-UUID) one is. Existence/tenant-ownership/verified-
+ * status checking of the ids returned here is the caller's job
+ * (`application/video-news-thumbnail-reference-gate.ts`), same
+ * "extraction is pure, verification needs a DB round trip" split
+ * `collectGalleryImageReferences` established.
+ */
+export function collectVideoNewsThumbnailReferences(
+  contentJson: Record<string, unknown>
+): VideoNewsThumbnailReferences {
+  const mediaObjectIds = new Set<string>();
+  const violations: VideoNewsThumbnailReferenceViolation[] = [];
+
+  const blocks = contentJson.blocks;
+  if (!isRecordArray(blocks)) {
+    return { mediaObjectIds: [], violations: [] };
+  }
+
+  blocks.forEach((block, blockIndex) => {
+    if (
+      block.type !== "video_news" ||
+      block.thumbnailMediaObjectId === undefined ||
+      block.thumbnailMediaObjectId === null
+    ) {
+      return;
+    }
+
+    if (
+      typeof block.thumbnailMediaObjectId !== "string" ||
+      !UUID_PATTERN.test(block.thumbnailMediaObjectId)
+    ) {
+      violations.push({ blockIndex, reason: "media_object_id_malformed" });
+      return;
+    }
+
+    mediaObjectIds.add(block.thumbnailMediaObjectId);
+  });
 
   return { mediaObjectIds: [...mediaObjectIds], violations };
 }

@@ -44,7 +44,7 @@ status + pointer, bukan menduplikasi isinya.
 | #636  | `blog_content` wajib referensi R2 media object untuk gambar berita saat mode aktif                                           | **Selesai** — lihat §636 di bawah                    |
 | #637  | Editorial homepage section composer `/news` dengan render R2-only                                                            | **Selesai** — lihat §637 di bawah                    |
 | #638  | Preset placement iklan news portal dengan validasi gambar R2-only                                                            | Belum dikerjakan — lihat §638 di bawah               |
-| #639  | Content block `video_news` dengan thumbnail R2 wajib                                                                         | Belum dikerjakan — lihat §639 di bawah               |
+| #639  | Content block `video_news` dengan thumbnail R2 wajib                                                                         | **Selesai** — lihat §639 di bawah                    |
 | #640  | Content quality checklist publishing dengan syarat gambar R2                                                                 | Belum dikerjakan — lihat §640 di bawah               |
 | #641  | Automatic internal tag linking untuk konten post/news                                                                        | Belum dikerjakan — lihat §641 di bawah               |
 | #642  | Public social share buttons di halaman artikel `/news`                                                                       | **Selesai** — lihat §642 di bawah                    |
@@ -1304,6 +1304,165 @@ lewat form edit yang sudah ada — TIDAK menambah endpoint baru untuk itu.
   tercampur dengan `homepage_sections` yang baru),
   `tests/foundation.test.ts` (migration list 044).
 - Changeset: `.changeset/news-portal-homepage-sections-issue-637.md`.
+
+## §639 — Content block `video_news` dengan thumbnail R2 wajib (Selesai)
+
+Implementasi lengkap: domain baru
+`blog-content/domain/video-news-block-validation.ts` (allowlist provider +
+normalisasi videoId, UNCONDITIONAL — tidak digerbangi mode R2-only),
+application baru
+`blog-content/application/video-news-thumbnail-reference-gate.ts` (verifikasi
+`thumbnailMediaObjectId`, mode-gated — pola PERSIS sama `news-media-
+reference-gate.ts` #636), renderer baru `_shared/rendering/video-news-block-
+renderer.ts` (iframe `youtube-nocookie.com` aman). **Tidak ada migration
+baru** — `owner_resource_type` enum (migration 041, #633) sudah memuat
+`'video_thumbnail'` sejak awal, dan thumbnail video tidak pernah di-`attach`
+(persis pola gallery image #636 — hanya diverifikasi `verified`/`attached`,
+tidak pernah menulis `owner_resource_type`/`owner_resource_id`).
+
+### Keputusan desain kunci — DUA lapis validasi, hanya SATU yang mode-gated
+
+Berbeda dari #636 (yang semuanya mode-gated), issue ini memisahkan dua
+kelas kontrol:
+
+1. **UNCONDITIONAL (selalu berlaku, tidak peduli mode R2-only aktif atau
+   tidak)** — allowlist `provider` (hanya `"youtube"` hari ini) dan
+   validasi/normalisasi `videoId` (dari id mentah 11 karakter ATAU URL
+   YouTube umum: `watch?v=`, `youtu.be/`, `/embed/`, `/shorts/`, semuanya
+   dinormalisasi ke id kanonik sebelum disimpan). Alasan: body issue sendiri
+   membingkai ini sebagai kontrol keamanan embed ("treat video embeds as
+   high-risk content"), bukan kebijakan penyimpanan R2 — jadi berlaku untuk
+   SEMUA tenant, bukan hanya yang mengaktifkan preset `news_portal_full_online_r2`.
+   Dijalankan di `validateAndNormalizeContentJsonVideoBlocks` (pure, tanpa
+   akses DB), dipanggil route handler SEBELUM `withTenant` (tidak butuh
+   transaksi).
+2. **MODE-GATED (hanya saat `isFullOnlineR2ModeActiveForTenant` true)** —
+   `thumbnailMediaObjectId` (opsional — body issue eksplisit "tenant policy
+   may optionally allow provider default thumbnail") wajib menunjuk objek
+   registry R2 yang ada/verified-atau-attached/tenant-sama, PERSIS pola
+   `featuredMediaId`/gallery `mediaObjectId` (#636). Di luar mode itu, field
+   ini bahkan TIDAK divalidasi format-nya sama sekali (sengaja meniru
+   perlakuan gallery `mediaObjectId` yang juga tidak pernah dicek shape-nya
+   di luar mode aktif) — nilai apa pun yang tidak resolve hanya tidak pernah
+   dirender, tidak pernah dianggap error.
+
+"Raw iframe HTML/script harus ditolak" (Rules issue ini) SENGAJA TIDAK
+diimplementasikan sebagai regex baru khusus blok ini — proteksi yang sudah
+ada (`content-validation.ts`'s `containsUnsafeHtml`, Issue #538,
+unconditional, men-scan SELURUH `contentJson` yang di-`JSON.stringify`)
+SUDAH menutup ini untuk block type apa pun termasuk `video_news`. Lapis
+kedua yang genuinely baru:
+`validateAndNormalizeContentJsonVideoBlocks` MEMBANGUN ULANG setiap blok
+`video_news` HANYA dari field yang dikenal (`provider`/`videoId`
+ternormalisasi/`title`/`caption`/`thumbnailMediaObjectId`/
+`durationSeconds`/`sourceLabel`) — field asing apa pun (mis. `rawEmbedHtml`)
+otomatis hilang saat disimpan, bukan cuma diblok regex.
+
+### Kenapa DUA file terpisah untuk thumbnail-reference, bukan extend `news-media-reference-gate.ts` (#636) langsung
+
+Issue paralel #640 (content quality checklist) berjalan bersamaan dan sama-
+sama menyentuh permukaan validasi/rendering content-block. Untuk
+meminimalkan risiko conflict merge, ekstensi issue ini dibuat SEADITIF
+mungkin:
+
+- `content-block-media-references.ts` (#636): HANYA menambah fungsi baru
+  `collectVideoNewsThumbnailReferences` + tipe barunya — fungsi
+  `collectGalleryImageReferences` yang sudah ada SAMA SEKALI tidak disentuh.
+- `content-block-rendering.ts` (#636): HANYA menambah import baru, satu
+  union member baru (`video_news`), satu `case` baru di `renderBlock`'s
+  `switch`, dan satu fungsi re-export baru
+  (`collectRenderableVideoNewsThumbnailMediaObjectIds`) — signature
+  `renderContentJsonToHtml`/`renderBlock` TIDAK berubah sama sekali (thumbnail
+  video memakai `resolvedMediaUrls` map yang SAMA dengan gallery, karena
+  keduanya berbagi id space registry media yang sama — tidak perlu parameter
+  kedua).
+- `news-media-reference-gate.ts` (#636) SENGAJA TIDAK disentuh SAMA SEKALI —
+  dibuat file sibling baru
+  `video-news-thumbnail-reference-gate.ts` dengan fungsi
+  `validateVideoNewsThumbnailReferencesForFullOnlineR2Mode` yang polanya
+  identik tapi hidup independen. Route handler memanggil KEDUA gate secara
+  berurutan (gallery/featured dulu, lalu video thumbnail) — sedikit boilerplate
+  ekstra di route handler, tapi nol risiko konflik pada fungsi #636 yang
+  sudah lolos tiga putaran review.
+
+### Renderer — iframe `youtube-nocookie.com`, CSP `frame-src` diperluas
+
+`_shared/rendering/video-news-block-renderer.ts` (pola sama
+`gallery-block-renderer.ts`, Issue #681 — neutral ground, tidak meng-import
+dari `blog_content`/`news_portal` mana pun) membangun `<iframe src="https://
+www.youtube-nocookie.com/embed/{videoId}">` HANYA dari `provider`+`videoId`
+tervalidasi — TIDAK PERNAH dari field HTML mentah apa pun (tidak ada field
+seperti itu dalam skema block ini sama sekali). `astro.config.mjs`'s CSP
+`frame-src` diperluas menambahkan origin ini (pola sama penambahan
+Cloudflare Turnstile, Issue #588) — tanpa ini, browser akan MEMBLOKIR iframe
+tersebut meski markup-nya sudah aman. Thumbnail kustom (bila resolve)
+dirender sebagai `<img class="video-news-thumbnail">` terpisah SEBELUM
+iframe; `sourceLabel`/`caption` dirender sebagai teks ter-escape sesudahnya.
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `src/modules/blog-content/domain/video-news-block-validation.ts` (baru).
+- `src/modules/blog-content/application/video-news-thumbnail-reference-gate.ts`
+  (baru).
+- `src/modules/_shared/rendering/video-news-block-renderer.ts` (baru).
+- `src/modules/blog-content/domain/content-block-media-references.ts`:
+  tambah `collectVideoNewsThumbnailReferences` (aditif).
+- `src/modules/blog-content/domain/content-block-rendering.ts`: tambah
+  union `video_news`, `case` baru di `renderBlock`, fungsi
+  `collectRenderableVideoNewsThumbnailMediaObjectIds` (aditif).
+- `astro.config.mjs`: `frame-src` tambah `https://www.youtube-nocookie.com`.
+- `src/pages/api/v1/blog/posts/index.ts`, `[id].ts`,
+  `src/pages/api/v1/blog/pages/index.ts`, `[id].ts`,
+  `src/pages/api/v1/blog/posts/[id]/revisions/[revisionId]/restore.ts`:
+  panggil `validateAndNormalizeContentJsonVideoBlocks` (unconditional,
+  400 VALIDATION_ERROR) DAN
+  `validateVideoNewsThumbnailReferencesForFullOnlineR2Mode` (mode-gated,
+  422 NEWS_MEDIA_REFERENCE_INVALID, reuse kode error yang sama dengan #636).
+- `src/pages/news/[slug].ts`, `src/pages/blog/[tenantCode]/[slug].ts`:
+  gabungkan id thumbnail video ke bulk `resolveMediaReferences` yang sama
+  dengan featured+gallery.
+- `i18n/en.po`/`i18n/id.po`:
+  `admin.blog.posts.content_json_hint` diperbarui menyebut `video_news`.
+- `openapi/awcms-mini-public-api.openapi.yaml`: deskripsi `contentJson`
+  (enam lokasi) dan respons 422 (lima lokasi) diperbarui menyebut
+  `video_news`/thumbnail — bentuk schema TIDAK berubah (`contentJson` tetap
+  `type: object` generik).
+- Test: `tests/unit/video-news-block-validation.test.ts`,
+  `tests/unit/video-news-thumbnail-reference-gate.test.ts` (baru);
+  diperbarui: `tests/unit/content-block-media-references.test.ts` (describe
+  block baru untuk `collectVideoNewsThumbnailReferences`),
+  `tests/blog-content-public-rendering.test.ts` (describe block baru untuk
+  rendering `video_news` +
+  `collectRenderableVideoNewsThumbnailMediaObjectIds`); baru:
+  `tests/integration/blog-content-video-news-block.integration.test.ts`
+  (file TERPISAH dari `blog-content-news-media-r2-references.integration.test.ts`
+  #636 — end-to-end: normalisasi videoId dari URL, provider ditolak,
+  videoId tidak valid ditolak, iframe/script mentah ditolak, field asing
+  di-strip, cross-tenant/status-tidak-aman thumbnail ditolak, render publik
+  iframe+thumbnail).
+- Changeset: `.changeset/news-portal-video-news-block-issue-639.md`.
+
+### Belum/di luar cakupan issue ini (untuk issue lanjutan)
+
+- **Provider selain YouTube** (Vimeo, dll) — `VIDEO_NEWS_PROVIDERS`
+  sengaja hanya `["youtube"]` (body issue: "Initial provider allowlist:
+  youtube"). Menambah provider lain butuh fungsi normalisasi id baru per
+  provider di `video-news-block-validation.ts` DAN entry `frame-src` CSP
+  baru di `astro.config.mjs`.
+- **Tenant policy toggle eksplisit** untuk "izinkan thumbnail default
+  provider vs wajib custom R2" — body issue menyebut ini sebagai opsi
+  ("Tenant policy may optionally allow provider default thumbnail"), TIDAK
+  diimplementasikan sebagai setting nyata (thumbnail sudah opsional secara
+  struktural — tidak ada mekanisme "wajibkan custom thumbnail" terpisah).
+  Issue lanjutan yang butuh mode itu boleh menambah field
+  `module_settings` baru, mengikuti pola yang sudah ada.
+- **Homepage section `video_block`** (`homepage-section-policy.ts`'s
+  whitelist, #637's catatan) — dependency (`video_news` block ini) sekarang
+  SUDAH ada, tapi mewiring `sectionType` baru itu sendiri tetap scope issue
+  terpisah, tidak diklaim di sini.
+- **Admin UI picker visual** untuk memilih video/thumbnail — sama seperti
+  #636/#637, admin tetap mengetik JSON `contentJson` manual (textarea yang
+  sudah ada); hanya hint teksnya yang diperbarui.
 
 ## §681 — Capability ports menggantikan import langsung ke `blog_content` (epic #679, BUKAN epic ini — Selesai)
 
