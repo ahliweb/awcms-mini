@@ -348,6 +348,76 @@ describe("database migration runner helpers", () => {
     ).toThrow("transaction control");
   });
 
+  test("stripNonExecutableSqlSpans' word-boundary guard is Unicode-aware, not ASCII-only (security-auditor round-3 follow-up on PR #723)", () => {
+    // A bare identifier ending in a non-ASCII letter immediately followed
+    // by a quote must not re-open the same E-prefix bracketing bug an
+    // ASCII-only \w-style check would miss.
+    const nonAsciiCase = "SELECT café'trap\\';\nROLLBACK;\nSELECT 'trailer';";
+    expect(stripNonExecutableSqlSpans(nonAsciiCase)).toContain("ROLLBACK");
+    expect(() =>
+      assertNoTransactionControl(nonAsciiCase, "999_bad_nonascii.sql")
+    ).toThrow("transaction control");
+  });
+
+  test("stripNonExecutableSqlSpans includes $ in the identifier-continuation class (reviewer round-4 finding on PR #723) — $ is a valid non-first bare-identifier character in Postgres", () => {
+    const dollarCase = "SELECT price$e'trap\\';\nROLLBACK;\nSELECT 'trailer';";
+    expect(stripNonExecutableSqlSpans(dollarCase)).toContain("ROLLBACK");
+    expect(() =>
+      assertNoTransactionControl(dollarCase, "999_bad_dollar_ident.sql")
+    ).toThrow("transaction control");
+  });
+
+  /**
+   * Combinatorial boundary-matrix test (reviewer's explicit recommendation
+   * on PR #723, round 4): four consecutive rounds each found exactly one
+   * more real gap in this same ~15-line function, always a preceding
+   * character the word-boundary check's character class didn't cover —
+   * hand-enumerated one-off examples clearly weren't converging. This
+   * table cross-checks every real Postgres identifier-continuation
+   * character class (letter, non-ASCII letter, digit, underscore, `$`)
+   * against every genuine token-boundary class (whitespace, `(`, `,`,
+   * start-of-string) immediately preceding the `E`/`e` marker, asserting
+   * the marker activates ONLY for genuine boundaries and never for an
+   * identifier-continuation character — closing this class of bug by
+   * exhaustive construction instead of one more hand-picked repro.
+   */
+  const IDENTIFIER_CONTINUATION_PRECEDING_CHARS = [
+    ["ASCII letter", "x"],
+    ["digit", "9"],
+    ["underscore", "_"],
+    ["dollar sign", "$"],
+    ["non-ASCII letter", "é"]
+  ] as const;
+
+  test.each(IDENTIFIER_CONTINUATION_PRECEDING_CHARS)(
+    "boundary matrix: preceding char is a %s — E/e must NOT be read as an escape-string prefix",
+    (_label, prefixChar) => {
+      const sql = `SELECT ${prefixChar}e'trap\\';\nROLLBACK;\nSELECT 'trailer';`;
+      expect(stripNonExecutableSqlSpans(sql)).toContain("ROLLBACK");
+      expect(() =>
+        assertNoTransactionControl(sql, "999_boundary_matrix.sql")
+      ).toThrow("transaction control");
+    }
+  );
+
+  const GENUINE_TOKEN_BOUNDARY_PRECEDING_CHARS = [
+    ["whitespace", " "],
+    ["open paren", "("],
+    ["comma", ","],
+    ["start of string", ""]
+  ] as const;
+
+  test.each(GENUINE_TOKEN_BOUNDARY_PRECEDING_CHARS)(
+    "boundary matrix: preceding char is %s — a genuine standalone E'...' string is still recognized and still catches a real ROLLBACK; after it",
+    (_label, prefixChar) => {
+      const sql = `${prefixChar}E'it\\'s a value';\nROLLBACK;`;
+      expect(stripNonExecutableSqlSpans(sql)).toContain("ROLLBACK");
+      expect(() =>
+        assertNoTransactionControl(sql, "999_boundary_matrix_genuine.sql")
+      ).toThrow("transaction control");
+    }
+  );
+
   test("applied checksum mismatch fails fast", () => {
     expect(() =>
       validateAppliedChecksums(

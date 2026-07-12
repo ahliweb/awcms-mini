@@ -145,7 +145,18 @@ export function stripSingleQuotedStringLiterals(sql: string): string {
  * quote and silently swallowed the genuine top-level `ROLLBACK;`.
  */
 function isIdentifierContinuationChar(ch: string): boolean {
-  return /[A-Za-z0-9_]/.test(ch);
+  // Unicode-aware (`\p{L}`, not just A-Za-z): security-auditor round-3
+  // follow-up — Postgres bare identifiers may continue with any Unicode
+  // letter, not only ASCII, so an ASCII-only check would still misread a
+  // non-ASCII-lettered identifier (e.g. `cafée'...'`) as a fresh E-string
+  // prefix. No migration in this repo uses non-ASCII identifiers today —
+  // this closes the gap opportunistically rather than leaving it as a
+  // documented residual. Also includes `$` (round-4 reviewer finding): `$`
+  // is a valid NON-FIRST character of a bare Postgres identifier (e.g.
+  // `col$1`), so `price$e'\';` was still misread as a fresh escape-string
+  // prefix without it — same root cause as the letter/digit/underscore
+  // cases, just one more character in the same real grammar.
+  return /[\p{L}0-9_$]/u.test(ch);
 }
 
 export function stripNonExecutableSqlSpans(sql: string): string {
