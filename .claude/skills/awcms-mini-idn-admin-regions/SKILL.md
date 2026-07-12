@@ -56,7 +56,7 @@ menginvestigasi ulang dari nol.
 | ----- | ---------------------------------------------------------------------------------------------- | --------------------------------- |
 | #655  | Scaffold modul `idn_admin_regions` (descriptor, permission catalog, README)                    | **Selesai** — lihat §655 di bawah |
 | #656  | Vendor source metadata + license `cahyadsn/wilayah` di bawah `data/idn-admin-regions/`         | **Selesai** — lihat §656 di bawah |
-| #657  | Schema PostgreSQL versioned (`awcms_mini_idn_region_datasets`, `awcms_mini_idn_admin_regions`) | Belum dikerjakan                  |
+| #657  | Schema PostgreSQL versioned (`awcms_mini_idn_region_datasets`, `awcms_mini_idn_admin_regions`) | **Selesai** — lihat §657 di bawah |
 | #658  | Parser & normalizer SQL dump upstream `cahyadsn/wilayah` (MySQL-style insert dumps)            | Belum dikerjakan                  |
 | #659  | Validation gate repository untuk file dataset yang di-vendor/dinormalisasi                     | Belum dikerjakan                  |
 | #660  | Import pipeline PostgreSQL (dry-run/commit)                                                    | Belum dikerjakan                  |
@@ -248,22 +248,141 @@ db/wilayah_penduduk.sql,db/wilayah_luas.sql}`.
 - Tidak ada perubahan `src/`, migration, endpoint, atau test kode —
   murni vendoring data + metadata provenance, sesuai scope issue.
 
-## Catatan untuk issue lanjutan (#657-#664)
+## §657 — Schema PostgreSQL versioned (Selesai)
 
-- **#657 (schema)**: dua tabel — `awcms_mini_idn_region_datasets`
-  (metadata dataset per-import: source repo/path/commit SHA/license/
-  checksum/status/row count) dan `awcms_mini_idn_admin_regions` (region
-  ternormalisasi: code/parent_code/level/region_type/nama). **Global
-  reference data, BUKAN tenant-scoped** — TIDAK ada kolom `tenant_id`,
-  TIDAK ada RLS tenant-isolation (beda dari template
-  `awcms-mini-new-migration` standar yang mengasumsikan tenant-scoped by
-  default) — baca skill itu sendiri §"Tabel BARU tanpa tenant_id/RLS"
-  untuk kewajiban grant eksplisit + entry `RLS_FREE_TABLES`/
-  `ALLOWED_GLOBAL_TABLE_GRANTS` di `scripts/security-readiness.ts`. Unique
-  index `(dataset_id, code)`, index `(dataset_id, parent_code)`, "hanya
-  satu dataset aktif" (kemungkinan partial unique index `WHERE
-status='active'` pada `dataset_id` atau kolom serupa — implementor
-  memutuskan bentuk persis saat issue itu dikerjakan).
+Implementasi lengkap: migration `sql/054_awcms_mini_idn_admin_regions_schema.sql`
+menambah dua tabel — `awcms_mini_idn_region_datasets` (metadata satu baris
+per dataset/versi yang diimpor: `dataset_code` unik, source
+repo/path/commit SHA/license/checksum, `row_count`, `status`,
+`validation_summary` jsonb, `created_at`/`created_by`,
+`activated_at`/`activated_by`) dan `awcms_mini_idn_admin_regions` (satu
+baris per region ternormalisasi milik satu `dataset_id`: `code`/
+`code_compact`/`parent_code`/`level`/`region_type`/`local_term`/
+`official_name`/`normalized_name`/`full_path_code`/`full_path_name`/
+`province_code`/`regency_code`/`district_code`/`village_code`/
+`source_row_hash`/`metadata` jsonb). Kolom persis sesuai daftar di body
+issue #657 sendiri — tidak ditambah/dikurangi.
+
+### Keputusan/judgment call issue ini (mengikat untuk issue lanjutan)
+
+1. **Global reference data, BUKAN tenant-scoped** — TIDAK ada kolom
+   `tenant_id`, TIDAK ada RLS, TIDAK ada `CREATE POLICY` (beda dari
+   template default `awcms-mini-new-migration`, yang mengasumsikan
+   tenant-scoped). Kedua tabel ditambahkan ke `RLS_FREE_TABLES` DAN
+   `ALLOWED_GLOBAL_TABLE_GRANTS` di `scripts/security-readiness.ts` —
+   tanpa keduanya `checkRlsEnabled`/`checkRuntimeRoleGlobalTableGrants`
+   akan gagal begitu tabel ini ada di database migrated. Diverifikasi
+   langsung: `bun run security:readiness` terhadap DB nyata setelah
+   migration di-apply — kedua check PASS.
+2. **`awcms_mini_app` diberi NOL grant pada kedua tabel ini** — bukan
+   grant read-only "jaga-jaga". `ALTER DEFAULT PRIVILEGES` migration 013
+   otomatis meng-grant `SELECT, INSERT, UPDATE, DELETE` ke `awcms_mini_app`
+   begitu `CREATE TABLE` jalan (persis seperti 9 tabel global lain sebelum
+   migration 045 menyempitkannya) — migration `054` langsung
+   `REVOKE ALL ... FROM awcms_mini_app` pada kedua tabel di transaction
+   yang sama. Alasan: issue ini SCHEMA ONLY, tidak ada jalur kode apa pun
+   yang membaca/menulis tabel ini sekarang (`awcms_mini_worker`/
+   `awcms_mini_setup` sudah otomatis nol karena tidak ada
+   `ALTER DEFAULT PRIVILEGES` untuk mereka). Diverifikasi via `psql \dp`
+   terhadap DB nyata setelah migrate: hanya role owner (`awcms-mini`) yang
+   muncul di access privileges, `awcms_mini_app` sudah hilang sepenuhnya
+   dari ACL. Issue lanjutan menambah grant PERSIS yang jalur kode barunya
+   butuhkan, di migration mereka sendiri — jangan asumsikan
+   `awcms_mini_app` sudah punya SELECT/INSERT di sini, tambahkan
+   eksplisit (#660 import perlu INSERT+UPDATE, #661 activate/rollback
+   perlu UPDATE pada `status`/`activated_at`/`activated_by`, #662 lookup
+   API perlu SELECT).
+3. **"Hanya satu dataset aktif" via partial unique index pada kolom
+   `status` itu sendiri** —
+   `CREATE UNIQUE INDEX ... ON awcms_mini_idn_region_datasets (status)
+WHERE status = 'active'`. Karena setiap baris yang ter-index oleh
+   partial index ini pasti bernilai `'active'` (sama persis), constraint
+   unique pada kolom itu berarti maksimal SATU baris bisa punya
+   `status = 'active'` — trik idiom Postgres standar untuk "singleton
+   flag" tanpa perlu kolom boolean/computed terpisah. Index yang sama
+   sekaligus jadi index tercepat untuk query default #662 ("cari dataset
+   aktif"). Diverifikasi via integration test nyata (insert baris aktif
+   kedua ditolak, insert baris `validated`/`superseded` lain tetap boleh,
+   dan setelah baris pertama di-`UPDATE ... SET status='superseded'`
+   slot aktif terbuka lagi untuk baris lain).
+4. **CHECK constraint `status`** dibatasi ke
+   `('validated','active','superseded','rejected')` — nilai `validated`/
+   `active` diambil LANGSUNG dari kalimat eksplisit body issue #660
+   ("Leave dataset as `validated`, not `active`") dan #661 ("Only one
+   dataset can be active at a time" + rollback mengaktifkan kembali
+   dataset sebelumnya). `superseded` menampung dataset yang PERNAH aktif
+   lalu digantikan/di-rollback (mempertahankan `activated_at`/
+   `activated_by` historis — lihat catatan #661 "Dataset source metadata
+   remains immutable after activation", hanya `status` yang berubah).
+   `rejected` disediakan untuk kemungkinan mencatat percobaan impor yang
+   gagal validasi. **Daftar ini bukan final** — issue #659/#660/#661
+   boleh menambah `ALTER TABLE ... DROP/ADD CONSTRAINT` di migration baru
+   kalau butuh nilai lifecycle tambahan yang tidak diantisipasi issue
+   schema-only ini; ini BUKAN mengedit migration `054` yang sudah rilis.
+5. **CHECK constraint `region_type`** dibatasi ke
+   `('province','regency','district','village')` — istilah PERSIS yang
+   sudah dipakai `src/modules/idn-admin-regions/README.md` sejak #655.
+   `level` (smallint) di-CHECK `BETWEEN 1 AND 4`, mencerminkan 4 tingkat
+   hierarki yang sama secara numerik (province=1..village=4) — disinkron
+   manual oleh penulis baris (#658 normalizer / #660 importer), BUKAN
+   generated column, karena pemetaan ini fakta domain tetap, bukan
+   turunan dari kolom lain di baris yang sama.
+6. **Index**: unique `(dataset_id, code)` (persis acceptance criteria —
+   `code` hanya unik DALAM satu dataset, dataset baru boleh punya baris
+   `code` yang sama seperti dataset lama karena me-reimpor hierarki dari
+   nol), index `(dataset_id, parent_code)` (parent lookup), index
+   `(dataset_id, normalized_name)` (search index — diberi awalan
+   `dataset_id` karena setiap query nyata selalu dataset-scoped, sesuai
+   default #662 "query dataset aktif kecuali diminta eksplisit"). Tidak
+   pakai `pg_trgm`/GIN — repo ini belum punya precedent extension
+   tersebut di manapun di `sql/`, dan acceptance criteria tidak meminta
+   fuzzy substring search; btree biasa cukup untuk equality/prefix/ORDER
+   BY yang #662 kemungkinan besar butuhkan.
+7. **Tidak ada kolom soft-delete** (`deleted_at`/`deleted_by`/dst.) pada
+   kedua tabel — daftar kolom di body issue #657 sendiri sudah eksplisit
+   dan tidak menyebutkannya; dataset/region di sini berperilaku lebih
+   dekat ke "riwayat versi append-only" (tidak ada issue manapun di epic
+   ini yang menghapus dataset) daripada master data yang bisa
+   diarsipkan. `created_by`/`activated_by` sengaja `uuid` polos tanpa FK
+   — pola yang SAMA dipakai di seluruh repo ini untuk kolom actor-id
+   (`awcms_mini_offices.created_by`, `awcms_mini_email_messages.created_by`,
+   dst.), bukan pengecualian baru.
+8. **Migration test**: `tests/integration/idn-admin-regions-schema.integration.test.ts`
+   — karena tabel ini TIDAK tenant-scoped, test ini TIDAK menguji isolasi
+   RLS (beda dari kebanyakan `*-schema.integration.test.ts` lain di repo
+   ini) — sebaliknya membuktikan KETIADAAN `tenant_id`/RLS secara
+   eksplisit, plus constraint nyata: unique `(dataset_id, code)`, index
+   parent lookup, index search `normalized_name`, single-active-dataset,
+   CHECK `status`/`region_type`/`level`, dan nol grant `awcms_mini_app`.
+   Semua query test lewat `getAdminSql()` (koneksi migration owner) —
+   BUKAN `getTestSql()` (role `awcms_mini_app`) — karena `awcms_mini_app`
+   memang sengaja nol akses pada tabel ini di issue ini (lihat poin 2 di
+   atas); pola yang sama dipakai
+   `module-management-schema.integration.test.ts` sebelum modul itu
+   punya service pertamanya (Issue #513).
+9. **Data provenance nyata dari #656 dipakai di test** — konstanta
+   commit SHA (`cae306278e5be616c83ba2d8096b00767f45b5fe`) dan checksum
+   `db/wilayah.sql` (`data/idn-admin-regions/manifest.json`) disalin
+   verbatim ke dalam test sebagai bukti bahwa `source_commit_sha`/
+   `source_file_sha256` (`text`, tanpa batasan panjang) benar-benar bisa
+   menampung nilai asli tersebut, bukan hanya placeholder pendek.
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `sql/054_awcms_mini_idn_admin_regions_schema.sql`.
+- `scripts/security-readiness.ts` (`RLS_FREE_TABLES` +
+  `ALLOWED_GLOBAL_TABLE_GRANTS` — dua entry baru, nol grant).
+- Test: `tests/integration/idn-admin-regions-schema.integration.test.ts`.
+- Docs: `.claude/skills/awcms-mini-idn-admin-regions/SKILL.md` (file ini),
+  `src/modules/idn-admin-regions/README.md` (status tabel),
+  `docs/awcms-mini/04_erd_data_dictionary.md` (entri baru + table
+  ownership matrix), `docs/awcms-mini/repo-inventory.md` (regenerated).
+- Changeset: `.changeset/idn-admin-regions-schema-issue-657.md`.
+- Tidak ada perubahan OpenAPI/AsyncAPI — tidak ada endpoint/event baru di
+  issue ini (lookup API adalah #662).
+
+## Catatan untuk issue lanjutan (#658-#664)
+
 - **#658 (parser)**: HARUS bisa jalan tanpa runtime MySQL (acceptance
   criteria eksplisit) — parser dump SQL MySQL-style insert secara string,
   BUKAN eksekusi SQL apa pun (baik terhadap Postgres maupun MySQL).
