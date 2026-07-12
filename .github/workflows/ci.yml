@@ -263,6 +263,13 @@ jobs:
           APP_TIMEZONE: "Asia/Jakarta"
           AUTH_JWT_SECRET: "ci-e2e-jwt-secret-not-a-real-secret"
           AUTH_COOKIE_SECURE: "false"
+          # VISITOR_ANALYTICS_ENABLED now defaults to false (Issue #624 audit
+          # addendum, privacy-first for new installs) — admin-analytics-
+          # dashboard.e2e.ts exercises the dashboard itself and needs at
+          # least one real collected session (its own page visit), so this
+          # E2E run explicitly opts in rather than relying on the new
+          # default, same as any deployment that wants the feature on.
+          VISITOR_ANALYTICS_ENABLED: "true"
 
       - name: "Phase 1 — wait for app health check"
         run: |
