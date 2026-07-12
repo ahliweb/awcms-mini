@@ -904,6 +904,12 @@ pola 3-2-1) dan restore drill terjadwal (`deploy/backup/restore-drill.sh`)
 dikonfigurasi, sehingga deployment offline/LAN tetap sepenuhnya lokal bila
 diinginkan.
 
+Sejak Issue #699: `bun run resilience:dr-drill` memperluas verifikasi ini
+ke failure-injection terkontrol (disconnect PostgreSQL, pool saturation,
+worker interruption, partial provider outage) plus tier `--full` yang
+menjalankan `restore-drill.sh` — lihat
+[`resilience-dr-verification.md`](resilience-dr-verification.md).
+
 ## Lihat juga
 
 - [`deploy-coolify.md`](deploy-coolify.md) — panduan deploy Coolify
@@ -916,6 +922,9 @@ diinginkan.
   — checklist production readiness dan go-live plan.
 - `.claude/skills/awcms-mini-production-preflight/SKILL.md` — command
   preflight lengkap termasuk `config:validate`.
+- [`resilience-dr-verification.md`](resilience-dr-verification.md) —
+  failure-injection dan disaster-recovery verification (Issue #699),
+  `bun run resilience:dr-drill`, safety interlock, dan RTO/RPO evidence.
 - [`visitor-analytics.md`](visitor-analytics.md) — panduan lengkap mode
   offline/LAN vs online, privacy-first default, retensi, dan pemetaan
   kepatuhan modul visitor analytics.

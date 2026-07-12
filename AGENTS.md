@@ -239,6 +239,7 @@ bun run config:validate          # validasi env/config sebelum apapun jalan
 bun run config:docs:check        # validasi src/lib/config/registry.ts <-> .env.example <-> doc 18 sinkron (bagian dari `bun run check`, Issue #689)
 bun run logging:lint:check       # gate: larang console.error/warn dengan raw error/error.message/error.stack tanpa sanitasi di src/pages/admin, src/pages/api/v1, scripts/ (bagian dari `bun run check`, Issue #687)
 bun run production:preflight     # preflight read-only sebelum go-live (config -> security -> connectivity -> spec -> test -> build -> pool -> migration:plan); apply migrasi terpisah & bergerbang (--apply-migrations --backup-verified --acknowledge-target=<APP_ENV>, Issue #684)
+bun run resilience:dr-drill      # failure-injection & DR verification (safety interlock default-deny target produksi; tier safe default, --full menambah restore-drill.sh; Issue #699)
 bun run email:provider:health    # cek kesehatan provider email (Mailketing)
 bun run sync:objects:dispatch    # job terjadwal: dispatch antrian sync object R2
 bun run logs:audit:purge         # job terjadwal: purge audit log kedaluwarsa

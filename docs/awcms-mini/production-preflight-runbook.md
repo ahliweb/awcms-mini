@@ -4,6 +4,12 @@ Issue #684 (epic #679, platform-hardening). Companion to
 `docs/awcms-mini/07_sprint_testing_production_readiness.md` and skill
 `awcms-mini-production-preflight` — this doc covers the operational
 procedure around `bun run production:preflight`, not the checklist itself.
+See also [`resilience-dr-verification.md`](resilience-dr-verification.md)
+(Issue #699) for `bun run resilience:dr-drill` — controlled failure-
+injection and DR verification (worker interruption, provider outages,
+backup/restore/rollback), a complementary but distinct tool: preflight
+checks readiness to migrate/deploy; the DR drill proves recovery
+behavior actually works under a controlled failure.
 
 ## Why this exists
 
@@ -42,7 +48,16 @@ copy of production.
    ```
 4. Smoke-test staging (setup wizard already run / admin login / a
    representative CRUD flow per module touched by the pending migrations).
-5. Only proceed to production once staging rehearsal is clean.
+5. Run the full DR drill against the SAME staging environment (Issue
+   #699, [`resilience-dr-verification.md`](resilience-dr-verification.md)):
+   ```bash
+   APP_ENV=staging DATABASE_URL=<staging-url> \
+   bun run resilience:dr-drill -- --confirm-non-production=staging --full
+   ```
+   Confirm `overall = pass` — this is the H-7/H-3 backup/restore/rollback
+   rehearsal evidence doc 07's go-live plan calls for, produced as a
+   reproducible JSON report rather than an ad hoc manual restore.
+6. Only proceed to production once staging rehearsal is clean.
 
 ## Stage 2 — Backup evidence (required before any `--apply-migrations`)
 

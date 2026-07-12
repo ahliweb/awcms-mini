@@ -118,6 +118,21 @@ jobs:
       - name: Unit + integration tests (bun test)
         run: bun test
 
+      # Issue #699 (epic #679): the "safe" tier only (fast, deterministic,
+      # no real network calls, no version-sensitive pg_dump/pg_restore
+      # requirement) — the "full" tier (adds a real backup/restore/rollback
+      # round trip via deploy/backup/restore-drill.sh) is intentionally NOT
+      # run here; see docs/awcms-mini/resilience-dr-verification.md §CI
+      # safe subset vs. full drill cadence for the scheduled/on-demand full
+      # run. APP_ENV=test (never production) + --confirm-non-production=test
+      # satisfy the drill's own non-overridable safety interlock
+      # (src/lib/resilience/target-guard.ts) — this step can never touch
+      # anything that looks like production, by construction.
+      - name: DR/resilience drill (safe subset)
+        env:
+          APP_ENV: test
+        run: bun run resilience:dr-drill -- --confirm-non-production=test
+
       - name: Build Astro foundation
         run: bun run build
 
