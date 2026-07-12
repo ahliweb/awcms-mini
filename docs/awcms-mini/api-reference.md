@@ -4793,6 +4793,537 @@ R2-only advertisement placement presets for the news portal (epic `news_portal` 
 | 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
+## Social Publishing
+
+Provider-neutral social auto-posting outbox and connector foundation (epic `social_publishing` #643-#647, Issue #643) — account connect/disconnect (secret tokens stored only as an opaque `tokenReference` pointer, never plain text), publish rule/caption-template CRUD, an idempotent outbox job queue with approval/cancel/retry, per-job attempt history, and a per-tenant auto-posting master switch. This issue ships ZERO real provider adapters — no Meta/LinkedIn/Telegram HTTP call exists anywhere; the actual provider call happens later, entirely outside any DB transaction, via a separate internal dispatcher (`bun run social-publishing:dispatch`), not exposed over HTTP.
+
+### `GET /api/v1/social-publishing/accounts` — List this tenant's connected/disconnected social accounts
+
+- **operationId**: `socialPublishingAccountsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                           | Schema                                                   |
+| ------ | --------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Social accounts. `token_reference` is never included in any response. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                          | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                   | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                        | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                            | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/social-publishing/accounts` — Connect (or reconnect/reauthorize) a social account
+
+- **operationId**: `socialPublishingAccountsConnect`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation — writes a `tokenReference` (opaque secret-storage pointer, never a raw token/JWT — rejected by write-time validation if it looks like one). Requires `Idempotency-Key`. Upserts on `(providerKey, providerAccountId)` — reconnecting an already-known account (e.g. after `needs_reauth`) IS the reauthorization flow.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`SocialAccountConnectRequest`](#schema-socialaccountconnectrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 200    | Social account connected.                                                                                                                                                                                        | [`ApiSuccess`](#standard-success-envelope)&lt;[`SocialAccountItem`](#schema-socialaccountitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                             |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                             |
+| 409    | Idempotency-Key reused with a different request.                                                                                                                                                                 | [`ApiError`](#standard-error-envelope)                                                             |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                             |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                             |
+
+### `GET /api/v1/social-publishing/accounts/{id}` — Get a social account by id
+
+- **operationId**: `socialPublishingAccountsGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                                                             |
+| ------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 200    | Social account.                                     | [`ApiSuccess`](#standard-success-envelope)&lt;[`SocialAccountItem`](#schema-socialaccountitem)&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                                                             |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                             |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                             |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                             |
+
+### `PATCH /api/v1/social-publishing/accounts/{id}` — Toggle per-account auto-publish enablement
+
+- **operationId**: `socialPublishingAccountsUpdateAutoPublish`
+- **Security**: bearerAuth + tenantHeader
+
+Only touches `autoPublishEnabled` — no credential change, gated by `rules.configure` (not `accounts.connect`/`.disconnect`).
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 200    | Social account updated.                                                                                                                                                                                          | [`ApiSuccess`](#standard-success-envelope)&lt;[`SocialAccountItem`](#schema-socialaccountitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                             |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                             |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                             |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                             |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                             |
+
+### `POST /api/v1/social-publishing/accounts/{id}/disconnect` — Disconnect a social account
+
+- **operationId**: `socialPublishingAccountsDisconnect`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation — clears `tokenReference`, stops all auto-publishing for this account. Requires `Idempotency-Key`. A status transition, not a delete (no `accounts.delete` permission exists).
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 200    | Social account disconnected.                                                                                                                                                                                     | [`ApiSuccess`](#standard-success-envelope)&lt;[`SocialAccountItem`](#schema-socialaccountitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                             |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                             |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                             |
+| 409    | Idempotency-Key reused with a different request.                                                                                                                                                                 | [`ApiError`](#standard-error-envelope)                                                             |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                             |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                             |
+
+### `GET /api/v1/social-publishing/jobs` — List this tenant's social publish jobs
+
+- **operationId**: `socialPublishingJobsList`
+- **Security**: bearerAuth + tenantHeader
+
+Bounded list (max 200), optional `status` filter. Full keyset pagination is a documented follow-up, not implemented in this foundation issue.
+
+**Parameters**
+
+| Name               | In     | Required | Type                                                                                                                                                       | Description                                 |
+| ------------------ | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `status`           | query  | no       | enum(`pending`, `requires_approval`, `approved`, `scheduled`, `publishing`, `published`, `failed`, `cancelled`, `skipped`, `rate_limited`, `needs_reauth`) |                                             |
+| `X-Correlation-ID` | header | no       | string                                                                                                                                                     | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                                                                                                                                                     | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Social publish jobs.                           | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/social-publishing/jobs/{id}` — Get a social publish job with its full attempt history
+
+- **operationId**: `socialPublishingJobsGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                                                                            |
+| ------ | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 200    | Social publish job with attempts.                   | [`ApiSuccess`](#standard-success-envelope)&lt;[`SocialPublishJobItem`](#schema-socialpublishjobitem) & object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                                                                            |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                                            |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                                            |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                                            |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                                            |
+
+### `POST /api/v1/social-publishing/jobs/{id}/approve` — Approve a job pending external posting
+
+- **operationId**: `socialPublishingJobsApprove`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation — unblocks external posting. Requires `Idempotency-Key`. Only valid from `requires_approval`.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (optional): object
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 200    | Job approved.                                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)&lt;[`SocialPublishJobItem`](#schema-socialpublishjobitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                   |
+| 409    | Idempotency-Key reused with a different request, or the job is not awaiting approval.                                                                                                                            | [`ApiError`](#standard-error-envelope)                                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                   |
+
+### `POST /api/v1/social-publishing/jobs/{id}/cancel` — Cancel a job
+
+- **operationId**: `socialPublishingJobsCancel`
+- **Security**: bearerAuth + tenantHeader
+
+Requires `Idempotency-Key`. Valid from any non-terminal-success status.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 200    | Job cancelled.                                                                                                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;[`SocialPublishJobItem`](#schema-socialpublishjobitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                   |
+| 409    | Idempotency-Key reused with a different request, or the job cannot be cancelled from its current status.                                                                                                         | [`ApiError`](#standard-error-envelope)                                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                   |
+
+### `POST /api/v1/social-publishing/jobs/{id}/retry` — Retry a failed/rate-limited/needs-reauth job
+
+- **operationId**: `socialPublishingJobsRetry`
+- **Security**: bearerAuth + tenantHeader
+
+Requires `Idempotency-Key`. Valid from `failed`/`rate_limited`/`needs_reauth`, only while the retry budget (`attemptCount < maxAttempts`) is not exhausted. `attemptCount` is NOT reset by a manual retry.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                         | Schema                                                                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 200    | Job retry requested.                                                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;[`SocialPublishJobItem`](#schema-socialpublishjobitem)&gt; |
+| 400    | Validation or request error.                                                                                        | [`ApiError`](#standard-error-envelope)                                                                   |
+| 401    | Authentication required or expired.                                                                                 | [`ApiError`](#standard-error-envelope)                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                      | [`ApiError`](#standard-error-envelope)                                                                   |
+| 409    | Idempotency-Key reused with a different request, or the job cannot be retried from its current status/retry budget. | [`ApiError`](#standard-error-envelope)                                                                   |
+| 500    | Internal server error without stack trace.                                                                          | [`ApiError`](#standard-error-envelope)                                                                   |
+
+### `GET /api/v1/social-publishing/rules` — List this tenant's social publish rules
+
+- **operationId**: `socialPublishingRulesList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Social publish rules.                          | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/social-publishing/rules` — Create a social publish rule
+
+- **operationId**: `socialPublishingRulesCreate`
+- **Security**: bearerAuth + tenantHeader
+
+Not idempotent (same low-risk admin-config-mutation class as ad placement/homepage section creation). `socialAccountId` must reference an existing account for this tenant.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`SocialPublishRuleCreateRequest`](#schema-socialpublishrulecreaterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 200    | Social publish rule created.                                                                                                                                                                                     | [`ApiSuccess`](#standard-success-envelope)&lt;[`SocialPublishRuleItem`](#schema-socialpublishruleitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                     |
+| 422    | socialAccountId does not reference an existing account for this tenant.                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                                                     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                     |
+
+### `PATCH /api/v1/social-publishing/rules/{id}` — Update a social publish rule
+
+- **operationId**: `socialPublishingRulesUpdate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`SocialPublishRuleUpdateRequest`](#schema-socialpublishruleupdaterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 200    | Social publish rule updated.                                                                                                                                                                                     | [`ApiSuccess`](#standard-success-envelope)&lt;[`SocialPublishRuleItem`](#schema-socialpublishruleitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                     |
+
+### `DELETE /api/v1/social-publishing/rules/{id}` — Soft-delete a social publish rule
+
+- **operationId**: `socialPublishingRulesDelete`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Social publish rule deleted.                                                                                                                                                                                     | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/social-publishing/settings` — Get this tenant's social publishing settings
+
+- **operationId**: `socialPublishingSettingsGet`
+- **Security**: bearerAuth + tenantHeader
+
+The tenant half of "Auto-posting can be disabled globally and per tenant" (the global half is the deployment-level `SOCIAL_PUBLISHING_ENABLED`/`SOCIAL_PUBLISHING_PROFILE` env gate).
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                                                                                   |
+| ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 200    | Social publishing settings.                    | [`ApiSuccess`](#standard-success-envelope)&lt;[`SocialPublishingSettingsItem`](#schema-socialpublishingsettingsitem)&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                                   |
+
+### `PATCH /api/v1/social-publishing/settings` — Toggle the tenant-wide auto-posting master switch
+
+- **operationId**: `socialPublishingSettingsUpdate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 200    | Social publishing settings updated.                                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope)&lt;[`SocialPublishingSettingsItem`](#schema-socialpublishingsettingsitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                                   |
+
+### `GET /api/v1/social-publishing/templates` — List this tenant's caption templates
+
+- **operationId**: `socialPublishingTemplatesList`
+- **Security**: bearerAuth + tenantHeader
+
+Gated by `rules.read` — templates are configured alongside rules, no separate `templates.*` permission.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Caption templates.                             | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/social-publishing/templates` — Create a caption template
+
+- **operationId**: `socialPublishingTemplatesCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`SocialPublishTemplateCreateRequest`](#schema-socialpublishtemplatecreaterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 200    | Caption template created.                                                                                                                                                                                        | [`ApiSuccess`](#standard-success-envelope)&lt;[`SocialPublishTemplateItem`](#schema-socialpublishtemplateitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                             |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                             |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                             |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                             |
+
+### `PATCH /api/v1/social-publishing/templates/{id}` — Update a caption template
+
+- **operationId**: `socialPublishingTemplatesUpdate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`SocialPublishTemplateUpdateRequest`](#schema-socialpublishtemplateupdaterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 200    | Caption template updated.                                                                                                                                                                                        | [`ApiSuccess`](#standard-success-envelope)&lt;[`SocialPublishTemplateItem`](#schema-socialpublishtemplateitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                             |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                             |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                             |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                             |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                             |
+
+### `DELETE /api/v1/social-publishing/templates/{id}` — Soft-delete a caption template
+
+- **operationId**: `socialPublishingTemplatesDelete`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Caption template deleted.                                                                                                                                                                                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
 ## Schema appendix
 
 Every schema referenced by at least one operation above (excluding the standard envelope schemas, covered in §Standard success/error envelope).
@@ -8437,6 +8968,304 @@ Locale code (2-letter, e.g. "en", "id") to string. Must include an "en" entry.
 }
 ```
 
+### Schema: SocialAccountConnectRequest
+
+| Field                 | Type                                                        | Required | Nullable | Description                                                                                                                                      |
+| --------------------- | ----------------------------------------------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `providerKey`         | string                                                      | yes      | no       |                                                                                                                                                  |
+| `providerAccountId`   | string                                                      | yes      | no       |                                                                                                                                                  |
+| `providerAccountName` | string                                                      | yes      | no       |                                                                                                                                                  |
+| `providerAccountType` | enum(`page`, `profile`, `channel`, `group`, `organization`) | yes      | no       |                                                                                                                                                  |
+| `tokenReference`      | string                                                      | yes      | no       | Opaque reference into external secret storage — NEVER a raw access/refresh token or JWT. Rejected by write-time validation if it looks like one. |
+| `scopes`              | array of string                                             | no       | no       |                                                                                                                                                  |
+| `expiresAt`           | string (date-time)                                          | no       | yes      |                                                                                                                                                  |
+| `autoPublishEnabled`  | boolean                                                     | no       | no       |                                                                                                                                                  |
+
+**Example**
+
+```json
+{
+  "providerKey": "string",
+  "providerAccountId": "string",
+  "providerAccountName": "string",
+  "providerAccountType": "page",
+  "tokenReference": "string",
+  "scopes": ["string"],
+  "expiresAt": "2026-01-01T00:00:00.000Z",
+  "autoPublishEnabled": false
+}
+```
+
+### Schema: SocialAccountItem
+
+| Field                 | Type                                                                  | Required | Nullable | Description                                                                                                                                |
+| --------------------- | --------------------------------------------------------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`                  | string (uuid)                                                         | yes      | no       |                                                                                                                                            |
+| `tenantId`            | string (uuid)                                                         | yes      | no       |                                                                                                                                            |
+| `providerKey`         | string                                                                | yes      | no       | Provider-neutral by design — not a fixed enum (see migration 050's header). Concrete values are minted by adapter issues (#644/#645/#646). |
+| `providerAccountId`   | string                                                                | yes      | no       |                                                                                                                                            |
+| `providerAccountName` | string                                                                | yes      | no       |                                                                                                                                            |
+| `providerAccountType` | enum(`page`, `profile`, `channel`, `group`, `organization`)           | yes      | no       |                                                                                                                                            |
+| `connectionStatus`    | enum(`pending`, `connected`, `disconnected`, `needs_reauth`, `error`) | yes      | no       |                                                                                                                                            |
+| `scopes`              | array of string                                                       | yes      | no       |                                                                                                                                            |
+| `expiresAt`           | string (date-time)                                                    | no       | yes      |                                                                                                                                            |
+| `lastVerifiedAt`      | string (date-time)                                                    | no       | yes      |                                                                                                                                            |
+| `autoPublishEnabled`  | boolean                                                               | yes      | no       |                                                                                                                                            |
+| `connectedAt`         | string (date-time)                                                    | no       | yes      |                                                                                                                                            |
+| `disconnectedAt`      | string (date-time)                                                    | no       | yes      |                                                                                                                                            |
+| `createdAt`           | string (date-time)                                                    | yes      | no       |                                                                                                                                            |
+| `updatedAt`           | string (date-time)                                                    | yes      | no       |                                                                                                                                            |
+
+**Example**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "tenantId": "00000000-0000-0000-0000-000000000000",
+  "providerKey": "string",
+  "providerAccountId": "string",
+  "providerAccountName": "string",
+  "providerAccountType": "page",
+  "connectionStatus": "pending",
+  "scopes": ["string"],
+  "expiresAt": "2026-01-01T00:00:00.000Z",
+  "lastVerifiedAt": "2026-01-01T00:00:00.000Z",
+  "autoPublishEnabled": false,
+  "connectedAt": "2026-01-01T00:00:00.000Z",
+  "disconnectedAt": "2026-01-01T00:00:00.000Z",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: SocialPublishingSettingsItem
+
+| Field                   | Type               | Required | Nullable | Description |
+| ----------------------- | ------------------ | -------- | -------- | ----------- |
+| `tenantId`              | string (uuid)      | yes      | no       |             |
+| `autoPublishingEnabled` | boolean            | yes      | no       |             |
+| `updatedAt`             | string (date-time) | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "tenantId": "00000000-0000-0000-0000-000000000000",
+  "autoPublishingEnabled": false,
+  "updatedAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: SocialPublishJobItem
+
+| Field              | Type                                                                                                                                                       | Required | Nullable | Description                                                              |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------- | ------------------------------------------------------------------------ |
+| `id`               | string (uuid)                                                                                                                                              | yes      | no       |                                                                          |
+| `tenantId`         | string (uuid)                                                                                                                                              | yes      | no       |                                                                          |
+| `socialAccountId`  | string (uuid)                                                                                                                                              | yes      | no       |                                                                          |
+| `ruleId`           | string (uuid)                                                                                                                                              | no       | yes      |                                                                          |
+| `articleId`        | string (uuid)                                                                                                                                              | yes      | no       |                                                                          |
+| `providerKey`      | string                                                                                                                                                     | yes      | no       |                                                                          |
+| `triggerEvent`     | enum(`post_published`, `scheduled_published`, `manual_editor_action`)                                                                                      | yes      | no       |                                                                          |
+| `action`           | enum(`publish`)                                                                                                                                            | yes      | no       |                                                                          |
+| `status`           | enum(`pending`, `requires_approval`, `approved`, `scheduled`, `publishing`, `published`, `failed`, `cancelled`, `skipped`, `rate_limited`, `needs_reauth`) | yes      | no       |                                                                          |
+| `requiresApproval` | boolean                                                                                                                                                    | yes      | no       |                                                                          |
+| `title`            | string                                                                                                                                                     | yes      | no       |                                                                          |
+| `excerptOrCaption` | string                                                                                                                                                     | no       | yes      |                                                                          |
+| `canonicalUrl`     | string                                                                                                                                                     | yes      | no       |                                                                          |
+| `imageUrl`         | string                                                                                                                                                     | no       | yes      |                                                                          |
+| `approvedBy`       | string (uuid)                                                                                                                                              | no       | yes      |                                                                          |
+| `approvedAt`       | string (date-time)                                                                                                                                         | no       | yes      |                                                                          |
+| `attemptCount`     | integer                                                                                                                                                    | yes      | no       |                                                                          |
+| `maxAttempts`      | integer                                                                                                                                                    | yes      | no       |                                                                          |
+| `nextAttemptAt`    | string (date-time)                                                                                                                                         | no       | yes      |                                                                          |
+| `externalPostId`   | string                                                                                                                                                     | no       | yes      |                                                                          |
+| `externalPostUrl`  | string                                                                                                                                                     | no       | yes      |                                                                          |
+| `lastErrorCode`    | string                                                                                                                                                     | no       | yes      | Sanitized, safe-to-display error code — never a raw provider error body. |
+| `lastErrorMessage` | string                                                                                                                                                     | no       | yes      | Sanitized, safe-to-display error message.                                |
+| `cancelledAt`      | string (date-time)                                                                                                                                         | no       | yes      |                                                                          |
+| `cancelReason`     | string                                                                                                                                                     | no       | yes      |                                                                          |
+| `correlationId`    | string                                                                                                                                                     | no       | yes      |                                                                          |
+| `createdAt`        | string (date-time)                                                                                                                                         | yes      | no       |                                                                          |
+| `updatedAt`        | string (date-time)                                                                                                                                         | yes      | no       |                                                                          |
+
+**Example**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "tenantId": "00000000-0000-0000-0000-000000000000",
+  "socialAccountId": "00000000-0000-0000-0000-000000000000",
+  "ruleId": "00000000-0000-0000-0000-000000000000",
+  "articleId": "00000000-0000-0000-0000-000000000000",
+  "providerKey": "string",
+  "triggerEvent": "post_published",
+  "action": "publish",
+  "status": "pending",
+  "requiresApproval": false,
+  "title": "string",
+  "excerptOrCaption": "string",
+  "canonicalUrl": "https://example.com/resource",
+  "imageUrl": "https://example.com/resource",
+  "approvedBy": "00000000-0000-0000-0000-000000000000",
+  "approvedAt": "2026-01-01T00:00:00.000Z",
+  "attemptCount": 0,
+  "maxAttempts": 1,
+  "nextAttemptAt": "2026-01-01T00:00:00.000Z",
+  "externalPostId": "string",
+  "externalPostUrl": "https://example.com/resource",
+  "lastErrorCode": "string",
+  "lastErrorMessage": "string",
+  "cancelledAt": "2026-01-01T00:00:00.000Z",
+  "cancelReason": "string",
+  "correlationId": "string",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: SocialPublishRuleCreateRequest
+
+| Field              | Type                                                                  | Required | Nullable | Description |
+| ------------------ | --------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `socialAccountId`  | string (uuid)                                                         | yes      | no       |             |
+| `triggerEvent`     | enum(`post_published`, `scheduled_published`, `manual_editor_action`) | yes      | no       |             |
+| `requiresApproval` | boolean                                                               | no       | no       |             |
+| `isEnabled`        | boolean                                                               | no       | no       |             |
+| `templateId`       | string (uuid)                                                         | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "socialAccountId": "00000000-0000-0000-0000-000000000000",
+  "triggerEvent": "post_published",
+  "requiresApproval": false,
+  "isEnabled": false,
+  "templateId": "00000000-0000-0000-0000-000000000000"
+}
+```
+
+### Schema: SocialPublishRuleItem
+
+| Field              | Type                                                                  | Required | Nullable | Description |
+| ------------------ | --------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `id`               | string (uuid)                                                         | yes      | no       |             |
+| `tenantId`         | string (uuid)                                                         | yes      | no       |             |
+| `socialAccountId`  | string (uuid)                                                         | yes      | no       |             |
+| `triggerEvent`     | enum(`post_published`, `scheduled_published`, `manual_editor_action`) | yes      | no       |             |
+| `requiresApproval` | boolean                                                               | yes      | no       |             |
+| `isEnabled`        | boolean                                                               | yes      | no       |             |
+| `templateId`       | string (uuid)                                                         | no       | yes      |             |
+| `createdAt`        | string (date-time)                                                    | yes      | no       |             |
+| `updatedAt`        | string (date-time)                                                    | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "tenantId": "00000000-0000-0000-0000-000000000000",
+  "socialAccountId": "00000000-0000-0000-0000-000000000000",
+  "triggerEvent": "post_published",
+  "requiresApproval": false,
+  "isEnabled": false,
+  "templateId": "00000000-0000-0000-0000-000000000000",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: SocialPublishRuleUpdateRequest
+
+| Field              | Type          | Required | Nullable | Description |
+| ------------------ | ------------- | -------- | -------- | ----------- |
+| `requiresApproval` | boolean       | no       | no       |             |
+| `isEnabled`        | boolean       | no       | no       |             |
+| `templateId`       | string (uuid) | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "requiresApproval": false,
+  "isEnabled": false,
+  "templateId": "00000000-0000-0000-0000-000000000000"
+}
+```
+
+### Schema: SocialPublishTemplateCreateRequest
+
+| Field             | Type    | Required | Nullable | Description |
+| ----------------- | ------- | -------- | -------- | ----------- |
+| `providerKey`     | string  | no       | yes      |             |
+| `name`            | string  | yes      | no       |             |
+| `captionTemplate` | string  | yes      | no       |             |
+| `isDefault`       | boolean | no       | no       |             |
+| `isActive`        | boolean | no       | no       |             |
+
+**Example**
+
+```json
+{
+  "providerKey": "string",
+  "name": "string",
+  "captionTemplate": "string",
+  "isDefault": false,
+  "isActive": false
+}
+```
+
+### Schema: SocialPublishTemplateItem
+
+| Field             | Type               | Required | Nullable | Description                                                                          |
+| ----------------- | ------------------ | -------- | -------- | ------------------------------------------------------------------------------------ |
+| `id`              | string (uuid)      | yes      | no       |                                                                                      |
+| `tenantId`        | string (uuid)      | yes      | no       |                                                                                      |
+| `providerKey`     | string             | no       | yes      |                                                                                      |
+| `name`            | string             | yes      | no       |                                                                                      |
+| `captionTemplate` | string             | yes      | no       | Plain-text placeholder template — supports {{title}}, {{excerpt}}, {{canonicalUrl}}. |
+| `isDefault`       | boolean            | yes      | no       |                                                                                      |
+| `isActive`        | boolean            | yes      | no       |                                                                                      |
+| `createdAt`       | string (date-time) | yes      | no       |                                                                                      |
+| `updatedAt`       | string (date-time) | yes      | no       |                                                                                      |
+
+**Example**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "tenantId": "00000000-0000-0000-0000-000000000000",
+  "providerKey": "string",
+  "name": "string",
+  "captionTemplate": "string",
+  "isDefault": false,
+  "isActive": false,
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: SocialPublishTemplateUpdateRequest
+
+| Field             | Type    | Required | Nullable | Description |
+| ----------------- | ------- | -------- | -------- | ----------- |
+| `name`            | string  | no       | no       |             |
+| `captionTemplate` | string  | no       | no       |             |
+| `isDefault`       | boolean | no       | no       |             |
+| `isActive`        | boolean | no       | no       |             |
+
+**Example**
+
+```json
+{
+  "name": "string",
+  "captionTemplate": "string",
+  "isDefault": false,
+  "isActive": false
+}
+```
+
 ### Schema: SsoLinkStartResponse
 
 | Field              | Type   | Required | Nullable | Description                                                                                                                   |
@@ -9896,7 +10725,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (34)
+### Channels (49)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -9931,6 +10760,21 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.email.message.queued` — An email message was enqueued into `awcms_mini_email_messages` (Issue #494/#497). Documented contract only, same convention as `database.pool.saturated` above — the concrete producer is the structured JSON logger, invoked from `email/application/announcement-directory.ts`'s `enqueueAnnouncement` (`email.message.queued` log line).
 - `awcms-mini.email.message.sent` — The email dispatcher (Issue #495, `bun run email:dispatch`) successfully delivered a message through the configured provider. Documented contract only; producer is the structured JSON logger (`email/application/email-dispatch.ts`'s `email.dispatch.sent` log line).
 - `awcms-mini.email.message.suppressed` — The email dispatcher (Issue #499) found a claimed message's recipient newly present on `awcms_mini_email_suppression_list` (added after enqueue, before dispatch) and skipped the provider call entirely. Documented contract only; producer is the structured JSON logger (`email/application/email-dispatch.ts`'s `email.dispatch.suppressed` log line).
+- `awcms-mini.social-publishing.account.connected` — A social account was connected or reconnected/reauthorized (Issue #643). Documented contract only, same producer convention as every other event in this file — the structured JSON logger, invoked from `social-publishing/application/social-account-directory.ts`'s `connectSocialAccount` (`social_publishing.account.connected` audit event + log line).
+- `awcms-mini.social-publishing.account.disconnected` — A social account was disconnected (Issue #643) — a status transition, not a delete. Producer: `social-account-directory.ts`'s `disconnectSocialAccount`.
+- `awcms-mini.social-publishing.account.needs-reauth` — A connected social account's token expired/was rejected by its provider and now requires reauthorization (Issue #643). Producer: `social-account-directory.ts`'s `markSocialAccountNeedsReauth`, called by the outbox dispatcher on a `needs_reauth` publish outcome.
+- `awcms-mini.social-publishing.job.approved` — A job pending approval was approved and may now be dispatched to its provider (Issue #643). Producer: `social-publish-job-directory.ts`'s `approveSocialPublishJob`.
+- `awcms-mini.social-publishing.job.cancelled` — A job was cancelled (Issue #643), from any non-terminal-success status. Producer: `social-publish-job-directory.ts`'s `cancelSocialPublishJob`.
+- `awcms-mini.social-publishing.job.created` — An outbox job was created after an eligible article publish event (Issue #643 acceptance criterion: "Publishing jobs are created after eligible article publish event"). Idempotent per article/account/action (deterministic idempotency key). Producer: `social-publishing/application/create-social-publish-jobs.ts`'s `createSocialPublishJobsForArticle`, invoked by `blog_content`'s publish route/scheduled-publish worker via `SocialPublishingPort`.
+- `awcms-mini.social-publishing.job.needs-reauth` — A provider reported an expired/invalid token for a publish attempt (Issue #643 acceptance criterion: "Support reauthorization flow when token expires") — the linked account is also flipped to `needs_reauth`. Producer: `social-publish-dispatch.ts`.
+- `awcms-mini.social-publishing.job.publish-failed` — A publish attempt failed but is still eligible for exponential backoff retry (Issue #643). Producer: `social-publish-dispatch.ts`.
+- `awcms-mini.social-publishing.job.publish-failed-terminal` — A job permanently failed after exhausting its retry budget (Issue #643 acceptance criterion: "terminal failed state"). Producer: `social-publish-dispatch.ts`.
+- `awcms-mini.social-publishing.job.published` — A job was successfully published to its provider (Issue #643) — `externalPostId`/`externalPostUrl` now set. This foundation issue ships zero real provider adapters, so this event is only ever producible once an adapter (#644/#645/#646) is registered. Producer: `social-publishing/application/social-publish-dispatch.ts`'s `dispatchSocialPublishQueue`.
+- `awcms-mini.social-publishing.job.rate-limited` — A provider reported a rate limit for a publish attempt (Issue #643) — backoff seeded from the provider's own `retryAfterSeconds` hint when present. Producer: `social-publish-dispatch.ts`.
+- `awcms-mini.social-publishing.job.retry-requested` — A manual retry was requested for a failed/rate-limited/needs-reauth job (Issue #643) — `attemptCount` is not reset. Producer: `social-publish-job-directory.ts`'s `retrySocialPublishJob`.
+- `awcms-mini.social-publishing.rule.created` — A social publish rule was created (Issue #643). Producer: `social-publish-rule-directory.ts`'s `createSocialPublishRule`.
+- `awcms-mini.social-publishing.rule.deleted` — A social publish rule was soft-deleted (Issue #643). Producer: `social-publish-rule-directory.ts`'s `softDeleteSocialPublishRule`.
+- `awcms-mini.social-publishing.rule.updated` — A social publish rule was updated (Issue #643). Producer: `social-publish-rule-directory.ts`'s `updateSocialPublishRule`.
 - `awcms-mini.sync.push.requested` — Baseline sync push event envelope for future sync-storage implementation.
 
 ## Compatibility & deprecation policy

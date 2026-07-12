@@ -1,0 +1,662 @@
+---
+/**
+ * Social publish rule + caption template manager (Issue #643). Rules and
+ * templates are managed on one page (both gated by the same
+ * `rules.read`/`rules.configure` permissions, no separate `templates.*`
+ * permission exists — migration 050's header). Create/update/delete are
+ * idempotent-by-construction admin-config mutations (same class as
+ * `admin/news-portal/ad-placements.astro`), no `Idempotency-Key` required.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import { listSocialPublishRules } from "../../../modules/social-publishing/application/social-publish-rule-directory";
+import { listSocialPublishTemplates } from "../../../modules/social-publishing/application/social-publish-template-directory";
+import { listSocialAccounts } from "../../../modules/social-publishing/application/social-account-directory";
+import { SOCIAL_PUBLISH_TRIGGER_EVENTS } from "../../../modules/social-publishing/domain/social-publish-rule-validation";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/social-publishing/rules.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ = context.permissions.has(
+  permissionKey("social_publishing", "rules", "read")
+);
+const CAN_CONFIGURE = context.permissions.has(
+  permissionKey("social_publishing", "rules", "configure")
+);
+
+const clientStrings = {
+  createSuccess: t("admin.social_publishing.rules.create_success"),
+  updateSuccess: t("admin.social_publishing.rules.update_success"),
+  deleteSuccess: t("admin.social_publishing.rules.delete_success"),
+  deleteReasonPrompt: t("admin.social_publishing.rules.delete_reason_prompt"),
+  deleteConfirm: t("admin.social_publishing.rules.delete_confirm"),
+  templateCreateSuccess: t(
+    "admin.social_publishing.rules.template_create_success"
+  ),
+  templateUpdateSuccess: t(
+    "admin.social_publishing.rules.template_update_success"
+  ),
+  templateDeleteSuccess: t(
+    "admin.social_publishing.rules.template_delete_success"
+  ),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+let rules: Awaited<ReturnType<typeof listSocialPublishRules>> = [];
+let templates: Awaited<ReturnType<typeof listSocialPublishTemplates>> = [];
+let accounts: Awaited<ReturnType<typeof listSocialAccounts>> = [];
+let loadError = false;
+
+if (CAN_READ) {
+  try {
+    await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
+      rules = await listSocialPublishRules(tx, context.tenantId);
+      templates = await listSocialPublishTemplates(tx, context.tenantId);
+      accounts = await listSocialAccounts(tx, context.tenantId);
+    });
+  } catch (error) {
+    logAdminPageError(
+      "admin/social-publishing/rules.astro: failed to load rules/templates",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
+    loadError = true;
+  }
+}
+---
+
+<AdminLayout title={t("admin.social_publishing.rules.title")}>
+  {
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.social_publishing.access_denied_title")}
+        body={t("admin.social_publishing.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ && !loadError && (
+      <div class="config-manager">
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        <h2>{t("admin.social_publishing.rules.section_rules")}</h2>
+        {rules.length === 0 ? (
+          <p class="empty-state">
+            {t("admin.social_publishing.rules.no_rules")}
+          </p>
+        ) : (
+          rules.map((rule) => (
+            <section class="section-card">
+              <h3>
+                {rule.triggerEvent}{" "}
+                <span class="section-type-badge">{rule.socialAccountId}</span>
+              </h3>
+              {CAN_CONFIGURE && (
+                <form class="edit-rule-form" data-id={rule.id}>
+                  <label class="checkbox-label">
+                    <input
+                      type="checkbox"
+                      name="requiresApproval"
+                      checked={rule.requiresApproval}
+                    />
+                    {t("admin.social_publishing.rules.field_requires_approval")}
+                  </label>
+                  <label class="checkbox-label">
+                    <input
+                      type="checkbox"
+                      name="isEnabled"
+                      checked={rule.isEnabled}
+                    />
+                    {t("admin.social_publishing.rules.field_enabled")}
+                  </label>
+                  <label>
+                    {t("admin.social_publishing.rules.field_template")}
+                    <select name="templateId">
+                      <option value="">
+                        {t("admin.social_publishing.rules.no_template")}
+                      </option>
+                      {templates.map((template) => (
+                        <option
+                          value={template.id}
+                          selected={template.id === rule.templateId}
+                        >
+                          {template.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="submit">
+                    {t("admin.social_publishing.rules.save_button")}
+                  </button>
+                </form>
+              )}
+              {CAN_CONFIGURE && (
+                <button
+                  type="button"
+                  class="delete-rule-button"
+                  data-id={rule.id}
+                >
+                  {t("admin.social_publishing.rules.delete_button")}
+                </button>
+              )}
+            </section>
+          ))
+        )}
+
+        {CAN_CONFIGURE && (
+          <details class="create-config">
+            <summary>
+              {t("admin.social_publishing.rules.create_summary")}
+            </summary>
+            <form id="create-rule-form" class="create-config-form">
+              <label>
+                {t("admin.social_publishing.rules.field_account")}
+                <select name="socialAccountId" required>
+                  {accounts.map((account) => (
+                    <option value={account.id}>
+                      {account.providerKey} / {account.providerAccountName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                {t("admin.social_publishing.rules.field_trigger_event")}
+                <select name="triggerEvent" required>
+                  {SOCIAL_PUBLISH_TRIGGER_EVENTS.map((triggerEvent) => (
+                    <option value={triggerEvent}>{triggerEvent}</option>
+                  ))}
+                </select>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" name="requiresApproval" checked />
+                {t("admin.social_publishing.rules.field_requires_approval")}
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" name="isEnabled" checked />
+                {t("admin.social_publishing.rules.field_enabled")}
+              </label>
+              <button type="submit">
+                {t("admin.social_publishing.rules.create_submit")}
+              </button>
+            </form>
+          </details>
+        )}
+
+        <h2>{t("admin.social_publishing.rules.section_templates")}</h2>
+        {templates.length === 0 ? (
+          <p class="empty-state">
+            {t("admin.social_publishing.rules.no_templates")}
+          </p>
+        ) : (
+          templates.map((template) => (
+            <section class="section-card">
+              <h3>{template.name}</h3>
+              {CAN_CONFIGURE && (
+                <form class="edit-template-form" data-id={template.id}>
+                  <label>
+                    {t("admin.social_publishing.rules.field_caption_template")}
+                    <textarea name="captionTemplate" rows={3}>
+                      {template.captionTemplate}
+                    </textarea>
+                  </label>
+                  <label class="checkbox-label">
+                    <input
+                      type="checkbox"
+                      name="isActive"
+                      checked={template.isActive}
+                    />
+                    {t("admin.social_publishing.rules.field_active")}
+                  </label>
+                  <button type="submit">
+                    {t("admin.social_publishing.rules.save_button")}
+                  </button>
+                </form>
+              )}
+              {CAN_CONFIGURE && (
+                <button
+                  type="button"
+                  class="delete-template-button"
+                  data-id={template.id}
+                >
+                  {t("admin.social_publishing.rules.delete_button")}
+                </button>
+              )}
+            </section>
+          ))
+        )}
+
+        {CAN_CONFIGURE && (
+          <details class="create-config">
+            <summary>
+              {t("admin.social_publishing.rules.template_create_summary")}
+            </summary>
+            <form id="create-template-form" class="create-config-form">
+              <label>
+                {t("admin.social_publishing.rules.field_name")}
+                <input type="text" name="name" required maxlength="200" />
+              </label>
+              <label>
+                {t("admin.social_publishing.rules.field_caption_template")}
+                <textarea
+                  name="captionTemplate"
+                  rows={3}
+                  required
+                  maxlength="2000"
+                />
+                <span class="field-hint">
+                  {t("admin.social_publishing.rules.caption_template_hint")}
+                </span>
+              </label>
+              <button type="submit">
+                {t("admin.social_publishing.rules.template_create_submit")}
+              </button>
+            </form>
+          </details>
+        )}
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .config-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+  }
+
+  .action-banner[data-variant="success"] {
+    background: color-mix(
+      in srgb,
+      var(--color-success) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-success);
+  }
+
+  .action-banner[data-variant="error"] {
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-danger);
+  }
+
+  .empty-state {
+    color: var(--color-text-muted);
+  }
+
+  .section-card {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+  }
+
+  .section-card h3 {
+    font-size: var(--fs-md);
+    margin: 0 0 var(--sp-2);
+  }
+
+  .section-type-badge {
+    font-size: var(--fs-xs);
+    font-weight: 400;
+    color: var(--color-text-muted);
+  }
+
+  .edit-rule-form,
+  .edit-template-form,
+  .create-config-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    max-width: 560px;
+  }
+
+  .edit-rule-form label,
+  .edit-template-form label,
+  .create-config-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+
+  .checkbox-label {
+    flex-direction: row !important;
+    align-items: center;
+    gap: var(--sp-2) !important;
+  }
+
+  .edit-rule-form input,
+  .edit-rule-form select,
+  .edit-template-form input,
+  .edit-template-form textarea,
+  .create-config-form input,
+  .create-config-form select,
+  .create-config-form textarea {
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .field-hint {
+    color: var(--color-text-muted);
+    font-size: var(--fs-xs);
+  }
+
+  .edit-rule-form button,
+  .edit-template-form button,
+  .create-config-form button {
+    align-self: flex-start;
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-3);
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  .delete-rule-button,
+  .delete-template-button {
+    margin-top: var(--sp-2);
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-danger-strong);
+    color: var(--color-danger-strong);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-2);
+    min-height: 44px;
+    cursor: pointer;
+    font-size: var(--fs-xs);
+  }
+
+  .create-config {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+  }
+
+  .create-config summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface RuleManagerStrings {
+    createSuccess: string;
+    updateSuccess: string;
+    deleteSuccess: string;
+    deleteReasonPrompt: string;
+    deleteConfirm: string;
+    templateCreateSuccess: string;
+    templateUpdateSuccess: string;
+    templateDeleteSuccess: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<RuleManagerStrings>();
+
+  function submitButtonOf(form: HTMLFormElement): HTMLButtonElement | null {
+    return form.querySelector('button[type="submit"]');
+  }
+
+  document
+    .getElementById("create-rule-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = submitButtonOf(form);
+      if (button?.disabled) return;
+
+      const formData = new FormData(form);
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+
+      try {
+        const result = await submitJson(
+          "/api/v1/social-publishing/rules",
+          "POST",
+          {
+            socialAccountId: formData.get("socialAccountId"),
+            triggerEvent: formData.get("triggerEvent"),
+            requiresApproval: formData.get("requiresApproval") === "on",
+            isEnabled: formData.get("isEnabled") === "on"
+          },
+          strings
+        );
+
+        showBanner(
+          "action-banner",
+          result.ok ? strings.createSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
+    });
+
+  document.querySelectorAll(".edit-rule-form").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const el = event.target as HTMLFormElement;
+      const button = submitButtonOf(el);
+      if (button?.disabled) return;
+
+      const formData = new FormData(el);
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+
+      try {
+        const id = el.dataset.id!;
+        const templateId = String(formData.get("templateId") ?? "").trim();
+
+        const result = await submitJson(
+          `/api/v1/social-publishing/rules/${id}`,
+          "PATCH",
+          {
+            requiresApproval: formData.get("requiresApproval") === "on",
+            isEnabled: formData.get("isEnabled") === "on",
+            templateId: templateId || null
+          },
+          strings
+        );
+
+        showBanner(
+          "action-banner",
+          result.ok ? strings.updateSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
+    });
+  });
+
+  document.querySelectorAll(".delete-rule-button").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const el = button as HTMLButtonElement;
+      if (el.disabled) return;
+
+      const reason = window.prompt(strings.deleteReasonPrompt);
+      if (!reason || reason.trim().length === 0) return;
+      if (!window.confirm(strings.deleteConfirm)) return;
+
+      const unlock = lockElement(el, strings.pleaseWait);
+      try {
+        const id = el.dataset.id!;
+        const result = await submitJson(
+          `/api/v1/social-publishing/rules/${id}`,
+          "DELETE",
+          { reason },
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.deleteSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock();
+      }
+    });
+  });
+
+  document
+    .getElementById("create-template-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = submitButtonOf(form);
+      if (button?.disabled) return;
+
+      const formData = new FormData(form);
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+
+      try {
+        const result = await submitJson(
+          "/api/v1/social-publishing/templates",
+          "POST",
+          {
+            name: formData.get("name"),
+            captionTemplate: formData.get("captionTemplate")
+          },
+          strings
+        );
+
+        showBanner(
+          "action-banner",
+          result.ok ? strings.templateCreateSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
+    });
+
+  document.querySelectorAll(".edit-template-form").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const el = event.target as HTMLFormElement;
+      const button = submitButtonOf(el);
+      if (button?.disabled) return;
+
+      const formData = new FormData(el);
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+
+      try {
+        const id = el.dataset.id!;
+
+        const result = await submitJson(
+          `/api/v1/social-publishing/templates/${id}`,
+          "PATCH",
+          {
+            captionTemplate: formData.get("captionTemplate"),
+            isActive: formData.get("isActive") === "on"
+          },
+          strings
+        );
+
+        showBanner(
+          "action-banner",
+          result.ok ? strings.templateUpdateSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
+    });
+  });
+
+  document.querySelectorAll(".delete-template-button").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const el = button as HTMLButtonElement;
+      if (el.disabled) return;
+
+      const reason = window.prompt(strings.deleteReasonPrompt);
+      if (!reason || reason.trim().length === 0) return;
+      if (!window.confirm(strings.deleteConfirm)) return;
+
+      const unlock = lockElement(el, strings.pleaseWait);
+      try {
+        const id = el.dataset.id!;
+        const result = await submitJson(
+          `/api/v1/social-publishing/templates/${id}`,
+          "DELETE",
+          { reason },
+          strings
+        );
+        showBanner(
+          "action-banner",
+          result.ok ? strings.templateDeleteSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock();
+      }
+    });
+  });
+</script>

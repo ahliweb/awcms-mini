@@ -48,6 +48,13 @@ export type AccessAction =
   // gate on idempotency/audit requirements).
   | "verify"
   | "set_primary"
+  // Issue #643 (social_publishing): `accounts.connect`/`accounts.disconnect`
+  // — connecting/reconnecting a social account writes a `token_reference`
+  // (secret-storage pointer) and disconnecting clears it; both classified
+  // `HIGH_RISK_ACTIONS` below since they change credential-bearing state,
+  // matching `configure`'s classification rather than `verify`'s.
+  | "connect"
+  | "disconnect"
   // Issue #641 (blog_content): `GET /api/v1/blog/posts/{id}/internal-links/
   // preview` needed a permission distinct from `posts.read`/`internal_links.
   // read` (an editor may be allowed to preview which terms would be
@@ -81,7 +88,9 @@ const HIGH_RISK_ACTIONS: ReadonlySet<AccessAction> = new Set([
   "assign",
   "configure",
   "restore",
-  "purge"
+  "purge",
+  "connect",
+  "disconnect"
 ]);
 
 export function isHighRiskAction(action: AccessAction): boolean {

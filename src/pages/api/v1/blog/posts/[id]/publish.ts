@@ -31,6 +31,15 @@ import {
   evaluateContentQualityChecklistForContent
 } from "../../../../../../modules/blog-content/application/content-quality-checklist-gate";
 import { newsMediaPortAdapter } from "../../../../../../modules/news-portal/application/news-media-port-adapter";
+import { createSocialPublishingPortAdapter } from "../../../../../../modules/social-publishing/application/social-publishing-port-adapter";
+
+// Issue #643 (epic `social_publishing`): this route is the composition root
+// that wires `social_publishing`'s `SocialPublishingPort` into the manual
+// publish action (trigger `post_published`) — see
+// `social-publishing-port-adapter.ts`'s header for why this must stay a
+// factory call here rather than a ready-made singleton import.
+const socialPublishingPort =
+  createSocialPublishingPortAdapter(newsMediaPortAdapter);
 
 const PUBLISH_GUARD = {
   moduleKey: "blog_content",
@@ -207,6 +216,20 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
       postId,
       slug: updated.slug
     });
+
+    await socialPublishingPort.onArticlePublished(
+      tx,
+      tenantId,
+      {
+        articleId: postId,
+        title: updated.title,
+        slug: updated.slug,
+        excerpt: updated.excerpt,
+        featuredMediaId: updated.featuredMediaId,
+        trigger: "post_published"
+      },
+      correlationId
+    );
 
     const successResponse = ok({ ...updated, qualityChecklist: checklist });
     const successBody = await successResponse.clone().json();

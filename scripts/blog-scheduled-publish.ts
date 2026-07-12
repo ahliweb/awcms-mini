@@ -14,11 +14,25 @@
  * scheduled-publish job, so the content quality checklist can gate this
  * transition exactly like the interactive publish/schedule endpoints —
  * `blog-scheduled-publish.ts` itself never imports `news_portal` directly.
+ *
+ * Issue #643 (epic `social_publishing`): this script is ALSO the
+ * composition root that wires `social_publishing`'s
+ * `SocialPublishingPort` — `createSocialPublishingPortAdapter(newsMediaPortAdapter)`
+ * — into `publishDueScheduledPosts`, so a scheduled post that becomes due
+ * also gets its social-publishing outbox jobs created (trigger
+ * `scheduled_published`), exactly like the manual publish route
+ * (`pages/api/v1/blog/posts/[id]/publish.ts`) does. `blog-scheduled-
+ * publish.ts` (the application-layer file) still never imports
+ * `social_publishing` directly — only this composition-root script does.
  */
 import { getWorkerDatabaseClient } from "../src/lib/database/client";
 import { logScriptFailure } from "../src/lib/logging/error-log";
 import { publishDueScheduledPosts } from "../src/modules/blog-content/application/blog-scheduled-publish";
 import { newsMediaPortAdapter } from "../src/modules/news-portal/application/news-media-port-adapter";
+import { createSocialPublishingPortAdapter } from "../src/modules/social-publishing/application/social-publishing-port-adapter";
+
+const socialPublishingPort =
+  createSocialPublishingPortAdapter(newsMediaPortAdapter);
 
 type TenantRow = { id: string };
 
@@ -41,7 +55,8 @@ async function main() {
         sql,
         tenant.id,
         newsMediaPortAdapter,
-        { now, correlationId }
+        { now, correlationId },
+        socialPublishingPort
       );
 
       totalPublished += result.publishedCount;

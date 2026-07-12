@@ -60,8 +60,8 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, and idn_admin_regions are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655", () => {
-    expect(listModules()).toHaveLength(15);
+  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, idn_admin_regions, and social_publishing are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655, #643", () => {
+    expect(listModules()).toHaveLength(16);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "active"
@@ -144,6 +144,12 @@ describe("module registry", () => {
       status: "experimental",
       type: "base",
       dependencies: ["identity_access", "logging", "module_management"]
+    });
+    expect(getModuleByKey("social_publishing")).toMatchObject({
+      key: "social_publishing",
+      status: "active",
+      type: "domain",
+      dependencies: ["tenant_admin", "identity_access"]
     });
     expect(getModuleByKey("unknown_module")).toBeUndefined();
   });
@@ -510,7 +516,8 @@ describe("database migration runner helpers", () => {
       "049_awcms_mini_news_portal_ad_placements_schema.sql",
       "050_awcms_mini_blog_posts_seo_image.sql",
       "051_awcms_mini_blog_content_internal_tag_links_schema.sql",
-      "052_awcms_mini_blog_content_internal_tag_links_permissions.sql"
+      "052_awcms_mini_blog_content_internal_tag_links_permissions.sql",
+      "053_awcms_mini_social_publishing_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

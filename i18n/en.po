@@ -2752,3 +2752,211 @@ msgstr "Ad placement updated."
 msgid "error.ad_placement_reference_invalid"
 msgstr "This ad placement references a media object that does not exist, does not belong to this tenant, is not verified yet, or is not an allowed image type for this placement."
 
+#. admin.layout.nav_social_publishing_* (Issue #643, epic social_publishing #643-#647)
+msgid "admin.layout.nav_social_publishing_accounts"
+msgstr "Social Accounts"
+
+msgid "admin.layout.nav_social_publishing_jobs"
+msgstr "Social Publish Jobs"
+
+msgid "admin.layout.nav_social_publishing_rules"
+msgstr "Social Publish Rules"
+
+msgid "admin.social_publishing.access_denied_body"
+msgstr "You do not have permission to view social publishing configuration."
+
+msgid "admin.social_publishing.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.social_publishing.accounts.connect_submit"
+msgstr "Connect account"
+
+msgid "admin.social_publishing.accounts.connect_success"
+msgstr "Social account connected."
+
+msgid "admin.social_publishing.accounts.connect_summary"
+msgstr "Connect a social account"
+
+msgid "admin.social_publishing.accounts.disconnect_button"
+msgstr "Disconnect"
+
+msgid "admin.social_publishing.accounts.disconnect_confirm"
+msgstr "Disconnect this social account? Auto-publishing will stop until it is reconnected."
+
+msgid "admin.social_publishing.accounts.disconnect_reason_prompt"
+msgstr "Reason for disconnecting this account:"
+
+msgid "admin.social_publishing.accounts.disconnect_success"
+msgstr "Social account disconnected."
+
+msgid "admin.social_publishing.accounts.field_auto_publish"
+msgstr "Auto-publish enabled"
+
+msgid "admin.social_publishing.accounts.field_provider_account_id"
+msgstr "Provider account ID"
+
+msgid "admin.social_publishing.accounts.field_provider_account_name"
+msgstr "Provider account name"
+
+msgid "admin.social_publishing.accounts.field_provider_account_type"
+msgstr "Account type"
+
+msgid "admin.social_publishing.accounts.field_provider_key"
+msgstr "Provider key"
+
+msgid "admin.social_publishing.accounts.field_status"
+msgstr "Status"
+
+msgid "admin.social_publishing.accounts.field_token_reference"
+msgstr "Token reference"
+
+msgid "admin.social_publishing.accounts.no_accounts"
+msgstr "No social accounts connected yet."
+
+msgid "admin.social_publishing.accounts.save_button"
+msgstr "Save"
+
+msgid "admin.social_publishing.accounts.title"
+msgstr "Social Accounts"
+
+msgid "admin.social_publishing.accounts.token_reference_hint"
+msgstr "An opaque reference into your secret storage (e.g. a secrets-manager key name) — never the raw access token or JWT itself."
+
+msgid "admin.social_publishing.accounts.update_success"
+msgstr "Social account updated."
+
+msgid "admin.social_publishing.jobs.approve_button"
+msgstr "Approve"
+
+msgid "admin.social_publishing.jobs.approve_success"
+msgstr "Job approved."
+
+msgid "admin.social_publishing.jobs.attempts_summary"
+msgstr "Attempt history"
+
+msgid "admin.social_publishing.jobs.cancel_button"
+msgstr "Cancel"
+
+msgid "admin.social_publishing.jobs.cancel_confirm"
+msgstr "Cancel this social publish job?"
+
+msgid "admin.social_publishing.jobs.cancel_reason_prompt"
+msgstr "Reason for cancelling this job:"
+
+msgid "admin.social_publishing.jobs.cancel_success"
+msgstr "Job cancelled."
+
+msgid "admin.social_publishing.jobs.field_attempts"
+msgstr "Attempts"
+
+msgid "admin.social_publishing.jobs.field_error"
+msgstr "Error"
+
+msgid "admin.social_publishing.jobs.field_external_url"
+msgstr "Published URL"
+
+msgid "admin.social_publishing.jobs.field_outcome"
+msgstr "Outcome"
+
+msgid "admin.social_publishing.jobs.field_started_at"
+msgstr "Started at"
+
+msgid "admin.social_publishing.jobs.no_jobs"
+msgstr "No social publish jobs yet."
+
+msgid "admin.social_publishing.jobs.retry_button"
+msgstr "Retry"
+
+msgid "admin.social_publishing.jobs.retry_success"
+msgstr "Job retry requested."
+
+msgid "admin.social_publishing.jobs.title"
+msgstr "Social Publish Jobs"
+
+msgid "admin.social_publishing.rules.caption_template_hint"
+msgstr "Supports {{title}}, {{excerpt}}, and {{canonicalUrl}} placeholders."
+
+msgid "admin.social_publishing.rules.create_submit"
+msgstr "Create rule"
+
+msgid "admin.social_publishing.rules.create_success"
+msgstr "Social publish rule created."
+
+msgid "admin.social_publishing.rules.create_summary"
+msgstr "Create a rule"
+
+msgid "admin.social_publishing.rules.delete_button"
+msgstr "Delete"
+
+msgid "admin.social_publishing.rules.delete_confirm"
+msgstr "Delete this item?"
+
+msgid "admin.social_publishing.rules.delete_reason_prompt"
+msgstr "Reason for deleting this item:"
+
+msgid "admin.social_publishing.rules.delete_success"
+msgstr "Deleted."
+
+msgid "admin.social_publishing.rules.field_account"
+msgstr "Social account"
+
+msgid "admin.social_publishing.rules.field_active"
+msgstr "Active"
+
+msgid "admin.social_publishing.rules.field_caption_template"
+msgstr "Caption template"
+
+msgid "admin.social_publishing.rules.field_enabled"
+msgstr "Enabled"
+
+msgid "admin.social_publishing.rules.field_name"
+msgstr "Name"
+
+msgid "admin.social_publishing.rules.field_requires_approval"
+msgstr "Requires approval before posting"
+
+msgid "admin.social_publishing.rules.field_template"
+msgstr "Caption template"
+
+msgid "admin.social_publishing.rules.field_trigger_event"
+msgstr "Trigger event"
+
+msgid "admin.social_publishing.rules.no_rules"
+msgstr "No social publish rules configured yet."
+
+msgid "admin.social_publishing.rules.no_template"
+msgstr "(no template)"
+
+msgid "admin.social_publishing.rules.no_templates"
+msgstr "No caption templates yet."
+
+msgid "admin.social_publishing.rules.save_button"
+msgstr "Save"
+
+msgid "admin.social_publishing.rules.section_rules"
+msgstr "Rules"
+
+msgid "admin.social_publishing.rules.section_templates"
+msgstr "Caption templates"
+
+msgid "admin.social_publishing.rules.template_create_submit"
+msgstr "Create template"
+
+msgid "admin.social_publishing.rules.template_create_success"
+msgstr "Caption template created."
+
+msgid "admin.social_publishing.rules.template_create_summary"
+msgstr "Create a caption template"
+
+msgid "admin.social_publishing.rules.template_delete_success"
+msgstr "Caption template deleted."
+
+msgid "admin.social_publishing.rules.template_update_success"
+msgstr "Caption template updated."
+
+msgid "admin.social_publishing.rules.title"
+msgstr "Social Publish Rules"
+
+msgid "admin.social_publishing.rules.update_success"
+msgstr "Social publish rule updated."
+

@@ -5,6 +5,7 @@ import { fetchPostTermIds } from "./blog-taxonomy-directory";
 import { fetchBlogSettings } from "./blog-settings-directory";
 import { evaluateContentQualityChecklistForContent } from "./content-quality-checklist-gate";
 import type { NewsMediaPort } from "../../_shared/ports/news-media-port";
+import type { SocialPublishingPort } from "../../_shared/ports/social-publishing-port";
 
 /**
  * Scheduled publishing (Issue #541, doc issue #541 §Scheduled Publishing
@@ -32,6 +33,16 @@ import type { NewsMediaPort } from "../../_shared/ports/news-media-port";
  * twice in a way that changes anything on a re-run. `mediaPort` is supplied
  * by the caller (`scripts/blog-scheduled-publish.ts`, the composition root,
  * per ADR-0011) — this file itself never imports `news_portal`.
+ *
+ * Issue #643 (epic `social_publishing`): `socialPublishingPort`, when
+ * supplied by the caller, is invoked right after each individual post
+ * publish succeeds — `SocialPublishingPort.onArticlePublished(...)` with
+ * `trigger: "scheduled_published"`. Plain DB outbox-row writes inside the
+ * SAME transaction as the publish `UPDATE` above (ADR-0006 compliant — no
+ * external provider call happens here); optional and defaults to a no-op
+ * so a deployment that never wires a social-publishing port (the default;
+ * see `social-publishing/domain/social-publishing-config.ts`) behaves
+ * exactly as before this issue.
  */
 export type PublishDueScheduledPostsOptions = {
   now?: Date;
@@ -61,7 +72,8 @@ export async function publishDueScheduledPosts(
   sql: Bun.SQL,
   tenantId: string,
   mediaPort: NewsMediaPort,
-  options: PublishDueScheduledPostsOptions = {}
+  options: PublishDueScheduledPostsOptions = {},
+  socialPublishingPort?: SocialPublishingPort
 ): Promise<PublishDueScheduledPostsResult> {
   const now = options.now ?? new Date();
   const correlationId = options.correlationId;
@@ -215,6 +227,22 @@ export async function publishDueScheduledPosts(
           slug: post.slug,
           trigger: "scheduled_publish"
         });
+
+        if (socialPublishingPort) {
+          await socialPublishingPort.onArticlePublished(
+            tx,
+            tenantId,
+            {
+              articleId: post.id,
+              title: post.title,
+              slug: post.slug,
+              excerpt: post.excerpt,
+              featuredMediaId: post.featured_media_id,
+              trigger: "scheduled_published"
+            },
+            correlationId
+          );
+        }
       }
 
       await recordAuditEvent(tx, {

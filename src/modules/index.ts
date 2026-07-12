@@ -9,6 +9,7 @@ import { moduleManagementModule } from "./module-management/module";
 import { newsPortalModule } from "./news-portal/module";
 import { profileIdentityModule } from "./profile-identity/module";
 import { reportingModule } from "./reporting/module";
+import { socialPublishingModule } from "./social-publishing/module";
 import { syncStorageModule } from "./sync-storage/module";
 import { tenantAdminModule } from "./tenant-admin/module";
 import { tenantDomainModule } from "./tenant-domain/module";
@@ -30,7 +31,8 @@ export const modules: ModuleDescriptor[] = [
   tenantDomainModule,
   visitorAnalyticsModule,
   newsPortalModule,
-  idnAdminRegionsModule
+  idnAdminRegionsModule,
+  socialPublishingModule
 ];
 
 export function getModuleByKey(

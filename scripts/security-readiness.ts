@@ -55,6 +55,8 @@ import {
   resolveNewsMediaR2Config
 } from "../src/modules/news-portal/domain/news-media-r2-config";
 import { evaluateNewsPortalFullOnlineR2Readiness } from "../src/modules/news-portal/domain/news-portal-preset-readiness";
+import { isSocialPublishingEnabled } from "../src/modules/social-publishing/domain/social-publishing-config";
+import { getSocialProviderAdapter } from "../src/modules/social-publishing/infrastructure/social-provider-registry";
 
 export type CheckSeverity = "critical" | "warning" | "info";
 export type CheckStatus = "pass" | "fail";
@@ -2072,6 +2074,108 @@ export async function checkNewsMediaR2NoStalePendingObjects(
   }
 }
 
+/**
+ * Social publishing provider readiness (Issue #643, epic `social_publishing`
+ * #643-#647 — "Readiness check fails if enabled provider is missing required
+ * credentials/scopes"). A no-op pass when `SOCIAL_PUBLISHING_ENABLED` is not
+ * `"true"` (mirrors every other conditional-feature readiness check in this
+ * file). When enabled, scans every active tenant's `connected`
+ * `awcms_mini_social_accounts` rows for distinct `provider_key` values and
+ * fails if ANY of them has no adapter registered in
+ * `social-provider-registry.ts` — this foundation issue ships an EMPTY
+ * registry, so as soon as any tenant connects a real account (via
+ * `POST /api/v1/social-publishing/accounts`) before a real adapter (#644/
+ * #645/#646) is deployed and registered, this check surfaces that gap
+ * loudly rather than letting jobs silently pile up as
+ * `provider_not_registered` failures with no readiness signal.
+ */
+export async function checkSocialPublishingProviderReadiness(
+  env: NodeJS.ProcessEnv = process.env
+): Promise<SecurityCheckResult> {
+  const name =
+    "Social publishing: every connected account's provider has a registered adapter (Issue #643)";
+  const severity: CheckSeverity = "critical";
+
+  if (!isSocialPublishingEnabled(env)) {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        'SOCIAL_PUBLISHING_ENABLED is not "true" — social publishing is disabled, no provider adapter required.'
+    };
+  }
+
+  try {
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL is not set.");
+    }
+
+    const sql = getDatabaseClient();
+    const tenants = (await sql<{ id: string }[]>`
+      SELECT id FROM awcms_mini_tenants WHERE status = 'active'
+    `) as { id: string }[];
+
+    const missingAdapterProviderKeys = new Set<string>();
+    const erroredTenants: string[] = [];
+
+    for (const tenant of tenants) {
+      const tenantId = assertUuid(tenant.id);
+
+      try {
+        await sql.begin(async (tx) => {
+          await tx.unsafe(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
+
+          const rows = (await tx`
+            SELECT DISTINCT provider_key FROM awcms_mini_social_accounts
+            WHERE connection_status = 'connected'
+          `) as { provider_key: string }[];
+
+          for (const row of rows) {
+            if (!getSocialProviderAdapter(row.provider_key)) {
+              missingAdapterProviderKeys.add(row.provider_key);
+            }
+          }
+        });
+      } catch (error) {
+        erroredTenants.push(`${tenantId} (${errorMessage(error)})`);
+      }
+    }
+
+    if (missingAdapterProviderKeys.size > 0 || erroredTenants.length > 0) {
+      const parts: string[] = [];
+
+      if (missingAdapterProviderKeys.size > 0) {
+        parts.push(
+          `${missingAdapterProviderKeys.size} connected provider(s) have no registered adapter: ${Array.from(missingAdapterProviderKeys).join(", ")}. Every social publish job for these providers will fail as "provider_not_registered" until a real adapter is registered (social-provider-registry.ts's registerSocialProviderAdapter).`
+        );
+      }
+
+      if (erroredTenants.length > 0) {
+        parts.push(
+          `${erroredTenants.length} tenant(s) could not be checked: ${erroredTenants.join("; ")}.`
+        );
+      }
+
+      return { name, severity, status: "fail", evidence: parts.join(" ") };
+    }
+
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence: `Every connected social account's provider has a registered adapter across ${tenants.length} active tenant(s) (or no accounts are connected yet).`
+    };
+  } catch (error) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `Could not verify social publishing provider readiness: ${errorMessage(error)}.`
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Out-of-scope items — printed as their own report section, never silently
 // dropped.
@@ -2151,6 +2255,7 @@ export async function runSecurityReadinessChecks(): Promise<
     checkNewsMediaR2SvgNotAllowed(),
     checkNewsMediaR2PublicBaseUrlProductionSafe(),
     await checkNewsMediaR2NoStalePendingObjects(),
+    await checkSocialPublishingProviderReadiness(),
     await checkErrorsDontLeakStackTraces(),
     await checkSecurityHeadersPresent(),
     checkLoginRateLimitImplemented()

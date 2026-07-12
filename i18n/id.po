@@ -2751,3 +2751,211 @@ msgstr "Penempatan iklan berhasil diperbarui."
 msgid "error.ad_placement_reference_invalid"
 msgstr "Iklan ini merujuk objek media yang tidak ada, bukan milik tenant ini, belum terverifikasi, atau bukan tipe gambar yang diizinkan untuk penempatan ini."
 
+#. admin.layout.nav_social_publishing_* (Issue #643, epic social_publishing #643-#647)
+msgid "admin.layout.nav_social_publishing_accounts"
+msgstr "Akun Sosial"
+
+msgid "admin.layout.nav_social_publishing_jobs"
+msgstr "Job Publikasi Sosial"
+
+msgid "admin.layout.nav_social_publishing_rules"
+msgstr "Aturan Publikasi Sosial"
+
+msgid "admin.social_publishing.access_denied_body"
+msgstr "Anda tidak memiliki izin untuk melihat konfigurasi publikasi sosial."
+
+msgid "admin.social_publishing.access_denied_title"
+msgstr "Akses ditolak"
+
+msgid "admin.social_publishing.accounts.connect_submit"
+msgstr "Hubungkan akun"
+
+msgid "admin.social_publishing.accounts.connect_success"
+msgstr "Akun sosial berhasil dihubungkan."
+
+msgid "admin.social_publishing.accounts.connect_summary"
+msgstr "Hubungkan akun sosial"
+
+msgid "admin.social_publishing.accounts.disconnect_button"
+msgstr "Putuskan"
+
+msgid "admin.social_publishing.accounts.disconnect_confirm"
+msgstr "Putuskan akun sosial ini? Auto-publish akan berhenti sampai dihubungkan kembali."
+
+msgid "admin.social_publishing.accounts.disconnect_reason_prompt"
+msgstr "Alasan memutuskan akun ini:"
+
+msgid "admin.social_publishing.accounts.disconnect_success"
+msgstr "Akun sosial berhasil diputuskan."
+
+msgid "admin.social_publishing.accounts.field_auto_publish"
+msgstr "Auto-publish aktif"
+
+msgid "admin.social_publishing.accounts.field_provider_account_id"
+msgstr "ID akun provider"
+
+msgid "admin.social_publishing.accounts.field_provider_account_name"
+msgstr "Nama akun provider"
+
+msgid "admin.social_publishing.accounts.field_provider_account_type"
+msgstr "Tipe akun"
+
+msgid "admin.social_publishing.accounts.field_provider_key"
+msgstr "Kunci provider"
+
+msgid "admin.social_publishing.accounts.field_status"
+msgstr "Status"
+
+msgid "admin.social_publishing.accounts.field_token_reference"
+msgstr "Referensi token"
+
+msgid "admin.social_publishing.accounts.no_accounts"
+msgstr "Belum ada akun sosial yang terhubung."
+
+msgid "admin.social_publishing.accounts.save_button"
+msgstr "Simpan"
+
+msgid "admin.social_publishing.accounts.title"
+msgstr "Akun Sosial"
+
+msgid "admin.social_publishing.accounts.token_reference_hint"
+msgstr "Referensi buram ke secret storage Anda (mis. nama key di secrets manager) — bukan token akses/JWT asli."
+
+msgid "admin.social_publishing.accounts.update_success"
+msgstr "Akun sosial berhasil diperbarui."
+
+msgid "admin.social_publishing.jobs.approve_button"
+msgstr "Setujui"
+
+msgid "admin.social_publishing.jobs.approve_success"
+msgstr "Job disetujui."
+
+msgid "admin.social_publishing.jobs.attempts_summary"
+msgstr "Riwayat percobaan"
+
+msgid "admin.social_publishing.jobs.cancel_button"
+msgstr "Batalkan"
+
+msgid "admin.social_publishing.jobs.cancel_confirm"
+msgstr "Batalkan job publikasi sosial ini?"
+
+msgid "admin.social_publishing.jobs.cancel_reason_prompt"
+msgstr "Alasan membatalkan job ini:"
+
+msgid "admin.social_publishing.jobs.cancel_success"
+msgstr "Job berhasil dibatalkan."
+
+msgid "admin.social_publishing.jobs.field_attempts"
+msgstr "Percobaan"
+
+msgid "admin.social_publishing.jobs.field_error"
+msgstr "Error"
+
+msgid "admin.social_publishing.jobs.field_external_url"
+msgstr "URL hasil publikasi"
+
+msgid "admin.social_publishing.jobs.field_outcome"
+msgstr "Hasil"
+
+msgid "admin.social_publishing.jobs.field_started_at"
+msgstr "Dimulai pada"
+
+msgid "admin.social_publishing.jobs.no_jobs"
+msgstr "Belum ada job publikasi sosial."
+
+msgid "admin.social_publishing.jobs.retry_button"
+msgstr "Coba lagi"
+
+msgid "admin.social_publishing.jobs.retry_success"
+msgstr "Percobaan ulang job diminta."
+
+msgid "admin.social_publishing.jobs.title"
+msgstr "Job Publikasi Sosial"
+
+msgid "admin.social_publishing.rules.caption_template_hint"
+msgstr "Mendukung placeholder {{title}}, {{excerpt}}, dan {{canonicalUrl}}."
+
+msgid "admin.social_publishing.rules.create_submit"
+msgstr "Buat aturan"
+
+msgid "admin.social_publishing.rules.create_success"
+msgstr "Aturan publikasi sosial berhasil dibuat."
+
+msgid "admin.social_publishing.rules.create_summary"
+msgstr "Buat aturan"
+
+msgid "admin.social_publishing.rules.delete_button"
+msgstr "Hapus"
+
+msgid "admin.social_publishing.rules.delete_confirm"
+msgstr "Hapus item ini?"
+
+msgid "admin.social_publishing.rules.delete_reason_prompt"
+msgstr "Alasan menghapus item ini:"
+
+msgid "admin.social_publishing.rules.delete_success"
+msgstr "Berhasil dihapus."
+
+msgid "admin.social_publishing.rules.field_account"
+msgstr "Akun sosial"
+
+msgid "admin.social_publishing.rules.field_active"
+msgstr "Aktif"
+
+msgid "admin.social_publishing.rules.field_caption_template"
+msgstr "Template caption"
+
+msgid "admin.social_publishing.rules.field_enabled"
+msgstr "Diaktifkan"
+
+msgid "admin.social_publishing.rules.field_name"
+msgstr "Nama"
+
+msgid "admin.social_publishing.rules.field_requires_approval"
+msgstr "Wajib disetujui sebelum diposting"
+
+msgid "admin.social_publishing.rules.field_template"
+msgstr "Template caption"
+
+msgid "admin.social_publishing.rules.field_trigger_event"
+msgstr "Trigger event"
+
+msgid "admin.social_publishing.rules.no_rules"
+msgstr "Belum ada aturan publikasi sosial yang dikonfigurasi."
+
+msgid "admin.social_publishing.rules.no_template"
+msgstr "(tanpa template)"
+
+msgid "admin.social_publishing.rules.no_templates"
+msgstr "Belum ada template caption."
+
+msgid "admin.social_publishing.rules.save_button"
+msgstr "Simpan"
+
+msgid "admin.social_publishing.rules.section_rules"
+msgstr "Aturan"
+
+msgid "admin.social_publishing.rules.section_templates"
+msgstr "Template caption"
+
+msgid "admin.social_publishing.rules.template_create_submit"
+msgstr "Buat template"
+
+msgid "admin.social_publishing.rules.template_create_success"
+msgstr "Template caption berhasil dibuat."
+
+msgid "admin.social_publishing.rules.template_create_summary"
+msgstr "Buat template caption"
+
+msgid "admin.social_publishing.rules.template_delete_success"
+msgstr "Template caption berhasil dihapus."
+
+msgid "admin.social_publishing.rules.template_update_success"
+msgstr "Template caption berhasil diperbarui."
+
+msgid "admin.social_publishing.rules.title"
+msgstr "Aturan Publikasi Sosial"
+
+msgid "admin.social_publishing.rules.update_success"
+msgstr "Aturan publikasi sosial berhasil diperbarui."
+
