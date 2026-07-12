@@ -210,10 +210,10 @@ Foundation and platform endpoints.
 
 **Responses**
 
-| Status | Description                                | Schema                                                                                   |
-| ------ | ------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| 200    | Service health status.                     | [`ApiSuccess`](#standard-success-envelope)\<[`HealthResponse`](#schema-healthresponse)\> |
-| 500    | Internal server error without stack trace. | [`ApiError`](#standard-error-envelope)                                                   |
+| Status | Description                                | Schema                                                                                       |
+| ------ | ------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| 200    | Service health status.                     | [`ApiSuccess`](#standard-success-envelope)&lt;[`HealthResponse`](#schema-healthresponse)&gt; |
+| 500    | Internal server error without stack trace. | [`ApiError`](#standard-error-envelope)                                                       |
 
 ## Tenant Admin
 
@@ -235,13 +235,13 @@ Joins awcms_mini_tenants (tenant_name, legal_name, default_locale, default_theme
 
 **Responses**
 
-| Status | Description                                         | Schema                                                                                                   |
-| ------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| 200    | Tenant profile and settings.                        | [`ApiSuccess`](#standard-success-envelope)\<[`TenantSettingsResponse`](#schema-tenantsettingsresponse)\> |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                                   |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                                   |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                                   |
+| Status | Description                                         | Schema                                                                                                       |
+| ------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 200    | Tenant profile and settings.                        | [`ApiSuccess`](#standard-success-envelope)&lt;[`TenantSettingsResponse`](#schema-tenantsettingsresponse)&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                                       |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                                       |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                                       |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                                       |
 
 ### `PATCH /api/v1/settings` — Update a subset of the tenant's profile and settings
 
@@ -259,15 +259,15 @@ Joins awcms_mini_tenants (tenant_name, legal_name, default_locale, default_theme
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                                   |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| 200    | Settings updated.                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)\<[`TenantSettingsResponse`](#schema-tenantsettingsresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                   |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                   |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                   |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                   |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                   |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                       |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 200    | Settings updated.                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;[`TenantSettingsResponse`](#schema-tenantsettingsresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                       |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                       |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                       |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                       |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                       |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                       |
 
 ### `POST /api/v1/setup/initialize` — Bootstrap the first tenant, owner, office, and access assignment
 
@@ -287,13 +287,13 @@ When full-online auth security hardening AND `TURNSTILE_ENABLED=true` are both a
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                                     |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| 200    | Setup completed; tenant, owner, and office created.                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope)\<[`SetupInitializeResponse`](#schema-setupinitializeresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                     |
-| 403    | Setup has already been completed and is permanently locked.                                                                                                                                                      | [`ApiError`](#standard-error-envelope)                                                                     |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                     |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                     |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                         |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 200    | Setup completed; tenant, owner, and office created.                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope)&lt;[`SetupInitializeResponse`](#schema-setupinitializeresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                         |
+| 403    | Setup has already been completed and is permanently locked.                                                                                                                                                      | [`ApiError`](#standard-error-envelope)                                                                         |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                         |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                         |
 
 ### `GET /api/v1/setup/status` — Check whether the setup wizard has already run
 
@@ -309,10 +309,10 @@ When full-online auth security hardening AND `TURNSTILE_ENABLED=true` are both a
 
 **Responses**
 
-| Status | Description                                | Schema                                                                                             |
-| ------ | ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| 200    | Setup lock status.                         | [`ApiSuccess`](#standard-success-envelope)\<[`SetupStatusResponse`](#schema-setupstatusresponse)\> |
-| 500    | Internal server error without stack trace. | [`ApiError`](#standard-error-envelope)                                                             |
+| Status | Description                                | Schema                                                                                                 |
+| ------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| 200    | Setup lock status.                         | [`ApiSuccess`](#standard-success-envelope)&lt;[`SetupStatusResponse`](#schema-setupstatusresponse)&gt; |
+| 500    | Internal server error without stack trace. | [`ApiError`](#standard-error-envelope)                                                                 |
 
 ## Tenant Domains
 
@@ -333,13 +333,13 @@ Tenant-scoped hostname/subdomain -> tenant mapping admin API (epic #555, Issue #
 
 **Responses**
 
-| Status | Description                                       | Schema                                                                                                       |
-| ------ | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 200    | Tenant domain mappings (limit 100), newest first. | [`ApiSuccess`](#standard-success-envelope)\<[`TenantDomainListResponse`](#schema-tenantdomainlistresponse)\> |
-| 400    | Validation or request error.                      | [`ApiError`](#standard-error-envelope)                                                                       |
-| 401    | Authentication required or expired.               | [`ApiError`](#standard-error-envelope)                                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.    | [`ApiError`](#standard-error-envelope)                                                                       |
-| 500    | Internal server error without stack trace.        | [`ApiError`](#standard-error-envelope)                                                                       |
+| Status | Description                                       | Schema                                                                                                           |
+| ------ | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Tenant domain mappings (limit 100), newest first. | [`ApiSuccess`](#standard-success-envelope)&lt;[`TenantDomainListResponse`](#schema-tenantdomainlistresponse)&gt; |
+| 400    | Validation or request error.                      | [`ApiError`](#standard-error-envelope)                                                                           |
+| 401    | Authentication required or expired.               | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.    | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.        | [`ApiError`](#standard-error-envelope)                                                                           |
 
 ### `POST /api/v1/tenant/domains` — Add a tenant domain/subdomain mapping
 
@@ -359,15 +359,15 @@ Hostname must be a valid DNS hostname shape (reuses the same normalization the p
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                       |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | Tenant domain mapping created.                                                                                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)\<[`TenantDomainItem`](#schema-tenantdomainitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                       |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                       |
-| 409    | HOSTNAME_CONFLICT — this hostname is already mapped to a tenant (never reveals whether it is this tenant's own mapping or another tenant's).                                                                     | [`ApiError`](#standard-error-envelope)                                                       |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | Tenant domain mapping created.                                                                                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;[`TenantDomainItem`](#schema-tenantdomainitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                           |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                           |
+| 409    | HOSTNAME_CONFLICT — this hostname is already mapped to a tenant (never reveals whether it is this tenant's own mapping or another tenant's).                                                                     | [`ApiError`](#standard-error-envelope)                                                           |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                           |
 
 ### `GET /api/v1/tenant/domains/{id}` — Read one tenant domain mapping
 
@@ -386,14 +386,14 @@ An unknown id, a soft-deleted id, and another tenant's id all return the exact s
 
 **Responses**
 
-| Status | Description                                         | Schema                                                                                       |
-| ------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | The requested tenant domain mapping.                | [`ApiSuccess`](#standard-success-envelope)\<[`TenantDomainItem`](#schema-tenantdomainitem)\> |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                                                       |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                       |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                         | Schema                                                                                           |
+| ------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | The requested tenant domain mapping.                | [`ApiSuccess`](#standard-success-envelope)&lt;[`TenantDomainItem`](#schema-tenantdomainitem)&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                                                           |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                           |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                           |
 
 ### `PATCH /api/v1/tenant/domains/{id}` — Update a tenant domain/subdomain mapping
 
@@ -414,15 +414,15 @@ Partial update. `hostname` is immutable after create; `is_primary` is never sett
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                       |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | Tenant domain mapping updated.                                                                                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)\<[`TenantDomainItem`](#schema-tenantdomainitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                       |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                       |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                       |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | Tenant domain mapping updated.                                                                                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;[`TenantDomainItem`](#schema-tenantdomainitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                           |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                           |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                           |
 
 ### `DELETE /api/v1/tenant/domains/{id}` — Soft-delete a tenant domain/subdomain mapping
 
@@ -443,15 +443,15 @@ Soft delete only — never hard-deletes. Frees the normalized hostname for reuse
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 200    | Tenant domain mapping deleted.                                                                                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Tenant domain mapping deleted.                                                                                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/tenant/domains/{id}/set-primary` — Atomically set a tenant domain as the active primary domain
 
@@ -471,15 +471,15 @@ Atomic within a single transaction: unsets any previous primary domain for this 
 
 **Responses**
 
-| Status | Description                                                                                                        | Schema                                                                                       |
-| ------ | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
-| 200    | Tenant domain mapping set as primary.                                                                              | [`ApiSuccess`](#standard-success-envelope)\<[`TenantDomainItem`](#schema-tenantdomainitem)\> |
-| 400    | Validation or request error.                                                                                       | [`ApiError`](#standard-error-envelope)                                                       |
-| 401    | Authentication required or expired.                                                                                | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                     | [`ApiError`](#standard-error-envelope)                                                       |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                | [`ApiError`](#standard-error-envelope)                                                       |
-| 409    | Idempotency-Key reused with a different request, or the domain is not currently `active` (must be verified first). | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal server error without stack trace.                                                                         | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                                                                                        | Schema                                                                                           |
+| ------ | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| 200    | Tenant domain mapping set as primary.                                                                              | [`ApiSuccess`](#standard-success-envelope)&lt;[`TenantDomainItem`](#schema-tenantdomainitem)&gt; |
+| 400    | Validation or request error.                                                                                       | [`ApiError`](#standard-error-envelope)                                                           |
+| 401    | Authentication required or expired.                                                                                | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                     | [`ApiError`](#standard-error-envelope)                                                           |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                | [`ApiError`](#standard-error-envelope)                                                           |
+| 409    | Idempotency-Key reused with a different request, or the domain is not currently `active` (must be verified first). | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal server error without stack trace.                                                                         | [`ApiError`](#standard-error-envelope)                                                           |
 
 ### `POST /api/v1/tenant/domains/{id}/verify` — Manually verify a tenant domain/subdomain mapping
 
@@ -499,15 +499,15 @@ Manual-first verification (Issue #562 §Security notes) — flips `status` from 
 
 **Responses**
 
-| Status | Description                                                                                                            | Schema                                                                                       |
-| ------ | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | Tenant domain mapping verified (status "active").                                                                      | [`ApiSuccess`](#standard-success-envelope)\<[`TenantDomainItem`](#schema-tenantdomainitem)\> |
-| 400    | Missing `Idempotency-Key`, or the domain has no `verification_method` configured.                                      | [`ApiError`](#standard-error-envelope)                                                       |
-| 401    | Authentication required or expired.                                                                                    | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                         | [`ApiError`](#standard-error-envelope)                                                       |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                    | [`ApiError`](#standard-error-envelope)                                                       |
-| 409    | Idempotency-Key reused with a different request, or the domain's current status (e.g. `suspended`) cannot be verified. | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal server error without stack trace.                                                                             | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                                                                                            | Schema                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | Tenant domain mapping verified (status "active").                                                                      | [`ApiSuccess`](#standard-success-envelope)&lt;[`TenantDomainItem`](#schema-tenantdomainitem)&gt; |
+| 400    | Missing `Idempotency-Key`, or the domain has no `verification_method` configured.                                      | [`ApiError`](#standard-error-envelope)                                                           |
+| 401    | Authentication required or expired.                                                                                    | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                         | [`ApiError`](#standard-error-envelope)                                                           |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                    | [`ApiError`](#standard-error-envelope)                                                           |
+| 409    | Idempotency-Key reused with a different request, or the domain's current status (e.g. `suspended`) cannot be verified. | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal server error without stack trace.                                                                             | [`ApiError`](#standard-error-envelope)                                                           |
 
 ## Identity & Access
 
@@ -529,15 +529,15 @@ Login identity, session authentication, and tenant user membership.
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                                       |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 200    | Role assignment created or already present (idempotent).                                                                                                                                                         | [`ApiSuccess`](#standard-success-envelope)\<[`AccessAssignmentResponse`](#schema-accessassignmentresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                       |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                       |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                       |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                       |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                       |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Role assignment created or already present (idempotent).                                                                                                                                                         | [`ApiSuccess`](#standard-success-envelope)&lt;[`AccessAssignmentResponse`](#schema-accessassignmentresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                           |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                           |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                           |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                           |
 
 ### `DELETE /api/v1/access/assignments` — Remove a role assignment from a tenant user
 
@@ -555,15 +555,15 @@ Login identity, session authentication, and tenant user membership.
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 200    | Assignment removed.                                                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Assignment removed.                                                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
 ### `GET /api/v1/access/decision-logs` — List recent ABAC decision log entries for the tenant
 
@@ -580,13 +580,13 @@ Login identity, session authentication, and tenant user membership.
 
 **Responses**
 
-| Status | Description                                           | Schema                                                                                                     |
-| ------ | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| 200    | Recent decision log entries, newest first (limit 50). | [`ApiSuccess`](#standard-success-envelope)\<[`DecisionLogListResponse`](#schema-decisionloglistresponse)\> |
-| 400    | Validation or request error.                          | [`ApiError`](#standard-error-envelope)                                                                     |
-| 401    | Authentication required or expired.                   | [`ApiError`](#standard-error-envelope)                                                                     |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.        | [`ApiError`](#standard-error-envelope)                                                                     |
-| 500    | Internal server error without stack trace.            | [`ApiError`](#standard-error-envelope)                                                                     |
+| Status | Description                                           | Schema                                                                                                         |
+| ------ | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 200    | Recent decision log entries, newest first (limit 50). | [`ApiSuccess`](#standard-success-envelope)&lt;[`DecisionLogListResponse`](#schema-decisionloglistresponse)&gt; |
+| 400    | Validation or request error.                          | [`ApiError`](#standard-error-envelope)                                                                         |
+| 401    | Authentication required or expired.                   | [`ApiError`](#standard-error-envelope)                                                                         |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.        | [`ApiError`](#standard-error-envelope)                                                                         |
+| 500    | Internal server error without stack trace.            | [`ApiError`](#standard-error-envelope)                                                                         |
 
 ### `POST /api/v1/access/evaluate` — Evaluate an ABAC access request for the caller
 
@@ -604,13 +604,13 @@ Login identity, session authentication, and tenant user membership.
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                                   |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| 200    | Access decision. Always recorded in the decision log.                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)\<[`AccessEvaluateResponse`](#schema-accessevaluateresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                   |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                   |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                   |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                   |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                       |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 200    | Access decision. Always recorded in the decision log.                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)&lt;[`AccessEvaluateResponse`](#schema-accessevaluateresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                       |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                       |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                       |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                       |
 
 ### `GET /api/v1/access/modules` — List the module/activity/action permission registry
 
@@ -626,11 +626,11 @@ Login identity, session authentication, and tenant user membership.
 
 **Responses**
 
-| Status | Description                                | Schema                                                                                                   |
-| ------ | ------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| 200    | Permission registry.                       | [`ApiSuccess`](#standard-success-envelope)\<[`ModuleRegistryResponse`](#schema-moduleregistryresponse)\> |
-| 401    | Authentication required or expired.        | [`ApiError`](#standard-error-envelope)                                                                   |
-| 500    | Internal server error without stack trace. | [`ApiError`](#standard-error-envelope)                                                                   |
+| Status | Description                                | Schema                                                                                                       |
+| ------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| 200    | Permission registry.                       | [`ApiSuccess`](#standard-success-envelope)&lt;[`ModuleRegistryResponse`](#schema-moduleregistryresponse)&gt; |
+| 401    | Authentication required or expired.        | [`ApiError`](#standard-error-envelope)                                                                       |
+| 500    | Internal server error without stack trace. | [`ApiError`](#standard-error-envelope)                                                                       |
 
 ### `POST /api/v1/auth/login` — Authenticate an identity and issue a session token
 
@@ -653,14 +653,14 @@ When the same gate is active AND `AUTH_MFA_ENABLED=true` (Issue #589) AND the id
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                 |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| 200    | Session issued.                                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)\<[`LoginResponse`](#schema-loginresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                 |
-| 401    | Invalid credentials (`AUTH_INVALID_CREDENTIALS`), OR password was valid but MFA/TOTP (Issue #589) must be completed before a session is issued (`MFA_REQUIRED`, `LoginMfaRequiredResponse`).                     | [`ApiError`](#standard-error-envelope) \\                                              | [`LoginMfaRequiredResponse`](#schema-loginmfarequiredresponse) |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                 |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                 |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                 |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 200    | Session issued.                                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)&lt;[`LoginResponse`](#schema-loginresponse)&gt;                 |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                     |
+| 401    | Invalid credentials (`AUTH_INVALID_CREDENTIALS`), OR password was valid but MFA/TOTP (Issue #589) must be completed before a session is issued (`MFA_REQUIRED`, `LoginMfaRequiredResponse`).                     | [`ApiError`](#standard-error-envelope) \\\| [`LoginMfaRequiredResponse`](#schema-loginmfarequiredresponse) |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                     |
 
 ### `POST /api/v1/auth/logout` — Revoke the caller's active session
 
@@ -676,11 +676,11 @@ When the same gate is active AND `AUTH_MFA_ENABLED=true` (Issue #589) AND the id
 
 **Responses**
 
-| Status | Description                                | Schema                                                                                   |
-| ------ | ------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| 200    | Session revoked.                           | [`ApiSuccess`](#standard-success-envelope)\<[`LogoutResponse`](#schema-logoutresponse)\> |
-| 401    | Authentication required or expired.        | [`ApiError`](#standard-error-envelope)                                                   |
-| 500    | Internal server error without stack trace. | [`ApiError`](#standard-error-envelope)                                                   |
+| Status | Description                                | Schema                                                                                       |
+| ------ | ------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| 200    | Session revoked.                           | [`ApiSuccess`](#standard-success-envelope)&lt;[`LogoutResponse`](#schema-logoutresponse)&gt; |
+| 401    | Authentication required or expired.        | [`ApiError`](#standard-error-envelope)                                                       |
+| 500    | Internal server error without stack trace. | [`ApiError`](#standard-error-envelope)                                                       |
 
 ### `GET /api/v1/auth/me` — Get the caller's active identity
 
@@ -696,11 +696,11 @@ When the same gate is active AND `AUTH_MFA_ENABLED=true` (Issue #589) AND the id
 
 **Responses**
 
-| Status | Description                                | Schema                                                                           |
-| ------ | ------------------------------------------ | -------------------------------------------------------------------------------- |
-| 200    | Active identity for the current session.   | [`ApiSuccess`](#standard-success-envelope)\<[`MeResponse`](#schema-meresponse)\> |
-| 401    | Authentication required or expired.        | [`ApiError`](#standard-error-envelope)                                           |
-| 500    | Internal server error without stack trace. | [`ApiError`](#standard-error-envelope)                                           |
+| Status | Description                                | Schema                                                                               |
+| ------ | ------------------------------------------ | ------------------------------------------------------------------------------------ |
+| 200    | Active identity for the current session.   | [`ApiSuccess`](#standard-success-envelope)&lt;[`MeResponse`](#schema-meresponse)&gt; |
+| 401    | Authentication required or expired.        | [`ApiError`](#standard-error-envelope)                                               |
+| 500    | Internal server error without stack trace. | [`ApiError`](#standard-error-envelope)                                               |
 
 ### `POST /api/v1/auth/mfa/recovery-codes/regenerate` — Invalidate existing recovery codes and issue a fresh set (high-risk, audited)
 
@@ -718,13 +718,13 @@ Full-online-only (Issue #589). Requires an active MFA factor. Every previously i
 
 **Responses**
 
-| Status | Description                                                                      | Schema                                                                                                       |
-| ------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 200    | Recovery codes regenerated.                                                      | [`ApiSuccess`](#standard-success-envelope)\<[`MfaRecoveryCodesResponse`](#schema-mfarecoverycodesresponse)\> |
-| 401    | Authentication required or expired.                                              | [`ApiError`](#standard-error-envelope)                                                                       |
-| 403    | Multi-factor authentication is not enabled for this deployment (`MFA_DISABLED`). | [`ApiError`](#standard-error-envelope)                                                                       |
-| 409    | No MFA factor is currently active for this account (`MFA_NOT_ACTIVE`).           | [`ApiError`](#standard-error-envelope)                                                                       |
-| 500    | Internal server error without stack trace.                                       | [`ApiError`](#standard-error-envelope)                                                                       |
+| Status | Description                                                                      | Schema                                                                                                           |
+| ------ | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Recovery codes regenerated.                                                      | [`ApiSuccess`](#standard-success-envelope)&lt;[`MfaRecoveryCodesResponse`](#schema-mfarecoverycodesresponse)&gt; |
+| 401    | Authentication required or expired.                                              | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Multi-factor authentication is not enabled for this deployment (`MFA_DISABLED`). | [`ApiError`](#standard-error-envelope)                                                                           |
+| 409    | No MFA factor is currently active for this account (`MFA_NOT_ACTIVE`).           | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.                                       | [`ApiError`](#standard-error-envelope)                                                                           |
 
 ### `GET /api/v1/auth/mfa/status` — Get the caller's own MFA enrollment status
 
@@ -742,13 +742,13 @@ Full-online-only (Issue #589) — `403 MFA_DISABLED` unless the #587 gate AND `A
 
 **Responses**
 
-| Status | Description                                                                      | Schema                                                                                         |
-| ------ | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 200    | Current MFA enrollment status.                                                   | [`ApiSuccess`](#standard-success-envelope)\<[`MfaStatusResponse`](#schema-mfastatusresponse)\> |
-| 400    | Validation or request error.                                                     | [`ApiError`](#standard-error-envelope)                                                         |
-| 401    | Authentication required or expired.                                              | [`ApiError`](#standard-error-envelope)                                                         |
-| 403    | Multi-factor authentication is not enabled for this deployment (`MFA_DISABLED`). | [`ApiError`](#standard-error-envelope)                                                         |
-| 500    | Internal server error without stack trace.                                       | [`ApiError`](#standard-error-envelope)                                                         |
+| Status | Description                                                                      | Schema                                                                                             |
+| ------ | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 200    | Current MFA enrollment status.                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;[`MfaStatusResponse`](#schema-mfastatusresponse)&gt; |
+| 400    | Validation or request error.                                                     | [`ApiError`](#standard-error-envelope)                                                             |
+| 401    | Authentication required or expired.                                              | [`ApiError`](#standard-error-envelope)                                                             |
+| 403    | Multi-factor authentication is not enabled for this deployment (`MFA_DISABLED`). | [`ApiError`](#standard-error-envelope)                                                             |
+| 500    | Internal server error without stack trace.                                       | [`ApiError`](#standard-error-envelope)                                                             |
 
 ### `POST /api/v1/auth/mfa/totp/disable` — Disable the caller's own MFA (high-risk, audited)
 
@@ -766,13 +766,13 @@ Full-online-only (Issue #589). Self-service: requires an already-valid session (
 
 **Responses**
 
-| Status | Description                                                                      | Schema                                                                                           |
-| ------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 200    | MFA disabled.                                                                    | [`ApiSuccess`](#standard-success-envelope)\<[`MfaDisableResponse`](#schema-mfadisableresponse)\> |
-| 401    | Authentication required or expired.                                              | [`ApiError`](#standard-error-envelope)                                                           |
-| 403    | Multi-factor authentication is not enabled for this deployment (`MFA_DISABLED`). | [`ApiError`](#standard-error-envelope)                                                           |
-| 409    | No MFA factor is currently active for this account (`MFA_NOT_ACTIVE`).           | [`ApiError`](#standard-error-envelope)                                                           |
-| 500    | Internal server error without stack trace.                                       | [`ApiError`](#standard-error-envelope)                                                           |
+| Status | Description                                                                      | Schema                                                                                               |
+| ------ | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | MFA disabled.                                                                    | [`ApiSuccess`](#standard-success-envelope)&lt;[`MfaDisableResponse`](#schema-mfadisableresponse)&gt; |
+| 401    | Authentication required or expired.                                              | [`ApiError`](#standard-error-envelope)                                                               |
+| 403    | Multi-factor authentication is not enabled for this deployment (`MFA_DISABLED`). | [`ApiError`](#standard-error-envelope)                                                               |
+| 409    | No MFA factor is currently active for this account (`MFA_NOT_ACTIVE`).           | [`ApiError`](#standard-error-envelope)                                                               |
+| 500    | Internal server error without stack trace.                                       | [`ApiError`](#standard-error-envelope)                                                               |
 
 ### `POST /api/v1/auth/mfa/totp/enroll/start` — Generate a new pending TOTP secret for the caller to confirm
 
@@ -790,14 +790,14 @@ Full-online-only (Issue #589). Returns the plaintext secret/QR URI ONLY here, at
 
 **Responses**
 
-| Status | Description                                                                      | Schema                                                                                                   |
-| ------ | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| 200    | Pending TOTP factor created.                                                     | [`ApiSuccess`](#standard-success-envelope)\<[`MfaEnrollStartResponse`](#schema-mfaenrollstartresponse)\> |
-| 400    | Validation or request error.                                                     | [`ApiError`](#standard-error-envelope)                                                                   |
-| 401    | Authentication required or expired.                                              | [`ApiError`](#standard-error-envelope)                                                                   |
-| 403    | Multi-factor authentication is not enabled for this deployment (`MFA_DISABLED`). | [`ApiError`](#standard-error-envelope)                                                                   |
-| 409    | An MFA factor is already active for this account (`MFA_ALREADY_ACTIVE`).         | [`ApiError`](#standard-error-envelope)                                                                   |
-| 500    | Internal server error without stack trace.                                       | [`ApiError`](#standard-error-envelope)                                                                   |
+| Status | Description                                                                      | Schema                                                                                                       |
+| ------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 200    | Pending TOTP factor created.                                                     | [`ApiSuccess`](#standard-success-envelope)&lt;[`MfaEnrollStartResponse`](#schema-mfaenrollstartresponse)&gt; |
+| 400    | Validation or request error.                                                     | [`ApiError`](#standard-error-envelope)                                                                       |
+| 401    | Authentication required or expired.                                              | [`ApiError`](#standard-error-envelope)                                                                       |
+| 403    | Multi-factor authentication is not enabled for this deployment (`MFA_DISABLED`). | [`ApiError`](#standard-error-envelope)                                                                       |
+| 409    | An MFA factor is already active for this account (`MFA_ALREADY_ACTIVE`).         | [`ApiError`](#standard-error-envelope)                                                                       |
+| 500    | Internal server error without stack trace.                                       | [`ApiError`](#standard-error-envelope)                                                                       |
 
 ### `POST /api/v1/auth/mfa/totp/enroll/verify` — Confirm a pending TOTP enrollment with a live code
 
@@ -817,15 +817,15 @@ Full-online-only (Issue #589). Activates the pending factor from `enroll/start` 
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                                     |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| 200    | MFA activated.                                                                                                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)\<[`MfaEnrollVerifyResponse`](#schema-mfaenrollverifyresponse)\> |
-| 400    | Validation error, or the code is invalid (`MFA_INVALID_CODE`).                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                     |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                     |
-| 403    | Multi-factor authentication is not enabled for this deployment (`MFA_DISABLED`).                                                                                                                                 | [`ApiError`](#standard-error-envelope)                                                                     |
-| 404    | No pending MFA enrollment found (`MFA_ENROLLMENT_NOT_FOUND`).                                                                                                                                                    | [`ApiError`](#standard-error-envelope)                                                                     |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                     |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                     |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                         |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 200    | MFA activated.                                                                                                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;[`MfaEnrollVerifyResponse`](#schema-mfaenrollverifyresponse)&gt; |
+| 400    | Validation error, or the code is invalid (`MFA_INVALID_CODE`).                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                         |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                         |
+| 403    | Multi-factor authentication is not enabled for this deployment (`MFA_DISABLED`).                                                                                                                                 | [`ApiError`](#standard-error-envelope)                                                                         |
+| 404    | No pending MFA enrollment found (`MFA_ENROLLMENT_NOT_FOUND`).                                                                                                                                                    | [`ApiError`](#standard-error-envelope)                                                                         |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                         |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                         |
 
 ### `POST /api/v1/auth/mfa/totp/verify` — Complete a login paused by 401 MFA_REQUIRED
 
@@ -845,14 +845,14 @@ Full-online-only (Issue #589). Deliberately NOT authenticated via a session — 
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                 |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| 200    | Challenge verified; session issued.                                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope)\<[`LoginResponse`](#schema-loginresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                 |
-| 401    | The challenge is invalid, expired, already used, or the code/recovery code is wrong (deliberately not distinguished — anti-enumeration, same principle as `password/reset` — `MFA_CHALLENGE_INVALID`).           | [`ApiError`](#standard-error-envelope)                                                 |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                 |
-| 429    | Too many verification attempts from this source.                                                                                                                                                                 | [`ApiError`](#standard-error-envelope)                                                 |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                 |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 200    | Challenge verified; session issued.                                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope)&lt;[`LoginResponse`](#schema-loginresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                     |
+| 401    | The challenge is invalid, expired, already used, or the code/recovery code is wrong (deliberately not distinguished — anti-enumeration, same principle as `password/reset` — `MFA_CHALLENGE_INVALID`).           | [`ApiError`](#standard-error-envelope)                                                     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                     |
+| 429    | Too many verification attempts from this source.                                                                                                                                                                 | [`ApiError`](#standard-error-envelope)                                                     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                     |
 
 ### `POST /api/v1/auth/password/forgot` — Request a password reset email; always returns a generic response regardless of whether the identifier matches an account
 
@@ -872,13 +872,13 @@ When full-online auth security hardening AND `TURNSTILE_ENABLED=true` are both a
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                                   |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| 200    | Generic acknowledgement — does not reveal whether the account exists.                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)\<[`ForgotPasswordResponse`](#schema-forgotpasswordresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                   |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                   |
-| 429    | Too many password reset requests from this source.                                                                                                                                                               | [`ApiError`](#standard-error-envelope)                                                                   |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                   |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                       |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 200    | Generic acknowledgement — does not reveal whether the account exists.                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)&lt;[`ForgotPasswordResponse`](#schema-forgotpasswordresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                       |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                       |
+| 429    | Too many password reset requests from this source.                                                                                                                                                               | [`ApiError`](#standard-error-envelope)                                                                       |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                       |
 
 ### `POST /api/v1/auth/password/reset` — Complete a password reset with a valid one-time token
 
@@ -898,13 +898,13 @@ When full-online auth security hardening AND `TURNSTILE_ENABLED=true` are both a
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                                 |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| 200    | Password reset; all active sessions for the identity are revoked.                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)\<[`ResetPasswordResponse`](#schema-resetpasswordresponse)\> |
-| 400    | Validation error, or the token is invalid/expired/already used (deliberately not distinguished in the response — anti- enumeration, doc 20 §A07 Identification & Auth Failures).                                 | [`ApiError`](#standard-error-envelope)                                                                 |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                 |
-| 429    | Too many password reset attempts from this source.                                                                                                                                                               | [`ApiError`](#standard-error-envelope)                                                                 |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                 |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 200    | Password reset; all active sessions for the identity are revoked.                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;[`ResetPasswordResponse`](#schema-resetpasswordresponse)&gt; |
+| 400    | Validation error, or the token is invalid/expired/already used (deliberately not distinguished in the response — anti- enumeration, doc 20 §A07 Identification & Auth Failures).                                 | [`ApiError`](#standard-error-envelope)                                                                     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                     |
+| 429    | Too many password reset attempts from this source.                                                                                                                                                               | [`ApiError`](#standard-error-envelope)                                                                     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                     |
 
 ### `GET /api/v1/auth/providers/google/callback` — Google's OAuth redirect target — completes login or link
 
@@ -923,14 +923,14 @@ Full-online-only (Issue #590). A plain top-level browser navigation, never a `fe
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                                                       | Schema                                    |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| 302    | Login or link succeeded; redirects to `/admin`.                                                                                                                                                                                                   |                                           |
-| 400    | Missing or malformed `state` (`GOOGLE_OAUTH_STATE_INVALID`).                                                                                                                                                                                      | [`ApiError`](#standard-error-envelope)    |
-| 401    | The state/nonce/ID token could not be verified (`GOOGLE_OAUTH_STATE_INVALID`/`GOOGLE_TOKEN_EXCHANGE_FAILED`/ `GOOGLE_ID_TOKEN_INVALID`/`GOOGLE_ACCOUNT_NOT_LINKED`), or MFA must be completed first (`MFA_REQUIRED`, `LoginMfaRequiredResponse`). | [`ApiError`](#standard-error-envelope) \\ | [`LoginMfaRequiredResponse`](#schema-loginmfarequiredresponse) |
-| 403    | Google login is not enabled for this deployment (`GOOGLE_LOGIN_DISABLED`), or the resolved identity/tenant is not active (`ACCESS_DENIED`).                                                                                                       | [`ApiError`](#standard-error-envelope)    |
-| 409    | This Google subject is already linked to a different identity (`GOOGLE_ALREADY_LINKED`).                                                                                                                                                          | [`ApiError`](#standard-error-envelope)    |
-| 500    | Internal server error without stack trace.                                                                                                                                                                                                        | [`ApiError`](#standard-error-envelope)    |
+| Status | Description                                                                                                                                                                                                                                       | Schema                                                                                                     |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 302    | Login or link succeeded; redirects to `/admin`.                                                                                                                                                                                                   |                                                                                                            |
+| 400    | Missing or malformed `state` (`GOOGLE_OAUTH_STATE_INVALID`).                                                                                                                                                                                      | [`ApiError`](#standard-error-envelope)                                                                     |
+| 401    | The state/nonce/ID token could not be verified (`GOOGLE_OAUTH_STATE_INVALID`/`GOOGLE_TOKEN_EXCHANGE_FAILED`/ `GOOGLE_ID_TOKEN_INVALID`/`GOOGLE_ACCOUNT_NOT_LINKED`), or MFA must be completed first (`MFA_REQUIRED`, `LoginMfaRequiredResponse`). | [`ApiError`](#standard-error-envelope) \\\| [`LoginMfaRequiredResponse`](#schema-loginmfarequiredresponse) |
+| 403    | Google login is not enabled for this deployment (`GOOGLE_LOGIN_DISABLED`), or the resolved identity/tenant is not active (`ACCESS_DENIED`).                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                     |
+| 409    | This Google subject is already linked to a different identity (`GOOGLE_ALREADY_LINKED`).                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                                                     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                                                        | [`ApiError`](#standard-error-envelope)                                                                     |
 
 ### `POST /api/v1/auth/providers/google/link` — Start linking the caller's own identity to a Google account
 
@@ -948,13 +948,13 @@ Full-online-only (Issue #590). Authenticated: creates a `link`-purpose OAuth req
 
 **Responses**
 
-| Status | Description                                                                | Schema                                                                                                     |
-| ------ | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| 200    | Link-purpose OAuth request created.                                        | [`ApiSuccess`](#standard-success-envelope)\<[`GoogleLinkStartResponse`](#schema-googlelinkstartresponse)\> |
-| 400    | Validation or request error.                                               | [`ApiError`](#standard-error-envelope)                                                                     |
-| 401    | Authentication required or expired.                                        | [`ApiError`](#standard-error-envelope)                                                                     |
-| 403    | Google login is not enabled for this deployment (`GOOGLE_LOGIN_DISABLED`). | [`ApiError`](#standard-error-envelope)                                                                     |
-| 500    | Internal server error without stack trace.                                 | [`ApiError`](#standard-error-envelope)                                                                     |
+| Status | Description                                                                | Schema                                                                                                         |
+| ------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 200    | Link-purpose OAuth request created.                                        | [`ApiSuccess`](#standard-success-envelope)&lt;[`GoogleLinkStartResponse`](#schema-googlelinkstartresponse)&gt; |
+| 400    | Validation or request error.                                               | [`ApiError`](#standard-error-envelope)                                                                         |
+| 401    | Authentication required or expired.                                        | [`ApiError`](#standard-error-envelope)                                                                         |
+| 403    | Google login is not enabled for this deployment (`GOOGLE_LOGIN_DISABLED`). | [`ApiError`](#standard-error-envelope)                                                                         |
+| 500    | Internal server error without stack trace.                                 | [`ApiError`](#standard-error-envelope)                                                                         |
 
 ### `GET /api/v1/auth/providers/google/start` — Redirect to Google's OAuth Authorization Code endpoint (login)
 
@@ -994,13 +994,13 @@ Full-online-only (Issue #590). High-risk, audited (`google_account_unlinked`). N
 
 **Responses**
 
-| Status | Description                                                                | Schema                                                                                               |
-| ------ | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| 200    | Google account unlinked.                                                   | [`ApiSuccess`](#standard-success-envelope)\<[`GoogleUnlinkResponse`](#schema-googleunlinkresponse)\> |
-| 401    | Authentication required or expired.                                        | [`ApiError`](#standard-error-envelope)                                                               |
-| 403    | Google login is not enabled for this deployment (`GOOGLE_LOGIN_DISABLED`). | [`ApiError`](#standard-error-envelope)                                                               |
-| 409    | No Google account is currently linked (`GOOGLE_NOT_LINKED`).               | [`ApiError`](#standard-error-envelope)                                                               |
-| 500    | Internal server error without stack trace.                                 | [`ApiError`](#standard-error-envelope)                                                               |
+| Status | Description                                                                | Schema                                                                                                   |
+| ------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 200    | Google account unlinked.                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;[`GoogleUnlinkResponse`](#schema-googleunlinkresponse)&gt; |
+| 401    | Authentication required or expired.                                        | [`ApiError`](#standard-error-envelope)                                                                   |
+| 403    | Google login is not enabled for this deployment (`GOOGLE_LOGIN_DISABLED`). | [`ApiError`](#standard-error-envelope)                                                                   |
+| 409    | No Google account is currently linked (`GOOGLE_NOT_LINKED`).               | [`ApiError`](#standard-error-envelope)                                                                   |
+| 500    | Internal server error without stack trace.                                 | [`ApiError`](#standard-error-envelope)                                                                   |
 
 ### `GET /api/v1/auth/sso/{providerKey}/callback` — Tenant OIDC provider's redirect target — completes login or link
 
@@ -1020,15 +1020,15 @@ Full-online-only (Issue #591). A plain top-level browser navigation, never a `fe
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                                           | Schema                                    |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| 302    | Login or link succeeded; redirects to `/admin`.                                                                                                                                                                                       |                                           |
-| 400    | Missing or malformed `state` (`SSO_OAUTH_STATE_INVALID`).                                                                                                                                                                             | [`ApiError`](#standard-error-envelope)    |
-| 401    | The state/nonce/ID token could not be verified (`SSO_OAUTH_STATE_INVALID`/`SSO_TOKEN_EXCHANGE_FAILED`/ `SSO_ID_TOKEN_INVALID`/`SSO_ACCOUNT_NOT_LINKED`), or MFA must be completed first (`MFA_REQUIRED`, `LoginMfaRequiredResponse`). | [`ApiError`](#standard-error-envelope) \\ | [`LoginMfaRequiredResponse`](#schema-loginmfarequiredresponse) |
-| 403    | Tenant OIDC SSO is not enabled for this deployment (`SSO_DISABLED`), this provider is disabled (`SSO_PROVIDER_DISABLED`), or the resolved identity/tenant is not active (`ACCESS_DENIED`).                                            | [`ApiError`](#standard-error-envelope)    |
-| 409    | This provider subject is already linked to a different identity (`SSO_ALREADY_LINKED`).                                                                                                                                               | [`ApiError`](#standard-error-envelope)    |
-| 500    | Internal server error without stack trace.                                                                                                                                                                                            | [`ApiError`](#standard-error-envelope)    |
-| 502    | The SSO provider could not be reached (`SSO_PROVIDER_UNAVAILABLE`).                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)    |
+| Status | Description                                                                                                                                                                                                                           | Schema                                                                                                     |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 302    | Login or link succeeded; redirects to `/admin`.                                                                                                                                                                                       |                                                                                                            |
+| 400    | Missing or malformed `state` (`SSO_OAUTH_STATE_INVALID`).                                                                                                                                                                             | [`ApiError`](#standard-error-envelope)                                                                     |
+| 401    | The state/nonce/ID token could not be verified (`SSO_OAUTH_STATE_INVALID`/`SSO_TOKEN_EXCHANGE_FAILED`/ `SSO_ID_TOKEN_INVALID`/`SSO_ACCOUNT_NOT_LINKED`), or MFA must be completed first (`MFA_REQUIRED`, `LoginMfaRequiredResponse`). | [`ApiError`](#standard-error-envelope) \\\| [`LoginMfaRequiredResponse`](#schema-loginmfarequiredresponse) |
+| 403    | Tenant OIDC SSO is not enabled for this deployment (`SSO_DISABLED`), this provider is disabled (`SSO_PROVIDER_DISABLED`), or the resolved identity/tenant is not active (`ACCESS_DENIED`).                                            | [`ApiError`](#standard-error-envelope)                                                                     |
+| 409    | This provider subject is already linked to a different identity (`SSO_ALREADY_LINKED`).                                                                                                                                               | [`ApiError`](#standard-error-envelope)                                                                     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                                            | [`ApiError`](#standard-error-envelope)                                                                     |
+| 502    | The SSO provider could not be reached (`SSO_PROVIDER_UNAVAILABLE`).                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                     |
 
 ### `POST /api/v1/auth/sso/{providerKey}/link` — Start linking the caller's own identity to a tenant-configured OIDC provider account
 
@@ -1047,15 +1047,15 @@ Full-online-only (Issue #591). Authenticated: creates a `link`-purpose OAuth req
 
 **Responses**
 
-| Status | Description                                                                              | Schema                                                                                               |
-| ------ | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| 200    | Link-purpose OAuth request created.                                                      | [`ApiSuccess`](#standard-success-envelope)\<[`SsoLinkStartResponse`](#schema-ssolinkstartresponse)\> |
-| 400    | Validation or request error.                                                             | [`ApiError`](#standard-error-envelope)                                                               |
-| 401    | Authentication required or expired.                                                      | [`ApiError`](#standard-error-envelope)                                                               |
-| 403    | Tenant OIDC SSO is not enabled for this deployment (`SSO_DISABLED`).                     | [`ApiError`](#standard-error-envelope)                                                               |
-| 404    | No enabled SSO provider matches this key (`SSO_PROVIDER_NOT_FOUND`).                     | [`ApiError`](#standard-error-envelope)                                                               |
-| 500    | Internal server error without stack trace.                                               | [`ApiError`](#standard-error-envelope)                                                               |
-| 502    | The SSO provider's discovery endpoint could not be reached (`SSO_PROVIDER_UNAVAILABLE`). | [`ApiError`](#standard-error-envelope)                                                               |
+| Status | Description                                                                              | Schema                                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 200    | Link-purpose OAuth request created.                                                      | [`ApiSuccess`](#standard-success-envelope)&lt;[`SsoLinkStartResponse`](#schema-ssolinkstartresponse)&gt; |
+| 400    | Validation or request error.                                                             | [`ApiError`](#standard-error-envelope)                                                                   |
+| 401    | Authentication required or expired.                                                      | [`ApiError`](#standard-error-envelope)                                                                   |
+| 403    | Tenant OIDC SSO is not enabled for this deployment (`SSO_DISABLED`).                     | [`ApiError`](#standard-error-envelope)                                                                   |
+| 404    | No enabled SSO provider matches this key (`SSO_PROVIDER_NOT_FOUND`).                     | [`ApiError`](#standard-error-envelope)                                                                   |
+| 500    | Internal server error without stack trace.                                               | [`ApiError`](#standard-error-envelope)                                                                   |
+| 502    | The SSO provider's discovery endpoint could not be reached (`SSO_PROVIDER_UNAVAILABLE`). | [`ApiError`](#standard-error-envelope)                                                                   |
 
 ### `GET /api/v1/auth/sso/{providerKey}/start` — Redirect to a tenant-configured OIDC provider's authorization endpoint (login)
 
@@ -1100,13 +1100,13 @@ Full-online-only (Issue #591). High-risk, audited (`sso_account_unlinked`). Neve
 
 **Responses**
 
-| Status | Description                                                          | Schema                                                                                         |
-| ------ | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 200    | SSO account unlinked.                                                | [`ApiSuccess`](#standard-success-envelope)\<[`SsoUnlinkResponse`](#schema-ssounlinkresponse)\> |
-| 401    | Authentication required or expired.                                  | [`ApiError`](#standard-error-envelope)                                                         |
-| 403    | Tenant OIDC SSO is not enabled for this deployment (`SSO_DISABLED`). | [`ApiError`](#standard-error-envelope)                                                         |
-| 409    | No SSO account is currently linked (`SSO_NOT_LINKED`).               | [`ApiError`](#standard-error-envelope)                                                         |
-| 500    | Internal server error without stack trace.                           | [`ApiError`](#standard-error-envelope)                                                         |
+| Status | Description                                                          | Schema                                                                                             |
+| ------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 200    | SSO account unlinked.                                                | [`ApiSuccess`](#standard-success-envelope)&lt;[`SsoUnlinkResponse`](#schema-ssounlinkresponse)&gt; |
+| 401    | Authentication required or expired.                                  | [`ApiError`](#standard-error-envelope)                                                             |
+| 403    | Tenant OIDC SSO is not enabled for this deployment (`SSO_DISABLED`). | [`ApiError`](#standard-error-envelope)                                                             |
+| 409    | No SSO account is currently linked (`SSO_NOT_LINKED`).               | [`ApiError`](#standard-error-envelope)                                                             |
+| 500    | Internal server error without stack trace.                           | [`ApiError`](#standard-error-envelope)                                                             |
 
 ### `GET /api/v1/identity/sso/policy` — Read this tenant's authentication policy
 
@@ -1124,13 +1124,13 @@ Admin CRUD (Issue #591), protected by ABAC (`identity_access.sso_policy.read`). 
 
 **Responses**
 
-| Status | Description                                    | Schema                                                                                               |
-| ------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| 200    | Tenant authentication policy.                  | [`ApiSuccess`](#standard-success-envelope)\<[`TenantAuthPolicyView`](#schema-tenantauthpolicyview)\> |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                               |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                               |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                               |
+| Status | Description                                    | Schema                                                                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 200    | Tenant authentication policy.                  | [`ApiSuccess`](#standard-success-envelope)&lt;[`TenantAuthPolicyView`](#schema-tenantauthpolicyview)&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                   |
 
 ### `PATCH /api/v1/identity/sso/policy` — Update this tenant's authentication policy
 
@@ -1150,15 +1150,15 @@ Admin CRUD (Issue #591), protected by ABAC (`identity_access.sso_policy.update`)
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| 200    | Tenant authentication policy updated.                                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)\<[`TenantAuthPolicyView`](#schema-tenantauthpolicyview)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                               |
-| 409    | Break-glass requirement not satisfied (`BREAK_GLASS_REQUIRED`).                                                                                                                                                  | [`ApiError`](#standard-error-envelope)                                                               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 200    | Tenant authentication policy updated.                                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)&lt;[`TenantAuthPolicyView`](#schema-tenantauthpolicyview)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                   |
+| 409    | Break-glass requirement not satisfied (`BREAK_GLASS_REQUIRED`).                                                                                                                                                  | [`ApiError`](#standard-error-envelope)                                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                   |
 
 ### `GET /api/v1/identity/sso/providers` — List this tenant's configured OIDC SSO providers
 
@@ -1176,13 +1176,13 @@ Admin CRUD (Issue #591), protected by ABAC (`identity_access.sso_providers.read`
 
 **Responses**
 
-| Status | Description                                    | Schema                                                                                                       |
-| ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 200    | SSO providers listed.                          | [`ApiSuccess`](#standard-success-envelope)\<[`AuthProviderListResponse`](#schema-authproviderlistresponse)\> |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                                       |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                       |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                       |
+| Status | Description                                    | Schema                                                                                                           |
+| ------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | SSO providers listed.                          | [`ApiSuccess`](#standard-success-envelope)&lt;[`AuthProviderListResponse`](#schema-authproviderlistresponse)&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                                           |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                           |
 
 ### `POST /api/v1/identity/sso/providers` — Add a tenant OIDC SSO provider
 
@@ -1202,15 +1202,15 @@ Admin CRUD (Issue #591), protected by ABAC (`identity_access.sso_providers.creat
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                               | Schema                                                                                       |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | SSO provider created.                                                                                                                                                                                                     | [`ApiSuccess`](#standard-success-envelope)\<[`AuthProviderView`](#schema-authproviderview)\> |
-| 400    | Validation or request error.                                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                       |
-| 401    | Authentication required or expired.                                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                            | [`ApiError`](#standard-error-envelope)                                                       |
-| 409    | A provider already exists for this `providerKey` (`SSO_PROVIDER_KEY_CONFLICT`), or the tenant has reached its configured provider limit (`SSO_PROVIDER_LIMIT_EXCEEDED`, default 20, `AUTH_SSO_MAX_PROVIDERS_PER_TENANT`). | [`ApiError`](#standard-error-envelope)                                                       |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`.          | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal error, or `AUTH_SSO_CREDENTIAL_ENCRYPTION_KEY` is not configured on this server (`SSO_MISCONFIGURED`).                                                                                                           | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                                                                                                                                                                                               | Schema                                                                                           |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | SSO provider created.                                                                                                                                                                                                     | [`ApiSuccess`](#standard-success-envelope)&lt;[`AuthProviderView`](#schema-authproviderview)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
+| 401    | Authentication required or expired.                                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                            | [`ApiError`](#standard-error-envelope)                                                           |
+| 409    | A provider already exists for this `providerKey` (`SSO_PROVIDER_KEY_CONFLICT`), or the tenant has reached its configured provider limit (`SSO_PROVIDER_LIMIT_EXCEEDED`, default 20, `AUTH_SSO_MAX_PROVIDERS_PER_TENANT`). | [`ApiError`](#standard-error-envelope)                                                           |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`.          | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal error, or `AUTH_SSO_CREDENTIAL_ENCRYPTION_KEY` is not configured on this server (`SSO_MISCONFIGURED`).                                                                                                           | [`ApiError`](#standard-error-envelope)                                                           |
 
 ### `GET /api/v1/identity/sso/providers/{id}` — Read one tenant OIDC SSO provider
 
@@ -1227,13 +1227,13 @@ Admin CRUD (Issue #591), protected by ABAC (`identity_access.sso_providers.creat
 
 **Responses**
 
-| Status | Description                                         | Schema                                                                                       |
-| ------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | SSO provider found.                                 | [`ApiSuccess`](#standard-success-envelope)\<[`AuthProviderView`](#schema-authproviderview)\> |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                       |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                         | Schema                                                                                           |
+| ------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | SSO provider found.                                 | [`ApiSuccess`](#standard-success-envelope)&lt;[`AuthProviderView`](#schema-authproviderview)&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                           |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                           |
 
 ### `PATCH /api/v1/identity/sso/providers/{id}` — Update a tenant OIDC SSO provider
 
@@ -1254,15 +1254,15 @@ Admin CRUD (Issue #591), protected by ABAC (`identity_access.sso_providers.updat
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                       |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | SSO provider updated.                                                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)\<[`AuthProviderView`](#schema-authproviderview)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                       |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                       |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                       |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal error, or `AUTH_SSO_CREDENTIAL_ENCRYPTION_KEY` is not configured on this server (`SSO_MISCONFIGURED`).                                                                                                  | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | SSO provider updated.                                                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)&lt;[`AuthProviderView`](#schema-authproviderview)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                           |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                           |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal error, or `AUTH_SSO_CREDENTIAL_ENCRYPTION_KEY` is not configured on this server (`SSO_MISCONFIGURED`).                                                                                                  | [`ApiError`](#standard-error-envelope)                                                           |
 
 ### `DELETE /api/v1/identity/sso/providers/{id}` — Soft-delete a tenant OIDC SSO provider
 
@@ -1283,15 +1283,15 @@ Admin CRUD (Issue #591), protected by ABAC (`identity_access.sso_providers.delet
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 200    | SSO provider deleted.                                                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | SSO provider deleted.                                                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
 ### `GET /api/v1/permissions` — List the global permission catalog
 
@@ -1307,12 +1307,12 @@ Admin CRUD (Issue #591), protected by ABAC (`identity_access.sso_providers.delet
 
 **Responses**
 
-| Status | Description                                                  | Schema                                                                                                   |
-| ------ | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| 200    | Full permission catalog (module_key, activity_code, action). | [`ApiSuccess`](#standard-success-envelope)\<[`PermissionListResponse`](#schema-permissionlistresponse)\> |
-| 401    | Authentication required or expired.                          | [`ApiError`](#standard-error-envelope)                                                                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.               | [`ApiError`](#standard-error-envelope)                                                                   |
-| 500    | Internal server error without stack trace.                   | [`ApiError`](#standard-error-envelope)                                                                   |
+| Status | Description                                                  | Schema                                                                                                       |
+| ------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| 200    | Full permission catalog (module_key, activity_code, action). | [`ApiSuccess`](#standard-success-envelope)&lt;[`PermissionListResponse`](#schema-permissionlistresponse)&gt; |
+| 401    | Authentication required or expired.                          | [`ApiError`](#standard-error-envelope)                                                                       |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.               | [`ApiError`](#standard-error-envelope)                                                                       |
+| 500    | Internal server error without stack trace.                   | [`ApiError`](#standard-error-envelope)                                                                       |
 
 ### `GET /api/v1/roles` — List tenant roles with their permission ids and assigned user count
 
@@ -1328,12 +1328,12 @@ Admin CRUD (Issue #591), protected by ABAC (`identity_access.sso_providers.delet
 
 **Responses**
 
-| Status | Description                                    | Schema                                                                                       |
-| ------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | All non-deleted roles for the tenant.          | [`ApiSuccess`](#standard-success-envelope)\<[`RoleListResponse`](#schema-rolelistresponse)\> |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                    | Schema                                                                                           |
+| ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | All non-deleted roles for the tenant.          | [`ApiSuccess`](#standard-success-envelope)&lt;[`RoleListResponse`](#schema-rolelistresponse)&gt; |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                           |
 
 ### `POST /api/v1/roles` — Create a role with an initial permission set
 
@@ -1351,15 +1351,15 @@ Admin CRUD (Issue #591), protected by ABAC (`identity_access.sso_providers.delet
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                           |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 200    | Role created.                                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)\<[`CreateRoleResponse`](#schema-createroleresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                           |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                           |
-| 409    | A role with that role_code already exists.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                           |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                           |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                           |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                               |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | Role created.                                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)&lt;[`CreateRoleResponse`](#schema-createroleresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                               |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                               |
+| 409    | A role with that role_code already exists.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                               |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                               |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                               |
 
 ### `PATCH /api/v1/roles/{id}` — Rename a role and/or replace its permission set
 
@@ -1435,12 +1435,12 @@ Rejects with 409 if the role is a system role, or if it is still assigned to one
 
 **Responses**
 
-| Status | Description                                                 | Schema                                                                                       |
-| ------ | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | All tenant users for the tenant, with their assigned roles. | [`ApiSuccess`](#standard-success-envelope)\<[`UserListResponse`](#schema-userlistresponse)\> |
-| 401    | Authentication required or expired.                         | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.              | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal server error without stack trace.                  | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                                 | Schema                                                                                           |
+| ------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | All tenant users for the tenant, with their assigned roles. | [`ApiSuccess`](#standard-success-envelope)&lt;[`UserListResponse`](#schema-userlistresponse)&gt; |
+| 401    | Authentication required or expired.                         | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.              | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal server error without stack trace.                  | [`ApiError`](#standard-error-envelope)                                                           |
 
 ### `POST /api/v1/users` — Create a tenant user (identity + profile + optional role assignment)
 
@@ -1458,15 +1458,15 @@ Rejects with 409 if the role is a system role, or if it is still assigned to one
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                           |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 200    | User created.                                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)\<[`CreateUserResponse`](#schema-createuserresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                           |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                           |
-| 409    | A user with that login identifier already exists.                                                                                                                                                                | [`ApiError`](#standard-error-envelope)                                                           |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                           |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                           |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                               |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | User created.                                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)&lt;[`CreateUserResponse`](#schema-createuserresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                               |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                               |
+| 409    | A user with that login identifier already exists.                                                                                                                                                                | [`ApiError`](#standard-error-envelope)                                                               |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                               |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                               |
 
 ### `PATCH /api/v1/users/{id}` — Update a tenant user's display name and/or active status
 
@@ -1514,12 +1514,12 @@ Offline-first sync node registration and HMAC-signed push/pull.
 
 **Responses**
 
-| Status | Description                                     | Schema                                                                                                       |
-| ------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 200    | Recent sync conflicts, newest first (limit 50). | [`ApiSuccess`](#standard-success-envelope)\<[`SyncConflictListResponse`](#schema-syncconflictlistresponse)\> |
-| 401    | Authentication required or expired.             | [`ApiError`](#standard-error-envelope)                                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.  | [`ApiError`](#standard-error-envelope)                                                                       |
-| 500    | Internal server error without stack trace.      | [`ApiError`](#standard-error-envelope)                                                                       |
+| Status | Description                                     | Schema                                                                                                           |
+| ------ | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Recent sync conflicts, newest first (limit 50). | [`ApiSuccess`](#standard-success-envelope)&lt;[`SyncConflictListResponse`](#schema-syncconflictlistresponse)&gt; |
+| 401    | Authentication required or expired.             | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.  | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.      | [`ApiError`](#standard-error-envelope)                                                                           |
 
 ### `POST /api/v1/sync/conflicts/{id}/resolve` — Resolve a sync conflict (bearer session, not HMAC)
 
@@ -1538,16 +1538,16 @@ Offline-first sync node registration and HMAC-signed push/pull.
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                                             |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| 200    | Conflict resolved.                                                                                                                                                                                               | [`ApiSuccess`](#standard-success-envelope)\<[`SyncConflictResolveResponse`](#schema-syncconflictresolveresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                             |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                             |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                             |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                             |
-| 409    | Conflict is already resolved.                                                                                                                                                                                    | [`ApiError`](#standard-error-envelope)                                                                             |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                             |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                             |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                                 |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 200    | Conflict resolved.                                                                                                                                                                                               | [`ApiSuccess`](#standard-success-envelope)&lt;[`SyncConflictResolveResponse`](#schema-syncconflictresolveresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                                 |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                                 |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                                 |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                                 |
+| 409    | Conflict is already resolved.                                                                                                                                                                                    | [`ApiError`](#standard-error-envelope)                                                                                 |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                                 |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                                 |
 
 ### `GET /api/v1/sync/nodes` — List sync nodes for the tenant (bearer session or SSR cookie, not HMAC)
 
@@ -1565,12 +1565,12 @@ Admin-facing view of node registrations — distinct from the machine-to-machine
 
 **Responses**
 
-| Status | Description                                    | Schema                                                                                               |
-| ------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| 200    | All sync nodes registered for the tenant.      | [`ApiSuccess`](#standard-success-envelope)\<[`SyncNodeListResponse`](#schema-syncnodelistresponse)\> |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                               |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                               |
+| Status | Description                                    | Schema                                                                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 200    | All sync nodes registered for the tenant.      | [`ApiSuccess`](#standard-success-envelope)&lt;[`SyncNodeListResponse`](#schema-syncnodelistresponse)&gt; |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                   |
 
 ### `PATCH /api/v1/sync/nodes/{id}` — Activate/deactivate or rename a sync node
 
@@ -1619,13 +1619,13 @@ Admin-facing, all-nodes view — distinct from the node-scoped, HMAC `GET /sync/
 
 **Responses**
 
-| Status | Description                                                      | Schema                                                                                                     |
-| ------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| 200    | Object sync queue entries tenant-wide (limit 200), newest first. | [`ApiSuccess`](#standard-success-envelope)\<[`ObjectQueueListResponse`](#schema-objectqueuelistresponse)\> |
-| 400    | Validation or request error.                                     | [`ApiError`](#standard-error-envelope)                                                                     |
-| 401    | Authentication required or expired.                              | [`ApiError`](#standard-error-envelope)                                                                     |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                   | [`ApiError`](#standard-error-envelope)                                                                     |
-| 500    | Internal server error without stack trace.                       | [`ApiError`](#standard-error-envelope)                                                                     |
+| Status | Description                                                      | Schema                                                                                                         |
+| ------ | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 200    | Object sync queue entries tenant-wide (limit 200), newest first. | [`ApiSuccess`](#standard-success-envelope)&lt;[`ObjectQueueListResponse`](#schema-objectqueuelistresponse)&gt; |
+| 400    | Validation or request error.                                     | [`ApiError`](#standard-error-envelope)                                                                         |
+| 401    | Authentication required or expired.                              | [`ApiError`](#standard-error-envelope)                                                                         |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                   | [`ApiError`](#standard-error-envelope)                                                                         |
+| 500    | Internal server error without stack trace.                       | [`ApiError`](#standard-error-envelope)                                                                         |
 
 ### `POST /api/v1/sync/object-queue/{id}/retry` — Manually retry a failed object sync queue entry
 
@@ -1672,14 +1672,14 @@ Human override of the automatic exponential-backoff schedule — resets retry_co
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                                         |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| 200    | Objects queued (re-enqueuing an existing objectKey upserts it back to pending).                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)\<[`ObjectSyncEnqueueResponse`](#schema-objectsyncenqueueresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                         |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                         |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                         |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                         |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                         |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 200    | Objects queued (re-enqueuing an existing objectKey upserts it back to pending).                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)&lt;[`ObjectSyncEnqueueResponse`](#schema-objectsyncenqueueresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                             |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                             |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                             |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                             |
 
 ### `GET /api/v1/sync/objects/status` — List this node's pending/failed object sync queue entries
 
@@ -1698,12 +1698,12 @@ Human override of the automatic exponential-backoff schedule — resets retry_co
 
 **Responses**
 
-| Status | Description                                                                 | Schema                                                                                                       |
-| ------ | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 200    | Non-sent object sync queue entries for this node (limit 100), oldest first. | [`ApiSuccess`](#standard-success-envelope)\<[`ObjectSyncStatusResponse`](#schema-objectsyncstatusresponse)\> |
-| 401    | Authentication required or expired.                                         | [`ApiError`](#standard-error-envelope)                                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                              | [`ApiError`](#standard-error-envelope)                                                                       |
-| 500    | Internal server error without stack trace.                                  | [`ApiError`](#standard-error-envelope)                                                                       |
+| Status | Description                                                                 | Schema                                                                                                           |
+| ------ | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Non-sent object sync queue entries for this node (limit 100), oldest first. | [`ApiSuccess`](#standard-success-envelope)&lt;[`ObjectSyncStatusResponse`](#schema-objectsyncstatusresponse)&gt; |
+| 401    | Authentication required or expired.                                         | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                              | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.                                  | [`ApiError`](#standard-error-envelope)                                                                           |
 
 ### `POST /api/v1/sync/pull` — Pull events newer than the node's stored checkpoint
 
@@ -1724,13 +1724,13 @@ Human override of the automatic exponential-backoff schedule — resets retry_co
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                       |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | Events since the node's last checkpoint, and the new checkpoint.                                                                                                                                                 | [`ApiSuccess`](#standard-success-envelope)\<[`SyncPullResponse`](#schema-syncpullresponse)\> |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                       |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | Events since the node's last checkpoint, and the new checkpoint.                                                                                                                                                 | [`ApiSuccess`](#standard-success-envelope)&lt;[`SyncPullResponse`](#schema-syncpullresponse)&gt; |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                           |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                           |
 
 ### `POST /api/v1/sync/push` — Push a batch of local events to the server (idempotent per batchId)
 
@@ -1751,14 +1751,14 @@ Human override of the automatic exponential-backoff schedule — resets retry_co
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                       |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | Batch accepted (or already applied, if the batchId was seen before).                                                                                                                                             | [`ApiSuccess`](#standard-success-envelope)\<[`SyncPushResponse`](#schema-syncpushresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                       |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                       |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | Batch accepted (or already applied, if the batchId was seen before).                                                                                                                                             | [`ApiSuccess`](#standard-success-envelope)&lt;[`SyncPushResponse`](#schema-syncpushresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                           |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                           |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                           |
 
 ### `GET /api/v1/sync/status` — Get the calling node's sync status
 
@@ -1777,12 +1777,12 @@ Human override of the automatic exponential-backoff schedule — resets retry_co
 
 **Responses**
 
-| Status | Description                                    | Schema                                                                                           |
-| ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 200    | Sync node status.                              | [`ApiSuccess`](#standard-success-envelope)\<[`SyncStatusResponse`](#schema-syncstatusresponse)\> |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                           |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                           |
+| Status | Description                                    | Schema                                                                                               |
+| ------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | Sync node status.                              | [`ApiSuccess`](#standard-success-envelope)&lt;[`SyncStatusResponse`](#schema-syncstatusresponse)&gt; |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                               |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                               |
 
 ## Management Reporting
 
@@ -1802,12 +1802,12 @@ Generic read-aggregation reporting views (tenant activity, access/audit summary,
 
 **Responses**
 
-| Status | Description                                    | Schema                                                                                         |
-| ------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 200    | Access/audit summary for the caller's tenant.  | [`ApiSuccess`](#standard-success-envelope)\<[`AccessAuditReport`](#schema-accessauditreport)\> |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                         |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                         |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                         |
+| Status | Description                                    | Schema                                                                                             |
+| ------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 200    | Access/audit summary for the caller's tenant.  | [`ApiSuccess`](#standard-success-envelope)&lt;[`AccessAuditReport`](#schema-accessauditreport)&gt; |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                             |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                             |
 
 ### `GET /api/v1/reports/email-health` — Email queue health summary (queued/retry/failed/suppressed counts, healthy flag)
 
@@ -1823,12 +1823,12 @@ Generic read-aggregation reporting views (tenant activity, access/audit summary,
 
 **Responses**
 
-| Status | Description                                         | Schema                                                                                         |
-| ------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 200    | Email queue health summary for the caller's tenant. | [`ApiSuccess`](#standard-success-envelope)\<[`EmailHealthReport`](#schema-emailhealthreport)\> |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                         |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                         |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                         |
+| Status | Description                                         | Schema                                                                                             |
+| ------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 200    | Email queue health summary for the caller's tenant. | [`ApiSuccess`](#standard-success-envelope)&lt;[`EmailHealthReport`](#schema-emailhealthreport)&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                             |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                             |
 
 ### `GET /api/v1/reports/module-usage` — Module usage summary (one row-count signal per registered module)
 
@@ -1844,12 +1844,12 @@ Generic read-aggregation reporting views (tenant activity, access/audit summary,
 
 **Responses**
 
-| Status | Description                                    | Schema                                                                                                         |
-| ------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| 200    | Module usage summary for the caller's tenant.  | [`ApiSuccess`](#standard-success-envelope)\<[`ModuleUsageReportResponse`](#schema-moduleusagereportresponse)\> |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                         |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                         |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                         |
+| Status | Description                                    | Schema                                                                                                             |
+| ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 200    | Module usage summary for the caller's tenant.  | [`ApiSuccess`](#standard-success-envelope)&lt;[`ModuleUsageReportResponse`](#schema-moduleusagereportresponse)&gt; |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                             |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                             |
 
 ### `GET /api/v1/reports/sync-health` — Sync health summary (node/conflict/object-queue counts, healthy flag)
 
@@ -1865,12 +1865,12 @@ Generic read-aggregation reporting views (tenant activity, access/audit summary,
 
 **Responses**
 
-| Status | Description                                    | Schema                                                                                       |
-| ------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | Sync health summary for the caller's tenant.   | [`ApiSuccess`](#standard-success-envelope)\<[`SyncHealthReport`](#schema-synchealthreport)\> |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                    | Schema                                                                                           |
+| ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | Sync health summary for the caller's tenant.   | [`ApiSuccess`](#standard-success-envelope)&lt;[`SyncHealthReport`](#schema-synchealthreport)&gt; |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                           |
 
 ### `GET /api/v1/reports/tenant-activity` — Tenant activity summary (tenant, active users/offices, most recent login)
 
@@ -1886,12 +1886,12 @@ Generic read-aggregation reporting views (tenant activity, access/audit summary,
 
 **Responses**
 
-| Status | Description                                      | Schema                                                                                               |
-| ------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| 200    | Tenant activity summary for the caller's tenant. | [`ApiSuccess`](#standard-success-envelope)\<[`TenantActivityReport`](#schema-tenantactivityreport)\> |
-| 401    | Authentication required or expired.              | [`ApiError`](#standard-error-envelope)                                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.   | [`ApiError`](#standard-error-envelope)                                                               |
-| 500    | Internal server error without stack trace.       | [`ApiError`](#standard-error-envelope)                                                               |
+| Status | Description                                      | Schema                                                                                                   |
+| ------ | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| 200    | Tenant activity summary for the caller's tenant. | [`ApiSuccess`](#standard-success-envelope)&lt;[`TenantActivityReport`](#schema-tenantactivityreport)&gt; |
+| 401    | Authentication required or expired.              | [`ApiError`](#standard-error-envelope)                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.   | [`ApiError`](#standard-error-envelope)                                                                   |
+| 500    | Internal server error without stack trace.       | [`ApiError`](#standard-error-envelope)                                                                   |
 
 ## Logging & Audit
 
@@ -1915,13 +1915,13 @@ Cross-module audit trail (awcms_mini_audit_events) and its read API. Complements
 
 **Responses**
 
-| Status | Description                                                     | Schema                                                                                                   |
-| ------ | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| 200    | Audit events for the caller's tenant (limit 100, newest first). | [`ApiSuccess`](#standard-success-envelope)\<[`AuditEventListResponse`](#schema-auditeventlistresponse)\> |
-| 400    | Validation or request error.                                    | [`ApiError`](#standard-error-envelope)                                                                   |
-| 401    | Authentication required or expired.                             | [`ApiError`](#standard-error-envelope)                                                                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                  | [`ApiError`](#standard-error-envelope)                                                                   |
-| 500    | Internal server error without stack trace.                      | [`ApiError`](#standard-error-envelope)                                                                   |
+| Status | Description                                                     | Schema                                                                                                       |
+| ------ | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 200    | Audit events for the caller's tenant (limit 100, newest first). | [`ApiSuccess`](#standard-success-envelope)&lt;[`AuditEventListResponse`](#schema-auditeventlistresponse)&gt; |
+| 400    | Validation or request error.                                    | [`ApiError`](#standard-error-envelope)                                                                       |
+| 401    | Authentication required or expired.                             | [`ApiError`](#standard-error-envelope)                                                                       |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                  | [`ApiError`](#standard-error-envelope)                                                                       |
+| 500    | Internal server error without stack trace.                      | [`ApiError`](#standard-error-envelope)                                                                       |
 
 ## Profile Identity
 
@@ -1944,15 +1944,15 @@ Profile lifecycle (soft delete/restore/purge) demonstrating the audit trail end-
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                                       |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 200    | Profile soft-deleted.                                                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)\<[`ProfileLifecycleResponse`](#schema-profilelifecycleresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                       |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                       |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                       |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                       |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                       |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Profile soft-deleted.                                                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)&lt;[`ProfileLifecycleResponse`](#schema-profilelifecycleresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                           |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                           |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                           |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                           |
 
 ### `POST /api/v1/profiles/{id}/purge` — Permanently purge a soft-deleted profile (hard delete)
 
@@ -1969,15 +1969,15 @@ Profile lifecycle (soft delete/restore/purge) demonstrating the audit trail end-
 
 **Responses**
 
-| Status | Description                                                                                                                       | Schema                                                                                                       |
-| ------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 200    | Profile purged.                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)\<[`ProfileLifecycleResponse`](#schema-profilelifecycleresponse)\> |
-| 400    | Profile is not currently soft-deleted; purge is only allowed after soft delete.                                                   | [`ApiError`](#standard-error-envelope)                                                                       |
-| 401    | Authentication required or expired.                                                                                               | [`ApiError`](#standard-error-envelope)                                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                    | [`ApiError`](#standard-error-envelope)                                                                       |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                               | [`ApiError`](#standard-error-envelope)                                                                       |
-| 409    | Purge blocked by foreign-key-referencing dependents (identities, identifiers, channels, addresses, entity links, merge requests). | [`ApiError`](#standard-error-envelope)                                                                       |
-| 500    | Internal server error without stack trace.                                                                                        | [`ApiError`](#standard-error-envelope)                                                                       |
+| Status | Description                                                                                                                       | Schema                                                                                                           |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Profile purged.                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;[`ProfileLifecycleResponse`](#schema-profilelifecycleresponse)&gt; |
+| 400    | Profile is not currently soft-deleted; purge is only allowed after soft delete.                                                   | [`ApiError`](#standard-error-envelope)                                                                           |
+| 401    | Authentication required or expired.                                                                                               | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                    | [`ApiError`](#standard-error-envelope)                                                                           |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                               | [`ApiError`](#standard-error-envelope)                                                                           |
+| 409    | Purge blocked by foreign-key-referencing dependents (identities, identifiers, channels, addresses, entity links, merge requests). | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.                                                                                        | [`ApiError`](#standard-error-envelope)                                                                           |
 
 ### `POST /api/v1/profiles/{id}/restore` — Restore a soft-deleted profile
 
@@ -1994,13 +1994,13 @@ Profile lifecycle (soft delete/restore/purge) demonstrating the audit trail end-
 
 **Responses**
 
-| Status | Description                                         | Schema                                                                                                       |
-| ------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 200    | Profile restored.                                   | [`ApiSuccess`](#standard-success-envelope)\<[`ProfileLifecycleResponse`](#schema-profilelifecycleresponse)\> |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                                       |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                                       |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                                       |
+| Status | Description                                         | Schema                                                                                                           |
+| ------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Profile restored.                                   | [`ApiSuccess`](#standard-success-envelope)&lt;[`ProfileLifecycleResponse`](#schema-profilelifecycleresponse)&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                                           |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                                           |
 
 ## Database Connectivity
 
@@ -2020,10 +2020,10 @@ Connection pool config, work-class backpressure gate, and circuit breaker health
 
 **Responses**
 
-| Status | Description                                                                      | Schema                                                                                                           |
-| ------ | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 200    | Aggregate pool/backpressure health. Never includes tenant data or query content. | [`ApiSuccess`](#standard-success-envelope)\<[`DatabasePoolHealthResponse`](#schema-databasepoolhealthresponse)\> |
-| 500    | Internal server error without stack trace.                                       | [`ApiError`](#standard-error-envelope)                                                                           |
+| Status | Description                                                                      | Schema                                                                                                               |
+| ------ | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 200    | Aggregate pool/backpressure health. Never includes tenant data or query content. | [`ApiSuccess`](#standard-success-envelope)&lt;[`DatabasePoolHealthResponse`](#schema-databasepoolhealthresponse)&gt; |
+| 500    | Internal server error without stack trace.                                       | [`ApiError`](#standard-error-envelope)                                                                               |
 
 ## Workflow Approval
 
@@ -2043,13 +2043,13 @@ Generic multi-step approval engine (definitions, instances, tasks, decisions). O
 
 **Responses**
 
-| Status | Description                                                               | Schema                                                                                                       |
-| ------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 200    | Pending workflow tasks for the caller's tenant (limit 100, oldest first). | [`ApiSuccess`](#standard-success-envelope)\<[`WorkflowTaskListResponse`](#schema-workflowtasklistresponse)\> |
-| 400    | Validation or request error.                                              | [`ApiError`](#standard-error-envelope)                                                                       |
-| 401    | Authentication required or expired.                                       | [`ApiError`](#standard-error-envelope)                                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                            | [`ApiError`](#standard-error-envelope)                                                                       |
-| 500    | Internal server error without stack trace.                                | [`ApiError`](#standard-error-envelope)                                                                       |
+| Status | Description                                                               | Schema                                                                                                           |
+| ------ | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Pending workflow tasks for the caller's tenant (limit 100, oldest first). | [`ApiSuccess`](#standard-success-envelope)&lt;[`WorkflowTaskListResponse`](#schema-workflowtasklistresponse)&gt; |
+| 400    | Validation or request error.                                              | [`ApiError`](#standard-error-envelope)                                                                           |
+| 401    | Authentication required or expired.                                       | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                            | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.                                | [`ApiError`](#standard-error-envelope)                                                                           |
 
 ### `POST /api/v1/workflows/tasks/{id}/decisions` — Record a decision (approve/reject) for a pending workflow task
 
@@ -2069,16 +2069,16 @@ Generic multi-step approval engine (definitions, instances, tasks, decisions). O
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| 200    | Decision recorded. Instance advances to the next step, is approved, or is rejected depending on the decision and remaining steps.                                                                                | [`ApiSuccess`](#standard-success-envelope)\<[`WorkflowTaskDecisionResponse`](#schema-workflowtaskdecisionresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy — including self-approval denial when the caller is the same tenant user who requested the workflow instance.                                                      | [`ApiError`](#standard-error-envelope)                                                                               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                               |
-| 409    | Idempotency-Key reused with a different request, or the task's decision has already been recorded.                                                                                                               | [`ApiError`](#standard-error-envelope)                                                                               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 200    | Decision recorded. Instance advances to the next step, is approved, or is rejected depending on the decision and remaining steps.                                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;[`WorkflowTaskDecisionResponse`](#schema-workflowtaskdecisionresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy — including self-approval denial when the caller is the same tenant user who requested the workflow instance.                                                      | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 409    | Idempotency-Key reused with a different request, or the task's decision has already been recorded.                                                                                                               | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                                   |
 
 ## Form Drafts
 
@@ -2101,13 +2101,13 @@ Generic, domain-agnostic server-side draft store for the reusable wizard pattern
 
 **Responses**
 
-| Status | Description                                                    | Schema                                                                                                 |
-| ------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| 200    | Form drafts for the caller's tenant (limit 100, newest first). | [`ApiSuccess`](#standard-success-envelope)\<[`FormDraftListResponse`](#schema-formdraftlistresponse)\> |
-| 400    | Validation or request error.                                   | [`ApiError`](#standard-error-envelope)                                                                 |
-| 401    | Authentication required or expired.                            | [`ApiError`](#standard-error-envelope)                                                                 |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                 | [`ApiError`](#standard-error-envelope)                                                                 |
-| 500    | Internal server error without stack trace.                     | [`ApiError`](#standard-error-envelope)                                                                 |
+| Status | Description                                                    | Schema                                                                                                     |
+| ------ | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 200    | Form drafts for the caller's tenant (limit 100, newest first). | [`ApiSuccess`](#standard-success-envelope)&lt;[`FormDraftListResponse`](#schema-formdraftlistresponse)&gt; |
+| 400    | Validation or request error.                                   | [`ApiError`](#standard-error-envelope)                                                                     |
+| 401    | Authentication required or expired.                            | [`ApiError`](#standard-error-envelope)                                                                     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                 | [`ApiError`](#standard-error-envelope)                                                                     |
+| 500    | Internal server error without stack trace.                     | [`ApiError`](#standard-error-envelope)                                                                     |
 
 ### `POST /api/v1/form-drafts` — Create a new form draft
 
@@ -2125,14 +2125,14 @@ Generic, domain-agnostic server-side draft store for the reusable wizard pattern
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                 |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| 200    | Form draft created.                                                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope)\<[`FormDraftItem`](#schema-formdraftitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                 |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                 |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                 |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                 |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                 |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 200    | Form draft created.                                                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope)&lt;[`FormDraftItem`](#schema-formdraftitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                     |
 
 ### `GET /api/v1/form-drafts/{id}` — Read one form draft (resume-on-load)
 
@@ -2149,14 +2149,14 @@ Generic, domain-agnostic server-side draft store for the reusable wizard pattern
 
 **Responses**
 
-| Status | Description                                         | Schema                                                                                 |
-| ------ | --------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| 200    | The requested form draft.                           | [`ApiSuccess`](#standard-success-envelope)\<[`FormDraftItem`](#schema-formdraftitem)\> |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                                                 |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                 |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                 |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                 |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                 |
+| Status | Description                                         | Schema                                                                                     |
+| ------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 200    | The requested form draft.                           | [`ApiSuccess`](#standard-success-envelope)&lt;[`FormDraftItem`](#schema-formdraftitem)&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                                                     |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                     |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                     |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                     |
 
 ### `PATCH /api/v1/form-drafts/{id}` — Update a form draft's step/payload/expiry
 
@@ -2175,15 +2175,15 @@ Generic, domain-agnostic server-side draft store for the reusable wizard pattern
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                 |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| 200    | Form draft updated.                                                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope)\<[`FormDraftItem`](#schema-formdraftitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                 |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                 |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                 |
-| 404    | Form draft not found, deleted, or no longer editable (already submitted/abandoned/expired).                                                                                                                      | [`ApiError`](#standard-error-envelope)                                                 |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                 |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                 |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 200    | Form draft updated.                                                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope)&lt;[`FormDraftItem`](#schema-formdraftitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                     |
+| 404    | Form draft not found, deleted, or no longer editable (already submitted/abandoned/expired).                                                                                                                      | [`ApiError`](#standard-error-envelope)                                                     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                     |
 
 ### `DELETE /api/v1/form-drafts/{id}` — Soft-delete (abandon) a form draft
 
@@ -2202,15 +2202,15 @@ Generic, domain-agnostic server-side draft store for the reusable wizard pattern
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 200    | Form draft deleted.                                                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Form draft deleted.                                                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/form-drafts/{id}/submit` — Submit a form draft (transitions draft -> submitted)
 
@@ -2228,15 +2228,15 @@ Generic, domain-agnostic server-side draft store for the reusable wizard pattern
 
 **Responses**
 
-| Status | Description                                                     | Schema                                                                                 |
-| ------ | --------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| 200    | Form draft submitted.                                           | [`ApiSuccess`](#standard-success-envelope)\<[`FormDraftItem`](#schema-formdraftitem)\> |
-| 400    | Validation or request error.                                    | [`ApiError`](#standard-error-envelope)                                                 |
-| 401    | Authentication required or expired.                             | [`ApiError`](#standard-error-envelope)                                                 |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                  | [`ApiError`](#standard-error-envelope)                                                 |
-| 404    | Form draft not found, already submitted, or no longer editable. | [`ApiError`](#standard-error-envelope)                                                 |
-| 409    | Idempotency-Key reused with a different request.                | [`ApiError`](#standard-error-envelope)                                                 |
-| 500    | Internal server error without stack trace.                      | [`ApiError`](#standard-error-envelope)                                                 |
+| Status | Description                                                     | Schema                                                                                     |
+| ------ | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 200    | Form draft submitted.                                           | [`ApiSuccess`](#standard-success-envelope)&lt;[`FormDraftItem`](#schema-formdraftitem)&gt; |
+| 400    | Validation or request error.                                    | [`ApiError`](#standard-error-envelope)                                                     |
+| 401    | Authentication required or expired.                             | [`ApiError`](#standard-error-envelope)                                                     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                  | [`ApiError`](#standard-error-envelope)                                                     |
+| 404    | Form draft not found, already submitted, or no longer editable. | [`ApiError`](#standard-error-envelope)                                                     |
+| 409    | Idempotency-Key reused with a different request.                | [`ApiError`](#standard-error-envelope)                                                     |
+| 500    | Internal server error without stack trace.                      | [`ApiError`](#standard-error-envelope)                                                     |
 
 ## Email Templates
 
@@ -2257,13 +2257,13 @@ Tenant email template CRUD, soft-delete/restore, per-category variable allowlist
 
 **Responses**
 
-| Status | Description                                                        | Schema                                                                                                         |
-| ------ | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| 200    | Email templates for the caller's tenant (limit 100, newest first). | [`ApiSuccess`](#standard-success-envelope)\<[`EmailTemplateListResponse`](#schema-emailtemplatelistresponse)\> |
-| 400    | Validation or request error.                                       | [`ApiError`](#standard-error-envelope)                                                                         |
-| 401    | Authentication required or expired.                                | [`ApiError`](#standard-error-envelope)                                                                         |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                     | [`ApiError`](#standard-error-envelope)                                                                         |
-| 500    | Internal server error without stack trace.                         | [`ApiError`](#standard-error-envelope)                                                                         |
+| Status | Description                                                        | Schema                                                                                                             |
+| ------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| 200    | Email templates for the caller's tenant (limit 100, newest first). | [`ApiSuccess`](#standard-success-envelope)&lt;[`EmailTemplateListResponse`](#schema-emailtemplatelistresponse)&gt; |
+| 400    | Validation or request error.                                       | [`ApiError`](#standard-error-envelope)                                                                             |
+| 401    | Authentication required or expired.                                | [`ApiError`](#standard-error-envelope)                                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                     | [`ApiError`](#standard-error-envelope)                                                                             |
+| 500    | Internal server error without stack trace.                         | [`ApiError`](#standard-error-envelope)                                                                             |
 
 ### `POST /api/v1/email/templates` — Create an email template
 
@@ -2281,15 +2281,15 @@ Tenant email template CRUD, soft-delete/restore, per-category variable allowlist
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                         |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 200    | Email template created.                                                                                                                                                                                          | [`ApiSuccess`](#standard-success-envelope)\<[`EmailTemplateItem`](#schema-emailtemplateitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                         |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                         |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                         |
-| 409    | An active template already exists for this templateKey.                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                                         |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                         |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                         |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 200    | Email template created.                                                                                                                                                                                          | [`ApiSuccess`](#standard-success-envelope)&lt;[`EmailTemplateItem`](#schema-emailtemplateitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                             |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                             |
+| 409    | An active template already exists for this templateKey.                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                                             |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                             |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                             |
 
 ### `GET /api/v1/email/templates/{id}` — Read one email template
 
@@ -2306,14 +2306,14 @@ Tenant email template CRUD, soft-delete/restore, per-category variable allowlist
 
 **Responses**
 
-| Status | Description                                         | Schema                                                                                         |
-| ------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 200    | The requested email template.                       | [`ApiSuccess`](#standard-success-envelope)\<[`EmailTemplateItem`](#schema-emailtemplateitem)\> |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                                                         |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                         |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                         |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                         |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                         |
+| Status | Description                                         | Schema                                                                                             |
+| ------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 200    | The requested email template.                       | [`ApiSuccess`](#standard-success-envelope)&lt;[`EmailTemplateItem`](#schema-emailtemplateitem)&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                                                             |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                             |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                             |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                             |
 
 ### `PATCH /api/v1/email/templates/{id}` — Update an email template
 
@@ -2332,15 +2332,15 @@ Tenant email template CRUD, soft-delete/restore, per-category variable allowlist
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                         |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 200    | Email template updated.                                                                                                                                                                                          | [`ApiSuccess`](#standard-success-envelope)\<[`EmailTemplateItem`](#schema-emailtemplateitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                         |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                         |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                         |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                         |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                         |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                         |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 200    | Email template updated.                                                                                                                                                                                          | [`ApiSuccess`](#standard-success-envelope)&lt;[`EmailTemplateItem`](#schema-emailtemplateitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                             |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                             |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                             |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                             |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                             |
 
 ### `DELETE /api/v1/email/templates/{id}` — Soft-delete an email template
 
@@ -2359,15 +2359,15 @@ Tenant email template CRUD, soft-delete/restore, per-category variable allowlist
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 200    | Email template deleted.                                                                                                                                                                                          | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Email template deleted.                                                                                                                                                                                          | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/email/templates/{id}/preview` — Preview a rendered template with synthetic sample data (never real recipient data)
 
@@ -2386,15 +2386,15 @@ Tenant email template CRUD, soft-delete/restore, per-category variable allowlist
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| 200    | Rendered preview.                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)\<[`EmailTemplatePreviewResponse`](#schema-emailtemplatepreviewresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 200    | Rendered preview.                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;[`EmailTemplatePreviewResponse`](#schema-emailtemplatepreviewresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                                   |
 
 ### `POST /api/v1/email/templates/{id}/restore` — Restore a soft-deleted email template
 
@@ -2411,14 +2411,14 @@ Tenant email template CRUD, soft-delete/restore, per-category variable allowlist
 
 **Responses**
 
-| Status | Description                                       | Schema                                                                                         |
-| ------ | ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 200    | Email template restored.                          | [`ApiSuccess`](#standard-success-envelope)\<[`EmailTemplateItem`](#schema-emailtemplateitem)\> |
-| 400    | Validation or request error.                      | [`ApiError`](#standard-error-envelope)                                                         |
-| 401    | Authentication required or expired.               | [`ApiError`](#standard-error-envelope)                                                         |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.    | [`ApiError`](#standard-error-envelope)                                                         |
-| 404    | Template not found or not currently soft-deleted. | [`ApiError`](#standard-error-envelope)                                                         |
-| 500    | Internal server error without stack trace.        | [`ApiError`](#standard-error-envelope)                                                         |
+| Status | Description                                       | Schema                                                                                             |
+| ------ | ------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 200    | Email template restored.                          | [`ApiSuccess`](#standard-success-envelope)&lt;[`EmailTemplateItem`](#schema-emailtemplateitem)&gt; |
+| 400    | Validation or request error.                      | [`ApiError`](#standard-error-envelope)                                                             |
+| 401    | Authentication required or expired.               | [`ApiError`](#standard-error-envelope)                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.    | [`ApiError`](#standard-error-envelope)                                                             |
+| 404    | Template not found or not currently soft-deleted. | [`ApiError`](#standard-error-envelope)                                                             |
+| 500    | Internal server error without stack trace.        | [`ApiError`](#standard-error-envelope)                                                             |
 
 ## Email Announcements
 
@@ -2441,16 +2441,16 @@ Bulk announcement/notification enqueue and dry-run preview, targeting an explici
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                                           |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 200    | Announcement enqueued.                                                                                                                                                                                           | [`ApiSuccess`](#standard-success-envelope)\<[`AnnouncementCreateResponse`](#schema-announcementcreateresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                           |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                           |
-| 404    | No active template found for the given templateKey.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                           |
-| 409    | Idempotency-Key reused with a different request.                                                                                                                                                                 | [`ApiError`](#standard-error-envelope)                                                                           |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                           |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                           |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                               |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 200    | Announcement enqueued.                                                                                                                                                                                           | [`ApiSuccess`](#standard-success-envelope)&lt;[`AnnouncementCreateResponse`](#schema-announcementcreateresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                               |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                               |
+| 404    | No active template found for the given templateKey.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                               |
+| 409    | Idempotency-Key reused with a different request.                                                                                                                                                                 | [`ApiError`](#standard-error-envelope)                                                                               |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                               |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                               |
 
 ### `POST /api/v1/email/announcements/preview` — Dry-run: resolves the same targeting criteria as a real send and returns a recipient count plus a synthetic-data sample render — never the actual recipient list
 
@@ -2468,15 +2468,15 @@ Bulk announcement/notification enqueue and dry-run preview, targeting an explici
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                                             |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| 200    | Preview result.                                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)\<[`AnnouncementPreviewResponse`](#schema-announcementpreviewresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                             |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                             |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                             |
-| 404    | No active template found for the given templateKey.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                             |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                             |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                             |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                                 |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 200    | Preview result.                                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)&lt;[`AnnouncementPreviewResponse`](#schema-announcementpreviewresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                                 |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                                 |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                                 |
+| 404    | No active template found for the given templateKey.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                                 |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                                 |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                                 |
 
 ## Email Messages
 
@@ -2498,13 +2498,13 @@ Admin queue diagnostics (queue health, failed messages, retry backlog) and cance
 
 **Responses**
 
-| Status | Description                                           | Schema                                                                                                       |
-| ------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 200    | Email messages tenant-wide (limit 100), newest first. | [`ApiSuccess`](#standard-success-envelope)\<[`EmailMessageListResponse`](#schema-emailmessagelistresponse)\> |
-| 400    | Validation or request error.                          | [`ApiError`](#standard-error-envelope)                                                                       |
-| 401    | Authentication required or expired.                   | [`ApiError`](#standard-error-envelope)                                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.        | [`ApiError`](#standard-error-envelope)                                                                       |
-| 500    | Internal server error without stack trace.            | [`ApiError`](#standard-error-envelope)                                                                       |
+| Status | Description                                           | Schema                                                                                                           |
+| ------ | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Email messages tenant-wide (limit 100), newest first. | [`ApiSuccess`](#standard-success-envelope)&lt;[`EmailMessageListResponse`](#schema-emailmessagelistresponse)&gt; |
+| 400    | Validation or request error.                          | [`ApiError`](#standard-error-envelope)                                                                           |
+| 401    | Authentication required or expired.                   | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.        | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.            | [`ApiError`](#standard-error-envelope)                                                                           |
 
 ### `POST /api/v1/email/messages/{id}/cancel` — Cancel a still-queued (queued/retry_wait) email message before it sends
 
@@ -2523,14 +2523,14 @@ Technical mitigation for the "accidental bulk send" incident scenario. Only queu
 
 **Responses**
 
-| Status | Description                                                 | Schema                                                                                         |
-| ------ | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 200    | Message cancelled.                                          | [`ApiSuccess`](#standard-success-envelope)\<[`EmailMessageEntry`](#schema-emailmessageentry)\> |
-| 401    | Authentication required or expired.                         | [`ApiError`](#standard-error-envelope)                                                         |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.              | [`ApiError`](#standard-error-envelope)                                                         |
-| 404    | Resource not found or hidden by soft-delete policy.         | [`ApiError`](#standard-error-envelope)                                                         |
-| 409    | Message can no longer be cancelled (not queued/retry_wait). | [`ApiError`](#standard-error-envelope)                                                         |
-| 500    | Internal server error without stack trace.                  | [`ApiError`](#standard-error-envelope)                                                         |
+| Status | Description                                                 | Schema                                                                                             |
+| ------ | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 200    | Message cancelled.                                          | [`ApiSuccess`](#standard-success-envelope)&lt;[`EmailMessageEntry`](#schema-emailmessageentry)&gt; |
+| 401    | Authentication required or expired.                         | [`ApiError`](#standard-error-envelope)                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.              | [`ApiError`](#standard-error-envelope)                                                             |
+| 404    | Resource not found or hidden by soft-delete policy.         | [`ApiError`](#standard-error-envelope)                                                             |
+| 409    | Message can no longer be cancelled (not queued/retry_wait). | [`ApiError`](#standard-error-envelope)                                                             |
+| 500    | Internal server error without stack trace.                  | [`ApiError`](#standard-error-envelope)                                                             |
 
 ## Email Suppressions
 
@@ -2550,12 +2550,12 @@ Manual suppression list read/create/delete — recipients excluded from future s
 
 **Responses**
 
-| Status | Description                                                    | Schema                                                                                                     |
-| ------ | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| 200    | Suppression list entries — recipient address is always masked. | [`ApiSuccess`](#standard-success-envelope)\<[`SuppressionListResponse`](#schema-suppressionlistresponse)\> |
-| 401    | Authentication required or expired.                            | [`ApiError`](#standard-error-envelope)                                                                     |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                 | [`ApiError`](#standard-error-envelope)                                                                     |
-| 500    | Internal server error without stack trace.                     | [`ApiError`](#standard-error-envelope)                                                                     |
+| Status | Description                                                    | Schema                                                                                                         |
+| ------ | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 200    | Suppression list entries — recipient address is always masked. | [`ApiSuccess`](#standard-success-envelope)&lt;[`SuppressionListResponse`](#schema-suppressionlistresponse)&gt; |
+| 401    | Authentication required or expired.                            | [`ApiError`](#standard-error-envelope)                                                                         |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                 | [`ApiError`](#standard-error-envelope)                                                                         |
+| 500    | Internal server error without stack trace.                     | [`ApiError`](#standard-error-envelope)                                                                         |
 
 ### `POST /api/v1/email/suppressions` — Manually suppress a recipient address
 
@@ -2573,14 +2573,14 @@ Manual suppression list read/create/delete — recipients excluded from future s
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                                         |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| 200    | Suppression entry created (or already existed).                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)\<[`SuppressionCreateResponse`](#schema-suppressioncreateresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                         |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                         |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                         |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                         |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                         |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 200    | Suppression entry created (or already existed).                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)&lt;[`SuppressionCreateResponse`](#schema-suppressioncreateresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                             |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                             |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                             |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                             |
 
 ### `DELETE /api/v1/email/suppressions/{id}` — Remove a manual suppression entry
 
@@ -2625,13 +2625,13 @@ Distinct from `GET /api/v1/access/modules` (Issue 12.1's permission catalog grou
 
 **Responses**
 
-| Status | Description                                    | Schema                                                                                                         |
-| ------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| 200    | Module catalog.                                | [`ApiSuccess`](#standard-success-envelope)\<[`ModuleCatalogListResponse`](#schema-modulecataloglistresponse)\> |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                                         |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                         |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                         |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                         |
+| Status | Description                                    | Schema                                                                                                             |
+| ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 200    | Module catalog.                                | [`ApiSuccess`](#standard-success-envelope)&lt;[`ModuleCatalogListResponse`](#schema-modulecataloglistresponse)&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                                             |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                             |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                             |
 
 ### `GET /api/v1/modules/{moduleKey}` — Module catalog detail
 
@@ -2648,13 +2648,13 @@ Distinct from `GET /api/v1/access/modules` (Issue 12.1's permission catalog grou
 
 **Responses**
 
-| Status | Description                                         | Schema                                                                                           |
-| ------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 200    | Module catalog entry.                               | [`ApiSuccess`](#standard-success-envelope)\<[`ModuleCatalogEntry`](#schema-modulecatalogentry)\> |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                           |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                           |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                           |
+| Status | Description                                         | Schema                                                                                               |
+| ------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | Module catalog entry.                               | [`ApiSuccess`](#standard-success-envelope)&lt;[`ModuleCatalogEntry`](#schema-modulecatalogentry)&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                               |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                               |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                               |
 
 ### `GET /api/v1/modules/{moduleKey}/health` — Module health/readiness (fast, bounded)
 
@@ -2673,13 +2673,13 @@ Fast, bounded readiness signals (descriptor registered, DB registry synced, migr
 
 **Responses**
 
-| Status | Description                                         | Schema                                                                                           |
-| ------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 200    | Health/readiness report for the module.             | [`ApiSuccess`](#standard-success-envelope)\<[`ModuleHealthReport`](#schema-modulehealthreport)\> |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                           |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                           |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                           |
+| Status | Description                                         | Schema                                                                                               |
+| ------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | Health/readiness report for the module.             | [`ApiSuccess`](#standard-success-envelope)&lt;[`ModuleHealthReport`](#schema-modulehealthreport)&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                               |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                               |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                               |
 
 ### `POST /api/v1/modules/{moduleKey}/health/check` — Trigger an explicit module health check
 
@@ -2698,13 +2698,13 @@ Same generic signals as `GET .../health`, plus a real, bounded, network-calling 
 
 **Responses**
 
-| Status | Description                                                                                 | Schema                                                                                           |
-| ------ | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 200    | Health/readiness report for the module, including the live provider check where applicable. | [`ApiSuccess`](#standard-success-envelope)\<[`ModuleHealthReport`](#schema-modulehealthreport)\> |
-| 401    | Authentication required or expired.                                                         | [`ApiError`](#standard-error-envelope)                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                              | [`ApiError`](#standard-error-envelope)                                                           |
-| 404    | Resource not found or hidden by soft-delete policy.                                         | [`ApiError`](#standard-error-envelope)                                                           |
-| 500    | Internal server error without stack trace.                                                  | [`ApiError`](#standard-error-envelope)                                                           |
+| Status | Description                                                                                 | Schema                                                                                               |
+| ------ | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | Health/readiness report for the module, including the live provider check where applicable. | [`ApiSuccess`](#standard-success-envelope)&lt;[`ModuleHealthReport`](#schema-modulehealthreport)&gt; |
+| 401    | Authentication required or expired.                                                         | [`ApiError`](#standard-error-envelope)                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                              | [`ApiError`](#standard-error-envelope)                                                               |
+| 404    | Resource not found or hidden by soft-delete policy.                                         | [`ApiError`](#standard-error-envelope)                                                               |
+| 500    | Internal server error without stack trace.                                                  | [`ApiError`](#standard-error-envelope)                                                               |
 
 ### `GET /api/v1/modules/{moduleKey}/jobs` — Module job/command registry
 
@@ -2723,13 +2723,13 @@ The module's declared operational commands (`command`, `purpose`, `recommendedSc
 
 **Responses**
 
-| Status | Description                                         | Schema                                                                                           |
-| ------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 200    | Job registry entries for the module.                | [`ApiSuccess`](#standard-success-envelope)\<[`ModuleJobsResponse`](#schema-modulejobsresponse)\> |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                           |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                           |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                           |
+| Status | Description                                         | Schema                                                                                               |
+| ------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | Job registry entries for the module.                | [`ApiSuccess`](#standard-success-envelope)&lt;[`ModuleJobsResponse`](#schema-modulejobsresponse)&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                               |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                               |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                               |
 
 ### `GET /api/v1/modules/{moduleKey}/permissions` — Module permission sync/status
 
@@ -2748,13 +2748,13 @@ Compares the module's descriptor-declared `permissions` against the `awcms_mini_
 
 **Responses**
 
-| Status | Description                                         | Schema                                                                                                           |
-| ------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 200    | Permission sync report for the module.              | [`ApiSuccess`](#standard-success-envelope)\<[`ModulePermissionSyncReport`](#schema-modulepermissionsyncreport)\> |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                                           |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                                           |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                                           |
+| Status | Description                                         | Schema                                                                                                               |
+| ------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 200    | Permission sync report for the module.              | [`ApiSuccess`](#standard-success-envelope)&lt;[`ModulePermissionSyncReport`](#schema-modulepermissionsyncreport)&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                                               |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                                               |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                                               |
 
 ### `POST /api/v1/modules/sync` — Sync trusted code descriptors into the database registry
 
@@ -2772,12 +2772,12 @@ Naturally idempotent — no `Idempotency-Key` required. Running it repeatedly is
 
 **Responses**
 
-| Status | Description                                    | Schema                                                                                           |
-| ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 200    | Sync result.                                   | [`ApiSuccess`](#standard-success-envelope)\<[`ModuleSyncResponse`](#schema-modulesyncresponse)\> |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                           |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                           |
+| Status | Description                                    | Schema                                                                                               |
+| ------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | Sync result.                                   | [`ApiSuccess`](#standard-success-envelope)&lt;[`ModuleSyncResponse`](#schema-modulesyncresponse)&gt; |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                               |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                               |
 
 ### `GET /api/v1/tenant/modules` — List every registered module's enablement state for the caller's tenant
 
@@ -2795,13 +2795,13 @@ A module with no explicit state (`tenantEnabled: true`, no `enabledAt`/`disabled
 
 **Responses**
 
-| Status | Description                                    | Schema                                                                                                       |
-| ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 200    | Tenant module enablement state.                | [`ApiSuccess`](#standard-success-envelope)\<[`TenantModuleListResponse`](#schema-tenantmodulelistresponse)\> |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                                       |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                       |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                       |
+| Status | Description                                    | Schema                                                                                                           |
+| ------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Tenant module enablement state.                | [`ApiSuccess`](#standard-success-envelope)&lt;[`TenantModuleListResponse`](#schema-tenantmodulelistresponse)&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                                           |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                           |
 
 ### `POST /api/v1/tenant/modules/{moduleKey}/disable` — Disable a module for the caller's tenant
 
@@ -2822,16 +2822,16 @@ A module with no explicit state (`tenantEnabled: true`, no `enabledAt`/`disabled
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| 200    | Module disabled for the tenant.                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)\<[`TenantModuleMutationResponse`](#schema-tenantmodulemutationresponse)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                               |
-| 409    | Dependency validation failed (see `error.code`: `MODULE_ALREADY_DISABLED`, `CORE_MODULE_CANNOT_BE_DISABLED`, `MODULE_REVERSE_DEPENDENCY_ACTIVE`).                                                                | [`ApiError`](#standard-error-envelope)                                                                               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 200    | Module disabled for the tenant.                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)&lt;[`TenantModuleMutationResponse`](#schema-tenantmodulemutationresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 409    | Dependency validation failed (see `error.code`: `MODULE_ALREADY_DISABLED`, `CORE_MODULE_CANNOT_BE_DISABLED`, `MODULE_REVERSE_DEPENDENCY_ACTIVE`).                                                                | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                                   |
 
 ### `POST /api/v1/tenant/modules/{moduleKey}/enable` — Enable a module for the caller's tenant
 
@@ -2850,14 +2850,14 @@ Tenant-level availability only, never a runtime code load. Server-side dependenc
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                     | Schema                                                                                                               |
-| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| 200    | Module enabled for the tenant.                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)\<[`TenantModuleMutationResponse`](#schema-tenantmodulemutationresponse)\> |
-| 401    | Authentication required or expired.                                                                                                                                                             | [`ApiError`](#standard-error-envelope)                                                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                  | [`ApiError`](#standard-error-envelope)                                                                               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                             | [`ApiError`](#standard-error-envelope)                                                                               |
-| 409    | Dependency validation failed (see `error.code`: `MODULE_ALREADY_ENABLED`, `MODULE_DEPENDENCY_MISSING`, `MODULE_DEPENDENCY_DISABLED`, `MODULE_DEPENDENCY_CYCLE`, `MODULE_VERSION_INCOMPATIBLE`). | [`ApiError`](#standard-error-envelope)                                                                               |
-| 500    | Internal server error without stack trace.                                                                                                                                                      | [`ApiError`](#standard-error-envelope)                                                                               |
+| Status | Description                                                                                                                                                                                     | Schema                                                                                                                   |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 200    | Module enabled for the tenant.                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)&lt;[`TenantModuleMutationResponse`](#schema-tenantmodulemutationresponse)&gt; |
+| 401    | Authentication required or expired.                                                                                                                                                             | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                  | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                             | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 409    | Dependency validation failed (see `error.code`: `MODULE_ALREADY_ENABLED`, `MODULE_DEPENDENCY_MISSING`, `MODULE_DEPENDENCY_DISABLED`, `MODULE_DEPENDENCY_CYCLE`, `MODULE_VERSION_INCOMPATIBLE`). | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                      | [`ApiError`](#standard-error-envelope)                                                                                   |
 
 ### `GET /api/v1/tenant/modules/{moduleKey}/settings` — Read effective tenant module settings
 
@@ -2876,14 +2876,14 @@ Effective settings = the module's own code-declared defaults with the tenant's s
 
 **Responses**
 
-| Status | Description                                         | Schema                                                                                           |
-| ------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 200    | Effective module settings for the tenant.           | [`ApiSuccess`](#standard-success-envelope)\<[`ModuleSettingsView`](#schema-modulesettingsview)\> |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                                                           |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                           |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                           |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                           |
+| Status | Description                                         | Schema                                                                                               |
+| ------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | Effective module settings for the tenant.           | [`ApiSuccess`](#standard-success-envelope)&lt;[`ModuleSettingsView`](#schema-modulesettingsview)&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                                                               |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                               |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                               |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                               |
 
 ### `PATCH /api/v1/tenant/modules/{moduleKey}/settings` — Update tenant module settings
 
@@ -2904,15 +2904,15 @@ Merges the body into the tenant's existing settings override (shallow, top-level
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                           |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 200    | Module settings updated for the tenant.                                                                                                                                                                          | [`ApiSuccess`](#standard-success-envelope)\<[`ModuleSettingsView`](#schema-modulesettingsview)\> |
-| 400    | Validation failed (see `error.code`: `VALIDATION_ERROR`, `SETTINGS_SENSITIVE_KEY_REJECTED`, `SETTINGS_SECRET_SHAPED_VALUE_REJECTED`).                                                                            | [`ApiError`](#standard-error-envelope)                                                           |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                           |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                           |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                           |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                               |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | Module settings updated for the tenant.                                                                                                                                                                          | [`ApiSuccess`](#standard-success-envelope)&lt;[`ModuleSettingsView`](#schema-modulesettingsview)&gt; |
+| 400    | Validation failed (see `error.code`: `VALIDATION_ERROR`, `SETTINGS_SENSITIVE_KEY_REJECTED`, `SETTINGS_SECRET_SHAPED_VALUE_REJECTED`).                                                                            | [`ApiError`](#standard-error-envelope)                                                               |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                               |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                               |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                               |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                               |
 
 ## Blog Posts
 
@@ -2934,13 +2934,13 @@ Tenant-scoped blog post admin API (epic #536, Issue #538) — CRUD plus lifecycl
 
 **Responses**
 
-| Status | Description                                                           | Schema                                                                                               |
-| ------ | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| 200    | Blog posts for the caller's tenant (limit 100, newest-updated first). | [`ApiSuccess`](#standard-success-envelope)\<[`BlogPostListResponse`](#schema-blogpostlistresponse)\> |
-| 400    | Validation or request error.                                          | [`ApiError`](#standard-error-envelope)                                                               |
-| 401    | Authentication required or expired.                                   | [`ApiError`](#standard-error-envelope)                                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                        | [`ApiError`](#standard-error-envelope)                                                               |
-| 500    | Internal server error without stack trace.                            | [`ApiError`](#standard-error-envelope)                                                               |
+| Status | Description                                                           | Schema                                                                                                   |
+| ------ | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 200    | Blog posts for the caller's tenant (limit 100, newest-updated first). | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPostListResponse`](#schema-blogpostlistresponse)&gt; |
+| 400    | Validation or request error.                                          | [`ApiError`](#standard-error-envelope)                                                                   |
+| 401    | Authentication required or expired.                                   | [`ApiError`](#standard-error-envelope)                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                        | [`ApiError`](#standard-error-envelope)                                                                   |
+| 500    | Internal server error without stack trace.                            | [`ApiError`](#standard-error-envelope)                                                                   |
 
 ### `POST /api/v1/blog/posts` — Create a draft blog post
 
@@ -2958,16 +2958,16 @@ Tenant-scoped blog post admin API (epic #536, Issue #538) — CRUD plus lifecycl
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                                                        | Schema                                                                               |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 200    | Blog post created (status "draft").                                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)\<[`BlogPostItem`](#schema-blogpostitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                               |
-| 401    | Authentication required or expired.                                                                                                                                                                                                                | [`ApiError`](#standard-error-envelope)                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                               |
-| 409    | A post already exists for this slug in this locale.                                                                                                                                                                                                | [`ApiError`](#standard-error-envelope)                                               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`.                                   | [`ApiError`](#standard-error-envelope)                                               |
-| 422    | NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and featuredMediaId or a contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object. | [`ApiError`](#standard-error-envelope)                                               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                                                         | [`ApiError`](#standard-error-envelope)                                               |
+| Status | Description                                                                                                                                                                                                                                        | Schema                                                                                   |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 200    | Blog post created (status "draft").                                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPostItem`](#schema-blogpostitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                                                                | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                   |
+| 409    | A post already exists for this slug in this locale.                                                                                                                                                                                                | [`ApiError`](#standard-error-envelope)                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`.                                   | [`ApiError`](#standard-error-envelope)                                                   |
+| 422    | NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and featuredMediaId or a contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object. | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                                                         | [`ApiError`](#standard-error-envelope)                                                   |
 
 ### `GET /api/v1/blog/posts/{id}` — Read one blog post
 
@@ -2984,14 +2984,14 @@ Tenant-scoped blog post admin API (epic #536, Issue #538) — CRUD plus lifecycl
 
 **Responses**
 
-| Status | Description                                         | Schema                                                                               |
-| ------ | --------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 200    | The requested blog post.                            | [`ApiSuccess`](#standard-success-envelope)\<[`BlogPostItem`](#schema-blogpostitem)\> |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                                               |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                               |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                               |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                               |
+| Status | Description                                         | Schema                                                                                   |
+| ------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 200    | The requested blog post.                            | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPostItem`](#schema-blogpostitem)&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                   |
 
 ### `PATCH /api/v1/blog/posts/{id}` — Update a blog post (any field). Author may edit their own not-yet-published post even without blog_content.posts.update
 
@@ -3010,17 +3010,17 @@ Tenant-scoped blog post admin API (epic #536, Issue #538) — CRUD plus lifecycl
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                                                                  | Schema                                                                               |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| 200    | Blog post updated.                                                                                                                                                                                                                                           | [`ApiSuccess`](#standard-success-envelope)\<[`BlogPostItem`](#schema-blogpostitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                                                                 | [`ApiError`](#standard-error-envelope)                                               |
-| 401    | Authentication required or expired.                                                                                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                               |
-| 403    | Access denied — the caller neither holds blog_content.posts.update nor is the post's author editing their own not-yet-published post.                                                                                                                        | [`ApiError`](#standard-error-envelope)                                               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                               |
-| 409    | A post already exists for this slug in this locale.                                                                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`.                                             | [`ApiError`](#standard-error-envelope)                                               |
-| 422    | NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and a submitted featuredMediaId or contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object. | [`ApiError`](#standard-error-envelope)                                               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                               |
+| Status | Description                                                                                                                                                                                                                                                  | Schema                                                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| 200    | Blog post updated.                                                                                                                                                                                                                                           | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPostItem`](#schema-blogpostitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                                                                 | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied — the caller neither holds blog_content.posts.update nor is the post's author editing their own not-yet-published post.                                                                                                                        | [`ApiError`](#standard-error-envelope)                                                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                                   |
+| 409    | A post already exists for this slug in this locale.                                                                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`.                                             | [`ApiError`](#standard-error-envelope)                                                   |
+| 422    | NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and a submitted featuredMediaId or contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object. | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                   |
 
 ### `DELETE /api/v1/blog/posts/{id}` — Soft-delete a blog post
 
@@ -3039,15 +3039,15 @@ Tenant-scoped blog post admin API (epic #536, Issue #538) — CRUD plus lifecycl
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 200    | Blog post deleted.                                                                                                                                                                                               | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Blog post deleted.                                                                                                                                                                                               | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/blog/posts/{id}/archive` — Archive a blog post
 
@@ -3065,15 +3065,15 @@ Tenant-scoped blog post admin API (epic #536, Issue #538) — CRUD plus lifecycl
 
 **Responses**
 
-| Status | Description                                                                                                    | Schema                                                                               |
-| ------ | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 200    | Blog post moved to status "archived".                                                                          | [`ApiSuccess`](#standard-success-envelope)\<[`BlogPostItem`](#schema-blogpostitem)\> |
-| 400    | Validation or request error.                                                                                   | [`ApiError`](#standard-error-envelope)                                               |
-| 401    | Authentication required or expired.                                                                            | [`ApiError`](#standard-error-envelope)                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                 | [`ApiError`](#standard-error-envelope)                                               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                            | [`ApiError`](#standard-error-envelope)                                               |
-| 409    | Idempotency-Key reused with a different request, or the post's current status cannot transition to "archived". | [`ApiError`](#standard-error-envelope)                                               |
-| 500    | Internal server error without stack trace.                                                                     | [`ApiError`](#standard-error-envelope)                                               |
+| Status | Description                                                                                                    | Schema                                                                                   |
+| ------ | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 200    | Blog post moved to status "archived".                                                                          | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPostItem`](#schema-blogpostitem)&gt; |
+| 400    | Validation or request error.                                                                                   | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.                                                                            | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                 | [`ApiError`](#standard-error-envelope)                                                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                            | [`ApiError`](#standard-error-envelope)                                                   |
+| 409    | Idempotency-Key reused with a different request, or the post's current status cannot transition to "archived". | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.                                                                     | [`ApiError`](#standard-error-envelope)                                                   |
 
 ### `POST /api/v1/blog/posts/{id}/publish` — Publish a blog post
 
@@ -3091,15 +3091,15 @@ Tenant-scoped blog post admin API (epic #536, Issue #538) — CRUD plus lifecycl
 
 **Responses**
 
-| Status | Description                                                                                                     | Schema                                                                               |
-| ------ | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 200    | Blog post moved to status "published".                                                                          | [`ApiSuccess`](#standard-success-envelope)\<[`BlogPostItem`](#schema-blogpostitem)\> |
-| 400    | Validation or request error.                                                                                    | [`ApiError`](#standard-error-envelope)                                               |
-| 401    | Authentication required or expired.                                                                             | [`ApiError`](#standard-error-envelope)                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                  | [`ApiError`](#standard-error-envelope)                                               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                             | [`ApiError`](#standard-error-envelope)                                               |
-| 409    | Idempotency-Key reused with a different request, or the post's current status cannot transition to "published". | [`ApiError`](#standard-error-envelope)                                               |
-| 500    | Internal server error without stack trace.                                                                      | [`ApiError`](#standard-error-envelope)                                               |
+| Status | Description                                                                                                     | Schema                                                                                   |
+| ------ | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 200    | Blog post moved to status "published".                                                                          | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPostItem`](#schema-blogpostitem)&gt; |
+| 400    | Validation or request error.                                                                                    | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.                                                                             | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                  | [`ApiError`](#standard-error-envelope)                                                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                             | [`ApiError`](#standard-error-envelope)                                                   |
+| 409    | Idempotency-Key reused with a different request, or the post's current status cannot transition to "published". | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.                                                                      | [`ApiError`](#standard-error-envelope)                                                   |
 
 ### `POST /api/v1/blog/posts/{id}/purge` — Purge (hard delete) a blog post
 
@@ -3117,15 +3117,15 @@ Tenant-scoped blog post admin API (epic #536, Issue #538) — CRUD plus lifecycl
 
 **Responses**
 
-| Status | Description                                                                                   | Schema                                               |
-| ------ | --------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 200    | Blog post purged.                                                                             | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                                                                  | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.                                                           | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                | [`ApiError`](#standard-error-envelope)               |
-| 404    | Resource not found or hidden by soft-delete policy.                                           | [`ApiError`](#standard-error-envelope)               |
-| 409    | Idempotency-Key reused with a different request, or the post is not archived or soft-deleted. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.                                                    | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                                                                   | Schema                                                   |
+| ------ | --------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Blog post purged.                                                                             | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                           | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                           | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request, or the post is not archived or soft-deleted. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                    | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/blog/posts/{id}/restore` — Restore a soft-deleted blog post
 
@@ -3143,15 +3143,15 @@ Tenant-scoped blog post admin API (epic #536, Issue #538) — CRUD plus lifecycl
 
 **Responses**
 
-| Status | Description                                      | Schema                                                                               |
-| ------ | ------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| 200    | Blog post restored.                              | [`ApiSuccess`](#standard-success-envelope)\<[`BlogPostItem`](#schema-blogpostitem)\> |
-| 400    | Validation or request error.                     | [`ApiError`](#standard-error-envelope)                                               |
-| 401    | Authentication required or expired.              | [`ApiError`](#standard-error-envelope)                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.   | [`ApiError`](#standard-error-envelope)                                               |
-| 404    | Post not found or not currently soft-deleted.    | [`ApiError`](#standard-error-envelope)                                               |
-| 409    | Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                                               |
-| 500    | Internal server error without stack trace.       | [`ApiError`](#standard-error-envelope)                                               |
+| Status | Description                                      | Schema                                                                                   |
+| ------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| 200    | Blog post restored.                              | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPostItem`](#schema-blogpostitem)&gt; |
+| 400    | Validation or request error.                     | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.              | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.   | [`ApiError`](#standard-error-envelope)                                                   |
+| 404    | Post not found or not currently soft-deleted.    | [`ApiError`](#standard-error-envelope)                                                   |
+| 409    | Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.       | [`ApiError`](#standard-error-envelope)                                                   |
 
 ### `POST /api/v1/blog/posts/{id}/schedule` — Schedule a blog post for future publishing
 
@@ -3171,16 +3171,16 @@ Tenant-scoped blog post admin API (epic #536, Issue #538) — CRUD plus lifecycl
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 200    | Blog post moved to status "scheduled".                                                                                                                                                                           | [`ApiSuccess`](#standard-success-envelope)\<[`BlogPostItem`](#schema-blogpostitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                               |
-| 409    | Idempotency-Key reused with a different request, or the post's current status cannot transition to "scheduled".                                                                                                  | [`ApiError`](#standard-error-envelope)                                               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 200    | Blog post moved to status "scheduled".                                                                                                                                                                           | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPostItem`](#schema-blogpostitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                   |
+| 409    | Idempotency-Key reused with a different request, or the post's current status cannot transition to "scheduled".                                                                                                  | [`ApiError`](#standard-error-envelope)                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                   |
 
 ### `POST /api/v1/blog/posts/{id}/submit-review` — Submit a draft blog post for review
 
@@ -3197,15 +3197,15 @@ Tenant-scoped blog post admin API (epic #536, Issue #538) — CRUD plus lifecycl
 
 **Responses**
 
-| Status | Description                                              | Schema                                                                               |
-| ------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 200    | Blog post moved to status "review".                      | [`ApiSuccess`](#standard-success-envelope)\<[`BlogPostItem`](#schema-blogpostitem)\> |
-| 400    | Validation or request error.                             | [`ApiError`](#standard-error-envelope)                                               |
-| 401    | Authentication required or expired.                      | [`ApiError`](#standard-error-envelope)                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.           | [`ApiError`](#standard-error-envelope)                                               |
-| 404    | Resource not found or hidden by soft-delete policy.      | [`ApiError`](#standard-error-envelope)                                               |
-| 409    | The post's current status cannot transition to "review". | [`ApiError`](#standard-error-envelope)                                               |
-| 500    | Internal server error without stack trace.               | [`ApiError`](#standard-error-envelope)                                               |
+| Status | Description                                              | Schema                                                                                   |
+| ------ | -------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 200    | Blog post moved to status "review".                      | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPostItem`](#schema-blogpostitem)&gt; |
+| 400    | Validation or request error.                             | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.                      | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.           | [`ApiError`](#standard-error-envelope)                                                   |
+| 404    | Resource not found or hidden by soft-delete policy.      | [`ApiError`](#standard-error-envelope)                                                   |
+| 409    | The post's current status cannot transition to "review". | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.               | [`ApiError`](#standard-error-envelope)                                                   |
 
 ## Blog Pages
 
@@ -3228,13 +3228,13 @@ Tenant-scoped static page admin API (epic #536, Issue #539) — plain CRUD only 
 
 **Responses**
 
-| Status | Description                                                                           | Schema                                                                                               |
-| ------ | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| 200    | Blog pages for the caller's tenant (limit 100, menu order then newest-updated first). | [`ApiSuccess`](#standard-success-envelope)\<[`BlogPageListResponse`](#schema-blogpagelistresponse)\> |
-| 400    | Validation or request error.                                                          | [`ApiError`](#standard-error-envelope)                                                               |
-| 401    | Authentication required or expired.                                                   | [`ApiError`](#standard-error-envelope)                                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                        | [`ApiError`](#standard-error-envelope)                                                               |
-| 500    | Internal server error without stack trace.                                            | [`ApiError`](#standard-error-envelope)                                                               |
+| Status | Description                                                                           | Schema                                                                                                   |
+| ------ | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 200    | Blog pages for the caller's tenant (limit 100, menu order then newest-updated first). | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPageListResponse`](#schema-blogpagelistresponse)&gt; |
+| 400    | Validation or request error.                                                          | [`ApiError`](#standard-error-envelope)                                                                   |
+| 401    | Authentication required or expired.                                                   | [`ApiError`](#standard-error-envelope)                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                        | [`ApiError`](#standard-error-envelope)                                                                   |
+| 500    | Internal server error without stack trace.                                            | [`ApiError`](#standard-error-envelope)                                                                   |
 
 ### `POST /api/v1/blog/pages` — Create a draft blog page
 
@@ -3252,16 +3252,16 @@ Tenant-scoped static page admin API (epic #536, Issue #539) — plain CRUD only 
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                                                        | Schema                                                                               |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 200    | Blog page created (status "draft").                                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)\<[`BlogPageItem`](#schema-blogpageitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                               |
-| 401    | Authentication required or expired.                                                                                                                                                                                                                | [`ApiError`](#standard-error-envelope)                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                               |
-| 409    | A page already exists for this slug in this locale.                                                                                                                                                                                                | [`ApiError`](#standard-error-envelope)                                               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`.                                   | [`ApiError`](#standard-error-envelope)                                               |
-| 422    | NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and featuredMediaId or a contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object. | [`ApiError`](#standard-error-envelope)                                               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                                                         | [`ApiError`](#standard-error-envelope)                                               |
+| Status | Description                                                                                                                                                                                                                                        | Schema                                                                                   |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 200    | Blog page created (status "draft").                                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPageItem`](#schema-blogpageitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                                                                | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                   |
+| 409    | A page already exists for this slug in this locale.                                                                                                                                                                                                | [`ApiError`](#standard-error-envelope)                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`.                                   | [`ApiError`](#standard-error-envelope)                                                   |
+| 422    | NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and featuredMediaId or a contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object. | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                                                         | [`ApiError`](#standard-error-envelope)                                                   |
 
 ### `GET /api/v1/blog/pages/{id}` — Read one blog page
 
@@ -3278,14 +3278,14 @@ Tenant-scoped static page admin API (epic #536, Issue #539) — plain CRUD only 
 
 **Responses**
 
-| Status | Description                                         | Schema                                                                               |
-| ------ | --------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 200    | The requested blog page.                            | [`ApiSuccess`](#standard-success-envelope)\<[`BlogPageItem`](#schema-blogpageitem)\> |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                                               |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                               |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                               |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                               |
+| Status | Description                                         | Schema                                                                                   |
+| ------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 200    | The requested blog page.                            | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPageItem`](#schema-blogpageitem)&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                   |
 
 ### `PATCH /api/v1/blog/pages/{id}` — Update a blog page (any field). Author may edit their own not-yet-published page even without blog_content.pages.update
 
@@ -3304,17 +3304,17 @@ Tenant-scoped static page admin API (epic #536, Issue #539) — plain CRUD only 
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                                                                  | Schema                                                                               |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| 200    | Blog page updated.                                                                                                                                                                                                                                           | [`ApiSuccess`](#standard-success-envelope)\<[`BlogPageItem`](#schema-blogpageitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                                                                 | [`ApiError`](#standard-error-envelope)                                               |
-| 401    | Authentication required or expired.                                                                                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                               |
-| 403    | Access denied — the caller neither holds blog_content.pages.update nor is the page's author editing their own not-yet-published page.                                                                                                                        | [`ApiError`](#standard-error-envelope)                                               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                               |
-| 409    | A page already exists for this slug in this locale.                                                                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`.                                             | [`ApiError`](#standard-error-envelope)                                               |
-| 422    | NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and a submitted featuredMediaId or contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object. | [`ApiError`](#standard-error-envelope)                                               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                               |
+| Status | Description                                                                                                                                                                                                                                                  | Schema                                                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| 200    | Blog page updated.                                                                                                                                                                                                                                           | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPageItem`](#schema-blogpageitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                                                                 | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied — the caller neither holds blog_content.pages.update nor is the page's author editing their own not-yet-published page.                                                                                                                        | [`ApiError`](#standard-error-envelope)                                                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                                   |
+| 409    | A page already exists for this slug in this locale.                                                                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`.                                             | [`ApiError`](#standard-error-envelope)                                                   |
+| 422    | NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and a submitted featuredMediaId or contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object. | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                   |
 
 ### `DELETE /api/v1/blog/pages/{id}` — Soft-delete a blog page
 
@@ -3333,15 +3333,15 @@ Tenant-scoped static page admin API (epic #536, Issue #539) — plain CRUD only 
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 200    | Blog page deleted.                                                                                                                                                                                               | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Blog page deleted.                                                                                                                                                                                               | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
 ## Blog Taxonomies
 
@@ -3362,13 +3362,13 @@ Tenant-scoped category/tag admin API (epic #536, Issue #539). Categories support
 
 **Responses**
 
-| Status | Description                                                | Schema                                                                                               |
-| ------ | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| 200    | Terms for the caller's tenant (limit 100, name ascending). | [`ApiSuccess`](#standard-success-envelope)\<[`BlogTermListResponse`](#schema-blogtermlistresponse)\> |
-| 400    | Validation or request error.                               | [`ApiError`](#standard-error-envelope)                                                               |
-| 401    | Authentication required or expired.                        | [`ApiError`](#standard-error-envelope)                                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.             | [`ApiError`](#standard-error-envelope)                                                               |
-| 500    | Internal server error without stack trace.                 | [`ApiError`](#standard-error-envelope)                                                               |
+| Status | Description                                                | Schema                                                                                                   |
+| ------ | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 200    | Terms for the caller's tenant (limit 100, name ascending). | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogTermListResponse`](#schema-blogtermlistresponse)&gt; |
+| 400    | Validation or request error.                               | [`ApiError`](#standard-error-envelope)                                                                   |
+| 401    | Authentication required or expired.                        | [`ApiError`](#standard-error-envelope)                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.             | [`ApiError`](#standard-error-envelope)                                                                   |
+| 500    | Internal server error without stack trace.                 | [`ApiError`](#standard-error-envelope)                                                                   |
 
 ### `POST /api/v1/blog/terms` — Create a category or tag
 
@@ -3386,15 +3386,15 @@ Tenant-scoped category/tag admin API (epic #536, Issue #539). Categories support
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 200    | Term created.                                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)\<[`BlogTermItem`](#schema-blogtermitem)\> |
-| 400    | Validation error, including a tag with a non-null parentId.                                                                                                                                                      | [`ApiError`](#standard-error-envelope)                                               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                               |
-| 409    | A term already exists for this slug in this taxonomy type.                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 200    | Term created.                                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogTermItem`](#schema-blogtermitem)&gt; |
+| 400    | Validation error, including a tag with a non-null parentId.                                                                                                                                                      | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                   |
+| 409    | A term already exists for this slug in this taxonomy type.                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                   |
 
 ### `PATCH /api/v1/blog/terms/{id}` — Update a category or tag
 
@@ -3413,16 +3413,16 @@ Tenant-scoped category/tag admin API (epic #536, Issue #539). Categories support
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 200    | Term updated.                                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)\<[`BlogTermItem`](#schema-blogtermitem)\> |
-| 400    | Validation error, including a tag with a non-null parentId.                                                                                                                                                      | [`ApiError`](#standard-error-envelope)                                               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                               |
-| 409    | A term already exists for this slug in this taxonomy type.                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 200    | Term updated.                                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogTermItem`](#schema-blogtermitem)&gt; |
+| 400    | Validation error, including a tag with a non-null parentId.                                                                                                                                                      | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                   |
+| 409    | A term already exists for this slug in this taxonomy type.                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                   |
 
 ### `DELETE /api/v1/blog/terms/{id}` — Soft-delete a category or tag
 
@@ -3441,15 +3441,15 @@ Tenant-scoped category/tag admin API (epic #536, Issue #539). Categories support
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 200    | Term deleted.                                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Term deleted.                                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
 ## Blog Search
 
@@ -3474,13 +3474,13 @@ Tenant-scoped PostgreSQL full-text admin search across posts and pages (epic #53
 
 **Responses**
 
-| Status | Description                                               | Schema                                                                                           |
-| ------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 200    | Matching posts and pages, newest first, keyset-paginated. | [`ApiSuccess`](#standard-success-envelope)\<[`BlogSearchResponse`](#schema-blogsearchresponse)\> |
-| 400    | Validation or request error.                              | [`ApiError`](#standard-error-envelope)                                                           |
-| 401    | Authentication required or expired.                       | [`ApiError`](#standard-error-envelope)                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.            | [`ApiError`](#standard-error-envelope)                                                           |
-| 500    | Internal server error without stack trace.                | [`ApiError`](#standard-error-envelope)                                                           |
+| Status | Description                                               | Schema                                                                                               |
+| ------ | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | Matching posts and pages, newest first, keyset-paginated. | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogSearchResponse`](#schema-blogsearchresponse)&gt; |
+| 400    | Validation or request error.                              | [`ApiError`](#standard-error-envelope)                                                               |
+| 401    | Authentication required or expired.                       | [`ApiError`](#standard-error-envelope)                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.            | [`ApiError`](#standard-error-envelope)                                                               |
+| 500    | Internal server error without stack trace.                | [`ApiError`](#standard-error-envelope)                                                               |
 
 ## Blog Revisions
 
@@ -3502,14 +3502,14 @@ Append-only revision history for blog posts (epic #536, Issue #541). List/read r
 
 **Responses**
 
-| Status | Description                                         | Schema                                               |
-| ------ | --------------------------------------------------- | ---------------------------------------------------- |
-| 200    | Revisions, newest first.                            | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)               |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Revisions, newest first.                            | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
 
 ### `GET /api/v1/blog/posts/{id}/revisions/{revisionId}` — Read one revision's full content snapshot
 
@@ -3527,14 +3527,14 @@ Append-only revision history for blog posts (epic #536, Issue #541). List/read r
 
 **Responses**
 
-| Status | Description                                          | Schema                                                                                       |
-| ------ | ---------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | Revision detail.                                     | [`ApiSuccess`](#standard-success-envelope)\<[`BlogRevisionItem`](#schema-blogrevisionitem)\> |
-| 400    | Validation or request error.                         | [`ApiError`](#standard-error-envelope)                                                       |
-| 401    | Authentication required or expired.                  | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.       | [`ApiError`](#standard-error-envelope)                                                       |
-| 404    | Post not found, or revision not found for this post. | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal server error without stack trace.           | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                          | Schema                                                                                           |
+| ------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | Revision detail.                                     | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogRevisionItem`](#schema-blogrevisionitem)&gt; |
+| 400    | Validation or request error.                         | [`ApiError`](#standard-error-envelope)                                                           |
+| 401    | Authentication required or expired.                  | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.       | [`ApiError`](#standard-error-envelope)                                                           |
+| 404    | Post not found, or revision not found for this post. | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal server error without stack trace.           | [`ApiError`](#standard-error-envelope)                                                           |
 
 ### `POST /api/v1/blog/posts/{id}/revisions/{revisionId}/restore` — Restore a revision onto the live post (appends a new revision)
 
@@ -3553,16 +3553,16 @@ Append-only revision history for blog posts (epic #536, Issue #541). List/read r
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                                                                                                                 | Schema                                                                               |
-| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 200    | Post updated with the revision's content; a new revision was appended recording the restore.                                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)\<[`BlogPostItem`](#schema-blogpostitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                                                                                                                | [`ApiError`](#standard-error-envelope)                                               |
-| 401    | Authentication required or expired.                                                                                                                                                                                                                                                                         | [`ApiError`](#standard-error-envelope)                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                               |
-| 404    | Post not found, or revision not found for this post.                                                                                                                                                                                                                                                        | [`ApiError`](#standard-error-envelope)                                               |
-| 409    | Idempotency-Key reused with a different request.                                                                                                                                                                                                                                                            | [`ApiError`](#standard-error-envelope)                                               |
-| 422    | NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and the revision's contentJson references image(s) that are not valid R2 media objects (e.g. a raw URL from before the mode was activated) — the revision cannot be restored onto the live post. | [`ApiError`](#standard-error-envelope)                                               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                                                                                                                  | [`ApiError`](#standard-error-envelope)                                               |
+| Status | Description                                                                                                                                                                                                                                                                                                 | Schema                                                                                   |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 200    | Post updated with the revision's content; a new revision was appended recording the restore.                                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogPostItem`](#schema-blogpostitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                                                                                                                | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                                                                                                                         | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                   |
+| 404    | Post not found, or revision not found for this post.                                                                                                                                                                                                                                                        | [`ApiError`](#standard-error-envelope)                                                   |
+| 409    | Idempotency-Key reused with a different request.                                                                                                                                                                                                                                                            | [`ApiError`](#standard-error-envelope)                                                   |
+| 422    | NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and the revision's contentJson references image(s) that are not valid R2 media objects (e.g. a raw URL from before the mode was activated) — the revision cannot be restored onto the live post. | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                                                                                                                  | [`ApiError`](#standard-error-envelope)                                                   |
 
 ## Blog Presentation
 
@@ -3582,13 +3582,13 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                    | Schema                                               |
-| ------ | ---------------------------------------------- | ---------------------------------------------------- |
-| 200    | Ads.                                           | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Ads.                                           | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/blog/ads` — Create an advertisement, optionally with its initial placements
 
@@ -3606,14 +3606,14 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                           |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| 200    | Ad created.                                                                                                                                                                                                      | [`ApiSuccess`](#standard-success-envelope)\<[`BlogAdItem`](#schema-blogaditem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                           |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                           |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                           |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                           |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                               |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 200    | Ad created.                                                                                                                                                                                                      | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogAdItem`](#schema-blogaditem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                               |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                               |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                               |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                               |
 
 ### `PATCH /api/v1/blog/ads/{id}` — Update an advertisement and/or fully replace its placements
 
@@ -3632,15 +3632,15 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                           |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| 200    | Ad updated.                                                                                                                                                                                                      | [`ApiSuccess`](#standard-success-envelope)\<[`BlogAdItem`](#schema-blogaditem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                           |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                           |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                           |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                           |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                           |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                               |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| 200    | Ad updated.                                                                                                                                                                                                      | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogAdItem`](#schema-blogaditem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                               |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                               |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                               |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                               |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                               |
 
 ### `DELETE /api/v1/blog/ads/{id}` — Soft-delete an advertisement
 
@@ -3659,15 +3659,15 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 200    | Ad deleted.                                                                                                                                                                                                      | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Ad deleted.                                                                                                                                                                                                      | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
 ### `GET /api/v1/blog/menus` — List this tenant's navigation menus (with items)
 
@@ -3683,13 +3683,13 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                    | Schema                                               |
-| ------ | ---------------------------------------------- | ---------------------------------------------------- |
-| 200    | Menus, each with its item tree.                | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Menus, each with its item tree.                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/blog/menus` — Create a navigation menu, optionally with its initial item tree
 
@@ -3707,15 +3707,15 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 200    | Menu created.                                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)\<[`BlogMenuItem`](#schema-blogmenuitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                               |
-| 409    | A menu already exists for this key.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 200    | Menu created.                                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogMenuItem`](#schema-blogmenuitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                   |
+| 409    | A menu already exists for this key.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                   |
 
 ### `PATCH /api/v1/blog/menus/{id}` — Update a menu and/or fully replace its item tree
 
@@ -3734,15 +3734,15 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 200    | Menu updated.                                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)\<[`BlogMenuItem`](#schema-blogmenuitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 200    | Menu updated.                                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogMenuItem`](#schema-blogmenuitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                   |
 
 ### `DELETE /api/v1/blog/menus/{id}` — Soft-delete a navigation menu
 
@@ -3761,15 +3761,15 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 200    | Menu deleted.                                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Menu deleted.                                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
 ### `GET /api/v1/blog/templates` — List this tenant's presentation templates
 
@@ -3785,13 +3785,13 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                    | Schema                                               |
-| ------ | ---------------------------------------------- | ---------------------------------------------------- |
-| 200    | Templates.                                     | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Templates.                                     | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/blog/templates` — Create a presentation template
 
@@ -3809,15 +3809,15 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                       |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | Template created.                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)\<[`BlogTemplateItem`](#schema-blogtemplateitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                       |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                       |
-| 409    | A template already exists for this key.                                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                                       |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | Template created.                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogTemplateItem`](#schema-blogtemplateitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                           |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                           |
+| 409    | A template already exists for this key.                                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                                                           |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                           |
 
 ### `PATCH /api/v1/blog/templates/{id}` — Update a presentation template
 
@@ -3836,15 +3836,15 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                       |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | Template updated.                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)\<[`BlogTemplateItem`](#schema-blogtemplateitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                       |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                       |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                       |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | Template updated.                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogTemplateItem`](#schema-blogtemplateitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                           |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                           |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                           |
 
 ### `DELETE /api/v1/blog/templates/{id}` — Soft-delete a presentation template
 
@@ -3863,15 +3863,15 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 200    | Template deleted.                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Template deleted.                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
 ### `GET /api/v1/blog/theme` — Read this tenant's blog theme mode
 
@@ -3887,13 +3887,13 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                    | Schema                                                                                         |
-| ------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 200    | Theme settings.                                | [`ApiSuccess`](#standard-success-envelope)\<[`BlogThemeSettings`](#schema-blogthemesettings)\> |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                         |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                         |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                         |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                         |
+| Status | Description                                    | Schema                                                                                             |
+| ------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 200    | Theme settings.                                | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogThemeSettings`](#schema-blogthemesettings)&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                             |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                             |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                             |
 
 ### `PATCH /api/v1/blog/theme` — Set this tenant's blog theme mode override
 
@@ -3911,14 +3911,14 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                         |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 200    | Theme settings updated.                                                                                                                                                                                          | [`ApiSuccess`](#standard-success-envelope)\<[`BlogThemeSettings`](#schema-blogthemesettings)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                         |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                         |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                         |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                         |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                         |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 200    | Theme settings updated.                                                                                                                                                                                          | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogThemeSettings`](#schema-blogthemesettings)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                             |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                             |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                             |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                             |
 
 ### `GET /api/v1/blog/widgets` — List this tenant's widgets
 
@@ -3935,13 +3935,13 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                    | Schema                                               |
-| ------ | ---------------------------------------------- | ---------------------------------------------------- |
-| 200    | Widgets.                                       | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Widgets.                                       | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/blog/widgets` — Create a widget
 
@@ -3959,14 +3959,14 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                   |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| 200    | Widget created.                                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)\<[`BlogWidgetItem`](#schema-blogwidgetitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                   |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                   |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                   |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                   |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                       |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 200    | Widget created.                                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogWidgetItem`](#schema-blogwidgetitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                       |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                       |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                       |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                       |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                       |
 
 ### `PATCH /api/v1/blog/widgets/{id}` — Update a widget
 
@@ -3985,15 +3985,15 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                   |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| 200    | Widget updated.                                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)\<[`BlogWidgetItem`](#schema-blogwidgetitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                   |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                   |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                   |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                   |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                   |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                       |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 200    | Widget updated.                                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogWidgetItem`](#schema-blogwidgetitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                       |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                       |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                       |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                       |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                       |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                       |
 
 ### `DELETE /api/v1/blog/widgets/{id}` — Soft-delete a widget
 
@@ -4012,15 +4012,15 @@ Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templ
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 200    | Widget deleted.                                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Widget deleted.                                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
 ## Blog Settings
 
@@ -4040,13 +4040,13 @@ Tenant-scoped blog settings admin API (epic #536, Issue #543) — one row per te
 
 **Responses**
 
-| Status | Description                                                                  | Schema                                                                                       |
-| ------ | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | Blog settings, falling back to schema/domain defaults when never configured. | [`ApiSuccess`](#standard-success-envelope)\<[`BlogSettingsView`](#schema-blogsettingsview)\> |
-| 400    | Validation or request error.                                                 | [`ApiError`](#standard-error-envelope)                                                       |
-| 401    | Authentication required or expired.                                          | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                               | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal server error without stack trace.                                   | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                                                  | Schema                                                                                           |
+| ------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | Blog settings, falling back to schema/domain defaults when never configured. | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogSettingsView`](#schema-blogsettingsview)&gt; |
+| 400    | Validation or request error.                                                 | [`ApiError`](#standard-error-envelope)                                                           |
+| 401    | Authentication required or expired.                                          | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                               | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal server error without stack trace.                                   | [`ApiError`](#standard-error-envelope)                                                           |
 
 ### `PATCH /api/v1/blog/settings` — Update this tenant's blog settings
 
@@ -4064,14 +4064,14 @@ Tenant-scoped blog settings admin API (epic #536, Issue #543) — one row per te
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                       |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | Blog settings updated (partial update — only fields present in the request body are changed).                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)\<[`BlogSettingsView`](#schema-blogsettingsview)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                       |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                       |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | Blog settings updated (partial update — only fields present in the request body are changed).                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)&lt;[`BlogSettingsView`](#schema-blogsettingsview)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                           |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                           |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                           |
 
 ## Visitor Analytics
 
@@ -4092,13 +4092,13 @@ Tenant-scoped visitor analytics API (epic: visitor analytics #617-#624, Issue #6
 
 **Responses**
 
-| Status | Description                                       | Schema                                                                                                       |
-| ------ | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 200    | Browser/device breakdown for the requested range. | [`ApiSuccess`](#standard-success-envelope)\<[`AnalyticsDevicesResponse`](#schema-analyticsdevicesresponse)\> |
-| 400    | Validation or request error.                      | [`ApiError`](#standard-error-envelope)                                                                       |
-| 401    | Authentication required or expired.               | [`ApiError`](#standard-error-envelope)                                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.    | [`ApiError`](#standard-error-envelope)                                                                       |
-| 500    | Internal server error without stack trace.        | [`ApiError`](#standard-error-envelope)                                                                       |
+| Status | Description                                       | Schema                                                                                                           |
+| ------ | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Browser/device breakdown for the requested range. | [`ApiSuccess`](#standard-success-envelope)&lt;[`AnalyticsDevicesResponse`](#schema-analyticsdevicesresponse)&gt; |
+| 400    | Validation or request error.                      | [`ApiError`](#standard-error-envelope)                                                                           |
+| 401    | Authentication required or expired.               | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.    | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.        | [`ApiError`](#standard-error-envelope)                                                                           |
 
 ### `GET /api/v1/analytics/events` — List page-view/API visit events (keyset-paginated, newest first)
 
@@ -4117,13 +4117,13 @@ Raw detail (`ipHash`, `userAgentHash`) is `null` unless the caller also holds `v
 
 **Responses**
 
-| Status | Description                                    | Schema                                                                                                   |
-| ------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| 200    | Visit events (limit 50), newest first.         | [`ApiSuccess`](#standard-success-envelope)\<[`VisitEventListResponse`](#schema-visiteventlistresponse)\> |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                                   |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                   |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                   |
+| Status | Description                                    | Schema                                                                                                       |
+| ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 200    | Visit events (limit 50), newest first.         | [`ApiSuccess`](#standard-success-envelope)&lt;[`VisitEventListResponse`](#schema-visiteventlistresponse)&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                                       |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                       |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                       |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                       |
 
 ### `GET /api/v1/analytics/locations` — Country breakdown within a range
 
@@ -4142,13 +4142,13 @@ Always empty until Issue #623 (geolocation enrichment) populates `visit_events.g
 
 **Responses**
 
-| Status | Description                                    | Schema                                                                                                           |
-| ------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 200    | Country breakdown for the requested range.     | [`ApiSuccess`](#standard-success-envelope)\<[`AnalyticsLocationsResponse`](#schema-analyticslocationsresponse)\> |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                                           |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                           |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                           |
+| Status | Description                                    | Schema                                                                                                               |
+| ------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 200    | Country breakdown for the requested range.     | [`ApiSuccess`](#standard-success-envelope)&lt;[`AnalyticsLocationsResponse`](#schema-analyticslocationsresponse)&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                                               |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                               |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                               |
 
 ### `GET /api/v1/analytics/pages` — Top pages by human pageviews within a range
 
@@ -4165,13 +4165,13 @@ Always empty until Issue #623 (geolocation enrichment) populates `visit_events.g
 
 **Responses**
 
-| Status | Description                                    | Schema                                                                                                   |
-| ------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| 200    | Top pages for the requested range.             | [`ApiSuccess`](#standard-success-envelope)\<[`AnalyticsPagesResponse`](#schema-analyticspagesresponse)\> |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                                   |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                   |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                   |
+| Status | Description                                    | Schema                                                                                                       |
+| ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 200    | Top pages for the requested range.             | [`ApiSuccess`](#standard-success-envelope)&lt;[`AnalyticsPagesResponse`](#schema-analyticspagesresponse)&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                                       |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                       |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                       |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                       |
 
 ### `GET /api/v1/analytics/realtime` — Online-now presence counts
 
@@ -4187,12 +4187,12 @@ Always empty until Issue #623 (geolocation enrichment) populates `visit_events.g
 
 **Responses**
 
-| Status | Description                                          | Schema                                                                                                   |
-| ------ | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| 200    | Presence counts within the configured online window. | [`ApiSuccess`](#standard-success-envelope)\<[`AnalyticsRealtimeStats`](#schema-analyticsrealtimestats)\> |
-| 401    | Authentication required or expired.                  | [`ApiError`](#standard-error-envelope)                                                                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.       | [`ApiError`](#standard-error-envelope)                                                                   |
-| 500    | Internal server error without stack trace.           | [`ApiError`](#standard-error-envelope)                                                                   |
+| Status | Description                                          | Schema                                                                                                       |
+| ------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 200    | Presence counts within the configured online window. | [`ApiSuccess`](#standard-success-envelope)&lt;[`AnalyticsRealtimeStats`](#schema-analyticsrealtimestats)&gt; |
+| 401    | Authentication required or expired.                  | [`ApiError`](#standard-error-envelope)                                                                       |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.       | [`ApiError`](#standard-error-envelope)                                                                       |
+| 500    | Internal server error without stack trace.           | [`ApiError`](#standard-error-envelope)                                                                       |
 
 ### `POST /api/v1/analytics/retention/purge` — Purge visitor analytics data past its configured retention window
 
@@ -4211,14 +4211,14 @@ Destructive, high-risk mutation — requires `Idempotency-Key` and is recorded a
 
 **Responses**
 
-| Status | Description                                                                            | Schema                                                                                                                 |
-| ------ | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| 200    | Purge result (also returned unchanged on an idempotent replay).                        | [`ApiSuccess`](#standard-success-envelope)\<[`AnalyticsRetentionPurgeResult`](#schema-analyticsretentionpurgeresult)\> |
-| 400    | Validation or request error.                                                           | [`ApiError`](#standard-error-envelope)                                                                                 |
-| 401    | Authentication required or expired.                                                    | [`ApiError`](#standard-error-envelope)                                                                                 |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                         | [`ApiError`](#standard-error-envelope)                                                                                 |
-| 409    | IDEMPOTENCY_CONFLICT — this Idempotency-Key was already used with a different request. | [`ApiError`](#standard-error-envelope)                                                                                 |
-| 500    | Internal server error without stack trace.                                             | [`ApiError`](#standard-error-envelope)                                                                                 |
+| Status | Description                                                                            | Schema                                                                                                                     |
+| ------ | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 200    | Purge result (also returned unchanged on an idempotent replay).                        | [`ApiSuccess`](#standard-success-envelope)&lt;[`AnalyticsRetentionPurgeResult`](#schema-analyticsretentionpurgeresult)&gt; |
+| 400    | Validation or request error.                                                           | [`ApiError`](#standard-error-envelope)                                                                                     |
+| 401    | Authentication required or expired.                                                    | [`ApiError`](#standard-error-envelope)                                                                                     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                         | [`ApiError`](#standard-error-envelope)                                                                                     |
+| 409    | IDEMPOTENCY_CONFLICT — this Idempotency-Key was already used with a different request. | [`ApiError`](#standard-error-envelope)                                                                                     |
+| 500    | Internal server error without stack trace.                                             | [`ApiError`](#standard-error-envelope)                                                                                     |
 
 ### `GET /api/v1/analytics/security` — Bot/crawler traffic breakdown within a range
 
@@ -4235,13 +4235,13 @@ Destructive, high-risk mutation — requires `Idempotency-Key` and is recorded a
 
 **Responses**
 
-| Status | Description                                    | Schema                                                                                                 |
-| ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| 200    | Bot traffic breakdown for the requested range. | [`ApiSuccess`](#standard-success-envelope)\<[`AnalyticsSecurityView`](#schema-analyticssecurityview)\> |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                                 |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                 |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                 |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                 |
+| Status | Description                                    | Schema                                                                                                     |
+| ------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 200    | Bot traffic breakdown for the requested range. | [`ApiSuccess`](#standard-success-envelope)&lt;[`AnalyticsSecurityView`](#schema-analyticssecurityview)&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                                     |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                     |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                     |
 
 ### `GET /api/v1/analytics/sessions` — List visitor sessions (keyset-paginated, most recently active first)
 
@@ -4260,13 +4260,13 @@ Raw detail (`ipHash`, `ipAddress`, `userAgentHash`, `loginIdentifierSnapshot`) i
 
 **Responses**
 
-| Status | Description                                              | Schema                                                                                                           |
-| ------ | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 200    | Visitor sessions (limit 50), most recently active first. | [`ApiSuccess`](#standard-success-envelope)\<[`VisitorSessionListResponse`](#schema-visitorsessionlistresponse)\> |
-| 400    | Validation or request error.                             | [`ApiError`](#standard-error-envelope)                                                                           |
-| 401    | Authentication required or expired.                      | [`ApiError`](#standard-error-envelope)                                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.           | [`ApiError`](#standard-error-envelope)                                                                           |
-| 500    | Internal server error without stack trace.               | [`ApiError`](#standard-error-envelope)                                                                           |
+| Status | Description                                              | Schema                                                                                                               |
+| ------ | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 200    | Visitor sessions (limit 50), most recently active first. | [`ApiSuccess`](#standard-success-envelope)&lt;[`VisitorSessionListResponse`](#schema-visitorsessionlistresponse)&gt; |
+| 400    | Validation or request error.                             | [`ApiError`](#standard-error-envelope)                                                                               |
+| 401    | Authentication required or expired.                      | [`ApiError`](#standard-error-envelope)                                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.           | [`ApiError`](#standard-error-envelope)                                                                               |
+| 500    | Internal server error without stack trace.               | [`ApiError`](#standard-error-envelope)                                                                               |
 
 ### `GET /api/v1/analytics/settings` — Read effective visitor analytics module settings for this tenant
 
@@ -4284,13 +4284,13 @@ Thin wrapper around Module Management's generic per-tenant settings storage (Iss
 
 **Responses**
 
-| Status | Description                                                       | Schema                                                                                           |
-| ------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 200    | Effective settings (defaults merged with this tenant's override). | [`ApiSuccess`](#standard-success-envelope)\<[`ModuleSettingsView`](#schema-modulesettingsview)\> |
-| 401    | Authentication required or expired.                               | [`ApiError`](#standard-error-envelope)                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                    | [`ApiError`](#standard-error-envelope)                                                           |
-| 404    | Resource not found or hidden by soft-delete policy.               | [`ApiError`](#standard-error-envelope)                                                           |
-| 500    | Internal server error without stack trace.                        | [`ApiError`](#standard-error-envelope)                                                           |
+| Status | Description                                                       | Schema                                                                                               |
+| ------ | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | Effective settings (defaults merged with this tenant's override). | [`ApiSuccess`](#standard-success-envelope)&lt;[`ModuleSettingsView`](#schema-modulesettingsview)&gt; |
+| 401    | Authentication required or expired.                               | [`ApiError`](#standard-error-envelope)                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                    | [`ApiError`](#standard-error-envelope)                                                               |
+| 404    | Resource not found or hidden by soft-delete policy.               | [`ApiError`](#standard-error-envelope)                                                               |
+| 500    | Internal server error without stack trace.                        | [`ApiError`](#standard-error-envelope)                                                               |
 
 ### `PATCH /api/v1/analytics/settings` — Update visitor analytics module settings for this tenant
 
@@ -4310,15 +4310,15 @@ Shallow JSON-merge patch. Rejects any secret-shaped key or value anywhere in the
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                           |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 200    | Settings updated.                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)\<[`ModuleSettingsView`](#schema-modulesettingsview)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                           |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                           |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                           |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                           |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                           |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                               |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | Settings updated.                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;[`ModuleSettingsView`](#schema-modulesettingsview)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                               |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                               |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                               |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                               |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                               |
 
 ### `GET /api/v1/analytics/summary` — Range-bounded visitor/pageview summary with top paths/browsers/devices/countries
 
@@ -4335,13 +4335,13 @@ Shallow JSON-merge patch. Rejects any secret-shaped key or value anywhere in the
 
 **Responses**
 
-| Status | Description                                    | Schema                                                                                       |
-| ------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| 200    | Summary for the requested range.               | [`ApiSuccess`](#standard-success-envelope)\<[`AnalyticsSummary`](#schema-analyticssummary)\> |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                       |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                       |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                       |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                       |
+| Status | Description                                    | Schema                                                                                           |
+| ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 200    | Summary for the requested range.               | [`ApiSuccess`](#standard-success-envelope)&lt;[`AnalyticsSummary`](#schema-analyticssummary)&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                           |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                           |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                           |
 
 ## News Media
 
@@ -4363,15 +4363,15 @@ Direct-to-R2 presigned upload flow for news images (epic `news_portal` #631-#642
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                                                 |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| 200    | Upload session created — a `pending_upload` metadata row plus a short-lived presigned PUT URL scoped to exactly one server-generated object key. Never includes raw R2 credentials.                              | [`ApiSuccess`](#standard-success-envelope)\<[`NewsMediaUploadSessionCreated`](#schema-newsmediauploadsessioncreated)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                                 |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                                 |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                                 |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                                 |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                                 |
-| 502    | News media R2 storage is not configured/enabled for this deployment.                                                                                                                                             | [`ApiError`](#standard-error-envelope)                                                                                 |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 200    | Upload session created — a `pending_upload` metadata row plus a short-lived presigned PUT URL scoped to exactly one server-generated object key. Never includes raw R2 credentials.                              | [`ApiSuccess`](#standard-success-envelope)&lt;[`NewsMediaUploadSessionCreated`](#schema-newsmediauploadsessioncreated)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                                     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                                     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                                     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                                     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                                     |
+| 502    | News media R2 storage is not configured/enabled for this deployment.                                                                                                                                             | [`ApiError`](#standard-error-envelope)                                                                                     |
 
 ### `POST /api/v1/media/news-images/upload-sessions/{id}/cancel` — Cancel a still-pending-upload session
 
@@ -4388,15 +4388,15 @@ Direct-to-R2 presigned upload flow for news images (epic `news_portal` #631-#642
 
 **Responses**
 
-| Status | Description                                                                         | Schema                                                                                             |
-| ------ | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| 200    | Upload session cancelled (status `failed`).                                         | [`ApiSuccess`](#standard-success-envelope)\<[`NewsMediaObjectItem`](#schema-newsmediaobjectitem)\> |
-| 400    | Validation or request error.                                                        | [`ApiError`](#standard-error-envelope)                                                             |
-| 401    | Authentication required or expired.                                                 | [`ApiError`](#standard-error-envelope)                                                             |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                      | [`ApiError`](#standard-error-envelope)                                                             |
-| 404    | Resource not found or hidden by soft-delete policy.                                 | [`ApiError`](#standard-error-envelope)                                                             |
-| 409    | Upload session is not `pending_upload` (already uploaded/verified/attached/failed). | [`ApiError`](#standard-error-envelope)                                                             |
-| 500    | Internal server error without stack trace.                                          | [`ApiError`](#standard-error-envelope)                                                             |
+| Status | Description                                                                         | Schema                                                                                                 |
+| ------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 200    | Upload session cancelled (status `failed`).                                         | [`ApiSuccess`](#standard-success-envelope)&lt;[`NewsMediaObjectItem`](#schema-newsmediaobjectitem)&gt; |
+| 400    | Validation or request error.                                                        | [`ApiError`](#standard-error-envelope)                                                                 |
+| 401    | Authentication required or expired.                                                 | [`ApiError`](#standard-error-envelope)                                                                 |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                      | [`ApiError`](#standard-error-envelope)                                                                 |
+| 404    | Resource not found or hidden by soft-delete policy.                                 | [`ApiError`](#standard-error-envelope)                                                                 |
+| 409    | Upload session is not `pending_upload` (already uploaded/verified/attached/failed). | [`ApiError`](#standard-error-envelope)                                                                 |
+| 500    | Internal server error without stack trace.                                          | [`ApiError`](#standard-error-envelope)                                                                 |
 
 ### `POST /api/v1/media/news-images/upload-sessions/{id}/finalize` — Finalize an upload session — real R2 GET + magic-byte MIME sniffing + server-side SHA-256 checksum (never a bare HEAD)
 
@@ -4418,18 +4418,18 @@ Verifies the object actually uploaded to R2 by performing a HEAD (existence + re
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                                                                                                                                                                          | Schema                                                                                             |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| 200    | Object verified — media object status is now `verified`.                                                                                                                                                                                                                                                                                                             | [`ApiSuccess`](#standard-success-envelope)\<[`NewsMediaObjectItem`](#schema-newsmediaobjectitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                                                                                                                                                                         | [`ApiError`](#standard-error-envelope)                                                             |
-| 401    | Authentication required or expired.                                                                                                                                                                                                                                                                                                                                  | [`ApiError`](#standard-error-envelope)                                                             |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                             |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                                                                                                                                                                                  | [`ApiError`](#standard-error-envelope)                                                             |
-| 409    | Upload session is not `pending_upload`, has expired (`UPLOAD_SESSION_EXPIRED`), or the Idempotency-Key was reused with a different request (`IDEMPOTENCY_CONFLICT`).                                                                                                                                                                                                 | [`ApiError`](#standard-error-envelope)                                                             |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`.                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                             |
-| 422    | Uploaded object failed content verification (`UPLOAD_VERIFICATION_FAILED`) — MIME sniff did not match the allow-list/claimed mime type, checksum mismatch, size exceeded, or the object does not exist in R2. `error.details.reason` is one of `object_not_found`, `size_exceeded`, `mime_not_recognized`, `mime_not_allowed`, `mime_mismatch`, `checksum_mismatch`. | [`ApiError`](#standard-error-envelope)                                                             |
-| 500    | Internal server error without stack trace.                                                                                                                                                                                                                                                                                                                           | [`ApiError`](#standard-error-envelope)                                                             |
-| 502    | Unable to verify the uploaded object right now (R2 provider error/circuit breaker open) — retry shortly.                                                                                                                                                                                                                                                             | [`ApiError`](#standard-error-envelope)                                                             |
+| Status | Description                                                                                                                                                                                                                                                                                                                                                          | Schema                                                                                                 |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 200    | Object verified — media object status is now `verified`.                                                                                                                                                                                                                                                                                                             | [`ApiSuccess`](#standard-success-envelope)&lt;[`NewsMediaObjectItem`](#schema-newsmediaobjectitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                                                                                                                                                                         | [`ApiError`](#standard-error-envelope)                                                                 |
+| 401    | Authentication required or expired.                                                                                                                                                                                                                                                                                                                                  | [`ApiError`](#standard-error-envelope)                                                                 |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                 |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                                                                                                                                                                                  | [`ApiError`](#standard-error-envelope)                                                                 |
+| 409    | Upload session is not `pending_upload`, has expired (`UPLOAD_SESSION_EXPIRED`), or the Idempotency-Key was reused with a different request (`IDEMPOTENCY_CONFLICT`).                                                                                                                                                                                                 | [`ApiError`](#standard-error-envelope)                                                                 |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`.                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                 |
+| 422    | Uploaded object failed content verification (`UPLOAD_VERIFICATION_FAILED`) — MIME sniff did not match the allow-list/claimed mime type, checksum mismatch, size exceeded, or the object does not exist in R2. `error.details.reason` is one of `object_not_found`, `size_exceeded`, `mime_not_recognized`, `mime_not_allowed`, `mime_mismatch`, `checksum_mismatch`. | [`ApiError`](#standard-error-envelope)                                                                 |
+| 500    | Internal server error without stack trace.                                                                                                                                                                                                                                                                                                                           | [`ApiError`](#standard-error-envelope)                                                                 |
+| 502    | Unable to verify the uploaded object right now (R2 provider error/circuit breaker open) — retry shortly.                                                                                                                                                                                                                                                             | [`ApiError`](#standard-error-envelope)                                                                 |
 
 ## News Portal Homepage Sections
 
@@ -4449,13 +4449,13 @@ Editorial homepage section composer for `/news` (epic `news_portal` #631-#642/#6
 
 **Responses**
 
-| Status | Description                                    | Schema                                               |
-| ------ | ---------------------------------------------- | ---------------------------------------------------- |
-| 200    | Homepage sections.                             | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Homepage sections.                             | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/news-portal/homepage-sections` — Create a homepage section
 
@@ -4473,16 +4473,16 @@ Editorial homepage section composer for `/news` (epic `news_portal` #631-#642/#6
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                             |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| 200    | Homepage section created.                                                                                                                                                                                        | [`ApiSuccess`](#standard-success-envelope)\<[`HomepageSectionItem`](#schema-homepagesectionitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                             |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                             |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                             |
-| 409    | sectionKey is already in use for this tenant.                                                                                                                                                                    | [`ApiError`](#standard-error-envelope)                                                             |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                             |
-| 422    | config references content that does not exist, does not belong to this tenant, or (for gallery_block) is not a verified R2 media object.                                                                         | [`ApiError`](#standard-error-envelope)                                                             |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                             |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                 |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 200    | Homepage section created.                                                                                                                                                                                        | [`ApiSuccess`](#standard-success-envelope)&lt;[`HomepageSectionItem`](#schema-homepagesectionitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                 |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                 |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                 |
+| 409    | sectionKey is already in use for this tenant.                                                                                                                                                                    | [`ApiError`](#standard-error-envelope)                                                                 |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                 |
+| 422    | config references content that does not exist, does not belong to this tenant, or (for gallery_block) is not a verified R2 media object.                                                                         | [`ApiError`](#standard-error-envelope)                                                                 |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                 |
 
 ### `PATCH /api/v1/news-portal/homepage-sections/{id}` — Update a homepage section (title/config/sortOrder/isEnabled/schedule) — sectionType is immutable
 
@@ -4501,16 +4501,16 @@ Editorial homepage section composer for `/news` (epic `news_portal` #631-#642/#6
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                                                                             |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| 200    | Homepage section updated.                                                                                                                                                                                        | [`ApiSuccess`](#standard-success-envelope)\<[`HomepageSectionItem`](#schema-homepagesectionitem)\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                             |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                             |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                             |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                             |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                             |
-| 422    | config references content that does not exist, does not belong to this tenant, or (for gallery_block) is not a verified R2 media object.                                                                         | [`ApiError`](#standard-error-envelope)                                                             |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                             |
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                 |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 200    | Homepage section updated.                                                                                                                                                                                        | [`ApiSuccess`](#standard-success-envelope)&lt;[`HomepageSectionItem`](#schema-homepagesectionitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                 |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                 |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                 |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                 |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                 |
+| 422    | config references content that does not exist, does not belong to this tenant, or (for gallery_block) is not a verified R2 media object.                                                                         | [`ApiError`](#standard-error-envelope)                                                                 |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                 |
 
 ### `DELETE /api/v1/news-portal/homepage-sections/{id}` — Soft-delete a homepage section
 
@@ -4529,15 +4529,15 @@ Editorial homepage section composer for `/news` (epic `news_portal` #631-#642/#6
 
 **Responses**
 
-| Status | Description                                                                                                                                                                                                      | Schema                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 200    | Homepage section deleted.                                                                                                                                                                                        | [`ApiSuccess`](#standard-success-envelope)\<object\> |
-| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)               |
-| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)               |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)               |
-| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)               |
-| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)               |
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Homepage section deleted.                                                                                                                                                                                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
 ## Schema appendix
 

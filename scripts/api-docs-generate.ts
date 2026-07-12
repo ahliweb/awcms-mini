@@ -174,7 +174,13 @@ function schemaSummary(
         reachable,
         depth + 1
       );
-      return `${baseLabel}\\<${dataLabel}\\>`;
+      // HTML entities, not backslash-escapes: this string is later run
+      // through mdEscape() as a table cell, which (correctly, per the
+      // CodeQL fix on PR #717) now escapes backslashes before pipes —
+      // a literal `\<` here would become `\\<` after that pass, an
+      // actual rendering regression (a visible extra backslash). Entities
+      // are inert to mdEscape's backslash handling and render identically.
+      return `${baseLabel}&lt;${dataLabel}&gt;`;
     }
     return rec.allOf
       .map((m) => schemaSummary(m, reachable, depth + 1))
@@ -312,7 +318,15 @@ function jsonBlock(value: unknown): string {
 }
 
 function mdEscape(text: string): string {
-  return text.replace(/\|/g, "\\|");
+  // Escape backslashes FIRST, then pipes (CodeQL high-severity finding on
+  // PR #717, "incomplete string escaping"): escaping only `|` left any
+  // literal backslash already in the contract's own schema
+  // description/example text untouched, so a value ending in `\`
+  // immediately before a template-inserted `|` cell delimiter could
+  // "absorb" the escaping backslash meant for that pipe, letting a
+  // schema-authored string break out of its table cell into the
+  // generated Markdown's table structure.
+  return text.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 }
 
 function table(headers: string[], rows: string[][]): string {
