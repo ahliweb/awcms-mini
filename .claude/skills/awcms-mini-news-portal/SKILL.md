@@ -46,7 +46,7 @@ status + pointer, bukan menduplikasi isinya.
 | #638  | Preset placement iklan news portal dengan validasi gambar R2-only                                                            | **Selesai** — lihat §638 di bawah                    |
 | #639  | Content block `video_news` dengan thumbnail R2 wajib                                                                         | **Selesai** — lihat §639 di bawah                    |
 | #640  | Content quality checklist publishing dengan syarat gambar R2                                                                 | **Selesai** — lihat §640 di bawah                    |
-| #641  | Automatic internal tag linking untuk konten post/news                                                                        | Belum dikerjakan — lihat §641 di bawah               |
+| #641  | Automatic internal tag linking untuk konten post/news                                                                        | **Selesai** — lihat §641 di bawah                    |
 | #642  | Public social share buttons di halaman artikel `/news`                                                                       | **Selesai** — lihat §642 di bawah                    |
 | #649  | SEO + social preview metadata lengkap di halaman artikel `/news`                                                             | **Selesai** — lihat §649 di bawah                    |
 
@@ -2352,18 +2352,207 @@ issue ini). `taxonomy_exists` selalu `applicable: false` untuk pages
 - **Tidak ada migration baru** — lihat "Gate tunggal"/"Kebijakan tenant" di
   atas untuk alasan.
 
-## §641 — Automatic internal tag linking (belum dikerjakan)
+## §641 — Automatic internal tag linking (Selesai)
 
-Ringkasan scope: auto-linking tag/taxonomy di dalam konten post/news
-memakai tag/taxonomy yang **sudah ada** (`blog_content`'s
-`awcms_mini_blog_terms`), sambil menjaga kontrol editorial, keamanan
-SEO, aksesibilitas, dan keamanan rendering. **Tidak terkait R2/media**
-secara langsung — item ini ada di epic yang sama karena sama-sama
-bagian pengalaman editorial `news_portal`, tapi tidak bergantung pada
-Keputusan kunci #1-#5 di atas. Implementor wajib tetap memakai whitelist
-renderer yang sama (`content-block-rendering.ts`) — auto-linking tidak
-boleh membuka jalur raw-HTML baru (lihat `blog-content` README
-§Rendering publik tetap aman dari XSS).
+Implementasi lengkap: domain `blog-content/domain/internal-tag-linking.ts`
+(matching engine murni + transform HTML berbasis `HTMLRewriter` bawaan
+Bun), `domain/internal-tag-linking-config.ts` (resolver enam env var
+`BLOG_AUTO_INTERNAL_TAG_LINKS_*`), `domain/internal-tag-linking-policy.ts`
+(validator kebijakan tenant), aplikasi
+`application/internal-tag-link-settings-directory.ts` (tabel khusus
+tenant policy) + `application/internal-tag-link-rendering.ts` (orkestrasi
+dipakai render publik DAN endpoint preview). Migration
+`sql/051_awcms_mini_blog_content_internal_tag_links_schema.sql` (kolom
+`auto_internal_tag_links_disabled` di `awcms_mini_blog_posts` + tabel baru
+`awcms_mini_blog_internal_tag_link_settings`) dan
+`sql/052_awcms_mini_blog_content_internal_tag_links_permissions.sql`
+(permission `blog_content.internal_links.{read,configure,preview}`).
+**Tidak terkait R2/media** secara langsung — item ini ada di epic yang
+sama karena sama-sama bagian pengalaman editorial `news_portal`, tidak
+bergantung pada Keputusan kunci #1-#5 di atas. Fitur hidup di modul
+`blog_content` (bukan `news_portal`) karena harus generik untuk SEMUA
+konsumen `blog_content`, bukan hanya tenant full-online-R2 — dibuktikan
+dengan pemasangannya di KEDUA route publik (`/news/{slug}` DAN
+`/blog/{tenantCode}/{slug}`), bukan hanya salah satu.
+
+### Keputusan kunci — HTML tree parsing via Bun `HTMLRewriter`, bukan regex atas string mentah
+
+Security notes issue #641 eksplisit melarang "naive string replacement
+on raw HTML without parsing/sanitization." Implementasi memakai
+`HTMLRewriter` bawaan Bun (built-in global, sama API dengan Cloudflare
+Workers, TIDAK butuh dependency baru — konsisten aturan Bun-only) untuk
+benar-benar berjalan di pohon elemen: sebuah `skipDepth` counter
+di-increment saat masuk elemen dalam daftar kecualikan (`a`, `script`,
+`style`, `code`, `pre`, `kbd`, `samp`, `textarea`, `noscript`,
+`figcaption`, `iframe`, `object`, `embed`, `video`, `audio`, `template`,
+`math`, `svg`, plus `h1`-`h6` bila `excludeHeadings=true`) dan
+di-decrement tepat di `el.onEndTag()` elemen yang SAMA — teks yang
+ditemukan selagi `skipDepth > 0` tidak pernah diperiksa sama sekali,
+berapa pun dalam nested-nya. Regex HANYA dipakai pada teks yang SUDAH
+diisolasi parser sebagai node teks aman (bukan pada string HTML mentah),
+prinsip yang sama dengan whitelist renderer `content-block-rendering.ts`.
+Dibuktikan empiris (skrip prototipe manual) SEBELUM kode final ditulis —
+lihat unit test `tests/unit/internal-tag-linking.test.ts` untuk 25 skenario
+tervalidasi termasuk existing-anchor/code/script/figcaption/embed/heading
+exclusion dan dua kasus XSS (nama tag mengandung karakter HTML-special,
+dan konten yang sudah berisi teks `&lt;script&gt;` ter-escape tidak pernah
+diinterpretasi ulang sebagai markup).
+
+### Matching — teks dicocokkan dalam domain ter-escape, tidak pernah didekode
+
+`HTMLRewriter`'s `text()` callback mengembalikan teks level-SOURCE
+(sudah di-HTML-entity-encode, `&` tetap `&amp;`), bukan versi ter-decode.
+Alih-alih mendekode teks (rawan bug double-escape), setiap nama tag
+kandidat di-`escapeHtml()` dengan fungsi PERSIS yang sama dipakai
+renderer, sehingga matching seluruhnya terjadi dalam domain yang sudah
+ter-escape — tag bernama `Q&A` cocok terhadap teks sumber `Q&amp;A`
+(diverifikasi test). Substring yang cocok dipakai apa adanya sebagai teks
+anchor, sehingga markup yang dihasilkan selalu well-formed.
+
+### Word boundary — Unicode-aware, bukan `\b` biasa
+
+Pattern regex pakai lookaround `(?<![\p{L}\p{N}_])...(?![\p{L}\p{N}_])`
+dengan flag `u` — mencegah tag "makan" cocok sebagai substring di dalam
+kata Indonesia yang lebih besar berbagi akar yang sama ("memakan",
+"makanan"), sambil tetap mencocokkan kemunculan berdiri sendiri.
+Kandidat diurutkan terpanjang-lebih-dulu (berdasarkan panjang bentuk
+ter-escape) sebelum digabung jadi satu regex alternation — JS regex
+alternation memilih alternatif PERTAMA yang cocok pada posisi yang sama,
+bukan yang terpanjang, jadi urutan inilah yang membuat "match terpanjang
+menang" benar (tag "Jakarta Selatan" dipilih di atas "Jakarta" pada
+posisi yang sama).
+
+### Dua level cap — `maxPerTag`/`linkFirstOccurrenceOnly` dan `maxPerPost`
+
+`linkFirstOccurrenceOnly=true` (default) secara efektif menyamakan
+`maxPerTag` ke 1 (`effectiveMaxPerTag = linkFirstOccurrenceOnly ? 1 :
+max(1, maxPerTag)`), memenuhi "Avoid duplicate links to the same tag in
+one post unless configured" — menaikkan `maxPerTag` DAN mematikan
+`linkFirstOccurrenceOnly` memungkinkan lebih dari satu link ke tag yang
+sama. `maxPerPost` adalah plafon GLOBAL lintas semua tag dalam satu
+dokumen, ditegakkan lewat counter stateful yang persisten sepanjang
+seluruh dokumen (bukan per text-node) — dijamin oleh
+`createInternalTagLinkEngine`'s closure yang dipanggil berulang oleh
+`HTMLRewriter` per node teks, dalam document order.
+
+### Kebijakan tenant — tabel KHUSUS, BUKAN `awcms_mini_blog_settings.settings` seperti Issue #640
+
+Berbeda dari `contentQualityChecklistPolicy` (#640) yang aman ditaruh di
+kolom catch-all `awcms_mini_blog_settings.settings` karena
+`upsertBlogSettings` sudah di-update untuk ikut me-round-trip key baru
+itu — kebijakan issue ini (`enabled`/`caseInsensitive`/`disabledTagIds`)
+SENGAJA memakai tabel baru `awcms_mini_blog_internal_tag_link_settings`
+(migration 050), satu baris per tenant, pola sama
+`awcms_mini_blog_theme_settings` (migration 029). Alasan: `settings`
+adalah kolom catch-all yang di-**overwrite utuh** oleh `upsertBlogSettings`
+dari daftar key eksplisit (`extras` object) — key BARU yang tidak
+ditambahkan ke daftar itu akan DIAM-DIAM HILANG setiap kali admin
+memperbarui setting blog lain apa pun via `PATCH /api/v1/blog/settings`,
+kecuali file itu ikut disentuh. Tabel khusus menghindari keterikatan ini
+sepenuhnya, dan cocok dengan permintaan eksplisit issue akan permission
+terpisah (`blog_content.internal_links.*`, BUKAN `blog_content.settings.*`)
+— endpoint (`GET`/`PATCH /api/v1/blog/internal-tag-links/settings`)
+dan directory (`internal-tag-link-settings-directory.ts`) juga terpisah
+total dari `blog-settings-directory.ts`, tidak ada write path ganda.
+
+### Bun.SQL tidak auto-deserialize kolom array Postgres — jebakan nyata ditemukan saat integration test
+
+`disabled_tag_ids uuid[]` yang dibaca lewat `Bun.SQL` kembali sebagai
+STRING literal wire-format `"{uuid1,uuid2}"` (`typeof === "string"`),
+BUKAN array JS ter-parse — diverifikasi empiris lewat skrip test manual
+sebelum menuduh integration test yang salah. Tanpa parsing eksplisit,
+`[...rawString]` di kode lama akan diam-diam men-spread STRING itu jadi
+array karakter individual (bug nyata yang sempat lolos ke integration
+test pertama kali dijalankan). `parsePostgresUuidArray` di
+`internal-tag-link-settings-directory.ts` menangani ini — aman khusus
+untuk UUID (tidak ada koma/kurung-kurawal/kutip yang perlu di-escape di
+dalam satu elemen). **Catatan untuk implementor lanjutan**: bila
+menambah kolom `xxx[]` baru di tabel manapun di repo ini, JANGAN
+berasumsi Bun.SQL mem-parse-nya otomatis — verifikasi empiris dulu
+(lihat `awcms-mini-coder` prompt/skill terkait bila perlu menambah
+catatan ini ke referensi umum non-epic-specific).
+
+### `POST /setup/initialize` adalah singleton sekali-per-database — bukan per-tenant
+
+Ditemukan (ulang) saat menulis test cross-tenant: `POST
+/api/v1/setup/initialize` menolak (403 "Setup has already been
+completed") panggilan KEDUA dalam SATU proses database, bahkan untuk
+`tenantCode` yang berbeda — jadi tidak bisa dipanggil dua kali dalam SATU
+test case untuk mem-bootstrap dua tenant. Pola yang benar (sudah dipakai
+`blog-content-admin-ui.integration.test.ts`/
+`blog-content-public-news.integration.test.ts` sebelumnya, direplikasi di
+sini sebagai `provisionSecondTenant`): sisipkan tenant KEDUA langsung via
+raw SQL admin client (`awcms_mini_tenants`/`awcms_mini_profiles`/
+`awcms_mini_identities`/`awcms_mini_tenant_users`/`awcms_mini_roles`/
+`awcms_mini_role_permissions`/`awcms_mini_access_assignments`), lalu login
+biasa. Untuk skenario yang butuh tenant kedua benar-benar RESOLVABLE lewat
+`/news` (bukan cuma API tenant-scoped biasa), tambahkan
+`PUBLIC_TENANT_RESOLUTION_MODE=env_default` +
+`PUBLIC_DEFAULT_TENANT_ID=<tenantB>` sementara (pola sama
+`blog-content-public-news.integration.test.ts`'s cross-tenant test).
+
+### Permission baru — `preview` ditambahkan ke `AccessAction` union
+
+`identity-access/domain/access-control.ts`'s `AccessAction` union
+mendapat anggota baru `"preview"` (dipakai HANYA oleh
+`blog_content.internal_links.preview`) — mengikuti persis precedent
+`verify`/`set_primary` (Issue #562): seed permission dulu, tambah action
+ke union saat endpoint nyata membutuhkannya. Tidak dimasukkan ke
+`HIGH_RISK_ACTIONS` (read-only, tidak destruktif).
+
+### Rendering wiring — kedua route publik post-detail, bukan hanya `/news`
+
+`renderContentHtmlWithInternalTagLinks` dipanggil di KEDUA
+`src/pages/news/[slug].ts` DAN `src/pages/blog/[tenantCode]/[slug].ts`,
+tepat setelah `renderContentJsonToHtml` menghasilkan HTML aman dan
+sebelum dibungkus `bodyHtml` — basePath tag archive berbeda per route
+(`routeSettings.publicBasePath` vs `/blog/${tenantCode}`), tapi orkestrasi
+resolusi kebijakan/kandidat SAMA (satu fungsi aplikasi, tidak
+diduplikasi). Preview endpoint (`GET /api/v1/blog/posts/{id}/internal-links/preview`)
+memakai fungsi orkestrasi yang SAMA (`previewInternalTagLinksForContent`)
+supaya "kandidat tag mana yang layak, kebijakan efektif apa" tidak pernah
+drift antara render time dan preview time.
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `sql/051_awcms_mini_blog_content_internal_tag_links_schema.sql`,
+  `sql/052_awcms_mini_blog_content_internal_tag_links_permissions.sql`.
+- `src/modules/blog-content/domain/internal-tag-linking.ts`,
+  `domain/internal-tag-linking-config.ts`,
+  `domain/internal-tag-linking-policy.ts`;
+  `application/internal-tag-link-settings-directory.ts`,
+  `application/internal-tag-link-rendering.ts`.
+- Diperbarui (aditif): `src/modules/identity-access/domain/access-control.ts`
+  (`"preview"` action), `src/modules/blog-content/module.ts` (permissions
+  `internal_links.*`, event baru, versi 0.8.0→0.9.0),
+  `src/modules/blog-content/application/blog-post-directory.ts`/
+  `domain/blog-post-validation.ts`/`application/public-blog-directory.ts`
+  (`autoInternalTagLinksDisabled`), `src/pages/news/[slug].ts`,
+  `src/pages/blog/[tenantCode]/[slug].ts` (wiring render).
+- `src/pages/api/v1/blog/internal-tag-links/settings.ts` (GET/PATCH),
+  `src/pages/api/v1/blog/posts/[id]/internal-links/preview.ts` (GET).
+- Admin UI: `src/pages/admin/blog/internal-tag-links.astro` (baru),
+  `src/pages/admin/blog/posts/[id].astro` (checkbox per-post + panel
+  preview), `src/pages/admin/blog/index.astro` (quick link baru).
+- `openapi/modules/blog-internal-tag-links.openapi.yaml` (baru),
+  `openapi/awcms-mini-public-api.src.yaml` (`BlogPostItem.
+autoInternalTagLinksDisabled`, tag baru), `openapi/modules/blog-posts.openapi.yaml`
+  (field request baru), `asyncapi/awcms-mini-domain-events.asyncapi.yaml`
+  (channel + operation baru).
+- `src/lib/config/registry.ts`, `scripts/validate-env.ts`
+  (`checkBlogAutoInternalTagLinksConfig`), `.env.example`,
+  `18_configuration_env_reference.md` §Blog content — automatic internal
+  tag linking.
+- `i18n/en.po`/`i18n/id.po` (25 key baru: dashboard link, panel post
+  editor, layar settings baru).
+- Test: `tests/unit/internal-tag-linking.test.ts` (25 skenario),
+  `tests/unit/internal-tag-linking-config.test.ts`,
+  `tests/unit/internal-tag-linking-policy.test.ts`,
+  `tests/integration/blog-internal-tag-linking.integration.test.ts` (16
+  skenario: render wiring, tenant isolation, tiga level disable,
+  per-tag disable, settings API CRUD + validasi + audit, preview API);
+  diperbarui: `tests/foundation.test.ts` (versi modul, daftar migration).
+- Changeset: `.changeset/blog-content-internal-tag-linking-issue-641.md`.
 
 ## §690 — R2 media lifecycle cleanup & reconciliation job (epic #679 platform-hardening, BUKAN epic ini — Selesai)
 

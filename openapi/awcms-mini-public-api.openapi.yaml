@@ -63,6 +63,8 @@ tags:
     description: "Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templates (whitelisted layout config), hierarchical navigation menus, position-based widgets, and advertisements (placement targeting + scheduling), plus a per-tenant blog theme mode override. Per doc issue #542's own Scope Control, none of this rebuilds the base media library, tenant system, RBAC/ABAC, audit, or theme engine — the blog theme endpoint overrides `awcms_mini_tenants.default_theme`, it does not replace it."
   - name: Blog Settings
     description: "Tenant-scoped blog settings admin API (epic #536, Issue #543) — one row per tenant (`awcms_mini_blog_settings`, schema present since Issue #537 but unwired until this issue). Blog title/description and RSS/sitemap enabled flags live in the row's catch-all `settings` jsonb column; default locale/visibility and SEO title/description defaults have their own typed columns. `rssEnabled`/`sitemapEnabled` also gate `GET /blog/{tenantCode}/feed.xml` and `.../sitemap-blog.xml` (Issue #540) — disabled looks identical to an unknown tenant (404), no distinguishing signal leaked."
+  - name: Blog Internal Tag Links
+    description: "Automatic internal tag linking for post/news content (epic `news_portal`, Issue #641) — tenant policy (enable/disable, case-insensitive matching, per-tag disable) in its own dedicated table/endpoint, deliberately separate from Blog Settings, plus a read-only preview of which terms would be auto-linked in a post's rendered content before publishing. Linking itself is a render-time-only transform applied by the public `/news`/`/blog/{tenantCode}` routes, not an API this tag exposes directly."
   - name: Visitor Analytics
     description: "Tenant-scoped visitor analytics API (epic: visitor analytics #617-#624, Issue #621) — realtime presence, range-bounded summary/ pages/devices/locations/security aggregates, keyset-paginated sessions/events, settings, and on-demand retention purge. Raw detail (IP address, user-agent hash, login identifier snapshot) on sessions/events is omitted unless the caller holds the separate `visitor_analytics.raw_detail.read` permission, independent of `sessions.read`/`events.read`."
   - name: News Media
@@ -1787,6 +1789,81 @@ paths:
           $ref: "#/components/responses/PayloadTooLarge"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/blog/internal-tag-links/settings:
+    get:
+      tags:
+        - Blog Internal Tag Links
+      summary: Read this tenant's automatic internal tag linking settings
+      operationId: blogInternalTagLinksSettingsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Effective automatic internal tag linking configuration (deployment-wide knobs plus this tenant's own overridable policy).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/InternalTagLinkingSettingsView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Blog Internal Tag Links
+      summary: Update this tenant's automatic internal tag linking settings
+      operationId: blogInternalTagLinksSettingsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateInternalTagLinkingSettingsInput"
+      responses:
+        "200":
+          description: Settings updated (partial update — only fields present in the request body are changed).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/InternalTagLinkingSettingsView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/blog/menus:
     get:
       tags:
@@ -2667,6 +2744,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/posts/{id}/internal-links/preview:
+    get:
+      tags:
+        - Blog Internal Tag Links
+      summary: Preview which terms would be automatically linked in a post's rendered content
+      operationId: blogPostInternalLinksPreview
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Which tag terms would be auto-linked in this post's current content, before publishing.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/InternalTagLinkingPreviewResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/blog/posts/{id}/publish:
@@ -9568,6 +9687,7 @@ components:
         - restoredAt
         - restoredBy
         - version
+        - autoInternalTagLinksDisabled
       additionalProperties: false
       properties:
         id:
@@ -9663,6 +9783,9 @@ components:
         version:
           type: integer
           minimum: 1
+        autoInternalTagLinksDisabled:
+          type: boolean
+          description: "Manual per-post opt-out of automatic internal tag linking (Issue #641). Defaults false."
         termIds:
           type: array
           items:
@@ -10403,7 +10526,10 @@ components:
           items:
             type: string
             format: uuid
-          description: Category/tag ids to assign to this post (Issue
+          description: "Category/tag ids to assign to this post (Issue #539)."
+        autoInternalTagLinksDisabled:
+          type: boolean
+          description: "Manual per-post opt-out of automatic internal tag linking (Issue #641). Defaults false."
     CreateBlogTermRequest:
       type: object
       required:
@@ -11309,6 +11435,111 @@ components:
           type: string
           format: date-time
           nullable: true
+    InternalTagLinkingPreviewResult:
+      type: object
+      required:
+        - postId
+        - enabled
+        - disabledReason
+        - matches
+        - totalLinked
+        - maxPerPost
+        - maxPerTag
+      additionalProperties: false
+      properties:
+        postId:
+          type: string
+          format: uuid
+        enabled:
+          type: boolean
+        disabledReason:
+          type: string
+          nullable: true
+          enum:
+            - deployment_disabled
+            - tenant_disabled
+            - post_disabled
+            - null
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/InternalTagLinkMatch"
+        totalLinked:
+          type: integer
+        maxPerPost:
+          type: integer
+        maxPerTag:
+          type: integer
+    InternalTagLinkingSettingsView:
+      type: object
+      description: "Effective automatic internal tag linking configuration (Issue #641)."
+      required:
+        - enabled
+        - deploymentEnabled
+        - tenantEnabled
+        - caseInsensitive
+        - disabledTagIds
+        - maxPerPost
+        - maxPerTag
+        - minTermLength
+        - linkFirstOccurrenceOnly
+        - excludeHeadings
+        - updatedAt
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
+          description: Final resolved enabled flag (deploymentEnabled AND tenantEnabled).
+        deploymentEnabled:
+          type: boolean
+          description: Deployment-wide BLOG_AUTO_INTERNAL_TAG_LINKS_ENABLED kill switch — read-only from this endpoint.
+        tenantEnabled:
+          type: boolean
+          description: This tenant's own enable/disable override.
+        caseInsensitive:
+          type: boolean
+        disabledTagIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        maxPerPost:
+          type: integer
+          description: Deployment-wide BLOG_AUTO_INTERNAL_TAG_LINKS_MAX_PER_POST — read-only from this endpoint.
+        maxPerTag:
+          type: integer
+          description: Deployment-wide BLOG_AUTO_INTERNAL_TAG_LINKS_MAX_PER_TAG — read-only from this endpoint.
+        minTermLength:
+          type: integer
+          description: Deployment-wide BLOG_AUTO_INTERNAL_TAG_LINKS_MIN_TERM_LENGTH — read-only from this endpoint.
+        linkFirstOccurrenceOnly:
+          type: boolean
+          description: Deployment-wide BLOG_AUTO_INTERNAL_TAG_LINKS_LINK_FIRST_OCCURRENCE_ONLY — read-only from this endpoint.
+        excludeHeadings:
+          type: boolean
+          description: Deployment-wide BLOG_AUTO_INTERNAL_TAG_LINKS_EXCLUDE_HEADINGS — read-only from this endpoint.
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    InternalTagLinkMatch:
+      type: object
+      required:
+        - tagId
+        - tagName
+        - url
+        - matchedText
+      additionalProperties: false
+      properties:
+        tagId:
+          type: string
+          format: uuid
+        tagName:
+          type: string
+        url:
+          type: string
+        matchedText:
+          type: string
     JobRegistryEntry:
       type: object
       required:
@@ -13203,7 +13434,10 @@ components:
           items:
             type: string
             format: uuid
-          description: Replaces the full category/tag assignment set for this post (Issue
+          description: "Replaces the full category/tag assignment set for this post (Issue #539)."
+        autoInternalTagLinksDisabled:
+          type: boolean
+          description: "Manual per-post opt-out of automatic internal tag linking (Issue #641). Defaults false."
     UpdateBlogSettingsInput:
       type: object
       description: Partial update — only fields present are validated/changed. blogTitle/blogDescription/rssEnabled/sitemapEnabled live in the row's catch-all `settings` jsonb column; the rest have their own typed columns.
@@ -13305,6 +13539,21 @@ components:
           type: string
           format: date-time
           nullable: true
+    UpdateInternalTagLinkingSettingsInput:
+      type: object
+      description: Partial update — only fields present are validated/changed. disabledTagIds must reference existing, same-tenant, non-deleted taxonomy_type=tag terms.
+      additionalProperties: false
+      properties:
+        enabled:
+          type: boolean
+        caseInsensitive:
+          type: boolean
+        disabledTagIds:
+          type: array
+          maxItems: 500
+          items:
+            type: string
+            format: uuid
     UpdateRoleRequest:
       type: object
       description: At least one of roleName or permissionIds is required.

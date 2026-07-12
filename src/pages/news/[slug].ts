@@ -14,6 +14,7 @@ import { buildNewsArticleSeoMetadata } from "../../modules/blog-content/applicat
 import { newsMediaPortAdapter } from "../../modules/news-portal/application/news-media-port-adapter";
 import { resolveNewsShareConfig } from "../../modules/news-portal/domain/news-share-config";
 import { renderContentJsonToHtml } from "../../modules/blog-content/domain/content-block-rendering";
+import { renderContentHtmlWithInternalTagLinks } from "../../modules/blog-content/application/internal-tag-link-rendering";
 import {
   resolveCanonicalUrl,
   resolveMetaDescription,
@@ -81,9 +82,22 @@ export const GET: APIRoute = async ({ params, request, url }) => {
           }
         );
 
-        const contentHtml = renderContentJsonToHtml(
+        const renderedContentHtml = renderContentJsonToHtml(
           post.contentJson,
           seoMetadata.resolvedGalleryUrls
+        );
+
+        // Issue #641 — automatic internal tag linking, applied as a pure
+        // render-time transform of the already-safe renderer output (never
+        // the stored `content_json`/`content_text`). No-ops (returns
+        // `renderedContentHtml` unchanged) when the deployment/tenant/post
+        // has it disabled — see `internal-tag-link-rendering.ts`.
+        const contentHtml = await renderContentHtmlWithInternalTagLinks(
+          tx,
+          tenant.tenantId,
+          renderedContentHtml,
+          post.autoInternalTagLinksDisabled,
+          basePath
         );
 
         // Issue #642 — public share buttons, rendered only for this

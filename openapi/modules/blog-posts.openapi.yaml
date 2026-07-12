@@ -785,7 +785,10 @@ components:
           items:
             type: string
             format: uuid
-          description: Category/tag ids to assign to this post (Issue
+          description: "Category/tag ids to assign to this post (Issue #539)."
+        autoInternalTagLinksDisabled:
+          type: boolean
+          description: "Manual per-post opt-out of automatic internal tag linking (Issue #641). Defaults false."
     ScheduleBlogPostRequest:
       type: object
       required:
@@ -849,4 +852,7 @@ components:
           items:
             type: string
             format: uuid
-          description: Replaces the full category/tag assignment set for this post (Issue
+          description: "Replaces the full category/tag assignment set for this post (Issue #539)."
+        autoInternalTagLinksDisabled:
+          type: boolean
+          description: "Manual per-post opt-out of automatic internal tag linking (Issue #641). Defaults false."

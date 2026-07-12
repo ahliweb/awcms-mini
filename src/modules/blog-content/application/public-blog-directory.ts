@@ -38,6 +38,8 @@ export type PublicBlogPostDetail = {
   visibility: BlogContentVisibility;
   /** Issue #636 — added so public detail routes can resolve it to a verified R2 media object for gallery/og:image rendering (`resolveVerifiedNewsMediaReferences`). Not previously selected here since nothing rendered it before this issue. */
   featuredMediaId: string | null;
+  /** Issue #641 — per-post opt-out of automatic internal tag linking, read by the public detail routes before calling `renderContentHtmlWithInternalTagLinks`. */
+  autoInternalTagLinksDisabled: boolean;
   /** Issue #649 — explicit "use this image for social/SEO preview" override; highest priority source in `social-preview-image-resolution.ts`'s chain, ahead of `featuredMediaId`. */
   seoImageMediaId: string | null;
 };
@@ -57,6 +59,7 @@ type PublicBlogPostDetailRow = {
   updated_at: Date;
   visibility: BlogContentVisibility;
   featured_media_id: string | null;
+  auto_internal_tag_links_disabled: boolean;
   seo_image_media_id: string | null;
 };
 
@@ -76,6 +79,7 @@ function toDetail(row: PublicBlogPostDetailRow): PublicBlogPostDetail {
     updatedAt: row.updated_at,
     visibility: row.visibility,
     featuredMediaId: row.featured_media_id,
+    autoInternalTagLinksDisabled: row.auto_internal_tag_links_disabled,
     seoImageMediaId: row.seo_image_media_id
   };
 }
@@ -88,7 +92,8 @@ export async function fetchPublicBlogPostBySlug(
   const rows = (await tx`
     SELECT id, title, slug, excerpt, content_json, content_text, seo_title,
       meta_description, canonical_url, locale, published_at, updated_at,
-      visibility, featured_media_id, seo_image_media_id
+      visibility, featured_media_id, auto_internal_tag_links_disabled,
+      seo_image_media_id
     FROM awcms_mini_blog_posts
     WHERE tenant_id = ${tenantId} AND slug = ${slug}
       AND status = 'published' AND visibility IN ('public', 'unlisted')

@@ -47,7 +47,15 @@ export type AccessAction =
   // `retry`'s documented precedent (`isHighRiskAction` is metadata, not a
   // gate on idempotency/audit requirements).
   | "verify"
-  | "set_primary";
+  | "set_primary"
+  // Issue #641 (blog_content): `GET /api/v1/blog/posts/{id}/internal-links/
+  // preview` needed a permission distinct from `posts.read`/`internal_links.
+  // read` (an editor may be allowed to preview which terms would be
+  // auto-linked without also getting broad internal-link *configuration*
+  // access) — same "seed permission first, add the action when a real
+  // endpoint needs it" precedent as `verify`/`set_primary` above. Read-only,
+  // not added to `HIGH_RISK_ACTIONS`.
+  | "preview";
 
 export type AccessRequest = {
   moduleKey: string;

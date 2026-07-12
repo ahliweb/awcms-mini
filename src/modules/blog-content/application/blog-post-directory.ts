@@ -79,6 +79,8 @@ export type BlogPostView = {
   restoredAt: Date | null;
   restoredBy: string | null;
   version: number;
+  /** Issue #641 — manual per-post opt-out of automatic internal tag linking. */
+  autoInternalTagLinksDisabled: boolean;
 };
 
 type BlogPostRow = {
@@ -108,6 +110,7 @@ type BlogPostRow = {
   restored_at: Date | null;
   restored_by: string | null;
   version: number;
+  auto_internal_tag_links_disabled: boolean;
 };
 
 function toView(row: BlogPostRow): BlogPostView {
@@ -137,7 +140,8 @@ function toView(row: BlogPostRow): BlogPostView {
     deleteReason: row.delete_reason,
     restoredAt: row.restored_at,
     restoredBy: row.restored_by,
-    version: row.version
+    version: row.version,
+    autoInternalTagLinksDisabled: row.auto_internal_tag_links_disabled
   };
 }
 
@@ -151,18 +155,20 @@ export async function createBlogPost(
     INSERT INTO awcms_mini_blog_posts
       (tenant_id, author_tenant_user_id, title, slug, excerpt, content_json,
        content_text, status, visibility, featured_media_id, seo_image_media_id,
-       seo_title, meta_description, canonical_url, locale)
+       seo_title, meta_description, canonical_url, locale,
+       auto_internal_tag_links_disabled)
     VALUES (
       ${tenantId}, ${authorTenantUserId}, ${input.title}, ${input.slug},
       ${input.excerpt}, ${input.contentJson}, ${input.contentText}, 'draft',
       ${input.visibility}, ${input.featuredMediaId}, ${input.seoImageMediaId},
-      ${input.seoTitle}, ${input.metaDescription}, ${input.canonicalUrl}, ${input.locale}
+      ${input.seoTitle}, ${input.metaDescription}, ${input.canonicalUrl}, ${input.locale},
+      ${input.autoInternalTagLinksDisabled}
     )
     RETURNING id, tenant_id, author_tenant_user_id, title, slug, excerpt, content_json,
       content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
-      restored_at, restored_by, version
+      restored_at, restored_by, version, auto_internal_tag_links_disabled
   `) as BlogPostRow[];
 
   return toView(rows[0]!);
@@ -186,7 +192,7 @@ export async function fetchBlogPostById(
       content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
-      restored_at, restored_by, version
+      restored_at, restored_by, version, auto_internal_tag_links_disabled
         FROM awcms_mini_blog_posts
         WHERE tenant_id = ${tenantId} AND id = ${postId}
       `
@@ -195,7 +201,7 @@ export async function fetchBlogPostById(
       content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
-      restored_at, restored_by, version
+      restored_at, restored_by, version, auto_internal_tag_links_disabled
         FROM awcms_mini_blog_posts
         WHERE tenant_id = ${tenantId} AND id = ${postId} AND deleted_at IS NULL
       `
@@ -288,6 +294,10 @@ export async function updateBlogPost(
           WHEN ${input.canonicalUrl === undefined} THEN canonical_url
           ELSE ${input.canonicalUrl ?? null}
         END,
+        auto_internal_tag_links_disabled = COALESCE(
+          ${input.autoInternalTagLinksDisabled ?? null},
+          auto_internal_tag_links_disabled
+        ),
         version = version + 1,
         updated_at = now()
     WHERE tenant_id = ${tenantId} AND id = ${id} AND deleted_at IS NULL
@@ -295,7 +305,7 @@ export async function updateBlogPost(
       content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
-      restored_at, restored_by, version
+      restored_at, restored_by, version, auto_internal_tag_links_disabled
   `) as BlogPostRow[];
 
   return rows[0] ? toView(rows[0]) : null;
@@ -352,7 +362,7 @@ export async function transitionBlogPostStatus(
       content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
-      restored_at, restored_by, version
+      restored_at, restored_by, version, auto_internal_tag_links_disabled
   `) as BlogPostRow[];
 
   return rows[0] ? toView(rows[0]) : null;
@@ -373,7 +383,7 @@ export async function restoreBlogPost(
       content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
-      restored_at, restored_by, version
+      restored_at, restored_by, version, auto_internal_tag_links_disabled
   `) as BlogPostRow[];
 
   return rows[0] ? toView(rows[0]) : null;

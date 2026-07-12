@@ -1460,6 +1460,80 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
     default: "true",
     description:
       "There is no supported Instagram web-share intent URL, so this never renders a dedicated Instagram button — it only toggles a short text note clarifying that Instagram sharing goes through native share (when NEWS_SHARE_NATIVE_ENABLED=true) or copy-link, never a fake Instagram URL."
+  },
+
+  // ---------------------------------------------------------------------
+  // Blog content — automatic internal tag linking (Issue #641)
+  // ---------------------------------------------------------------------
+  {
+    name: "BLOG_AUTO_INTERNAL_TAG_LINKS_ENABLED",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "blog-content",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "true",
+    description:
+      "Deployment-wide kill switch for automatic internal tag linking — when false, no tenant can enable it regardless of its own per-tenant override.",
+    validatorGroup: "checkBlogAutoInternalTagLinksConfig"
+  },
+  {
+    name: "BLOG_AUTO_INTERNAL_TAG_LINKS_MAX_PER_POST",
+    type: "integer",
+    required: "optional",
+    ownerModule: "blog-content",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "10",
+    description:
+      "Maximum total automatic internal tag links inserted per post (1-100).",
+    validatorGroup: "checkBlogAutoInternalTagLinksConfig"
+  },
+  {
+    name: "BLOG_AUTO_INTERNAL_TAG_LINKS_MAX_PER_TAG",
+    type: "integer",
+    required: "optional",
+    ownerModule: "blog-content",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "1",
+    description:
+      "Maximum automatic links to the same tag within one post (1-20). Effectively capped at 1 when BLOG_AUTO_INTERNAL_TAG_LINKS_LINK_FIRST_OCCURRENCE_ONLY=true.",
+    validatorGroup: "checkBlogAutoInternalTagLinksConfig"
+  },
+  {
+    name: "BLOG_AUTO_INTERNAL_TAG_LINKS_MIN_TERM_LENGTH",
+    type: "integer",
+    required: "optional",
+    ownerModule: "blog-content",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "3",
+    description:
+      "Tag names shorter than this (1-100 characters) are never auto-linked, to avoid noisy links on very short/common words.",
+    validatorGroup: "checkBlogAutoInternalTagLinksConfig"
+  },
+  {
+    name: "BLOG_AUTO_INTERNAL_TAG_LINKS_LINK_FIRST_OCCURRENCE_ONLY",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "blog-content",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "true",
+    description:
+      "When true, only the first occurrence of each matched tag in a post is linked (equivalent to capping BLOG_AUTO_INTERNAL_TAG_LINKS_MAX_PER_TAG at 1)."
+  },
+  {
+    name: "BLOG_AUTO_INTERNAL_TAG_LINKS_EXCLUDE_HEADINGS",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "blog-content",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "true",
+    description:
+      "When true, text inside h1-h6 heading elements is never auto-linked (in addition to existing anchors, scripts, code/pre blocks, and figure captions, which are never linked regardless of this setting)."
   }
 ];
 

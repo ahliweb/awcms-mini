@@ -16,6 +16,7 @@ import { buildNewsArticleSeoMetadata } from "../../../modules/blog-content/appli
 import { newsMediaPortAdapter } from "../../../modules/news-portal/application/news-media-port-adapter";
 import { resolveNewsShareConfig } from "../../../modules/news-portal/domain/news-share-config";
 import { renderContentJsonToHtml } from "../../../modules/blog-content/domain/content-block-rendering";
+import { renderContentHtmlWithInternalTagLinks } from "../../../modules/blog-content/application/internal-tag-link-rendering";
 import {
   resolveCanonicalUrl,
   resolveMetaDescription,
@@ -86,9 +87,19 @@ export const GET: APIRoute = async ({ params, url }) => {
         }
       );
 
-      const contentHtml = renderContentJsonToHtml(
+      const renderedContentHtml = renderContentJsonToHtml(
         post.contentJson,
         seoMetadata.resolvedGalleryUrls
+      );
+
+      // Issue #641 — see `/news/[slug].ts`'s identical comment: pure
+      // render-time internal tag linking, never touching stored content.
+      const contentHtml = await renderContentHtmlWithInternalTagLinks(
+        tx,
+        tenant.tenantId,
+        renderedContentHtml,
+        post.autoInternalTagLinksDisabled,
+        `/blog/${tenantCode}`
       );
 
       // Issue #642 — see `/news/[slug].ts`'s identical comment: share

@@ -57,6 +57,9 @@ const CAN_READ_TAXONOMIES = context.permissions.has(
 const CAN_READ_SETTINGS = context.permissions.has(
   permissionKey("blog_content", "settings", "read")
 );
+const CAN_READ_INTERNAL_LINKS = context.permissions.has(
+  permissionKey("blog_content", "internal_links", "read")
+);
 
 const hasAnyAccess = CAN_READ_POSTS || CAN_READ_PAGES;
 
@@ -229,6 +232,13 @@ if (hasAnyAccess) {
                 <li>
                   <a href="/admin/blog/settings">
                     {t("admin.blog.dashboard.manage_settings_link")}
+                  </a>
+                </li>
+              )}
+              {CAN_READ_INTERNAL_LINKS && (
+                <li>
+                  <a href="/admin/blog/internal-tag-links">
+                    {t("admin.blog.dashboard.manage_internal_tag_links_link")}
                   </a>
                 </li>
               )}
