@@ -123,6 +123,7 @@ AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode sta
 | Epic online public routing & tenant domain (Issue #556-#567)           | `awcms-mini-tenant-domain-routing` |
 | Epic visitor analytics (Issue #617-#624)                               | `awcms-mini-visitor-analytics`     |
 | Epic news_portal full-online R2-only media (Issue #631-#642, #649)     | `awcms-mini-news-portal`           |
+| Epic master data wilayah administratif Indonesia (Issue #655-#664)     | `awcms-mini-idn-admin-regions`     |
 
 **Peningkatan (audit & hardening artefak yang sudah ada):**
 
@@ -183,6 +184,13 @@ flowchart LR
   NP --> SD
   NP --> INT
   NP --> IDEM
+  II --> IDN[idn-admin-regions]
+  IDN --> NM
+  IDN --> MIG
+  IDN --> EP
+  IDN --> UI2
+  IDN --> ABAC
+  IDN --> AUD
 ```
 
 Skill merujuk `docs/awcms-mini/*` sebagai sumber kebenaran; bila standar berubah, perbarui doc **dan** skill terkait.
@@ -308,7 +316,7 @@ awcms-mini/
 
 Modul **base generik** yang terdaftar di registry (`src/modules/index.ts` `listModules()`, lihat juga inventori GENERATED `docs/awcms-mini/repo-inventory.md` §Modules untuk daftar hidup key/versi/status):
 
-`tenant-admin` (`tenant_admin`), `profile-identity` (`profile_identity`), `identity-access` (`identity_access`), `sync-storage` (`sync_storage`), `reporting` (`reporting`), `logging` (`logging`), `workflow-approval` (`workflow`), `form-drafts` (`form_drafts`), `email` (`email`), `module-management` (`module_management`).
+`tenant-admin` (`tenant_admin`), `profile-identity` (`profile_identity`), `identity-access` (`identity_access`), `sync-storage` (`sync_storage`), `reporting` (`reporting`), `logging` (`logging`), `workflow-approval` (`workflow`), `form-drafts` (`form_drafts`), `email` (`email`), `module-management` (`module_management`), `idn-admin-regions` (`idn_admin_regions`, `type: base`, `status: experimental` — epic #654 master data wilayah administratif Indonesia, Issue #655-#664, lihat `.claude/skills/awcms-mini-idn-admin-regions/SKILL.md`).
 
 `_shared` (`src/modules/_shared`) bukan modul terdaftar — berisi kontrak/tipe bersama (`module-contract.ts`, dsb.) yang dipakai seluruh modul lain.
 

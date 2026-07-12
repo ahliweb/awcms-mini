@@ -15,6 +15,7 @@ import {
   redactDatabaseUrl,
   stripDollarQuotedBlocks,
   stripOptionalTransactionWrapper,
+  stripSingleQuotedStringLiterals,
   validateAppliedChecksums
 } from "../scripts/db-migrate";
 import {
@@ -58,8 +59,8 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, and news_portal are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632", () => {
-    expect(listModules()).toHaveLength(14);
+  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, and idn_admin_regions are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655", () => {
+    expect(listModules()).toHaveLength(15);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "active"
@@ -136,6 +137,13 @@ describe("module registry", () => {
       type: "domain",
       dependencies: ["tenant_admin", "identity_access"]
     });
+    expect(getModuleByKey("idn_admin_regions")).toMatchObject({
+      key: "idn_admin_regions",
+      version: "0.1.0",
+      status: "experimental",
+      type: "base",
+      dependencies: ["identity_access", "logging", "module_management"]
+    });
     expect(getModuleByKey("unknown_module")).toBeUndefined();
   });
 });
@@ -179,6 +187,38 @@ describe("database migration runner helpers", () => {
     // But a real top-level BEGIN; is still rejected.
     expect(() =>
       assertNoTransactionControl("BEGIN;\nSELECT 1;", "999_bad.sql")
+    ).toThrow("transaction control");
+  });
+
+  test("single-quoted string literal contents are removed before scanning for transaction control", () => {
+    // Regression guard for Issue #655's migration 048: a data value that is
+    // literally the word 'rollback' (required verbatim — the permission key
+    // is idn_admin_regions.dataset.rollback) must not be misread as a
+    // top-level ROLLBACK; statement.
+    const stripped = stripSingleQuotedStringLiterals(
+      "INSERT INTO awcms_mini_permissions (module_key, activity_code, action) VALUES ('idn_admin_regions', 'dataset', 'rollback');"
+    );
+    expect(stripped).not.toContain("rollback");
+    // The standard '' escaped-quote-within-a-string convention is honored —
+    // an escaped quote inside a literal doesn't prematurely end the match.
+    expect(
+      stripSingleQuotedStringLiterals("SELECT 'it''s a rollback test';")
+    ).not.toContain("rollback");
+  });
+
+  test("a permission seed migration whose data literally contains the word 'rollback' passes the transaction-control check", () => {
+    expect(() =>
+      assertNoTransactionControl(
+        "INSERT INTO awcms_mini_permissions (module_key, activity_code, action, description)\n" +
+          "VALUES\n" +
+          "  ('idn_admin_regions', 'dataset', 'rollback', 'Roll back the active dataset')\n" +
+          "ON CONFLICT (module_key, activity_code, action) DO NOTHING;",
+        "048_awcms_mini_idn_admin_regions_permissions.sql"
+      )
+    ).not.toThrow();
+    // But a real top-level ROLLBACK; is still rejected.
+    expect(() =>
+      assertNoTransactionControl("BEGIN;\nROLLBACK;", "999_bad.sql")
     ).toThrow("transaction control");
   });
 
@@ -262,7 +302,8 @@ describe("database migration runner helpers", () => {
       "044_awcms_mini_news_portal_homepage_sections_schema.sql",
       "045_awcms_mini_db_role_separation.sql",
       "046_awcms_mini_news_media_orphan_lifecycle.sql",
-      "047_awcms_mini_observability_metrics_permission.sql"
+      "047_awcms_mini_observability_metrics_permission.sql",
+      "048_awcms_mini_idn_admin_regions_permissions.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

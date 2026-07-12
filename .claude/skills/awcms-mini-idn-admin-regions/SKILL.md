@@ -1,0 +1,215 @@
+---
+name: awcms-mini-idn-admin-regions
+description: Kerjakan bagian mana pun dari epic idn_admin_regions AWCMS-Mini (Issue #655-#664, epic #654 — master data wilayah administratif Indonesia dari cahyadsn/wilayah). Gunakan saat menambah/mengubah vendoring source metadata, schema dataset region, parser/normalizer SQL upstream, validation gate, import pipeline, activation/rollback/diff, lookup API, atau admin UI untuk modul `idn_admin_regions`. Merangkum keputusan yang sudah dibuat supaya issue lanjutan tidak mengulang investigasi/kontradiksi.
+---
+
+# AWCMS-Mini — Indonesia Administrative Regions (`idn_admin_regions`)
+
+Epic #654 (Issue #655-#664): master data wilayah administratif Indonesia
+(provinsi/kabupaten-kota/kecamatan/desa-kelurahan) sebagai modul
+`base`/reference reusable, disumber dari repository third-party
+`cahyadsn/wilayah` (MIT License). Modul ini didaftarkan **langsung** di
+repo base ini (bukan aplikasi turunan) karena master data wilayah relevan
+untuk hampir semua aplikasi turunan (POS, portal, sistem pengaduan, dsb.)
+— sama alasan `blog-content`/`news-portal`/`tenant-domain`/
+`visitor-analytics` terdaftar langsung, tapi `idn_admin_regions` sendiri
+`type: "base"` (bukan `domain`/`system`) karena ini reference data murni,
+bukan fitur bisnis tenant atau infrastruktur platform.
+
+## Sumber dan lisensi (WAJIB dipertahankan setiap issue lanjutan)
+
+- **Repository**: <https://github.com/cahyadsn/wilayah>
+- **Source folder**: <https://github.com/cahyadsn/wilayah/tree/master/db>
+- **License**: MIT
+- **Upstream statement**: "Kode dan Data Wilayah Administrasi Pemerintahan
+  dan Kode Pulau Indonesia sesuai Kepmendagri No. 300.2.2-2430 Tahun
+  2025."
+- **Official-reference caveat (WAJIB tetap ditulis eksplisit di setiap
+  README/docs/UI yang menampilkan dataset ini)**: ini dataset
+  third-party/komunitas, BUKAN API atau ekspor resmi Kementerian Dalam
+  Negeri (Kemendagri). AWCMS-Mini tidak pernah mengklaim sebagai
+  penerbit resmi data ini, dan dataset ini tidak menggantikan rujukan
+  legal/kepatuhan resmi operator ke Kepmendagri asli.
+
+Konstanta kode tunggal untuk ketiga fakta ini:
+`src/modules/idn-admin-regions/domain/source-provenance.ts` — issue
+lanjutan (#656 vendoring, #660 import, #664 docs) WAJIB import konstanta
+ini, jangan menulis ulang string URL/license/caveat secara terpisah agar
+tidak drift.
+
+## Kapan pakai skill ini vs skill generik
+
+Skill ini melengkapi (bukan menggantikan) `awcms-mini-new-module`
+(struktur modul awal), `awcms-mini-new-migration` (schema dataset #657),
+`awcms-mini-new-endpoint` (lookup API #662), `awcms-mini-abac-guard` +
+`awcms-mini-audit-log` (import/activate/rollback #660-#661 adalah
+mutation high-risk), `awcms-mini-idempotency` (activate/rollback WAJIB
+`Idempotency-Key` per acceptance criteria #661), dan `awcms-mini-ui-screen`
+(admin UI #663). Skill ini menyediakan konteks **cross-cutting epic
+spesifik** — terutama fakta sumber/lisensi di atas dan keputusan
+penamaan/struktur yang sudah dibuat di #655, supaya issue lanjutan tidak
+menginvestigasi ulang dari nol.
+
+## Status per issue (jangan bangun ulang yang sudah ada)
+
+| Issue | Scope                                                                                          | Status                            |
+| ----- | ---------------------------------------------------------------------------------------------- | --------------------------------- |
+| #655  | Scaffold modul `idn_admin_regions` (descriptor, permission catalog, README)                    | **Selesai** — lihat §655 di bawah |
+| #656  | Vendor source metadata + license `cahyadsn/wilayah` di bawah `data/idn-admin-regions/`         | Belum dikerjakan                  |
+| #657  | Schema PostgreSQL versioned (`awcms_mini_idn_region_datasets`, `awcms_mini_idn_admin_regions`) | Belum dikerjakan                  |
+| #658  | Parser & normalizer SQL dump upstream `cahyadsn/wilayah` (MySQL-style insert dumps)            | Belum dikerjakan                  |
+| #659  | Validation gate repository untuk file dataset yang di-vendor/dinormalisasi                     | Belum dikerjakan                  |
+| #660  | Import pipeline PostgreSQL (dry-run/commit)                                                    | Belum dikerjakan                  |
+| #661  | Activation, rollback, dan diff dataset                                                         | Belum dikerjakan                  |
+| #662  | Read-only lookup API wilayah Indonesia                                                         | Belum dikerjakan                  |
+| #663  | Admin UI untuk browse dataset dan status validasi                                              | Belum dikerjakan                  |
+| #664  | SOP, docs, dan security review                                                                 | Belum dikerjakan                  |
+
+Urutan dependency yang disarankan (dari objective masing-masing issue):
+655 → 656 (butuh modul terdaftar untuk `data/idn-admin-regions/` punya
+tempat bernaung secara konseptual, walau file vendor sendiri di luar
+`src/modules/`) → 657 (schema, independen dari 656 secara teknis tapi
+secara isi butuh tahu bentuk `db/wilayah.sql`) → 658 (parser, butuh file
+vendor #656 sebagai input nyata) → 659 (validator, butuh #656+#657+#658
+ada untuk divalidasi) → 660 (import, butuh #657 schema + #658
+output ternormalisasi + #659 validator lulus dulu) → 661 (activate/
+rollback, butuh dataset ter-import #660) → 662 (lookup API, butuh dataset
+aktif #661) → 663 (admin UI, butuh #660/#661/#662 semua ada) → 664
+(docs/SOP final, merangkum semua).
+
+## §655 — Scaffold modul (Selesai)
+
+Implementasi lengkap: `src/modules/idn-admin-regions/module.ts` (module
+baru, minimal — `key: "idn_admin_regions"`, `name: "Indonesia
+Administrative Regions"`, `version: "0.1.0"`, `status: "experimental"`,
+`type: "base"`, `dependencies: ["identity_access", "logging",
+"module_management"]`, lima `permissions`), `domain/source-provenance.ts`
+(konstanta source/license/caveat, lihat §Sumber dan lisensi di atas),
+`application/.gitkeep` (kosong — belum ada logic apa pun untuk ditulis
+sampai issue lanjutan memberi modul ini tabel/endpoint pertama untuk
+diorkestrasi), `README.md` (dokumentasi source+lisensi+caveat+scope
+per-issue). Migration `sql/048_awcms_mini_idn_admin_regions_permissions.sql`
+menyeed lima permission ke `awcms_mini_permissions` — TIDAK ada tabel
+domain baru (schema region ditunda ke #657, sesuai instruksi issue #655
+sendiri: "no database schema/migration for actual region data yet").
+
+### Keputusan/judgment call issue ini (mengikat untuk issue lanjutan)
+
+1. **`type: "base"`, bukan `"domain"`/`"system"`** — dipilih karena master
+   data wilayah adalah reference data murni yang identik untuk semua
+   tenant (bukan konten yang dimiliki tenant seperti `blog_content`, dan
+   bukan infrastruktur observability/lifecycle platform seperti
+   `visitor_analytics`/`tenant_domain`). Ini modul `base` PERTAMA yang
+   didaftarkan langsung di repo base sejak sembilan modul base generik asli
+   (Issue 2.1-2.4/12.1/6.1-6.3/9.1/10.1/11.1) — lihat AGENTS.md §Peta modul,
+   modul ini masuk daftar "base generik" itu, BUKAN daftar "Pengecualian
+   empat modul domain/system".
+2. **Permission key derivation** — issue #655 menulis lima permission
+   string lengkap (`idn_admin_regions.region.read`, dst). Mekanisme modul
+   descriptor memakai `{activityCode, action}` terpisah, digabung sebagai
+   `${moduleKey}.${activityCode}.${action}`
+   (`src/modules/module-management/domain/permission-sync.ts`'s `keyOf`).
+   Pemetaan yang dipakai: `region.read` → activityCode `"region"` action
+   `"read"`; `dataset.read`/`dataset.import`/`dataset.activate`/
+   `dataset.rollback` → activityCode `"dataset"`, action masing-masing.
+   Issue lanjutan (#660-#662) yang menambah endpoint/wiring **wajib**
+   memakai activityCode/action yang SAMA persis (jangan buat activityCode
+   baru untuk konsep yang sama).
+3. **Mekanisme seed permission** — mengikuti PERSIS pola
+   `sql/038_awcms_mini_visitor_analytics_permissions.sql`/
+   `sql/032_awcms_mini_tenant_domain_permissions.sql`: satu migration SQL
+   baru (`048`) yang `INSERT INTO awcms_mini_permissions ... ON CONFLICT
+DO NOTHING`, tidak ada mekanisme baru yang ditemukan. Migration ini HANYA
+   menyeed katalog ABAC global (tabel yang sudah ada sejak base generik),
+   BUKAN skema `idn_admin_regions` sendiri (yang tetap ditunda ke #657) —
+   jadi ini konsisten dengan instruksi issue #655 "no database
+   schema/migration for actual region data yet" karena
+   `awcms_mini_permissions` bukan skema domain modul ini.
+4. **`domain/source-provenance.ts` sebagai single source of truth** —
+   ditambahkan walau issue #655 sendiri tidak secara eksplisit
+   menyebutnya, karena README (acceptance criteria: dokumentasi source
+   repo + lisensi + caveat) butuh konten yang sama persis yang akan
+   dipakai lagi oleh #656 (vendoring)/#660 (import)/#664 (docs) — daripada
+   membiarkan string URL/license/caveat diketik ulang di banyak tempat dan
+   berisiko drift, satu file konstanta kode dijadikan rujukan. Ini BUKAN
+   logic domain (parsing/validasi/derivasi) — murni deskriptif, tidak
+   melanggar batas scope "no import logic yet".
+5. **`application/` kosong (`.gitkeep`)** — issue #655 secara eksplisit
+   scaffold-only, tidak ada logic aplikasi nyata (tidak ada DB read/write,
+   tidak ada orkestrasi apa pun) untuk ditulis. Konvensi `.gitkeep` untuk
+   direktori yang sengaja kosong sudah ada di repo ini (`src/lib/files/`,
+   `src/lib/logging/`, `src/lib/errors/`) — diikuti persis, bukan
+   mekanisme baru.
+6. **Tidak `api`/`navigation`/`jobs`/`health`/`settings`/`events` di
+   descriptor** — sama pola `visitor_analytics` (Issue #617) dan
+   `news_portal` (Issue #632) sebelum fitur nyatanya ada: descriptor hanya
+   mengklaim capability yang benar-benar sudah ada. `api.basePath` untuk
+   #662 kemungkinan `/api/v1/idn-regions` (sesuai daftar endpoint issue
+   #662's body), tapi TIDAK di-pre-declare di sini — implementor #662
+   menambahkannya sendiri saat endpoint itu benar-benar ada (beda dari
+   `tenant_domain`/`visitor_analytics` yang PERNAH pre-declare `api`
+   sebelum endpoint ada — keputusan sengaja tidak mengikuti pola itu di
+   sini karena tidak ada kebutuhan konkret yang memaksa pre-declare lebih
+   awal, dan sesuai instruksi tugas ini untuk tetap scaffold minimal).
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `sql/048_awcms_mini_idn_admin_regions_permissions.sql`.
+- `src/modules/idn-admin-regions/module.ts`,
+  `domain/source-provenance.ts`, `application/.gitkeep`, `README.md`.
+- `src/modules/index.ts` (import + registry array).
+- Test: `tests/modules/idn-admin-regions-module.test.ts`,
+  `tests/unit/idn-admin-regions-source-provenance.test.ts`; diperbarui:
+  `tests/foundation.test.ts` (module count 14→15, tambah blok
+  `idn_admin_regions`).
+- Docs: `AGENTS.md` §Peta modul + tabel skill + diagram mermaid,
+  `.claude/skills/README.md`, `docs/awcms-mini/repo-inventory.md`
+  (regenerated).
+- Changeset: `.changeset/idn-admin-regions-scaffold-issue-655.md`.
+
+## Catatan untuk issue lanjutan (#656-#664)
+
+- **#656 (vendoring)**: taruh file upstream di `data/idn-admin-regions/`
+  (BUKAN `src/modules/idn-admin-regions/`) sesuai struktur eksplisit di
+  body issue #656 — file vendor bukan source TypeScript, jadi wajar hidup
+  di luar `src/`. Wajib `NOTICE.md`, `SOURCE.md` (commit SHA, timestamp
+  import), `LICENSE` upstream verbatim, `manifest.json` + `checksums.sha256`.
+  Jangan edit file SQL upstream mentah secara manual (issue body sendiri
+  melarang) — file ternormalisasi taruh terpisah di `normalized/`.
+- **#657 (schema)**: dua tabel — `awcms_mini_idn_region_datasets`
+  (metadata dataset per-import: source repo/path/commit SHA/license/
+  checksum/status/row count) dan `awcms_mini_idn_admin_regions` (region
+  ternormalisasi: code/parent_code/level/region_type/nama). **Global
+  reference data, BUKAN tenant-scoped** — TIDAK ada kolom `tenant_id`,
+  TIDAK ada RLS tenant-isolation (beda dari template
+  `awcms-mini-new-migration` standar yang mengasumsikan tenant-scoped by
+  default) — baca skill itu sendiri §"Tabel BARU tanpa tenant_id/RLS"
+  untuk kewajiban grant eksplisit + entry `RLS_FREE_TABLES`/
+  `ALLOWED_GLOBAL_TABLE_GRANTS` di `scripts/security-readiness.ts`. Unique
+  index `(dataset_id, code)`, index `(dataset_id, parent_code)`, "hanya
+  satu dataset aktif" (kemungkinan partial unique index `WHERE
+status='active'` pada `dataset_id` atau kolom serupa — implementor
+  memutuskan bentuk persis saat issue itu dikerjakan).
+- **#658 (parser)**: HARUS bisa jalan tanpa runtime MySQL (acceptance
+  criteria eksplisit) — parser dump SQL MySQL-style insert secara string,
+  BUKAN eksekusi SQL apa pun (baik terhadap Postgres maupun MySQL).
+- **#660/#661 (import/activate/rollback)**: mutation high-risk — WAJIB
+  `Idempotency-Key` (skill `awcms-mini-idempotency`) dan audit event
+  (skill `awcms-mini-audit-log`). Import TIDAK boleh memanggil provider
+  eksternal di dalam transaksi DB (aturan wajib #8 AGENTS.md) — tapi
+  perhatikan bahwa import #660 tidak melibatkan provider eksternal sama
+  sekali (murni baca file lokal + tulis Postgres), jadi aturan ini
+  relevan hanya bila implementasi masa depan menambah fetch jarak jauh.
+- **#662 (lookup API)**: default HARUS query dataset `active` saja
+  (acceptance criteria eksplisit) — parameter `dataset=active|<code>`
+  untuk override eksplisit. Read-only, pakai response helper standar
+  (skill `awcms-mini-new-endpoint`), permission `idn_admin_regions.region.read`
+  / `idn_admin_regions.dataset.read` dari #655 ini.
+- **#663 (admin UI)**: path `/admin/master-data/idn-regions/...` — ikuti
+  design system (skill `awcms-mini-ui-screen`), permission-gated pakai
+  permission yang sama dari #655, tombol activate/rollback wajib
+  konfirmasi eksplisit.
+- **Setiap issue lanjutan yang menyentuh dataset ini WAJIB tetap
+  menampilkan §Sumber dan lisensi di atas** (repo URL, MIT, caveat resmi)
+  di README/docs/UI-nya sendiri — jangan pernah dihilangkan demi
+  keringkasan.

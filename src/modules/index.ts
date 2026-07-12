@@ -3,6 +3,7 @@ import { blogContentModule } from "./blog-content/module";
 import { emailModule } from "./email/module";
 import { formDraftsModule } from "./form-drafts/module";
 import { identityAccessModule } from "./identity-access/module";
+import { idnAdminRegionsModule } from "./idn-admin-regions/module";
 import { loggingModule } from "./logging/module";
 import { moduleManagementModule } from "./module-management/module";
 import { newsPortalModule } from "./news-portal/module";
@@ -28,7 +29,8 @@ export const modules: ModuleDescriptor[] = [
   blogContentModule,
   tenantDomainModule,
   visitorAnalyticsModule,
-  newsPortalModule
+  newsPortalModule,
+  idnAdminRegionsModule
 ];
 
 export function getModuleByKey(

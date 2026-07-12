@@ -68,10 +68,30 @@ export function stripDollarQuotedBlocks(sql: string): string {
   return sql.replace(/\$(\w*)\$[\s\S]*?\$\1\$/g, "");
 }
 
+/**
+ * Removes the contents of standard single-quoted SQL string literals (e.g.
+ * `'rollback'`), honoring the standard `''`-escaped-quote-within-a-string
+ * convention, so an ordinary data value is never scanned for
+ * transaction-control keywords. Discovered by Issue #655's own permission
+ * seed migration (048): a plain `INSERT ... VALUES (...)` row whose
+ * `action` column value is literally `'rollback'` (required verbatim by the
+ * issue itself — the permission key `idn_admin_regions.dataset.rollback`)
+ * was a false positive for `assertNoTransactionControl` before this fix,
+ * because the word "rollback" appeared inside a quoted string literal, not
+ * as a top-level `ROLLBACK;` statement. Must run AFTER
+ * `stripDollarQuotedBlocks` — a dollar-quoted PL/pgSQL body may itself
+ * contain single-quoted string literals, and stripping the dollar-quoted
+ * span first removes them along with everything else in that span, so
+ * this function only ever needs to consider genuinely top-level SQL text.
+ */
+export function stripSingleQuotedStringLiterals(sql: string): string {
+  return sql.replace(/'(?:[^']|'')*'/g, "''");
+}
+
 export function assertNoTransactionControl(sql: string, migrationName: string) {
   if (
     /\b(BEGIN|COMMIT|ROLLBACK|START\s+TRANSACTION)\b/i.test(
-      stripDollarQuotedBlocks(sql)
+      stripSingleQuotedStringLiterals(stripDollarQuotedBlocks(sql))
     )
   ) {
     throw new Error(
