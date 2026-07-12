@@ -130,6 +130,15 @@ export function stripSingleQuotedStringLiterals(sql: string): string {
  * `E`/`e`-prefixed strings, `''`/`""` doubling for both string and
  * identifier quoting) — there is no independent second pass that could ever
  * misread one mode's delimiter as another's.
+ *
+ * Known accepted residual (round 6): a pathological `$$$tag$$$E'...'`
+ * construction (three consecutive `$` characters) leaves one orphaned `$`
+ * that can still suppress a following genuine `E'...'` prefix — reasoned
+ * (not empirically confirmed against a live server) to correspond to
+ * invalid Postgres SQL that would fail to parse regardless, so the "hidden"
+ * statement would never execute either way. Documented rather than chased
+ * with a 7th patch cycle; revisit only if a real migration is ever found to
+ * need this exact byte sequence.
  */
 /**
  * Postgres word-continuation characters for a bare (unquoted) identifier —
