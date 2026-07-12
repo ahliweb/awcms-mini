@@ -89,40 +89,135 @@ export function stripSingleQuotedStringLiterals(sql: string): string {
 }
 
 /**
- * Single left-to-right pass that removes every SQL span that must never be
- * scanned for top-level transaction-control keywords: line comments
- * (`-- ...`), block comments (`/* ... *&#47;`), dollar-quoted bodies
- * (`$$...$$`/`$tag$...$tag$`), single-quoted string literals, and
- * double-quoted identifiers — in ONE combined regex, not a sequence of
- * independent full-text passes.
+ * Single left-to-right, character-by-character pass that removes every SQL
+ * span which must never be scanned for top-level transaction-control
+ * keywords: line comments (`-- ...`), block comments (`/* ... *&#47;`,
+ * correctly NESTING per Postgres's own comment rules — unlike most SQL
+ * dialects), dollar-quoted bodies (`$$...$$`/`$tag$...$tag$`), single-quoted
+ * string literals (including `E'...'`/`e'...'` backslash-escape strings),
+ * and double-quoted identifiers.
  *
- * Security-auditor Critical finding on PR #723: chaining
- * `stripDollarQuotedBlocks` then `stripSingleQuotedStringLiterals` as two
- * INDEPENDENT full-text scans let an apostrophe belonging to a `--` comment
- * (an ordinary English contraction like "don't"/"won't") or to a
- * double-quoted identifier (`"peter's_table"`) get misread by the
- * string-literal regex as a string delimiter — bracketing, and silently
- * deleting, a genuine top-level `ROLLBACK;`/`COMMIT;`/`BEGIN;` sitting
- * between them before the keyword scan ever saw it. Empirically confirmed
- * bypassable via:
- *   -- don't do this
- *   ROLLBACK;
- *   -- won't stop
- * and:
- *   CREATE TABLE "peter's_table" (id int);
- *   COMMIT;
- * A single alternation regex closes this: the left-to-right scan advances
- * to whichever token's own opening delimiter occurs first, and that
- * alternative alone consumes all the way to ITS OWN closing delimiter — an
- * apostrophe inside a comment or a double-quoted identifier is never
- * separately visible to the string-literal alternative at all, so it can
- * never be mistaken for one.
+ * This is a hand-written state-machine scanner, not a regex, after TWO
+ * rounds of regex-based fixes on this same function both got independently
+ * broken by a reviewer/security-auditor re-audit on PR #723:
+ *   round 1 (sequential stripDollarQuotedBlocks + stripSingleQuotedStringLiterals):
+ *     an apostrophe inside a `--` comment or a double-quoted identifier
+ *     could pair with a later, unrelated quote and bracket away a real
+ *     ROLLBACK;/COMMIT;/BEGIN; (e.g. `-- don't do this\nROLLBACK;`,
+ *     `CREATE TABLE "peter's_table" ...; COMMIT;`).
+ *   round 2 (single alternation regex, still bypassable): a lone stray
+ *     apostrophe in a comment could still pair with an unrelated LATER
+ *     string literal across the whole file (the reviewer's exact repro:
+ *     `-- it's fine...\nROLLBACK;\nSELECT 'foo';`) — fixed by treating each
+ *     comment as one opaque token, but regex alternation still can't
+ *     express NESTING (Postgres block comments nest) or STATEFUL escaping
+ *     (`E'...'` strings interpret backslash-escapes, plain `'...'` strings
+ *     don't) — both independently found bypassable by the reviewer:
+ *     `/* outer /* inner *&#47; still nested *&#47;\nROLLBACK;` (the regex's
+ *     non-nesting `\/\*[\s\S]*?\*\/` stops at the FIRST `*&#47;`, leaving a
+ *     stray `it's`-shaped apostrophe to reopen the same bracketing bug), and
+ *     `SELECT E'it\'s escaped';\nROLLBACK;` (the regex doesn't know `\'`
+ *     doesn't close an `E'...'` string, so it closes early on the escaped
+ *     quote, again leaving a stray apostrophe).
+ *
+ * A real single-pass STATE MACHINE (this function) closes all of the above
+ * by construction rather than by enumerating more adversarial cases: at
+ * every position there is exactly one active mode (top-level / line
+ * comment / block comment at some nesting depth / single-quoted string,
+ * optionally escape-aware / double-quoted identifier / dollar-quoted block
+ * with a specific tag), and each mode's own closing rule is applied
+ * correctly (nesting depth for block comments, backslash-awareness only for
+ * `E`/`e`-prefixed strings, `''`/`""` doubling for both string and
+ * identifier quoting) — there is no independent second pass that could ever
+ * misread one mode's delimiter as another's.
  */
 export function stripNonExecutableSqlSpans(sql: string): string {
-  return sql.replace(
-    /--[^\n]*|\/\*[\s\S]*?\*\/|\$(\w*)\$[\s\S]*?\$\1\$|'(?:[^']|'')*'|"(?:[^"]|"")*"/g,
-    ""
-  );
+  let output = "";
+  const n = sql.length;
+  let i = 0;
+
+  while (i < n) {
+    const ch = sql[i];
+    const next = i + 1 < n ? sql[i + 1] : "";
+
+    if (ch === "-" && next === "-") {
+      i += 2;
+      while (i < n && sql[i] !== "\n") i++;
+      continue;
+    }
+
+    if (ch === "/" && next === "*") {
+      let depth = 1;
+      i += 2;
+      while (i < n && depth > 0) {
+        if (sql[i] === "/" && sql[i + 1] === "*") {
+          depth++;
+          i += 2;
+        } else if (sql[i] === "*" && sql[i + 1] === "/") {
+          depth--;
+          i += 2;
+        } else {
+          i++;
+        }
+      }
+      continue;
+    }
+
+    if (ch === "$") {
+      const tagMatch = /^\$\w*\$/.exec(sql.slice(i));
+      if (tagMatch) {
+        const tag = tagMatch[0];
+        const closeIndex = sql.indexOf(tag, i + tag.length);
+        if (closeIndex !== -1) {
+          i = closeIndex + tag.length;
+          continue;
+        }
+      }
+    }
+
+    const isEscapeStringPrefix = (ch === "E" || ch === "e") && next === "'";
+
+    if (isEscapeStringPrefix || ch === "'") {
+      i += isEscapeStringPrefix ? 2 : 1;
+      while (i < n) {
+        if (isEscapeStringPrefix && sql[i] === "\\") {
+          i += 2;
+          continue;
+        }
+        if (sql[i] === "'") {
+          if (sql[i + 1] === "'") {
+            i += 2;
+            continue;
+          }
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      i++;
+      while (i < n) {
+        if (sql[i] === '"') {
+          if (sql[i + 1] === '"') {
+            i += 2;
+            continue;
+          }
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+
+    output += ch;
+    i++;
+  }
+
+  return output;
 }
 
 export function assertNoTransactionControl(sql: string, migrationName: string) {

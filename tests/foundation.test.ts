@@ -273,6 +273,36 @@ describe("database migration runner helpers", () => {
     ).toThrow("transaction control");
   });
 
+  test("stripNonExecutableSqlSpans correctly handles NESTED block comments (reviewer finding, round 2 on PR #723) — a non-nesting regex would stop at the first */, leaving a stray apostrophe that re-opens the bracketing bug", () => {
+    const adversarial =
+      "/* outer /* inner */ it's still nested */\nROLLBACK;\nSELECT 'foo';";
+    expect(stripNonExecutableSqlSpans(adversarial)).toContain("ROLLBACK");
+    expect(() =>
+      assertNoTransactionControl(adversarial, "999_bad_nested_comment.sql")
+    ).toThrow("transaction control");
+  });
+
+  test("stripNonExecutableSqlSpans correctly closes E'...' escape-strings on the real (non-backslash-escaped) quote (reviewer finding, round 2 on PR #723) — a backslash-unaware string parser closes early on \\', leaving a stray apostrophe that re-opens the bracketing bug", () => {
+    const adversarial =
+      "SELECT E'it\\'s an escaped quote';\nROLLBACK;\nSELECT 'foo';";
+    expect(stripNonExecutableSqlSpans(adversarial)).toContain("ROLLBACK");
+    expect(() =>
+      assertNoTransactionControl(adversarial, "999_bad_estring.sql")
+    ).toThrow("transaction control");
+  });
+
+  test("stripNonExecutableSqlSpans still passes migration 048's own 'rollback' data value (no false-positive regression from the state-machine rewrite)", () => {
+    expect(() =>
+      assertNoTransactionControl(
+        "INSERT INTO awcms_mini_permissions (module_key, activity_code, action, description)\n" +
+          "VALUES\n" +
+          "  ('idn_admin_regions', 'dataset', 'rollback', 'Roll back the active dataset')\n" +
+          "ON CONFLICT (module_key, activity_code, action) DO NOTHING;",
+        "048_awcms_mini_idn_admin_regions_permissions.sql"
+      )
+    ).not.toThrow();
+  });
+
   test("applied checksum mismatch fails fast", () => {
     expect(() =>
       validateAppliedChecksums(
