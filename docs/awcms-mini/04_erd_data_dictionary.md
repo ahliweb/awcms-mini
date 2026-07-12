@@ -328,6 +328,73 @@ menegakkannya).
   (`ad-placement-policy.ts`'s `AD_PLACEMENT_PRESETS`), sama pola
   `homepage-section-policy.ts`'s `HomepageSectionType` whitelist.
 
+### Master Data — Indonesia Administrative Regions (Issue #657, epic #654, `sql/054`)
+
+Master data wilayah administratif Indonesia (provinsi/kabupaten-kota/
+kecamatan/desa-kelurahan) untuk modul `idn_admin_regions` (`type: "base"`),
+disumber dari repository third-party `cahyadsn/wilayah` (MIT License,
+divendor Issue #656). Lihat
+`.claude/skills/awcms-mini-idn-admin-regions/SKILL.md` §657 dan
+`src/modules/idn-admin-regions/README.md` untuk rasional lengkap.
+
+**GLOBAL reference data, BUKAN tenant-scoped** — beda dari hampir semua
+tabel lain di dokumen ini: TIDAK ada kolom `tenant_id`, TIDAK ada RLS.
+Dataset wilayah identik untuk semua tenant, sama alasan
+`awcms_mini_permissions`/`awcms_mini_modules` global — kedua tabel di
+bawah terdaftar di `RLS_FREE_TABLES` DAN `ALLOWED_GLOBAL_TABLE_GRANTS` di
+`scripts/security-readiness.ts`.
+
+- **`awcms_mini_idn_region_datasets`** — satu baris per versi dataset yang
+  diimpor. `dataset_code` unik global. `source_repository`/`source_path`/
+  `source_commit_sha`/`source_license` (default `'MIT'`)/
+  `source_file_sha256` merekam provenance upstream persis (repo, path,
+  commit SHA, lisensi — acceptance criteria eksplisit issue #657); nilai
+  ini harus bisa menampung fakta nyata `data/idn-admin-regions/manifest.json`
+  (commit SHA 40 karakter hex, checksum SHA-256 — dibuktikan lewat
+  integration test yang menyalin nilai asli tersebut). `status` di-`CHECK`
+  ke `('validated','active','superseded','rejected')` — `validated`/
+  `active` diambil dari kalimat eksplisit body issue #660/#661,
+  `superseded` menampung dataset yang pernah aktif lalu digantikan/
+  di-rollback (mempertahankan `activated_at`/`activated_by` historis).
+  **"Hanya satu dataset aktif"** ditegakkan lewat partial unique index
+  `CREATE UNIQUE INDEX ... ON awcms_mini_idn_region_datasets (status)
+WHERE status = 'active'` — karena semua baris yang ter-index pasti
+  bernilai `'active'`, unique constraint pada nilai itu berarti maksimal
+  satu baris; index yang sama sekaligus jadi index tercepat untuk query
+  default #662 ("dataset aktif").
+- **`awcms_mini_idn_admin_regions`** — satu baris per region ternormalisasi
+  milik satu `dataset_id` (FK ke tabel di atas). `code` hanya unik DALAM
+  satu dataset (unique index `(dataset_id, code)` — dataset baru boleh
+  memakai ulang `code` yang sama dari dataset lama, karena setiap import
+  membuat baris baru, tidak pernah menimpa baris dataset lama — inilah
+  yang membuat rollback #661 mungkin). `level` (smallint, `CHECK BETWEEN 1
+AND 4`) dan `region_type` (`CHECK IN
+('province','regency','district','village')`) mencerminkan 4 tingkat
+  hierarki administratif. `parent_code`/`province_code`/`regency_code`/
+  `district_code`/`village_code`/`full_path_code`/`full_path_name`
+  seluruhnya nullable — baris tingkat provinsi hanya mengisi
+  `province_code` (dirinya sendiri), baris desa mengisi keempatnya.
+  `source_row_hash` untuk mendukung diff antar-versi dataset (#661).
+  Index `(dataset_id, parent_code)` (parent lookup) dan
+  `(dataset_id, normalized_name)` (search index — btree biasa, bukan
+  `pg_trgm`/GIN; repo ini belum punya precedent extension tersebut dan
+  acceptance criteria tidak meminta fuzzy substring search).
+
+**Least-privilege grant**: `awcms_mini_app` diberi NOL grant pada kedua
+tabel di migration `054` sendiri (`REVOKE ALL` segera setelah
+`CREATE TABLE`, membatalkan grant blanket default `ALTER DEFAULT
+PRIVILEGES` migration 013) — issue #657 adalah schema-only, belum ada
+jalur kode apa pun yang membaca/menulis tabel ini. Issue lanjutan (#660
+import, #661 activate/rollback, #662 lookup API) masing-masing menambah
+grant persis yang jalur kode barunya butuhkan, di migration mereka
+sendiri.
+
+Tidak ada kolom soft-delete (`deleted_at` dst.) pada kedua tabel — daftar
+kolom di body issue #657 sudah eksplisit dan tidak menyebutkannya; tidak
+ada issue manapun di epic ini yang menghapus dataset/region (lebih dekat
+ke riwayat versi append-only). Tidak ada data pribadi disimpan di kedua
+tabel.
+
 ## Konten multi-bahasa (translatable content)
 
 Berbeda dari **string UI statis** (label/tombol/pesan error) yang memakai katalog `.po` gettext di sisi aplikasi (doc 14 §i18n), **data input pengguna** yang perlu tampil multi-bahasa disimpan **di database, satu nilai per bahasa aktif**. Base generik sudah punya satu contoh nyata (`awcms_mini_email_templates.subject_template`/`text_body_template`/`html_body_template`, `sql/021`, Issue #498 — lihat §Email di atas) — bukan lagi sekadar konvensi belum-terpakai; ini **standar** yang wajib diikuti aplikasi turunan (mis. modul domain seperti `blog_content`, epic #536) saat menambah field konten translatable baru.
