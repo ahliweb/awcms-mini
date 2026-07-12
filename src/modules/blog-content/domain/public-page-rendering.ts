@@ -32,22 +32,61 @@ export type PublicPageShellOptions = {
   ogImageUrl?: string | null;
   /** Alt text for the `og:image`, from the same verified media object (`altText`) — omitted if there is no image or no alt text set. */
   ogImageAlt?: string | null;
+  /**
+   * Issue #642 — tenant-specific site name (`PublicTenantResolution.tenantName`)
+   * rendered as `og:site_name`. Omitted (no tag) when not provided — every
+   * existing caller predates this option and stays behavior-identical.
+   */
+  siteName?: string | null;
 };
+
+/**
+ * `og:title`/`og:description`/`og:url` + `twitter:title`/`twitter:description`/
+ * `twitter:card` (Issue #642 — "Open Graph/Twitter Card metadata" for public
+ * social share previews). Derived from the SAME `title`/`description`/
+ * `canonicalUrl` this shell already renders as `<title>`/
+ * `<meta name="description">`/`<link rel="canonical">` — one source of
+ * truth per field, never a second copy that could drift. `og:url` is
+ * omitted (like the canonical link) when `canonicalUrl` is `null` (no safe
+ * URL to point crawlers at). `twitter:card` is always emitted — unlike
+ * `og:image`/`twitter:image` (still gated on a verified R2 image existing,
+ * per Issue #636's R2-only policy), a text-only `summary` card is always
+ * safe to advertise; it upgrades to `summary_large_image` once an image is
+ * present.
+ */
+function renderOpenGraphMetaTags(options: PublicPageShellOptions): string {
+  const tags = [
+    `<meta property="og:title" content="${escapeHtml(options.title)}" />`,
+    `<meta property="og:description" content="${escapeHtml(options.description)}" />`,
+    options.canonicalUrl
+      ? `<meta property="og:url" content="${escapeHtml(options.canonicalUrl)}" />`
+      : "",
+    options.siteName
+      ? `<meta property="og:site_name" content="${escapeHtml(options.siteName)}" />`
+      : "",
+    `<meta name="twitter:card" content="${options.ogImageUrl ? "summary_large_image" : "summary"}" />`,
+    `<meta name="twitter:title" content="${escapeHtml(options.title)}" />`,
+    `<meta name="twitter:description" content="${escapeHtml(options.description)}" />`,
+    options.ogImageUrl
+      ? `<meta property="og:image" content="${escapeHtml(options.ogImageUrl)}" />`
+      : "",
+    options.ogImageUrl
+      ? `<meta name="twitter:image" content="${escapeHtml(options.ogImageUrl)}" />`
+      : "",
+    options.ogImageUrl && options.ogImageAlt
+      ? `<meta property="og:image:alt" content="${escapeHtml(options.ogImageAlt)}" />`
+      : ""
+  ];
+
+  return tags.filter((tag) => tag.length > 0).join("\n");
+}
 
 export function renderPublicPageShell(options: PublicPageShellOptions): string {
   const canonicalTag = options.canonicalUrl
     ? `<link rel="canonical" href="${escapeHtml(options.canonicalUrl)}" />`
     : "";
 
-  const ogTags = options.ogImageUrl
-    ? `<meta property="og:image" content="${escapeHtml(options.ogImageUrl)}" />
-<meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:image" content="${escapeHtml(options.ogImageUrl)}" />${
-        options.ogImageAlt
-          ? `\n<meta property="og:image:alt" content="${escapeHtml(options.ogImageAlt)}" />`
-          : ""
-      }`
-    : "";
+  const ogTags = renderOpenGraphMetaTags(options);
 
   return `<!doctype html>
 <html lang="${escapeHtml(options.locale)}">

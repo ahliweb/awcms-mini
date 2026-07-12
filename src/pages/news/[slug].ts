@@ -10,8 +10,10 @@ import { log } from "../../lib/logging/logger";
 import { fetchPublicBlogPostBySlug } from "../../modules/blog-content/application/public-blog-directory";
 import { withNewsTenant } from "../../modules/blog-content/application/public-news-tenant-resolution";
 import { newsMediaPortAdapter } from "../../modules/news-portal/application/news-media-port-adapter";
+import { resolveNewsShareConfig } from "../../modules/news-portal/domain/news-share-config";
 import {
   collectRenderableGalleryMediaObjectIds,
+  collectRenderableVideoNewsThumbnailMediaObjectIds,
   renderContentJsonToHtml
 } from "../../modules/blog-content/domain/content-block-rendering";
 import {
@@ -21,6 +23,9 @@ import {
   resolveSeoTitle
 } from "../../modules/blog-content/domain/seo-rendering";
 import { renderPublicPageShell } from "../../modules/blog-content/domain/public-page-rendering";
+import { renderSocialShareButtonsHtml } from "../../modules/blog-content/domain/social-share-links";
+
+const NEWS_SHARE_CLIENT_SCRIPT_SRC = "/js/news-share.js";
 
 /**
  * `GET /news/{slug}` (Issue #560) — public post detail, tenant-code-free
@@ -61,13 +66,23 @@ export const GET: APIRoute = async ({ params, request, url }) => {
         // media metadata in ONE bulk lookup, then thread the result into
         // both the gallery renderer and the og:image tags. An id that
         // isn't `verified`/`attached`/same-tenant simply never appears in
-        // `resolvedMedia` — never rendered, never thrown.
+        // `resolvedMedia` — never rendered, never thrown. Issue #639 adds
+        // `video_news` blocks' optional thumbnail ids to the SAME bulk
+        // lookup — they share the same news-media-registry id space, so
+        // `renderContentJsonToHtml`'s single `resolvedMediaUrls` map
+        // already serves both the gallery `<img>` and the video thumbnail.
         const galleryMediaObjectIds = collectRenderableGalleryMediaObjectIds(
           post.contentJson
         );
+        const videoThumbnailMediaObjectIds =
+          collectRenderableVideoNewsThumbnailMediaObjectIds(post.contentJson);
         const referencedMediaObjectIds = post.featuredMediaId
-          ? [post.featuredMediaId, ...galleryMediaObjectIds]
-          : galleryMediaObjectIds;
+          ? [
+              post.featuredMediaId,
+              ...galleryMediaObjectIds,
+              ...videoThumbnailMediaObjectIds
+            ]
+          : [...galleryMediaObjectIds, ...videoThumbnailMediaObjectIds];
         const resolvedMedia = await newsMediaPortAdapter.resolveMediaReferences(
           tx,
           tenant.tenantId,
@@ -85,11 +100,27 @@ export const GET: APIRoute = async ({ params, request, url }) => {
           resolvedGalleryUrls
         );
 
+        // Issue #642 — public share buttons, rendered only for this
+        // already-gated public/published post (withNewsTenant + a non-null
+        // fetchPublicBlogPostBySlug result above already exclude draft/
+        // private/scheduled/soft-deleted content, matching the acceptance
+        // criterion "buttons render only on public/published pages").
+        // `canonicalUrl` (never the request's raw querystring) is the only
+        // URL ever handed to the share widget.
+        const shareButtonsHtml = canonicalUrl
+          ? renderSocialShareButtonsHtml(
+              { canonicalUrl, title: seoTitle, excerpt: metaDescription },
+              resolveNewsShareConfig(),
+              NEWS_SHARE_CLIENT_SCRIPT_SRC
+            )
+          : "";
+
         const bodyHtml = `<article>
   <h1>${escapeHtml(post.title)}</h1>
   <p><time datetime="${post.publishedAt.toISOString()}">${escapeHtml(post.publishedAt.toDateString())}</time></p>
   ${contentHtml}
 </article>
+${shareButtonsHtml}
 <p><a href="${escapeHtml(basePath)}">Back to ${escapeHtml(routeSettings.publicLabel)}</a></p>`;
 
         const html = renderPublicPageShell({
@@ -99,7 +130,8 @@ export const GET: APIRoute = async ({ params, request, url }) => {
           bodyHtml,
           locale: post.locale,
           ogImageUrl: resolveOgImageUrl(featuredMedia?.publicUrl ?? null),
-          ogImageAlt: featuredMedia?.altText ?? null
+          ogImageAlt: featuredMedia?.altText ?? null,
+          siteName: tenant.tenantName
         });
 
         return new Response(html, {

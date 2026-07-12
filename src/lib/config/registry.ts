@@ -1363,6 +1363,103 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
     default: "30",
     description:
       "Grace period (days) before bun run news-media:reconcile (Issue #690) physically deletes a grace-period-expired orphaned media object's R2 object + soft-deletes its metadata row. Minimum 30 days (r2-backup-lifecycle.md §3), enforced by config:validate."
+  },
+
+  // ---------------------------------------------------------------------
+  // News portal — public social share buttons (Issue #642)
+  // ---------------------------------------------------------------------
+  {
+    name: "NEWS_SHARE_BUTTONS_ENABLED",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "news-portal",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "true",
+    description:
+      "Master switch for the public share widget (native share/copy-link/WhatsApp/Telegram/Facebook/LinkedIn/X/email) on /news and /blog/{tenantCode} article pages — src/modules/blog-content/domain/social-share-links.ts."
+  },
+  {
+    name: "NEWS_SHARE_NATIVE_ENABLED",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "news-portal",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "true",
+    description:
+      "Renders the native Web Share API button (navigator.share, revealed by public/js/news-share.js only in a secure context when supported)."
+  },
+  {
+    name: "NEWS_SHARE_WHATSAPP_ENABLED",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "news-portal",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "true",
+    description: "Renders the WhatsApp (wa.me) share link."
+  },
+  {
+    name: "NEWS_SHARE_TELEGRAM_ENABLED",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "news-portal",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "true",
+    description: "Renders the Telegram (t.me/share) share link."
+  },
+  {
+    name: "NEWS_SHARE_FACEBOOK_ENABLED",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "news-portal",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "true",
+    description: "Renders the Facebook Share Dialog link."
+  },
+  {
+    name: "NEWS_SHARE_LINKEDIN_ENABLED",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "news-portal",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "true",
+    description: "Renders the LinkedIn share-offsite link."
+  },
+  {
+    name: "NEWS_SHARE_X_ENABLED",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "news-portal",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "true",
+    description: "Renders the X/Twitter intent/tweet share link."
+  },
+  {
+    name: "NEWS_SHARE_EMAIL_ENABLED",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "news-portal",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "true",
+    description: "Renders the mailto: email share link."
+  },
+  {
+    name: "NEWS_SHARE_INSTAGRAM_NATIVE_ONLY",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "news-portal",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "true",
+    description:
+      "There is no supported Instagram web-share intent URL, so this never renders a dedicated Instagram button — it only toggles a short text note clarifying that Instagram sharing goes through native share (when NEWS_SHARE_NATIVE_ENABLED=true) or copy-link, never a fake Instagram URL."
   }
 ];
 

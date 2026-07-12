@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   collectRenderableGalleryMediaObjectIds,
+  collectRenderableVideoNewsThumbnailMediaObjectIds,
   renderContentJsonToHtml
 } from "../src/modules/blog-content/domain/content-block-rendering";
 import {
@@ -227,6 +228,127 @@ describe("renderContentJsonToHtml", () => {
     const html = renderContentJsonToHtml(contentJson, resolvedMediaUrls);
     expect(html).toContain('src="https://media.example.test/trusted.jpg"');
     expect(html).not.toContain("untrusted.example.com");
+  });
+
+  test("Issue #639: renders a video_news block as a safe youtube-nocookie.com iframe embed, never the raw stored fields", () => {
+    const html = renderContentJsonToHtml({
+      blocks: [
+        {
+          type: "video_news",
+          provider: "youtube",
+          videoId: "dQw4w9WgXcQ",
+          title: "Breaking <news>",
+          caption: "A & caption",
+          sourceLabel: "Reuters"
+        }
+      ]
+    });
+    expect(html).toContain(
+      '<iframe src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"'
+    );
+    expect(html).toContain("Breaking &lt;news&gt;");
+    expect(html).toContain("A &amp; caption");
+    expect(html).toContain("Reuters");
+    expect(html).not.toContain("<news>");
+  });
+
+  test("Issue #639: renders the resolved custom thumbnail <img> when thumbnailMediaObjectId resolves", () => {
+    const contentJson = {
+      blocks: [
+        {
+          type: "video_news",
+          provider: "youtube",
+          videoId: "dQw4w9WgXcQ",
+          thumbnailMediaObjectId: "11111111-1111-1111-1111-111111111111"
+        }
+      ]
+    };
+    const resolvedMediaUrls = new Map([
+      [
+        "11111111-1111-1111-1111-111111111111",
+        "https://media.example.test/news-media/tenant/2026/07/thumb.jpg"
+      ]
+    ]);
+
+    const html = renderContentJsonToHtml(contentJson, resolvedMediaUrls);
+    expect(html).toContain(
+      '<img class="video-news-thumbnail" src="https://media.example.test/news-media/tenant/2026/07/thumb.jpg"'
+    );
+    expect(html).toContain(
+      '<iframe src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"'
+    );
+  });
+
+  test("Issue #639: omits the thumbnail <img> entirely when thumbnailMediaObjectId does not resolve", () => {
+    const html = renderContentJsonToHtml({
+      blocks: [
+        {
+          type: "video_news",
+          provider: "youtube",
+          videoId: "dQw4w9WgXcQ",
+          thumbnailMediaObjectId: "22222222-2222-2222-2222-222222222222"
+        }
+      ]
+    });
+    expect(html).not.toContain("video-news-thumbnail");
+    expect(html).toContain(
+      '<iframe src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"'
+    );
+  });
+
+  test("Issue #639: skips a video_news block with an unsupported provider or malformed videoId (defense-in-depth — write-time validation should already reject these)", () => {
+    expect(
+      renderContentJsonToHtml({
+        blocks: [
+          { type: "video_news", provider: "vimeo", videoId: "dQw4w9WgXcQ" }
+        ]
+      })
+    ).toBe("");
+    expect(
+      renderContentJsonToHtml({
+        blocks: [{ type: "video_news", provider: "youtube", videoId: "bad-id" }]
+      })
+    ).toBe("");
+  });
+
+  test("Issue #639: never renders a raw iframe/script from stored content — only its own fixed embed markup", () => {
+    const html = renderContentJsonToHtml({
+      blocks: [
+        {
+          type: "video_news",
+          provider: "youtube",
+          videoId: "dQw4w9WgXcQ",
+          title: '"><script>alert(1)</script>'
+        }
+      ]
+    });
+    expect(html).not.toContain("<script");
+    expect(html).toContain("&lt;script&gt;");
+  });
+});
+
+describe("collectRenderableVideoNewsThumbnailMediaObjectIds (Issue #639)", () => {
+  test("empty for content with no video_news blocks", () => {
+    expect(
+      collectRenderableVideoNewsThumbnailMediaObjectIds({
+        blocks: [{ type: "paragraph", text: "hi" }]
+      })
+    ).toEqual([]);
+  });
+
+  test("collects thumbnailMediaObjectId, ignoring blocks without one", () => {
+    const ids = collectRenderableVideoNewsThumbnailMediaObjectIds({
+      blocks: [
+        {
+          type: "video_news",
+          provider: "youtube",
+          videoId: "dQw4w9WgXcQ",
+          thumbnailMediaObjectId: "11111111-1111-1111-1111-111111111111"
+        },
+        { type: "video_news", provider: "youtube", videoId: "dQw4w9WgXcR" }
+      ]
+    });
+    expect(ids).toEqual(["11111111-1111-1111-1111-111111111111"]);
   });
 });
 
@@ -457,6 +579,76 @@ describe("renderPublicPageShell", () => {
     });
     expect(html).toContain('<meta property="og:image"');
     expect(html).not.toContain("og:image:alt");
+  });
+
+  test("Issue #642: emits escaped og:title/og:description/twitter:title/twitter:description derived from title/description", () => {
+    const html = renderPublicPageShell({
+      title: "<b>Title</b>",
+      description: "<i>desc</i>",
+      canonicalUrl: "https://example.com/post",
+      bodyHtml: "<p>body</p>",
+      locale: "en"
+    });
+    expect(html).toContain(
+      '<meta property="og:title" content="&lt;b&gt;Title&lt;/b&gt;" />'
+    );
+    expect(html).toContain(
+      '<meta property="og:description" content="&lt;i&gt;desc&lt;/i&gt;" />'
+    );
+    expect(html).toContain(
+      '<meta name="twitter:title" content="&lt;b&gt;Title&lt;/b&gt;" />'
+    );
+    expect(html).toContain(
+      '<meta name="twitter:description" content="&lt;i&gt;desc&lt;/i&gt;" />'
+    );
+    expect(html).toContain(
+      '<meta property="og:url" content="https://example.com/post" />'
+    );
+  });
+
+  test("Issue #642: omits og:url when canonicalUrl is null", () => {
+    const html = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en"
+    });
+    expect(html).not.toContain("og:url");
+  });
+
+  test("Issue #642: emits twitter:card=summary (not summary_large_image) when there is no og:image", () => {
+    const html = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en"
+    });
+    expect(html).toContain('<meta name="twitter:card" content="summary" />');
+  });
+
+  test("Issue #642: emits og:site_name only when siteName is provided", () => {
+    const withSiteName = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en",
+      siteName: "Acme <News>"
+    });
+    expect(withSiteName).toContain(
+      '<meta property="og:site_name" content="Acme &lt;News&gt;" />'
+    );
+
+    const withoutSiteName = renderPublicPageShell({
+      title: "Title",
+      description: "desc",
+      canonicalUrl: null,
+      bodyHtml: "<p>body</p>",
+      locale: "en"
+    });
+    expect(withoutSiteName).not.toContain("og:site_name");
   });
 });
 

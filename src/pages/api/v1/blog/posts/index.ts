@@ -24,8 +24,10 @@ import {
 } from "../../../../../modules/blog-content/application/blog-taxonomy-directory";
 import { setPostTranslationGroup } from "../../../../../modules/blog-content/application/localized-content-directory";
 import { validateNewsMediaReferencesForFullOnlineR2Mode } from "../../../../../modules/blog-content/application/news-media-reference-gate";
+import { validateVideoNewsThumbnailReferencesForFullOnlineR2Mode } from "../../../../../modules/blog-content/application/video-news-thumbnail-reference-gate";
 import { newsMediaPortAdapter } from "../../../../../modules/news-portal/application/news-media-port-adapter";
 import { validateCreateBlogPostInput } from "../../../../../modules/blog-content/domain/blog-post-validation";
+import { validateAndNormalizeContentJsonVideoBlocks } from "../../../../../modules/blog-content/domain/video-news-block-validation";
 import {
   isBlogContentStatus,
   type BlogContentStatus
@@ -137,6 +139,27 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
   }
 
   const input = validation.value;
+
+  // Issue #639 — unconditional (not R2-only-mode-gated), pure structural
+  // validation/normalization of any `video_news` blocks in `contentJson`:
+  // provider allowlist, videoId format/normalization. Runs before
+  // `withTenant` since it needs no database access.
+  const videoBlockValidation = validateAndNormalizeContentJsonVideoBlocks(
+    input.contentJson
+  );
+
+  if (!videoBlockValidation.valid) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      "Blog post is invalid.",
+      {},
+      videoBlockValidation.errors
+    );
+  }
+
+  input.contentJson = videoBlockValidation.value;
+
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();
@@ -189,6 +212,27 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
         "One or more image references are not valid R2 media objects in full-online R2-only mode.",
         {},
         mediaReferenceValidation.errors
+      );
+    }
+
+    // Issue #639 — mode-gated (same as above): a `video_news` block's
+    // optional `thumbnailMediaObjectId`, when present, must be a verified
+    // same-tenant R2 media object in full-online R2-only mode.
+    const videoThumbnailValidation =
+      await validateVideoNewsThumbnailReferencesForFullOnlineR2Mode(
+        tx,
+        tenantId,
+        input.contentJson,
+        newsMediaPortAdapter
+      );
+
+    if (!videoThumbnailValidation.valid) {
+      return fail(
+        422,
+        "NEWS_MEDIA_REFERENCE_INVALID",
+        "One or more video thumbnail references are not valid R2 media objects in full-online R2-only mode.",
+        {},
+        videoThumbnailValidation.errors
       );
     }
 

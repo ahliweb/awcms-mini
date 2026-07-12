@@ -27,7 +27,9 @@ import {
   fetchBlogRevisionById
 } from "../../../../../../../../modules/blog-content/application/blog-revision-directory";
 import { validateNewsMediaReferencesForFullOnlineR2Mode } from "../../../../../../../../modules/blog-content/application/news-media-reference-gate";
+import { validateVideoNewsThumbnailReferencesForFullOnlineR2Mode } from "../../../../../../../../modules/blog-content/application/video-news-thumbnail-reference-gate";
 import { newsMediaPortAdapter } from "../../../../../../../../modules/news-portal/application/news-media-port-adapter";
+import { validateAndNormalizeContentJsonVideoBlocks } from "../../../../../../../../modules/blog-content/domain/video-news-block-validation";
 
 const RESTORE_GUARD = {
   moduleKey: "blog_content",
@@ -170,9 +172,49 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
       );
     }
 
+    // Issue #639 — same "restore must re-validate exactly like a live PATCH
+    // would" reasoning as the #636 comment above, extended to `video_news`
+    // blocks: (1) unconditional structural re-validation (a revision from
+    // before this issue existed cannot contain a `video_news` block at all,
+    // but this stays correct for any FUTURE revision that does), and (2)
+    // the R2-only-mode-gated thumbnail reference check.
+    const videoBlockValidation = validateAndNormalizeContentJsonVideoBlocks(
+      revision.contentJson
+    );
+
+    if (!videoBlockValidation.valid) {
+      return fail(
+        422,
+        "NEWS_MEDIA_REFERENCE_INVALID",
+        "This revision contains an invalid video_news block and cannot be restored.",
+        {},
+        videoBlockValidation.errors
+      );
+    }
+
+    const normalizedContentJson = videoBlockValidation.value;
+
+    const videoThumbnailValidation =
+      await validateVideoNewsThumbnailReferencesForFullOnlineR2Mode(
+        tx,
+        tenantId,
+        normalizedContentJson,
+        newsMediaPortAdapter
+      );
+
+    if (!videoThumbnailValidation.valid) {
+      return fail(
+        422,
+        "NEWS_MEDIA_REFERENCE_INVALID",
+        "This revision references video thumbnail(s) that are not valid R2 media objects in full-online R2-only mode and cannot be restored.",
+        {},
+        videoThumbnailValidation.errors
+      );
+    }
+
     const updated = await updateBlogPost(tx, tenantId, postId, {
       title: revision.title,
-      contentJson: revision.contentJson,
+      contentJson: normalizedContentJson,
       contentText: revision.contentText,
       excerpt: revision.excerpt,
       seoTitle: revision.seoTitle,

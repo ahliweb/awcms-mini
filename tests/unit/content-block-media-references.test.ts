@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { collectGalleryImageReferences } from "../../src/modules/blog-content/domain/content-block-media-references";
+import {
+  collectGalleryImageReferences,
+  collectVideoNewsThumbnailReferences
+} from "../../src/modules/blog-content/domain/content-block-media-references";
 
 const VALID_ID = "11111111-1111-1111-1111-111111111111";
 const VALID_ID_2 = "22222222-2222-2222-2222-222222222222";
@@ -137,5 +140,122 @@ describe("collectGalleryImageReferences (Issue #636)", () => {
         blocks: [{ type: "gallery", items: "nope" }]
       })
     ).toEqual({ mediaObjectIds: [], violations: [] });
+  });
+});
+
+describe("collectVideoNewsThumbnailReferences (Issue #639)", () => {
+  test("empty for content with no blocks/video_news blocks", () => {
+    expect(collectVideoNewsThumbnailReferences({})).toEqual({
+      mediaObjectIds: [],
+      violations: []
+    });
+    expect(
+      collectVideoNewsThumbnailReferences({
+        blocks: [{ type: "paragraph", text: "hi" }]
+      })
+    ).toEqual({ mediaObjectIds: [], violations: [] });
+  });
+
+  test("a video_news block with NO thumbnailMediaObjectId is not a violation (custom thumbnail is optional)", () => {
+    const result = collectVideoNewsThumbnailReferences({
+      blocks: [
+        { type: "video_news", provider: "youtube", videoId: "dQw4w9WgXcQ" }
+      ]
+    });
+    expect(result).toEqual({ mediaObjectIds: [], violations: [] });
+  });
+
+  test("collects a well-formed thumbnailMediaObjectId", () => {
+    const result = collectVideoNewsThumbnailReferences({
+      blocks: [
+        {
+          type: "video_news",
+          provider: "youtube",
+          videoId: "dQw4w9WgXcQ",
+          thumbnailMediaObjectId: VALID_ID
+        }
+      ]
+    });
+    expect(result).toEqual({ mediaObjectIds: [VALID_ID], violations: [] });
+  });
+
+  test("deduplicates the same thumbnailMediaObjectId referenced by multiple blocks", () => {
+    const result = collectVideoNewsThumbnailReferences({
+      blocks: [
+        {
+          type: "video_news",
+          provider: "youtube",
+          videoId: "dQw4w9WgXcQ",
+          thumbnailMediaObjectId: VALID_ID
+        },
+        {
+          type: "video_news",
+          provider: "youtube",
+          videoId: "dQw4w9WgXcR",
+          thumbnailMediaObjectId: VALID_ID
+        }
+      ]
+    });
+    expect(result.mediaObjectIds).toEqual([VALID_ID]);
+  });
+
+  test("flags a malformed (non-UUID) thumbnailMediaObjectId", () => {
+    const result = collectVideoNewsThumbnailReferences({
+      blocks: [
+        {
+          type: "video_news",
+          provider: "youtube",
+          videoId: "dQw4w9WgXcQ",
+          thumbnailMediaObjectId: "not-a-uuid"
+        }
+      ]
+    });
+    expect(result.mediaObjectIds).toEqual([]);
+    expect(result.violations).toEqual([
+      { blockIndex: 0, reason: "media_object_id_malformed" }
+    ]);
+  });
+
+  test("ignores gallery/other block types entirely", () => {
+    const result = collectVideoNewsThumbnailReferences({
+      blocks: [
+        {
+          type: "gallery",
+          items: [{ mediaType: "image", mediaObjectId: VALID_ID }]
+        }
+      ]
+    });
+    expect(result).toEqual({ mediaObjectIds: [], violations: [] });
+  });
+
+  test("reports the correct blockIndex per violation across multiple blocks", () => {
+    const result = collectVideoNewsThumbnailReferences({
+      blocks: [
+        { type: "paragraph", text: "intro" },
+        {
+          type: "video_news",
+          provider: "youtube",
+          videoId: "dQw4w9WgXcQ",
+          thumbnailMediaObjectId: "not-a-uuid"
+        },
+        {
+          type: "video_news",
+          provider: "youtube",
+          videoId: "dQw4w9WgXcR",
+          thumbnailMediaObjectId: VALID_ID_2
+        }
+      ]
+    });
+    expect(result.mediaObjectIds).toEqual([VALID_ID_2]);
+    expect(result.violations).toEqual([
+      { blockIndex: 1, reason: "media_object_id_malformed" }
+    ]);
+  });
+
+  test("tolerates malformed contentJson shapes (non-array blocks) without throwing", () => {
+    expect(collectVideoNewsThumbnailReferences({ blocks: "nope" })).toEqual({
+      mediaObjectIds: [],
+      violations: []
+    });
   });
 });
