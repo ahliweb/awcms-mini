@@ -59,6 +59,9 @@ suite("blog_content schema — RLS isolation and constraints", () => {
     expect(rows.map((row) => `${row.activity_code}.${row.action}`)).toEqual([
       "ads.configure",
       "ads.read",
+      "internal_links.configure",
+      "internal_links.preview",
+      "internal_links.read",
       "menus.configure",
       "menus.read",
       "pages.archive",
