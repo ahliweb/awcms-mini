@@ -29,11 +29,15 @@ export type CreateBlogPostInput = {
   locale: string;
   visibility: BlogContentVisibility;
   featuredMediaId: string | null;
+  /** Issue #649 — explicit "use this image for social/SEO preview" override; same shape as `featuredMediaId` (UUID-or-null, no existence check here — that is `news-media-reference-gate.ts`'s job in full-online R2-only mode). Takes priority over `featuredMediaId` at render time (`social-preview-image-resolution.ts`). */
+  seoImageMediaId: string | null;
   seoTitle: string | null;
   metaDescription: string | null;
   canonicalUrl: string | null;
   termIds: string[] | undefined;
   translationGroupId: string | null;
+  /** Issue #641 — manual per-post opt-out of automatic internal tag linking. Defaults `false` (linking behaves exactly as before this issue unless an editor explicitly opts a post out). */
+  autoInternalTagLinksDisabled: boolean;
 };
 
 export type CreateBlogPostValidationResult =
@@ -130,6 +134,14 @@ export function validateCreateBlogPostInput(
     });
   }
 
+  const seoImageMediaIdResult = validateFeaturedMediaId(record.seoImageMediaId);
+  if (!seoImageMediaIdResult.valid) {
+    errors.push({
+      field: "seoImageMediaId",
+      message: "seoImageMediaId must be a UUID when provided."
+    });
+  }
+
   const termIdsResult = validateTermIds(record.termIds);
   if (!termIdsResult.valid) {
     errors.push({
@@ -148,11 +160,24 @@ export function validateCreateBlogPostInput(
     });
   }
 
+  let autoInternalTagLinksDisabled = false;
+  if (record.autoInternalTagLinksDisabled !== undefined) {
+    if (typeof record.autoInternalTagLinksDisabled !== "boolean") {
+      errors.push({
+        field: "autoInternalTagLinksDisabled",
+        message: "autoInternalTagLinksDisabled must be a boolean."
+      });
+    } else {
+      autoInternalTagLinksDisabled = record.autoInternalTagLinksDisabled;
+    }
+  }
+
   if (
     errors.length > 0 ||
     !coreResult.valid ||
     !seoResult.valid ||
     !featuredMediaIdResult.valid ||
+    !seoImageMediaIdResult.valid ||
     !termIdsResult.valid ||
     !translationGroupIdResult.valid
   ) {
@@ -165,11 +190,13 @@ export function validateCreateBlogPostInput(
       ...coreResult.value,
       visibility,
       featuredMediaId: featuredMediaIdResult.value,
+      seoImageMediaId: seoImageMediaIdResult.value,
       seoTitle: seoResult.value.seoTitle ?? null,
       metaDescription: seoResult.value.metaDescription ?? null,
       canonicalUrl: seoResult.value.canonicalUrl ?? null,
       termIds: termIdsResult.value,
-      translationGroupId: translationGroupIdResult.value
+      translationGroupId: translationGroupIdResult.value,
+      autoInternalTagLinksDisabled
     }
   };
 }
@@ -183,11 +210,14 @@ export type UpdateBlogPostInput = {
   locale?: string;
   visibility?: BlogContentVisibility;
   featuredMediaId?: string | null;
+  seoImageMediaId?: string | null;
   seoTitle?: string | null;
   metaDescription?: string | null;
   canonicalUrl?: string | null;
   termIds?: string[];
   translationGroupId?: string | null;
+  /** Issue #641 — manual per-post opt-out of automatic internal tag linking. */
+  autoInternalTagLinksDisabled?: boolean;
 };
 
 export type UpdateBlogPostValidationResult =
@@ -282,6 +312,20 @@ export function validateUpdateBlogPostInput(
     }
   }
 
+  if (record.seoImageMediaId !== undefined) {
+    const seoImageMediaIdResult = validateFeaturedMediaId(
+      record.seoImageMediaId
+    );
+    if (!seoImageMediaIdResult.valid) {
+      errors.push({
+        field: "seoImageMediaId",
+        message: "seoImageMediaId must be a UUID or null."
+      });
+    } else {
+      value.seoImageMediaId = seoImageMediaIdResult.value;
+    }
+  }
+
   if (
     record.seoTitle !== undefined ||
     record.metaDescription !== undefined ||
@@ -326,6 +370,17 @@ export function validateUpdateBlogPostInput(
       });
     } else {
       value.translationGroupId = translationGroupIdResult.value;
+    }
+  }
+
+  if (record.autoInternalTagLinksDisabled !== undefined) {
+    if (typeof record.autoInternalTagLinksDisabled !== "boolean") {
+      errors.push({
+        field: "autoInternalTagLinksDisabled",
+        message: "autoInternalTagLinksDisabled must be a boolean."
+      });
+    } else {
+      value.autoInternalTagLinksDisabled = record.autoInternalTagLinksDisabled;
     }
   }
 

@@ -225,6 +225,29 @@ if (CAN_READ_SETTINGS || CAN_READ_THEME) {
                     {t("admin.blog.settings.checklist_policy_hint")}
                   </span>
                 </label>
+                <label>
+                  {t("admin.blog.settings.field_social_preview_fallback_image")}
+                  <input
+                    type="text"
+                    name="socialPreviewFallbackImageMediaId"
+                    value={settings.socialPreviewFallbackImageMediaId ?? ""}
+                  />
+                  <span class="field-hint">
+                    {t(
+                      "admin.blog.settings.social_preview_fallback_image_hint"
+                    )}
+                  </span>
+                </label>
+                <label class="checkbox-label">
+                  <input
+                    type="checkbox"
+                    name="socialPreviewContentImageFallbackEnabled"
+                    checked={settings.socialPreviewContentImageFallbackEnabled}
+                  />
+                  {t(
+                    "admin.blog.settings.field_social_preview_content_image_fallback_enabled"
+                  )}
+                </label>
               </fieldset>
               {CAN_CONFIGURE_SETTINGS && (
                 <button type="submit">
@@ -438,7 +461,13 @@ if (CAN_READ_SETTINGS || CAN_READ_THEME) {
             seoDefaultDescription:
               String(formData.get("seoDefaultDescription") ?? "").trim() ||
               null,
-            contentQualityChecklistPolicy
+            contentQualityChecklistPolicy,
+            socialPreviewFallbackImageMediaId:
+              String(
+                formData.get("socialPreviewFallbackImageMediaId") ?? ""
+              ).trim() || null,
+            socialPreviewContentImageFallbackEnabled:
+              formData.get("socialPreviewContentImageFallbackEnabled") === "on"
           },
           strings
         );

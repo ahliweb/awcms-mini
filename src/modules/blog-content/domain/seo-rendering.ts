@@ -101,3 +101,86 @@ export function resolveOgImageUrl(
     ? resolvedFeaturedMediaUrl
     : null;
 }
+
+/**
+ * `<meta name="robots">` content for a public post detail page (Issue #649).
+ * Every post reaching this function already passed `fetchPublicBlogPostBySlug`'s
+ * own predicate (`status = 'published' AND visibility IN ('public',
+ * 'unlisted') AND deleted_at IS NULL AND published_at <= now()`) — draft/
+ * private/review/archived/soft-deleted/scheduled-future content never
+ * resolves to a row at all (404, no metadata rendered whatsoever), so this
+ * function only ever needs to distinguish the two visibilities that DO
+ * render:
+ *
+ * - `"public"` — fully indexable: `index,follow,max-image-preview:large`
+ *   (the issue body's exact required value for published articles).
+ * - `"unlisted"` — reachable by direct link only, deliberately excluded from
+ *   listings/search/feed/sitemap (see `public-blog-directory.ts`'s header
+ *   comment) — `noindex,nofollow`, so a crawler that stumbles onto the URL
+ *   (e.g. an external backlink) does not index it, matching the entire point
+ *   of the "unlisted" tier existing separately from "public".
+ *
+ * No tenant policy override is implemented for this directive in this
+ * issue (the issue body's "unless tenant policy overrides safely" is a
+ * hedge, not a requirement) — every public post gets the same safe,
+ * conservative default.
+ */
+export function resolveRobotsMetaContent(
+  visibility: "public" | "private" | "unlisted"
+): string {
+  return visibility === "public"
+    ? "index,follow,max-image-preview:large"
+    : "noindex,nofollow";
+}
+
+const OG_LOCALE_MAP: Record<string, string> = {
+  id: "id_ID",
+  en: "en_US"
+};
+
+/**
+ * `og:locale` (Issue #649 — listed explicitly in the issue's required
+ * metadata block). Maps this repo's bare language-code `locale` values
+ * (`"id"`, `"en"`, the only two seeded by `doc 04`'s locale convention) to
+ * the underscore `language_TERRITORY` format Open Graph expects. Passes an
+ * already-formatted `xx_XX` value through unchanged (forward-compatible
+ * with a future per-tenant locale that already specifies a territory), and
+ * falls back to the raw locale string for anything else rather than
+ * guessing a territory it cannot know.
+ */
+export function resolveOgLocale(locale: string): string {
+  const normalized = locale.trim();
+
+  if (/^[a-z]{2}_[A-Z]{2}$/.test(normalized)) {
+    return normalized;
+  }
+
+  return OG_LOCALE_MAP[normalized.toLowerCase()] ?? normalized;
+}
+
+export type ArticleTaxonomyTerm = {
+  taxonomyType: string;
+  name: string;
+};
+
+/**
+ * Splits a post's assigned category/tag terms into `article:section`
+ * (first `"category"`-taxonomy term, or `null`) and `article:tag`/JSON-LD
+ * `keywords` (every `"tag"`-taxonomy term name, in the order the caller
+ * provided) — Issue #649's "tags/categories populate article:tag,
+ * article:section" acceptance criterion. Pure — the caller
+ * (`public-blog-directory.ts`'s `fetchPublicPostTaxonomyTerms`) does the
+ * actual database lookup. Ignores any OTHER category terms beyond the
+ * first (Open Graph's `article:section` is a single value, not a list —
+ * unlike `article:tag`, which is deliberately multi-valued).
+ */
+export function deriveArticleSectionAndTags(
+  terms: readonly ArticleTaxonomyTerm[]
+): { section: string | null; tags: string[] } {
+  const categoryTerm = terms.find((term) => term.taxonomyType === "category");
+  const tagNames = terms
+    .filter((term) => term.taxonomyType === "tag")
+    .map((term) => term.name);
+
+  return { section: categoryTerm?.name ?? null, tags: tagNames };
+}

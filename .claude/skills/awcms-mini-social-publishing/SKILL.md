@@ -271,7 +271,7 @@ eksponensial (mencegah provider memaksa retry loop rapat).
 
 ### File yang dibuat/diubah (referensi cepat)
 
-- `sql/050_awcms_mini_social_publishing_schema.sql` (6 tabel + 10
+- `sql/053_awcms_mini_social_publishing_schema.sql` (6 tabel + 10
   permission seed).
 - `src/modules/identity-access/domain/access-control.ts` (`connect`/
   `disconnect` ditambah ke `AccessAction` + `HIGH_RISK_ACTIONS`).

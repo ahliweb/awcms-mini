@@ -150,7 +150,15 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
       post,
       termIds.length,
       newsMediaPortAdapter,
-      blogSettings.contentQualityChecklistPolicy
+      blogSettings.contentQualityChecklistPolicy,
+      {
+        socialPreviewFallback: {
+          tenantFallbackImageMediaId:
+            blogSettings.socialPreviewFallbackImageMediaId,
+          contentImageFallbackEnabled:
+            blogSettings.socialPreviewContentImageFallbackEnabled
+        }
+      }
     );
 
     if (!checklist.passed) {

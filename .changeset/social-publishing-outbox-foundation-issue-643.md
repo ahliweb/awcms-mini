@@ -9,7 +9,7 @@ foundation, full-online-only (`SOCIAL_PUBLISHING_ENABLED`/
 `AUTH_ONLINE_SECURITY_*` gate pattern).
 
 Adds six tenant-scoped, RLS-protected tables
-(`sql/050_awcms_mini_social_publishing_schema.sql`): social account
+(`sql/053_awcms_mini_social_publishing_schema.sql`): social account
 connections (`awcms_mini_social_accounts`, secret tokens stored only as
 an opaque `token_reference` pointer into external secret storage —
 never plain text, rejected by a write-time heuristic if it looks like a

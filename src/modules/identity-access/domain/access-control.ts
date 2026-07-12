@@ -54,7 +54,15 @@ export type AccessAction =
   // `HIGH_RISK_ACTIONS` below since they change credential-bearing state,
   // matching `configure`'s classification rather than `verify`'s.
   | "connect"
-  | "disconnect";
+  | "disconnect"
+  // Issue #641 (blog_content): `GET /api/v1/blog/posts/{id}/internal-links/
+  // preview` needed a permission distinct from `posts.read`/`internal_links.
+  // read` (an editor may be allowed to preview which terms would be
+  // auto-linked without also getting broad internal-link *configuration*
+  // access) — same "seed permission first, add the action when a real
+  // endpoint needs it" precedent as `verify`/`set_primary` above. Read-only,
+  // not added to `HIGH_RISK_ACTIONS`.
+  | "preview";
 
 export type AccessRequest = {
   moduleKey: string;

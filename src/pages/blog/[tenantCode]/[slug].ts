@@ -11,17 +11,15 @@ import {
 import { log } from "../../../lib/logging/logger";
 import { fetchPublicBlogPostBySlug } from "../../../modules/blog-content/application/public-blog-directory";
 import { isLegacyTenantRouteEnabled } from "../../../modules/blog-content/application/public-route-settings";
+import { fetchBlogSettings } from "../../../modules/blog-content/application/blog-settings-directory";
+import { buildNewsArticleSeoMetadata } from "../../../modules/blog-content/application/news-article-seo-metadata";
 import { newsMediaPortAdapter } from "../../../modules/news-portal/application/news-media-port-adapter";
 import { resolveNewsShareConfig } from "../../../modules/news-portal/domain/news-share-config";
-import {
-  collectRenderableGalleryMediaObjectIds,
-  collectRenderableVideoNewsThumbnailMediaObjectIds,
-  renderContentJsonToHtml
-} from "../../../modules/blog-content/domain/content-block-rendering";
+import { renderContentJsonToHtml } from "../../../modules/blog-content/domain/content-block-rendering";
+import { renderContentHtmlWithInternalTagLinks } from "../../../modules/blog-content/application/internal-tag-link-rendering";
 import {
   resolveCanonicalUrl,
   resolveMetaDescription,
-  resolveOgImageUrl,
   resolveSeoTitle
 } from "../../../modules/blog-content/domain/seo-rendering";
 import { renderPublicPageShell } from "../../../modules/blog-content/domain/public-page-rendering";
@@ -70,38 +68,38 @@ export const GET: APIRoute = async ({ params, url }) => {
       const metaDescription = resolveMetaDescription(post);
       const canonicalUrl = resolveCanonicalUrl(post, selfUrl);
 
-      // Issue #636 — see `/news/[slug].ts`'s identical comment: bulk-resolve
-      // every referenced mediaObjectId (featured image + gallery) to
-      // verified R2 media metadata in one lookup, feed both the gallery
-      // renderer and the og:image tags from it. Issue #639 adds
-      // `video_news` blocks' optional thumbnail ids to the same lookup.
-      const galleryMediaObjectIds = collectRenderableGalleryMediaObjectIds(
-        post.contentJson
-      );
-      const videoThumbnailMediaObjectIds =
-        collectRenderableVideoNewsThumbnailMediaObjectIds(post.contentJson);
-      const referencedMediaObjectIds = post.featuredMediaId
-        ? [
-            post.featuredMediaId,
-            ...galleryMediaObjectIds,
-            ...videoThumbnailMediaObjectIds
-          ]
-        : [...galleryMediaObjectIds, ...videoThumbnailMediaObjectIds];
-      const resolvedMedia = await newsMediaPortAdapter.resolveMediaReferences(
+      // Issue #649 — see `/news/[slug].ts`'s identical comment: one shared
+      // orchestration builds every SEO/social preview metadata value from a
+      // single bulk media resolution, reusing Issue #636's exact
+      // R2-verification primitive rather than re-deriving it.
+      const blogSettings = await fetchBlogSettings(tx, tenant.tenantId);
+      const seoMetadata = await buildNewsArticleSeoMetadata(
         tx,
         tenant.tenantId,
-        referencedMediaObjectIds
+        newsMediaPortAdapter,
+        blogSettings,
+        {
+          post,
+          tenantName: tenant.tenantName,
+          canonicalUrl,
+          seoTitle,
+          metaDescription
+        }
       );
-      const resolvedGalleryUrls = new Map(
-        [...resolvedMedia].map(([id, media]) => [id, media.publicUrl])
-      );
-      const featuredMedia = post.featuredMediaId
-        ? (resolvedMedia.get(post.featuredMediaId) ?? null)
-        : null;
 
-      const contentHtml = renderContentJsonToHtml(
+      const renderedContentHtml = renderContentJsonToHtml(
         post.contentJson,
-        resolvedGalleryUrls
+        seoMetadata.resolvedGalleryUrls
+      );
+
+      // Issue #641 — see `/news/[slug].ts`'s identical comment: pure
+      // render-time internal tag linking, never touching stored content.
+      const contentHtml = await renderContentHtmlWithInternalTagLinks(
+        tx,
+        tenant.tenantId,
+        renderedContentHtml,
+        post.autoInternalTagLinksDisabled,
+        `/blog/${tenantCode}`
       );
 
       // Issue #642 — see `/news/[slug].ts`'s identical comment: share
@@ -129,9 +127,19 @@ ${shareButtonsHtml}
         canonicalUrl,
         bodyHtml,
         locale: post.locale,
-        ogImageUrl: resolveOgImageUrl(featuredMedia?.publicUrl ?? null),
-        ogImageAlt: featuredMedia?.altText ?? null,
-        siteName: tenant.tenantName
+        ogImageUrl: seoMetadata.ogImageUrl,
+        ogImageAlt: seoMetadata.ogImageAlt,
+        ogImageMimeType: seoMetadata.ogImageMimeType,
+        ogImageWidth: seoMetadata.ogImageWidth,
+        ogImageHeight: seoMetadata.ogImageHeight,
+        siteName: tenant.tenantName,
+        ogType: "article",
+        articlePublishedTime: post.publishedAt.toISOString(),
+        articleModifiedTime: post.updatedAt.toISOString(),
+        articleSection: seoMetadata.articleSection,
+        articleTags: seoMetadata.articleTags,
+        robotsContent: seoMetadata.robotsContent,
+        structuredDataJsonLd: seoMetadata.structuredDataJsonLd
       });
 
       return new Response(html, {

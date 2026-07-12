@@ -9,6 +9,15 @@
  * render gallery images and `og:image`/`twitter:image` from resolved,
  * verified media metadata only.
  *
+ * Issue #649 adds `seoImageMediaId` (the explicit SEO/social preview image
+ * override) to the SAME rejection matrix below — it goes through the
+ * identical `validateNewsMediaReferencesForFullOnlineR2Mode` gate as
+ * `featuredMediaId`, so its cases are mirrored 1:1 right after the
+ * `featuredMediaId` ones. Happy-path priority-ordering tests (which of the
+ * four image sources wins) live separately in
+ * `news-portal-seo-social-preview-metadata.integration.test.ts` — this file
+ * stays scoped to write-time existence/ownership/status validation.
+ *
  * Skipped unless DATABASE_URL is set (see tests/integration/harness.ts).
  */
 import {
@@ -524,6 +533,145 @@ suite("blog_content news media R2 reference validation (Issue #636)", () => {
       path: "/api/v1/blog/posts",
       headers: authHeaders(owner),
       body: validCreatePostBody({ featuredMediaId: media.id })
+    });
+
+    expect(response.status).toBe(422);
+  });
+
+  // --- Issue #649: `seoImageMediaId` goes through the EXACT SAME
+  // `validateNewsMediaReferencesForFullOnlineR2Mode`/`isMediaReferenceSafe`
+  // gate as `featuredMediaId` above (see `news-media-reference-gate.ts`) —
+  // same rejection matrix, mirrored 1:1 (verified-accepted, nonexistent,
+  // cross-tenant, not-yet-verified statuses, soft-deleted, PATCH-update
+  // enforcement). Reviewer follow-up on PR #729: the original PR only had
+  // happy-path priority-ordering tests for this field, not this matrix.
+  test("R2-only mode active: seoImageMediaId referencing a verified, same-tenant media object is accepted", async () => {
+    const owner = await bootstrap();
+    await activateFullOnlineR2Mode(owner);
+    const media = await seedNewsMediaObject(
+      owner.tenantId,
+      owner.tenantUserId,
+      "verified"
+    );
+
+    const response = await invoke(createPost, {
+      method: "POST",
+      path: "/api/v1/blog/posts",
+      headers: authHeaders(owner),
+      body: validCreatePostBody({ seoImageMediaId: media.id })
+    });
+
+    expect(response.status).toBe(200);
+  });
+
+  test("R2-only mode active: seoImageMediaId that does not exist at all is rejected 422", async () => {
+    const owner = await bootstrap();
+    await activateFullOnlineR2Mode(owner);
+
+    const response = await invoke(createPost, {
+      method: "POST",
+      path: "/api/v1/blog/posts",
+      headers: authHeaders(owner),
+      body: validCreatePostBody({
+        seoImageMediaId: "99999999-9999-9999-9999-999999999999"
+      })
+    });
+
+    expect(response.status).toBe(422);
+    expect((response.body as { error: { code: string } }).error.code).toBe(
+      "NEWS_MEDIA_REFERENCE_INVALID"
+    );
+  });
+
+  test("R2-only mode active: seoImageMediaId referencing another tenant's media object is rejected 422 (cross-tenant)", async () => {
+    const owner = await bootstrap("tenanta");
+    await activateFullOnlineR2Mode(owner);
+    const otherTenantId = await seedRawTenant("tenantb");
+    const otherMedia = await seedNewsMediaObject(
+      otherTenantId,
+      crypto.randomUUID(),
+      "verified"
+    );
+
+    const response = await invoke(createPost, {
+      method: "POST",
+      path: "/api/v1/blog/posts",
+      headers: authHeaders(owner),
+      body: validCreatePostBody({ seoImageMediaId: otherMedia.id })
+    });
+
+    expect(response.status).toBe(422);
+  });
+
+  test.each(["pending_upload", "uploaded", "failed"] as const)(
+    "R2-only mode active: seoImageMediaId referencing a %s (not yet verified) media object is rejected 422",
+    async (status) => {
+      const owner = await bootstrap();
+      await activateFullOnlineR2Mode(owner);
+      const media = await seedNewsMediaObject(
+        owner.tenantId,
+        owner.tenantUserId,
+        status
+      );
+
+      const response = await invoke(createPost, {
+        method: "POST",
+        path: "/api/v1/blog/posts",
+        headers: authHeaders(owner),
+        body: validCreatePostBody({ seoImageMediaId: media.id })
+      });
+
+      expect(response.status).toBe(422);
+    }
+  );
+
+  test("R2-only mode active: seoImageMediaId referencing a soft-deleted media object is rejected 422", async () => {
+    const owner = await bootstrap();
+    await activateFullOnlineR2Mode(owner);
+    const media = await seedNewsMediaObject(
+      owner.tenantId,
+      owner.tenantUserId,
+      "verified"
+    );
+    const sql = getDatabaseClient();
+    await withTenant(sql, owner.tenantId, (tx) =>
+      softDeleteNewsMediaObject(
+        tx,
+        owner.tenantId,
+        owner.tenantUserId,
+        media.id,
+        "no longer needed"
+      )
+    );
+
+    const response = await invoke(createPost, {
+      method: "POST",
+      path: "/api/v1/blog/posts",
+      headers: authHeaders(owner),
+      body: validCreatePostBody({ seoImageMediaId: media.id })
+    });
+
+    expect(response.status).toBe(422);
+  });
+
+  test("R2-only mode active: PATCH update also enforces the same validation on a changed seoImageMediaId", async () => {
+    const owner = await bootstrap();
+    await activateFullOnlineR2Mode(owner);
+
+    const created = await invoke<{ data: { id: string } }>(createPost, {
+      method: "POST",
+      path: "/api/v1/blog/posts",
+      headers: authHeaders(owner),
+      body: validCreatePostBody()
+    });
+    expect(created.status).toBe(200);
+
+    const response = await invoke(updatePost, {
+      method: "PATCH",
+      path: `/api/v1/blog/posts/${created.body.data.id}`,
+      headers: authHeaders(owner),
+      params: { id: created.body.data.id },
+      body: { seoImageMediaId: "99999999-9999-9999-9999-999999999999" }
     });
 
     expect(response.status).toBe(422);

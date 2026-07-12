@@ -229,6 +229,7 @@ import {
   isKnownNewsPortalProfile,
   NEWS_PORTAL_PROFILES
 } from "../src/modules/news-portal/domain/news-portal-preset-readiness";
+import { findBlogAutoInternalTagLinksConfigIssues } from "../src/modules/blog-content/domain/internal-tag-linking-config";
 import { CONFIG_REGISTRY } from "../src/lib/config/registry";
 
 export type EnvCheckResult = {
@@ -1197,6 +1198,29 @@ export function checkSocialPublishingProfileConfig(
   };
 }
 
+/** Issue #641: `BLOG_AUTO_INTERNAL_TAG_LINKS_MAX_PER_POST`/`_MAX_PER_TAG`/`_MIN_TERM_LENGTH` must each be within their documented reasonable bounds (`internal-tag-linking-config.ts`'s ceiling constants) — an out-of-range value would either no-op the feature or risk turning normal prose into a link farm. */
+export function checkBlogAutoInternalTagLinksConfig(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult {
+  const name = "BLOG_AUTO_INTERNAL_TAG_LINKS_* (bounds)";
+  const issues = findBlogAutoInternalTagLinksConfigIssues(env);
+
+  if (issues.length > 0) {
+    return {
+      name,
+      status: "fail",
+      detail: `Out-of-range automatic internal tag linking configuration: ${issues.join(", ")}.`
+    };
+  }
+
+  return {
+    name,
+    status: "pass",
+    detail:
+      "BLOG_AUTO_INTERNAL_TAG_LINKS_MAX_PER_POST/_MAX_PER_TAG/_MIN_TERM_LENGTH are within their documented bounds."
+  };
+}
+
 export function runEnvValidation(
   env: NodeJS.ProcessEnv = process.env
 ): EnvCheckResult[] {
@@ -1220,7 +1244,8 @@ export function runEnvValidation(
     checkNewsMediaR2AllowedMimeTypesKnown(env),
     checkNewsMediaR2PresignedTtlUpperBound(env),
     checkNewsMediaR2OrphanGraceLowerBound(env),
-    checkSocialPublishingProfileConfig(env)
+    checkSocialPublishingProfileConfig(env),
+    checkBlogAutoInternalTagLinksConfig(env)
   ];
 }
 

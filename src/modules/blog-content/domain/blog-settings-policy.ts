@@ -34,6 +34,9 @@ const MAX_SEO_DESCRIPTION_LENGTH = 300;
 const MIN_POSTS_PER_PAGE = 1;
 const MAX_POSTS_PER_PAGE = 100;
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export type UpdateBlogSettingsInput = {
   blogTitle?: string;
   blogDescription?: string | null;
@@ -45,6 +48,28 @@ export type UpdateBlogSettingsInput = {
   seoDefaultTitle?: string | null;
   seoDefaultDescription?: string | null;
   contentQualityChecklistPolicy?: ChecklistPolicyOverrides;
+  /**
+   * Issue #649 — tenant-level R2 fallback social preview image (source
+   * priority #4 in `social-preview-image-resolution.ts`'s chain, the last
+   * resort when a post has no explicit SEO image, no featured image, and no
+   * usable verified image in its own content). A `awcms_mini_news_media_
+   * objects` id — existence/ownership/verified-status is re-checked at
+   * RENDER time the exact same way `featuredMediaId` already is
+   * (`NewsMediaPort.resolveMediaReferences`), never trusted from this
+   * stored value alone. Storing the id in the generic tenant-writable
+   * settings jsonb is safe for the same reason `contentQualityChecklistPolicy`
+   * already is (see that field's comment below): this is a tenant BUSINESS
+   * preference, not a security signal — the actual R2-only enforcement lives
+   * entirely in the render-time resolution step.
+   */
+  socialPreviewFallbackImageMediaId?: string | null;
+  /**
+   * Issue #649 — source priority #3 ("first verified R2 image in content if
+   * tenant policy allows") toggle. Default `true` (opt-out, matching this
+   * repo's convention for a feature that adds no new attack surface — see
+   * `blog-settings-directory.ts`'s `toView`).
+   */
+  socialPreviewContentImageFallbackEnabled?: boolean;
 };
 
 export type UpdateBlogSettingsValidationResult =
@@ -264,10 +289,34 @@ export function validateUpdateBlogSettingsInput(
       errors.push({
         field: "contentQualityChecklistPolicy",
         message:
-          "contentQualityChecklistPolicy must map overridable rule ids (excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists) to a severity (blocking, warning, info)."
+          "contentQualityChecklistPolicy must map overridable rule ids (excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists, social_preview_image_ready, social_preview_image_alt_text) to a severity (blocking, warning, info)."
       });
     } else {
       value.contentQualityChecklistPolicy = policyResult.value;
+    }
+  }
+
+  if (record.socialPreviewFallbackImageMediaId !== undefined) {
+    const raw = record.socialPreviewFallbackImageMediaId;
+    if (raw !== null && (typeof raw !== "string" || !UUID_PATTERN.test(raw))) {
+      errors.push({
+        field: "socialPreviewFallbackImageMediaId",
+        message: "socialPreviewFallbackImageMediaId must be a UUID or null."
+      });
+    } else {
+      value.socialPreviewFallbackImageMediaId = raw;
+    }
+  }
+
+  if (record.socialPreviewContentImageFallbackEnabled !== undefined) {
+    if (typeof record.socialPreviewContentImageFallbackEnabled !== "boolean") {
+      errors.push({
+        field: "socialPreviewContentImageFallbackEnabled",
+        message: "socialPreviewContentImageFallbackEnabled must be a boolean."
+      });
+    } else {
+      value.socialPreviewContentImageFallbackEnabled =
+        record.socialPreviewContentImageFallbackEnabled;
     }
   }
 

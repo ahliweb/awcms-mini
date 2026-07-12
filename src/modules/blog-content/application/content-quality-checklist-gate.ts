@@ -26,6 +26,7 @@ import {
   type ChecklistPolicyOverrides,
   type ContentQualityChecklistResult
 } from "../domain/content-quality-checklist";
+import { resolveSocialPreviewImageSourceId } from "../domain/social-preview-image-resolution";
 import type { NewsMediaPort } from "../../_shared/ports/news-media-port";
 
 export type ChecklistEvaluableContent = {
@@ -36,12 +37,22 @@ export type ChecklistEvaluableContent = {
   contentText: string;
   contentJson: Record<string, unknown>;
   featuredMediaId: string | null;
+  /** Issue #649 — explicit "use this image for social/SEO preview" override. Optional/omittable — `awcms_mini_blog_pages` has no such column, so the "page" content kind's caller simply never provides it (treated as `null`, same as not having one). */
+  seoImageMediaId?: string | null;
+};
+
+/** Issue #649 — tenant-level social preview fallback settings (`blog-settings-directory.ts`'s `BlogSettingsView`), threaded through so the checklist's `social_preview_image_ready`/`social_preview_image_alt_text` rules use the EXACT SAME priority chain the render route resolves against — reused, not re-derived. */
+export type SocialPreviewFallbackOptions = {
+  tenantFallbackImageMediaId: string | null;
+  contentImageFallbackEnabled: boolean;
 };
 
 export type EvaluateContentQualityChecklistOptions = {
   /** Present (non-null) only for the "schedule" action's own request body — `null` for an immediate publish or the scheduled-publish worker's due-post re-check. */
   scheduledAt?: Date | null;
   now?: Date;
+  /** Omitted (or `null`) means no tenant fallback and no content-image fallback candidate — the checklist can still evaluate `social_preview_image_ready` from `featuredMediaId`/`seoImageMediaId` alone. */
+  socialPreviewFallback?: SocialPreviewFallbackOptions | null;
 };
 
 /**
@@ -77,16 +88,25 @@ export async function evaluateContentQualityChecklistForContent(
     violations: galleryViolations
   } = collectGalleryImageReferences(content.contentJson);
 
-  const idsToResolve = [
-    ...(content.featuredMediaId ? [content.featuredMediaId] : []),
-    ...galleryMediaObjectIds
-  ];
+  const socialPreviewFallback = options.socialPreviewFallback ?? null;
 
-  const resolved = await mediaPort.resolveMediaReferences(
-    tx,
-    tenantId,
-    idsToResolve
-  );
+  const idsToResolve = new Set<string>();
+  if (content.featuredMediaId) {
+    idsToResolve.add(content.featuredMediaId);
+  }
+  if (content.seoImageMediaId) {
+    idsToResolve.add(content.seoImageMediaId);
+  }
+  for (const id of galleryMediaObjectIds) {
+    idsToResolve.add(id);
+  }
+  if (socialPreviewFallback?.tenantFallbackImageMediaId) {
+    idsToResolve.add(socialPreviewFallback.tenantFallbackImageMediaId);
+  }
+
+  const resolved = await mediaPort.resolveMediaReferences(tx, tenantId, [
+    ...idsToResolve
+  ]);
 
   const featuredMedia = content.featuredMediaId
     ? (resolved.get(content.featuredMediaId) ?? null)
@@ -95,6 +115,26 @@ export async function evaluateContentQualityChecklistForContent(
   const unsafeGalleryMediaObjectIds = galleryMediaObjectIds.filter(
     (id) => !resolved.has(id)
   );
+
+  // Issue #649 — same priority chain the render route uses
+  // (`news-article-seo-metadata.ts`'s `buildNewsArticleSeoMetadata`), so the
+  // checklist's readiness rules can never silently diverge from what a
+  // shared link actually renders.
+  const socialPreviewMediaId = resolveSocialPreviewImageSourceId(
+    {
+      explicitSocialImageMediaId: content.seoImageMediaId ?? null,
+      featuredMediaId: content.featuredMediaId,
+      contentImageMediaIds: socialPreviewFallback?.contentImageFallbackEnabled
+        ? galleryMediaObjectIds
+        : [],
+      tenantFallbackImageMediaId:
+        socialPreviewFallback?.tenantFallbackImageMediaId ?? null
+    },
+    new Set(resolved.keys())
+  );
+  const socialPreviewMedia = socialPreviewMediaId
+    ? (resolved.get(socialPreviewMediaId) ?? null)
+    : null;
 
   return evaluateContentQualityChecklist(
     {
@@ -119,7 +159,10 @@ export async function evaluateContentQualityChecklistForContent(
       unsafeGalleryMediaObjectIds,
       termCount,
       scheduledAt: options.scheduledAt ?? null,
-      now: options.now ?? new Date()
+      now: options.now ?? new Date(),
+      socialPreviewImage: socialPreviewMedia
+        ? { altText: socialPreviewMedia.altText }
+        : null
     },
     overrides
   );

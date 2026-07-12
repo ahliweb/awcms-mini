@@ -17,3 +17,11 @@ bun.lock text eol=lf linguist-generated=true -diff
 
 # Dokumentasi mendominasi statistik bahasa repo — biarkan apa adanya.
 docs/** linguist-documentation
+
+# Vendored third-party upstream source (Issue #656, epic #654): preserve the
+# exact upstream bytes (including original line endings, e.g. db/wilayah.sql
+# ships CRLF upstream) so checksums.sha256/manifest.json stay a true
+# byte-for-byte integrity proof against the source repository. Do not let
+# git's `* text=auto eol=lf` normalization or line-ending-aware diff rewrite
+# these files on checkout/add — same rationale as the binary rule above.
+data/idn-admin-regions/upstream/** binary

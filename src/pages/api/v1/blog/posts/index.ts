@@ -200,6 +200,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
         tenantId,
         {
           featuredMediaId: input.featuredMediaId,
+          seoImageMediaId: input.seoImageMediaId,
           contentJson: input.contentJson
         },
         newsMediaPortAdapter

@@ -785,6 +785,38 @@ menolak nilai berbentuk token/JWT asli). Tidak ada var env untuk kredensial
 provider spesifik di sini — itu didaftarkan per-adapter oleh issue #644/
 #645/#646 masing-masing.
 
+### Blog content — automatic internal tag linking (opsional, Issue #641, epic `news_portal` #631-#642/#649)
+
+Auto-linking istilah yang cocok dengan tag `blog_content` yang sudah ada
+(`awcms_mini_blog_terms`, `taxonomy_type = 'tag'`) di dalam body artikel
+yang sudah dirender — transformasi render-time murni memakai `HTMLRewriter`
+bawaan Bun (`src/modules/blog-content/domain/internal-tag-linking.ts`),
+tidak pernah mengubah `content_json`/`content_text` yang tersimpan. Enam
+var di bawah adalah plafon/preferensi tingkat-deployment; kebijakan
+per-tenant (`enabled`, `caseInsensitive`, `disabledTagIds`) hidup di tabel
+khusus `awcms_mini_blog_internal_tag_link_settings`
+(`GET/PATCH /api/v1/blog/internal-tag-links/settings`, permission
+`blog_content.internal_links.{read,configure}`), dan opt-out per-post ada
+di kolom `awcms_mini_blog_posts.auto_internal_tag_links_disabled`.
+
+| Var                                                       | Wajib | Default | Sensitif | Fungsi                                                                                                                |
+| --------------------------------------------------------- | ----- | ------- | -------- | --------------------------------------------------------------------------------------------------------------------- |
+| `BLOG_AUTO_INTERNAL_TAG_LINKS_ENABLED`                    | –     | `true`  | –        | Kill switch tingkat-deployment — `false` membuat tenant TIDAK BISA mengaktifkan lewat override tenant-nya sendiri     |
+| `BLOG_AUTO_INTERNAL_TAG_LINKS_MAX_PER_POST`               | –     | `10`    | –        | Batas total link otomatis per post (1-100), ditegakkan `config:validate`                                              |
+| `BLOG_AUTO_INTERNAL_TAG_LINKS_MAX_PER_TAG`                | –     | `1`     | –        | Batas link ke tag yang sama dalam satu post (1-20), ditegakkan `config:validate`                                      |
+| `BLOG_AUTO_INTERNAL_TAG_LINKS_MIN_TERM_LENGTH`            | –     | `3`     | –        | Panjang minimum nama tag (karakter) agar layak di-auto-link (1-100), ditegakkan `config:validate`                     |
+| `BLOG_AUTO_INTERNAL_TAG_LINKS_LINK_FIRST_OCCURRENCE_ONLY` | –     | `true`  | –        | Hanya kemunculan pertama tiap tag yang di-link (efektif menyamakan `_MAX_PER_TAG` ke 1)                               |
+| `BLOG_AUTO_INTERNAL_TAG_LINKS_EXCLUDE_HEADINGS`           | –     | `true`  | –        | Teks di dalam `h1`-`h6` tidak pernah di-auto-link (selain anchor/script/code/pre/figcaption yang selalu dikecualikan) |
+
+Renderer memakai `HTMLRewriter` (parser HTML nyata, bukan regex atas
+string mentah) untuk berjalan di pohon elemen sesungguhnya — link otomatis
+tidak pernah disisipkan di dalam anchor yang sudah ada, `script`, `style`,
+`code`/`pre`, `figcaption`, atau elemen embed (`iframe`/`object`/`embed`/
+`video`/`audio`). Regex hanya dipakai pada teks yang SUDAH diisolasi parser
+sebagai node teks aman, mengikuti kebijakan keamanan `content-block-
+rendering.ts`'s whitelist renderer. Tag hanya dicocokkan bila milik tenant
+pemanggil (tenant-scoped, RLS) — tidak pernah lintas tenant.
+
 ### Provider CRM (opsional) — contoh domain retail/POS
 
 | Var                    | Wajib      | Default | Sensitif | Fungsi             |

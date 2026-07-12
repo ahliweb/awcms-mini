@@ -65,7 +65,9 @@ export type ChecklistRuleId =
   | "gallery_images_verified"
   | "taxonomy_exists"
   | "unsafe_html_rejected"
-  | "scheduled_publish_time_valid";
+  | "scheduled_publish_time_valid"
+  | "social_preview_image_ready"
+  | "social_preview_image_alt_text";
 
 /**
  * Security blockers (Issue #640 "Suggested default blocking rules" +
@@ -102,7 +104,9 @@ export const OVERRIDABLE_RULE_IDS: readonly ChecklistRuleId[] = [
   "featured_image_alt_text",
   "featured_image_dimensions",
   "og_image_trusted",
-  "taxonomy_exists"
+  "taxonomy_exists",
+  "social_preview_image_ready",
+  "social_preview_image_alt_text"
 ];
 
 export type OverridableChecklistRuleId = (typeof OVERRIDABLE_RULE_IDS)[number];
@@ -154,6 +158,21 @@ export type ResolvedFeaturedMediaForChecklist = {
 };
 
 /**
+ * Issue #649 — the winning social/SEO preview image, ALREADY resolved by
+ * the caller through the exact same priority chain the render route uses
+ * (`social-preview-image-resolution.ts`'s `resolveSocialPreviewImageSourceId`,
+ * via `content-quality-checklist-gate.ts`). This may be a DIFFERENT media
+ * object than `featuredMedia` above (an explicit SEO image override, a
+ * content-embedded image, or the tenant fallback) — only `altText` is
+ * needed here (existence alone is `social_preview_image_ready`; alt text is
+ * the separate `social_preview_image_alt_text` rule). `null` means no
+ * source in the priority chain resolved to a safe R2 object at all.
+ */
+export type ResolvedSocialPreviewImageForChecklist = {
+  altText: string | null;
+};
+
+/**
  * Which "kind" of content this checklist runs for — `"page"` has no
  * taxonomy assignment table at all (`awcms_mini_blog_pages` has no
  * `_terms` junction, unlike posts' `awcms_mini_blog_post_terms`), so
@@ -179,6 +198,8 @@ export type ContentQualityChecklistInput = {
   /** Present (non-null) only when evaluated for the "schedule" action; `null` for an immediate publish or the scheduled-publish job's own re-check. */
   scheduledAt: Date | null;
   now: Date;
+  /** Issue #649 — see `ResolvedSocialPreviewImageForChecklist`'s comment. `null` when no source in the priority chain resolved. */
+  socialPreviewImage: ResolvedSocialPreviewImageForChecklist | null;
 };
 
 function classifyRawImageUrl(url: string): "local_path" | "external_url" {
@@ -548,6 +569,46 @@ export function evaluateContentQualityChecklist(
         : `${galleryVerifiedFailures} gallery image item(s) do not reference an existing, same-tenant, verified R2 media object.`
     )
   );
+
+  // --- Social preview readiness (Issue #649) ---
+  const hasSocialPreviewImage = input.socialPreviewImage !== null;
+  rules.push(
+    outcome(
+      "social_preview_image_ready",
+      sev("social_preview_image_ready", "warning"),
+      hasSocialPreviewImage,
+      true,
+      hasSocialPreviewImage
+        ? "A verified R2 image is available for social/SEO preview sharing."
+        : "No verified R2 image is available for social/SEO preview sharing (explicit SEO image, featured image, content image, and tenant fallback all unresolved)."
+    )
+  );
+
+  if (hasSocialPreviewImage) {
+    const hasSocialPreviewAlt =
+      (input.socialPreviewImage!.altText ?? "").trim().length > 0;
+    rules.push(
+      outcome(
+        "social_preview_image_alt_text",
+        sev("social_preview_image_alt_text", "warning"),
+        hasSocialPreviewAlt,
+        true,
+        hasSocialPreviewAlt
+          ? "Social/SEO preview image has alt text."
+          : "Social/SEO preview image is missing alt text — recommended for accessibility/SEO."
+      )
+    );
+  } else {
+    rules.push(
+      outcome(
+        "social_preview_image_alt_text",
+        sev("social_preview_image_alt_text", "warning"),
+        true,
+        false,
+        "Not applicable — no social/SEO preview image is available."
+      )
+    );
+  }
 
   const blockers = rules.filter(
     (rule) => rule.applicable && rule.severity === "blocking" && !rule.passed

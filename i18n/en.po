@@ -1039,6 +1039,9 @@ msgstr "Manage tags"
 msgid "admin.blog.dashboard.manage_settings_link"
 msgstr "Blog settings"
 
+msgid "admin.blog.dashboard.manage_internal_tag_links_link"
+msgstr "Internal tag linking"
+
 msgid "admin.blog.dashboard.recent_updates_title"
 msgstr "Recently updated"
 
@@ -1177,6 +1180,12 @@ msgstr "Locale"
 msgid "admin.blog.posts.field_featured_media_id"
 msgstr "Featured media reference (UUID)"
 
+msgid "admin.blog.posts.field_seo_image_media_id"
+msgstr "Social/SEO preview image reference (UUID)"
+
+msgid "admin.blog.posts.field_seo_image_media_id_hint"
+msgstr "Optional. Overrides the featured image for og:image, twitter:image, and JSON-LD when a shared link should show a different image."
+
 msgid "admin.blog.posts.featured_media_hint"
 msgstr "Optional. There is no media library yet — enter a UUID reference only."
 
@@ -1203,6 +1212,9 @@ msgstr "Meta description"
 
 msgid "admin.blog.posts.field_canonical_url"
 msgstr "Canonical URL"
+
+msgid "admin.blog.posts.field_auto_internal_tag_links_disabled"
+msgstr "Disable automatic internal tag linking for this post"
 
 msgid "admin.blog.posts.create_submit"
 msgstr "Create post"
@@ -1308,6 +1320,24 @@ msgstr "Info"
 
 msgid "admin.blog.posts.quality_checklist_load_error"
 msgstr "Could not load the content quality checklist."
+
+msgid "admin.blog.posts.internal_links_title"
+msgstr "Automatic internal tag links"
+
+msgid "admin.blog.posts.internal_links_load_error"
+msgstr "Could not load the internal tag linking preview."
+
+msgid "admin.blog.posts.internal_links_none"
+msgstr "No terms in this post match an existing tag."
+
+msgid "admin.blog.posts.internal_links_disabled_deployment"
+msgstr "Automatic internal tag linking is disabled for this deployment."
+
+msgid "admin.blog.posts.internal_links_disabled_tenant"
+msgstr "Automatic internal tag linking is disabled for this tenant."
+
+msgid "admin.blog.posts.internal_links_disabled_post"
+msgstr "Automatic internal tag linking is disabled for this post."
 
 msgid "admin.blog.posts.revisions_title"
 msgstr "Revision history"
@@ -1601,7 +1631,16 @@ msgid "admin.blog.settings.field_checklist_policy"
 msgstr "Content quality checklist policy (JSON)"
 
 msgid "admin.blog.settings.checklist_policy_hint"
-msgstr "Maps excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists to blocking, warning, or info. Security rules cannot be overridden here."
+msgstr "Maps excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists, social_preview_image_ready, social_preview_image_alt_text to blocking, warning, or info. Security rules cannot be overridden here."
+
+msgid "admin.blog.settings.field_social_preview_fallback_image"
+msgstr "Fallback social preview image reference (UUID)"
+
+msgid "admin.blog.settings.social_preview_fallback_image_hint"
+msgstr "Used for og:image/twitter:image/JSON-LD only when a post has no explicit SEO image, no featured image, and no usable verified image in its own content."
+
+msgid "admin.blog.settings.field_social_preview_content_image_fallback_enabled"
+msgstr "Allow using the first verified image found in a post's own content as its social preview when no explicit SEO image or featured image is set"
 
 msgid "admin.blog.settings.invalid_checklist_policy_json"
 msgstr "Content quality checklist policy must be valid JSON."
@@ -1635,6 +1674,57 @@ msgstr "System"
 
 msgid "admin.blog.settings.theme_save_success"
 msgstr "Theme mode saved."
+
+msgid "admin.blog.internal_tag_links.title"
+msgstr "Internal tag linking"
+
+msgid "admin.blog.internal_tag_links.save_success"
+msgstr "Internal tag linking settings saved."
+
+msgid "admin.blog.internal_tag_links.deployment_legend"
+msgstr "Deployment configuration"
+
+msgid "admin.blog.internal_tag_links.deployment_hint"
+msgstr "These values are set by the deployment operator and cannot be changed here."
+
+msgid "admin.blog.internal_tag_links.deployment_enabled"
+msgstr "Enabled for this deployment"
+
+msgid "admin.blog.internal_tag_links.max_per_post"
+msgstr "Maximum links per post"
+
+msgid "admin.blog.internal_tag_links.max_per_tag"
+msgstr "Maximum links per tag"
+
+msgid "admin.blog.internal_tag_links.min_term_length"
+msgstr "Minimum tag name length"
+
+msgid "admin.blog.internal_tag_links.link_first_occurrence_only"
+msgstr "Link only the first occurrence"
+
+msgid "admin.blog.internal_tag_links.exclude_headings"
+msgstr "Exclude headings"
+
+msgid "admin.blog.internal_tag_links.tenant_legend"
+msgstr "Your settings"
+
+msgid "admin.blog.internal_tag_links.field_enabled"
+msgstr "Enable automatic internal tag linking"
+
+msgid "admin.blog.internal_tag_links.field_case_insensitive"
+msgstr "Match tag names regardless of case"
+
+msgid "admin.blog.internal_tag_links.field_disabled_tags"
+msgstr "Disabled tags"
+
+msgid "admin.blog.internal_tag_links.disabled_tags_hint"
+msgstr "Selected tags will never be automatically linked in article content."
+
+msgid "admin.blog.internal_tag_links.no_tags"
+msgstr "No tags yet."
+
+msgid "admin.blog.internal_tag_links.save_button"
+msgstr "Save"
 
 msgid "admin.blog.templates.title"
 msgstr "Templates"

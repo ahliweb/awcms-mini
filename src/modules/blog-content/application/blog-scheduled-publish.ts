@@ -64,6 +64,7 @@ type DuePostRow = {
   content_json: Record<string, unknown>;
   content_text: string;
   featured_media_id: string | null;
+  seo_image_media_id: string | null;
   meta_description: string | null;
 };
 
@@ -83,7 +84,7 @@ export async function publishDueScheduledPosts(
     async (tx) => {
       const due = (await tx`
         SELECT id, slug, title, excerpt, content_json, content_text,
-               featured_media_id, meta_description
+               featured_media_id, seo_image_media_id, meta_description
         FROM awcms_mini_blog_posts
         WHERE tenant_id = ${tenantId} AND status = 'scheduled'
           AND scheduled_at IS NOT NULL AND scheduled_at <= ${now}
@@ -128,11 +129,20 @@ export async function publishDueScheduledPosts(
               metaDescription: post.meta_description,
               contentText: post.content_text,
               contentJson: post.content_json,
-              featuredMediaId: post.featured_media_id
+              featuredMediaId: post.featured_media_id,
+              seoImageMediaId: post.seo_image_media_id
             },
             termIds.length,
             mediaPort,
-            blogSettings.contentQualityChecklistPolicy
+            blogSettings.contentQualityChecklistPolicy,
+            {
+              socialPreviewFallback: {
+                tenantFallbackImageMediaId:
+                  blogSettings.socialPreviewFallbackImageMediaId,
+                contentImageFallbackEnabled:
+                  blogSettings.socialPreviewContentImageFallbackEnabled
+              }
+            }
           );
 
         let checklist = await evaluateChecklist();

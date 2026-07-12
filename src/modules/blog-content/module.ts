@@ -3,10 +3,10 @@ import { defineModule } from "../_shared/module-contract";
 export const blogContentModule = defineModule({
   key: "blog_content",
   name: "Blog Content",
-  version: "0.8.0",
+  version: "0.9.0",
   status: "active",
   description:
-    "Tenant-scoped blog/content management (epic #536). Issue #537 laid the schema/permission foundation. Issue #538 added the blog post admin API (CRUD + lifecycle actions at /api/v1/blog/posts). Issue #539 added page/taxonomy CRUD, post-term relations, and PostgreSQL full-text search. Issue #540 added public (anonymous, no session) routes under /blog/{tenantCode}/... per ADR-0009: blog index, post detail, category/tag archives, search, RSS feed, and sitemap — every one enforcing the public visibility predicate (published + public, not deleted, published_at in the past) and safe content rendering (whitelist block renderer, no raw HTML). Issue #541 added append-only revision history for posts/pages (a significant title/contentJson/contentText change on PATCH snapshots one), revision list/detail/restore at /api/v1/blog/posts/{id}/revisions (restore requires explicit permission + Idempotency-Key, and itself appends a new revision — never overwrites one), the `bun run blog:publish:scheduled` job (idempotent, publishes due `status='scheduled'` posts per tenant), and the AsyncAPI domain-event contract for the module's full post/term/revision lifecycle (documented-contract-only, structured-logger-producer convention, same as every other module's events). Issue #542 added presentation/monetization extensions per its own Scope Control (does not rebuild the base media library, tenant system, RBAC/ABAC, audit, or theme engine): templates (/api/v1/blog/templates, whitelisted layout shape), hierarchical menus (/api/v1/blog/menus, one level of nesting, internal post/page or safe-URL items), position-based widgets (/api/v1/blog/widgets), advertisements with placement targeting and scheduling (/api/v1/blog/ads), a per-tenant blog theme override (/api/v1/blog/theme, falling back to `awcms_mini_tenants.default_theme`), an optional `translation_group_id` linking locale-variants of one post, and a new whitelisted `gallery` content_json block type for public image/video display (no new media table — reuses the existing safe-rendering convention). Issue #543 (final hardening) added the admin UI (dashboard, posts, pages, categories/tags, templates/widgets/menus/ads, settings — all under /admin/blog, reusing the existing AdminLayout shell and design tokens, no new UI framework), the blog settings API (/api/v1/blog/settings, backed by `awcms_mini_blog_settings` since migration 026 but unwired until now — blog title/description/RSS-enabled/sitemap-enabled live in that table's catch-all `settings` jsonb column, everything else in its own typed column), RSS/sitemap now respect the new enabled flags, and this descriptor's own `permissions`/`navigation` arrays (previously undeclared — every permission below already existed in the database via migrations 027/030, but the module catalog had no code-side declaration to sync/report against). No longer `experimental`: the full epic's acceptance criteria are met and it registers a working admin surface. First domain module registered directly in this base repo (see ADR-0009). Issue #564 (epic #555, not #536) added this descriptor's `settings.defaults` — see the `settings` field below for the four new keys and, importantly, why `rssEnabled`/`sitemapEnabled` are deliberately NOT among them despite appearing in the issue's own example JSON (`application/public-route-settings.ts`'s header comment has the full reasoning: they already live in, and stay in, `awcms_mini_blog_settings`).",
+    "Tenant-scoped blog/content management (epic #536). Issue #537 laid the schema/permission foundation. Issue #538 added the blog post admin API (CRUD + lifecycle actions at /api/v1/blog/posts). Issue #539 added page/taxonomy CRUD, post-term relations, and PostgreSQL full-text search. Issue #540 added public (anonymous, no session) routes under /blog/{tenantCode}/... per ADR-0009: blog index, post detail, category/tag archives, search, RSS feed, and sitemap — every one enforcing the public visibility predicate (published + public, not deleted, published_at in the past) and safe content rendering (whitelist block renderer, no raw HTML). Issue #541 added append-only revision history for posts/pages (a significant title/contentJson/contentText change on PATCH snapshots one), revision list/detail/restore at /api/v1/blog/posts/{id}/revisions (restore requires explicit permission + Idempotency-Key, and itself appends a new revision — never overwrites one), the `bun run blog:publish:scheduled` job (idempotent, publishes due `status='scheduled'` posts per tenant), and the AsyncAPI domain-event contract for the module's full post/term/revision lifecycle (documented-contract-only, structured-logger-producer convention, same as every other module's events). Issue #542 added presentation/monetization extensions per its own Scope Control (does not rebuild the base media library, tenant system, RBAC/ABAC, audit, or theme engine): templates (/api/v1/blog/templates, whitelisted layout shape), hierarchical menus (/api/v1/blog/menus, one level of nesting, internal post/page or safe-URL items), position-based widgets (/api/v1/blog/widgets), advertisements with placement targeting and scheduling (/api/v1/blog/ads), a per-tenant blog theme override (/api/v1/blog/theme, falling back to `awcms_mini_tenants.default_theme`), an optional `translation_group_id` linking locale-variants of one post, and a new whitelisted `gallery` content_json block type for public image/video display (no new media table — reuses the existing safe-rendering convention). Issue #543 (final hardening) added the admin UI (dashboard, posts, pages, categories/tags, templates/widgets/menus/ads, settings — all under /admin/blog, reusing the existing AdminLayout shell and design tokens, no new UI framework), the blog settings API (/api/v1/blog/settings, backed by `awcms_mini_blog_settings` since migration 026 but unwired until now — blog title/description/RSS-enabled/sitemap-enabled live in that table's catch-all `settings` jsonb column, everything else in its own typed column), RSS/sitemap now respect the new enabled flags, and this descriptor's own `permissions`/`navigation` arrays (previously undeclared — every permission below already existed in the database via migrations 027/030, but the module catalog had no code-side declaration to sync/report against). No longer `experimental`: the full epic's acceptance criteria are met and it registers a working admin surface. First domain module registered directly in this base repo (see ADR-0009). Issue #564 (epic #555, not #536) added this descriptor's `settings.defaults` — see the `settings` field below for the four new keys and, importantly, why `rssEnabled`/`sitemapEnabled` are deliberately NOT among them despite appearing in the issue's own example JSON (`application/public-route-settings.ts`'s header comment has the full reasoning: they already live in, and stay in, `awcms_mini_blog_settings`). Issue #641 (epic `news_portal`) added automatic internal tag linking: a pure render-time transform (`domain/internal-tag-linking.ts`, Bun `HTMLRewriter`-based, never mutating stored content) that links matched tag names in a published post's rendered body to the tag's canonical archive URL, gated by a deployment-wide config (`BLOG_AUTO_INTERNAL_TAG_LINKS_*`), a per-tenant policy (`awcms_mini_blog_internal_tag_link_settings`, its own dedicated table/endpoint — see that migration's header for why it is NOT folded into `awcms_mini_blog_settings`), and a per-post opt-out column (`auto_internal_tag_links_disabled`), plus a preview endpoint (`GET /api/v1/blog/posts/{id}/internal-links/preview`).",
   dependencies: ["tenant_admin", "identity_access"],
   type: "domain",
   // Issue #681 (epic #679, platform-hardening) — this module PROVIDES the
@@ -220,6 +220,25 @@ export const blogContentModule = defineModule({
       activityCode: "theme",
       action: "configure",
       description: "Update blog theme mode setting"
+    },
+    // Issue #641 — deliberately separate from `settings.*` (see migration
+    // 050's header comment for why this policy lives in its own dedicated
+    // table/endpoint rather than folded into `awcms_mini_blog_settings`).
+    {
+      activityCode: "internal_links",
+      action: "read",
+      description: "Read automatic internal tag linking settings"
+    },
+    {
+      activityCode: "internal_links",
+      action: "configure",
+      description: "Configure automatic internal tag linking settings"
+    },
+    {
+      activityCode: "internal_links",
+      action: "preview",
+      description:
+        "Preview automatic internal tag links for a post before publishing"
     }
   ],
   api: {
@@ -315,7 +334,8 @@ export const blogContentModule = defineModule({
       "awcms-mini.blog-content.ad.created",
       "awcms-mini.blog-content.ad.updated",
       "awcms-mini.blog-content.ad.deleted",
-      "awcms-mini.blog-content.theme.updated"
+      "awcms-mini.blog-content.theme.updated",
+      "awcms-mini.blog-content.internal-tag-linking-policy.updated"
     ]
   },
   jobs: [

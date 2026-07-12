@@ -1,4 +1,6 @@
 import { escapeHtml } from "../../../lib/html/escape";
+import { renderJsonLdScriptTag } from "./structured-data-rendering";
+import { resolveOgLocale } from "./seo-rendering";
 
 /** Structural shape only (title/slug/excerpt) so this domain-layer renderer has no dependency on the application layer's concrete row types — both `PublicBlogPostSummary` (listing/archive) and `BlogSearchResultItem` (search) satisfy this. */
 export type PublicPostLinkSummary = {
@@ -38,6 +40,35 @@ export type PublicPageShellOptions = {
    * existing caller predates this option and stays behavior-identical.
    */
   siteName?: string | null;
+  /** Issue #649 — `og:type`. Only the post detail route passes `"article"` (enables `article:*` tags below); every other caller (list/category/tag/search) omits this and stays behavior-identical (no `og:type` tag at all, same as before this issue). */
+  ogType?: "website" | "article";
+  /** Issue #649 — MIME type of the resolved `ogImageUrl` object (`image/jpeg`, `image/png`, `image/webp`, or `image/avif`), from the same verified R2 media metadata. Renders `og:image:type` only when `ogImageUrl` is also present. */
+  ogImageMimeType?: string | null;
+  /** Issue #649 — width/height of the resolved `ogImageUrl` object, from the same verified R2 media metadata. Renders `og:image:width`/`og:image:height` only when `ogImageUrl` is also present. */
+  ogImageWidth?: number | null;
+  ogImageHeight?: number | null;
+  /** Issue #649 — ISO 8601 `article:published_time`/`article:modified_time`. Only rendered when `ogType === "article"`. */
+  articlePublishedTime?: string | null;
+  articleModifiedTime?: string | null;
+  /** Issue #649 — first category-taxonomy term name (`article:section`). Only rendered when `ogType === "article"`. */
+  articleSection?: string | null;
+  /** Issue #649 — every other assigned category/tag term name, each rendered as a separate `article:tag` meta tag (Open Graph's documented convention for multi-valued properties). Only rendered when `ogType === "article"`. */
+  articleTags?: readonly string[];
+  /**
+   * Issue #649 — `<meta name="robots">` content (`seo-rendering.ts`'s
+   * `resolveRobotsMetaContent`). Omitted (no tag, byte-for-byte pre-#649
+   * behavior) when not provided — only the post detail route passes this;
+   * list/category/tag/search pages are unaffected.
+   */
+  robotsContent?: string | null;
+  /**
+   * Issue #649 — an already-built `NewsArticle` JSON-LD object
+   * (`structured-data-rendering.ts`'s `buildNewsArticleJsonLd`). Serialized
+   * via `renderJsonLdScriptTag` (the ONE place that HTML-escapes it) and
+   * injected as a `<script type="application/ld+json">` just before
+   * `</head>`. `null`/omitted renders nothing extra.
+   */
+  structuredDataJsonLd?: Record<string, unknown> | null;
 };
 
 /**
@@ -55,7 +86,12 @@ export type PublicPageShellOptions = {
  * present.
  */
 function renderOpenGraphMetaTags(options: PublicPageShellOptions): string {
+  const isArticle = options.ogType === "article";
+
   const tags = [
+    options.ogType
+      ? `<meta property="og:type" content="${escapeHtml(options.ogType)}" />`
+      : "",
     `<meta property="og:title" content="${escapeHtml(options.title)}" />`,
     `<meta property="og:description" content="${escapeHtml(options.description)}" />`,
     options.canonicalUrl
@@ -64,18 +100,53 @@ function renderOpenGraphMetaTags(options: PublicPageShellOptions): string {
     options.siteName
       ? `<meta property="og:site_name" content="${escapeHtml(options.siteName)}" />`
       : "",
+    `<meta property="og:locale" content="${escapeHtml(resolveOgLocale(options.locale))}" />`,
     `<meta name="twitter:card" content="${options.ogImageUrl ? "summary_large_image" : "summary"}" />`,
     `<meta name="twitter:title" content="${escapeHtml(options.title)}" />`,
     `<meta name="twitter:description" content="${escapeHtml(options.description)}" />`,
     options.ogImageUrl
       ? `<meta property="og:image" content="${escapeHtml(options.ogImageUrl)}" />`
       : "",
+    // Issue #649 — `og:image:secure_url` is the same verified R2 URL
+    // (already HTTPS-only, `full-online-r2-architecture.md` §11); Open
+    // Graph treats it as a distinct property from `og:image` for clients
+    // that only trust the `secure_url` variant.
+    options.ogImageUrl
+      ? `<meta property="og:image:secure_url" content="${escapeHtml(options.ogImageUrl)}" />`
+      : "",
+    options.ogImageUrl && options.ogImageMimeType
+      ? `<meta property="og:image:type" content="${escapeHtml(options.ogImageMimeType)}" />`
+      : "",
+    options.ogImageUrl && options.ogImageWidth
+      ? `<meta property="og:image:width" content="${options.ogImageWidth}" />`
+      : "",
+    options.ogImageUrl && options.ogImageHeight
+      ? `<meta property="og:image:height" content="${options.ogImageHeight}" />`
+      : "",
     options.ogImageUrl
       ? `<meta name="twitter:image" content="${escapeHtml(options.ogImageUrl)}" />`
       : "",
     options.ogImageUrl && options.ogImageAlt
       ? `<meta property="og:image:alt" content="${escapeHtml(options.ogImageAlt)}" />`
-      : ""
+      : "",
+    options.ogImageUrl && options.ogImageAlt
+      ? `<meta name="twitter:image:alt" content="${escapeHtml(options.ogImageAlt)}" />`
+      : "",
+    isArticle && options.articlePublishedTime
+      ? `<meta property="article:published_time" content="${escapeHtml(options.articlePublishedTime)}" />`
+      : "",
+    isArticle && options.articleModifiedTime
+      ? `<meta property="article:modified_time" content="${escapeHtml(options.articleModifiedTime)}" />`
+      : "",
+    isArticle && options.articleSection
+      ? `<meta property="article:section" content="${escapeHtml(options.articleSection)}" />`
+      : "",
+    ...(isArticle && options.articleTags
+      ? options.articleTags.map(
+          (tag) =>
+            `<meta property="article:tag" content="${escapeHtml(tag)}" />`
+        )
+      : [])
   ];
 
   return tags.filter((tag) => tag.length > 0).join("\n");
@@ -86,7 +157,15 @@ export function renderPublicPageShell(options: PublicPageShellOptions): string {
     ? `<link rel="canonical" href="${escapeHtml(options.canonicalUrl)}" />`
     : "";
 
+  const robotsTag = options.robotsContent
+    ? `<meta name="robots" content="${escapeHtml(options.robotsContent)}" />`
+    : "";
+
   const ogTags = renderOpenGraphMetaTags(options);
+
+  const jsonLdTag = options.structuredDataJsonLd
+    ? renderJsonLdScriptTag(options.structuredDataJsonLd)
+    : "";
 
   return `<!doctype html>
 <html lang="${escapeHtml(options.locale)}">
@@ -96,7 +175,9 @@ export function renderPublicPageShell(options: PublicPageShellOptions): string {
 <title>${escapeHtml(options.title)}</title>
 <meta name="description" content="${escapeHtml(options.description)}" />
 ${canonicalTag}
+${robotsTag}
 ${ogTags}
+${jsonLdTag}
 </head>
 <body>
 ${options.bodyHtml}

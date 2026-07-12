@@ -63,6 +63,8 @@ export type BlogPostView = {
   status: BlogContentStatus;
   visibility: BlogContentVisibility;
   featuredMediaId: string | null;
+  /** Issue #649 — explicit social/SEO preview image override; see `blog-post-validation.ts`'s `CreateBlogPostInput.seoImageMediaId`. */
+  seoImageMediaId: string | null;
   seoTitle: string | null;
   metaDescription: string | null;
   canonicalUrl: string | null;
@@ -77,6 +79,8 @@ export type BlogPostView = {
   restoredAt: Date | null;
   restoredBy: string | null;
   version: number;
+  /** Issue #641 — manual per-post opt-out of automatic internal tag linking. */
+  autoInternalTagLinksDisabled: boolean;
 };
 
 type BlogPostRow = {
@@ -91,6 +95,7 @@ type BlogPostRow = {
   status: BlogContentStatus;
   visibility: BlogContentVisibility;
   featured_media_id: string | null;
+  seo_image_media_id: string | null;
   seo_title: string | null;
   meta_description: string | null;
   canonical_url: string | null;
@@ -105,6 +110,7 @@ type BlogPostRow = {
   restored_at: Date | null;
   restored_by: string | null;
   version: number;
+  auto_internal_tag_links_disabled: boolean;
 };
 
 function toView(row: BlogPostRow): BlogPostView {
@@ -120,6 +126,7 @@ function toView(row: BlogPostRow): BlogPostView {
     status: row.status,
     visibility: row.visibility,
     featuredMediaId: row.featured_media_id,
+    seoImageMediaId: row.seo_image_media_id,
     seoTitle: row.seo_title,
     metaDescription: row.meta_description,
     canonicalUrl: row.canonical_url,
@@ -133,7 +140,8 @@ function toView(row: BlogPostRow): BlogPostView {
     deleteReason: row.delete_reason,
     restoredAt: row.restored_at,
     restoredBy: row.restored_by,
-    version: row.version
+    version: row.version,
+    autoInternalTagLinksDisabled: row.auto_internal_tag_links_disabled
   };
 }
 
@@ -146,19 +154,21 @@ export async function createBlogPost(
   const rows = (await tx`
     INSERT INTO awcms_mini_blog_posts
       (tenant_id, author_tenant_user_id, title, slug, excerpt, content_json,
-       content_text, status, visibility, featured_media_id, seo_title,
-       meta_description, canonical_url, locale)
+       content_text, status, visibility, featured_media_id, seo_image_media_id,
+       seo_title, meta_description, canonical_url, locale,
+       auto_internal_tag_links_disabled)
     VALUES (
       ${tenantId}, ${authorTenantUserId}, ${input.title}, ${input.slug},
       ${input.excerpt}, ${input.contentJson}, ${input.contentText}, 'draft',
-      ${input.visibility}, ${input.featuredMediaId}, ${input.seoTitle},
-      ${input.metaDescription}, ${input.canonicalUrl}, ${input.locale}
+      ${input.visibility}, ${input.featuredMediaId}, ${input.seoImageMediaId},
+      ${input.seoTitle}, ${input.metaDescription}, ${input.canonicalUrl}, ${input.locale},
+      ${input.autoInternalTagLinksDisabled}
     )
     RETURNING id, tenant_id, author_tenant_user_id, title, slug, excerpt, content_json,
-      content_text, status, visibility, featured_media_id, seo_title,
+      content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
-      restored_at, restored_by, version
+      restored_at, restored_by, version, auto_internal_tag_links_disabled
   `) as BlogPostRow[];
 
   return toView(rows[0]!);
@@ -179,19 +189,19 @@ export async function fetchBlogPostById(
     options.includeDeleted
       ? await tx`
         SELECT id, tenant_id, author_tenant_user_id, title, slug, excerpt, content_json,
-      content_text, status, visibility, featured_media_id, seo_title,
+      content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
-      restored_at, restored_by, version
+      restored_at, restored_by, version, auto_internal_tag_links_disabled
         FROM awcms_mini_blog_posts
         WHERE tenant_id = ${tenantId} AND id = ${postId}
       `
       : await tx`
         SELECT id, tenant_id, author_tenant_user_id, title, slug, excerpt, content_json,
-      content_text, status, visibility, featured_media_id, seo_title,
+      content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
-      restored_at, restored_by, version
+      restored_at, restored_by, version, auto_internal_tag_links_disabled
         FROM awcms_mini_blog_posts
         WHERE tenant_id = ${tenantId} AND id = ${postId} AND deleted_at IS NULL
       `
@@ -271,6 +281,10 @@ export async function updateBlogPost(
           WHEN ${input.featuredMediaId === undefined} THEN featured_media_id
           ELSE ${input.featuredMediaId ?? null}
         END,
+        seo_image_media_id = CASE
+          WHEN ${input.seoImageMediaId === undefined} THEN seo_image_media_id
+          ELSE ${input.seoImageMediaId ?? null}
+        END,
         seo_title = CASE WHEN ${input.seoTitle === undefined} THEN seo_title ELSE ${input.seoTitle ?? null} END,
         meta_description = CASE
           WHEN ${input.metaDescription === undefined} THEN meta_description
@@ -280,14 +294,18 @@ export async function updateBlogPost(
           WHEN ${input.canonicalUrl === undefined} THEN canonical_url
           ELSE ${input.canonicalUrl ?? null}
         END,
+        auto_internal_tag_links_disabled = COALESCE(
+          ${input.autoInternalTagLinksDisabled ?? null},
+          auto_internal_tag_links_disabled
+        ),
         version = version + 1,
         updated_at = now()
     WHERE tenant_id = ${tenantId} AND id = ${id} AND deleted_at IS NULL
     RETURNING id, tenant_id, author_tenant_user_id, title, slug, excerpt, content_json,
-      content_text, status, visibility, featured_media_id, seo_title,
+      content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
-      restored_at, restored_by, version
+      restored_at, restored_by, version, auto_internal_tag_links_disabled
   `) as BlogPostRow[];
 
   return rows[0] ? toView(rows[0]) : null;
@@ -341,10 +359,10 @@ export async function transitionBlogPostStatus(
         updated_at = now()
     WHERE tenant_id = ${tenantId} AND id = ${id} AND deleted_at IS NULL
     RETURNING id, tenant_id, author_tenant_user_id, title, slug, excerpt, content_json,
-      content_text, status, visibility, featured_media_id, seo_title,
+      content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
-      restored_at, restored_by, version
+      restored_at, restored_by, version, auto_internal_tag_links_disabled
   `) as BlogPostRow[];
 
   return rows[0] ? toView(rows[0]) : null;
@@ -362,10 +380,10 @@ export async function restoreBlogPost(
         restored_at = now(), restored_by = ${actorTenantUserId}, updated_at = now()
     WHERE tenant_id = ${tenantId} AND id = ${id} AND deleted_at IS NOT NULL
     RETURNING id, tenant_id, author_tenant_user_id, title, slug, excerpt, content_json,
-      content_text, status, visibility, featured_media_id, seo_title,
+      content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
-      restored_at, restored_by, version
+      restored_at, restored_by, version, auto_internal_tag_links_disabled
   `) as BlogPostRow[];
 
   return rows[0] ? toView(rows[0]) : null;

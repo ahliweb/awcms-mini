@@ -9,17 +9,15 @@ import {
 import { log } from "../../lib/logging/logger";
 import { fetchPublicBlogPostBySlug } from "../../modules/blog-content/application/public-blog-directory";
 import { withNewsTenant } from "../../modules/blog-content/application/public-news-tenant-resolution";
+import { fetchBlogSettings } from "../../modules/blog-content/application/blog-settings-directory";
+import { buildNewsArticleSeoMetadata } from "../../modules/blog-content/application/news-article-seo-metadata";
 import { newsMediaPortAdapter } from "../../modules/news-portal/application/news-media-port-adapter";
 import { resolveNewsShareConfig } from "../../modules/news-portal/domain/news-share-config";
-import {
-  collectRenderableGalleryMediaObjectIds,
-  collectRenderableVideoNewsThumbnailMediaObjectIds,
-  renderContentJsonToHtml
-} from "../../modules/blog-content/domain/content-block-rendering";
+import { renderContentJsonToHtml } from "../../modules/blog-content/domain/content-block-rendering";
+import { renderContentHtmlWithInternalTagLinks } from "../../modules/blog-content/application/internal-tag-link-rendering";
 import {
   resolveCanonicalUrl,
   resolveMetaDescription,
-  resolveOgImageUrl,
   resolveSeoTitle
 } from "../../modules/blog-content/domain/seo-rendering";
 import { renderPublicPageShell } from "../../modules/blog-content/domain/public-page-rendering";
@@ -61,43 +59,45 @@ export const GET: APIRoute = async ({ params, request, url }) => {
         const metaDescription = resolveMetaDescription(post);
         const canonicalUrl = resolveCanonicalUrl(post, selfUrl);
 
-        // Issue #636 — resolve every mediaObjectId this post's content
-        // could reference (featured image + gallery blocks) to verified R2
-        // media metadata in ONE bulk lookup, then thread the result into
-        // both the gallery renderer and the og:image tags. An id that
-        // isn't `verified`/`attached`/same-tenant simply never appears in
-        // `resolvedMedia` — never rendered, never thrown. Issue #639 adds
-        // `video_news` blocks' optional thumbnail ids to the SAME bulk
-        // lookup — they share the same news-media-registry id space, so
-        // `renderContentJsonToHtml`'s single `resolvedMediaUrls` map
-        // already serves both the gallery `<img>` and the video thumbnail.
-        const galleryMediaObjectIds = collectRenderableGalleryMediaObjectIds(
-          post.contentJson
-        );
-        const videoThumbnailMediaObjectIds =
-          collectRenderableVideoNewsThumbnailMediaObjectIds(post.contentJson);
-        const referencedMediaObjectIds = post.featuredMediaId
-          ? [
-              post.featuredMediaId,
-              ...galleryMediaObjectIds,
-              ...videoThumbnailMediaObjectIds
-            ]
-          : [...galleryMediaObjectIds, ...videoThumbnailMediaObjectIds];
-        const resolvedMedia = await newsMediaPortAdapter.resolveMediaReferences(
+        // Issue #649 — one shared orchestration builds every SEO/social
+        // preview metadata value (resolved gallery/featured/SEO-image URLs,
+        // og:image + dimensions/MIME, robots directive, article:section/tag,
+        // NewsArticle JSON-LD) from a SINGLE bulk media resolution, reusing
+        // Issue #636's exact R2-verification primitive
+        // (`NewsMediaPort.resolveMediaReferences`) rather than re-deriving
+        // it. Shared with `/blog/[tenantCode]/[slug].ts` so both routes stay
+        // byte-for-byte consistent.
+        const blogSettings = await fetchBlogSettings(tx, tenant.tenantId);
+        const seoMetadata = await buildNewsArticleSeoMetadata(
           tx,
           tenant.tenantId,
-          referencedMediaObjectIds
+          newsMediaPortAdapter,
+          blogSettings,
+          {
+            post,
+            tenantName: tenant.tenantName,
+            canonicalUrl,
+            seoTitle,
+            metaDescription
+          }
         );
-        const resolvedGalleryUrls = new Map(
-          [...resolvedMedia].map(([id, media]) => [id, media.publicUrl])
-        );
-        const featuredMedia = post.featuredMediaId
-          ? (resolvedMedia.get(post.featuredMediaId) ?? null)
-          : null;
 
-        const contentHtml = renderContentJsonToHtml(
+        const renderedContentHtml = renderContentJsonToHtml(
           post.contentJson,
-          resolvedGalleryUrls
+          seoMetadata.resolvedGalleryUrls
+        );
+
+        // Issue #641 — automatic internal tag linking, applied as a pure
+        // render-time transform of the already-safe renderer output (never
+        // the stored `content_json`/`content_text`). No-ops (returns
+        // `renderedContentHtml` unchanged) when the deployment/tenant/post
+        // has it disabled — see `internal-tag-link-rendering.ts`.
+        const contentHtml = await renderContentHtmlWithInternalTagLinks(
+          tx,
+          tenant.tenantId,
+          renderedContentHtml,
+          post.autoInternalTagLinksDisabled,
+          basePath
         );
 
         // Issue #642 — public share buttons, rendered only for this
@@ -129,9 +129,19 @@ ${shareButtonsHtml}
           canonicalUrl,
           bodyHtml,
           locale: post.locale,
-          ogImageUrl: resolveOgImageUrl(featuredMedia?.publicUrl ?? null),
-          ogImageAlt: featuredMedia?.altText ?? null,
-          siteName: tenant.tenantName
+          ogImageUrl: seoMetadata.ogImageUrl,
+          ogImageAlt: seoMetadata.ogImageAlt,
+          ogImageMimeType: seoMetadata.ogImageMimeType,
+          ogImageWidth: seoMetadata.ogImageWidth,
+          ogImageHeight: seoMetadata.ogImageHeight,
+          siteName: tenant.tenantName,
+          ogType: "article",
+          articlePublishedTime: post.publishedAt.toISOString(),
+          articleModifiedTime: post.updatedAt.toISOString(),
+          articleSection: seoMetadata.articleSection,
+          articleTags: seoMetadata.articleTags,
+          robotsContent: seoMetadata.robotsContent,
+          structuredDataJsonLd: seoMetadata.structuredDataJsonLd
         });
 
         return new Response(html, {

@@ -92,6 +92,9 @@ const CAN_READ_REVISIONS = context.permissions.has(
 const CAN_RESTORE_REVISIONS = context.permissions.has(
   permissionKey("blog_content", "revisions", "restore")
 );
+const CAN_PREVIEW_INTERNAL_LINKS = context.permissions.has(
+  permissionKey("blog_content", "internal_links", "preview")
+);
 
 const clientStrings = {
   saveSuccess: t("admin.blog.posts.save_success"),
@@ -127,7 +130,17 @@ const clientStrings = {
     "admin.blog.posts.quality_checklist_warning_label"
   ),
   qualityChecklistInfoLabel: t("admin.blog.posts.quality_checklist_info_label"),
-  qualityChecklistLoadError: t("admin.blog.posts.quality_checklist_load_error")
+  qualityChecklistLoadError: t("admin.blog.posts.quality_checklist_load_error"),
+  internalLinksTitle: t("admin.blog.posts.internal_links_title"),
+  internalLinksLoadError: t("admin.blog.posts.internal_links_load_error"),
+  internalLinksNone: t("admin.blog.posts.internal_links_none"),
+  internalLinksDisabledDeployment: t(
+    "admin.blog.posts.internal_links_disabled_deployment"
+  ),
+  internalLinksDisabledTenant: t(
+    "admin.blog.posts.internal_links_disabled_tenant"
+  ),
+  internalLinksDisabledPost: t("admin.blog.posts.internal_links_disabled_post")
 };
 
 type Data = {
@@ -342,6 +355,20 @@ const canSoftDelete = data !== null && !data.post.deletedAt && CAN_DELETE;
           <ul id="quality-checklist-list" class="quality-checklist-list" />
         </section>
 
+        {CAN_PREVIEW_INTERNAL_LINKS && (
+          <section
+            id="internal-links-panel"
+            class="quality-checklist"
+            aria-live="polite"
+          >
+            <h2>{t("admin.blog.posts.internal_links_title")}</h2>
+            <p id="internal-links-status" class="field-hint">
+              {t("common.please_wait")}
+            </p>
+            <ul id="internal-links-list" class="quality-checklist-list" />
+          </section>
+        )}
+
         <form id="post-form" class="editor-form">
           <fieldset disabled={!canEditFields}>
             <label>
@@ -415,6 +442,17 @@ const canSoftDelete = data !== null && !data.post.deletedAt && CAN_DELETE;
                 value={data.post.featuredMediaId ?? ""}
               />
             </label>
+            <label>
+              {t("admin.blog.posts.field_seo_image_media_id")}
+              <input
+                type="text"
+                name="seoImageMediaId"
+                value={data.post.seoImageMediaId ?? ""}
+              />
+              <span class="field-hint">
+                {t("admin.blog.posts.field_seo_image_media_id_hint")}
+              </span>
+            </label>
 
             <fieldset class="term-picker">
               <legend>{t("admin.blog.posts.field_categories")}</legend>
@@ -482,6 +520,15 @@ const canSoftDelete = data !== null && !data.post.deletedAt && CAN_DELETE;
                 />
               </label>
             </fieldset>
+
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                name="autoInternalTagLinksDisabled"
+                checked={data.post.autoInternalTagLinksDisabled}
+              />
+              {t("admin.blog.posts.field_auto_internal_tag_links_disabled")}
+            </label>
 
             {canEditFields && (
               <button type="submit">{t("admin.blog.posts.save_button")}</button>
@@ -706,6 +753,12 @@ const canSoftDelete = data !== null && !data.post.deletedAt && CAN_DELETE;
     font-size: var(--fs-sm);
   }
 
+  .checkbox-label {
+    flex-direction: row !important;
+    align-items: center;
+    gap: var(--sp-2) !important;
+  }
+
   .editor-form input,
   .editor-form select,
   .editor-form textarea {
@@ -840,6 +893,12 @@ const canSoftDelete = data !== null && !data.post.deletedAt && CAN_DELETE;
     qualityChecklistWarningLabel: string;
     qualityChecklistInfoLabel: string;
     qualityChecklistLoadError: string;
+    internalLinksTitle: string;
+    internalLinksLoadError: string;
+    internalLinksNone: string;
+    internalLinksDisabledDeployment: string;
+    internalLinksDisabledTenant: string;
+    internalLinksDisabledPost: string;
   }
 
   interface ChecklistRuleOutcome {
@@ -856,6 +915,21 @@ const canSoftDelete = data !== null && !data.post.deletedAt && CAN_DELETE;
     blockers: ChecklistRuleOutcome[];
     warnings: ChecklistRuleOutcome[];
     info: ChecklistRuleOutcome[];
+  }
+
+  interface InternalTagLinkMatch {
+    tagId: string;
+    tagName: string;
+    url: string;
+    matchedText: string;
+  }
+
+  interface InternalTagLinkingPreviewResult {
+    enabled: boolean;
+    disabledReason:
+      "deployment_disabled" | "tenant_disabled" | "post_disabled" | null;
+    matches: InternalTagLinkMatch[];
+    totalLinked: number;
   }
 
   const strings = readClientStrings<PostEditorStrings>();
@@ -929,6 +1003,74 @@ const canSoftDelete = data !== null && !data.post.deletedAt && CAN_DELETE;
 
   void loadQualityChecklist();
 
+  /**
+   * Automatic internal tag linking preview panel (Issue #641) — read-only,
+   * same "load once on view" convention as the quality checklist above.
+   * Shows the SAME matches the public renderer would produce right now,
+   * or the reason nothing would be linked (deployment/tenant/post disabled).
+   */
+  function disabledReasonLabel(
+    reason: InternalTagLinkingPreviewResult["disabledReason"]
+  ): string | null {
+    if (reason === "deployment_disabled")
+      return strings.internalLinksDisabledDeployment;
+    if (reason === "tenant_disabled")
+      return strings.internalLinksDisabledTenant;
+    if (reason === "post_disabled") return strings.internalLinksDisabledPost;
+    return null;
+  }
+
+  function renderInternalLinksPreview(
+    preview: InternalTagLinkingPreviewResult | null
+  ): void {
+    const status = document.getElementById("internal-links-status");
+    const list = document.getElementById("internal-links-list");
+    if (!status || !list) return;
+
+    list.textContent = "";
+
+    if (!preview) {
+      status.textContent = strings.internalLinksLoadError;
+      return;
+    }
+
+    if (!preview.enabled) {
+      status.textContent =
+        disabledReasonLabel(preview.disabledReason) ??
+        strings.internalLinksNone;
+      return;
+    }
+
+    if (preview.matches.length === 0) {
+      status.textContent = strings.internalLinksNone;
+      return;
+    }
+
+    status.textContent = "";
+    for (const match of preview.matches) {
+      const item = document.createElement("li");
+      const badge = document.createElement("span");
+      badge.className = "quality-checklist-badge";
+      badge.textContent = match.tagName;
+      const message = document.createElement("span");
+      message.textContent = `"${match.matchedText}" -> ${match.url}`;
+      item.append(badge, message);
+      list.append(item);
+    }
+  }
+
+  async function loadInternalTagLinksPreview(): Promise<void> {
+    if (!postId) return;
+    if (!document.getElementById("internal-links-panel")) return;
+    const result = await fetchJson<InternalTagLinkingPreviewResult>(
+      `/api/v1/blog/posts/${postId}/internal-links/preview`,
+      strings
+    );
+    renderInternalLinksPreview(result.ok ? (result.data ?? null) : null);
+  }
+
+  void loadInternalTagLinksPreview();
+
   document
     .getElementById("post-form")
     ?.addEventListener("submit", async (event) => {
@@ -975,12 +1117,16 @@ const canSoftDelete = data !== null && !data.post.deletedAt && CAN_DELETE;
             visibility: formData.get("visibility"),
             featuredMediaId:
               String(formData.get("featuredMediaId") ?? "").trim() || null,
+            seoImageMediaId:
+              String(formData.get("seoImageMediaId") ?? "").trim() || null,
             seoTitle: String(formData.get("seoTitle") ?? "").trim() || null,
             metaDescription:
               String(formData.get("metaDescription") ?? "").trim() || null,
             canonicalUrl:
               String(formData.get("canonicalUrl") ?? "").trim() || null,
-            termIds: [...categoryIds, ...tagIds]
+            termIds: [...categoryIds, ...tagIds],
+            autoInternalTagLinksDisabled:
+              formData.get("autoInternalTagLinksDisabled") === "on"
           },
           strings
         );

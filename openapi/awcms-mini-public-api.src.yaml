@@ -70,6 +70,8 @@ tags:
     description: "Tenant-scoped presentation/monetization admin API (epic #536, Issue #542): templates (whitelisted layout config), hierarchical navigation menus, position-based widgets, and advertisements (placement targeting + scheduling), plus a per-tenant blog theme mode override. Per doc issue #542's own Scope Control, none of this rebuilds the base media library, tenant system, RBAC/ABAC, audit, or theme engine — the blog theme endpoint overrides `awcms_mini_tenants.default_theme`, it does not replace it."
   - name: Blog Settings
     description: "Tenant-scoped blog settings admin API (epic #536, Issue #543) — one row per tenant (`awcms_mini_blog_settings`, schema present since Issue #537 but unwired until this issue). Blog title/description and RSS/sitemap enabled flags live in the row's catch-all `settings` jsonb column; default locale/visibility and SEO title/description defaults have their own typed columns. `rssEnabled`/`sitemapEnabled` also gate `GET /blog/{tenantCode}/feed.xml` and `.../sitemap-blog.xml` (Issue #540) — disabled looks identical to an unknown tenant (404), no distinguishing signal leaked."
+  - name: Blog Internal Tag Links
+    description: "Automatic internal tag linking for post/news content (epic `news_portal`, Issue #641) — tenant policy (enable/disable, case-insensitive matching, per-tag disable) in its own dedicated table/endpoint, deliberately separate from Blog Settings, plus a read-only preview of which terms would be auto-linked in a post's rendered content before publishing. Linking itself is a render-time-only transform applied by the public `/news`/`/blog/{tenantCode}` routes, not an API this tag exposes directly."
   - name: Visitor Analytics
     description: "Tenant-scoped visitor analytics API (epic: visitor analytics #617-#624, Issue #621) — realtime presence, range-bounded summary/ pages/devices/locations/security aggregates, keyset-paginated sessions/events, settings, and on-demand retention purge. Raw detail (IP address, user-agent hash, login identifier snapshot) on sessions/events is omitted unless the caller holds the separate `visitor_analytics.raw_detail.read` permission, independent of `sessions.read`/`events.read`."
   - name: News Media
@@ -279,6 +281,7 @@ components:
         - status
         - visibility
         - featuredMediaId
+        - seoImageMediaId
         - seoTitle
         - metaDescription
         - canonicalUrl
@@ -293,6 +296,7 @@ components:
         - restoredAt
         - restoredBy
         - version
+        - autoInternalTagLinksDisabled
       additionalProperties: false
       properties:
         id:
@@ -336,6 +340,11 @@ components:
           format: uuid
           nullable: true
           description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), must reference an existing, same-tenant media object (Issue #633) with status verified or attached — never a local path or arbitrary external URL. A non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID. Outside that mode, only the UUID shape is validated."
+        seoImageMediaId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Issue #649 — explicit social/SEO preview image override, same validation as featuredMediaId. Takes priority over featuredMediaId when resolving og:image/twitter:image/JSON-LD image for public sharing."
         seoTitle:
           type: string
           nullable: true
@@ -383,6 +392,9 @@ components:
         version:
           type: integer
           minimum: 1
+        autoInternalTagLinksDisabled:
+          type: boolean
+          description: "Manual per-post opt-out of automatic internal tag linking (Issue #641). Defaults false."
         termIds:
           type: array
           items:
@@ -422,6 +434,8 @@ components:
             - taxonomy_exists
             - unsafe_html_rejected
             - scheduled_publish_time_valid
+            - social_preview_image_ready
+            - social_preview_image_alt_text
         severity:
           type: string
           enum:

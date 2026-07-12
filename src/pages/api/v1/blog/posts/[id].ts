@@ -252,6 +252,7 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
         tenantId,
         {
           featuredMediaId: input.featuredMediaId,
+          seoImageMediaId: input.seoImageMediaId,
           contentJson: input.contentJson
         },
         newsMediaPortAdapter
