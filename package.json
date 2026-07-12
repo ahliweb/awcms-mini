@@ -61,6 +61,8 @@
     "logging:lint:check": "bun scripts/logging-lint-check.ts",
     "production:preflight": "bun scripts/production-preflight.ts",
     "github:snapshot:refresh": "bun scripts/github-snapshot-refresh.ts",
+    "changesets:policy:check": "bun scripts/changeset-policy-check.ts",
+    "release:verify": "bun scripts/release-verify.ts",
     "lint": "prettier --check \"**/*.md\" \"**/*.{json,yml,yaml}\" \"**/*.{ts,mjs,astro}\"",
     "format": "prettier --write \"**/*.md\" \"**/*.{json,yml,yaml}\" \"**/*.{ts,mjs,astro}\"",
     "check:docs": "bun scripts/check-docs.mjs",
