@@ -103,7 +103,12 @@ POST   /api/v1/blog/posts/{id}/schedule       -> blog_content.posts.schedule (Id
 POST   /api/v1/blog/posts/{id}/archive        -> blog_content.posts.archive (Idempotency-Key wajib)
 POST   /api/v1/blog/posts/{id}/restore        -> blog_content.posts.restore (Idempotency-Key wajib)
 POST   /api/v1/blog/posts/{id}/purge          -> blog_content.posts.purge (Idempotency-Key wajib)
+GET    /api/v1/blog/posts/{id}/quality-checklist -> blog_content.posts.read (Issue #640, read-only preview)
 ```
+
+### Content quality checklist gate pada publish/schedule (Issue #640)
+
+`publish`/`schedule` di atas sekarang menjalankan `content-quality-checklist-gate.ts`'s `evaluateContentQualityChecklistForContent` SEBELUM transisi status — server-side, bukan cuma preview klien (`GET .../quality-checklist`, dipakai panel admin editor). Checklist ini adalah no-op (`applicable: false`) kecuali full-online R2-only news portal mode (`news_portal`, Issue #632/#636) aktif untuk tenant pemanggil — mayoritas tenant `blog_content`-only tidak terpengaruh sama sekali. Ketika mode aktif dan satu rule `blocking` gagal (mis. unsafe HTML, local image path, external image URL, featured/gallery image tidak verified R2), request ditolak `422 CONTENT_QUALITY_CHECKLIST_BLOCKED` dan diaudit `blog.post.publish_blocked_by_checklist`/`.schedule_blocked_by_checklist`. Detail rule/severity/kebijakan tenant lengkap ada di `.claude/skills/awcms-mini-news-portal/SKILL.md` §640 (bukan diduplikasi di sini, karena logikanya benar-benar hidup di `news_portal` epic's cross-cutting context, sama seperti §636's gate untuk create/update).
 
 ### ABAC — author boleh edit draft sendiri tanpa permission `update`
 
@@ -145,9 +150,12 @@ POST   /api/v1/blog/pages          -> blog_content.pages.create
 GET    /api/v1/blog/pages/{id}     -> blog_content.pages.read
 PATCH  /api/v1/blog/pages/{id}     -> blog_content.pages.update (+ author-own-draft override)
 DELETE /api/v1/blog/pages/{id}     -> blog_content.pages.delete
+GET    /api/v1/blog/pages/{id}/quality-checklist -> blog_content.pages.read (Issue #640, read-only preview — see note below)
 ```
 
 Tidak idempotency-gated (sama seperti posts create/update — recommended, bukan required). Audit `action` memakai pola literal yang sama: `blog.page.created`/`.updated`/`.deleted`.
+
+`GET .../quality-checklist` (Issue #640) mengevaluasi checklist konten yang sama dengan posts (lihat §Content quality checklist gate di atas), TAPI murni **preview** untuk pages — karena tidak ada `POST .../publish`/`.../schedule` untuk pages sama sekali (paragraf di atas), tidak ada state transition apa pun untuk digerbangi di sini. `taxonomy_exists` selalu `applicable: false` untuk pages (tidak ada tabel `_terms` untuk pages).
 
 ## Admin API — Blog Taxonomies (Issue #539)
 
@@ -362,6 +370,45 @@ statuses, unlisted-reachable-by-direct-link, canonical URL under `/news`,
 feed/sitemap links under `/news`, module-disabled 404, `tenant_code_legacy`
 404, cross-tenant isolation).
 
+### Public social share buttons + expanded OG/Twitter metadata — Issue #642 (epic `news_portal`)
+
+Both post detail routes (`/news/{slug}`, `/blog/{tenantCode}/{slug}`) now
+render a public share widget (native Web Share API, copy-link, WhatsApp,
+Telegram, Facebook, LinkedIn, X, email) and expanded Open Graph/Twitter
+Card metadata. New pure modules:
+`domain/social-share-links.ts` (`buildSocialShareLinks` — six-platform
+fixed allowlist, every URL `encodeURIComponent`-encoded;
+`renderSocialShareButtonsHtml` — full widget markup) and
+`src/modules/news-portal/domain/news-share-config.ts`
+(`resolveNewsShareConfig` — per-platform `NEWS_SHARE_*_ENABLED` env
+flags, all defaulting `true`; see that file's header comment for why this
+deviates from this repo's usual "opt-in, default off" feature-flag
+convention). See `.claude/skills/awcms-mini-news-portal/SKILL.md` §642 for
+the full design rationale (Instagram has no supported web-share URL so
+never gets a dedicated button; the canonical URL — never the request's
+raw querystring — is the only URL ever shared; the native-share/copy-link
+client script is a same-origin static file, `public/js/news-share.js`,
+never inline, so it adds zero Content-Security-Policy surface).
+
+`public-page-rendering.ts`'s `renderPublicPageShell` now also emits
+`og:title`/`og:description`/`og:url`/`og:site_name` (derived from the same
+`title`/`description`/`canonicalUrl` fields it already renders as
+`<title>`/`<meta name="description">`/`<link rel="canonical">` — one
+source of truth, `siteName` new and optional from
+`PublicTenantResolution.tenantName`) and `twitter:title`/
+`twitter:description`/`twitter:card` (now always present — `summary`
+without an image, `summary_large_image` with one). `og:image`/
+`twitter:image`/`og:image:alt` are unchanged from Issue #636 (still gated
+on a verified R2 media object).
+
+Test: `tests/unit/social-share-links.test.ts`, `tests/unit/news-share-config.test.ts`,
+`tests/unit/news-share-client-script.test.ts`,
+`tests/integration/news-portal-share-buttons.integration.test.ts` (real
+`/news/{slug}`/`/blog/{tenantCode}/{slug}` routes — default-enabled
+widget, master-switch/per-platform disable, draft never renders it,
+canonical URL used even when the request URL carries tracking
+querystring parameters).
+
 ## `/news` (default) vs `/blog/{tenantCode}` (legacy) — Issue #561
 
 Two public route families exist side by side, and neither is going away.
@@ -564,26 +611,28 @@ Permission `blog_content.revisions.restore` **eksplisit wajib** — tidak ada ow
 
 Audit: `blog.post.revision_restored` (severity `warning`, `attributes: { revisionId, revisionNumber }`).
 
-## Scheduled publishing (Issue #541)
+## Scheduled publishing (Issue #541, direstrukturisasi Issue #640)
 
-`bun run blog:publish:scheduled` (`scripts/blog-scheduled-publish.ts`) — worker internal, bukan endpoint HTTP, dijadwalkan cron/systemd timer (pola sama `scripts/form-draft-purge.ts`). Untuk setiap tenant aktif, memanggil `blog-scheduled-publish.ts`'s `publishDueScheduledPosts(sql, tenantId)`.
+`bun run blog:publish:scheduled` (`scripts/blog-scheduled-publish.ts`) — worker internal, bukan endpoint HTTP, dijadwalkan cron/systemd timer (pola sama `scripts/form-draft-purge.ts`). Untuk setiap tenant aktif, memanggil `blog-scheduled-publish.ts`'s `publishDueScheduledPosts(sql, tenantId, mediaPort, options?)`.
 
-Satu `UPDATE` set-based per tenant (bukan loop per-row, bukan batching bertahap seperti `form-draft-purge.ts` — tidak ada kebutuhan retensi/paging di sini):
+**Issue #640 mengubah signature** (`mediaPort: NewsMediaPort` sekarang parameter wajib, disuntik `scripts/blog-scheduled-publish.ts` sebagai composition root — pola port yang sama ADR-0011 tetapkan) **dan** merestrukturisasi dari satu `UPDATE` set-based per tenant menjadi `SELECT ... FOR UPDATE` diikuti loop per-post:
 
 ```sql
-UPDATE awcms_mini_blog_posts
-SET status = 'published', published_at = COALESCE(published_at, now()),
-    scheduled_at = NULL, version = version + 1, updated_at = now()
+SELECT id, slug, title, excerpt, content_json, content_text,
+       featured_media_id, meta_description
+FROM awcms_mini_blog_posts
 WHERE tenant_id = $1 AND status = 'scheduled'
   AND scheduled_at IS NOT NULL AND scheduled_at <= now() AND deleted_at IS NULL
-RETURNING id, slug
+FOR UPDATE
 ```
 
-Idempoten by construction: post yang sudah `published` atau `scheduled_at`-nya masih di masa depan tidak match `WHERE` — run kedua di `now` yang sama adalah no-op murni. `COALESCE(published_at, now())` memastikan post yang **pernah** published sebelumnya (`published_at` sudah terisi dari histori lama, lalu di-set balik ke `draft`/`scheduled` lewat SQL manual atau endpoint masa depan) tidak kehilangan `published_at` aslinya — doc issue #541 §Scheduled Publishing Rules: "sets published_at=now() only if not already set".
+Setiap post due dievaluasi lewat `content-quality-checklist-gate.ts`'s `evaluateContentQualityChecklistForContent` (lihat `.claude/skills/awcms-mini-news-portal/SKILL.md` §640) sebelum ditransisikan — kalau checklist gagal (blocking rule, hanya relevan bila tenant mengaktifkan mode full-online R2-only), post itu **dibiarkan `scheduled`** (bukan silently published, bukan di-unschedule) dan diaudit `blog.post.scheduled_publish_blocked`; job lanjut ke post due berikutnya. Post yang lolos baru di-`UPDATE` satu-per-satu ke `published`. Alasan restrukturisasi: tanpa ini, tenant bisa bypass checklist sepenuhnya dengan men-schedule post SEBELUM mengaktifkan mode R2-only (atau sebelum sebuah media diverifikasi ulang), lalu menunggu due — celah kelas yang sama dengan Issue #636's revision-restore bypass. `FOR UPDATE` menjaga job ini tetap aman terhadap dua run konkuren (mis. dua worker instance) untuk tenant yang sama.
 
-Audit per post yang dipublish: `blog.post.published` (reuse action yang sama dengan `POST .../publish` manual — pembeda `trigger: "scheduled_publish"` hanya ada di structured log, bukan di audit `attributes`). Plus satu event ringkasan per pemanggilan tenant: `blog.post.scheduled_publish_executed` (kalau ada yang dipublish, `attributes.publishedCount`) atau `blog.post.scheduled_publish_skipped` (kalau tidak ada yang due — bukan satu event skip per post yang diperiksa, karena job ini set-based, tidak iterasi per-baris).
+Idempoten by construction: post yang sudah `published`, `scheduled_at`-nya masih di masa depan, atau ditinggalkan `scheduled` karena checklist gagal sebelumnya tidak menghasilkan efek baru pada run berikutnya di `now` yang sama. `COALESCE(published_at, now())` memastikan post yang **pernah** published sebelumnya (`published_at` sudah terisi dari histori lama, lalu di-set balik ke `draft`/`scheduled` lewat SQL manual atau endpoint masa depan) tidak kehilangan `published_at` aslinya — doc issue #541 §Scheduled Publishing Rules: "sets published_at=now() only if not already set".
 
-Tidak ada pemanggilan provider eksternal sama sekali di job ini (ADR-0006 tidak relevan di sini — job murni transisi database, tidak ada dispatcher/provider yang perlu dijaga di luar transaction).
+Audit per post yang dipublish: `blog.post.published` (reuse action yang sama dengan `POST .../publish` manual — pembeda `trigger: "scheduled_publish"` hanya ada di structured log, bukan di audit `attributes`). Plus satu event ringkasan per pemanggilan tenant: `blog.post.scheduled_publish_executed` (`attributes.publishedCount`/`blockedCount`) atau `blog.post.scheduled_publish_skipped` (kalau tidak ada yang due sama sekali).
+
+Tidak ada pemanggilan provider eksternal sama sekali di job ini (ADR-0006 tidak relevan di sini — job murni transisi database, tidak ada dispatcher/provider yang perlu dijaga di luar transaction). `mediaPort` bukan provider eksternal — implementasinya (`newsMediaPortAdapter`) hanya membaca dari Postgres yang sama, bukan Cloudflare R2.
 
 ## Domain events (AsyncAPI, Issue #541, diperluas Issue #542)
 

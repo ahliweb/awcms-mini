@@ -9,6 +9,11 @@
  */
 import type { UpdateBlogSettingsInput } from "../domain/blog-settings-policy";
 import type { BlogContentVisibility } from "../domain/post-status";
+import {
+  isOverridableChecklistRuleId,
+  isValidChecklistSeverity,
+  type ChecklistPolicyOverrides
+} from "../domain/content-quality-checklist";
 
 export type BlogSettingsView = {
   tenantId: string;
@@ -21,6 +26,8 @@ export type BlogSettingsView = {
   defaultVisibility: BlogContentVisibility;
   seoDefaultTitle: string | null;
   seoDefaultDescription: string | null;
+  /** Issue #640 — tenant override of the content quality checklist's non-security rule severities; `{}` when the tenant never configured one (checklist falls back to its own defaults). */
+  contentQualityChecklistPolicy: ChecklistPolicyOverrides;
   updatedAt: string | null;
 };
 
@@ -37,6 +44,41 @@ type BlogSettingsRow = {
   settings: Record<string, unknown>;
   updated_at: Date;
 };
+
+/**
+ * Filters a raw stored `contentQualityChecklistPolicy` blob down to only
+ * entries that are BOTH a genuinely overridable (non-security) rule id and
+ * a real `ChecklistSeverity` value — reviewer/security-auditor finding on
+ * PR #725: the write side (`blog-settings-policy.ts`) already rejects an
+ * invalid entry with a 400, but the read side previously only checked
+ * "is this an object," trusting its shape and contents unconditionally.
+ * Since the only path that can ever WRITE this column already validates,
+ * this is defense-in-depth against a future direct DB write/migration/
+ * refactor bypassing that single write-time gate — same "don't trust a
+ * single enforcement point" lesson as Issue #636's revision-restore fix.
+ */
+function sanitizeChecklistPolicyOverrides(
+  raw: unknown
+): ChecklistPolicyOverrides {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return {};
+  }
+
+  const sanitized: ChecklistPolicyOverrides = {};
+
+  for (const [ruleId, severity] of Object.entries(
+    raw as Record<string, unknown>
+  )) {
+    if (
+      isOverridableChecklistRuleId(ruleId) &&
+      isValidChecklistSeverity(severity)
+    ) {
+      sanitized[ruleId] = severity;
+    }
+  }
+
+  return sanitized;
+}
 
 function toView(
   tenantId: string,
@@ -61,6 +103,9 @@ function toView(
     defaultVisibility: row?.default_visibility ?? "public",
     seoDefaultTitle: row?.seo_default_title ?? null,
     seoDefaultDescription: row?.seo_default_description ?? null,
+    contentQualityChecklistPolicy: sanitizeChecklistPolicyOverrides(
+      extras.contentQualityChecklistPolicy
+    ),
     updatedAt: row?.updated_at.toISOString() ?? null
   };
 }
@@ -113,7 +158,10 @@ export async function upsertBlogSettings(
         ? patch.blogDescription
         : existing.blogDescription,
     rssEnabled: patch.rssEnabled ?? existing.rssEnabled,
-    sitemapEnabled: patch.sitemapEnabled ?? existing.sitemapEnabled
+    sitemapEnabled: patch.sitemapEnabled ?? existing.sitemapEnabled,
+    contentQualityChecklistPolicy:
+      patch.contentQualityChecklistPolicy ??
+      existing.contentQualityChecklistPolicy
   };
 
   const rows = (await tx`

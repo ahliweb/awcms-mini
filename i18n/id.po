@@ -243,8 +243,8 @@ msgstr "Section ini merujuk konten yang tidak ada, bukan milik tenant ini, atau 
 msgid "error.homepage_section_key_conflict"
 msgstr "Section key tersebut sudah dipakai."
 
-msgid "error.ad_placement_reference_invalid"
-msgstr "Iklan ini merujuk objek media yang tidak ada, bukan milik tenant ini, belum terverifikasi, atau bukan tipe gambar yang diizinkan untuk penempatan ini."
+msgid "error.content_quality_checklist_blocked"
+msgstr "Publikasi diblokir oleh checklist kualitas konten. Perbaiki masalah yang tercantum lalu coba lagi."
 
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"
@@ -1165,7 +1165,7 @@ msgid "admin.blog.posts.field_content_json"
 msgstr "Blok konten (JSON)"
 
 msgid "admin.blog.posts.content_json_hint"
-msgstr "Konten terstruktur berbentuk { \"blocks\": [...] } — hanya blok paragraph, heading, list, quote, dan gallery. Biarkan array blocks kosong bila ragu."
+msgstr "Konten terstruktur berbentuk { \"blocks\": [...] } — hanya blok paragraph, heading, list, quote, gallery, dan video_news. Biarkan array blocks kosong bila ragu."
 
 msgid "admin.blog.posts.field_visibility"
 msgstr "Visibilitas"
@@ -1286,6 +1286,27 @@ msgstr "Hapus post ini secara permanen? Tindakan ini tidak dapat dibatalkan."
 
 msgid "admin.blog.posts.purge_success"
 msgstr "Post berhasil dihapus permanen."
+
+msgid "admin.blog.posts.quality_checklist_title"
+msgstr "Checklist kualitas konten"
+
+msgid "admin.blog.posts.quality_checklist_not_applicable"
+msgstr "Tidak berlaku — mode news portal full-online R2-only belum aktif untuk tenant ini."
+
+msgid "admin.blog.posts.quality_checklist_passed"
+msgstr "Semua pemeriksaan lolos."
+
+msgid "admin.blog.posts.quality_checklist_blocking_label"
+msgstr "Blocking"
+
+msgid "admin.blog.posts.quality_checklist_warning_label"
+msgstr "Peringatan"
+
+msgid "admin.blog.posts.quality_checklist_info_label"
+msgstr "Info"
+
+msgid "admin.blog.posts.quality_checklist_load_error"
+msgstr "Checklist kualitas konten gagal dimuat."
 
 msgid "admin.blog.posts.revisions_title"
 msgstr "Riwayat revisi"
@@ -1574,6 +1595,15 @@ msgstr "Template judul SEO default"
 
 msgid "admin.blog.settings.field_seo_default_description"
 msgstr "Meta deskripsi default"
+
+msgid "admin.blog.settings.field_checklist_policy"
+msgstr "Kebijakan checklist kualitas konten (JSON)"
+
+msgid "admin.blog.settings.checklist_policy_hint"
+msgstr "Memetakan excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists ke blocking, warning, atau info. Aturan keamanan tidak bisa di-override di sini."
+
+msgid "admin.blog.settings.invalid_checklist_policy_json"
+msgstr "Kebijakan checklist kualitas konten harus berupa JSON yang valid."
 
 msgid "admin.blog.settings.save_button"
 msgstr "Simpan"
@@ -1944,79 +1974,6 @@ msgstr "Hapus section homepage ini?"
 
 msgid "admin.news_portal.homepage_sections.delete_success"
 msgstr "Section homepage berhasil dihapus."
-
-#. admin.news_portal.ad_placements (Issue #638)
-msgid "admin.news_portal.ad_placements.title"
-msgstr "Penempatan Iklan"
-
-msgid "admin.news_portal.ad_placements.no_placements"
-msgstr "Belum ada penempatan iklan."
-
-msgid "admin.news_portal.ad_placements.preset_guide_summary"
-msgstr "Panduan preset penempatan"
-
-msgid "admin.news_portal.ad_placements.preset_recommended_size"
-msgstr "Ukuran yang disarankan"
-
-msgid "admin.news_portal.ad_placements.preset_max_items"
-msgstr "Maks item ditampilkan sekaligus"
-
-msgid "admin.news_portal.ad_placements.field_name"
-msgstr "Nama"
-
-msgid "admin.news_portal.ad_placements.field_placement_key"
-msgstr "Penempatan"
-
-msgid "admin.news_portal.ad_placements.field_media_object_id"
-msgstr "ID objek media"
-
-msgid "admin.news_portal.ad_placements.media_object_id_hint"
-msgstr "Harus berupa ID objek media R2 terverifikasi milik tenant ini."
-
-msgid "admin.news_portal.ad_placements.field_link_url"
-msgstr "URL tautan (opsional)"
-
-msgid "admin.news_portal.ad_placements.field_rotation_mode"
-msgstr "Mode rotasi"
-
-msgid "admin.news_portal.ad_placements.field_priority"
-msgstr "Prioritas"
-
-msgid "admin.news_portal.ad_placements.field_starts_at"
-msgstr "Mulai pada"
-
-msgid "admin.news_portal.ad_placements.field_ends_at"
-msgstr "Berakhir pada"
-
-msgid "admin.news_portal.ad_placements.field_active"
-msgstr "Aktif"
-
-msgid "admin.news_portal.ad_placements.save_button"
-msgstr "Simpan"
-
-msgid "admin.news_portal.ad_placements.delete_button"
-msgstr "Hapus penempatan"
-
-msgid "admin.news_portal.ad_placements.create_summary"
-msgstr "Tambah penempatan iklan"
-
-msgid "admin.news_portal.ad_placements.create_submit"
-msgstr "Buat penempatan"
-
-msgid "admin.news_portal.ad_placements.create_success"
-msgstr "Penempatan iklan berhasil dibuat."
-
-msgid "admin.news_portal.ad_placements.update_success"
-msgstr "Penempatan iklan berhasil diperbarui."
-
-msgid "admin.news_portal.ad_placements.delete_reason_prompt"
-msgstr "Alasan menghapus penempatan iklan ini:"
-
-msgid "admin.news_portal.ad_placements.delete_confirm"
-msgstr "Hapus penempatan iklan ini?"
-
-msgid "admin.news_portal.ad_placements.delete_success"
-msgstr "Penempatan iklan berhasil dihapus."
 
 #. admin.tenant_domain (Issue #563)
 msgid "admin.tenant_domain.title"
@@ -2429,10 +2386,6 @@ msgstr "Analitik Pengunjung"
 msgid "admin.layout.nav_news_portal_homepage_sections"
 msgstr "Section Homepage"
 
-#. admin.layout.nav_news_portal_ad_placements (Issue #638, epic: news_portal #631-#642/#649)
-msgid "admin.layout.nav_news_portal_ad_placements"
-msgstr "Penempatan Iklan"
-
 #. admin.analytics (Issue #622, epic: visitor analytics #617-#624) — dashboard /admin/analytics
 msgid "admin.analytics.heading"
 msgstr "Analitik Pengunjung"
@@ -2628,3 +2581,83 @@ msgstr "Tidak ada sesi aktif pada jendela waktu saat ini."
 
 msgid "admin.analytics.sessions_filtered_empty"
 msgstr "Tidak ada sesi yang cocok dengan filter yang dipilih."
+
+#. Issue #638 ad placements (recovered after merge conflict)
+msgid "admin.layout.nav_news_portal_ad_placements"
+msgstr "Penempatan Iklan"
+
+msgid "admin.news_portal.ad_placements.create_submit"
+msgstr "Buat penempatan"
+
+msgid "admin.news_portal.ad_placements.create_success"
+msgstr "Penempatan iklan berhasil dibuat."
+
+msgid "admin.news_portal.ad_placements.create_summary"
+msgstr "Tambah penempatan iklan"
+
+msgid "admin.news_portal.ad_placements.delete_button"
+msgstr "Hapus penempatan"
+
+msgid "admin.news_portal.ad_placements.delete_confirm"
+msgstr "Hapus penempatan iklan ini?"
+
+msgid "admin.news_portal.ad_placements.delete_reason_prompt"
+msgstr "Alasan menghapus penempatan iklan ini:"
+
+msgid "admin.news_portal.ad_placements.delete_success"
+msgstr "Penempatan iklan berhasil dihapus."
+
+msgid "admin.news_portal.ad_placements.field_active"
+msgstr "Aktif"
+
+msgid "admin.news_portal.ad_placements.field_ends_at"
+msgstr "Berakhir pada"
+
+msgid "admin.news_portal.ad_placements.field_link_url"
+msgstr "URL tautan (opsional)"
+
+msgid "admin.news_portal.ad_placements.field_media_object_id"
+msgstr "ID objek media"
+
+msgid "admin.news_portal.ad_placements.field_name"
+msgstr "Nama"
+
+msgid "admin.news_portal.ad_placements.field_placement_key"
+msgstr "Penempatan"
+
+msgid "admin.news_portal.ad_placements.field_priority"
+msgstr "Prioritas"
+
+msgid "admin.news_portal.ad_placements.field_rotation_mode"
+msgstr "Mode rotasi"
+
+msgid "admin.news_portal.ad_placements.field_starts_at"
+msgstr "Mulai pada"
+
+msgid "admin.news_portal.ad_placements.media_object_id_hint"
+msgstr "Harus berupa ID objek media R2 terverifikasi milik tenant ini."
+
+msgid "admin.news_portal.ad_placements.no_placements"
+msgstr "Belum ada penempatan iklan."
+
+msgid "admin.news_portal.ad_placements.preset_guide_summary"
+msgstr "Panduan preset penempatan"
+
+msgid "admin.news_portal.ad_placements.preset_max_items"
+msgstr "Maks item ditampilkan sekaligus"
+
+msgid "admin.news_portal.ad_placements.preset_recommended_size"
+msgstr "Ukuran yang disarankan"
+
+msgid "admin.news_portal.ad_placements.save_button"
+msgstr "Simpan"
+
+msgid "admin.news_portal.ad_placements.title"
+msgstr "Penempatan Iklan"
+
+msgid "admin.news_portal.ad_placements.update_success"
+msgstr "Penempatan iklan berhasil diperbarui."
+
+msgid "error.ad_placement_reference_invalid"
+msgstr "Iklan ini merujuk objek media yang tidak ada, bukan milik tenant ini, belum terverifikasi, atau bukan tipe gambar yang diizinkan untuk penempatan ini."
+

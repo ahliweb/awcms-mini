@@ -55,6 +55,9 @@ const CAN_CONFIGURE_THEME = context.permissions.has(
 const clientStrings = {
   settingsSaveSuccess: t("admin.blog.settings.save_success"),
   themeSaveSuccess: t("admin.blog.settings.theme_save_success"),
+  invalidChecklistPolicyJson: t(
+    "admin.blog.settings.invalid_checklist_policy_json"
+  ),
   networkError: t("common.network_error"),
   pleaseWait: t("common.please_wait"),
   errorMessages: buildClientErrorMessages(t)
@@ -204,6 +207,23 @@ if (CAN_READ_SETTINGS || CAN_READ_THEME) {
                   >
                     {settings.seoDefaultDescription ?? ""}
                   </textarea>
+                </label>
+                <label>
+                  {t("admin.blog.settings.field_checklist_policy")}
+                  <textarea
+                    name="contentQualityChecklistPolicy"
+                    rows="4"
+                    spellcheck="false"
+                  >
+                    {JSON.stringify(
+                      settings.contentQualityChecklistPolicy,
+                      null,
+                      2
+                    )}
+                  </textarea>
+                  <span class="field-hint">
+                    {t("admin.blog.settings.checklist_policy_hint")}
+                  </span>
                 </label>
               </fieldset>
               {CAN_CONFIGURE_SETTINGS && (
@@ -362,6 +382,7 @@ if (CAN_READ_SETTINGS || CAN_READ_THEME) {
   interface SettingsStrings {
     settingsSaveSuccess: string;
     themeSaveSuccess: string;
+    invalidChecklistPolicyJson: string;
     networkError: string;
     pleaseWait: string;
     errorMessages?: Record<string, string>;
@@ -378,10 +399,28 @@ if (CAN_READ_SETTINGS || CAN_READ_THEME) {
         'button[type="submit"]'
       );
       if (button?.disabled) return;
+
+      const formData = new FormData(form);
+      const checklistPolicyRaw = String(
+        formData.get("contentQualityChecklistPolicy") ?? ""
+      ).trim();
+      let contentQualityChecklistPolicy: unknown = {};
+      if (checklistPolicyRaw.length > 0) {
+        try {
+          contentQualityChecklistPolicy = JSON.parse(checklistPolicyRaw);
+        } catch {
+          showBanner(
+            "action-banner",
+            strings.invalidChecklistPolicyJson,
+            "error"
+          );
+          return;
+        }
+      }
+
       const unlock = button ? lockElement(button, strings.pleaseWait) : null;
 
       try {
-        const formData = new FormData(form);
         const result = await submitJson(
           "/api/v1/blog/settings",
           "PATCH",
@@ -397,7 +436,9 @@ if (CAN_READ_SETTINGS || CAN_READ_THEME) {
             seoDefaultTitle:
               String(formData.get("seoDefaultTitle") ?? "").trim() || null,
             seoDefaultDescription:
-              String(formData.get("seoDefaultDescription") ?? "").trim() || null
+              String(formData.get("seoDefaultDescription") ?? "").trim() ||
+              null,
+            contentQualityChecklistPolicy
           },
           strings
         );

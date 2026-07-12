@@ -107,7 +107,7 @@ paths:
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
         "422":
-          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and featuredMediaId or a contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object."
+          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636; extended by Issue #639 for a video_news block's thumbnailMediaObjectId) — full-online R2-only news portal mode is active for this tenant and featuredMediaId, a contentJson image gallery item, or a video_news block's thumbnailMediaObjectId does not reference an existing, same-tenant, verified/attached R2 media object."
           content:
             application/json:
               schema:
@@ -214,7 +214,7 @@ paths:
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
         "422":
-          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and a submitted featuredMediaId or contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object."
+          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636; extended by Issue #639 for a video_news block's thumbnailMediaObjectId) — full-online R2-only news portal mode is active for this tenant and a submitted featuredMediaId, contentJson image gallery item, or video_news block's thumbnailMediaObjectId does not reference an existing, same-tenant, verified/attached R2 media object."
           content:
             application/json:
               schema:
@@ -357,7 +357,7 @@ paths:
         - $ref: "#/components/parameters/RequestId"
       responses:
         "200":
-          description: Blog post moved to status "published".
+          description: 'Blog post moved to status "published". `data.qualityChecklist` (Issue #640) reports the content quality checklist result — `applicable: false` unless full-online R2-only news portal mode is active for this tenant.'
           content:
             application/json:
               schema:
@@ -379,6 +379,12 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           description: Idempotency-Key reused with a different request, or the post's current status cannot transition to "published".
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: "CONTENT_QUALITY_CHECKLIST_BLOCKED (Issue #640) — full-online R2-only news portal mode is active for this tenant and at least one blocking content quality checklist rule failed (e.g. unverified/unsafe featured image, local image path, arbitrary external image URL, unverified gallery image, unsafe HTML). `error.details` lists each failed rule as `{ field: ruleId, message }`."
           content:
             application/json:
               schema:
@@ -526,7 +532,7 @@ paths:
               $ref: "#/components/schemas/ScheduleBlogPostRequest"
       responses:
         "200":
-          description: Blog post moved to status "scheduled".
+          description: 'Blog post moved to status "scheduled". `data.qualityChecklist` (Issue #640) reports the content quality checklist result — `applicable: false` unless full-online R2-only news portal mode is active for this tenant.'
           content:
             application/json:
               schema:
@@ -554,6 +560,64 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          description: "CONTENT_QUALITY_CHECKLIST_BLOCKED (Issue #640) — full-online R2-only news portal mode is active for this tenant and at least one blocking content quality checklist rule failed. `error.details` lists each failed rule as `{ field: ruleId, message }`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/posts/{id}/quality-checklist:
+    get:
+      tags:
+        - Blog Posts
+      summary: Preview the content quality checklist for a blog post
+      operationId: blogPostsQualityChecklist
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Content quality checklist result (Issue #640) — the same evaluation `POST .../publish` and `POST .../schedule` run server-side, exposed read-only for the admin editor to preview before attempting either action."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - postId
+                          - qualityChecklist
+                        additionalProperties: false
+                        properties:
+                          postId:
+                            type: string
+                            format: uuid
+                          qualityChecklist:
+                            $ref: "#/components/schemas/ContentQualityChecklistResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/blog/posts/{id}/submit-review:
@@ -684,7 +748,7 @@ components:
           nullable: true
         contentJson:
           type: object
-          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url."
+          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url. A video_news block (Issue #639) requires an allowlisted provider (currently only youtube) and a valid videoId (normalized server-side from a bare id or common video URL); its optional thumbnailMediaObjectId, when full-online R2-only mode is active, must likewise reference a verified/attached same-tenant media object."
         contentText:
           type: string
         locale:
@@ -743,7 +807,7 @@ components:
           nullable: true
         contentJson:
           type: object
-          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url."
+          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url. A video_news block (Issue #639) requires an allowlisted provider (currently only youtube) and a valid videoId (normalized server-side from a bare id or common video URL); its optional thumbnailMediaObjectId, when full-online R2-only mode is active, must likewise reference a verified/attached same-tenant media object."
         contentText:
           type: string
         locale:

@@ -2112,7 +2112,7 @@ paths:
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
         "422":
-          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and featuredMediaId or a contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object."
+          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636; extended by Issue #639 for a video_news block's thumbnailMediaObjectId) — full-online R2-only news portal mode is active for this tenant and featuredMediaId, a contentJson image gallery item, or a video_news block's thumbnailMediaObjectId does not reference an existing, same-tenant, verified/attached R2 media object."
           content:
             application/json:
               schema:
@@ -2219,7 +2219,7 @@ paths:
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
         "422":
-          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and a submitted featuredMediaId or contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object."
+          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636; extended by Issue #639 for a video_news block's thumbnailMediaObjectId) — full-online R2-only news portal mode is active for this tenant and a submitted featuredMediaId, contentJson image gallery item, or video_news block's thumbnailMediaObjectId does not reference an existing, same-tenant, verified/attached R2 media object."
           content:
             application/json:
               schema:
@@ -2290,6 +2290,58 @@ paths:
           $ref: "#/components/responses/NotFound"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/pages/{id}/quality-checklist:
+    get:
+      tags:
+        - Blog Pages
+      summary: Preview the content quality checklist for a blog page
+      operationId: blogPagesQualityChecklist
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Content quality checklist result (Issue #640), read-only preview for the admin page editor. `taxonomy_exists` is always non-applicable for pages (no category/tag assignment table). There is currently no publish/schedule lifecycle endpoint for pages in this API, so nothing server-side currently blocks a page transition using this result — it is preview-only until such an endpoint exists."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - pageId
+                          - qualityChecklist
+                        additionalProperties: false
+                        properties:
+                          pageId:
+                            type: string
+                            format: uuid
+                          qualityChecklist:
+                            $ref: "#/components/schemas/ContentQualityChecklistResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/blog/posts:
@@ -2388,7 +2440,7 @@ paths:
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
         "422":
-          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and featuredMediaId or a contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object."
+          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636; extended by Issue #639 for a video_news block's thumbnailMediaObjectId) — full-online R2-only news portal mode is active for this tenant and featuredMediaId, a contentJson image gallery item, or a video_news block's thumbnailMediaObjectId does not reference an existing, same-tenant, verified/attached R2 media object."
           content:
             application/json:
               schema:
@@ -2495,7 +2547,7 @@ paths:
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
         "422":
-          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and a submitted featuredMediaId or contentJson image gallery item does not reference an existing, same-tenant, verified/attached R2 media object."
+          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636; extended by Issue #639 for a video_news block's thumbnailMediaObjectId) — full-online R2-only news portal mode is active for this tenant and a submitted featuredMediaId, contentJson image gallery item, or video_news block's thumbnailMediaObjectId does not reference an existing, same-tenant, verified/attached R2 media object."
           content:
             application/json:
               schema:
@@ -2638,7 +2690,7 @@ paths:
         - $ref: "#/components/parameters/RequestId"
       responses:
         "200":
-          description: Blog post moved to status "published".
+          description: 'Blog post moved to status "published". `data.qualityChecklist` (Issue #640) reports the content quality checklist result — `applicable: false` unless full-online R2-only news portal mode is active for this tenant.'
           content:
             application/json:
               schema:
@@ -2660,6 +2712,12 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           description: Idempotency-Key reused with a different request, or the post's current status cannot transition to "published".
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: "CONTENT_QUALITY_CHECKLIST_BLOCKED (Issue #640) — full-online R2-only news portal mode is active for this tenant and at least one blocking content quality checklist rule failed (e.g. unverified/unsafe featured image, local image path, arbitrary external image URL, unverified gallery image, unsafe HTML). `error.details` lists each failed rule as `{ field: ruleId, message }`."
           content:
             application/json:
               schema:
@@ -2725,6 +2783,58 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/blog/posts/{id}/quality-checklist:
+    get:
+      tags:
+        - Blog Posts
+      summary: Preview the content quality checklist for a blog post
+      operationId: blogPostsQualityChecklist
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Content quality checklist result (Issue #640) — the same evaluation `POST .../publish` and `POST .../schedule` run server-side, exposed read-only for the admin editor to preview before attempting either action."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - postId
+                          - qualityChecklist
+                        additionalProperties: false
+                        properties:
+                          postId:
+                            type: string
+                            format: uuid
+                          qualityChecklist:
+                            $ref: "#/components/schemas/ContentQualityChecklistResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/blog/posts/{id}/restore:
@@ -2947,7 +3057,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "422":
-          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636) — full-online R2-only news portal mode is active for this tenant and the revision's contentJson references image(s) that are not valid R2 media objects (e.g. a raw URL from before the mode was activated) — the revision cannot be restored onto the live post."
+          description: "NEWS_MEDIA_REFERENCE_INVALID (Issue #636; extended by Issue #639 for video_news thumbnails, and for an invalid video_news block provider/videoId) — full-online R2-only news portal mode is active for this tenant and the revision's contentJson references image(s)/video thumbnail(s) that are not valid R2 media objects (e.g. a raw URL from before the mode was activated), or contains an invalid video_news block — the revision cannot be restored onto the live post."
           content:
             application/json:
               schema:
@@ -2981,7 +3091,7 @@ paths:
               $ref: "#/components/schemas/ScheduleBlogPostRequest"
       responses:
         "200":
-          description: Blog post moved to status "scheduled".
+          description: 'Blog post moved to status "scheduled". `data.qualityChecklist` (Issue #640) reports the content quality checklist result — `applicable: false` unless full-online R2-only news portal mode is active for this tenant.'
           content:
             application/json:
               schema:
@@ -3009,6 +3119,12 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          description: "CONTENT_QUALITY_CHECKLIST_BLOCKED (Issue #640) — full-online R2-only news portal mode is active for this tenant and at least one blocking content quality checklist rule failed. `error.details` lists each failed rule as `{ field: ruleId, message }`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/blog/posts/{id}/submit-review:
@@ -9271,7 +9387,7 @@ components:
           nullable: true
         contentJson:
           type: object
-          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url."
+          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url. A video_news block (Issue #639) requires an allowlisted provider (currently only youtube) and a valid videoId (normalized server-side from a bare id or common video URL); its optional thumbnailMediaObjectId, when full-online R2-only mode is active, must likewise reference a verified/attached same-tenant media object."
         contentText:
           type: string
         status:
@@ -9471,7 +9587,7 @@ components:
           nullable: true
         contentJson:
           type: object
-          description: "Structured content (e.g. block/rich-text tree). Opaque to the API. When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url — a non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID."
+          description: "Structured content (e.g. block/rich-text tree). Opaque to the API. When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url — a non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID. A video_news block (Issue #639) requires an allowlisted provider (currently only youtube) and a valid videoId (normalized server-side); its optional thumbnailMediaObjectId is likewise verified when that mode is active."
         contentText:
           type: string
           description: Plain-text extraction of contentJson, used for search.
@@ -9547,6 +9663,8 @@ components:
             type: string
             format: uuid
           description: "Category/tag ids currently assigned to this post (Issue #539). Only present on responses from endpoints that compute it (create/update/get detail), not on the list endpoint."
+        qualityChecklist:
+          $ref: "#/components/schemas/ContentQualityChecklistResult"
     BlogPostListItem:
       type: object
       required:
@@ -9807,6 +9925,7 @@ components:
         - defaultVisibility
         - seoDefaultTitle
         - seoDefaultDescription
+        - contentQualityChecklistPolicy
         - updatedAt
       additionalProperties: false
       properties:
@@ -9840,6 +9959,8 @@ components:
         seoDefaultDescription:
           type: string
           nullable: true
+        contentQualityChecklistPolicy:
+          $ref: "#/components/schemas/ContentQualityChecklistPolicy"
         updatedAt:
           type: string
           format: date-time
@@ -10021,6 +10142,92 @@ components:
         updatedAt:
           type: string
           format: date-time
+    ContentQualityChecklistPolicy:
+      type: object
+      description: "Tenant override of the content quality checklist's (Issue #640) non-security rule severities. Keys are restricted to excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists — a security rule id (e.g. unsafe_html_rejected, no_local_image_path) is rejected with 400, never accepted here, in any environment."
+      additionalProperties:
+        type: string
+        enum:
+          - blocking
+          - warning
+          - info
+    ContentQualityChecklistResult:
+      type: object
+      description: "Content quality checklist result (Issue #640). `applicable` is false, and every list empty, when full-online R2-only news portal mode isn't active for this tenant (Issue #632/#636) — the checklist is then a no-op and publish/schedule behave exactly as before this issue."
+      required:
+        - applicable
+        - passed
+        - rules
+        - blockers
+        - warnings
+        - info
+      additionalProperties: false
+      properties:
+        applicable:
+          type: boolean
+        passed:
+          type: boolean
+          description: True unless at least one applicable blocking rule failed.
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContentQualityChecklistRuleOutcome"
+        blockers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContentQualityChecklistRuleOutcome"
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContentQualityChecklistRuleOutcome"
+        info:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContentQualityChecklistRuleOutcome"
+    ContentQualityChecklistRuleOutcome:
+      type: object
+      description: One content quality checklist rule's evaluation result (Issue
+      required:
+        - ruleId
+        - severity
+        - passed
+        - applicable
+        - message
+      additionalProperties: false
+      properties:
+        ruleId:
+          type: string
+          enum:
+            - title_present
+            - slug_valid
+            - excerpt_present
+            - meta_description_present
+            - featured_image_exists
+            - featured_image_verified_r2
+            - featured_image_alt_text
+            - featured_image_dimensions
+            - featured_image_mime_allowed
+            - featured_image_size_within_policy
+            - og_image_trusted
+            - no_local_image_path
+            - no_external_image_url
+            - gallery_images_verified
+            - taxonomy_exists
+            - unsafe_html_rejected
+            - scheduled_publish_time_valid
+        severity:
+          type: string
+          enum:
+            - blocking
+            - warning
+            - info
+        passed:
+          type: boolean
+        applicable:
+          type: boolean
+          description: false when this rule was skipped (e.g. no featured image set, or this isn't a scheduling request) — always reported as passed when not applicable.
+        message:
+          type: string
     CreateAuthProviderRequest:
       type: object
       required:
@@ -10079,7 +10286,7 @@ components:
           nullable: true
         contentJson:
           type: object
-          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url."
+          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url. A video_news block (Issue #639) requires an allowlisted provider (currently only youtube) and a valid videoId (normalized server-side from a bare id or common video URL); its optional thumbnailMediaObjectId, when full-online R2-only mode is active, must likewise reference a verified/attached same-tenant media object."
         contentText:
           type: string
         locale:
@@ -10141,7 +10348,7 @@ components:
           nullable: true
         contentJson:
           type: object
-          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url."
+          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url. A video_news block (Issue #639) requires an allowlisted provider (currently only youtube) and a valid videoId (normalized server-side from a bare id or common video URL); its optional thumbnailMediaObjectId, when full-online R2-only mode is active, must likewise reference a verified/attached same-tenant media object."
         contentText:
           type: string
         locale:
@@ -12879,7 +13086,7 @@ components:
           nullable: true
         contentJson:
           type: object
-          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url."
+          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url. A video_news block (Issue #639) requires an allowlisted provider (currently only youtube) and a valid videoId (normalized server-side from a bare id or common video URL); its optional thumbnailMediaObjectId, when full-online R2-only mode is active, must likewise reference a verified/attached same-tenant media object."
         contentText:
           type: string
         locale:
@@ -12936,7 +13143,7 @@ components:
           nullable: true
         contentJson:
           type: object
-          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url."
+          description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), an image gallery block item (mediaType image) must use mediaObjectId referencing a verified/attached same-tenant media object, never a raw url. A video_news block (Issue #639) requires an allowlisted provider (currently only youtube) and a valid videoId (normalized server-side from a bare id or common video URL); its optional thumbnailMediaObjectId, when full-online R2-only mode is active, must likewise reference a verified/attached same-tenant media object."
         contentText:
           type: string
         locale:
@@ -13005,6 +13212,8 @@ components:
           type: string
           maxLength: 300
           nullable: true
+        contentQualityChecklistPolicy:
+          $ref: "#/components/schemas/ContentQualityChecklistPolicy"
     UpdateBlogTermRequest:
       type: object
       additionalProperties: false

@@ -1,10 +1,17 @@
 import { escapeHtml } from "../../../lib/html/escape";
-import { collectGalleryImageReferences } from "./content-block-media-references";
+import {
+  collectGalleryImageReferences,
+  collectVideoNewsThumbnailReferences
+} from "./content-block-media-references";
 import {
   renderGalleryBlockHtml,
   type GalleryBlockItem,
   type ResolvedGalleryMediaUrls
 } from "../../_shared/rendering/gallery-block-renderer";
+import {
+  renderVideoNewsBlockHtml,
+  type VideoNewsBlockItem
+} from "../../_shared/rendering/video-news-block-renderer";
 
 /**
  * Safe, whitelist-based renderer for `content_json` (Issue #540 §Content
@@ -23,14 +30,16 @@ import {
  *
  * This is the first place in the repo that defines a concrete shape for
  * `content_json` (previously "opaque to the API", doc issue #537/#538) —
- * `{ blocks: ContentBlock[] }` with five block types (paragraph, heading,
- * list, quote, and gallery — the latter added by Issue #542 for public
- * image/video display, deliberately not a new media-library table since
- * there is no base media library to integrate with beyond a loose URL, see
+ * `{ blocks: ContentBlock[] }` with six block types: paragraph, heading,
+ * list, quote, gallery (Issue #542, public image/video display, deliberately
+ * not a new media-library table since there is no base media library to
+ * integrate with beyond a loose URL, see
  * `sql/029_awcms_mini_blog_content_presentation_schema.sql`'s header
- * comment). A derived app or later issue needing richer blocks (embed,
- * table, ...) extends the `switch` below, not a general raw-HTML escape
- * hatch.
+ * comment), and `video_news` (Issue #639 — a safe, provider-allowlisted
+ * video embed; never a raw stored `<iframe>`, see
+ * `_shared/rendering/video-news-block-renderer.ts`'s header). A derived app
+ * or later issue needing richer blocks (embed, table, ...) extends the
+ * `switch` below, not a general raw-HTML escape hatch.
  */
 /** Re-exported from `_shared/rendering/gallery-block-renderer.ts` (Issue #681) — kept under this file's established name (`GalleryItem`) for every existing importer, even though the actual gallery-item rendering logic now lives in neutral shared ground rather than here (see that file's header for why). */
 export type GalleryItem = GalleryBlockItem;
@@ -38,12 +47,16 @@ export type GalleryItem = GalleryBlockItem;
 /** `mediaObjectId -> public URL` for gallery items using the Issue #636 R2-only-mode reference shape — built by the caller (`resolveVerifiedNewsMediaReferences`) BEFORE rendering, since resolving a registry id requires a database round trip this renderer deliberately never performs itself (kept pure, same as every other function in this file). Re-exported from `_shared/rendering/gallery-block-renderer.ts` (Issue #681). */
 export type { ResolvedGalleryMediaUrls };
 
+/** Re-exported from `_shared/rendering/video-news-block-renderer.ts` (Issue #639) — the actual video-embed rendering logic lives in neutral shared ground (same reasoning as `GalleryItem`/`ResolvedGalleryMediaUrls` above), reusable by a future `news_portal` homepage `video_block` section without a domain-to-domain import. */
+export type VideoNewsItem = VideoNewsBlockItem;
+
 export type ContentBlock =
   | { type: "paragraph"; text: string }
   | { type: "heading"; level: 1 | 2 | 3 | 4 | 5 | 6; text: string }
   | { type: "list"; ordered?: boolean; items: string[] }
   | { type: "quote"; text: string }
-  | { type: "gallery"; items: GalleryItem[] };
+  | { type: "gallery"; items: GalleryItem[] }
+  | ({ type: "video_news" } & VideoNewsItem);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -120,6 +133,8 @@ function renderBlock(
       return renderQuote(block.text);
     case "gallery":
       return renderGalleryBlockHtml(block.items, resolvedMediaUrls);
+    case "video_news":
+      return renderVideoNewsBlockHtml(block, resolvedMediaUrls);
     default:
       return null;
   }
@@ -173,4 +188,18 @@ export function collectRenderableGalleryMediaObjectIds(
   contentJson: Record<string, unknown>
 ): string[] {
   return collectGalleryImageReferences(contentJson).mediaObjectIds;
+}
+
+/**
+ * Same reasoning as `collectRenderableGalleryMediaObjectIds` above, for
+ * `video_news` blocks' `thumbnailMediaObjectId` (Issue #639). The returned
+ * ids share the SAME news-media-registry id space as gallery/featured
+ * image ids — a caller resolves both in one bulk lookup and passes the
+ * combined map as `renderContentJsonToHtml`'s single `resolvedMediaUrls`
+ * parameter (no separate parameter needed for video thumbnails).
+ */
+export function collectRenderableVideoNewsThumbnailMediaObjectIds(
+  contentJson: Record<string, unknown>
+): string[] {
+  return collectVideoNewsThumbnailReferences(contentJson).mediaObjectIds;
 }

@@ -12,8 +12,10 @@ import { log } from "../../../lib/logging/logger";
 import { fetchPublicBlogPostBySlug } from "../../../modules/blog-content/application/public-blog-directory";
 import { isLegacyTenantRouteEnabled } from "../../../modules/blog-content/application/public-route-settings";
 import { newsMediaPortAdapter } from "../../../modules/news-portal/application/news-media-port-adapter";
+import { resolveNewsShareConfig } from "../../../modules/news-portal/domain/news-share-config";
 import {
   collectRenderableGalleryMediaObjectIds,
+  collectRenderableVideoNewsThumbnailMediaObjectIds,
   renderContentJsonToHtml
 } from "../../../modules/blog-content/domain/content-block-rendering";
 import {
@@ -23,6 +25,9 @@ import {
   resolveSeoTitle
 } from "../../../modules/blog-content/domain/seo-rendering";
 import { renderPublicPageShell } from "../../../modules/blog-content/domain/public-page-rendering";
+import { renderSocialShareButtonsHtml } from "../../../modules/blog-content/domain/social-share-links";
+
+const NEWS_SHARE_CLIENT_SCRIPT_SRC = "/js/news-share.js";
 
 /**
  * `GET /blog/{tenantCode}/{slug}` (Issue #540) — public post detail.
@@ -68,13 +73,20 @@ export const GET: APIRoute = async ({ params, url }) => {
       // Issue #636 — see `/news/[slug].ts`'s identical comment: bulk-resolve
       // every referenced mediaObjectId (featured image + gallery) to
       // verified R2 media metadata in one lookup, feed both the gallery
-      // renderer and the og:image tags from it.
+      // renderer and the og:image tags from it. Issue #639 adds
+      // `video_news` blocks' optional thumbnail ids to the same lookup.
       const galleryMediaObjectIds = collectRenderableGalleryMediaObjectIds(
         post.contentJson
       );
+      const videoThumbnailMediaObjectIds =
+        collectRenderableVideoNewsThumbnailMediaObjectIds(post.contentJson);
       const referencedMediaObjectIds = post.featuredMediaId
-        ? [post.featuredMediaId, ...galleryMediaObjectIds]
-        : galleryMediaObjectIds;
+        ? [
+            post.featuredMediaId,
+            ...galleryMediaObjectIds,
+            ...videoThumbnailMediaObjectIds
+          ]
+        : [...galleryMediaObjectIds, ...videoThumbnailMediaObjectIds];
       const resolvedMedia = await newsMediaPortAdapter.resolveMediaReferences(
         tx,
         tenant.tenantId,
@@ -92,11 +104,23 @@ export const GET: APIRoute = async ({ params, url }) => {
         resolvedGalleryUrls
       );
 
+      // Issue #642 — see `/news/[slug].ts`'s identical comment: share
+      // buttons only for this already-gated public/published post, built
+      // from the resolved canonical URL only.
+      const shareButtonsHtml = canonicalUrl
+        ? renderSocialShareButtonsHtml(
+            { canonicalUrl, title: seoTitle, excerpt: metaDescription },
+            resolveNewsShareConfig(),
+            NEWS_SHARE_CLIENT_SCRIPT_SRC
+          )
+        : "";
+
       const bodyHtml = `<article>
   <h1>${escapeHtml(post.title)}</h1>
   <p><time datetime="${post.publishedAt.toISOString()}">${escapeHtml(post.publishedAt.toDateString())}</time></p>
   ${contentHtml}
 </article>
+${shareButtonsHtml}
 <p><a href="/blog/${escapeHtml(tenantCode)}">Back to blog</a></p>`;
 
       const html = renderPublicPageShell({
@@ -106,7 +130,8 @@ export const GET: APIRoute = async ({ params, url }) => {
         bodyHtml,
         locale: post.locale,
         ogImageUrl: resolveOgImageUrl(featuredMedia?.publicUrl ?? null),
-        ogImageAlt: featuredMedia?.altText ?? null
+        ogImageAlt: featuredMedia?.altText ?? null,
+        siteName: tenant.tenantName
       });
 
       return new Response(html, {

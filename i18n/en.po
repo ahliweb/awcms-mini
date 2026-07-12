@@ -243,8 +243,8 @@ msgstr "This section references content that does not exist, does not belong to 
 msgid "error.homepage_section_key_conflict"
 msgstr "That section key is already in use."
 
-msgid "error.ad_placement_reference_invalid"
-msgstr "This ad placement references a media object that does not exist, does not belong to this tenant, is not verified yet, or is not an allowed image type for this placement."
+msgid "error.content_quality_checklist_blocked"
+msgstr "Publishing is blocked by the content quality checklist. Fix the listed issues and try again."
 
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"
@@ -1166,7 +1166,7 @@ msgid "admin.blog.posts.field_content_json"
 msgstr "Content blocks (JSON)"
 
 msgid "admin.blog.posts.content_json_hint"
-msgstr "Structured content as { \"blocks\": [...] } — paragraph, heading, list, quote, and gallery blocks only. Leave as an empty blocks array if unsure."
+msgstr "Structured content as { \"blocks\": [...] } — paragraph, heading, list, quote, gallery, and video_news blocks only. Leave as an empty blocks array if unsure."
 
 msgid "admin.blog.posts.field_visibility"
 msgstr "Visibility"
@@ -1287,6 +1287,27 @@ msgstr "Permanently delete this post? This cannot be undone."
 
 msgid "admin.blog.posts.purge_success"
 msgstr "Post permanently deleted."
+
+msgid "admin.blog.posts.quality_checklist_title"
+msgstr "Content quality checklist"
+
+msgid "admin.blog.posts.quality_checklist_not_applicable"
+msgstr "Not applicable — full-online R2-only news portal mode is not active for this tenant."
+
+msgid "admin.blog.posts.quality_checklist_passed"
+msgstr "All checks passed."
+
+msgid "admin.blog.posts.quality_checklist_blocking_label"
+msgstr "Blocking"
+
+msgid "admin.blog.posts.quality_checklist_warning_label"
+msgstr "Warning"
+
+msgid "admin.blog.posts.quality_checklist_info_label"
+msgstr "Info"
+
+msgid "admin.blog.posts.quality_checklist_load_error"
+msgstr "Could not load the content quality checklist."
 
 msgid "admin.blog.posts.revisions_title"
 msgstr "Revision history"
@@ -1575,6 +1596,15 @@ msgstr "Default SEO title template"
 
 msgid "admin.blog.settings.field_seo_default_description"
 msgstr "Default meta description"
+
+msgid "admin.blog.settings.field_checklist_policy"
+msgstr "Content quality checklist policy (JSON)"
+
+msgid "admin.blog.settings.checklist_policy_hint"
+msgstr "Maps excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists to blocking, warning, or info. Security rules cannot be overridden here."
+
+msgid "admin.blog.settings.invalid_checklist_policy_json"
+msgstr "Content quality checklist policy must be valid JSON."
 
 msgid "admin.blog.settings.save_button"
 msgstr "Save"
@@ -1945,79 +1975,6 @@ msgstr "Delete this homepage section?"
 
 msgid "admin.news_portal.homepage_sections.delete_success"
 msgstr "Homepage section deleted."
-
-#. admin.news_portal.ad_placements (Issue #638)
-msgid "admin.news_portal.ad_placements.title"
-msgstr "Ad Placements"
-
-msgid "admin.news_portal.ad_placements.no_placements"
-msgstr "No ad placements yet."
-
-msgid "admin.news_portal.ad_placements.preset_guide_summary"
-msgstr "Placement preset guide"
-
-msgid "admin.news_portal.ad_placements.preset_recommended_size"
-msgstr "Recommended size"
-
-msgid "admin.news_portal.ad_placements.preset_max_items"
-msgstr "Max items shown at once"
-
-msgid "admin.news_portal.ad_placements.field_name"
-msgstr "Name"
-
-msgid "admin.news_portal.ad_placements.field_placement_key"
-msgstr "Placement"
-
-msgid "admin.news_portal.ad_placements.field_media_object_id"
-msgstr "Media object ID"
-
-msgid "admin.news_portal.ad_placements.media_object_id_hint"
-msgstr "Must be the ID of a verified R2 media object belonging to this tenant."
-
-msgid "admin.news_portal.ad_placements.field_link_url"
-msgstr "Link URL (optional)"
-
-msgid "admin.news_portal.ad_placements.field_rotation_mode"
-msgstr "Rotation mode"
-
-msgid "admin.news_portal.ad_placements.field_priority"
-msgstr "Priority"
-
-msgid "admin.news_portal.ad_placements.field_starts_at"
-msgstr "Starts at"
-
-msgid "admin.news_portal.ad_placements.field_ends_at"
-msgstr "Ends at"
-
-msgid "admin.news_portal.ad_placements.field_active"
-msgstr "Active"
-
-msgid "admin.news_portal.ad_placements.save_button"
-msgstr "Save"
-
-msgid "admin.news_portal.ad_placements.delete_button"
-msgstr "Delete placement"
-
-msgid "admin.news_portal.ad_placements.create_summary"
-msgstr "Add ad placement"
-
-msgid "admin.news_portal.ad_placements.create_submit"
-msgstr "Create placement"
-
-msgid "admin.news_portal.ad_placements.create_success"
-msgstr "Ad placement created."
-
-msgid "admin.news_portal.ad_placements.update_success"
-msgstr "Ad placement updated."
-
-msgid "admin.news_portal.ad_placements.delete_reason_prompt"
-msgstr "Reason for deleting this ad placement:"
-
-msgid "admin.news_portal.ad_placements.delete_confirm"
-msgstr "Delete this ad placement?"
-
-msgid "admin.news_portal.ad_placements.delete_success"
-msgstr "Ad placement deleted."
 
 #. admin.tenant_domain (Issue #563)
 msgid "admin.tenant_domain.title"
@@ -2430,10 +2387,6 @@ msgstr "Visitor Analytics"
 msgid "admin.layout.nav_news_portal_homepage_sections"
 msgstr "Homepage Sections"
 
-#. admin.layout.nav_news_portal_ad_placements (Issue #638, epic: news_portal #631-#642/#649)
-msgid "admin.layout.nav_news_portal_ad_placements"
-msgstr "Ad Placements"
-
 #. admin.analytics (Issue #622, epic: visitor analytics #617-#624) — /admin/analytics dashboard
 msgid "admin.analytics.heading"
 msgstr "Visitor Analytics"
@@ -2629,3 +2582,83 @@ msgstr "No active sessions in the current window."
 
 msgid "admin.analytics.sessions_filtered_empty"
 msgstr "No sessions match the selected filters."
+
+#. Issue #638 ad placements (recovered after merge conflict)
+msgid "admin.layout.nav_news_portal_ad_placements"
+msgstr "Ad Placements"
+
+msgid "admin.news_portal.ad_placements.create_submit"
+msgstr "Create placement"
+
+msgid "admin.news_portal.ad_placements.create_success"
+msgstr "Ad placement created."
+
+msgid "admin.news_portal.ad_placements.create_summary"
+msgstr "Add ad placement"
+
+msgid "admin.news_portal.ad_placements.delete_button"
+msgstr "Delete placement"
+
+msgid "admin.news_portal.ad_placements.delete_confirm"
+msgstr "Delete this ad placement?"
+
+msgid "admin.news_portal.ad_placements.delete_reason_prompt"
+msgstr "Reason for deleting this ad placement:"
+
+msgid "admin.news_portal.ad_placements.delete_success"
+msgstr "Ad placement deleted."
+
+msgid "admin.news_portal.ad_placements.field_active"
+msgstr "Active"
+
+msgid "admin.news_portal.ad_placements.field_ends_at"
+msgstr "Ends at"
+
+msgid "admin.news_portal.ad_placements.field_link_url"
+msgstr "Link URL (optional)"
+
+msgid "admin.news_portal.ad_placements.field_media_object_id"
+msgstr "Media object ID"
+
+msgid "admin.news_portal.ad_placements.field_name"
+msgstr "Name"
+
+msgid "admin.news_portal.ad_placements.field_placement_key"
+msgstr "Placement"
+
+msgid "admin.news_portal.ad_placements.field_priority"
+msgstr "Priority"
+
+msgid "admin.news_portal.ad_placements.field_rotation_mode"
+msgstr "Rotation mode"
+
+msgid "admin.news_portal.ad_placements.field_starts_at"
+msgstr "Starts at"
+
+msgid "admin.news_portal.ad_placements.media_object_id_hint"
+msgstr "Must be the ID of a verified R2 media object belonging to this tenant."
+
+msgid "admin.news_portal.ad_placements.no_placements"
+msgstr "No ad placements yet."
+
+msgid "admin.news_portal.ad_placements.preset_guide_summary"
+msgstr "Placement preset guide"
+
+msgid "admin.news_portal.ad_placements.preset_max_items"
+msgstr "Max items shown at once"
+
+msgid "admin.news_portal.ad_placements.preset_recommended_size"
+msgstr "Recommended size"
+
+msgid "admin.news_portal.ad_placements.save_button"
+msgstr "Save"
+
+msgid "admin.news_portal.ad_placements.title"
+msgstr "Ad Placements"
+
+msgid "admin.news_portal.ad_placements.update_success"
+msgstr "Ad placement updated."
+
+msgid "error.ad_placement_reference_invalid"
+msgstr "This ad placement references a media object that does not exist, does not belong to this tenant, is not verified yet, or is not an allowed image type for this placement."
+

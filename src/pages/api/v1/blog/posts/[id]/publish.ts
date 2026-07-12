@@ -24,6 +24,13 @@ import {
   transitionBlogPostStatus
 } from "../../../../../../modules/blog-content/application/blog-post-directory";
 import { isValidStatusTransition } from "../../../../../../modules/blog-content/domain/post-status";
+import { fetchPostTermIds } from "../../../../../../modules/blog-content/application/blog-taxonomy-directory";
+import { fetchBlogSettings } from "../../../../../../modules/blog-content/application/blog-settings-directory";
+import {
+  checklistBlockersToErrorDetails,
+  evaluateContentQualityChecklistForContent
+} from "../../../../../../modules/blog-content/application/content-quality-checklist-gate";
+import { newsMediaPortAdapter } from "../../../../../../modules/news-portal/application/news-media-port-adapter";
 
 const PUBLISH_GUARD = {
   moduleKey: "blog_content",
@@ -121,6 +128,47 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
       );
     }
 
+    // Issue #640: content quality checklist — server-side gate BEFORE the
+    // publish state transition, never relying on a client-side check alone.
+    // A no-op (`applicable: false`) when full-online R2-only mode isn't
+    // active for this tenant, same mode-gating precedent Issue #636 set.
+    const termIds = await fetchPostTermIds(tx, tenantId, postId);
+    const blogSettings = await fetchBlogSettings(tx, tenantId);
+    const checklist = await evaluateContentQualityChecklistForContent(
+      tx,
+      tenantId,
+      "post",
+      post,
+      termIds.length,
+      newsMediaPortAdapter,
+      blogSettings.contentQualityChecklistPolicy
+    );
+
+    if (!checklist.passed) {
+      await recordAuditEvent(tx, {
+        tenantId,
+        actorTenantUserId: auth.context.tenantUserId,
+        moduleKey: "blog_content",
+        action: "blog.post.publish_blocked_by_checklist",
+        resourceType: "blog_post",
+        resourceId: postId,
+        severity: "warning",
+        message: `Blog post publish blocked by content quality checklist: ${post.slug}.`,
+        attributes: {
+          blockedRuleIds: checklist.blockers.map((blocker) => blocker.ruleId)
+        },
+        correlationId
+      });
+
+      return fail(
+        422,
+        "CONTENT_QUALITY_CHECKLIST_BLOCKED",
+        "Publish is blocked by the content quality checklist.",
+        {},
+        checklistBlockersToErrorDetails(checklist)
+      );
+    }
+
     const updated = await transitionBlogPostStatus(
       tx,
       tenantId,
@@ -152,7 +200,7 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
       slug: updated.slug
     });
 
-    const successResponse = ok(updated);
+    const successResponse = ok({ ...updated, qualityChecklist: checklist });
     const successBody = await successResponse.clone().json();
 
     await saveIdempotencyRecord(

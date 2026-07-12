@@ -72,6 +72,17 @@ export default defineConfig({
   // default script-src sources, so `'self'` must be repeated here
   // explicitly to keep every same-origin bundled script Astro itself emits
   // working.
+  //
+  // `video_news` content block (Issue #639, epic `news_portal`) —
+  // `frame-src` additionally allows `https://www.youtube-nocookie.com`,
+  // YouTube's privacy-enhanced embed domain, matching the exact origin
+  // `_shared/rendering/video-news-block-renderer.ts` builds its `<iframe
+  // src>` from (the ONLY provider allowlisted today, `blog-content/domain/
+  // video-news-block-validation.ts`'s `VIDEO_NEWS_PROVIDERS`). Same
+  // "narrow, specific, inert unless actually rendered" reasoning as the
+  // Turnstile origin above — a public post's `video_news` block only ever
+  // emits this iframe when one is actually present in its (write-time
+  // validated) `contentJson`.
   security: {
     csp: {
       directives: [
@@ -80,7 +91,7 @@ export default defineConfig({
         "base-uri 'none'",
         "form-action 'self'",
         "frame-ancestors 'none'",
-        "frame-src 'self' https://challenges.cloudflare.com"
+        "frame-src 'self' https://challenges.cloudflare.com https://www.youtube-nocookie.com"
       ],
       scriptDirective: {
         hashes: [THEME_INIT_SCRIPT_HASH],
