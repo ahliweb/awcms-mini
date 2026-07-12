@@ -1595,7 +1595,7 @@ daftar file lengkap kalau butuh contoh call-site persis.
 ## §638 — R2-only advertisement placement presets (Selesai)
 
 Implementasi lengkap: migration
-`sql/048_awcms_mini_news_portal_ad_placements_schema.sql` (tabel BARU
+`sql/049_awcms_mini_news_portal_ad_placements_schema.sql` (tabel BARU
 `awcms_mini_news_portal_ad_placements`, RLS ENABLE+FORCE), domain
 `news-portal/domain/ad-placement-policy.ts` (whitelist dua belas
 `placementKey` persis dari body issue + preset metadata statis
@@ -1751,7 +1751,7 @@ Berbeda dari `owner_resource_id` polymorphic (§633, sengaja tanpa FK),
 `media_object_id` di tabel ini adalah FK nyata ke
 `awcms_mini_news_media_objects` — pilihan sah karena tabel ini hidup DI
 DALAM modul yang sama dengan registry-nya. Konsekuensi didokumentasikan di
-header migration 048: `purgeNewsMediaObject` (hard DELETE, sudah ada sejak
+header migration 049: `purgeNewsMediaObject` (hard DELETE, sudah ada sejak
 #633, TAPI belum ada route yang memanggilnya sampai hari ini — diverifikasi
 `src/pages/api/v1/media/news-images/` hanya berisi create/finalize/cancel
 upload session) akan gagal dengan Postgres FK-violation mentah, bukan
@@ -1777,7 +1777,7 @@ tabel ini, jadi rendering TIDAK BISA jadi kanal XSS apa pun isi request-nya
 
 ### File yang dibuat/diubah (referensi cepat)
 
-- `sql/048_awcms_mini_news_portal_ad_placements_schema.sql` (baru).
+- `sql/049_awcms_mini_news_portal_ad_placements_schema.sql` (baru).
 - `src/modules/news-portal/domain/ad-placement-policy.ts`,
   `domain/ad-placement-rotation.ts` (keduanya baru).
 - `src/modules/news-portal/application/ad-placement-directory.ts`,
@@ -1805,7 +1805,7 @@ tabel ini, jadi rendering TIDAK BISA jadi kanal XSS apa pun isi request-nya
   rendering publik hanya emit public URL registry, ad
   inactive/future/expired/placement-lain dikecualikan, media yang
   soft-delete setelah placement dibuat dikecualikan, rotasi memotong ke
-  `maxItems`); diperbarui: `tests/foundation.test.ts` (migration list 048),
+  `maxItems`); diperbarui: `tests/foundation.test.ts` (migration list 049),
   `tests/modules/news-portal-module.test.ts` (navigation dua entri,
   permission pair `ad_placements` baru).
 - Changeset: `.changeset/news-portal-ad-placements-issue-638.md`.

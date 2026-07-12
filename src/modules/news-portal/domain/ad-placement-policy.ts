@@ -8,7 +8,7 @@
  * registry from Issue #633 — see `../application/ad-placement-reference-
  * validation.ts`), never a client-supplied image URL, so R2-only-ness holds
  * by construction rather than by a runtime mode gate (see migration
- * `048_awcms_mini_news_portal_ad_placements_schema.sql`'s header comment
+ * `049_awcms_mini_news_portal_ad_placements_schema.sql`'s header comment
  * for the full "why a new table, not a mode-gated extension of
  * `awcms_mini_blog_ads`" reasoning).
  *
@@ -101,7 +101,7 @@ export type AdPlacementPreset = {
   allowedMediaTypes: readonly string[];
   /**
    * Cap applied at RENDER-selection time only (`ad-placement-rotation.ts`'s
-   * `selectAdsForRotation`) — see migration 048's header comment for why
+   * `selectAdsForRotation`) — see migration 049's header comment for why
    * this is not a write-time limit on configured row count.
    */
   maxItems: number;
