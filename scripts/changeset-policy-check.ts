@@ -45,7 +45,14 @@ export type ChangesetFrontmatterResult = {
 /** Any path fully matching one of these is exempt from the changeset requirement. */
 const EXEMPT_PATH_PATTERNS: RegExp[] = [
   /^docs\//,
-  /^\.claude\//,
+  // Security-auditor Medium finding on PR #715: `/^\.claude\//` alone
+  // exempted the ENTIRE `.claude/` tree, not just the markdown skill/agent
+  // docs living under it — nothing non-`.md` lives there today, but a
+  // future PR adding a real hook script/settings file/MCP config under
+  // `.claude/` would silently bypass the changeset requirement even
+  // though it isn't docs, reintroducing the exact gap this issue closes.
+  // Narrowed to only the `.md` files this exemption was actually meant for.
+  /^\.claude\/.*\.md$/,
   /^\.changeset\//,
   /\.md$/
 ];

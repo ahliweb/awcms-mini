@@ -88,7 +88,20 @@ jobs:
       - name: "Guard: release tag must be an ancestor of origin/main"
         if: github.event_name == 'push'
         run: |
-          git fetch origin main --depth=1
+          # NOT --depth=1: security-auditor finding on PR #715 — a shallow
+          # fetch of only main's tip gives `merge-base --is-ancestor` no
+          # parent chain to walk, so it spuriously rejects a perfectly valid
+          # release tagged from a commit main has since moved past (a
+          # routine timing case: merge PR, CI runs, a second PR merges
+          # before the release is tagged). Reproduced locally: this failed
+          # closed (denied a legitimate release) rather than open, but a
+          # false rejection under release-deadline pressure predictably
+          # leads to maintainers disabling the guard entirely — a real
+          # regression. Full history costs more transfer but this job
+          # already fetches full history for the tag ref itself
+          # (`fetch-depth: 0` above), so the marginal cost of an unbounded
+          # fetch here is small in exchange for a guard that actually works.
+          git fetch origin main
           if ! git merge-base --is-ancestor HEAD origin/main; then
             echo "::error::Tag ${{ github.ref_name }} (commit ${{ github.sha }}) is not part of origin/main's history. Refusing to release from an unmerged or foreign commit."
             exit 1
@@ -151,25 +164,26 @@ jobs:
           echo "is_dry_run=$IS_DRY_RUN" >> "$GITHUB_OUTPUT"
           echo "Release version=$VERSION image_tag=$IMAGE_TAG is_dry_run=$IS_DRY_RUN"
 
-  build-sign-publish:
-    name: Build image, SBOM, sign, attest, publish
+  # Split from the signing/attestation/publish job on purpose (security-
+  # auditor High finding on PR #715): `id-token: write` is a JOB-scoped
+  # grant in GitHub Actions — every step in a job that holds it can mint
+  # its own OIDC token, not just the step that's "supposed to" use it. This
+  # job never carries `id-token`/`attestations` permissions, so even a
+  # supply-chain-compromised third-party action running here (`anchore/
+  # sbom-action`) has no OIDC/attestation credential to abuse — it can at
+  # worst push an unsigned, unattested image, which the next job's
+  # digest-pinned signing step would then just sign the (correct,
+  # already-built) digest of, not anything the SBOM step could swap in
+  # after the fact.
+  build:
+    name: Build image + generate SBOMs
     needs: validate
     runs-on: ubuntu-latest
-    # Gated by the "release" GitHub Environment — a repo admin must create
-    # it (Settings → Environments → New environment → name "release") and
-    # add required reviewers for this to actually pause for approval; until
-    # then referencing it here is harmless (GitHub auto-creates an
-    # unprotected environment record on first use). See
-    # docs/awcms-mini/release-process.md §Environment approval for the
-    # exact manual step — deliberately not applied by this workflow itself
-    # (repo-admin, shared-state change, same reasoning as
-    # docs/awcms-mini/branch-protection.md).
-    environment: release
     permissions:
-      contents: write # gh release create (real releases only; no-op path for rehearsal)
-      packages: write # push image + attestations to ghcr.io
-      id-token: write # keyless OIDC for cosign + attest-* actions
-      attestations: write # actions/attest-build-provenance, actions/attest-sbom
+      contents: read
+      packages: write # push the image to ghcr.io — this job's only privilege
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
@@ -246,6 +260,64 @@ jobs:
             > CHECKSUMS.txt
           cat CHECKSUMS.txt
 
+      # Handed off to the sign-attest-publish job below via workflow
+      # artifact — that job never checks out third-party actions, so it
+      # can safely hold id-token/attestations without a supply-chain step
+      # ever running alongside those credentials.
+      - name: Upload build artifacts for the sign/attest/publish job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-build-${{ needs.validate.outputs.image_tag }}
+          path: |
+            CHECKSUMS.txt
+            sbom-source.cdx.json
+            sbom-image.cdx.json
+            awcms-mini-${{ needs.validate.outputs.version }}-source.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  sign-attest-publish:
+    name: Sign image, attest provenance, publish
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    # Gated by the "release" GitHub Environment — a repo admin must create
+    # it (Settings → Environments → New environment → name "release") and
+    # add required reviewers for this to actually pause for approval; until
+    # then referencing it here is harmless (GitHub auto-creates an
+    # unprotected environment record on first use). See
+    # docs/awcms-mini/release-process.md §Environment approval for the
+    # exact manual step — deliberately not applied by this workflow itself
+    # (repo-admin, shared-state change, same reasoning as
+    # docs/awcms-mini/branch-protection.md).
+    environment: release
+    permissions:
+      contents: write # gh release create (real releases only; no-op path for rehearsal — see M-4 note below on why this isn't narrowed further)
+      packages: write # push the signature/attestation OCI artifacts to ghcr.io
+      id-token: write # keyless OIDC for cosign + attest-* actions
+      attestations: write # actions/attest-build-provenance, actions/attest-sbom
+    # `contents: write` stays granted on the rehearsal (workflow_dispatch)
+    # path too, even though `gh release create` below is skipped there —
+    # GitHub Actions `permissions:` blocks are static per job (no `${{ }}`
+    # expressions allowed), so shrinking this specifically for the
+    # rehearsal trigger would require duplicating this entire job. Judged
+    # not worth the duplication for an unused-but-unexploitable grant
+    # (security-auditor Low finding on PR #715); the step itself stays
+    # gated below regardless.
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: release-build-${{ needs.validate.outputs.image_tag }}
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Install cosign
         uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
 
@@ -254,7 +326,7 @@ jobs:
       # Rekor transparency-log entry are all publicly verifiable; no signing
       # key is generated, stored, or handled by this workflow at any point.
       - name: Sign the production image (keyless OIDC)
-        run: cosign sign --yes "${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}"
+        run: cosign sign --yes "${{ env.IMAGE_NAME }}@${{ needs.build.outputs.digest }}"
 
       # SLSA-compatible build provenance for the image digest (issue scope:
       # "Generate ... GitHub artifact attestations/SLSA-compatible
@@ -266,14 +338,14 @@ jobs:
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
           subject-name: ${{ env.IMAGE_NAME }}
-          subject-digest: ${{ steps.build.outputs.digest }}
+          subject-digest: ${{ needs.build.outputs.digest }}
           push-to-registry: true
 
       - name: Attest SBOM — image
         uses: actions/attest-sbom@bd218ad0dbcb3e146bd073d1d9c6d78e08aa8a0b # v2.4.0
         with:
           subject-name: ${{ env.IMAGE_NAME }}
-          subject-digest: ${{ steps.build.outputs.digest }}
+          subject-digest: ${{ needs.build.outputs.digest }}
           sbom-path: sbom-image.cdx.json
           push-to-registry: true
 

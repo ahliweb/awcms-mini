@@ -29,13 +29,19 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
-          # The default single-commit checkout is enough to diff the PR's
-          # own changes (see below), but `origin/main`'s tip is not fetched
-          # by default — fetched explicitly next.
-          fetch-depth: 1
+          # Full history, not a shallow checkout (reviewer Critical finding
+          # on PR #715, confirmed live via this PR's own first CI run): the
+          # policy check below diffs `origin/main...HEAD` (triple-dot,
+          # requires a computable merge-base). A depth-1 checkout plus a
+          # depth-1 fetch of main's tip gives git no shared history to find
+          # a merge-base from, so the diff fails with "no merge base" (exit
+          # 128) for any branch that isn't a trivial fast-forward of main's
+          # exact tip — i.e. effectively every real feature branch. See the
+          # matching fix/comment on release.yml's ancestor guard.
+          fetch-depth: 0
 
       - name: Fetch base branch tip for diffing
-        run: git fetch origin main --depth=1
+        run: git fetch origin main
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2

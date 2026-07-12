@@ -21,11 +21,17 @@ flowchart TD
   Version --> Commit[chore release: vX.Y.Z]
   Commit --> Tag[git tag vX.Y.Z + push]
   Tag --> Validate[release.yml: validate job<br/>ancestor-of-main guard,<br/>release:verify, full check]
-  Validate --> Approve{release environment<br/>approval}
-  Approve -- approved --> Build[Build image, SBOM x2,<br/>checksums, cosign sign,<br/>attest provenance + SBOM]
-  Build --> Publish[Push ghcr.io image + attestations<br/>+ GitHub Release with assets]
-  Dispatch[workflow_dispatch<br/>rehearsal, any branch] --> Approve
+  Dispatch[workflow_dispatch<br/>rehearsal, any branch] --> Validate
+  Validate --> BuildJob[build job: image + SBOM x2<br/>+ checksums, no signing creds]
+  BuildJob --> Approve{release environment<br/>approval}
+  Approve -- approved --> SignJob[sign-attest-publish job:<br/>cosign sign, attest<br/>provenance + SBOM]
+  SignJob --> Publish[Push ghcr.io attestations<br/>+ GitHub Release with assets<br/>real release only]
 ```
+
+Both triggers run the exact same `validate` job — the rehearsal path is
+not a shortcut around the quality gate, only around the tag-ancestor
+guard and `release:verify` (both explicitly `if: github.event_name ==
+'push'`; `bun run check` itself always runs).
 
 ## 1. PR-time gate: `changesets.yml`
 
@@ -79,16 +85,23 @@ Two entry points, both converging on the same job graph:
    `scripts/release-verify.ts`) — confirms the pushed tag's version
    matches `package.json`, that `CHANGELOG.md` has a `## [X.Y.Z]` section
    for it, and that no changeset files remain unconsumed in `.changeset/`.
-3. **`bun run check`** (against a real, migrated Postgres service,
-   identical to `ci.yml`'s `quality` job) — the full quality gate,
-   re-verified at release time rather than trusted from a possibly-stale
-   CI run.
+3. **`bun run check`** (against a real, migrated Postgres service) — the
+   full quality gate, re-verified at release time rather than trusted from
+   a possibly-stale CI run. This is **stricter** than `ci.yml`'s own
+   `quality` job, not identical to it: `ci.yml`'s `quality` job does not
+   currently run `i18n:pot:check`, `config:docs:check`, or
+   `logging:lint:check` (reviewer finding on PR #715) — those three checks
+   only run here, so an i18n `.pot` drift, config-docs drift, or a raw-
+   error-logging violation could in principle merge to `main` via a green
+   PR and only surface at tag-push time. Closing that `ci.yml` gap so the
+   two gates are actually identical is tracked as a separate follow-up,
+   out of this issue's scope.
 
-### `build-sign-publish` job (`environment: release`)
+### `build` job (unprivileged: `contents: read`, `packages: write` only)
 
-Gated behind a GitHub Environment named `release` (see
-[§Environment approval](#environment-approval-manual-maintainer-step)
-below). Runs identically for a real release and a rehearsal:
+Runs identically for a real release and a rehearsal. Deliberately holds
+no signing/attestation credential (`id-token`/`attestations`) — see
+below.
 
 1. Build `Dockerfile.production` with Docker Buildx, push to
    `ghcr.io/ahliweb/awcms-mini` tagged `<version>` (or `dryrun-<sha>` for a
@@ -103,17 +116,32 @@ below). Runs identically for a real release and a rehearsal:
    packages, not just `bun.lock`).
 3. **Checksums** — `CHECKSUMS.txt` (SHA-256) covering both SBOMs and a
    `git archive` source tarball.
-4. **Signing** — `cosign sign --yes` against the image digest, **keyless
-   OIDC** (no signing key ever exists; the identity is this workflow run
-   itself, backed by GitHub's Actions OIDC token and Sigstore's Fulcio/
-   Rekor).
-5. **Attestation/provenance** — `actions/attest-build-provenance` for the
+4. Uploads all of the above as a short-lived (1-day) workflow artifact for
+   the next job to download.
+
+### `sign-attest-publish` job (`environment: release`)
+
+Gated behind a GitHub Environment named `release` (see
+[§Environment approval](#environment-approval-manual-maintainer-step)
+below). Split into its own job from `build` (security-auditor High
+finding on PR #715): `id-token`/`attestations` permissions are
+JOB-scoped in GitHub Actions, so every step in a job holding them can
+mint its own OIDC token — keeping the third-party `anchore/sbom-action`
+entirely out of this job means a hypothetical supply-chain compromise of
+that action never has an OIDC/attestation credential to abuse. Runs
+identically for a real release and a rehearsal:
+
+1. **Signing** — `cosign sign --yes` against the image digest produced by
+   the `build` job, **keyless OIDC** (no signing key ever exists; the
+   identity is this workflow run itself, backed by GitHub's Actions OIDC
+   token and Sigstore's Fulcio/Rekor).
+2. **Attestation/provenance** — `actions/attest-build-provenance` for the
    image digest (pushed to the registry too) and for the three source
    artifacts (`CHECKSUMS.txt`, `sbom-source.cdx.json`, the source
    tarball); `actions/attest-sbom` associates `sbom-image.cdx.json` with
    the image digest specifically. All are GitHub's own SLSA-compatible
    attestation store — no separate infrastructure to run or maintain.
-6. **Publish** (real release only) — extracts this version's section from
+3. **Publish** (real release only) — extracts this version's section from
    `CHANGELOG.md` as the release body and runs `gh release create`,
    attaching `CHECKSUMS.txt` and both SBOMs plus the source tarball as
    release assets.
@@ -135,7 +163,9 @@ below). Runs identically for a real release and a rehearsal:
 
 ## Environment approval (manual maintainer step)
 
-`build-sign-publish` declares `environment: release`. Referencing an
+`sign-attest-publish` declares `environment: release` (`build` does not —
+it holds no signing/attestation credential, so gating it behind approval
+would only add friction with no security benefit). Referencing an
 environment name in a workflow **auto-creates an unprotected environment
 record** on first run if it doesn't already exist — it does **not**, by
 itself, pause the job for approval. Configuring **required reviewers** on

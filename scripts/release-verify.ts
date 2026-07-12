@@ -61,9 +61,22 @@ export function checkChangelogHasVersionSection(
   changelogContent: string,
   version: string
 ): ReleaseVerifyProblem | null {
-  const heading = new RegExp(`^## \\[${version.replace(/\./g, "\\.")}\\]`, "m");
+  // Plain per-line string comparison instead of building a RegExp from
+  // `version` (CodeQL high-severity findings on PR #715, both now moot):
+  // `version` traces back to a git tag name / CLI arg, and the previous
+  // `.replace(/\./g, "\\.")` only escaped literal dots — every other regex
+  // metacharacter (`(`, `[`, `*`, `+`, `|`, `^`, `$`, `\`) survived
+  // unescaped (regex injection), and the escaping itself was unsound for
+  // input containing a literal backslash (incomplete string escaping).
+  const expectedHeading = `## [${version}]`;
+  const hasSection = changelogContent
+    .split("\n")
+    .some(
+      (line) =>
+        line === expectedHeading || line.startsWith(`${expectedHeading} `)
+    );
 
-  if (!heading.test(changelogContent)) {
+  if (!hasSection) {
     return {
       check: "changelog-has-version-section",
       message:
