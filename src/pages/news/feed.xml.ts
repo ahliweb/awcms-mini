@@ -9,6 +9,9 @@ import {
 import { log } from "../../lib/logging/logger";
 import { listPublicBlogPostsForFeed } from "../../modules/blog-content/application/public-blog-directory";
 import { withNewsTenant } from "../../modules/blog-content/application/public-news-tenant-resolution";
+import { fetchBlogSettings } from "../../modules/blog-content/application/blog-settings-directory";
+import { resolveNewsArticlePreviewImage } from "../../modules/blog-content/application/news-article-seo-metadata";
+import { newsMediaPortAdapter } from "../../modules/news-portal/application/news-media-port-adapter";
 import { resolveMetaDescription } from "../../modules/blog-content/domain/seo-rendering";
 
 /**
@@ -36,22 +39,41 @@ export const GET: APIRoute = async ({ request, url }) => {
         }
 
         const posts = await listPublicBlogPostsForFeed(tx, tenant.tenantId);
+        const blogSettings = await fetchBlogSettings(tx, tenant.tenantId);
         const channelLink = `${url.origin}${routeSettings.publicBasePath}`;
 
-        const items = posts
-          .map((post) => {
-            const link = `${channelLink}/${post.slug}`;
-            const description = resolveMetaDescription(post);
+        // Issue #649 — "RSS... should use... verified R2 preview images
+        // where applicable." Resolved sequentially (not `Promise.all`): every
+        // query in this loop shares the SAME transaction (`tx`), and this
+        // repo's convention (every other multi-query loop in this codebase)
+        // is one query at a time per transaction, never concurrent queries
+        // racing on one connection.
+        const itemParts: string[] = [];
+        for (const post of posts) {
+          const link = `${channelLink}/${post.slug}`;
+          const description = resolveMetaDescription(post);
+          const previewImage = await resolveNewsArticlePreviewImage(
+            tx,
+            tenant.tenantId,
+            newsMediaPortAdapter,
+            blogSettings,
+            post
+          );
+          const enclosure = previewImage
+            ? `<enclosure url="${escapeHtml(previewImage.url)}" length="${previewImage.sizeBytes ?? 0}" type="${escapeHtml(previewImage.mimeType)}" />`
+            : "";
 
-            return `<item>
+          itemParts.push(`<item>
 <title>${escapeHtml(post.title)}</title>
 <link>${escapeHtml(link)}</link>
 <guid isPermaLink="true">${escapeHtml(link)}</guid>
 <pubDate>${post.publishedAt.toUTCString()}</pubDate>
 <description>${escapeHtml(description)}</description>
-</item>`;
-          })
-          .join("\n");
+${enclosure}
+</item>`);
+        }
+
+        const items = itemParts.join("\n");
 
         const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">

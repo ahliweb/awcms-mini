@@ -81,7 +81,15 @@ export const GET: APIRoute = async ({ request, params, cookies }) => {
       page,
       0,
       newsMediaPortAdapter,
-      blogSettings.contentQualityChecklistPolicy
+      blogSettings.contentQualityChecklistPolicy,
+      {
+        socialPreviewFallback: {
+          tenantFallbackImageMediaId:
+            blogSettings.socialPreviewFallbackImageMediaId,
+          contentImageFallbackEnabled:
+            blogSettings.socialPreviewContentImageFallbackEnabled
+        }
+      }
     );
 
     return ok({ pageId, qualityChecklist: checklist });

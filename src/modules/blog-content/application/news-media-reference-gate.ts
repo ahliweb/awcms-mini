@@ -76,6 +76,8 @@ export async function validateNewsMediaReferencesForFullOnlineR2Mode(
   tenantId: string,
   input: {
     featuredMediaId: string | null | undefined;
+    /** Issue #649 — same existence/ownership/verified-status check as `featuredMediaId`, for the explicit SEO/social preview image override. */
+    seoImageMediaId?: string | null | undefined;
     contentJson: Record<string, unknown> | undefined;
   },
   mediaPort: NewsMediaPort,
@@ -105,6 +107,22 @@ export async function validateNewsMediaReferencesForFullOnlineR2Mode(
         field: "featuredMediaId",
         message:
           "featuredMediaId must reference an existing, verified R2 media object belonging to this tenant in full-online R2-only mode."
+      });
+    }
+  }
+
+  if (input.seoImageMediaId) {
+    const safe = await mediaPort.isMediaReferenceSafe(
+      tx,
+      tenantId,
+      input.seoImageMediaId
+    );
+
+    if (!safe) {
+      errors.push({
+        field: "seoImageMediaId",
+        message:
+          "seoImageMediaId must reference an existing, verified R2 media object belonging to this tenant in full-online R2-only mode."
       });
     }
   }

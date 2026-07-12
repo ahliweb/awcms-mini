@@ -19,6 +19,7 @@
  *   point of the "unlisted" tier existing separately from "private",
  *   which is never publicly reachable at all).
  */
+import type { BlogContentVisibility } from "../domain/post-status";
 export type PublicBlogPostDetail = {
   id: string;
   title: string;
@@ -31,8 +32,14 @@ export type PublicBlogPostDetail = {
   canonicalUrl: string | null;
   locale: string;
   publishedAt: Date;
+  /** Issue #649 — `dateModified` for JSON-LD `NewsArticle` structured data. */
+  updatedAt: Date;
+  /** Issue #649 — `public` renders indexable metadata (`index,follow,...`); `unlisted` (reachable by direct link only, excluded from listings/sitemap/feed) renders `noindex,nofollow`. `private` never reaches this far (`fetchPublicBlogPostBySlug`'s own predicate excludes it). */
+  visibility: BlogContentVisibility;
   /** Issue #636 — added so public detail routes can resolve it to a verified R2 media object for gallery/og:image rendering (`resolveVerifiedNewsMediaReferences`). Not previously selected here since nothing rendered it before this issue. */
   featuredMediaId: string | null;
+  /** Issue #649 — explicit "use this image for social/SEO preview" override; highest priority source in `social-preview-image-resolution.ts`'s chain, ahead of `featuredMediaId`. */
+  seoImageMediaId: string | null;
 };
 
 type PublicBlogPostDetailRow = {
@@ -47,7 +54,10 @@ type PublicBlogPostDetailRow = {
   canonical_url: string | null;
   locale: string;
   published_at: Date;
+  updated_at: Date;
+  visibility: BlogContentVisibility;
   featured_media_id: string | null;
+  seo_image_media_id: string | null;
 };
 
 function toDetail(row: PublicBlogPostDetailRow): PublicBlogPostDetail {
@@ -63,7 +73,10 @@ function toDetail(row: PublicBlogPostDetailRow): PublicBlogPostDetail {
     canonicalUrl: row.canonical_url,
     locale: row.locale,
     publishedAt: row.published_at,
-    featuredMediaId: row.featured_media_id
+    updatedAt: row.updated_at,
+    visibility: row.visibility,
+    featuredMediaId: row.featured_media_id,
+    seoImageMediaId: row.seo_image_media_id
   };
 }
 
@@ -74,7 +87,8 @@ export async function fetchPublicBlogPostBySlug(
 ): Promise<PublicBlogPostDetail | null> {
   const rows = (await tx`
     SELECT id, title, slug, excerpt, content_json, content_text, seo_title,
-      meta_description, canonical_url, locale, published_at, featured_media_id
+      meta_description, canonical_url, locale, published_at, updated_at,
+      visibility, featured_media_id, seo_image_media_id
     FROM awcms_mini_blog_posts
     WHERE tenant_id = ${tenantId} AND slug = ${slug}
       AND status = 'published' AND visibility IN ('public', 'unlisted')
@@ -203,6 +217,46 @@ export async function fetchPublicTermBySlug(
   };
 }
 
+export type PublicPostTaxonomyTerm = {
+  taxonomyType: string;
+  name: string;
+  slug: string;
+};
+
+/**
+ * Category/tag names assigned to a public post (Issue #649 — `article:
+ * section`/`article:tag` Open Graph meta and JSON-LD `NewsArticle`
+ * `articleSection`/`keywords`). Tenant-scoped join against
+ * `awcms_mini_blog_post_terms`, excludes soft-deleted terms (same
+ * `deleted_at IS NULL` convention as `fetchPublicTermBySlug`) — a term an
+ * editor later archived should stop appearing in newly-rendered share
+ * previews without needing a post edit. Ordered by taxonomy type then name
+ * so category-typed terms are deterministically first (the caller picks the
+ * first `taxonomyType === "category"` entry as `article:section`, and the
+ * remainder — including tags — as `article:tag`).
+ */
+export async function fetchPublicPostTaxonomyTerms(
+  tx: Bun.SQL,
+  tenantId: string,
+  postId: string
+): Promise<PublicPostTaxonomyTerm[]> {
+  const rows = (await tx`
+    SELECT t.taxonomy_type, t.name, t.slug
+    FROM awcms_mini_blog_post_terms pt
+    JOIN awcms_mini_blog_terms t
+      ON t.id = pt.term_id AND t.tenant_id = pt.tenant_id
+    WHERE pt.tenant_id = ${tenantId} AND pt.post_id = ${postId}
+      AND t.deleted_at IS NULL
+    ORDER BY t.taxonomy_type ASC, t.name ASC
+  `) as { taxonomy_type: string; name: string; slug: string }[];
+
+  return rows.map((row) => ({
+    taxonomyType: row.taxonomy_type,
+    name: row.name,
+    slug: row.slug
+  }));
+}
+
 export async function listPublicBlogPostsByTermId(
   tx: Bun.SQL,
   tenantId: string,
@@ -278,11 +332,13 @@ export async function listPublicBlogPostsForFeed(
 ): Promise<PublicBlogPostDetail[]> {
   const rows = (await tx`
     SELECT id, title, slug, excerpt, content_json, content_text, seo_title,
-      meta_description, canonical_url, locale, published_at
+      meta_description, canonical_url, locale, published_at, updated_at,
+      visibility, featured_media_id, seo_image_media_id
     FROM awcms_mini_blog_posts
     WHERE tenant_id = ${tenantId}
       AND status = 'published' AND visibility = 'public'
-      AND deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= now()
+      AND deleted_at IS NULL
+      AND published_at IS NOT NULL AND published_at <= now()
     ORDER BY published_at DESC
     LIMIT ${FEED_ITEM_LIMIT}
   `) as PublicBlogPostDetailRow[];

@@ -29,6 +29,8 @@ export type CreateBlogPostInput = {
   locale: string;
   visibility: BlogContentVisibility;
   featuredMediaId: string | null;
+  /** Issue #649 — explicit "use this image for social/SEO preview" override; same shape as `featuredMediaId` (UUID-or-null, no existence check here — that is `news-media-reference-gate.ts`'s job in full-online R2-only mode). Takes priority over `featuredMediaId` at render time (`social-preview-image-resolution.ts`). */
+  seoImageMediaId: string | null;
   seoTitle: string | null;
   metaDescription: string | null;
   canonicalUrl: string | null;
@@ -130,6 +132,14 @@ export function validateCreateBlogPostInput(
     });
   }
 
+  const seoImageMediaIdResult = validateFeaturedMediaId(record.seoImageMediaId);
+  if (!seoImageMediaIdResult.valid) {
+    errors.push({
+      field: "seoImageMediaId",
+      message: "seoImageMediaId must be a UUID when provided."
+    });
+  }
+
   const termIdsResult = validateTermIds(record.termIds);
   if (!termIdsResult.valid) {
     errors.push({
@@ -153,6 +163,7 @@ export function validateCreateBlogPostInput(
     !coreResult.valid ||
     !seoResult.valid ||
     !featuredMediaIdResult.valid ||
+    !seoImageMediaIdResult.valid ||
     !termIdsResult.valid ||
     !translationGroupIdResult.valid
   ) {
@@ -165,6 +176,7 @@ export function validateCreateBlogPostInput(
       ...coreResult.value,
       visibility,
       featuredMediaId: featuredMediaIdResult.value,
+      seoImageMediaId: seoImageMediaIdResult.value,
       seoTitle: seoResult.value.seoTitle ?? null,
       metaDescription: seoResult.value.metaDescription ?? null,
       canonicalUrl: seoResult.value.canonicalUrl ?? null,
@@ -183,6 +195,7 @@ export type UpdateBlogPostInput = {
   locale?: string;
   visibility?: BlogContentVisibility;
   featuredMediaId?: string | null;
+  seoImageMediaId?: string | null;
   seoTitle?: string | null;
   metaDescription?: string | null;
   canonicalUrl?: string | null;
@@ -279,6 +292,20 @@ export function validateUpdateBlogPostInput(
       });
     } else {
       value.featuredMediaId = featuredMediaIdResult.value;
+    }
+  }
+
+  if (record.seoImageMediaId !== undefined) {
+    const seoImageMediaIdResult = validateFeaturedMediaId(
+      record.seoImageMediaId
+    );
+    if (!seoImageMediaIdResult.valid) {
+      errors.push({
+        field: "seoImageMediaId",
+        message: "seoImageMediaId must be a UUID or null."
+      });
+    } else {
+      value.seoImageMediaId = seoImageMediaIdResult.value;
     }
   }
 

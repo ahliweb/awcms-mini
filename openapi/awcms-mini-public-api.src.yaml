@@ -277,6 +277,7 @@ components:
         - status
         - visibility
         - featuredMediaId
+        - seoImageMediaId
         - seoTitle
         - metaDescription
         - canonicalUrl
@@ -334,6 +335,11 @@ components:
           format: uuid
           nullable: true
           description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), must reference an existing, same-tenant media object (Issue #633) with status verified or attached — never a local path or arbitrary external URL. A non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID. Outside that mode, only the UUID shape is validated."
+        seoImageMediaId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Issue #649 — explicit social/SEO preview image override, same validation as featuredMediaId. Takes priority over featuredMediaId when resolving og:image/twitter:image/JSON-LD image for public sharing."
         seoTitle:
           type: string
           nullable: true
@@ -420,6 +426,8 @@ components:
             - taxonomy_exists
             - unsafe_html_rejected
             - scheduled_publish_time_valid
+            - social_preview_image_ready
+            - social_preview_image_alt_text
         severity:
           type: string
           enum:

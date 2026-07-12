@@ -63,6 +63,8 @@ export type BlogPostView = {
   status: BlogContentStatus;
   visibility: BlogContentVisibility;
   featuredMediaId: string | null;
+  /** Issue #649 — explicit social/SEO preview image override; see `blog-post-validation.ts`'s `CreateBlogPostInput.seoImageMediaId`. */
+  seoImageMediaId: string | null;
   seoTitle: string | null;
   metaDescription: string | null;
   canonicalUrl: string | null;
@@ -91,6 +93,7 @@ type BlogPostRow = {
   status: BlogContentStatus;
   visibility: BlogContentVisibility;
   featured_media_id: string | null;
+  seo_image_media_id: string | null;
   seo_title: string | null;
   meta_description: string | null;
   canonical_url: string | null;
@@ -120,6 +123,7 @@ function toView(row: BlogPostRow): BlogPostView {
     status: row.status,
     visibility: row.visibility,
     featuredMediaId: row.featured_media_id,
+    seoImageMediaId: row.seo_image_media_id,
     seoTitle: row.seo_title,
     metaDescription: row.meta_description,
     canonicalUrl: row.canonical_url,
@@ -146,16 +150,16 @@ export async function createBlogPost(
   const rows = (await tx`
     INSERT INTO awcms_mini_blog_posts
       (tenant_id, author_tenant_user_id, title, slug, excerpt, content_json,
-       content_text, status, visibility, featured_media_id, seo_title,
-       meta_description, canonical_url, locale)
+       content_text, status, visibility, featured_media_id, seo_image_media_id,
+       seo_title, meta_description, canonical_url, locale)
     VALUES (
       ${tenantId}, ${authorTenantUserId}, ${input.title}, ${input.slug},
       ${input.excerpt}, ${input.contentJson}, ${input.contentText}, 'draft',
-      ${input.visibility}, ${input.featuredMediaId}, ${input.seoTitle},
-      ${input.metaDescription}, ${input.canonicalUrl}, ${input.locale}
+      ${input.visibility}, ${input.featuredMediaId}, ${input.seoImageMediaId},
+      ${input.seoTitle}, ${input.metaDescription}, ${input.canonicalUrl}, ${input.locale}
     )
     RETURNING id, tenant_id, author_tenant_user_id, title, slug, excerpt, content_json,
-      content_text, status, visibility, featured_media_id, seo_title,
+      content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
       restored_at, restored_by, version
@@ -179,7 +183,7 @@ export async function fetchBlogPostById(
     options.includeDeleted
       ? await tx`
         SELECT id, tenant_id, author_tenant_user_id, title, slug, excerpt, content_json,
-      content_text, status, visibility, featured_media_id, seo_title,
+      content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
       restored_at, restored_by, version
@@ -188,7 +192,7 @@ export async function fetchBlogPostById(
       `
       : await tx`
         SELECT id, tenant_id, author_tenant_user_id, title, slug, excerpt, content_json,
-      content_text, status, visibility, featured_media_id, seo_title,
+      content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
       restored_at, restored_by, version
@@ -271,6 +275,10 @@ export async function updateBlogPost(
           WHEN ${input.featuredMediaId === undefined} THEN featured_media_id
           ELSE ${input.featuredMediaId ?? null}
         END,
+        seo_image_media_id = CASE
+          WHEN ${input.seoImageMediaId === undefined} THEN seo_image_media_id
+          ELSE ${input.seoImageMediaId ?? null}
+        END,
         seo_title = CASE WHEN ${input.seoTitle === undefined} THEN seo_title ELSE ${input.seoTitle ?? null} END,
         meta_description = CASE
           WHEN ${input.metaDescription === undefined} THEN meta_description
@@ -284,7 +292,7 @@ export async function updateBlogPost(
         updated_at = now()
     WHERE tenant_id = ${tenantId} AND id = ${id} AND deleted_at IS NULL
     RETURNING id, tenant_id, author_tenant_user_id, title, slug, excerpt, content_json,
-      content_text, status, visibility, featured_media_id, seo_title,
+      content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
       restored_at, restored_by, version
@@ -341,7 +349,7 @@ export async function transitionBlogPostStatus(
         updated_at = now()
     WHERE tenant_id = ${tenantId} AND id = ${id} AND deleted_at IS NULL
     RETURNING id, tenant_id, author_tenant_user_id, title, slug, excerpt, content_json,
-      content_text, status, visibility, featured_media_id, seo_title,
+      content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
       restored_at, restored_by, version
@@ -362,7 +370,7 @@ export async function restoreBlogPost(
         restored_at = now(), restored_by = ${actorTenantUserId}, updated_at = now()
     WHERE tenant_id = ${tenantId} AND id = ${id} AND deleted_at IS NOT NULL
     RETURNING id, tenant_id, author_tenant_user_id, title, slug, excerpt, content_json,
-      content_text, status, visibility, featured_media_id, seo_title,
+      content_text, status, visibility, featured_media_id, seo_image_media_id, seo_title,
       meta_description, canonical_url, locale, published_at, scheduled_at,
       created_at, updated_at, deleted_at, deleted_by, delete_reason,
       restored_at, restored_by, version

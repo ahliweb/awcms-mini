@@ -9553,6 +9553,7 @@ components:
         - status
         - visibility
         - featuredMediaId
+        - seoImageMediaId
         - seoTitle
         - metaDescription
         - canonicalUrl
@@ -9610,6 +9611,11 @@ components:
           format: uuid
           nullable: true
           description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), must reference an existing, same-tenant media object (Issue #633) with status verified or attached — never a local path or arbitrary external URL. A non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID. Outside that mode, only the UUID shape is validated."
+        seoImageMediaId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Issue #649 — explicit social/SEO preview image override, same validation as featuredMediaId. Takes priority over featuredMediaId when resolving og:image/twitter:image/JSON-LD image for public sharing."
         seoTitle:
           type: string
           nullable: true
@@ -9926,6 +9932,8 @@ components:
         - seoDefaultTitle
         - seoDefaultDescription
         - contentQualityChecklistPolicy
+        - socialPreviewFallbackImageMediaId
+        - socialPreviewContentImageFallbackEnabled
         - updatedAt
       additionalProperties: false
       properties:
@@ -9961,6 +9969,14 @@ components:
           nullable: true
         contentQualityChecklistPolicy:
           $ref: "#/components/schemas/ContentQualityChecklistPolicy"
+        socialPreviewFallbackImageMediaId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Issue #649 — tenant-level R2 fallback social preview image (lowest-priority source), re-verified at render time via the same R2-only mechanism as featuredMediaId. null when never configured."
+        socialPreviewContentImageFallbackEnabled:
+          type: boolean
+          description: "Issue #649 — whether the first verified R2 image found in a post's own content may be used as its social preview when no explicit SEO image or featured image is set. Defaults to true."
         updatedAt:
           type: string
           format: date-time
@@ -10144,7 +10160,7 @@ components:
           format: date-time
     ContentQualityChecklistPolicy:
       type: object
-      description: "Tenant override of the content quality checklist's (Issue #640) non-security rule severities. Keys are restricted to excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists — a security rule id (e.g. unsafe_html_rejected, no_local_image_path) is rejected with 400, never accepted here, in any environment."
+      description: "Tenant override of the content quality checklist's (Issue #640) non-security rule severities. Keys are restricted to excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists, social_preview_image_ready, social_preview_image_alt_text — a security rule id (e.g. unsafe_html_rejected, no_local_image_path) is rejected with 400, never accepted here, in any environment."
       additionalProperties:
         type: string
         enum:
@@ -10215,6 +10231,8 @@ components:
             - taxonomy_exists
             - unsafe_html_rejected
             - scheduled_publish_time_valid
+            - social_preview_image_ready
+            - social_preview_image_alt_text
         severity:
           type: string
           enum:
@@ -10364,6 +10382,11 @@ components:
           format: uuid
           nullable: true
           description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), must reference an existing, same-tenant media object (Issue #633) with status verified or attached — never a local path or arbitrary external URL. A non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID. Outside that mode, only the UUID shape is validated."
+        seoImageMediaId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Issue #649 — explicit social/SEO preview image override, same validation as featuredMediaId. Takes priority over featuredMediaId when resolving og:image/twitter:image/JSON-LD image for public sharing."
         seoTitle:
           type: string
           maxLength: 70
@@ -13159,6 +13182,11 @@ components:
           format: uuid
           nullable: true
           description: "When full-online R2-only news portal mode is active for this tenant (Issue #636), must reference an existing, same-tenant media object (Issue #633) with status verified or attached — never a local path or arbitrary external URL. A non-conforming reference is rejected with 422 NEWS_MEDIA_REFERENCE_INVALID. Outside that mode, only the UUID shape is validated."
+        seoImageMediaId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Issue #649 — explicit social/SEO preview image override, same validation as featuredMediaId. Takes priority over featuredMediaId when resolving og:image/twitter:image/JSON-LD image for public sharing."
         seoTitle:
           type: string
           maxLength: 70
@@ -13214,6 +13242,12 @@ components:
           nullable: true
         contentQualityChecklistPolicy:
           $ref: "#/components/schemas/ContentQualityChecklistPolicy"
+        socialPreviewFallbackImageMediaId:
+          type: string
+          format: uuid
+          nullable: true
+        socialPreviewContentImageFallbackEnabled:
+          type: boolean
     UpdateBlogTermRequest:
       type: object
       additionalProperties: false

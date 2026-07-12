@@ -36,6 +36,7 @@ function baseInput(
     termCount: 1,
     scheduledAt: null,
     now: NOW,
+    socialPreviewImage: null,
     ...overrides
   };
 }
@@ -51,7 +52,11 @@ describe("evaluateContentQualityChecklist (Issue #640)", () => {
           height: 630,
           mimeType: "image/jpeg",
           sizeBytes: 123_456
-        }
+        },
+        // Issue #649 — in a real gate call, this mirrors whichever image
+        // the priority chain picked; here it resolves to the same featured
+        // image (with alt text), so the social preview rules also pass.
+        socialPreviewImage: { altText: "A description" }
       })
     );
 
@@ -294,6 +299,84 @@ describe("evaluateContentQualityChecklist (Issue #640)", () => {
     );
     expect(rule?.applicable).toBe(true);
     expect(rule?.passed).toBe(true);
+  });
+
+  describe("social_preview_image_ready / social_preview_image_alt_text (Issue #649)", () => {
+    test("warns (does not block) when no social preview image resolved from any source", () => {
+      const result = evaluateContentQualityChecklist(
+        baseInput({ socialPreviewImage: null })
+      );
+
+      expect(result.passed).toBe(true);
+      expect(result.warnings.map((w) => w.ruleId)).toContain(
+        "social_preview_image_ready"
+      );
+      const altRule = result.rules.find(
+        (r) => r.ruleId === "social_preview_image_alt_text"
+      );
+      expect(altRule?.applicable).toBe(false);
+      expect(altRule?.passed).toBe(true);
+    });
+
+    test("passes social_preview_image_ready and warns on missing alt text when an image resolved without alt text", () => {
+      const result = evaluateContentQualityChecklist(
+        baseInput({ socialPreviewImage: { altText: null } })
+      );
+
+      const readyRule = result.rules.find(
+        (r) => r.ruleId === "social_preview_image_ready"
+      );
+      expect(readyRule?.passed).toBe(true);
+      expect(result.warnings.map((w) => w.ruleId)).toContain(
+        "social_preview_image_alt_text"
+      );
+    });
+
+    test("passes both rules when an image with alt text resolved", () => {
+      const result = evaluateContentQualityChecklist(
+        baseInput({ socialPreviewImage: { altText: "A description" } })
+      );
+
+      expect(
+        result.rules.find((r) => r.ruleId === "social_preview_image_ready")
+          ?.passed
+      ).toBe(true);
+      expect(
+        result.rules.find((r) => r.ruleId === "social_preview_image_alt_text")
+          ?.passed
+      ).toBe(true);
+      expect(result.warnings.map((w) => w.ruleId)).not.toContain(
+        "social_preview_image_ready"
+      );
+      expect(result.warnings.map((w) => w.ruleId)).not.toContain(
+        "social_preview_image_alt_text"
+      );
+    });
+
+    test("both rules are overridable (not security blockers)", () => {
+      expect(OVERRIDABLE_RULE_IDS).toContain("social_preview_image_ready");
+      expect(OVERRIDABLE_RULE_IDS).toContain("social_preview_image_alt_text");
+      expect(SECURITY_RULE_IDS).not.toContain("social_preview_image_ready");
+      expect(SECURITY_RULE_IDS).not.toContain("social_preview_image_alt_text");
+    });
+
+    test("tenant policy override can downgrade social_preview_image_ready to info", () => {
+      const result = evaluateContentQualityChecklist(
+        baseInput({ socialPreviewImage: null }),
+        { social_preview_image_ready: "info" }
+      );
+
+      expect(
+        result.rules.find((r) => r.ruleId === "social_preview_image_ready")
+          ?.severity
+      ).toBe("info");
+      expect(result.warnings.map((w) => w.ruleId)).not.toContain(
+        "social_preview_image_ready"
+      );
+      expect(result.info.map((i) => i.ruleId)).toContain(
+        "social_preview_image_ready"
+      );
+    });
   });
 });
 

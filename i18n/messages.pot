@@ -977,7 +977,7 @@ msgstr ""
 msgid "admin.blog.posts.field_canonical_url"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:420
+#: src/pages/admin/blog/posts/[id].astro:431
 msgid "admin.blog.posts.field_categories"
 msgstr ""
 
@@ -1005,6 +1005,14 @@ msgstr ""
 msgid "admin.blog.posts.field_meta_description"
 msgstr ""
 
+#: src/pages/admin/blog/posts/[id].astro:419
+msgid "admin.blog.posts.field_seo_image_media_id"
+msgstr ""
+
+#: src/pages/admin/blog/posts/[id].astro:426
+msgid "admin.blog.posts.field_seo_image_media_id_hint"
+msgstr ""
+
 #: src/pages/admin/blog/pages/[id].astro:298
 msgid "admin.blog.posts.field_seo_title"
 msgstr ""
@@ -1013,7 +1021,7 @@ msgstr ""
 msgid "admin.blog.posts.field_slug"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:442
+#: src/pages/admin/blog/posts/[id].astro:453
 msgid "admin.blog.posts.field_tags"
 msgstr ""
 
@@ -1045,7 +1053,7 @@ msgstr ""
 msgid "admin.blog.posts.new_title"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:422
+#: src/pages/admin/blog/posts/[id].astro:433
 msgid "admin.blog.posts.no_categories"
 msgstr ""
 
@@ -1053,11 +1061,11 @@ msgstr ""
 msgid "admin.blog.posts.no_posts"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:496
+#: src/pages/admin/blog/posts/[id].astro:507
 msgid "admin.blog.posts.no_revisions"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:444
+#: src/pages/admin/blog/posts/[id].astro:455
 msgid "admin.blog.posts.no_tags"
 msgstr ""
 
@@ -1149,23 +1157,23 @@ msgstr ""
 msgid "admin.blog.posts.restore_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:508
+#: src/pages/admin/blog/posts/[id].astro:519
 msgid "admin.blog.posts.revision_actions_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:506
+#: src/pages/admin/blog/posts/[id].astro:517
 msgid "admin.blog.posts.revision_created_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:505
+#: src/pages/admin/blog/posts/[id].astro:516
 msgid "admin.blog.posts.revision_note_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:502
+#: src/pages/admin/blog/posts/[id].astro:513
 msgid "admin.blog.posts.revision_number_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:528
+#: src/pages/admin/blog/posts/[id].astro:539
 msgid "admin.blog.posts.revision_restore_button"
 msgstr ""
 
@@ -1177,19 +1185,19 @@ msgstr ""
 msgid "admin.blog.posts.revision_restore_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:504
+#: src/pages/admin/blog/posts/[id].astro:515
 msgid "admin.blog.posts.revision_status_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:503
+#: src/pages/admin/blog/posts/[id].astro:514
 msgid "admin.blog.posts.revision_title_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:494
+#: src/pages/admin/blog/posts/[id].astro:505
 msgid "admin.blog.posts.revisions_title"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:487
+#: src/pages/admin/blog/posts/[id].astro:498
 msgid "admin.blog.posts.save_button"
 msgstr ""
 
@@ -1305,7 +1313,15 @@ msgstr ""
 msgid "admin.blog.settings.field_sitemap_enabled"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:249
+#: src/pages/admin/blog/settings.astro:247
+msgid "admin.blog.settings.field_social_preview_content_image_fallback_enabled"
+msgstr ""
+
+#: src/pages/admin/blog/settings.astro:229
+msgid "admin.blog.settings.field_social_preview_fallback_image"
+msgstr ""
+
+#: src/pages/admin/blog/settings.astro:272
 msgid "admin.blog.settings.field_theme_mode"
 msgstr ""
 
@@ -1317,7 +1333,7 @@ msgstr ""
 msgid "admin.blog.settings.invalid_checklist_policy_json"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:231
+#: src/pages/admin/blog/settings.astro:254
 msgid "admin.blog.settings.save_button"
 msgstr ""
 
@@ -1325,30 +1341,34 @@ msgstr ""
 msgid "admin.blog.settings.save_success"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:244
+#: src/pages/admin/blog/settings.astro:236
+msgid "admin.blog.settings.social_preview_fallback_image_hint"
+msgstr ""
+
+#: src/pages/admin/blog/settings.astro:267
 msgid "admin.blog.settings.theme_inherited_note"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:240
+#: src/pages/admin/blog/settings.astro:263
 msgid "admin.blog.settings.theme_legend"
 msgstr ""
 
 #. dynamic key family "admin.blog.settings.theme_mode_" — concrete suffix from src/modules/blog-content/domain/theme-policy.ts BLOG_THEME_MODES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/settings.astro:253
+#: src/pages/admin/blog/settings.astro:276
 msgid "admin.blog.settings.theme_mode_dark"
 msgstr ""
 
 #. dynamic key family "admin.blog.settings.theme_mode_" — concrete suffix from src/modules/blog-content/domain/theme-policy.ts BLOG_THEME_MODES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/settings.astro:253
+#: src/pages/admin/blog/settings.astro:276
 msgid "admin.blog.settings.theme_mode_light"
 msgstr ""
 
 #. dynamic key family "admin.blog.settings.theme_mode_" — concrete suffix from src/modules/blog-content/domain/theme-policy.ts BLOG_THEME_MODES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/settings.astro:253
+#: src/pages/admin/blog/settings.astro:276
 msgid "admin.blog.settings.theme_mode_system"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:243
+#: src/pages/admin/blog/settings.astro:266
 msgid "admin.blog.settings.theme_override_note"
 msgstr ""
 
