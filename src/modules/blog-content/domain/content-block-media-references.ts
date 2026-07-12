@@ -32,6 +32,14 @@ export type GalleryImageReferenceViolation = {
   /** 0-based index of the offending item within the `gallery` block's `items` array. */
   itemIndex: number;
   reason: "raw_url_not_allowed" | "media_object_id_missing_or_malformed";
+  /**
+   * The offending raw `url` value, only present when `reason` is
+   * `"raw_url_not_allowed"` (Issue #640, content quality checklist) — lets a
+   * caller classify the violation as a local path vs. an arbitrary external
+   * URL (`content-quality-checklist.ts`'s `classifyRawImageUrl`) without a
+   * second traversal of `contentJson` that could drift from this one.
+   */
+  rawUrl?: string;
 };
 
 export type GalleryImageReferences = {
@@ -71,7 +79,11 @@ export function collectGalleryImageReferences(
       }
 
       if (typeof item.url === "string" && item.url.trim().length > 0) {
-        violations.push({ itemIndex, reason: "raw_url_not_allowed" });
+        violations.push({
+          itemIndex,
+          reason: "raw_url_not_allowed",
+          rawUrl: item.url
+        });
         return;
       }
 

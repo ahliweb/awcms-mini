@@ -243,6 +243,9 @@ msgstr "This section references content that does not exist, does not belong to 
 msgid "error.homepage_section_key_conflict"
 msgstr "That section key is already in use."
 
+msgid "error.content_quality_checklist_blocked"
+msgstr "Publishing is blocked by the content quality checklist. Fix the listed issues and try again."
+
 #. admin.layout (shared shell)
 msgid "admin.layout.no_role"
 msgstr "No role"
@@ -1285,6 +1288,27 @@ msgstr "Permanently delete this post? This cannot be undone."
 msgid "admin.blog.posts.purge_success"
 msgstr "Post permanently deleted."
 
+msgid "admin.blog.posts.quality_checklist_title"
+msgstr "Content quality checklist"
+
+msgid "admin.blog.posts.quality_checklist_not_applicable"
+msgstr "Not applicable — full-online R2-only news portal mode is not active for this tenant."
+
+msgid "admin.blog.posts.quality_checklist_passed"
+msgstr "All checks passed."
+
+msgid "admin.blog.posts.quality_checklist_blocking_label"
+msgstr "Blocking"
+
+msgid "admin.blog.posts.quality_checklist_warning_label"
+msgstr "Warning"
+
+msgid "admin.blog.posts.quality_checklist_info_label"
+msgstr "Info"
+
+msgid "admin.blog.posts.quality_checklist_load_error"
+msgstr "Could not load the content quality checklist."
+
 msgid "admin.blog.posts.revisions_title"
 msgstr "Revision history"
 
@@ -1572,6 +1596,15 @@ msgstr "Default SEO title template"
 
 msgid "admin.blog.settings.field_seo_default_description"
 msgstr "Default meta description"
+
+msgid "admin.blog.settings.field_checklist_policy"
+msgstr "Content quality checklist policy (JSON)"
+
+msgid "admin.blog.settings.checklist_policy_hint"
+msgstr "Maps excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists to blocking, warning, or info. Security rules cannot be overridden here."
+
+msgid "admin.blog.settings.invalid_checklist_policy_json"
+msgstr "Content quality checklist policy must be valid JSON."
 
 msgid "admin.blog.settings.save_button"
 msgstr "Save"

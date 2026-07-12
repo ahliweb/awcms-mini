@@ -762,22 +762,22 @@ msgid "admin.blog.menus.update_success"
 msgstr ""
 
 #. dynamic key family "admin.blog.page_type." — concrete suffix from src/modules/blog-content/domain/page-type.ts PAGE_TYPES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/pages/[id].astro:216
+#: src/pages/admin/blog/pages/[id].astro:241
 msgid "admin.blog.page_type.landing"
 msgstr ""
 
 #. dynamic key family "admin.blog.page_type." — concrete suffix from src/modules/blog-content/domain/page-type.ts PAGE_TYPES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/pages/[id].astro:216
+#: src/pages/admin/blog/pages/[id].astro:241
 msgid "admin.blog.page_type.legal"
 msgstr ""
 
 #. dynamic key family "admin.blog.page_type." — concrete suffix from src/modules/blog-content/domain/page-type.ts PAGE_TYPES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/pages/[id].astro:216
+#: src/pages/admin/blog/pages/[id].astro:241
 msgid "admin.blog.page_type.standard"
 msgstr ""
 
 #. dynamic key family "admin.blog.page_type." — concrete suffix from src/modules/blog-content/domain/page-type.ts PAGE_TYPES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/pages/[id].astro:216
+#: src/pages/admin/blog/pages/[id].astro:241
 msgid "admin.blog.page_type.system"
 msgstr ""
 
@@ -785,7 +785,7 @@ msgstr ""
 msgid "admin.blog.pages.apply_filters_button"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:137
+#: src/pages/admin/blog/pages/[id].astro:150
 msgid "admin.blog.pages.back_to_list"
 msgstr ""
 
@@ -797,7 +797,7 @@ msgstr ""
 msgid "admin.blog.pages.create_success"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:166
+#: src/pages/admin/blog/pages/[id].astro:179
 msgid "admin.blog.pages.delete_button"
 msgstr ""
 
@@ -809,23 +809,23 @@ msgstr ""
 msgid "admin.blog.pages.delete_success"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:238
+#: src/pages/admin/blog/pages/[id].astro:263
 msgid "admin.blog.pages.field_menu_order"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:209
+#: src/pages/admin/blog/pages/[id].astro:234
 msgid "admin.blog.pages.field_page_type"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:222
+#: src/pages/admin/blog/pages/[id].astro:247
 msgid "admin.blog.pages.field_parent_page"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:184
+#: src/pages/admin/blog/pages/[id].astro:209
 msgid "admin.blog.pages.field_slug"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:174
+#: src/pages/admin/blog/pages/[id].astro:199
 msgid "admin.blog.pages.field_title"
 msgstr ""
 
@@ -853,15 +853,15 @@ msgstr ""
 msgid "admin.blog.pages.no_pages"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:225
+#: src/pages/admin/blog/pages/[id].astro:250
 msgid "admin.blog.pages.no_parent_option"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:136
+#: src/pages/admin/blog/pages/[id].astro:149
 msgid "admin.blog.pages.not_found_body"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:135
+#: src/pages/admin/blog/pages/[id].astro:148
 msgid "admin.blog.pages.not_found_title"
 msgstr ""
 
@@ -873,7 +873,7 @@ msgstr ""
 msgid "admin.blog.pages.reset_filters_link"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:298
+#: src/pages/admin/blog/pages/[id].astro:323
 msgid "admin.blog.pages.save_button"
 msgstr ""
 
@@ -893,7 +893,7 @@ msgstr ""
 msgid "admin.blog.pages.status_filter_label"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:110
+#: src/pages/admin/blog/pages/[id].astro:123
 msgid "admin.blog.pages.title"
 msgstr ""
 
@@ -917,7 +917,7 @@ msgstr ""
 msgid "admin.blog.posts.apply_filters_button"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:300
+#: src/pages/admin/blog/posts/[id].astro:313
 msgid "admin.blog.posts.archive_button"
 msgstr ""
 
@@ -933,15 +933,15 @@ msgstr ""
 msgid "admin.blog.posts.author_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:277
+#: src/pages/admin/blog/posts/[id].astro:290
 msgid "admin.blog.posts.author_label"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:252
+#: src/pages/admin/blog/posts/[id].astro:265
 msgid "admin.blog.posts.back_to_list"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:205
+#: src/pages/admin/blog/pages/[id].astro:230
 msgid "admin.blog.posts.content_json_hint"
 msgstr ""
 
@@ -953,7 +953,7 @@ msgstr ""
 msgid "admin.blog.posts.create_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:305
+#: src/pages/admin/blog/posts/[id].astro:318
 msgid "admin.blog.posts.delete_button"
 msgstr ""
 
@@ -965,7 +965,7 @@ msgstr ""
 msgid "admin.blog.posts.delete_success"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:158
+#: src/pages/admin/blog/pages/[id].astro:171
 msgid "admin.blog.posts.deleted_label"
 msgstr ""
 
@@ -973,55 +973,55 @@ msgstr ""
 msgid "admin.blog.posts.featured_media_hint"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:288
+#: src/pages/admin/blog/pages/[id].astro:313
 msgid "admin.blog.posts.field_canonical_url"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:395
+#: src/pages/admin/blog/posts/[id].astro:420
 msgid "admin.blog.posts.field_categories"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:200
+#: src/pages/admin/blog/pages/[id].astro:225
 msgid "admin.blog.posts.field_content_json"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:194
+#: src/pages/admin/blog/pages/[id].astro:219
 msgid "admin.blog.posts.field_content_text"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:343
+#: src/pages/admin/blog/posts/[id].astro:368
 msgid "admin.blog.posts.field_excerpt"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:386
+#: src/pages/admin/blog/posts/[id].astro:411
 msgid "admin.blog.posts.field_featured_media_id"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:261
+#: src/pages/admin/blog/pages/[id].astro:286
 msgid "admin.blog.posts.field_locale"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:282
+#: src/pages/admin/blog/pages/[id].astro:307
 msgid "admin.blog.posts.field_meta_description"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:273
+#: src/pages/admin/blog/pages/[id].astro:298
 msgid "admin.blog.posts.field_seo_title"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:333
+#: src/pages/admin/blog/posts/[id].astro:358
 msgid "admin.blog.posts.field_slug"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:417
+#: src/pages/admin/blog/posts/[id].astro:442
 msgid "admin.blog.posts.field_tags"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:323
+#: src/pages/admin/blog/posts/[id].astro:348
 msgid "admin.blog.posts.field_title"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:248
+#: src/pages/admin/blog/pages/[id].astro:273
 msgid "admin.blog.posts.field_visibility"
 msgstr ""
 
@@ -1045,7 +1045,7 @@ msgstr ""
 msgid "admin.blog.posts.new_title"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:397
+#: src/pages/admin/blog/posts/[id].astro:422
 msgid "admin.blog.posts.no_categories"
 msgstr ""
 
@@ -1053,19 +1053,19 @@ msgstr ""
 msgid "admin.blog.posts.no_posts"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:471
+#: src/pages/admin/blog/posts/[id].astro:496
 msgid "admin.blog.posts.no_revisions"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:419
+#: src/pages/admin/blog/posts/[id].astro:444
 msgid "admin.blog.posts.no_tags"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:251
+#: src/pages/admin/blog/posts/[id].astro:264
 msgid "admin.blog.posts.not_found_body"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:250
+#: src/pages/admin/blog/posts/[id].astro:263
 msgid "admin.blog.posts.not_found_title"
 msgstr ""
 
@@ -1077,7 +1077,7 @@ msgstr ""
 msgid "admin.blog.posts.pagination_aria_label"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:290
+#: src/pages/admin/blog/posts/[id].astro:303
 msgid "admin.blog.posts.publish_button"
 msgstr ""
 
@@ -1093,7 +1093,7 @@ msgstr ""
 msgid "admin.blog.posts.published_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:315
+#: src/pages/admin/blog/posts/[id].astro:328
 msgid "admin.blog.posts.purge_button"
 msgstr ""
 
@@ -1105,11 +1105,39 @@ msgstr ""
 msgid "admin.blog.posts.purge_success"
 msgstr ""
 
+#: src/pages/admin/blog/pages/[id].astro:61
+msgid "admin.blog.posts.quality_checklist_blocking_label"
+msgstr ""
+
+#: src/pages/admin/blog/pages/[id].astro:67
+msgid "admin.blog.posts.quality_checklist_info_label"
+msgstr ""
+
+#: src/pages/admin/blog/pages/[id].astro:68
+msgid "admin.blog.posts.quality_checklist_load_error"
+msgstr ""
+
+#: src/pages/admin/blog/pages/[id].astro:57
+msgid "admin.blog.posts.quality_checklist_not_applicable"
+msgstr ""
+
+#: src/pages/admin/blog/pages/[id].astro:60
+msgid "admin.blog.posts.quality_checklist_passed"
+msgstr ""
+
+#: src/pages/admin/blog/pages/[id].astro:56
+msgid "admin.blog.posts.quality_checklist_title"
+msgstr ""
+
+#: src/pages/admin/blog/pages/[id].astro:64
+msgid "admin.blog.posts.quality_checklist_warning_label"
+msgstr ""
+
 #: src/pages/admin/blog/posts/index.astro:196
 msgid "admin.blog.posts.reset_filters_link"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:310
+#: src/pages/admin/blog/posts/[id].astro:323
 msgid "admin.blog.posts.restore_button"
 msgstr ""
 
@@ -1121,23 +1149,23 @@ msgstr ""
 msgid "admin.blog.posts.restore_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:483
+#: src/pages/admin/blog/posts/[id].astro:508
 msgid "admin.blog.posts.revision_actions_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:481
+#: src/pages/admin/blog/posts/[id].astro:506
 msgid "admin.blog.posts.revision_created_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:480
+#: src/pages/admin/blog/posts/[id].astro:505
 msgid "admin.blog.posts.revision_note_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:477
+#: src/pages/admin/blog/posts/[id].astro:502
 msgid "admin.blog.posts.revision_number_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:503
+#: src/pages/admin/blog/posts/[id].astro:528
 msgid "admin.blog.posts.revision_restore_button"
 msgstr ""
 
@@ -1149,19 +1177,19 @@ msgstr ""
 msgid "admin.blog.posts.revision_restore_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:479
+#: src/pages/admin/blog/posts/[id].astro:504
 msgid "admin.blog.posts.revision_status_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:478
+#: src/pages/admin/blog/posts/[id].astro:503
 msgid "admin.blog.posts.revision_title_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:469
+#: src/pages/admin/blog/posts/[id].astro:494
 msgid "admin.blog.posts.revisions_title"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:462
+#: src/pages/admin/blog/posts/[id].astro:487
 msgid "admin.blog.posts.save_button"
 msgstr ""
 
@@ -1169,7 +1197,7 @@ msgstr ""
 msgid "admin.blog.posts.save_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:295
+#: src/pages/admin/blog/posts/[id].astro:308
 msgid "admin.blog.posts.schedule_button"
 msgstr ""
 
@@ -1189,7 +1217,7 @@ msgstr ""
 msgid "admin.blog.posts.search_label"
 msgstr ""
 
-#: src/pages/admin/blog/pages/[id].astro:271
+#: src/pages/admin/blog/pages/[id].astro:296
 msgid "admin.blog.posts.seo_legend"
 msgstr ""
 
@@ -1205,7 +1233,7 @@ msgstr ""
 msgid "admin.blog.posts.status_filter_label"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:285
+#: src/pages/admin/blog/posts/[id].astro:298
 msgid "admin.blog.posts.submit_review_button"
 msgstr ""
 
@@ -1217,7 +1245,7 @@ msgstr ""
 msgid "admin.blog.posts.term_filter_label"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:225
+#: src/pages/admin/blog/posts/[id].astro:238
 msgid "admin.blog.posts.title"
 msgstr ""
 
@@ -1225,7 +1253,7 @@ msgstr ""
 msgid "admin.blog.posts.title_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:278
+#: src/pages/admin/blog/posts/[id].astro:291
 msgid "admin.blog.posts.unknown_author"
 msgstr ""
 
@@ -1233,51 +1261,63 @@ msgstr ""
 msgid "admin.blog.posts.updated_column"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:135
+#: src/pages/admin/blog/settings.astro:225
+msgid "admin.blog.settings.checklist_policy_hint"
+msgstr ""
+
+#: src/pages/admin/blog/settings.astro:138
 msgid "admin.blog.settings.field_blog_description"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:125
+#: src/pages/admin/blog/settings.astro:128
 msgid "admin.blog.settings.field_blog_title"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:168
+#: src/pages/admin/blog/settings.astro:212
+msgid "admin.blog.settings.field_checklist_policy"
+msgstr ""
+
+#: src/pages/admin/blog/settings.astro:171
 msgid "admin.blog.settings.field_default_locale"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:177
+#: src/pages/admin/blog/settings.astro:180
 msgid "admin.blog.settings.field_default_visibility"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:141
+#: src/pages/admin/blog/settings.astro:144
 msgid "admin.blog.settings.field_posts_per_page"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:157
+#: src/pages/admin/blog/settings.astro:160
 msgid "admin.blog.settings.field_rss_enabled"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:199
+#: src/pages/admin/blog/settings.astro:202
 msgid "admin.blog.settings.field_seo_default_description"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:190
+#: src/pages/admin/blog/settings.astro:193
 msgid "admin.blog.settings.field_seo_default_title"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:165
+#: src/pages/admin/blog/settings.astro:168
 msgid "admin.blog.settings.field_sitemap_enabled"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:229
+#: src/pages/admin/blog/settings.astro:249
 msgid "admin.blog.settings.field_theme_mode"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:121
+#: src/pages/admin/blog/settings.astro:124
 msgid "admin.blog.settings.general_legend"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:211
+#: src/pages/admin/blog/settings.astro:58
+msgid "admin.blog.settings.invalid_checklist_policy_json"
+msgstr ""
+
+#: src/pages/admin/blog/settings.astro:231
 msgid "admin.blog.settings.save_button"
 msgstr ""
 
@@ -1285,30 +1325,30 @@ msgstr ""
 msgid "admin.blog.settings.save_success"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:224
+#: src/pages/admin/blog/settings.astro:244
 msgid "admin.blog.settings.theme_inherited_note"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:220
+#: src/pages/admin/blog/settings.astro:240
 msgid "admin.blog.settings.theme_legend"
 msgstr ""
 
 #. dynamic key family "admin.blog.settings.theme_mode_" — concrete suffix from src/modules/blog-content/domain/theme-policy.ts BLOG_THEME_MODES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/settings.astro:233
+#: src/pages/admin/blog/settings.astro:253
 msgid "admin.blog.settings.theme_mode_dark"
 msgstr ""
 
 #. dynamic key family "admin.blog.settings.theme_mode_" — concrete suffix from src/modules/blog-content/domain/theme-policy.ts BLOG_THEME_MODES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/settings.astro:233
+#: src/pages/admin/blog/settings.astro:253
 msgid "admin.blog.settings.theme_mode_light"
 msgstr ""
 
 #. dynamic key family "admin.blog.settings.theme_mode_" — concrete suffix from src/modules/blog-content/domain/theme-policy.ts BLOG_THEME_MODES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/settings.astro:233
+#: src/pages/admin/blog/settings.astro:253
 msgid "admin.blog.settings.theme_mode_system"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:223
+#: src/pages/admin/blog/settings.astro:243
 msgid "admin.blog.settings.theme_override_note"
 msgstr ""
 
@@ -1316,7 +1356,7 @@ msgstr ""
 msgid "admin.blog.settings.theme_save_success"
 msgstr ""
 
-#: src/pages/admin/blog/settings.astro:88
+#: src/pages/admin/blog/settings.astro:91
 msgid "admin.blog.settings.title"
 msgstr ""
 
@@ -1533,17 +1573,17 @@ msgid "admin.blog.templates.update_success"
 msgstr ""
 
 #. dynamic key family "admin.blog.visibility." — concrete suffix from src/modules/blog-content/domain/post-status.ts BLOG_CONTENT_VISIBILITIES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/pages/[id].astro:255
+#: src/pages/admin/blog/pages/[id].astro:280
 msgid "admin.blog.visibility.private"
 msgstr ""
 
 #. dynamic key family "admin.blog.visibility." — concrete suffix from src/modules/blog-content/domain/post-status.ts BLOG_CONTENT_VISIBILITIES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/pages/[id].astro:255
+#: src/pages/admin/blog/pages/[id].astro:280
 msgid "admin.blog.visibility.public"
 msgstr ""
 
 #. dynamic key family "admin.blog.visibility." — concrete suffix from src/modules/blog-content/domain/post-status.ts BLOG_CONTENT_VISIBILITIES (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/blog/pages/[id].astro:255
+#: src/pages/admin/blog/pages/[id].astro:280
 msgid "admin.blog.visibility.unlisted"
 msgstr ""
 
@@ -3160,292 +3200,297 @@ msgid "common.yes"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:34
+#: src/lib/i18n/error-messages.ts:35
 msgid "error.access_denied"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:32
+#: src/lib/i18n/error-messages.ts:33
 msgid "error.auth_invalid_credentials"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:31
+#: src/lib/i18n/error-messages.ts:32
 msgid "error.auth_required"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:83
+#: src/lib/i18n/error-messages.ts:84
 msgid "error.break_glass_required"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:51
+#: src/lib/i18n/error-messages.ts:52
 msgid "error.concurrent_update"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:44
-msgid "error.database_busy"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:66
-msgid "error.google_account_not_linked"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:67
-msgid "error.google_already_linked"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:65
-msgid "error.google_id_token_invalid"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:62
-msgid "error.google_login_disabled"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:69
-msgid "error.google_misconfigured"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:68
-msgid "error.google_not_linked"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:63
-msgid "error.google_oauth_state_invalid"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:64
-msgid "error.google_token_exchange_failed"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:88
-msgid "error.homepage_section_key_conflict"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:86
-msgid "error.homepage_section_reference_invalid"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:49
-msgid "error.hostname_conflict"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:40
-msgid "error.idempotency_conflict"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:39
-msgid "error.idempotency_required"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:46
-msgid "error.internal_error"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:50
-msgid "error.invalid_status_transition"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:56
-msgid "error.mfa_already_active"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:60
-msgid "error.mfa_challenge_invalid"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:55
-msgid "error.mfa_disabled"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:58
-msgid "error.mfa_enrollment_not_found"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:59
-msgid "error.mfa_invalid_code"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:61
-msgid "error.mfa_misconfigured"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:57
-msgid "error.mfa_not_active"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:54
-msgid "error.mfa_required"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:85
-msgid "error.news_media_reference_invalid"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:84
-msgid "error.password_login_disabled"
+#: src/lib/i18n/error-messages.ts:90
+msgid "error.content_quality_checklist_blocked"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
 #: src/lib/i18n/error-messages.ts:45
-msgid "error.provider_error"
+msgid "error.database_busy"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:47
-msgid "error.purge_blocked_by_dependents"
+#: src/lib/i18n/error-messages.ts:67
+msgid "error.google_account_not_linked"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:48
-msgid "error.purge_requires_soft_delete"
+#: src/lib/i18n/error-messages.ts:68
+msgid "error.google_already_linked"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:38
-msgid "error.resource_conflict"
+#: src/lib/i18n/error-messages.ts:66
+msgid "error.google_id_token_invalid"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:37
-msgid "error.resource_deleted"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:36
-msgid "error.resource_not_found"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:77
-msgid "error.sso_account_not_linked"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:78
-msgid "error.sso_already_linked"
+#: src/lib/i18n/error-messages.ts:63
+msgid "error.google_login_disabled"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
 #: src/lib/i18n/error-messages.ts:70
-msgid "error.sso_disabled"
+msgid "error.google_misconfigured"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:76
-msgid "error.sso_id_token_invalid"
+#: src/lib/i18n/error-messages.ts:69
+msgid "error.google_not_linked"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:80
-msgid "error.sso_misconfigured"
+#: src/lib/i18n/error-messages.ts:64
+msgid "error.google_oauth_state_invalid"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:79
-msgid "error.sso_not_linked"
+#: src/lib/i18n/error-messages.ts:65
+msgid "error.google_token_exchange_failed"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:74
-msgid "error.sso_oauth_state_invalid"
+#: src/lib/i18n/error-messages.ts:89
+msgid "error.homepage_section_key_conflict"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:72
-msgid "error.sso_provider_disabled"
+#: src/lib/i18n/error-messages.ts:87
+msgid "error.homepage_section_reference_invalid"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:81
-msgid "error.sso_provider_key_conflict"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:82
-msgid "error.sso_provider_limit_exceeded"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:71
-msgid "error.sso_provider_not_found"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:73
-msgid "error.sso_provider_unavailable"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:75
-msgid "error.sso_token_exchange_failed"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:42
-msgid "error.stock_not_available"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:43
-msgid "error.sync_conflict"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:35
-msgid "error.tenant_required"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:33
-msgid "error.token_expired"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:53
-msgid "error.turnstile_invalid"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:52
-msgid "error.turnstile_required"
-msgstr ""
-
-#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:30
-msgid "error.validation_error"
+#: src/lib/i18n/error-messages.ts:50
+msgid "error.hostname_conflict"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
 #: src/lib/i18n/error-messages.ts:41
+msgid "error.idempotency_conflict"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:40
+msgid "error.idempotency_required"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:47
+msgid "error.internal_error"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:51
+msgid "error.invalid_status_transition"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:57
+msgid "error.mfa_already_active"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:61
+msgid "error.mfa_challenge_invalid"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:56
+msgid "error.mfa_disabled"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:59
+msgid "error.mfa_enrollment_not_found"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:60
+msgid "error.mfa_invalid_code"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:62
+msgid "error.mfa_misconfigured"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:58
+msgid "error.mfa_not_active"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:55
+msgid "error.mfa_required"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:86
+msgid "error.news_media_reference_invalid"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:85
+msgid "error.password_login_disabled"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:46
+msgid "error.provider_error"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:48
+msgid "error.purge_blocked_by_dependents"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:49
+msgid "error.purge_requires_soft_delete"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:39
+msgid "error.resource_conflict"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:38
+msgid "error.resource_deleted"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:37
+msgid "error.resource_not_found"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:78
+msgid "error.sso_account_not_linked"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:79
+msgid "error.sso_already_linked"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:71
+msgid "error.sso_disabled"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:77
+msgid "error.sso_id_token_invalid"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:81
+msgid "error.sso_misconfigured"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:80
+msgid "error.sso_not_linked"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:75
+msgid "error.sso_oauth_state_invalid"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:73
+msgid "error.sso_provider_disabled"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:82
+msgid "error.sso_provider_key_conflict"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:83
+msgid "error.sso_provider_limit_exceeded"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:72
+msgid "error.sso_provider_not_found"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:74
+msgid "error.sso_provider_unavailable"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:76
+msgid "error.sso_token_exchange_failed"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:43
+msgid "error.stock_not_available"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:44
+msgid "error.sync_conflict"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:36
+msgid "error.tenant_required"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:34
+msgid "error.token_expired"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:54
+msgid "error.turnstile_invalid"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:53
+msgid "error.turnstile_required"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:31
+msgid "error.validation_error"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:42
 msgid "error.workflow_approval_required"
 msgstr ""
 

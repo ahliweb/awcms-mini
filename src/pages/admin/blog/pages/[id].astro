@@ -52,7 +52,20 @@ const clientStrings = {
   deleteReasonPrompt: t("admin.blog.pages.delete_reason_prompt"),
   networkError: t("common.network_error"),
   pleaseWait: t("common.please_wait"),
-  errorMessages: buildClientErrorMessages(t)
+  errorMessages: buildClientErrorMessages(t),
+  qualityChecklistTitle: t("admin.blog.posts.quality_checklist_title"),
+  qualityChecklistNotApplicable: t(
+    "admin.blog.posts.quality_checklist_not_applicable"
+  ),
+  qualityChecklistPassed: t("admin.blog.posts.quality_checklist_passed"),
+  qualityChecklistBlockingLabel: t(
+    "admin.blog.posts.quality_checklist_blocking_label"
+  ),
+  qualityChecklistWarningLabel: t(
+    "admin.blog.posts.quality_checklist_warning_label"
+  ),
+  qualityChecklistInfoLabel: t("admin.blog.posts.quality_checklist_info_label"),
+  qualityChecklistLoadError: t("admin.blog.posts.quality_checklist_load_error")
 };
 
 type Data = {
@@ -167,6 +180,18 @@ const canSoftDelete = data !== null && !data.page.deletedAt && CAN_DELETE_PAGES;
             </button>
           </div>
         )}
+
+        <section
+          id="quality-checklist-panel"
+          class="quality-checklist"
+          aria-live="polite"
+        >
+          <h2>{t("admin.blog.posts.quality_checklist_title")}</h2>
+          <p id="quality-checklist-status" class="field-hint">
+            {t("common.please_wait")}
+          </p>
+          <ul id="quality-checklist-list" class="quality-checklist-list" />
+        </section>
 
         <form id="page-form" class="editor-form">
           <fieldset disabled={!canEditFields}>
@@ -377,6 +402,56 @@ const canSoftDelete = data !== null && !data.page.deletedAt && CAN_DELETE_PAGES;
     border-color: var(--color-danger-strong);
   }
 
+  .quality-checklist {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--sp-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+
+  .quality-checklist h2 {
+    font-size: var(--fs-md);
+    margin: 0;
+  }
+
+  .quality-checklist-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+  }
+
+  .quality-checklist-list li {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-2);
+    font-size: var(--fs-sm);
+    padding: var(--sp-1) 0;
+  }
+
+  .quality-checklist-list li[data-severity="blocking"] {
+    color: var(--color-danger-strong);
+  }
+
+  .quality-checklist-list li[data-severity="warning"] {
+    color: var(--color-warning);
+  }
+
+  .quality-checklist-list li[data-severity="info"] {
+    color: var(--color-text-muted);
+  }
+
+  .quality-checklist-badge {
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
   .editor-form fieldset {
     border: none;
     padding: 0;
@@ -459,6 +534,7 @@ const canSoftDelete = data !== null && !data.page.deletedAt && CAN_DELETE_PAGES;
 
 <script>
   import {
+    fetchJson,
     lockElement,
     readClientStrings,
     reloadAfterDelay,
@@ -474,11 +550,94 @@ const canSoftDelete = data !== null && !data.page.deletedAt && CAN_DELETE_PAGES;
     networkError: string;
     pleaseWait: string;
     errorMessages?: Record<string, string>;
+    qualityChecklistTitle: string;
+    qualityChecklistNotApplicable: string;
+    qualityChecklistPassed: string;
+    qualityChecklistBlockingLabel: string;
+    qualityChecklistWarningLabel: string;
+    qualityChecklistInfoLabel: string;
+    qualityChecklistLoadError: string;
+  }
+
+  interface ChecklistRuleOutcome {
+    ruleId: string;
+    severity: "blocking" | "warning" | "info";
+    passed: boolean;
+    applicable: boolean;
+    message: string;
+  }
+
+  interface ChecklistResult {
+    applicable: boolean;
+    passed: boolean;
+    blockers: ChecklistRuleOutcome[];
+    warnings: ChecklistRuleOutcome[];
+    info: ChecklistRuleOutcome[];
   }
 
   const strings = readClientStrings<PageEditorStrings>();
   const pageId =
     document.querySelector<HTMLElement>(".page-editor")?.dataset.pageId;
+
+  /** Content quality checklist panel (Issue #640) — mirrors `admin/blog/posts/[id].astro`'s panel exactly; see that file's header comment for the full rationale. Read-only for pages: there is no page publish/schedule endpoint in this API to gate. */
+  function severityLabel(severity: ChecklistRuleOutcome["severity"]): string {
+    if (severity === "blocking") return strings.qualityChecklistBlockingLabel;
+    if (severity === "warning") return strings.qualityChecklistWarningLabel;
+    return strings.qualityChecklistInfoLabel;
+  }
+
+  function renderChecklist(checklist: ChecklistResult | null): void {
+    const status = document.getElementById("quality-checklist-status");
+    const list = document.getElementById("quality-checklist-list");
+    if (!status || !list) return;
+
+    list.textContent = "";
+
+    if (!checklist) {
+      status.textContent = strings.qualityChecklistLoadError;
+      return;
+    }
+
+    if (!checklist.applicable) {
+      status.textContent = strings.qualityChecklistNotApplicable;
+      return;
+    }
+
+    const failing = [
+      ...checklist.blockers,
+      ...checklist.warnings,
+      ...checklist.info
+    ];
+
+    if (failing.length === 0) {
+      status.textContent = strings.qualityChecklistPassed;
+      return;
+    }
+
+    status.textContent = "";
+    for (const rule of failing) {
+      const item = document.createElement("li");
+      item.dataset.severity = rule.severity;
+      const badge = document.createElement("span");
+      badge.className = "quality-checklist-badge";
+      badge.textContent = severityLabel(rule.severity);
+      const message = document.createElement("span");
+      message.textContent = rule.message;
+      item.append(badge, message);
+      list.append(item);
+    }
+  }
+
+  async function loadQualityChecklist(): Promise<void> {
+    if (!pageId) return;
+    const result = await fetchJson<{ qualityChecklist: ChecklistResult }>(
+      `/api/v1/blog/pages/${pageId}/quality-checklist`,
+      strings
+    );
+    renderChecklist(result.ok ? (result.data?.qualityChecklist ?? null) : null);
+  }
+
+  void loadQualityChecklist();
 
   document
     .getElementById("page-form")

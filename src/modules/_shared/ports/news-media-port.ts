@@ -30,6 +30,18 @@
 export type ResolvedNewsMediaReferenceDTO = {
   publicUrl: string;
   altText: string | null;
+  /**
+   * Metadata fields added by Issue #640 (content quality checklist) —
+   * purely additive, every existing caller (render-time gallery/featured
+   * image resolution) already destructures only `publicUrl`/`altText` and
+   * is unaffected. Sourced verbatim from the news media registry row
+   * (Issue #633); present whenever the id resolves at all (the map never
+   * contains an unsafe/nonexistent id in the first place, same as before).
+   */
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+  sizeBytes: number | null;
 };
 
 export type NewsMediaPort = {

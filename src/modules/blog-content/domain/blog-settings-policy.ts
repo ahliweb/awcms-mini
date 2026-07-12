@@ -16,6 +16,11 @@ import {
   isBlogContentVisibility,
   type BlogContentVisibility
 } from "./post-status";
+import {
+  isOverridableChecklistRuleId,
+  isValidChecklistSeverity,
+  type ChecklistPolicyOverrides
+} from "./content-quality-checklist";
 
 export type ValidationError = {
   field: string;
@@ -39,6 +44,7 @@ export type UpdateBlogSettingsInput = {
   defaultVisibility?: BlogContentVisibility;
   seoDefaultTitle?: string | null;
   seoDefaultDescription?: string | null;
+  contentQualityChecklistPolicy?: ChecklistPolicyOverrides;
 };
 
 export type UpdateBlogSettingsValidationResult =
@@ -75,6 +81,49 @@ function validateOptionalBoundedString(
   }
 
   return null;
+}
+
+/**
+ * `contentQualityChecklistPolicy` (Issue #640) — a tenant-configurable
+ * warning-vs-blocking/info override for the checklist's NON-security rules
+ * only. Unknown keys (typos, or an attempt to name a security rule id like
+ * `unsafe_html_rejected`/`no_local_image_path`) are rejected with a `400`
+ * rather than silently ignored — same "surface the mistake, don't eat it"
+ * choice `resolveSeverity`'s defense-in-depth re-check in `content-quality-
+ * checklist.ts` documents for the read side. Storing this in
+ * `awcms_mini_blog_settings.settings` (the existing tenant-writable
+ * catch-all jsonb column, same as `blogTitle`/`rssEnabled`) is intentional,
+ * NOT the anti-pattern Issue #636 documented (`.claude/skills/awcms-mini-
+ * news-portal/SKILL.md` §636 "JANGAN pernah menaruh sinyal keamanan/
+ * enforcement..."): that lesson was about a SECURITY signal living in a
+ * generic-writable place. This is the opposite — a tenant BUSINESS
+ * preference for non-security severities, where the security rule ids are
+ * hard-coded in `content-quality-checklist.ts` and never read from this
+ * settings blob at all, so there is no bypass path a tenant-writable value
+ * could ever unlock here.
+ */
+function validateContentQualityChecklistPolicy(
+  value: unknown
+): { valid: true; value: ChecklistPolicyOverrides } | { valid: false } {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return { valid: false };
+  }
+
+  const record = value as Record<string, unknown>;
+  const result: ChecklistPolicyOverrides = {};
+
+  for (const [key, severity] of Object.entries(record)) {
+    if (
+      !isOverridableChecklistRuleId(key) ||
+      !isValidChecklistSeverity(severity)
+    ) {
+      return { valid: false };
+    }
+
+    result[key] = severity;
+  }
+
+  return { valid: true, value: result };
 }
 
 export function validateUpdateBlogSettingsInput(
@@ -204,6 +253,21 @@ export function validateUpdateBlogSettingsInput(
         record.seoDefaultDescription === null
           ? null
           : (record.seoDefaultDescription as string).trim();
+    }
+  }
+
+  if (record.contentQualityChecklistPolicy !== undefined) {
+    const policyResult = validateContentQualityChecklistPolicy(
+      record.contentQualityChecklistPolicy
+    );
+    if (!policyResult.valid) {
+      errors.push({
+        field: "contentQualityChecklistPolicy",
+        message:
+          "contentQualityChecklistPolicy must map overridable rule ids (excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists) to a severity (blocking, warning, info)."
+      });
+    } else {
+      value.contentQualityChecklistPolicy = policyResult.value;
     }
   }
 
