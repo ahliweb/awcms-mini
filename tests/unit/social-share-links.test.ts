@@ -233,11 +233,11 @@ describe("renderSocialShareButtonsHtml (Issue #642)", () => {
       ALL_ENABLED,
       "/js/news-share.js"
     );
-    const scriptTags = [...html.matchAll(/<script\b[^>]*>/g)];
+    const scriptTags = [...html.matchAll(/<script\b[^>]*>/gi)];
 
     expect(scriptTags.length).toBe(1);
     expect(scriptTags[0]![0]).toContain('src="/js/news-share.js"');
-    expect(html).not.toMatch(/<script[^>]*src="https?:\/\//);
+    expect(html).not.toMatch(/<script[^>]*src="https?:\/\//i);
   });
 
   test("uses the canonical URL, never a raw querystring-bearing URL, in data-share-url/href", () => {
