@@ -35,26 +35,28 @@ export type TargetLikelihood = {
 
 /**
  * Hostnames that are DEFINITELY not an isolated dev/CI database, no matter
- * what APP_ENV claims — matched against the DATABASE_URL's hostname AND
- * against the full connection string (so a suffix like
- * `something.prod.internal` is also caught even when it's not the whole
- * hostname component boundary a strict hostname-only match might miss).
+ * what APP_ENV claims — matched ONLY against the DATABASE_URL's parsed
+ * `hostname` (never the raw connection string — see CodeQL note below).
+ * FQDN-suffix patterns are anchored with `$`, which is exact and safe here
+ * since a bare hostname has no trailing `:port/db` to worry about.
+ *
+ * CodeQL (3 high-severity "Missing regular expression anchor" alerts on PR
+ * #716) correctly flagged the PREVIOUS version of this list, which also
+ * ran unanchored against the FULL raw connection string: "arbitrary hosts
+ * may come before or after it" — e.g. an unanchored `/\.rds\.amazonaws\.com/`
+ * substring-matching the full URL would also match a query-string/path
+ * segment containing that text even when the ACTUAL host is something
+ * else entirely, or fail to match a genuinely-RDS host whose credentials
+ * happen to contain confounding text. Fixed by dropping the full-string
+ * fallback entirely and anchoring every FQDN pattern to the end of the
+ * (already-isolated, already-lowercased) hostname component only.
  */
-// Trailing `\b` on the FQDN-suffix patterns closes 3 open CodeQL "missing
-// regular expression anchor" alerts (reviewer finding on PR #716) without
-// narrowing to a hostname-only `$` anchor — these patterns intentionally
-// also run against the full connection string (see doc comment above),
-// which has a trailing `:port/db` after the hostname, so a `$` anchor
-// would silently stop matching there. `\b` still requires a genuine
-// word-boundary immediately after the FQDN (a `:`, `/`, or end-of-string
-// in every realistic connection string), closing the "matches as an
-// unanchored substring" alert while preserving the full-string check.
 const KNOWN_PRODUCTION_HOST_PATTERNS: RegExp[] = [
-  /\.rds\.amazonaws\.com\b/i,
-  /\.database\.azure\.com\b/i,
-  /\.neon\.tech\b/i,
-  /supabase\.co\b/i,
-  /\.digitalocean\.com\b/i,
+  /\.rds\.amazonaws\.com$/i,
+  /\.database\.azure\.com$/i,
+  /\.neon\.tech$/i,
+  /supabase\.co$/i,
+  /\.digitalocean\.com$/i,
   /\bprod\b/i,
   /production/i
 ];
@@ -100,8 +102,8 @@ export function isProductionLikeTarget(
     };
   }
 
-  const productionMatch = KNOWN_PRODUCTION_HOST_PATTERNS.find(
-    (pattern) => pattern.test(hostname) || pattern.test(databaseUrl)
+  const productionMatch = KNOWN_PRODUCTION_HOST_PATTERNS.find((pattern) =>
+    pattern.test(hostname)
   );
 
   if (productionMatch) {
