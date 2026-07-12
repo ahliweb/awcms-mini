@@ -9,7 +9,7 @@ Sumber kebenaran: **`docs/awcms-mini/16_backend_data_access_integration.md`** (t
 
 ## Prinsip integrasi (non-negotiable)
 
-- **Provider eksternal opsional** (ADR-0006): R2/WA/email/AI/pajak **tidak boleh** jadi dependency alur operasional kritis, dan **tidak boleh** dipanggil di dalam transaksi DB. Provider off → aksi tetap masuk antrean, bukan gagal.
+- **Provider eksternal opsional** (ADR-0006): R2/WA/email/AI/pajak **tidak boleh** jadi dependency alur operasional kritis, dan **tidak boleh** dipanggil di dalam transaksi DB. Provider off → aksi tetap masuk antrean, bukan gagal. Shared worker runner (`src/lib/jobs/job-runner.ts`, Issue #697) — dipakai untuk orkestrasi `scripts/*.ts` (lock, batching, exit code, telemetry) — dirancang KONSISTEN dengan aturan ini: tidak mendorong pola yang menaruh panggilan provider di dalam transaksi DB yang sama; handler job yang memanggil provider tetap wajib melakukannya di luar `withTenant`'s transaction block, persis pola dispatcher outbox di bawah.
 - **Secret hanya dari environment** (doc 18); flag aktif tanpa kredensial → gagal start (fail-fast).
 
 ## Checklist ketahanan

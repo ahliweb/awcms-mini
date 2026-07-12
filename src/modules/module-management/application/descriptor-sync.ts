@@ -28,7 +28,13 @@ export type DescriptorSyncResult = {
   orphaned: string[];
 };
 
-async function fetchExistingModules(
+/**
+ * Exported (Issue #697, epic #679) so `scripts/modules-sync.ts`'s
+ * `--dry-run` mode can compute the exact same `planModuleSync` diff a real
+ * run would act on — using this SAME read function, not a re-derived one —
+ * while never calling `syncModuleDescriptors` itself (which would mutate).
+ */
+export async function fetchExistingModules(
   sql: Bun.SQL
 ): Promise<ExistingModuleRow[]> {
   const rows = (await sql`

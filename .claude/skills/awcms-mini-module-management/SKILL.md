@@ -85,7 +85,12 @@ satu-titik). Dipanggil dari:
 - `bun run modules:dag:check` (`scripts/validate-module-graph.ts`) —
   disisipkan ke `bun run check` tepat setelah `api:spec:check`.
 - `bun run modules:sync` (`scripts/modules-sync.ts`) — menolak sync ke DB
-  bila graph rusak, SEBELUM baris apa pun tersentuh.
+  bila graph rusak, SEBELUM baris apa pun tersentuh. Sejak Issue #697 (epic
+  #679), script ini dibangun di atas shared worker runner
+  `src/lib/jobs/job-runner.ts` (advisory lock, `--dry-run` via
+  `planModuleSync`, JSON telemetry) — lihat
+  `docs/awcms-mini/deployment-profiles.md` §Shared worker runner; perilaku
+  `syncModuleDescriptors` sendiri TIDAK berubah.
 
 **Fix nyata untuk cycle historis** (Issue #680): `tenant_admin.dependencies`
 diubah dari `["profile_identity", "identity_access"]` menjadi `[]` —
