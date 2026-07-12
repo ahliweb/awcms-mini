@@ -19,13 +19,14 @@ and `.github/workflows/codeql.yml` — a branch protection rule's "required
 status checks" list must reference these names verbatim (GitHub matches on
 the job's `name:`, not its internal id):
 
-| Check name (verbatim)                                  | Workflow / job           | What it gates                                                                                                                                                                                        |
-| ------------------------------------------------------ | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Quality (lint + docs + contracts + typecheck + test)` | `ci.yml` / `quality`     | Prettier, docs checks, `api:spec:check` (OpenAPI/AsyncAPI + route parity + public-operation allow-list), `modules:dag:check`, `i18n:parity:check`, typecheck, `bun test` (unit + integration), build |
-| `E2E smoke (Playwright)`                               | `ci.yml` / `e2e-smoke`   | Real-browser smoke coverage against a live app + isolated Postgres (login, admin/security both gate states, admin/analytics access control)                                                          |
-| `Repo hygiene (Bun-only + no secrets)`                 | `ci.yml` / `hygiene`     | Bun-only tooling convention, no committed `.env`, both `docker-compose*.yml` files parse                                                                                                             |
-| `Analyze (actions)`                                    | `codeql.yml` / `analyze` | CodeQL static analysis of GitHub Actions workflow files                                                                                                                                              |
-| `Analyze (javascript-typescript)`                      | `codeql.yml` / `analyze` | CodeQL static analysis (security-extended + security-and-quality queries) of the TypeScript/Astro source                                                                                             |
+| Check name (verbatim)                                  | Workflow / job                    | What it gates                                                                                                                                                                                        |
+| ------------------------------------------------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Quality (lint + docs + contracts + typecheck + test)` | `ci.yml` / `quality`              | Prettier, docs checks, `api:spec:check` (OpenAPI/AsyncAPI + route parity + public-operation allow-list), `modules:dag:check`, `i18n:parity:check`, typecheck, `bun test` (unit + integration), build |
+| `E2E smoke (Playwright)`                               | `ci.yml` / `e2e-smoke`            | Real-browser smoke coverage against a live app + isolated Postgres (login, admin/security both gate states, admin/analytics access control)                                                          |
+| `Repo hygiene (Bun-only + no secrets)`                 | `ci.yml` / `hygiene`              | Bun-only tooling convention, no committed `.env`, both `docker-compose*.yml` files parse                                                                                                             |
+| `Analyze (actions)`                                    | `codeql.yml` / `analyze`          | CodeQL static analysis of GitHub Actions workflow files                                                                                                                                              |
+| `Analyze (javascript-typescript)`                      | `codeql.yml` / `analyze`          | CodeQL static analysis (security-extended + security-and-quality queries) of the TypeScript/Astro source                                                                                             |
+| `Changeset required for behavior changes`              | `changesets.yml` / `policy-check` | Issue #692: fails a PR touching non-docs/non-agent-tooling files without a new `.changeset/*.md` — see `release-process.md` §PR-time gate                                                            |
 
 `GitGuardian Security Checks` (a GitHub App check, not a workflow file in
 this repo) also already reports on every PR — include it in the required
@@ -57,6 +58,7 @@ gh api -X PUT repos/ahliweb/awcms-mini/branches/main/protection \
   -f 'required_status_checks.contexts[]=Repo hygiene (Bun-only + no secrets)' \
   -f 'required_status_checks.contexts[]=Analyze (actions)' \
   -f 'required_status_checks.contexts[]=Analyze (javascript-typescript)' \
+  -f 'required_status_checks.contexts[]=Changeset required for behavior changes' \
   -f enforce_admins=true \
   -f required_pull_request_reviews=null \
   -f restrictions=null
@@ -94,3 +96,9 @@ close.
   that closed that gap, referenced there.
 - `.github/workflows/ci.yml` / `.github/workflows/codeql.yml` — the
   actual workflow definitions this doc describes.
+- [`release-process.md`](release-process.md) — Issue #692's
+  `changesets.yml` (PR-time changeset policy gate, table row above) and
+  `release.yml` (tag-triggered build/SBOM/sign/attest/publish pipeline),
+  including its own repo-admin manual step (the `release` GitHub
+  Environment's required reviewers) that follows this same "document, don't
+  self-apply" pattern.
