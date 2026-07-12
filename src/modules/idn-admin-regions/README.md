@@ -60,18 +60,24 @@ migration `sql/048_awcms_mini_idn_admin_regions_permissions.sql` (see
 `data/idn-admin-regions/` (outside `src/`, since they are not TypeScript
 source) — see that directory's own `README.md`/`NOTICE.md` and
 `.claude/skills/awcms-mini-idn-admin-regions/SKILL.md` §656 for details.
-**Still no dataset schema, no parser/normalizer, no import pipeline, no
-activation/rollback, no lookup API, and no admin UI yet** — every one of
-those is a later issue, listed below. `application/` is currently empty
-(`.gitkeep` only) — there is no application-layer logic to write until a
-later issue gives this module its first real database table or endpoint
-to orchestrate.
+Issue #657 then added the versioned PostgreSQL schema (migration
+`sql/054_awcms_mini_idn_admin_regions_schema.sql`) — two GLOBAL reference
+tables (`awcms_mini_idn_region_datasets`, `awcms_mini_idn_admin_regions`),
+neither `tenant_id`-scoped nor RLS-protected (see §Not rebuilt below and
+`.claude/skills/awcms-mini-idn-admin-regions/SKILL.md` §657 for the full
+design rationale, including how "only one active dataset" and
+least-privilege runtime-role grants are enforced). **Still no
+parser/normalizer, no import pipeline, no activation/rollback, no lookup
+API, and no admin UI** — every one of those is a later issue, listed
+below. `application/` is currently empty (`.gitkeep` only) — there is no
+application-layer logic to write until a later issue gives this module
+its first real read/write code path.
 
 | Issue | Scope                                                                                          | Status      |
 | ----- | ---------------------------------------------------------------------------------------------- | ----------- |
 | #655  | Scaffold `idn_admin_regions` module (this issue)                                               | **Done**    |
 | #656  | Vendor `cahyadsn/wilayah` source metadata + license under `data/idn-admin-regions/`            | **Done**    |
-| #657  | Versioned PostgreSQL schema (`awcms_mini_idn_region_datasets`, `awcms_mini_idn_admin_regions`) | Not started |
+| #657  | Versioned PostgreSQL schema (`awcms_mini_idn_region_datasets`, `awcms_mini_idn_admin_regions`) | **Done**    |
 | #658  | SQL parser/normalizer for upstream MySQL-style dump files                                      | Not started |
 | #659  | Repository validation gate for vendored/normalized dataset files                               | Not started |
 | #660  | PostgreSQL import pipeline (dry-run/commit)                                                    | Not started |

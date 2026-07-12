@@ -103,7 +103,11 @@ export const RLS_EXEMPT_TABLES: Readonly<Record<string, string>> = {
   awcms_mini_module_jobs:
     "Module registry — global catalog (doc 16 §Registry global, RLS-free).",
   awcms_mini_module_health_checks:
-    "Module registry — global catalog (doc 16 §Registry global, RLS-free)."
+    "Module registry — global catalog (doc 16 §Registry global, RLS-free).",
+  awcms_mini_idn_region_datasets:
+    "Indonesia administrative region dataset metadata (cahyadsn/wilayah) — global reference data, identical for every tenant (doc 04 §Master Data — Indonesia Administrative Regions, Issue #657).",
+  awcms_mini_idn_admin_regions:
+    "Indonesia administrative region records (cahyadsn/wilayah) — global reference data, identical for every tenant (doc 04 §Master Data — Indonesia Administrative Regions, Issue #657)."
 };
 
 type TableInfo = {
