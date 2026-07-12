@@ -619,6 +619,14 @@ suite("blog_content video_news content block (Issue #639)", () => {
     expect(response.text).toContain(
       `<img class="video-news-thumbnail" src="${thumbnail.publicUrl}"`
     );
-    expect(response.text).not.toContain("<script");
+    // The video_news block itself must never echo a raw stored <script>/
+    // iframe (Issue #639's actual safety property) — the page's ONLY
+    // <script> tag is the unrelated, safe, same-origin news-share widget
+    // script (Issue #642, merged after this test was first written), so
+    // assert that specifically rather than banning all <script> tags
+    // outright.
+    const scriptTags = [...response.text.matchAll(/<script\b[^>]*>/gi)];
+    expect(scriptTags.length).toBe(1);
+    expect(scriptTags[0]![0]).toContain('src="/js/news-share.js"');
   });
 });
