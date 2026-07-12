@@ -104,23 +104,45 @@ export async function publishDueScheduledPosts(
 
       for (const post of due) {
         const termIds = await fetchPostTermIds(tx, tenantId, post.id);
-        const checklist = await evaluateContentQualityChecklistForContent(
-          tx,
-          tenantId,
-          "post",
-          {
-            title: post.title,
-            slug: post.slug,
-            excerpt: post.excerpt,
-            metaDescription: post.meta_description,
-            contentText: post.content_text,
-            contentJson: post.content_json,
-            featuredMediaId: post.featured_media_id
-          },
-          termIds.length,
-          mediaPort,
-          blogSettings.contentQualityChecklistPolicy
-        );
+        const evaluateChecklist = () =>
+          evaluateContentQualityChecklistForContent(
+            tx,
+            tenantId,
+            "post",
+            {
+              title: post.title,
+              slug: post.slug,
+              excerpt: post.excerpt,
+              metaDescription: post.meta_description,
+              contentText: post.content_text,
+              contentJson: post.content_json,
+              featuredMediaId: post.featured_media_id
+            },
+            termIds.length,
+            mediaPort,
+            blogSettings.contentQualityChecklistPolicy
+          );
+
+        let checklist = await evaluateChecklist();
+
+        /**
+         * TOCTOU mitigation (security-auditor Medium finding, PR #725): the
+         * post row itself is protected by the batch's own `FOR UPDATE` lock
+         * (above), but the R2 media objects it references are NOT locked —
+         * an editor could detach/invalidate the featured/gallery media
+         * between this first evaluation and the `UPDATE` below, especially
+         * for a large due-batch where earlier posts' evaluations/updates
+         * push that gap out further. Re-running the evaluation immediately
+         * before the `UPDATE` shrinks that window from "the rest of this
+         * tenant's whole batch" down to one query round-trip — it doesn't
+         * eliminate the race outright (that would need locking the
+         * referenced media rows too, a bigger change touching the shared
+         * `NewsMediaPort` every read-only preview endpoint also uses), but
+         * closes the realistic exposure at negligible cost.
+         */
+        if (checklist.passed) {
+          checklist = await evaluateChecklist();
+        }
 
         if (!checklist.passed) {
           blockedPostIds.push(post.id);

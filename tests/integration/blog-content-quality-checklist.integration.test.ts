@@ -391,6 +391,55 @@ suite("content quality checklist (Issue #640)", () => {
     expect(response.status).toBe(400);
   });
 
+  test("a security rule id poisoned directly into the stored settings row (bypassing the write-time gate) is still ignored, not honored — read-side defense in depth", async () => {
+    // Security-auditor/reviewer finding on PR #725: the write-time gate
+    // (PATCH /api/v1/blog/settings, tested above) is the only application
+    // path that can ever set this jsonb column, but the read side
+    // (blog-settings-directory.ts's toView/sanitizeChecklistPolicyOverrides)
+    // previously trusted its shape unconditionally instead of re-validating
+    // — a future direct DB write/migration/refactor bypassing the single
+    // write-time gate would have silently downgraded a security rule.
+    const owner = await bootstrap();
+    await activateFullOnlineR2Mode(owner);
+
+    await getAdminSql()`
+      UPDATE awcms_mini_blog_settings
+      SET settings = settings || '{"contentQualityChecklistPolicy": {"unsafe_html_rejected": "info"}}'::jsonb
+      WHERE tenant_id = ${owner.tenantId}
+    `;
+
+    const created = await invoke<{ data: { id: string } }>(createPost, {
+      method: "POST",
+      path: "/api/v1/blog/posts",
+      headers: authHeaders(owner),
+      body: validCreatePostBody()
+    });
+    const postId = created.body.data.id;
+
+    await getAdminSql()`
+      UPDATE awcms_mini_blog_posts
+      SET content_text = '<script>alert(1)</script>'
+      WHERE tenant_id = ${owner.tenantId} AND id = ${postId}
+    `;
+
+    const response = await invoke<{
+      error: { code: string; details: { field: string }[] };
+    }>(publishPost, {
+      method: "POST",
+      path: `/api/v1/blog/posts/${postId}/publish`,
+      headers: { ...authHeaders(owner), "idempotency-key": "publish-poisoned" },
+      params: { id: postId }
+    });
+
+    expect(response.status).toBe(422);
+    expect(response.body.error.code).toBe("CONTENT_QUALITY_CHECKLIST_BLOCKED");
+    expect(
+      response.body.error.details.some(
+        (d) => d.field === "unsafe_html_rejected"
+      )
+    ).toBe(true);
+  });
+
   test("R2-only mode active: publish is blocked when a gallery item uses a local image path", async () => {
     const owner = await bootstrap();
     await activateFullOnlineR2Mode(owner);
