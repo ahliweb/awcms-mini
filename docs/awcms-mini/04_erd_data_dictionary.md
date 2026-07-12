@@ -300,6 +300,34 @@ verify,attach,detach,delete,restore,purge}`,
 `module.ts`'s `permissions` array (belum ada endpoint yang
 menegakkannya).
 
+### News Portal — R2-only advertisement placement presets (Issue #638, `sql/048`)
+
+- **`awcms_mini_news_portal_ad_placements`** — satu baris per ad
+  dikonfigurasi untuk satu `placement_key` (`CHECK` dua belas nilai tetap:
+  `header_banner`, `below_headline`, `homepage_middle`,
+  `homepage_bottom`, `article_top/middle/bottom`,
+  `sidebar_top/middle/bottom`, `category_archive_top`,
+  `search_result_top`). `media_object_id` adalah **FK nyata** (bukan
+  polymorphic tanpa FK seperti `owner_resource_id` di atas) ke
+  `awcms_mini_news_media_objects` — tabel ini TIDAK punya kolom
+  `image_url` bebas teks sama sekali, jadi R2-only-ness berlaku by
+  construction, bukan lewat gerbang mode runtime seperti Issue #636's
+  `blog_content` gate. Tabel BARU, TERPISAH dari `blog_content`'s
+  `awcms_mini_blog_ads`/`awcms_mini_blog_ad_placements` (migration 029,
+  `image_url` bebas URL http(s), tidak diubah issue ini) — lihat
+  `.claude/skills/awcms-mini-news-portal/SKILL.md` §638 untuk alasan
+  lengkap kenapa bukan ekstensi tabel yang sudah ada. `link_url` opsional,
+  divalidasi aplikasi sebagai absolute http(s) (`isSafeAdLinkUrl`).
+  `rotation_mode` (`latest|priority|random_safe|weighted`) + `priority`
+  mengontrol seleksi tampil saat render (`ad-placement-rotation.ts`'s
+  `selectAdsForRotation`, murni, tanpa I/O). Scheduling `starts_at`/
+  `ends_at` (nullable, `CHECK ends_at > starts_at`). Soft-deletable
+  (`deleted_at`/`deleted_by`/`delete_reason`). RLS `ENABLE`+`FORCE`.
+  `recommended_size`/`allowed_media_types`/`max_items` per `placement_key`
+  BUKAN kolom tabel — metadata preset statis di kode
+  (`ad-placement-policy.ts`'s `AD_PLACEMENT_PRESETS`), sama pola
+  `homepage-section-policy.ts`'s `HomepageSectionType` whitelist.
+
 ## Konten multi-bahasa (translatable content)
 
 Berbeda dari **string UI statis** (label/tombol/pesan error) yang memakai katalog `.po` gettext di sisi aplikasi (doc 14 §i18n), **data input pengguna** yang perlu tampil multi-bahasa disimpan **di database, satu nilai per bahasa aktif**. Base generik sudah punya satu contoh nyata (`awcms_mini_email_templates.subject_template`/`text_body_template`/`html_body_template`, `sql/021`, Issue #498 — lihat §Email di atas) — bukan lagi sekadar konvensi belum-terpakai; ini **standar** yang wajib diikuti aplikasi turunan (mis. modul domain seperti `blog_content`, epic #536) saat menambah field konten translatable baru.

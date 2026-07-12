@@ -20,7 +20,8 @@ import type { Translator } from "./translate";
  * `SSO_TOKEN_EXCHANGE_FAILED`/`SSO_ID_TOKEN_INVALID`/
  * `SSO_ACCOUNT_NOT_LINKED`/`SSO_ALREADY_LINKED`/`SSO_NOT_LINKED`/
  * `SSO_MISCONFIGURED`/`SSO_PROVIDER_KEY_CONFLICT`/`BREAK_GLASS_REQUIRED`/
- * `PASSWORD_LOGIN_DISABLED`) and Issue #640's content quality checklist code
+ * `PASSWORD_LOGIN_DISABLED`/Issue #638's `AD_PLACEMENT_REFERENCE_INVALID`)
+ * and Issue #640's content quality checklist code
  * (`CONTENT_QUALITY_CHECKLIST_BLOCKED`) to i18n catalog keys
  * under the `error.` namespace. Used both server-side (SSR error panels)
  * and to build the
@@ -87,6 +88,7 @@ export const ERROR_CODE_KEYS: Record<string, string> = {
   HOMEPAGE_SECTION_REFERENCE_INVALID:
     "error.homepage_section_reference_invalid",
   HOMEPAGE_SECTION_KEY_CONFLICT: "error.homepage_section_key_conflict",
+  AD_PLACEMENT_REFERENCE_INVALID: "error.ad_placement_reference_invalid",
   CONTENT_QUALITY_CHECKLIST_BLOCKED: "error.content_quality_checklist_blocked"
 };
 

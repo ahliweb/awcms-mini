@@ -4,7 +4,16 @@ Modul untuk epic `news_portal` (Issue #631-#642, #649) — lapisan
 editorial + media full-online, R2-only di atas `blog_content` (base
 module, sudah `active`) dan online public routing (`tenant_domain`).
 
-## Scope Issue #632 (status saat ini — satu-satunya yang sudah dikerjakan)
+> **Catatan drift dokumentasi**: bagian di bawah ini ditulis saat Issue
+> #632 dan belum diperbarui mengikuti Issue #633-#638/#681/#690 yang sudah
+> selesai sejak itu (media registry, upload presigned, gate R2-only
+> `blog_content`, homepage section composer, ad placement presets, capability
+> ports, reconciliation job). **Rujukan status yang akurat**:
+> `.claude/skills/awcms-mini-news-portal/SKILL.md`'s tabel "Status per
+> issue" — jangan asumsikan README ini lengkap sampai diperbarui menyeluruh
+> (di luar cakupan Issue #638 untuk melakukan audit penuh itu sekarang).
+
+## Scope Issue #632 (status saat penulisan awal README ini)
 
 Modul ini **baru berisi**:
 

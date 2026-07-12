@@ -2581,3 +2581,83 @@ msgstr "Tidak ada sesi aktif pada jendela waktu saat ini."
 
 msgid "admin.analytics.sessions_filtered_empty"
 msgstr "Tidak ada sesi yang cocok dengan filter yang dipilih."
+
+#. Issue #638 ad placements (recovered after merge conflict)
+msgid "admin.layout.nav_news_portal_ad_placements"
+msgstr "Penempatan Iklan"
+
+msgid "admin.news_portal.ad_placements.create_submit"
+msgstr "Buat penempatan"
+
+msgid "admin.news_portal.ad_placements.create_success"
+msgstr "Penempatan iklan berhasil dibuat."
+
+msgid "admin.news_portal.ad_placements.create_summary"
+msgstr "Tambah penempatan iklan"
+
+msgid "admin.news_portal.ad_placements.delete_button"
+msgstr "Hapus penempatan"
+
+msgid "admin.news_portal.ad_placements.delete_confirm"
+msgstr "Hapus penempatan iklan ini?"
+
+msgid "admin.news_portal.ad_placements.delete_reason_prompt"
+msgstr "Alasan menghapus penempatan iklan ini:"
+
+msgid "admin.news_portal.ad_placements.delete_success"
+msgstr "Penempatan iklan berhasil dihapus."
+
+msgid "admin.news_portal.ad_placements.field_active"
+msgstr "Aktif"
+
+msgid "admin.news_portal.ad_placements.field_ends_at"
+msgstr "Berakhir pada"
+
+msgid "admin.news_portal.ad_placements.field_link_url"
+msgstr "URL tautan (opsional)"
+
+msgid "admin.news_portal.ad_placements.field_media_object_id"
+msgstr "ID objek media"
+
+msgid "admin.news_portal.ad_placements.field_name"
+msgstr "Nama"
+
+msgid "admin.news_portal.ad_placements.field_placement_key"
+msgstr "Penempatan"
+
+msgid "admin.news_portal.ad_placements.field_priority"
+msgstr "Prioritas"
+
+msgid "admin.news_portal.ad_placements.field_rotation_mode"
+msgstr "Mode rotasi"
+
+msgid "admin.news_portal.ad_placements.field_starts_at"
+msgstr "Mulai pada"
+
+msgid "admin.news_portal.ad_placements.media_object_id_hint"
+msgstr "Harus berupa ID objek media R2 terverifikasi milik tenant ini."
+
+msgid "admin.news_portal.ad_placements.no_placements"
+msgstr "Belum ada penempatan iklan."
+
+msgid "admin.news_portal.ad_placements.preset_guide_summary"
+msgstr "Panduan preset penempatan"
+
+msgid "admin.news_portal.ad_placements.preset_max_items"
+msgstr "Maks item ditampilkan sekaligus"
+
+msgid "admin.news_portal.ad_placements.preset_recommended_size"
+msgstr "Ukuran yang disarankan"
+
+msgid "admin.news_portal.ad_placements.save_button"
+msgstr "Simpan"
+
+msgid "admin.news_portal.ad_placements.title"
+msgstr "Penempatan Iklan"
+
+msgid "admin.news_portal.ad_placements.update_success"
+msgstr "Penempatan iklan berhasil diperbarui."
+
+msgid "error.ad_placement_reference_invalid"
+msgstr "Iklan ini merujuk objek media yang tidak ada, bukan milik tenant ini, belum terverifikasi, atau bukan tipe gambar yang diizinkan untuk penempatan ini."
+

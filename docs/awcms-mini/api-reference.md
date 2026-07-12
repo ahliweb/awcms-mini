@@ -4611,6 +4611,113 @@ Editorial homepage section composer for `/news` (epic `news_portal` #631-#642/#6
 | 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
+## News Portal Ad Placements
+
+R2-only advertisement placement presets for the news portal (epic `news_portal` #631-#642/#649, Issue #638) — tenant-scoped, RLS-protected CRUD for ads assigned to a fixed set of placement keys (header_banner, below_headline, homepage_middle, homepage_bottom, article_top/middle/bottom, sidebar_top/middle/bottom, category_archive_top, search_result_top). `mediaObjectId` must reference a verified (`verified`/`attached`) R2 media object belonging to the same tenant and an allowed mime type for the target placement — never a local path or arbitrary external image URL. `linkUrl` is optional and may be external, but is validated server-side as an absolute http(s) URL only. Inactive, not-yet-started, or expired ads are excluded from public rendering; rendering never emits raw script/embed markup.
+
+### `GET /api/v1/news-portal/ad-placements` — List this tenant's ad placements (admin view)
+
+- **operationId**: `newsPortalAdPlacementsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Ad placements.                                 | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/news-portal/ad-placements` — Create an ad placement (R2-only image, verified media object required)
+
+- **operationId**: `newsPortalAdPlacementsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`AdPlacementCreateRequest`](#schema-adplacementcreaterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                         |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 200    | Ad placement created.                                                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)&lt;[`AdPlacementItem`](#schema-adplacementitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                         |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                         |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                         |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                         |
+| 422    | mediaObjectId does not exist, does not belong to this tenant, is not a verified R2 media object, or is not an allowed mime type for the target placement.                                                        | [`ApiError`](#standard-error-envelope)                                                         |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                         |
+
+### `PATCH /api/v1/news-portal/ad-placements/{id}` — Update an ad placement (media reference/link/rotation/schedule/active)
+
+- **operationId**: `newsPortalAdPlacementsUpdate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`AdPlacementUpdateRequest`](#schema-adplacementupdaterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                         |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 200    | Ad placement updated.                                                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)&lt;[`AdPlacementItem`](#schema-adplacementitem)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                         |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                         |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                         |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                         |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                         |
+| 422    | mediaObjectId does not exist, does not belong to this tenant, is not a verified R2 media object, or is not an allowed mime type for the target placement.                                                        | [`ApiError`](#standard-error-envelope)                                                         |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                         |
+
+### `DELETE /api/v1/news-portal/ad-placements/{id}` — Soft-delete an ad placement
+
+- **operationId**: `newsPortalAdPlacementsDelete`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Ad placement deleted.                                                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
 ## Schema appendix
 
 Every schema referenced by at least one operation above (excluding the standard envelope schemas, covered in §Standard success/error envelope).
@@ -4708,6 +4815,104 @@ Every schema referenced by at least one operation above (excluding the standard 
   "allowed": false,
   "reason": "string",
   "matchedPolicy": "string"
+}
+```
+
+### Schema: AdPlacementCreateRequest
+
+| Field           | Type                                                                                                                                                                                                                             | Required | Nullable | Description |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `placementKey`  | enum(`header_banner`, `below_headline`, `homepage_middle`, `homepage_bottom`, `article_top`, `article_middle`, `article_bottom`, `sidebar_top`, `sidebar_middle`, `sidebar_bottom`, `category_archive_top`, `search_result_top`) | yes      | no       |             |
+| `name`          | string                                                                                                                                                                                                                           | yes      | no       |             |
+| `mediaObjectId` | string (uuid)                                                                                                                                                                                                                    | yes      | no       |             |
+| `linkUrl`       | string                                                                                                                                                                                                                           | no       | yes      |             |
+| `rotationMode`  | enum(`latest`, `priority`, `random_safe`, `weighted`)                                                                                                                                                                            | no       | no       |             |
+| `priority`      | integer                                                                                                                                                                                                                          | no       | no       |             |
+| `isActive`      | boolean                                                                                                                                                                                                                          | no       | no       |             |
+| `startsAt`      | string (date-time)                                                                                                                                                                                                               | no       | yes      |             |
+| `endsAt`        | string (date-time)                                                                                                                                                                                                               | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "placementKey": "header_banner",
+  "name": "string",
+  "mediaObjectId": "00000000-0000-0000-0000-000000000000",
+  "linkUrl": "https://example.com/resource",
+  "rotationMode": "latest",
+  "priority": 0,
+  "isActive": false,
+  "startsAt": "2026-01-01T00:00:00.000Z",
+  "endsAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: AdPlacementItem
+
+| Field           | Type                                                                                                                                                                                                                             | Required | Nullable | Description                                                                                                                        |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `id`            | string (uuid)                                                                                                                                                                                                                    | yes      | no       |                                                                                                                                    |
+| `tenantId`      | string (uuid)                                                                                                                                                                                                                    | yes      | no       |                                                                                                                                    |
+| `placementKey`  | enum(`header_banner`, `below_headline`, `homepage_middle`, `homepage_bottom`, `article_top`, `article_middle`, `article_bottom`, `sidebar_top`, `sidebar_middle`, `sidebar_bottom`, `category_archive_top`, `search_result_top`) | yes      | no       |                                                                                                                                    |
+| `name`          | string                                                                                                                                                                                                                           | yes      | no       |                                                                                                                                    |
+| `mediaObjectId` | string (uuid)                                                                                                                                                                                                                    | yes      | no       | Must reference a verified (`verified`/`attached`) R2 media object belonging to this tenant (`awcms_mini_news_media_objects`, Issue |
+| `linkUrl`       | string                                                                                                                                                                                                                           | no       | yes      | Optional, possibly external, link — validated server-side as an absolute http(s) URL only.                                         |
+| `rotationMode`  | enum(`latest`, `priority`, `random_safe`, `weighted`)                                                                                                                                                                            | yes      | no       |                                                                                                                                    |
+| `priority`      | integer                                                                                                                                                                                                                          | yes      | no       |                                                                                                                                    |
+| `isActive`      | boolean                                                                                                                                                                                                                          | yes      | no       |                                                                                                                                    |
+| `startsAt`      | string (date-time)                                                                                                                                                                                                               | no       | yes      |                                                                                                                                    |
+| `endsAt`        | string (date-time)                                                                                                                                                                                                               | no       | yes      |                                                                                                                                    |
+| `createdAt`     | string (date-time)                                                                                                                                                                                                               | yes      | no       |                                                                                                                                    |
+| `updatedAt`     | string (date-time)                                                                                                                                                                                                               | yes      | no       |                                                                                                                                    |
+
+**Example**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "tenantId": "00000000-0000-0000-0000-000000000000",
+  "placementKey": "header_banner",
+  "name": "string",
+  "mediaObjectId": "00000000-0000-0000-0000-000000000000",
+  "linkUrl": "https://example.com/resource",
+  "rotationMode": "latest",
+  "priority": 0,
+  "isActive": false,
+  "startsAt": "2026-01-01T00:00:00.000Z",
+  "endsAt": "2026-01-01T00:00:00.000Z",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: AdPlacementUpdateRequest
+
+| Field           | Type                                                                                                                                                                                                                             | Required | Nullable | Description |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `placementKey`  | enum(`header_banner`, `below_headline`, `homepage_middle`, `homepage_bottom`, `article_top`, `article_middle`, `article_bottom`, `sidebar_top`, `sidebar_middle`, `sidebar_bottom`, `category_archive_top`, `search_result_top`) | no       | no       |             |
+| `name`          | string                                                                                                                                                                                                                           | no       | no       |             |
+| `mediaObjectId` | string (uuid)                                                                                                                                                                                                                    | no       | no       |             |
+| `linkUrl`       | string                                                                                                                                                                                                                           | no       | yes      |             |
+| `rotationMode`  | enum(`latest`, `priority`, `random_safe`, `weighted`)                                                                                                                                                                            | no       | no       |             |
+| `priority`      | integer                                                                                                                                                                                                                          | no       | no       |             |
+| `isActive`      | boolean                                                                                                                                                                                                                          | no       | no       |             |
+| `startsAt`      | string (date-time)                                                                                                                                                                                                               | no       | yes      |             |
+| `endsAt`        | string (date-time)                                                                                                                                                                                                               | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "placementKey": "header_banner",
+  "name": "string",
+  "mediaObjectId": "00000000-0000-0000-0000-000000000000",
+  "linkUrl": "https://example.com/resource",
+  "rotationMode": "latest",
+  "priority": 0,
+  "isActive": false,
+  "startsAt": "2026-01-01T00:00:00.000Z",
+  "endsAt": "2026-01-01T00:00:00.000Z"
 }
 ```
 

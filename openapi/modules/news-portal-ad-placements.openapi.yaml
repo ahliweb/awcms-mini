@@ -1,0 +1,393 @@
+# Source fragment for the "News Portal Ad Placements" module/tag (Issue #638, epic news_portal).
+#
+# Owns every path tagged "News Portal Ad Placements" and every schema referenced ONLY by this
+# tag's operations. Schemas shared with another module/tag live in the root
+# file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/news-portal/ad-placements:
+    get:
+      tags:
+        - News Portal Ad Placements
+      summary: List this tenant's ad placements (admin view)
+      operationId: newsPortalAdPlacementsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Ad placements.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - placements
+                        properties:
+                          placements:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/AdPlacementItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - News Portal Ad Placements
+      summary: Create an ad placement (R2-only image, verified media object required)
+      operationId: newsPortalAdPlacementsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdPlacementCreateRequest"
+      responses:
+        "200":
+          description: Ad placement created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AdPlacementItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          description: mediaObjectId does not exist, does not belong to this tenant, is not a verified R2 media object, or is not an allowed mime type for the target placement.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/news-portal/ad-placements/{id}:
+    patch:
+      tags:
+        - News Portal Ad Placements
+      summary: Update an ad placement (media reference/link/rotation/schedule/active)
+      operationId: newsPortalAdPlacementsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdPlacementUpdateRequest"
+      responses:
+        "200":
+          description: Ad placement updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AdPlacementItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          description: mediaObjectId does not exist, does not belong to this tenant, is not a verified R2 media object, or is not an allowed mime type for the target placement.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - News Portal Ad Placements
+      summary: Soft-delete an ad placement
+      operationId: newsPortalAdPlacementsDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Ad placement deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - id
+                          - deleted
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    AdPlacementItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - placementKey
+        - name
+        - mediaObjectId
+        - rotationMode
+        - priority
+        - isActive
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        placementKey:
+          type: string
+          enum:
+            - header_banner
+            - below_headline
+            - homepage_middle
+            - homepage_bottom
+            - article_top
+            - article_middle
+            - article_bottom
+            - sidebar_top
+            - sidebar_middle
+            - sidebar_bottom
+            - category_archive_top
+            - search_result_top
+        name:
+          type: string
+        mediaObjectId:
+          description: Must reference a verified (`verified`/`attached`) R2 media object belonging to this tenant (`awcms_mini_news_media_objects`, Issue #633) — never a local path or arbitrary external URL.
+          type: string
+          format: uuid
+        linkUrl:
+          description: Optional, possibly external, link — validated server-side as an absolute http(s) URL only.
+          type: string
+          nullable: true
+        rotationMode:
+          type: string
+          enum:
+            - latest
+            - priority
+            - random_safe
+            - weighted
+        priority:
+          type: integer
+          minimum: 0
+        isActive:
+          type: boolean
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    AdPlacementCreateRequest:
+      type: object
+      required:
+        - placementKey
+        - name
+        - mediaObjectId
+      properties:
+        placementKey:
+          type: string
+          enum:
+            - header_banner
+            - below_headline
+            - homepage_middle
+            - homepage_bottom
+            - article_top
+            - article_middle
+            - article_bottom
+            - sidebar_top
+            - sidebar_middle
+            - sidebar_bottom
+            - category_archive_top
+            - search_result_top
+        name:
+          type: string
+        mediaObjectId:
+          type: string
+          format: uuid
+        linkUrl:
+          type: string
+          nullable: true
+        rotationMode:
+          type: string
+          enum:
+            - latest
+            - priority
+            - random_safe
+            - weighted
+          default: latest
+        priority:
+          type: integer
+          minimum: 0
+          default: 0
+        isActive:
+          type: boolean
+          default: true
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+    AdPlacementUpdateRequest:
+      type: object
+      properties:
+        placementKey:
+          type: string
+          enum:
+            - header_banner
+            - below_headline
+            - homepage_middle
+            - homepage_bottom
+            - article_top
+            - article_middle
+            - article_bottom
+            - sidebar_top
+            - sidebar_middle
+            - sidebar_bottom
+            - category_archive_top
+            - search_result_top
+        name:
+          type: string
+        mediaObjectId:
+          type: string
+          format: uuid
+        linkUrl:
+          type: string
+          nullable: true
+        rotationMode:
+          type: string
+          enum:
+            - latest
+            - priority
+            - random_safe
+            - weighted
+        priority:
+          type: integer
+          minimum: 0
+        isActive:
+          type: boolean
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true

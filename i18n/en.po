@@ -2582,3 +2582,83 @@ msgstr "No active sessions in the current window."
 
 msgid "admin.analytics.sessions_filtered_empty"
 msgstr "No sessions match the selected filters."
+
+#. Issue #638 ad placements (recovered after merge conflict)
+msgid "admin.layout.nav_news_portal_ad_placements"
+msgstr "Ad Placements"
+
+msgid "admin.news_portal.ad_placements.create_submit"
+msgstr "Create placement"
+
+msgid "admin.news_portal.ad_placements.create_success"
+msgstr "Ad placement created."
+
+msgid "admin.news_portal.ad_placements.create_summary"
+msgstr "Add ad placement"
+
+msgid "admin.news_portal.ad_placements.delete_button"
+msgstr "Delete placement"
+
+msgid "admin.news_portal.ad_placements.delete_confirm"
+msgstr "Delete this ad placement?"
+
+msgid "admin.news_portal.ad_placements.delete_reason_prompt"
+msgstr "Reason for deleting this ad placement:"
+
+msgid "admin.news_portal.ad_placements.delete_success"
+msgstr "Ad placement deleted."
+
+msgid "admin.news_portal.ad_placements.field_active"
+msgstr "Active"
+
+msgid "admin.news_portal.ad_placements.field_ends_at"
+msgstr "Ends at"
+
+msgid "admin.news_portal.ad_placements.field_link_url"
+msgstr "Link URL (optional)"
+
+msgid "admin.news_portal.ad_placements.field_media_object_id"
+msgstr "Media object ID"
+
+msgid "admin.news_portal.ad_placements.field_name"
+msgstr "Name"
+
+msgid "admin.news_portal.ad_placements.field_placement_key"
+msgstr "Placement"
+
+msgid "admin.news_portal.ad_placements.field_priority"
+msgstr "Priority"
+
+msgid "admin.news_portal.ad_placements.field_rotation_mode"
+msgstr "Rotation mode"
+
+msgid "admin.news_portal.ad_placements.field_starts_at"
+msgstr "Starts at"
+
+msgid "admin.news_portal.ad_placements.media_object_id_hint"
+msgstr "Must be the ID of a verified R2 media object belonging to this tenant."
+
+msgid "admin.news_portal.ad_placements.no_placements"
+msgstr "No ad placements yet."
+
+msgid "admin.news_portal.ad_placements.preset_guide_summary"
+msgstr "Placement preset guide"
+
+msgid "admin.news_portal.ad_placements.preset_max_items"
+msgstr "Max items shown at once"
+
+msgid "admin.news_portal.ad_placements.preset_recommended_size"
+msgstr "Recommended size"
+
+msgid "admin.news_portal.ad_placements.save_button"
+msgstr "Save"
+
+msgid "admin.news_portal.ad_placements.title"
+msgstr "Ad Placements"
+
+msgid "admin.news_portal.ad_placements.update_success"
+msgstr "Ad placement updated."
+
+msgid "error.ad_placement_reference_invalid"
+msgstr "This ad placement references a media object that does not exist, does not belong to this tenant, is not verified yet, or is not an allowed image type for this placement."
+

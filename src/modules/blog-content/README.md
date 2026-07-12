@@ -711,6 +711,8 @@ Satu permission `configure` menggerbangi create/update/delete sekaligus (pola sa
 
 `listActiveAdsForPlacement` (query publik-aman: `is_active=true` + jendela jadwal + tenant scope) dan `renderAdHtml` sudah tersedia dan diuji, tapi **belum dipasang ke rute mana pun** — precedent yang sama seperti `searchPublicBlogContent` di Issue #539 ("helper teruji, pemasangannya issue lain").
 
+**Catatan (Issue #638, epic `news_portal`)**: sistem ads di atas TETAP TIDAK BERUBAH dan tetap berlaku untuk `image_url` bebas URL http(s) — `news_portal` epic menambah sistem ad placement TERPISAH yang R2-only (`awcms_mini_news_portal_ad_placements`, dimiliki modul `news_portal`, bukan modul ini) untuk tenant full-online-R2 yang butuh gambar iklan berasal dari objek media R2 terverifikasi, bukan URL bebas. Lihat `.claude/skills/awcms-mini-news-portal/SKILL.md` §638 dan `src/modules/news-portal/README.md`.
+
 ### Theme mode — override tenant, bukan engine baru
 
 `GET`/`PATCH /api/v1/blog/theme` membaca/menulis `awcms_mini_blog_theme_settings` (satu baris per tenant). `GET` tanpa baris override mengembalikan `{ mode: <tenant.default_theme>, isOverride: false }` — base theme engine (`awcms_mini_tenants.default_theme`, migration 002) tetap satu-satunya sumber kebenaran default; tabel blog ini murni lapisan override opsional, sama sekali tidak menduplikasi logic tenant.

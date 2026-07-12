@@ -661,15 +661,16 @@ auth-online-hardening di dokumen yang sama).
 
 ## 16. Peta issue lanjutan
 
-| Issue                 | Bagian dokumen ini yang diimplementasikan                                                                                           |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| #632                  | §4 env var + preset `news_portal_full_online_r2`, §1 gating full-online                                                             |
-| #633                  | §5 media registry schema, §6 object key generator — **diimplementasikan**                                                           |
-| #634                  | §7 alur upload, §8 presigned URL, §9 validasi — **diimplementasikan** (lihat `.claude/skills/awcms-mini-news-portal/SKILL.md` §634) |
-| #635                  | §13 readiness (`config:validate`/`security:readiness`/`production:preflight`)                                                       |
-| #636                  | §5 "konten editorial wajib menunjuk media confirmed" diterapkan ke `blog_content`                                                   |
-| #637                  | Homepage section composer `/news` mengonsumsi §5 registry + post `featured_media_id` — **diimplementasikan** (lihat skill §637)     |
-| #638-#640, #642, #649 | Konsumsi media registry untuk fitur editorial spesifik lanjutan (lihat skill untuk ringkasan per issue)                             |
+| Issue                 | Bagian dokumen ini yang diimplementasikan                                                                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| #632                  | §4 env var + preset `news_portal_full_online_r2`, §1 gating full-online                                                                                                                    |
+| #633                  | §5 media registry schema, §6 object key generator — **diimplementasikan**                                                                                                                  |
+| #634                  | §7 alur upload, §8 presigned URL, §9 validasi — **diimplementasikan** (lihat `.claude/skills/awcms-mini-news-portal/SKILL.md` §634)                                                        |
+| #635                  | §13 readiness (`config:validate`/`security:readiness`/`production:preflight`)                                                                                                              |
+| #636                  | §5 "konten editorial wajib menunjuk media confirmed" diterapkan ke `blog_content`                                                                                                          |
+| #637                  | Homepage section composer `/news` mengonsumsi §5 registry + post `featured_media_id` — **diimplementasikan** (lihat skill §637)                                                            |
+| #638                  | Preset placement iklan R2-only (`awcms_mini_news_portal_ad_placements`, tabel baru, terpisah dari `blog_content`'s ads) mengonsumsi §5 registry — **diimplementasikan** (lihat skill §638) |
+| #639-#640, #642, #649 | Konsumsi media registry untuk fitur editorial spesifik lanjutan (lihat skill untuk ringkasan per issue)                                                                                    |
 
 ## 17. Referensi
 
