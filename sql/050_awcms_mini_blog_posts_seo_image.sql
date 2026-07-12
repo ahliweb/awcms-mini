@@ -1,0 +1,37 @@
+-- Issue #649 (epic `news_portal` #631-#642/#649) — SEO/social preview
+-- metadata for public news article sharing. Adds ONE nullable column,
+-- `seo_image_media_id`, to `awcms_mini_blog_posts` — an explicit, editor-set
+-- "use THIS image for og:image/twitter:image/JSON-LD image" override that
+-- takes priority over `featured_media_id` when set (issue body's "Metadata
+-- source priority": "Image source order: (1) explicit SEO/social preview
+-- image media object, (2) featured image media object...").
+--
+-- ## Why a plain column, mirroring `featured_media_id`, not the media
+-- registry's `owner_resource_type = 'seo_image'` polymorphic-attach path
+--
+-- Migration 041 (`awcms_mini_news_media_objects`) already anticipates a
+-- `seo_image` owner-resource-type in its CHECK constraint, which could look
+-- like the "intended" extension point for this issue. It is NOT used here:
+-- `attachNewsMediaObject`/`detachNewsMediaObject` (migration 041's own
+-- application layer) have zero real callers anywhere in this codebase today
+-- (grepped before writing this migration) — every existing consumer
+-- (`featured_media_id`, gallery `mediaObjectId` items) only ever checks
+-- `isNewsMediaObjectSafeForPublicReference` (`verified` OR `attached`), and
+-- nothing transitions a row to `attached` yet. Introducing the FIRST real
+-- caller of that attach/detach lifecycle as a side effect of an unrelated
+-- SEO issue would be a materially bigger, under-reviewed design decision
+-- (attach/detach ordering on post update, replace-on-change semantics,
+-- concurrent-edit races) than this issue's own scope calls for. A plain
+-- `uuid` column checked the exact same way `featured_media_id` already is
+-- (`isMediaReferenceSafe`/`resolveMediaReferences`, Issue #636's existing
+-- gate, extended additively) is the smaller, consistent, already-proven
+-- pattern — same reasoning `featured_media_id` itself used in migration 026:
+-- a loose, FK-less uuid column, not a hard reference to `news_portal`'s
+-- table (this module has no dependency on `news_portal`'s schema, per the
+-- epic's module-boundary rule enforced by `tests/unit/module-boundary.test.ts`).
+--
+-- No index is added: this column is only ever read by primary-key/slug
+-- scoped post lookups (`fetchPublicBlogPostBySlug`, `fetchBlogPostById`),
+-- never filtered/joined on directly.
+ALTER TABLE awcms_mini_blog_posts
+  ADD COLUMN IF NOT EXISTS seo_image_media_id uuid;

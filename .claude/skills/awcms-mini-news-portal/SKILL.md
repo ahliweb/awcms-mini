@@ -48,7 +48,7 @@ status + pointer, bukan menduplikasi isinya.
 | #640  | Content quality checklist publishing dengan syarat gambar R2                                                                 | **Selesai** — lihat §640 di bawah                    |
 | #641  | Automatic internal tag linking untuk konten post/news                                                                        | Belum dikerjakan — lihat §641 di bawah               |
 | #642  | Public social share buttons di halaman artikel `/news`                                                                       | **Selesai** — lihat §642 di bawah                    |
-| #649  | SEO + social preview metadata lengkap di halaman artikel `/news`                                                             | Belum dikerjakan — lihat §649 di bawah               |
+| #649  | SEO + social preview metadata lengkap di halaman artikel `/news`                                                             | **Selesai** — lihat §649 di bawah                    |
 
 Urutan dependency yang disarankan (dari objective masing-masing issue):
 631 → 632 → 633 → 634 → 635 (readiness butuh #632-#634 ada untuk
@@ -1824,20 +1824,201 @@ tabel ini, jadi rendering TIDAK BISA jadi kanal XSS apa pun isi request-nya
   manual, sama gap yang dicatat `awcms-mini-blog-content`/§636/§637.
 - **Click fraud detection** — eksplisit di luar cakupan per body issue.
 
-## §649 — konsumsi media registry lanjutan (belum dikerjakan)
+## §649 — SEO + social preview metadata lengkap `/news/{slug}` (Selesai)
 
-Ringkasan objective (detail lengkap ada di body issue GitHub, cek
-`gh issue view 649` bila butuh acceptance criteria penuh). #638, #639,
-#640, #642 sudah selesai — lihat §638/§639/§640/§642 masing-masing di
-bawah untuk detailnya, tidak diulang di sini lagi.
+Implementasi lengkap: satu kolom baru `seo_image_media_id` pada
+`awcms_mini_blog_posts` (migration 050), fungsi resolusi prioritas gambar
+murni baru (`blog-content/domain/social-preview-image-resolution.ts`),
+JSON-LD `NewsArticle` (`blog-content/domain/structured-data-rendering.ts`),
+perluasan `public-page-rendering.ts` (og:type/og:image:type/width/height/
+secure_url/twitter:image:alt/article:*/robots/JSON-LD script), orkestrasi
+aplikasi baru yang dipakai bersama KEDUA route detail
+(`blog-content/application/news-article-seo-metadata.ts`), dua rule
+checklist baru (`social_preview_image_ready`/`social_preview_image_alt_text`),
+dan dua field tenant-level baru di `awcms_mini_blog_settings.settings`
+(`socialPreviewFallbackImageMediaId`/`socialPreviewContentImageFallbackEnabled`).
 
-- **#649** — SEO + social preview metadata lengkap (title/excerpt/
-  canonical/gambar R2 terverifikasi) untuk crawler share. §642 di bawah
-  sudah menambah irisan minimal `og:title`/`og:description`/`og:url`/
-  `og:site_name` + `twitter:title`/`twitter:description`/`twitter:card`
-  (selalu `summary`, naik ke `summary_large_image` saat ada gambar R2) —
-  #649 kemungkinan menambah structured data (JSON-LD)/polish lebih lanjut,
-  bukan membangun ulang dasar OG/Twitter yang sudah ada.
+### Prioritas sumber gambar — reuse pola resolusi bulk #636, JANGAN re-derive
+
+Urutan (issue body "Image source order"): (1) `seoImageMediaId` (override
+eksplisit post) → (2) `featuredMediaId` → (3) gambar pertama TERVERIFIKASI
+di `contentJson` gallery blocks, dalam urutan dokumen, HANYA bila tenant
+mengizinkan (`socialPreviewContentImageFallbackEnabled`, default `true`)
+→ (4) `socialPreviewFallbackImageMediaId` tenant-level. Fungsi murni
+`resolveSocialPreviewImageSourceId` (domain, tanpa I/O) menerima SATU set
+id yang sudah "resolved" (hasil SATU bulk `NewsMediaPort.resolveMediaReferences`
+call yang menggabungkan featured + SEO image + gallery + video thumbnail +
+tenant fallback ids — sama primitif #636, tidak pernah query registry
+kedua kalinya) dan mengembalikan id pemenang pertama yang ADA di set itu —
+kandidat prioritas-lebih-tinggi yang TIDAK aman (belum verified/cross-tenant/
+tidak ada) dilewati, bukan menghentikan seluruh chain. `news-article-seo-
+metadata.ts`'s `buildNewsArticleSeoMetadata` adalah SATU-SATUNYA tempat
+resolusi bulk ini terjadi untuk route render (dipanggil dari KEDUA
+`/news/[slug].ts` dan `/blog/[tenantCode]/[slug].ts`, byte-for-byte
+konsisten by construction) — `resolveNewsArticlePreviewImage` adalah
+sibling yang lebih ringan untuk RSS/sitemap (tanpa fetch taxonomy/build
+JSON-LD, karena feed/sitemap tidak butuh itu), dipanggil sekali per item
+(dibatasi `FEED_ITEM_LIMIT` 50).
+
+### Kenapa kolom baru, BUKAN reuse `owner_resource_type = 'seo_image'` yang sudah ada di skema
+
+Migration 041 (`awcms_mini_news_media_objects`) sudah punya nilai
+`'seo_image'` di CHECK constraint `owner_resource_type` sejak Issue #633 —
+terlihat seperti extension point yang "dimaksudkan". TIDAK dipakai:
+`attachNewsMediaObject`/`detachNewsMediaObject` (aplikasi layer migration
+041 sendiri) ternyata NOL pemanggil nyata di seluruh codebase sebelum issue
+ini (di-grep sebelum menulis migration 050) — setiap consumer lain
+(`featuredMediaId`, gallery `mediaObjectId`) hanya pernah memeriksa
+`isNewsMediaObjectSafeForPublicReference` (`verified` ATAU `attached`),
+tidak ada yang men-transisi row ke `attached`. Menjadikan issue SEO ini
+sebagai pemanggil PERTAMA lifecycle attach/detach itu (urutan attach/detach
+saat update post, semantik replace-on-change, race concurrent-edit) adalah
+keputusan desain yang jauh lebih besar dan kurang ter-review daripada
+lingkup issue ini. Kolom `seo_image_media_id uuid` polos, tanpa FK (persis
+pola `featured_media_id` — modul ini tidak boleh depend ke skema
+`news_portal`, `tests/unit/module-boundary.test.ts`), diverifikasi lewat
+mekanisme IDENTIK `featuredMediaId` yang sudah ada
+(`news-media-reference-gate.ts`'s `validateNewsMediaReferencesForFullOnlineR2Mode`,
+diperluas aditif) — pola yang sudah terbukti, bukan yang baru.
+
+### robots meta — deterministik dari `visibility`, bukan sinyal status baru
+
+`resolveRobotsMetaContent(visibility)`: `public` → `index,follow,
+max-image-preview:large`; `unlisted`/`private` → `noindex,nofollow`. Tidak
+ada tenant override untuk directive ini (issue body's "unless tenant policy
+overrides safely" adalah hedge, bukan requirement keras) — setiap post
+publik mendapat directive default yang sama, aman/konservatif. Draft/
+private/review/archived/soft-deleted/scheduled-future TIDAK PERNAH mencapai
+fungsi ini sama sekali — `fetchPublicBlogPostBySlug`'s predicate sendiri
+(`status='published' AND visibility IN ('public','unlisted') AND
+deleted_at IS NULL AND published_at <= now()`) sudah membuatnya 404 SEBELUM
+render apa pun terjadi, jadi "no metadata is ever rendered" untuk state itu
+adalah properti struktural, bukan sebuah cabang if yang bisa lupa dicek.
+
+### JSON-LD `NewsArticle` — author/publisher SELALU Organization, tidak pernah expose identitas editor individu
+
+Keputusan desain sengaja: `author`/`publisher` keduanya
+`{"@type": "Organization", "name": tenant.tenantName}` — TIDAK PERNAH nama
+tampilan editor individu (`author_tenant_user_id`). Alasan: repo ini belum
+punya konsep "nama tampilan penulis yang aman untuk publik" sama sekali
+(tidak ada yang mengekspos identitas user secara publik hari ini di rute
+manapun — RSS feed sekalipun tidak menyertakan nama penulis), dan
+menambahkannya sebagai efek samping issue SEO ini akan menjadi permukaan
+PII baru yang tidak terkait scope (lihat skill `awcms-mini-sensitive-data`).
+`publisher.logo` best-effort: dipakai `socialPreviewFallbackImageMediaId`
+tenant BILA resolve aman, kalau tidak DIHILANGKAN sepenuhnya (bukan
+difabrikasi dari sumber tidak terverifikasi) — repo ini belum punya konsep
+"logo tenant" khusus.
+
+### Escaping JSON-LD — escape SEMUA `<`, bukan hanya string `</script>` literal
+
+`renderJsonLdScriptTag` (`structured-data-rendering.ts`): `JSON.stringify(data)
+.replace(/</g, "\\u003c")`. Risiko satu-satunya menaruh JSON di dalam
+`<script>` HTML BUKAN celah JSON-escaping (`JSON.stringify` sudah benar per
+spek) — tapi HTML tokenizer browser yang mencari literal `</script` SEBELUM
+JS/JSON parsing dimulai. Meng-escape SETIAP `<` (bukan hanya persis
+substring `</script>`) menutup ini secara struktural, sama prinsip
+"escape seluruh kelas karakter, bukan daftar-tolak string tertentu" yang
+`escapeHtml` sudah pakai. Catatan: hanya `<` yang di-escape, `>` dibiarkan
+literal (`</script>`, bukan `</script>`) — sudah cukup untuk
+mematahkan lookup tokenizer.
+
+### Checklist #640 diperluas aditif — 2 rule baru, TIDAK direstrukturisasi
+
+`social_preview_image_ready`/`social_preview_image_alt_text` ditambahkan ke
+`ChecklistRuleId`/`OVERRIDABLE_RULE_IDS` (BUKAN `SECURITY_RULE_IDS` — murni
+advisory, tidak pernah blocking secara default, karena "tidak ada gambar
+preview" sudah merupakan degradasi valid — `og:image`/`twitter:image`
+diomit begitu saja). Gate (`content-quality-checklist-gate.ts`) menghitung
+`socialPreviewImage` lewat PERSIS priority chain yang sama
+(`resolveSocialPreviewImageSourceId`) dari bulk resolve YANG SAMA yang
+sudah dipakai untuk featured/gallery — parameter baru
+`EvaluateContentQualityChecklistOptions.socialPreviewFallback` (opsional,
+default tanpa tenant fallback/content-image) di-thread lewat SEMUA 5
+composition root (`publish.ts`, `schedule.ts`, dua endpoint preview
+`quality-checklist.ts`, `blog-scheduled-publish.ts`'s per-post loop).
+
+### Field baru di `awcms_mini_blog_settings.settings` — pola #640, BUKAN anti-pattern §636
+
+`socialPreviewFallbackImageMediaId`/`socialPreviewContentImageFallbackEnabled`
+hidup di kolom catch-all `settings jsonb` (sama seperti
+`contentQualityChecklistPolicy`) — ini AMAN karena keduanya preferensi
+BISNIS tenant, bukan sinyal security: enforcement R2-only yang sebenarnya
+tetap 100% terjadi di langkah resolusi RENDER-TIME
+(`NewsMediaPort.resolveMediaReferences`, fail-closed untuk id apa pun yang
+tidak verified/same-tenant), tidak pernah dipercaya dari nilai tersimpan
+ini sendiri. `blog-settings-directory.ts`'s `sanitizeSocialPreviewFallbackImageMediaId`
+menegakkan ulang bentuk UUID di sisi baca (defense-in-depth yang sama
+seperti `sanitizeChecklistPolicyOverrides`).
+
+### RSS/sitemap — enclosure/image:image dari gambar terverifikasi, resolusi sequential per-item
+
+`feed.xml.ts` (kedua varian) menambah `<enclosure url=... length=... type=...>`
+per item; `sitemap-news.xml.ts` (kedua varian) menambah namespace
+`xmlns:image` + `<image:image><image:loc>...` per URL — keduanya dari
+`resolveNewsArticlePreviewImage` (lihat di atas), dipanggil dalam LOOP
+sequential (bukan `Promise.all`) karena setiap query berbagi SATU
+transaksi (`tx`) yang sama — menjalankan query konkuren di satu koneksi/
+transaksi postgres.js berisiko interleaving protokol, bukan pola yang aman
+di repo ini. `listPublicBlogPostsForFeed` (public-blog-directory.ts)
+diperluas SELECT-nya untuk juga mengambil `visibility`/`updated_at`/
+`featured_media_id`/`seo_image_media_id` — perbaikan sekaligus bug
+pra-eksisting yang ditemukan saat mengerjakan issue ini: `featured_media_id`
+sebelumnya TIDAK PERNAH di-SELECT oleh fungsi ini sama sekali, jadi
+`toDetail()`'s `featuredMediaId` untuk hasil feed selalu `undefined` di
+runtime walau tipenya mengklaim `string | null` — bug senyap yang tidak
+ada test-nya sebelum issue ini (sekarang tercakup).
+
+### File yang dibuat/diubah (referensi cepat)
+
+- **Migration baru**: `sql/050_awcms_mini_blog_posts_seo_image.sql`
+  (`awcms_mini_blog_posts.seo_image_media_id uuid`, tanpa FK/index).
+- **Baru**: `src/modules/blog-content/domain/social-preview-image-resolution.ts`,
+  `src/modules/blog-content/domain/structured-data-rendering.ts`,
+  `src/modules/blog-content/application/news-article-seo-metadata.ts`.
+- **Diubah (aditif)**: `src/modules/blog-content/domain/seo-rendering.ts`
+  (`resolveRobotsMetaContent`, `deriveArticleSectionAndTags`),
+  `src/modules/blog-content/domain/public-page-rendering.ts`
+  (`PublicPageShellOptions` ogType/ogImage width-height-mime-secure_url/
+  article:*/robotsContent/structuredDataJsonLd, semua opsional),
+  `src/modules/blog-content/domain/content-quality-checklist.ts`
+  (`social_preview_image_ready`/`social_preview_image_alt_text`),
+  `src/modules/blog-content/application/content-quality-checklist-gate.ts`
+  (`seoImageMediaId`/`socialPreviewFallback`),
+  `src/modules/blog-content/domain/blog-post-validation.ts`,
+  `src/modules/blog-content/application/blog-post-directory.ts`,
+  `src/modules/blog-content/application/news-media-reference-gate.ts`,
+  `src/modules/blog-content/application/public-blog-directory.ts`
+  (`visibility`/`updatedAt`/`seoImageMediaId` + `fetchPublicPostTaxonomyTerms`
+  baru), `src/modules/blog-content/domain/blog-settings-policy.ts` +
+  `application/blog-settings-directory.ts` (dua field baru).
+- Routes: `src/pages/news/[slug].ts`, `src/pages/blog/[tenantCode]/[slug].ts`
+  (dipangkas untuk delegasi ke `buildNewsArticleSeoMetadata`),
+  `src/pages/news/feed.xml.ts`/`sitemap-news.xml.ts` +
+  `src/pages/blog/[tenantCode]/feed.xml.ts`/`sitemap-blog.xml.ts`
+  (enclosure/image:image), lima call-site checklist (publish/schedule/dua
+  quality-checklist preview/blog-scheduled-publish).
+- Admin UI: `src/pages/admin/blog/posts/[id].astro` (field
+  `seoImageMediaId`), `src/pages/admin/blog/settings.astro` (field fallback
+  image + toggle).
+- OpenAPI: `openapi/awcms-mini-public-api.src.yaml` (`BlogPostItem.
+seoImageMediaId`, `ContentQualityChecklistRuleOutcome.ruleId` enum +2),
+  `openapi/modules/blog-posts.openapi.yaml` (create/update request),
+  `openapi/modules/blog-settings.openapi.yaml` (dua field baru + deskripsi
+  checklist policy diperbarui) — `bun run openapi:bundle` dijalankan.
+- i18n: `i18n/en.po`/`i18n/id.po` (field post editor + settings baru),
+  `i18n/messages.pot` diregenerasi via `bun run i18n:extract`.
+- Test: `tests/unit/social-preview-image-resolution.test.ts`,
+  `tests/unit/structured-data-rendering.test.ts` (baru);
+  `tests/blog-content-public-rendering.test.ts`,
+  `tests/unit/content-quality-checklist.test.ts`,
+  `tests/unit/content-quality-checklist-gate.test.ts` (diperluas aditif);
+  `tests/integration/news-portal-seo-social-preview-metadata.integration.test.ts`
+  (baru — OG image dims/mime/secure_url, twitter:image:alt, article:*,
+  JSON-LD, prioritas gambar end-to-end, robots per visibility, RSS/sitemap
+  image, escaping, no local/external leak); `tests/foundation.test.ts`
+  (daftar migration +1).
+- Changeset: `.changeset/news-portal-seo-social-preview-metadata-issue-649.md`.
 
 ## §642 — Public social share buttons (Selesai)
 

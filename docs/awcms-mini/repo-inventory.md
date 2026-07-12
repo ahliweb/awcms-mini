@@ -28,7 +28,7 @@
 
 ## Migrations
 
-49 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `049_awcms_mini_news_portal_ad_placements_schema.sql`).
+50 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `050_awcms_mini_blog_posts_seo_image.sql`).
 
 | #   | File                                                              |
 | --- | ----------------------------------------------------------------- |
@@ -81,6 +81,7 @@
 | 047 | `047_awcms_mini_observability_metrics_permission.sql`             |
 | 048 | `048_awcms_mini_idn_admin_regions_permissions.sql`                |
 | 049 | `049_awcms_mini_news_portal_ad_placements_schema.sql`             |
+| 050 | `050_awcms_mini_blog_posts_seo_image.sql`                         |
 
 ## Tables & Row-Level Security
 
@@ -104,15 +105,15 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 
 ## Tests
 
-224 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+227 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
 | `(root)`      | 46         |
 | `e2e`         | 9          |
-| `integration` | 74         |
+| `integration` | 75         |
 | `modules`     | 4          |
-| `unit`        | 91         |
+| `unit`        | 93         |
 
 ## Routes / Operations (summary)
 
