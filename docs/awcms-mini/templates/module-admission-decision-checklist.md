@@ -51,6 +51,11 @@ Wajib dijawab bila PR menambah/mengubah adapter provider eksternal:
       tenant, Issue #591/#603/#609) dengan rasional tertulis yang setara.
 - [ ] Panggilan keluar terjadi **di luar** transaksi DB mana pun
       (ADR-0006 pola claim/call/finalize).
+- [ ] URL/host provider baru divalidasi terhadap SSRF (tidak resolve ke
+      IP privat/loopback/link-local, tidak rentan DNS-rebinding) untuk
+      kasus di luar pengecualian `issuer_url` yang sudah dianalisis di
+      doc 20 §A10 — jangan asumsikan aman hanya karena kredensialnya
+      dari env.
 - [ ] Ada circuit breaker (`getProviderCircuitBreaker`) + timeout
       (`withTimeout`) per provider key.
 - [ ] Kegagalan provider terdegradasi anggun — tidak memblokir alur
@@ -99,7 +104,10 @@ Wajib dijawab bila PR menambah/mengubah adapter provider eksternal:
       menambah endpoint.
 - [ ] AsyncAPI diperbarui bila modul menambah/mengubah event.
 - [ ] Migration baru (`NNN_awcms_mini_*.sql`) ada bila skema berubah,
-      dengan RLS + index FK.
+      dengan RLS + index FK, DAN ada test integrasi yang membuktikan
+      isolasi tenant benar-benar gagal-aman (query lintas-tenant
+      ditolak) — bukan hanya `FORCE ROW LEVEL SECURITY` yang dideklarasikan
+      tanpa test yang menjalankannya.
 - [ ] Changeset ditambahkan (`bun run changeset`).
 - [ ] README modul mendokumentasikan tujuan, tabel, endpoint, event,
       dependency, dan (bila relevan) provider eksternal + perilaku

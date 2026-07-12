@@ -57,7 +57,9 @@ sebuah kemampuan baru harus masuk, sebelum menulis kode apa pun.
 
 ```mermaid
 flowchart TD
-  Q0[Kemampuan baru diusulkan] --> Q1{Apakah platform base\ntidak bisa boot/berfungsi\nuntuk deployment mana pun\ntanpanya?}
+  Q0[Kemampuan baru diusulkan] --> Q5{Apakah proposal ini melibatkan\nruntime code upload/install/\nmarketplace/eval dari input\ntenant atau pihak ketiga?}
+  Q5 -- Ya --> Reject[DITOLAK secara eksplisit.\nLihat §7 — tidak ada pengecualian\ntanpa ADR baru yang mensupersede\nADR-0001/ADR-0002]
+  Q5 -- Tidak --> Q1{Apakah platform base\ntidak bisa boot/berfungsi\nuntuk deployment mana pun\ntanpanya?}
   Q1 -- Ya --> Core[Kategori: Core\nButuh ADR + 2 maintainer approval]
   Q1 -- Tidak --> Q2{Apakah ini kapabilitas\ninfrastruktur/reusable lintas-modul\n(bukan fitur produk berdiri sendiri)?}
   Q2 -- Ya --> Sys[Kategori: System\nOff-by-default via *_ENABLED bila\nmelibatkan provider eksternal]
@@ -65,27 +67,36 @@ flowchart TD
   Q3 -- Tidak --> Derived[BUKAN untuk repo base ini.\nBuat di repo aplikasi turunan.\nLihat derived-application-guide.md]
   Q3 -- Ya --> Q4{Apakah ini adapter untuk\nsatu provider eksternal spesifik\n(bukan modul mandiri)?}
   Q4 -- Ya --> Ext[Kategori: External Integration\nHidup DI DALAM modul pemilik\nkapabilitas — lihat §6]
-  Q4 -- Tidak --> Q5{Apakah proposal ini melibatkan\nruntime code upload/install/\nmarketplace/eval dari input\ntenant atau pihak ketiga?}
-  Q5 -- Ya --> Reject[DITOLAK secara eksplisit.\nLihat §7 — tidak ada pengecualian\ntanpa ADR baru yang mensupersede\nADR-0001/ADR-0002]
-  Q5 -- Tidak --> Q6{Sudah lolos proposal template\n+ ADR checklist (§9),\ndisetujui maintainer?}
+  Q4 -- Tidak --> Q6{Sudah lolos proposal template\n+ ADR checklist (§9),\ndisetujui maintainer?}
   Q6 -- Belum --> Propose[Isi docs/awcms-mini/templates/\nmodule-proposal-template.md,\nbuka issue, tunggu keputusan]
   Q6 -- Ya --> Opt[Kategori: Official Optional Module\nScaffold via skill awcms-mini-new-module]
 ```
 
+`Q5` sengaja ditempatkan **sebelum** `Q1` (bukan hanya di satu cabang) —
+setiap kategori (Core/System/Derived/External Integration/Official
+Optional Module) melewati gate ini terlebih dahulu, tanpa jalur pintas
+mana pun. Ini konsisten dengan klaim §7 poin 5 bahwa proposal semacam
+ini "ditolak di tahap pohon keputusan §3 (node Q5), tanpa pengecualian"
+— sebelumnya node `Q5` hanya berada di satu cabang (jalur Official
+Optional Module), sehingga kandidat yang lolos lewat `Q4 -- Ya`
+(External Integration) tidak pernah benar-benar melewatinya. Diperbaiki
+sebagai temuan Medium dari review PR #714.
+
 Ringkasan tekstual (bila mermaid tidak dirender):
 
-1. **Wajib untuk boot di semua profil deployment?** → **Core**.
-2. **Bukan Core, tapi infrastruktur reusable lintas-modul (bukan fitur
+1. **Melibatkan runtime code upload/install/marketplace/eval dari input
+   tenant/pihak ketiga apa pun?** → **Ditolak eksplisit**, tanpa
+   pengecualian (§7) — gate ini berlaku untuk SEMUA kategori di bawah,
+   bukan hanya Official Optional Module.
+2. **Wajib untuk boot di semua profil deployment?** → **Core**.
+3. **Bukan Core, tapi infrastruktur reusable lintas-modul (bukan fitur
    produk berdiri sendiri)?** → **System**.
-3. **Bukan infrastruktur, tapi juga bukan fitur generik untuk semua
+4. **Bukan infrastruktur, tapi juga bukan fitur generik untuk semua
    aplikasi turunan (spesifik satu domain bisnis: POS, gudang, pajak,
    CRM, dst.)?** → **bukan untuk repo ini**, arahkan ke aplikasi turunan.
-4. **Fitur generik untuk semua aplikasi turunan** (bukan spesifik satu
+5. **Fitur generik untuk semua aplikasi turunan** (bukan spesifik satu
    domain), tapi hanya berupa adapter satu provider eksternal? →
    **External Integration** di dalam modul pemilik kapabilitas.
-5. **Melibatkan runtime code upload/install/marketplace/eval dari input
-   tenant/pihak ketiga apa pun?** → **Ditolak eksplisit**, tanpa
-   pengecualian (§7).
 6. Sisanya (fitur produk generik, opt-in, bukan infrastruktur murni) →
    **Official Optional Module**, lewat proposal template + ADR checklist
    (§9) sebelum scaffold.
@@ -282,7 +293,7 @@ External Integration menurut §2, bukan entri registry terpisah):
 
 ### Remediasi yang terdeteksi (bukan blocker rilis dokumen ini — tercatat sebagai follow-up)
 
-1. **R1 — `type` tidak konsisten diisi.** Hanya 4 dari 14 modul
+1. **R1 — `type` tidak konsisten diisi.** Hanya 5 dari 14 modul
    (`module_management`, `tenant_domain`, `visitor_analytics` = `system`;
    `blog_content`, `news_portal` = `domain`) men-set field `type` di
    `module.ts`. 9 modul lain (`tenant_admin`, `identity_access`,
