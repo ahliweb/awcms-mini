@@ -13,8 +13,8 @@ Frontend pertama di repo ini. Cakupan: token desain, theming, layout admin SSR, 
 
 - `src/styles/tokens.css` — CSS custom properties (`docs/awcms-mini/14_ui_ux_design_system.md` §Design tokens), `:root` (light) + `:root[data-theme="dark"]`, plus reset minimal.
 - `src/lib/auth/ssr-session.ts` — `resolveSsrContext(cookies, now)`, membaca cookie SSR (`awcms_mini_session`, `awcms_mini_tenant_id`) dan mendelegasikan ke `resolveTenantContext`/`fetchGrantedPermissionKeys` (`src/modules/identity-access/application/auth-context.ts`), sama seperti yang dipakai `POST /access/evaluate`. Lihat `src/modules/identity-access/README.md` §SSR session cookies untuk perubahan additive pada `login.ts`/`logout.ts`.
-- `src/layouts/AdminLayout.astro` — SSR shell: topbar (nama tenant, tenant-switcher stub, sync-indicator stub, theme toggle, user menu + logout), sidebar (nav difilter permission efektif), breadcrumb, `<slot />`. Redirect ke `/login` bila sesi tidak valid.
-- `src/components/TenantSwitcher.astro`, `SyncIndicator.astro`, `ThemeToggle.astro` — lihat catatan backlog masing-masing di `src/modules/identity-access/README.md`.
+- `src/layouts/AdminLayout.astro` — SSR shell: topbar (nama tenant, tenant badge non-interaktif, sync-indicator stub, theme toggle, user menu + logout), sidebar (nav difilter permission efektif, responsive off-canvas drawer di bawah `--bp-md` sejak Issue #693), breadcrumb, `<slot />`. Redirect ke `/login` bila sesi tidak valid.
+- `src/components/TenantBadge.astro` (Issue #693, menggantikan `TenantSwitcher.astro` — lihat catatan di `src/modules/identity-access/README.md`), `SyncIndicator.astro`, `ThemeToggle.astro`.
 - `src/pages/login.astro`, `src/pages/admin/index.astro`, `src/pages/admin/settings.astro` — halaman baru; dashboard dan pengaturan sengaja hanya placeholder (Issue 9.1 memiliki dashboard nyata; pengaturan belum ada issue tersendiri).
 
 ### Backlog yang sengaja tidak dikerjakan di issue ini

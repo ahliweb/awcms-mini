@@ -500,8 +500,9 @@ own wording ("filter by tenant", "managing module availability across
 tenants") reads like a genuine multi-tenant matrix, but this repo's identity
 model is strictly 1:1 tenant-scoped — `identity-access/README.md` documents
 no cross-tenant linking anywhere in the schema, and
-`src/components/TenantSwitcher.astro` is a permanently-disabled stub for
-exactly this reason. Decided with the maintainer: this screen is scoped to
+`src/components/TenantBadge.astro` (Issue #693, formerly
+`TenantSwitcher.astro`) renders a non-interactive badge for exactly this
+reason. Decided with the maintainer: this screen is scoped to
 the admin's own tenant (`context.tenantId`), matching every other admin
 screen in this app — there is no tenant selector/filter anywhere on this
 page. Full reasoning: `src/pages/admin/modules/tenants.astro`'s own

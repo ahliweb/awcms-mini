@@ -1,10 +1,12 @@
 ---
 /**
- * AdminLayout — SSR admin shell (Issue 8.1 — Build Admin Layout Shell).
+ * AdminLayout — SSR admin shell (Issue 8.1 — Build Admin Layout Shell;
+ * responsive drawer sidebar + `TenantBadge` added by Issue #693, epic
+ * #679 platform-hardening).
  *
- * Topbar (site name, tenant switcher stub, sync indicator, theme toggle,
- * user menu + logout) + sidebar (permission-filtered nav) + breadcrumb +
- * `<slot />` for page content, per
+ * Topbar (site name, tenant badge, sync indicator, theme toggle, user menu
+ * + logout) + sidebar (permission-filtered nav, off-canvas drawer below
+ * `--bp-md`) + breadcrumb + `<slot />` for page content, per
  * `docs/awcms-mini/14_ui_ux_design_system.md` §Layout shell / Admin shell.
  *
  * Auth: the actual "redirect to /login when there is no valid session"
@@ -19,9 +21,21 @@
  * `fetchSyncIndicatorActive`, a single lightweight `EXISTS` query — not the
  * full `GET /reports/sync-health` aggregation, since this layout renders on
  * every `/admin/*` request.
+ *
+ * Responsive sidebar/drawer (Issue #693): below `--bp-md` (768px) the
+ * sidebar becomes an off-canvas drawer toggled by a hamburger button in the
+ * topbar (`#admin-nav-toggle`) instead of always-visible static nav. The
+ * inline `<script>` at the bottom wires open/close, a scrim
+ * (`#admin-sidebar-scrim`) that closes on click, Escape-to-close, a manual
+ * focus trap while open (Tab/Shift+Tab cycle within the drawer), focus
+ * moved into the drawer on open and back to the toggle button on close, and
+ * `inert` on the rest of the page (topbar/main) while the drawer covers the
+ * screen — all mobile-only (checked via `window.matchMedia("(max-width:
+ * 768px)")`); desktop keeps the pre-existing always-visible static sidebar
+ * unchanged.
  */
 import "../styles/tokens.css";
-import TenantSwitcher from "../components/TenantSwitcher.astro";
+import TenantBadge from "../components/TenantBadge.astro";
 import SyncIndicator from "../components/SyncIndicator.astro";
 import ThemeToggle from "../components/ThemeToggle.astro";
 import LanguageSwitcher from "../components/LanguageSwitcher.astro";
@@ -177,8 +191,18 @@ const isSettingsActive = pathname === "/admin/settings";
     </a>
     <div class="admin-shell">
       <header class="admin-topbar">
+        <button
+          type="button"
+          id="admin-nav-toggle"
+          class="admin-nav-toggle"
+          aria-expanded="false"
+          aria-controls="admin-sidebar-nav"
+          aria-label={t("admin.layout.nav_toggle_aria_label")}
+        >
+          <span class="admin-nav-toggle-icon" aria-hidden="true">☰</span>
+        </button>
         <span class="admin-topbar-brand">AWCMS-Mini</span>
-        <TenantSwitcher
+        <TenantBadge
           tenantName={tenantName}
           ariaLabel={t("admin.layout.active_tenant_aria_label")}
         />
@@ -216,8 +240,18 @@ const isSettingsActive = pathname === "/admin/settings";
         </div>
       </header>
       <div class="admin-body">
+        <div
+          id="admin-sidebar-scrim"
+          class="admin-sidebar-scrim"
+          data-open="false"
+          aria-hidden="true"
+          hidden
+        >
+        </div>
         <nav
+          id="admin-sidebar-nav"
           class="admin-sidebar"
+          data-open="false"
           aria-label={t("admin.layout.nav_aria_label")}
         >
           <ul>
@@ -309,6 +343,123 @@ const isSettingsActive = pathname === "/admin/settings";
             window.location.href = "/login";
           }
         });
+
+      // Responsive sidebar/drawer (Issue #693) — mobile-only (below
+      // `--bp-md`/768px, mirrored here since CSS custom properties can't be
+      // read as an @media condition). Desktop keeps the sidebar statically
+      // visible and none of this runs.
+      const navToggle = document.getElementById("admin-nav-toggle");
+      const sidebar = document.getElementById("admin-sidebar-nav");
+      const scrim = document.getElementById("admin-sidebar-scrim");
+      const topbar = document.querySelector(".admin-topbar");
+      const main = document.querySelector(".admin-main");
+      const mobileQuery = window.matchMedia("(max-width: 768px)");
+
+      function isMobileDrawer(): boolean {
+        return mobileQuery.matches;
+      }
+
+      function setInertSafely(el: Element | null, value: boolean): void {
+        if (!el) return;
+        if ("inert" in el) {
+          (el as HTMLElement).inert = value;
+        } else if (value) {
+          el.setAttribute("aria-hidden", "true");
+        } else {
+          el.removeAttribute("aria-hidden");
+        }
+      }
+
+      function openDrawer(): void {
+        if (!sidebar) return;
+        sidebar.dataset.open = "true";
+        navToggle?.setAttribute("aria-expanded", "true");
+        if (scrim) {
+          scrim.dataset.open = "true";
+          scrim.hidden = false;
+        }
+        if (isMobileDrawer()) {
+          setInertSafely(topbar, true);
+          setInertSafely(main, true);
+          const firstFocusable = sidebar.querySelector<HTMLElement>(
+            "a[href], button:not([disabled])"
+          );
+          firstFocusable?.focus();
+        }
+      }
+
+      function closeDrawer(options: { restoreFocus?: boolean } = {}): void {
+        const { restoreFocus = true } = options;
+        if (!sidebar) return;
+        sidebar.dataset.open = "false";
+        navToggle?.setAttribute("aria-expanded", "false");
+        if (scrim) {
+          scrim.dataset.open = "false";
+          scrim.hidden = true;
+        }
+        setInertSafely(topbar, false);
+        setInertSafely(main, false);
+        if (restoreFocus) navToggle?.focus();
+      }
+
+      navToggle?.addEventListener("click", () => {
+        const isOpen = sidebar?.dataset.open === "true";
+        if (isOpen) {
+          closeDrawer();
+        } else {
+          openDrawer();
+        }
+      });
+
+      scrim?.addEventListener("click", () => closeDrawer());
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        if (sidebar?.dataset.open === "true" && isMobileDrawer()) {
+          closeDrawer();
+        }
+      });
+
+      // Manual focus trap while the drawer is open on mobile — native
+      // `<dialog>` gives this for free (see `ConfirmDialog.astro`), but the
+      // sidebar must stay a plain `<nav>` (always statically visible on
+      // desktop, never modal there), so the trap is hand-wired here instead.
+      sidebar?.addEventListener("keydown", (event: KeyboardEvent) => {
+        if (
+          event.key !== "Tab" ||
+          !isMobileDrawer() ||
+          sidebar.dataset.open !== "true"
+        ) {
+          return;
+        }
+
+        const focusables = Array.from(
+          sidebar.querySelectorAll<HTMLElement>(
+            "a[href], button:not([disabled])"
+          )
+        );
+        if (focusables.length === 0) return;
+
+        const first = focusables[0]!;
+        const last = focusables[focusables.length - 1]!;
+
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      });
+
+      // If the viewport grows past the mobile breakpoint while the drawer
+      // is open, drop the mobile-only open/inert/scrim state so desktop's
+      // always-visible sidebar isn't left `inert` or hidden behind a scrim.
+      mobileQuery.addEventListener("change", (event) => {
+        if (!event.matches) {
+          closeDrawer({ restoreFocus: false });
+        }
+      });
     </script>
   </body>
 </html>
@@ -353,6 +504,35 @@ const isSettingsActive = pathname === "/admin/settings";
     box-shadow: var(--shadow-sm);
   }
 
+  /* Hamburger drawer toggle (Issue #693) — hidden by default (desktop:
+     sidebar is always visible, nothing to toggle); shown only below
+     `--bp-md` via the media query further down. `display: none` also
+     removes it from the desktop tab order automatically, so no extra
+     `tabindex`/`aria-hidden` bookkeeping is needed for that breakpoint. */
+  .admin-nav-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-lg);
+    line-height: 1;
+    color: var(--color-text);
+    cursor: pointer;
+  }
+
+  .admin-nav-toggle:hover {
+    background: var(--color-surface-2);
+  }
+
+  .admin-nav-toggle:focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
   .admin-topbar-brand {
     font-weight: 700;
     font-size: var(--fs-md);
@@ -387,8 +567,19 @@ const isSettingsActive = pathname === "/admin/settings";
     border-color: var(--color-danger-strong);
   }
 
-  /* Touch target >= 44px on tablet/mobile (doc 14 §Aksesibilitas). */
+  /* Touch target >= 44px on tablet/mobile (doc 14 §Aksesibilitas), plus the
+     off-canvas drawer pattern itself (Issue #693): below this breakpoint
+     the sidebar becomes a fixed, full-height panel that slides in from the
+     left (`transform`, toggled by the `data-open` attribute the inline
+     `<script>` above sets), covering the topbar too (`--z-drawer` >
+     `--z-nav`) so there is nothing interactive left showing behind it
+     besides the scrim. Above this breakpoint none of this applies — the
+     sidebar stays the static, always-visible column it always was. */
   @media (max-width: 768px) {
+    .admin-nav-toggle {
+      display: inline-flex;
+    }
+
     .admin-logout-button {
       min-height: 44px;
     }
@@ -398,6 +589,40 @@ const isSettingsActive = pathname === "/admin/settings";
       box-sizing: border-box;
       display: flex;
       align-items: center;
+    }
+
+    .admin-sidebar {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: min(280px, 85vw);
+      z-index: var(--z-drawer);
+      box-shadow: var(--shadow-lg);
+      overflow-y: auto;
+      transform: translateX(-100%);
+      transition: transform 0.2s ease;
+    }
+
+    .admin-sidebar[data-open="true"] {
+      transform: translateX(0);
+    }
+
+    .admin-sidebar-scrim {
+      position: fixed;
+      inset: 0;
+      z-index: calc(var(--z-drawer) - 1);
+      background: rgba(15, 23, 42, 0.5);
+    }
+  }
+
+  /* Desktop/tablet: the scrim never renders regardless of its `data-open`
+     state (there is no drawer to dim behind on a statically-visible
+     sidebar) — belt-and-suspenders alongside the `hidden` attribute the
+     script also sets/clears. */
+  @media (min-width: 769px) {
+    .admin-sidebar-scrim {
+      display: none;
     }
   }
 
@@ -436,7 +661,11 @@ const isSettingsActive = pathname === "/admin/settings";
   }
 
   .admin-sidebar a[aria-current="page"] {
-    background: var(--color-primary);
+    /* `-strong` (not the plain `--color-primary`) — Issue #434's own audit
+       measured the plain token at only ~3.68:1 with white text in dark
+       theme, below WCAG AA's 4.5:1; see tokens.css's own comment. Found
+       while touching this selector for Issue #693's drawer rewrite. */
+    background: var(--color-primary-strong);
     color: var(--color-primary-contrast);
   }
 

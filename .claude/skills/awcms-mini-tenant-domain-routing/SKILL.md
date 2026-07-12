@@ -667,7 +667,8 @@ yang sama yang sudah dibaca #521's list/detail (`fetchModuleCatalog`,
 issue sendiri ("filter by tenant", "managing module availability across
 tenants") terbaca seperti matrix lintas-tenant sungguhan — tapi model
 identity repo ini strictly 1:1 tenant-scoped (`identity-access/README.md`,
-`TenantSwitcher.astro` adalah stub yang sengaja permanen-disabled). Sudah
+`TenantBadge.astro` — Issue #693, menggantikan `TenantSwitcher.astro` —
+merender badge non-interaktif untuk alasan yang sama). Sudah
 diputuskan bersama maintainer: layar ini scoped ke tenant admin sendiri
 (`context.tenantId`), sama seperti semua layar admin lain di app ini —
 **tidak ada** filter/selector tenant di mana pun di halaman ini. Alasan

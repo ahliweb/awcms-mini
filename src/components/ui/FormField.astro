@@ -1,0 +1,127 @@
+---
+/**
+ * FormField — shared label+control+hint+error wrapper (Issue #693, epic
+ * #679 platform-hardening).
+ *
+ * Every existing admin form (`access-users.astro`, `tenant/domains.astro`,
+ * `blog/*`, `security.astro`, …) hand-rolls its own `<label>text<input
+ * /></label>` pairs with ad-hoc hint/error markup per page. This component
+ * standardizes that shape (doc 14 §Component library's own `FormField`
+ * entry: "membungkus label+input+error konsisten") without hiding the
+ * actual control — the input/select/textarea itself is passed as the
+ * default slot so callers keep full control over `type`/`name`/
+ * `required`/etc. and any existing client-side wiring keyed off those
+ * attributes keeps working unchanged.
+ *
+ * Accessibility (doc 14 §Aksesibilitas): `for`/`id` pairs the visible label
+ * with the control explicitly; hint and error text get their own ids that
+ * callers should reference from the control's `aria-describedby` (this
+ * component cannot inject `aria-describedby` onto an arbitrary slotted
+ * element itself — Astro slots are opaque markup, not a prop it can
+ * merge attributes into). `error` renders with `role="alert"` so a
+ * validation failure is announced the moment it appears.
+ */
+interface Props {
+  id: string;
+  label: string;
+  hint?: string;
+  error?: string;
+  required?: boolean;
+}
+
+const { id, label, hint, error, required = false } = Astro.props;
+---
+
+<div class="form-field" data-invalid={error ? "true" : "false"}>
+  <label for={id} class="form-field-label">
+    {label}
+    {
+      required && (
+        <span class="form-field-required" aria-hidden="true">
+          {" "}
+          *
+        </span>
+      )
+    }
+  </label>
+  <div class="form-field-control">
+    <slot />
+  </div>
+  {
+    hint && !error && (
+      <p id={`${id}-hint`} class="form-field-hint">
+        {hint}
+      </p>
+    )
+  }
+  {
+    error && (
+      <p id={`${id}-error`} class="form-field-error" role="alert">
+        {error}
+      </p>
+    )
+  }
+</div>
+
+<style>
+  .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+  }
+
+  .form-field-label {
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    color: var(--color-text);
+  }
+
+  .form-field-required {
+    color: var(--color-danger-strong);
+  }
+
+  .form-field-control :global(input),
+  .form-field-control :global(select),
+  .form-field-control :global(textarea) {
+    width: 100%;
+    box-sizing: border-box;
+    padding: var(--sp-2);
+    min-height: 44px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: var(--fs-sm);
+    font-family: var(--font-sans);
+  }
+
+  .form-field-control :global(textarea) {
+    min-height: 88px;
+  }
+
+  .form-field-control :global(input:focus-visible),
+  .form-field-control :global(select:focus-visible),
+  .form-field-control :global(textarea:focus-visible) {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  .form-field[data-invalid="true"] .form-field-control :global(input),
+  .form-field[data-invalid="true"] .form-field-control :global(select),
+  .form-field[data-invalid="true"] .form-field-control :global(textarea) {
+    border-color: var(--color-danger-strong);
+  }
+
+  .form-field-hint {
+    margin: 0;
+    font-size: var(--fs-xs);
+    color: var(--color-text-muted);
+  }
+
+  .form-field-error {
+    margin: 0;
+    font-size: var(--fs-xs);
+    color: var(--color-danger-strong);
+    font-weight: 600;
+  }
+</style>

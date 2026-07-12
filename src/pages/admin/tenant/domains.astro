@@ -41,9 +41,24 @@
  * the issue's own shorthand list ("pending, verified, active, failed,
  * suspended"), which doesn't have a fifth "verified" status distinct from
  * `active` in this schema.
+ *
+ * Migrated to the shared `src/components/ui` primitives (Issue #693, epic
+ * #679 platform-hardening) as the second of that issue's two representative
+ * large-page migrations — chosen alongside `admin/access-users.astro` for
+ * the OPPOSITE mutation shape it exercises: three separate confirm-then-act
+ * destructive/high-risk flows (verify, set-primary, delete-with-reason),
+ * previously three different combinations of bare `window.confirm`/
+ * `window.prompt` with zero inline validation, now all routed through one
+ * shared `ConfirmDialog`. Also uses `DataTable`, `StatusBadge`, and
+ * `ActionBanner`. See `docs/awcms-mini/14_ui_ux_design_system.md`
+ * §Component library and §Migrated reference pages for the adoption note.
  */
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import StateNotice from "../../../components/ui/StateNotice.astro";
+import ActionBanner from "../../../components/ui/ActionBanner.astro";
+import DataTable from "../../../components/ui/DataTable.astro";
+import StatusBadge from "../../../components/ui/StatusBadge.astro";
+import ConfirmDialog from "../../../components/ui/ConfirmDialog.astro";
 import { getDatabaseClient } from "../../../lib/database/client";
 import { withTenant } from "../../../lib/database/tenant-context";
 import { permissionKey } from "../../../modules/identity-access/domain/access-control";
@@ -97,15 +112,40 @@ const clientStrings = {
   setPrimarySuccess: t("admin.tenant_domain.set_primary_success"),
   deleteReasonPrompt: t("admin.tenant_domain.delete_reason_prompt"),
   deleteConfirm: t("admin.tenant_domain.delete_confirm"),
+  deleteConfirmTitle: t("admin.tenant_domain.delete_confirm_title"),
   verifyConfirm: t("admin.tenant_domain.verify_confirm"),
+  verifyConfirmTitle: t("admin.tenant_domain.verify_confirm_title"),
   setPrimaryConfirm: t("admin.tenant_domain.set_primary_confirm"),
+  setPrimaryConfirmTitle: t("admin.tenant_domain.set_primary_confirm_title"),
   invalidHostname: t("admin.tenant_domain.invalid_hostname"),
   copySuccess: t("admin.tenant_domain.copy_success"),
   copyError: t("admin.tenant_domain.copy_error"),
+  confirmButton: t("common.confirm_button"),
+  cancelButton: t("common.cancel_button"),
+  reasonRequiredError: t("common.reason_required_error"),
   networkError: t("common.network_error"),
   pleaseWait: t("common.please_wait"),
   errorMessages: buildClientErrorMessages(t)
 };
+
+/** Maps the DB status enum to `StatusBadge`'s variant vocabulary — kept
+ * next to `clientStrings` since both are page-specific presentation
+ * mappings over the same enum (`tenant-domain-validation.ts`). */
+function statusBadgeVariant(
+  status: string
+): "success" | "warning" | "danger" | "neutral" {
+  switch (status) {
+    case "active":
+      return "success";
+    case "pending_verification":
+      return "warning";
+    case "suspended":
+    case "failed":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
 
 let domains: Awaited<ReturnType<typeof listTenantDomains>> = [];
 let loadError = false;
@@ -184,294 +224,264 @@ function hasVerificationRecord(domain: {
   {
     CAN_READ && !loadError && (
       <div class="domain-manager">
-        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <ActionBanner />
+        <ConfirmDialog
+          id="domain-confirm-dialog"
+          confirmLabel={clientStrings.confirmButton}
+          cancelLabel={clientStrings.cancelButton}
+        />
         <script
           type="application/json"
           id="i18n-strings"
           set:html={JSON.stringify(clientStrings)}
         />
 
-        {domains.length === 0 ? (
-          <p class="empty-state">{t("admin.tenant_domain.no_domains")}</p>
-        ) : (
-          <div class="table-scroll">
-            <table class="domain-table">
-              <thead>
-                <tr>
-                  <th>{t("admin.tenant_domain.hostname_column")}</th>
-                  <th>{t("admin.tenant_domain.type_column")}</th>
-                  <th>{t("admin.tenant_domain.status_column")}</th>
-                  <th>{t("admin.tenant_domain.verification_column")}</th>
-                  <th>{t("admin.tenant_domain.actions_column")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {domains.map((domain) => (
-                  <tr>
-                    <td>
-                      <code>{domain.hostname}</code>
-                      {domain.isPrimary && (
-                        <span
-                          class="primary-badge"
-                          title={t("admin.tenant_domain.primary_badge_label")}
-                        >
-                          <span aria-hidden="true">★</span>{" "}
-                          {t("admin.tenant_domain.primary_badge_label")}
-                        </span>
-                      )}
-                      <div class="field-hint">
-                        {formatDateTime(new Date(domain.createdAt), locale)}
-                      </div>
-                    </td>
-                    <td>
+        <DataTable
+          caption={t("admin.tenant_domain.title")}
+          columnCount={5}
+          isEmpty={domains.length === 0}
+          emptyMessage={t("admin.tenant_domain.no_domains")}
+        >
+          <Fragment slot="head">
+            <tr>
+              <th>{t("admin.tenant_domain.hostname_column")}</th>
+              <th>{t("admin.tenant_domain.type_column")}</th>
+              <th>{t("admin.tenant_domain.status_column")}</th>
+              <th>{t("admin.tenant_domain.verification_column")}</th>
+              <th>{t("admin.tenant_domain.actions_column")}</th>
+            </tr>
+          </Fragment>
+          {domains.map((domain) => (
+            <tr>
+              <td>
+                <code>{domain.hostname}</code>
+                {domain.isPrimary && (
+                  <span
+                    class="primary-badge"
+                    title={t("admin.tenant_domain.primary_badge_label")}
+                  >
+                    <span aria-hidden="true">★</span>{" "}
+                    {t("admin.tenant_domain.primary_badge_label")}
+                  </span>
+                )}
+                <div class="field-hint">
+                  {formatDateTime(new Date(domain.createdAt), locale)}
+                </div>
+              </td>
+              <td>
+                {t(`admin.tenant_domain.domain_type.${domain.domainType}`)}
+              </td>
+              <td>
+                <StatusBadge
+                  variant={statusBadgeVariant(domain.status)}
+                  label={t(`admin.tenant_domain.status.${domain.status}`)}
+                />
+              </td>
+              <td>
+                {domain.verificationMethod ? (
+                  <div class="verification-cell">
+                    <span class="field-hint">
                       {t(
-                        `admin.tenant_domain.domain_type.${domain.domainType}`
+                        `admin.tenant_domain.verification_method.${domain.verificationMethod}`
                       )}
-                    </td>
-                    <td>
-                      <span class="status-pill" data-status={domain.status}>
-                        {t(`admin.tenant_domain.status.${domain.status}`)}
-                      </span>
-                    </td>
-                    <td>
-                      {domain.verificationMethod ? (
-                        <div class="verification-cell">
-                          <span class="field-hint">
-                            {t(
-                              `admin.tenant_domain.verification_method.${domain.verificationMethod}`
-                            )}
-                          </span>
-                          {hasVerificationRecord(domain) &&
-                          domain.verificationRecordName &&
-                          domain.verificationRecordValue ? (
-                            <dl class="record-list">
-                              <dt>
-                                {t("admin.tenant_domain.record_name_label")}
-                              </dt>
-                              <dd>
-                                <code>{domain.verificationRecordName}</code>
-                                <button
-                                  type="button"
-                                  class="copy-record-button"
-                                  data-copy-value={
-                                    domain.verificationRecordName
-                                  }
-                                >
-                                  {t("admin.tenant_domain.copy_button")}
-                                </button>
-                              </dd>
-                              <dt>
-                                {t("admin.tenant_domain.record_value_label")}
-                              </dt>
-                              <dd>
-                                <code>{domain.verificationRecordValue}</code>
-                                <button
-                                  type="button"
-                                  class="copy-record-button"
-                                  data-copy-value={
-                                    domain.verificationRecordValue
-                                  }
-                                >
-                                  {t("admin.tenant_domain.copy_button")}
-                                </button>
-                              </dd>
-                            </dl>
-                          ) : (
-                            hasVerificationRecord(domain) && (
-                              <p class="field-hint">
-                                {t("admin.tenant_domain.no_record_configured")}
-                              </p>
-                            )
-                          )}
-                        </div>
-                      ) : (
-                        <span class="field-hint">
-                          {t("admin.tenant_domain.verification_method_none")}
-                        </span>
-                      )}
-                    </td>
-                    <td class="actions-cell">
-                      {CAN_VERIFY && canVerify(domain) && (
-                        <button
-                          type="button"
-                          class="verify-domain-button"
-                          data-domain-id={domain.id}
-                        >
-                          {t("admin.tenant_domain.verify_button")}
-                        </button>
-                      )}
-                      {CAN_SET_PRIMARY && canSetPrimary(domain) && (
-                        <button
-                          type="button"
-                          class="set-primary-domain-button"
-                          data-domain-id={domain.id}
-                        >
-                          {t("admin.tenant_domain.set_primary_button")}
-                        </button>
-                      )}
-                      {canPreviewNewsLink(domain) && (
-                        <a
-                          class="preview-link"
-                          href={`https://${domain.normalizedHostname}/news`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title={t("admin.tenant_domain.preview_hint")}
-                        >
-                          {t("admin.tenant_domain.preview_link")}
-                        </a>
-                      )}
-                      {CAN_UPDATE && (
-                        <details class="edit-domain">
-                          <summary>
-                            {t("admin.tenant_domain.edit_summary")}
-                          </summary>
-                          <form
-                            class="edit-domain-form"
-                            data-domain-id={domain.id}
+                    </span>
+                    {hasVerificationRecord(domain) &&
+                    domain.verificationRecordName &&
+                    domain.verificationRecordValue ? (
+                      <dl class="record-list">
+                        <dt>{t("admin.tenant_domain.record_name_label")}</dt>
+                        <dd>
+                          <code>{domain.verificationRecordName}</code>
+                          <button
+                            type="button"
+                            class="copy-record-button"
+                            data-copy-value={domain.verificationRecordName}
                           >
-                            <label>
-                              {t("admin.tenant_domain.field_domain_type")}
-                              <select name="domainType">
-                                {TENANT_DOMAIN_TYPES.map((value) => (
-                                  <option
-                                    value={value}
-                                    selected={domain.domainType === value}
-                                  >
-                                    {t(
-                                      `admin.tenant_domain.domain_type.${value}`
-                                    )}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            <label>
-                              {t("admin.tenant_domain.field_route_mode")}
-                              <select name="routeMode">
-                                {TENANT_DOMAIN_ROUTE_MODES.map((value) => (
-                                  <option
-                                    value={value}
-                                    selected={domain.routeMode === value}
-                                  >
-                                    {t(
-                                      `admin.tenant_domain.route_mode.${value}`
-                                    )}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            <label>
-                              {t("admin.tenant_domain.field_status")}
-                              <select name="status">
-                                <option
-                                  value=""
-                                  selected={
-                                    !TENANT_DOMAIN_UPDATABLE_STATUSES.includes(
-                                      domain.status as (typeof TENANT_DOMAIN_UPDATABLE_STATUSES)[number]
-                                    )
-                                  }
-                                >
-                                  {t(
-                                    "admin.tenant_domain.field_status_no_change"
-                                  )}
-                                </option>
-                                {TENANT_DOMAIN_UPDATABLE_STATUSES.map(
-                                  (value) => (
-                                    <option
-                                      value={value}
-                                      selected={domain.status === value}
-                                    >
-                                      {t(`admin.tenant_domain.status.${value}`)}
-                                    </option>
-                                  )
-                                )}
-                              </select>
-                              {domain.status === "active" && (
-                                <span class="field-hint">
-                                  {t(
-                                    "admin.tenant_domain.field_status_active_hint"
-                                  )}
-                                </span>
-                              )}
-                            </label>
-                            <label>
+                            {t("admin.tenant_domain.copy_button")}
+                          </button>
+                        </dd>
+                        <dt>{t("admin.tenant_domain.record_value_label")}</dt>
+                        <dd>
+                          <code>{domain.verificationRecordValue}</code>
+                          <button
+                            type="button"
+                            class="copy-record-button"
+                            data-copy-value={domain.verificationRecordValue}
+                          >
+                            {t("admin.tenant_domain.copy_button")}
+                          </button>
+                        </dd>
+                      </dl>
+                    ) : (
+                      hasVerificationRecord(domain) && (
+                        <p class="field-hint">
+                          {t("admin.tenant_domain.no_record_configured")}
+                        </p>
+                      )
+                    )}
+                  </div>
+                ) : (
+                  <span class="field-hint">
+                    {t("admin.tenant_domain.verification_method_none")}
+                  </span>
+                )}
+              </td>
+              <td class="actions-cell">
+                {CAN_VERIFY && canVerify(domain) && (
+                  <button
+                    type="button"
+                    class="verify-domain-button"
+                    data-domain-id={domain.id}
+                  >
+                    {t("admin.tenant_domain.verify_button")}
+                  </button>
+                )}
+                {CAN_SET_PRIMARY && canSetPrimary(domain) && (
+                  <button
+                    type="button"
+                    class="set-primary-domain-button"
+                    data-domain-id={domain.id}
+                  >
+                    {t("admin.tenant_domain.set_primary_button")}
+                  </button>
+                )}
+                {canPreviewNewsLink(domain) && (
+                  <a
+                    class="preview-link"
+                    href={`https://${domain.normalizedHostname}/news`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={t("admin.tenant_domain.preview_hint")}
+                  >
+                    {t("admin.tenant_domain.preview_link")}
+                  </a>
+                )}
+                {CAN_UPDATE && (
+                  <details class="edit-domain">
+                    <summary>{t("admin.tenant_domain.edit_summary")}</summary>
+                    <form class="edit-domain-form" data-domain-id={domain.id}>
+                      <label>
+                        {t("admin.tenant_domain.field_domain_type")}
+                        <select name="domainType">
+                          {TENANT_DOMAIN_TYPES.map((value) => (
+                            <option
+                              value={value}
+                              selected={domain.domainType === value}
+                            >
+                              {t(`admin.tenant_domain.domain_type.${value}`)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        {t("admin.tenant_domain.field_route_mode")}
+                        <select name="routeMode">
+                          {TENANT_DOMAIN_ROUTE_MODES.map((value) => (
+                            <option
+                              value={value}
+                              selected={domain.routeMode === value}
+                            >
+                              {t(`admin.tenant_domain.route_mode.${value}`)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        {t("admin.tenant_domain.field_status")}
+                        <select name="status">
+                          <option
+                            value=""
+                            selected={
+                              !TENANT_DOMAIN_UPDATABLE_STATUSES.includes(
+                                domain.status as (typeof TENANT_DOMAIN_UPDATABLE_STATUSES)[number]
+                              )
+                            }
+                          >
+                            {t("admin.tenant_domain.field_status_no_change")}
+                          </option>
+                          {TENANT_DOMAIN_UPDATABLE_STATUSES.map((value) => (
+                            <option
+                              value={value}
+                              selected={domain.status === value}
+                            >
+                              {t(`admin.tenant_domain.status.${value}`)}
+                            </option>
+                          ))}
+                        </select>
+                        {domain.status === "active" && (
+                          <span class="field-hint">
+                            {t("admin.tenant_domain.field_status_active_hint")}
+                          </span>
+                        )}
+                      </label>
+                      <label>
+                        {t("admin.tenant_domain.field_verification_method")}
+                        <select name="verificationMethod">
+                          <option
+                            value=""
+                            selected={domain.verificationMethod === null}
+                          >
+                            {t(
+                              "admin.tenant_domain.field_verification_method_none_option"
+                            )}
+                          </option>
+                          {TENANT_DOMAIN_VERIFICATION_METHODS.map((value) => (
+                            <option
+                              value={value}
+                              selected={domain.verificationMethod === value}
+                            >
                               {t(
-                                "admin.tenant_domain.field_verification_method"
+                                `admin.tenant_domain.verification_method.${value}`
                               )}
-                              <select name="verificationMethod">
-                                <option
-                                  value=""
-                                  selected={domain.verificationMethod === null}
-                                >
-                                  {t(
-                                    "admin.tenant_domain.field_verification_method_none_option"
-                                  )}
-                                </option>
-                                {TENANT_DOMAIN_VERIFICATION_METHODS.map(
-                                  (value) => (
-                                    <option
-                                      value={value}
-                                      selected={
-                                        domain.verificationMethod === value
-                                      }
-                                    >
-                                      {t(
-                                        `admin.tenant_domain.verification_method.${value}`
-                                      )}
-                                    </option>
-                                  )
-                                )}
-                              </select>
-                            </label>
-                            <label>
-                              {t("admin.tenant_domain.field_record_name")}
-                              <input
-                                type="text"
-                                name="verificationRecordName"
-                                maxlength="2000"
-                                value={domain.verificationRecordName ?? ""}
-                              />
-                            </label>
-                            <label>
-                              {t("admin.tenant_domain.field_record_value")}
-                              <input
-                                type="text"
-                                name="verificationRecordValue"
-                                maxlength="2000"
-                                value={domain.verificationRecordValue ?? ""}
-                              />
-                            </label>
-                            <label class="checkbox-label">
-                              <input
-                                type="checkbox"
-                                name="redirectToPrimary"
-                                checked={domain.redirectToPrimary}
-                              />
-                              {t(
-                                "admin.tenant_domain.field_redirect_to_primary"
-                              )}
-                            </label>
-                            <button type="submit">
-                              {t("admin.tenant_domain.save_button")}
-                            </button>
-                          </form>
-                        </details>
-                      )}
-                      {CAN_DELETE && (
-                        <button
-                          type="button"
-                          class="delete-domain-button"
-                          data-domain-id={domain.id}
-                        >
-                          {t("admin.tenant_domain.delete_button")}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        {t("admin.tenant_domain.field_record_name")}
+                        <input
+                          type="text"
+                          name="verificationRecordName"
+                          maxlength="2000"
+                          value={domain.verificationRecordName ?? ""}
+                        />
+                      </label>
+                      <label>
+                        {t("admin.tenant_domain.field_record_value")}
+                        <input
+                          type="text"
+                          name="verificationRecordValue"
+                          maxlength="2000"
+                          value={domain.verificationRecordValue ?? ""}
+                        />
+                      </label>
+                      <label class="checkbox-label">
+                        <input
+                          type="checkbox"
+                          name="redirectToPrimary"
+                          checked={domain.redirectToPrimary}
+                        />
+                        {t("admin.tenant_domain.field_redirect_to_primary")}
+                      </label>
+                      <button type="submit">
+                        {t("admin.tenant_domain.save_button")}
+                      </button>
+                    </form>
+                  </details>
+                )}
+                {CAN_DELETE && (
+                  <button
+                    type="button"
+                    class="delete-domain-button"
+                    data-domain-id={domain.id}
+                  >
+                    {t("admin.tenant_domain.delete_button")}
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </DataTable>
 
         {CAN_CREATE && (
           <details class="create-domain">
@@ -564,51 +574,9 @@ function hasVerificationRecord(domain: {
     gap: var(--sp-4);
   }
 
-  .action-banner {
-    padding: var(--sp-2) var(--sp-3);
-    border-radius: var(--radius-sm);
-    font-size: var(--fs-sm);
-  }
-
-  .action-banner[data-variant="success"] {
-    background: color-mix(
-      in srgb,
-      var(--color-success) 15%,
-      var(--color-surface)
-    );
-    border: 1px solid var(--color-success);
-  }
-
-  .action-banner[data-variant="error"] {
-    background: color-mix(
-      in srgb,
-      var(--color-danger) 15%,
-      var(--color-surface)
-    );
-    border: 1px solid var(--color-danger);
-  }
-
-  .empty-state {
-    color: var(--color-text-muted);
-  }
-
-  .table-scroll {
-    overflow-x: auto;
-  }
-
-  .domain-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  .domain-table th,
-  .domain-table td {
-    text-align: left;
-    padding: var(--sp-2);
-    border-bottom: 1px solid var(--color-border);
-    font-size: var(--fs-sm);
-    vertical-align: top;
-  }
+  /* `.action-banner`, `.table-scroll`/`.domain-table`, and `.status-pill`
+     were previously hand-rolled here — now supplied by `ActionBanner.astro`,
+     `DataTable.astro`, and `StatusBadge.astro` respectively (Issue #693). */
 
   .field-hint {
     color: var(--color-text-muted);
@@ -627,33 +595,6 @@ function hasVerificationRecord(domain: {
     color: var(--color-primary-contrast);
     font-size: var(--fs-xs);
     font-weight: 700;
-  }
-
-  .status-pill {
-    display: inline-block;
-    padding: 0 var(--sp-2);
-    border-radius: var(--radius-full);
-    font-size: var(--fs-xs);
-    background: var(--color-surface-2);
-    border: 1px solid var(--color-border);
-  }
-
-  .status-pill[data-status="active"] {
-    background: var(--color-success-strong);
-    color: var(--color-primary-contrast);
-    border-color: var(--color-success-strong);
-  }
-
-  .status-pill[data-status="pending_verification"] {
-    background: var(--color-warning);
-    border-color: var(--color-warning);
-  }
-
-  .status-pill[data-status="suspended"],
-  .status-pill[data-status="failed"] {
-    background: var(--color-danger-strong);
-    color: var(--color-primary-contrast);
-    border-color: var(--color-danger-strong);
   }
 
   .verification-cell {
@@ -813,6 +754,7 @@ function hasVerificationRecord(domain: {
     showBanner,
     submitJson
   } from "../../../lib/ui/admin-form-client";
+  import { openConfirmDialog } from "../../../lib/ui/confirm-dialog-client";
 
   interface DomainManagerStrings {
     createSuccess: string;
@@ -822,11 +764,17 @@ function hasVerificationRecord(domain: {
     setPrimarySuccess: string;
     deleteReasonPrompt: string;
     deleteConfirm: string;
+    deleteConfirmTitle: string;
     verifyConfirm: string;
+    verifyConfirmTitle: string;
     setPrimaryConfirm: string;
+    setPrimaryConfirmTitle: string;
     invalidHostname: string;
     copySuccess: string;
     copyError: string;
+    confirmButton: string;
+    cancelButton: string;
+    reasonRequiredError: string;
     networkError: string;
     pleaseWait: string;
     errorMessages?: Record<string, string>;
@@ -978,7 +926,13 @@ function hasVerificationRecord(domain: {
     button.addEventListener("click", async () => {
       const el = button as HTMLButtonElement;
       if (el.disabled) return;
-      if (!window.confirm(strings.verifyConfirm)) return;
+      const confirmation = await openConfirmDialog("domain-confirm-dialog", {
+        title: strings.verifyConfirmTitle,
+        body: strings.verifyConfirm,
+        confirmLabel: strings.confirmButton,
+        cancelLabel: strings.cancelButton
+      });
+      if (!confirmation.confirmed) return;
 
       const unlock = lockElement(el, strings.pleaseWait);
       try {
@@ -1006,7 +960,13 @@ function hasVerificationRecord(domain: {
     button.addEventListener("click", async () => {
       const el = button as HTMLButtonElement;
       if (el.disabled) return;
-      if (!window.confirm(strings.setPrimaryConfirm)) return;
+      const confirmation = await openConfirmDialog("domain-confirm-dialog", {
+        title: strings.setPrimaryConfirmTitle,
+        body: strings.setPrimaryConfirm,
+        confirmLabel: strings.confirmButton,
+        cancelLabel: strings.cancelButton
+      });
+      if (!confirmation.confirmed) return;
 
       const unlock = lockElement(el, strings.pleaseWait);
       try {
@@ -1035,9 +995,17 @@ function hasVerificationRecord(domain: {
       const el = button as HTMLButtonElement;
       if (el.disabled) return;
 
-      const reason = window.prompt(strings.deleteReasonPrompt);
-      if (!reason || reason.trim().length === 0) return;
-      if (!window.confirm(strings.deleteConfirm)) return;
+      const confirmation = await openConfirmDialog("domain-confirm-dialog", {
+        title: strings.deleteConfirmTitle,
+        body: strings.deleteConfirm,
+        confirmLabel: strings.confirmButton,
+        cancelLabel: strings.cancelButton,
+        requireReason: true,
+        reasonLabel: strings.deleteReasonPrompt,
+        reasonRequiredError: strings.reasonRequiredError
+      });
+      if (!confirmation.confirmed || !confirmation.reason) return;
+      const reason = confirmation.reason;
 
       const unlock = lockElement(el, strings.pleaseWait);
       try {

@@ -1,0 +1,105 @@
+---
+/**
+ * DataTable — shared scrollable-table shell (Issue #693, epic #679
+ * platform-hardening).
+ *
+ * Generalizes the `.table-scroll` + `<table class="...-table">` wrapper
+ * duplicated (each with its own near-identical CSS) across
+ * `admin/access-users.astro`, `admin/tenant/domains.astro`,
+ * `admin/modules/[moduleKey].astro`, `admin/security.astro`,
+ * `admin/blog/*`, etc. (doc 14 §Component library's own `Table / DataGrid`
+ * entry). Deliberately thin: this does NOT try to own row rendering —
+ * every migrated screen's rows mix badges, forms, buttons, and per-row
+ * permission gating that a generic data-binding table can't express
+ * without becoming its own templating language. Callers render `<thead>`
+ * content into the `head` slot and `<tbody>` rows into the default slot,
+ * exactly as before, and get the scroll container + consistent border/
+ * padding/empty-row styling for free.
+ *
+ * Responsive (doc 14 §Responsif / Issue #434): the scroll container is
+ * this component's whole reason to exist — a wide table scrolls inside
+ * itself instead of forcing the entire page to scroll horizontally at
+ * 320px viewport width.
+ *
+ * Accessibility: `caption` is the table's required accessible name
+ * (visually hidden by default via `.sr-only`, always present in the
+ * accessibility tree — WCAG 2.2 AA 1.3.1). `isEmpty`+`emptyMessage`
+ * standardizes the "no rows yet" branch (doc 14 §State pattern wajib
+ * "Empty: pesan + call-to-action") instead of every page hand-rolling its
+ * own `<tr><td colspan={n}>...</td></tr>`.
+ */
+interface Props {
+  id?: string;
+  caption: string;
+  columnCount: number;
+  isEmpty?: boolean;
+  emptyMessage?: string;
+}
+
+const { id, caption, columnCount, isEmpty = false, emptyMessage } = Astro.props;
+---
+
+<div class="data-table-scroll">
+  <table id={id} class="data-table">
+    <caption class="sr-only">{caption}</caption>
+    <thead>
+      <slot name="head" />
+    </thead>
+    <tbody>
+      {
+        isEmpty ? (
+          <tr>
+            <td colspan={columnCount} class="data-table-empty">
+              {emptyMessage}
+            </td>
+          </tr>
+        ) : (
+          <slot />
+        )
+      }
+    </tbody>
+  </table>
+</div>
+
+<style>
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .data-table-scroll {
+    overflow-x: auto;
+  }
+
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .data-table :global(th),
+  .data-table :global(td) {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--fs-sm);
+    vertical-align: top;
+  }
+
+  .data-table :global(th) {
+    color: var(--color-text-muted);
+    font-weight: 600;
+  }
+
+  .data-table-empty {
+    color: var(--color-text-muted);
+    text-align: center !important;
+    padding: var(--sp-4) !important;
+  }
+</style>

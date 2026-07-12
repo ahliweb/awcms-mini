@@ -69,9 +69,11 @@ Issue ini adalah endpoint live pertama yang menyentuh database, sehingga menamba
 - Helper baru `src/lib/auth/ssr-session.ts` (`resolveSsrContext`) membaca kedua cookie dan mendelegasikan ke `resolveTenantContext` + `fetchGrantedPermissionKeys` di atas — pola I/O yang persis sama dengan `POST /access/evaluate`, hanya sumber tenant/token-nya cookie, bukan header. Mengembalikan `null` (tanpa melempar error) bila cookie tidak ada atau sesi tidak valid; layout SSR meng-redirect ke `/login`.
 - `secure` cookie diambil dari `AUTH_COOKIE_SECURE` (env yang sudah ada di `.env.example` sejak Issue 0.1, baru dipakai kode mulai issue ini).
 
-### Tenant switcher stub
+### Tenant badge (sebelumnya "tenant switcher stub")
 
-`src/components/TenantSwitcher.astro` menampilkan nama tenant aktif dalam kontrol berbentuk dropdown yang **disabled** (satu entri saja). Ini bukan bug — skema `awcms_mini_identities.tenant_id` adalah 1:1 per tenant (tidak ada cross-tenant identity linking), sehingga "switch tenant" sungguhan tidak punya target untuk saat ini. Backlog: bila cross-tenant identity linking pernah ditambahkan, komponen ini yang perlu diperbarui menjadi interaktif.
+`src/components/TenantBadge.astro` (Issue #693, epic #679 platform-hardening — menggantikan `TenantSwitcher.astro`) menampilkan nama tenant aktif sebagai badge **non-interaktif** (`<div role="status">`), bukan lagi kontrol dropdown ber-atribut `disabled`. Perubahan ini bukan kosmetik: Issue #693's acceptance criterion melarang "authorization decision relies on hidden/disabled UI alone" — sebuah `<select disabled>` yang tampil seperti kontrol asli menyiratkan kapabilitas switching yang sebenarnya tidak ada, dan atribut `disabled` murni presentational sisi klien (bisa dilepas via devtools) yang tidak boleh menjadi batas keamanan.
+
+Alasan struktural tidak berubah: skema `awcms_mini_identities.tenant_id` adalah 1:1 per tenant (tidak ada cross-tenant identity linking), sehingga "switch tenant" sungguhan tidak punya target untuk saat ini — bukan untuk peran/permission manapun. `TenantBadge`'s `availableTenants` prop adalah seam ekstensibilitas yang sengaja disediakan: bila cross-tenant identity linking pernah ditambahkan, kapabilitas itu HARUS dihitung server-side (daftar tenant yang identity ini benar-benar boleh switch ke situ, bukan flag klien) sebelum komponen ini merender kontrol interaktif sungguhan — lihat docblock komponen itu sendiri untuk detail lengkap.
 
 ### Sync indicator stub
 

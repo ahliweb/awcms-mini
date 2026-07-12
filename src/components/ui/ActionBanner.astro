@@ -1,0 +1,61 @@
+---
+/**
+ * ActionBanner — shared post-mutation feedback banner (Issue #693, epic
+ * #679 platform-hardening).
+ *
+ * Extracted from an identical `<div id="action-banner" class="action-banner"
+ * role="alert" hidden />` block (plus its `.action-banner`/
+ * `.action-banner[data-variant=...]` CSS) duplicated verbatim across
+ * `admin/access-users.astro`, `admin/tenant/domains.astro`,
+ * `admin/sync.astro`, `admin/settings.astro`, and most `admin/blog/*` pages
+ * — the same kind of inline duplication `StateNotice.astro` (Issue #434)
+ * already called out and fixed for the denied/error/info branch; this does
+ * the equivalent for the success/error mutation-result branch (doc 14
+ * §Konsistensi).
+ *
+ * Deliberately markup-compatible with the existing client helper
+ * `src/lib/ui/admin-form-client.ts`'s `showBanner(bannerId, message,
+ * variant)`: that function only needs an element with the given `id` to
+ * set `.textContent`, `data-variant`, and `hidden = false` on — it does not
+ * care whether the element came from this component or hand-authored
+ * markup, so migrating a page to `<ActionBanner />` requires no change to
+ * any existing `showBanner("action-banner", ...)` call site.
+ *
+ * `role="alert"` is an implicit live region — assistive tech announces the
+ * text the moment `showBanner` sets it, matching doc 14 §Aksesibilitas
+ * ("error diumumkan aria-live").
+ */
+interface Props {
+  id?: string;
+}
+
+const { id = "action-banner" } = Astro.props;
+---
+
+<div id={id} class="action-banner" role="alert" hidden></div>
+
+<style>
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+  }
+
+  .action-banner[data-variant="success"] {
+    background: color-mix(
+      in srgb,
+      var(--color-success) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-success);
+  }
+
+  .action-banner[data-variant="error"] {
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-danger);
+  }
+</style>

@@ -58,6 +58,16 @@ msgstr "Ya"
 msgid "common.no"
 msgstr "Tidak"
 
+#. ConfirmDialog.astro (Issue #693, epic #679 platform-hardening)
+msgid "common.confirm_button"
+msgstr "Konfirmasi"
+
+msgid "common.cancel_button"
+msgstr "Batal"
+
+msgid "common.reason_required_error"
+msgstr "Alasan wajib diisi."
+
 #. error codes (doc 05 §Error code standard)
 msgid "error.validation_error"
 msgstr "Data yang dikirim tidak valid."
@@ -243,6 +253,12 @@ msgstr "Keluar"
 msgid "admin.layout.nav_aria_label"
 msgstr "Navigasi utama"
 
+#. Responsive sidebar/drawer hamburger toggle (Issue #693, epic #679
+#. platform-hardening) — hanya tampil di bawah `--bp-md`; status buka/tutup
+#. disampaikan lewat `aria-expanded`, bukan label terpisah per status.
+msgid "admin.layout.nav_toggle_aria_label"
+msgstr "Buka/tutup menu navigasi"
+
 msgid "admin.layout.nav_dashboard"
 msgstr "Dashboard"
 
@@ -416,6 +432,11 @@ msgstr "Lepas role {role}"
 msgid "admin.access_users.assign_role_placeholder"
 msgstr "+ assign role"
 
+#. Nama aksesibel untuk <select> assign-role per user (Issue #693 — a11y
+#. smoke test menemukan elemen ini tanpa nama aksesibel).
+msgid "admin.access_users.assign_role_select_aria_label"
+msgstr "Assign role untuk {user}"
+
 msgid "admin.access_users.assign_button"
 msgstr "Assign"
 
@@ -511,6 +532,13 @@ msgstr "Role berhasil dilepas."
 
 msgid "admin.access_users.delete_role_prompt"
 msgstr "Alasan menghapus role ini:"
+
+#. ConfirmDialog title/body for role deletion (Issue #693)
+msgid "admin.access_users.delete_role_confirm_title"
+msgstr "Hapus role?"
+
+msgid "admin.access_users.delete_role_confirm_body"
+msgstr "Role ini akan dihapus dan dilepas dari semua pengguna yang memilikinya. Tindakan ini dicatat di audit log."
 
 #. admin.sync
 msgid "admin.sync.access_denied_title"
@@ -2014,6 +2042,10 @@ msgstr "Verifikasi"
 msgid "admin.tenant_domain.verify_confirm"
 msgstr "Verifikasi domain ini sekarang? Ini akan menandainya aktif berdasarkan atestasi Anda bahwa DNS/kepemilikan sudah benar."
 
+#. ConfirmDialog title (Issue #693)
+msgid "admin.tenant_domain.verify_confirm_title"
+msgstr "Verifikasi domain?"
+
 msgid "admin.tenant_domain.verify_success"
 msgstr "Domain terverifikasi."
 
@@ -2022,6 +2054,10 @@ msgstr "Jadikan utama"
 
 msgid "admin.tenant_domain.set_primary_confirm"
 msgstr "Jadikan domain ini sebagai domain utama tenant?"
+
+#. ConfirmDialog title (Issue #693)
+msgid "admin.tenant_domain.set_primary_confirm_title"
+msgstr "Jadikan domain utama?"
 
 msgid "admin.tenant_domain.set_primary_success"
 msgstr "Domain utama berhasil diperbarui."
@@ -2034,6 +2070,10 @@ msgstr "Alasan menghapus pemetaan domain ini:"
 
 msgid "admin.tenant_domain.delete_confirm"
 msgstr "Hapus pemetaan domain ini? Tindakan ini tidak dapat dibatalkan dari layar ini."
+
+#. ConfirmDialog title (Issue #693)
+msgid "admin.tenant_domain.delete_confirm_title"
+msgstr "Hapus pemetaan domain?"
 
 msgid "admin.tenant_domain.delete_success"
 msgstr "Pemetaan domain berhasil dihapus."

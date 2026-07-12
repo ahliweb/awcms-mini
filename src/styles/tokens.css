@@ -81,6 +81,11 @@
 
   /* Z-index */
   --z-nav: 100;
+  /* Mobile admin sidebar drawer + its scrim (Issue #693) — above the sticky
+     topbar (`--z-nav`) so the drawer visually overlays it when open, below
+     `--z-dropdown` since a dropdown opened from within the drawer (if any)
+     must still render on top of the drawer itself. */
+  --z-drawer: 150;
   --z-dropdown: 200;
   --z-dialog: 300;
   --z-toast: 400;

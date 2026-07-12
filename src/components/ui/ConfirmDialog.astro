@@ -1,0 +1,189 @@
+---
+/**
+ * ConfirmDialog — shared destructive-action confirmation modal (Issue
+ * #693, epic #679 platform-hardening).
+ *
+ * Markup shell driven by `src/lib/ui/confirm-dialog-client.ts`'s
+ * `openConfirmDialog(dialogId, options)` — see that module's own doc
+ * comment for the full rationale (replaces `window.confirm`/
+ * `window.prompt`) and for why this is ONE reusable instance per page,
+ * re-populated per call, rather than one dialog per row/action.
+ *
+ * Built on the native `<dialog>` element: `showModal()` provides a real
+ * focus trap and Escape-to-close for free (doc 14 §Aksesibilitas "Dialog
+ * memerangkap fokus; Esc menutup"), no hand-rolled JS needed for either.
+ * `aria-labelledby`/`aria-describedby` point at the title/body text the
+ * client helper rewrites before each open.
+ *
+ * The reason field (`data-confirm-reason-field`) starts `hidden` and is
+ * only revealed for calls that pass `requireReason: true` — this is the
+ * accessible replacement for the `window.prompt(reasonText)` pattern used
+ * by delete flows that record a `reason` (soft-delete audit trail, doc 10).
+ */
+interface Props {
+  id: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  danger?: boolean;
+}
+
+const { id, confirmLabel, cancelLabel, danger = true } = Astro.props;
+const titleId = `${id}-title`;
+const bodyId = `${id}-body`;
+const reasonId = `${id}-reason`;
+const reasonErrorId = `${id}-reason-error`;
+---
+
+<dialog
+  id={id}
+  class="confirm-dialog"
+  aria-labelledby={titleId}
+  aria-describedby={bodyId}
+>
+  <h2 id={titleId} class="confirm-dialog-title" data-confirm-title></h2>
+  <p id={bodyId} class="confirm-dialog-body" data-confirm-body></p>
+
+  <div class="confirm-dialog-reason" data-confirm-reason-field hidden>
+    <label
+      for={reasonId}
+      class="confirm-dialog-reason-label"
+      data-confirm-reason-label></label>
+    <textarea
+      id={reasonId}
+      class="confirm-dialog-reason-input"
+      data-confirm-reason-input
+      rows="3"></textarea>
+    <p
+      id={reasonErrorId}
+      class="confirm-dialog-reason-error"
+      role="alert"
+      data-confirm-reason-error
+      hidden
+    >
+    </p>
+  </div>
+
+  <div class="confirm-dialog-actions">
+    <button type="button" class="confirm-dialog-cancel" data-confirm-cancel>
+      {cancelLabel}
+    </button>
+    <button
+      type="button"
+      class:list={[
+        "confirm-dialog-accept",
+        { "confirm-dialog-accept-danger": danger }
+      ]}
+      data-confirm-accept
+    >
+      {confirmLabel}
+    </button>
+  </div>
+</dialog>
+
+<style>
+  .confirm-dialog {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    box-shadow: var(--shadow-lg);
+    padding: var(--sp-4);
+    width: min(420px, calc(100vw - var(--sp-6)));
+  }
+
+  .confirm-dialog::backdrop {
+    background: rgba(15, 23, 42, 0.5);
+  }
+
+  .confirm-dialog-title {
+    margin: 0 0 var(--sp-2);
+    font-size: var(--fs-md);
+  }
+
+  .confirm-dialog-body {
+    margin: 0 0 var(--sp-3);
+    color: var(--color-text-muted);
+    font-size: var(--fs-sm);
+  }
+
+  .confirm-dialog-reason {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    margin-bottom: var(--sp-3);
+  }
+
+  .confirm-dialog-reason-label {
+    font-size: var(--fs-sm);
+    font-weight: 600;
+  }
+
+  .confirm-dialog-reason-input {
+    box-sizing: border-box;
+    width: 100%;
+    padding: var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm);
+  }
+
+  .confirm-dialog-reason-error {
+    margin: 0;
+    color: var(--color-danger-strong);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+  }
+
+  .confirm-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--sp-2);
+  }
+
+  .confirm-dialog-cancel,
+  .confirm-dialog-accept {
+    min-height: 44px;
+    padding: var(--sp-2) var(--sp-4);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .confirm-dialog-cancel {
+    border: 1px solid var(--color-border);
+    background: var(--color-surface-2);
+    color: var(--color-text);
+  }
+
+  .confirm-dialog-accept {
+    border: 1px solid var(--color-primary-strong);
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+  }
+
+  .confirm-dialog-accept-danger {
+    border-color: var(--color-danger-strong);
+    background: var(--color-danger-strong);
+  }
+
+  .confirm-dialog-cancel:focus-visible,
+  .confirm-dialog-accept:focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 640px) {
+    .confirm-dialog-actions {
+      flex-direction: column-reverse;
+    }
+
+    .confirm-dialog-cancel,
+    .confirm-dialog-accept {
+      width: 100%;
+    }
+  }
+</style>
