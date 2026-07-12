@@ -1,0 +1,9 @@
+---
+"awcms-mini": patch
+---
+
+Define module admission, lifecycle, and registry governance policy (Issue #696, epic #679 platform-hardening). No code change — documentation only.
+
+Adds `docs/awcms-mini/21_module_admission_governance.md`: five module categories (Core, System, Official Optional Module, Derived Application, External Integration) with a decision tree for where a new capability belongs, admission criteria per category, required vs optional capability dependency rules (building on ADR-0011's `capabilities.consumes[].optional`), offline/LAN-safe vs full-online-only compatibility expectations (tied to `src/lib/config/registry.ts`'s existing `profiles` field), an external-provider/data-governance review checklist, ownership/maintenance model, and deprecation/removal policy. Maps the 14 currently registered modules (`src/modules/index.ts`) to these categories (3 Core, 9 System, 2 Official Optional Module) and documents four remediation gaps found while mapping them: inconsistent `ModuleDescriptor.type` field usage (only 5/14 modules set it), `isCore` set on only one module (`module_management`) despite three modules meeting this policy's Core definition, the unused `maintainers` field, and a stale module list in `AGENTS.md` §Peta modul — none fixed in this PR (tracked as follow-ups, out of atomic scope for a docs-only issue).
+
+Also adds ADR-0012 (trusted static registry boundary — explicit, non-negotiable prohibition on marketplace/runtime code upload/install, reaffirming ADR-0001/ADR-0002), two lightweight templates (`docs/awcms-mini/templates/module-proposal-template.md`, `module-admission-decision-checklist.md`), and links the new policy from `.github/ISSUE_TEMPLATE/feature_request.yml`, `.github/PULL_REQUEST_TEMPLATE.md`, and the `awcms-mini-new-module`/`awcms-mini-module-management` skills.

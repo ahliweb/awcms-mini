@@ -243,3 +243,15 @@ ini), `awcms-mini-abac-guard` (guard bersama yang juga menegakkan
 `403 MODULE_DISABLED`), `awcms-mini-sensitive-data`/redaction
 (`REDACTION_KEYS` yang dipakai validasi settings), `awcms-mini-audit-log`
 (pola audit `tenant_module_enabled`/`_disabled`/`settings_updated`/`health_checked`).
+
+## Kebijakan admission modul (Issue #696)
+
+`docs/awcms-mini/21_module_admission_governance.md` mendefinisikan
+kategori modul (Core/System/Official Optional Module/Derived Application/
+External Integration), kriteria admission, aturan dependency required vs
+optional (§5, melengkapi `capabilities` di atas), ekspektasi kompatibilitas
+offline/LAN vs full-online-only, dan pemetaan 14 modul terdaftar saat ini
+ke kategori tersebut (termasuk catatan remediasi field `type`/`isCore`/
+`maintainers` yang belum konsisten diisi — lihat doc 21 §8). Baca dokumen
+itu sebelum mengusulkan modul baru atau mengubah kategori/status lifecycle
+modul yang sudah ada.
