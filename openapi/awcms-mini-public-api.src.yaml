@@ -385,6 +385,85 @@ components:
             type: string
             format: uuid
           description: "Category/tag ids currently assigned to this post (Issue #539). Only present on responses from endpoints that compute it (create/update/get detail), not on the list endpoint."
+        qualityChecklist:
+          $ref: "#/components/schemas/ContentQualityChecklistResult"
+    ContentQualityChecklistRuleOutcome:
+      type: object
+      description: One content quality checklist rule's evaluation result (Issue #640).
+      required:
+        - ruleId
+        - severity
+        - passed
+        - applicable
+        - message
+      additionalProperties: false
+      properties:
+        ruleId:
+          type: string
+          enum:
+            - title_present
+            - slug_valid
+            - excerpt_present
+            - meta_description_present
+            - featured_image_exists
+            - featured_image_verified_r2
+            - featured_image_alt_text
+            - featured_image_dimensions
+            - featured_image_mime_allowed
+            - featured_image_size_within_policy
+            - og_image_trusted
+            - no_local_image_path
+            - no_external_image_url
+            - gallery_images_verified
+            - taxonomy_exists
+            - unsafe_html_rejected
+            - scheduled_publish_time_valid
+        severity:
+          type: string
+          enum:
+            - blocking
+            - warning
+            - info
+        passed:
+          type: boolean
+        applicable:
+          type: boolean
+          description: "false when this rule was skipped (e.g. no featured image set, or this isn't a scheduling request) — always reported as passed when not applicable."
+        message:
+          type: string
+    ContentQualityChecklistResult:
+      type: object
+      description: "Content quality checklist result (Issue #640). `applicable` is false, and every list empty, when full-online R2-only news portal mode isn't active for this tenant (Issue #632/#636) — the checklist is then a no-op and publish/schedule behave exactly as before this issue."
+      required:
+        - applicable
+        - passed
+        - rules
+        - blockers
+        - warnings
+        - info
+      additionalProperties: false
+      properties:
+        applicable:
+          type: boolean
+        passed:
+          type: boolean
+          description: True unless at least one applicable blocking rule failed.
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContentQualityChecklistRuleOutcome"
+        blockers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContentQualityChecklistRuleOutcome"
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContentQualityChecklistRuleOutcome"
+        info:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContentQualityChecklistRuleOutcome"
     ErrorCode:
       type: string
       enum:

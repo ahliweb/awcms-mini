@@ -29,6 +29,13 @@ import {
 } from "../../../../../../modules/blog-content/application/blog-post-directory";
 import { isValidStatusTransition } from "../../../../../../modules/blog-content/domain/post-status";
 import { validateScheduleBlogPostInput } from "../../../../../../modules/blog-content/domain/blog-post-validation";
+import { fetchPostTermIds } from "../../../../../../modules/blog-content/application/blog-taxonomy-directory";
+import { fetchBlogSettings } from "../../../../../../modules/blog-content/application/blog-settings-directory";
+import {
+  checklistBlockersToErrorDetails,
+  evaluateContentQualityChecklistForContent
+} from "../../../../../../modules/blog-content/application/content-quality-checklist-gate";
+import { newsMediaPortAdapter } from "../../../../../../modules/news-portal/application/news-media-port-adapter";
 
 const SCHEDULE_GUARD = {
   moduleKey: "blog_content",
@@ -142,6 +149,48 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
       );
     }
 
+    // Issue #640: same server-side content quality checklist gate as
+    // publish — scheduling is also a "publish state transition" the issue's
+    // security notes require validating before, not just at the moment the
+    // scheduled-publish worker later flips it to `published`.
+    const termIds = await fetchPostTermIds(tx, tenantId, postId);
+    const blogSettings = await fetchBlogSettings(tx, tenantId);
+    const checklist = await evaluateContentQualityChecklistForContent(
+      tx,
+      tenantId,
+      "post",
+      post,
+      termIds.length,
+      newsMediaPortAdapter,
+      blogSettings.contentQualityChecklistPolicy,
+      { scheduledAt }
+    );
+
+    if (!checklist.passed) {
+      await recordAuditEvent(tx, {
+        tenantId,
+        actorTenantUserId: auth.context.tenantUserId,
+        moduleKey: "blog_content",
+        action: "blog.post.schedule_blocked_by_checklist",
+        resourceType: "blog_post",
+        resourceId: postId,
+        severity: "warning",
+        message: `Blog post schedule blocked by content quality checklist: ${post.slug}.`,
+        attributes: {
+          blockedRuleIds: checklist.blockers.map((blocker) => blocker.ruleId)
+        },
+        correlationId
+      });
+
+      return fail(
+        422,
+        "CONTENT_QUALITY_CHECKLIST_BLOCKED",
+        "Scheduling is blocked by the content quality checklist.",
+        {},
+        checklistBlockersToErrorDetails(checklist)
+      );
+    }
+
     const updated = await transitionBlogPostStatus(
       tx,
       tenantId,
@@ -176,7 +225,7 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
       scheduledAt: scheduledAt.toISOString()
     });
 
-    const successResponse = ok(updated);
+    const successResponse = ok({ ...updated, qualityChecklist: checklist });
     const successBody = await successResponse.clone().json();
 
     await saveIdempotencyRecord(

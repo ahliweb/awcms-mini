@@ -59,7 +59,11 @@ describe("collectGalleryImageReferences (Issue #636)", () => {
     });
     expect(result.mediaObjectIds).toEqual([]);
     expect(result.violations).toEqual([
-      { itemIndex: 0, reason: "raw_url_not_allowed" }
+      {
+        itemIndex: 0,
+        reason: "raw_url_not_allowed",
+        rawUrl: "https://cdn.example.com/a.jpg"
+      }
     ]);
   });
 
@@ -117,7 +121,11 @@ describe("collectGalleryImageReferences (Issue #636)", () => {
     });
     expect(result.mediaObjectIds.sort()).toEqual([VALID_ID, VALID_ID_2].sort());
     expect(result.violations).toEqual([
-      { itemIndex: 1, reason: "raw_url_not_allowed" },
+      {
+        itemIndex: 1,
+        reason: "raw_url_not_allowed",
+        rawUrl: "https://cdn.example.com/a.jpg"
+      },
       { itemIndex: 2, reason: "media_object_id_missing_or_malformed" }
     ]);
   });
