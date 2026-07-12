@@ -35,6 +35,12 @@ describe("isProductionLikeTarget", () => {
     ).toBe(false);
   });
 
+  test("treats IPv6 loopback [::1] as not production-like (security-auditor finding on PR #716 — the bracket-less form never matched)", () => {
+    expect(
+      isProductionLikeTarget("postgres://user:pass@[::1]:5432/db").likely
+    ).toBe(false);
+  });
+
   test("treats an RDS-style hostname as production-like even with a database name like 'test'", () => {
     expect(
       isProductionLikeTarget(

@@ -46,11 +46,34 @@ const RESTORE_DRILL_SCRIPT = join(
   "backup",
   "restore-drill.sh"
 );
-const DRILL_TARGET_DB = "awcms_mini_dr_drill";
+const DRILL_TARGET_DB_PREFIX = "awcms_mini_dr_drill";
 
 function parseMajorVersion(versionOutput: string): number | undefined {
   const match = versionOutput.match(/(\d+)(?:\.\d+)*/);
   return match ? Number(match[1]) : undefined;
+}
+
+/**
+ * Splits a DATABASE_URL into the libpq `PG*` env vars `psql` reads
+ * automatically — never as connection-string argv. Mirrors
+ * `deploy/backup/backup-common.sh`'s `parse_database_url` (Issue #691):
+ * a connection string passed as `psql`'s argv is readable via
+ * `ps aux`/`/proc/<pid>/cmdline` to any user on a shared host for the
+ * process's lifetime, while env vars are only visible via
+ * `/proc/<pid>/environ` to the same user or root — a materially
+ * narrower exposure (security-auditor/reviewer finding on PR #716's
+ * original `psql databaseUrl -tAc ...` form).
+ */
+function databaseUrlToPgEnv(databaseUrl: string): Record<string, string> {
+  const url = new URL(databaseUrl);
+
+  return {
+    PGHOST: url.hostname,
+    PGPORT: url.port || "5432",
+    PGUSER: decodeURIComponent(url.username),
+    PGPASSWORD: decodeURIComponent(url.password),
+    PGDATABASE: decodeURIComponent(url.pathname.replace(/^\//, ""))
+  };
 }
 
 /** Same client/server major-version compatibility probe `backup-restore-drill.integration.test.ts` (Issue #691) already uses — pg_dump refuses to dump from a server newer than itself. */
@@ -58,12 +81,12 @@ function detectPgBinOverride(databaseUrl: string): {
   pathPrefix?: string;
   skipReason?: string;
 } {
-  const serverProbe = Bun.spawnSync([
-    "psql",
-    databaseUrl,
-    "-tAc",
-    "SHOW server_version_num"
-  ]);
+  const serverProbe = Bun.spawnSync(
+    ["psql", "-tAc", "SHOW server_version_num"],
+    {
+      env: { ...process.env, ...databaseUrlToPgEnv(databaseUrl) }
+    }
+  );
   const serverVersionRaw = Number(serverProbe.stdout.toString().trim());
   const serverMajor = Number.isFinite(serverVersionRaw)
     ? Math.floor(serverVersionRaw / 10000)
@@ -123,6 +146,14 @@ export function backupRestoreDrillScenario(): ScenarioDefinition {
       writeFileSync(encKeyFile, randomBytes(32).toString("base64"));
       writeFileSync(hmacKeyFile, randomBytes(32).toString("base64"));
 
+      // Per-run-unique target DB name (reviewer finding on PR #716): a
+      // fixed name let two concurrent --full drills against the same
+      // cluster race on the same disposable database's create/restore/
+      // verify/drop lifecycle, producing false DR evidence or spurious
+      // failures — exactly the risk this run is supposed to measure
+      // reliably.
+      const drillTargetDb = `${DRILL_TARGET_DB_PREFIX}_${randomBytes(4).toString("hex")}`;
+
       try {
         const path = pathPrefix
           ? `${pathPrefix}:${process.env.PATH ?? ""}`
@@ -136,7 +167,7 @@ export function backupRestoreDrillScenario(): ScenarioDefinition {
             BACKUP_DIR: backupDir,
             BACKUP_ENCRYPTION_KEY_FILE: encKeyFile,
             BACKUP_HMAC_KEY_FILE: hmacKeyFile,
-            DRILL_TARGET_DB
+            DRILL_TARGET_DB: drillTargetDb
           },
           stdout: "pipe",
           stderr: "pipe"
@@ -184,7 +215,7 @@ export function backupRestoreDrillScenario(): ScenarioDefinition {
 
         const admin = new Bun.SQL(ctx.databaseUrl, { max: 1 });
         try {
-          await admin.unsafe(`DROP DATABASE IF EXISTS "${DRILL_TARGET_DB}"`);
+          await admin.unsafe(`DROP DATABASE IF EXISTS "${drillTargetDb}"`);
         } finally {
           await admin.close({ timeout: 1 });
         }

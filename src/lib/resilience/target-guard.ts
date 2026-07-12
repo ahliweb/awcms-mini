@@ -40,21 +40,38 @@ export type TargetLikelihood = {
  * `something.prod.internal` is also caught even when it's not the whole
  * hostname component boundary a strict hostname-only match might miss).
  */
+// Trailing `\b` on the FQDN-suffix patterns closes 3 open CodeQL "missing
+// regular expression anchor" alerts (reviewer finding on PR #716) without
+// narrowing to a hostname-only `$` anchor — these patterns intentionally
+// also run against the full connection string (see doc comment above),
+// which has a trailing `:port/db` after the hostname, so a `$` anchor
+// would silently stop matching there. `\b` still requires a genuine
+// word-boundary immediately after the FQDN (a `:`, `/`, or end-of-string
+// in every realistic connection string), closing the "matches as an
+// unanchored substring" alert while preserving the full-string check.
 const KNOWN_PRODUCTION_HOST_PATTERNS: RegExp[] = [
-  /\.rds\.amazonaws\.com/i,
-  /\.database\.azure\.com/i,
-  /\.neon\.tech/i,
-  /supabase\.co/i,
-  /\.digitalocean\.com/i,
+  /\.rds\.amazonaws\.com\b/i,
+  /\.database\.azure\.com\b/i,
+  /\.neon\.tech\b/i,
+  /supabase\.co\b/i,
+  /\.digitalocean\.com\b/i,
   /\bprod\b/i,
   /production/i
 ];
 
-/** Hostnames recognized as local/isolated dev or CI infrastructure. */
+/**
+ * Hostnames recognized as local/isolated dev or CI infrastructure.
+ * `"[::1]"` (bracketed) is the actual value `new URL(...).hostname`
+ * returns for an IPv6-loopback DATABASE_URL — the bracket-less `"::1"`
+ * this set previously also carried could never match it (security-
+ * auditor Low finding on PR #716); harmless (IPv6-loopback DSNs were
+ * simply always denied, fail-safe not fail-open) but corrected so they
+ * now actually authorize like every other loopback form.
+ */
 const KNOWN_SAFE_HOSTS = new Set([
   "localhost",
   "127.0.0.1",
-  "::1",
+  "[::1]",
   "postgres",
   "db",
   "0.0.0.0"
