@@ -1,0 +1,403 @@
+# Release automation — Issue #692 (epic #679, platform-hardening).
+#
+# Two entry points, deliberately with no boolean toggles between them:
+#
+#   1. `push: tags: v*.*.*`      — a REAL release. Requires the tag's commit
+#      to already be an ancestor of `origin/main` (see "Guard" step below —
+#      this repo has no branch-protection rule today, see
+#      docs/awcms-mini/branch-protection.md, so this is the closest
+#      workflow-level substitute for "publish only from a protected
+#      branch"), `scripts/release-verify.ts` (version/CHANGELOG/pending-
+#      changeset consistency), creates a GitHub Release, and moves the
+#      floating `:latest` image tag.
+#   2. `workflow_dispatch` (any branch, no inputs) — the REHEARSAL path
+#      (issue acceptance criterion: "Dry-run/rehearsal path is documented
+#      and tested before first production release"). Runs the exact same
+#      build/SBOM/sign/attest pipeline against a throwaway `dryrun-<sha>`
+#      image tag, through the same `release` environment approval gate,
+#      but never creates a GitHub Release and never touches `:latest`.
+#
+# Both paths converge on one job graph so the rehearsal genuinely exercises
+# the same mechanics a real release does, not a parallel/divergent script.
+#
+# Least-privilege (matches ci.yml/codeql.yml, Issue #685): every `uses:` is
+# pinned to a full commit SHA (comment carries the human-readable version),
+# `permissions:` is minimal at both workflow and job level, and only the
+# publish job gets the elevated `packages: write` / `id-token: write` /
+# `attestations: write` / `contents: write` it actually needs.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: ghcr.io/ahliweb/awcms-mini
+
+jobs:
+  validate:
+    name: Validate release (changesets, version, full quality gate)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      POSTGRES_USER: awcms-mini
+      POSTGRES_PASSWORD: awcms_mini_password
+      POSTGRES_DB: awcms-mini
+    services:
+      postgres:
+        image: postgres:18.4
+        env:
+          POSTGRES_USER: awcms-mini
+          POSTGRES_PASSWORD: awcms_mini_password
+          POSTGRES_DB: awcms-mini
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U awcms-mini -d awcms-mini"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image_tag: ${{ steps.version.outputs.image_tag }}
+      is_dry_run: ${{ steps.version.outputs.is_dry_run }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      # "Publish only from protected tags/branches" (issue scope): this repo
+      # has no branch-protection rule configured today (confirmed via
+      # `gh api repos/ahliweb/awcms-mini/branches/main/protection` → 404,
+      # see docs/awcms-mini/branch-protection.md) — a repo-admin action out
+      # of scope for this issue to apply itself. This is the workflow-level
+      # substitute: a tag whose commit is not (yet) part of `origin/main`'s
+      # history is refused outright, so a release can never be cut from a
+      # stray/unmerged branch even without an admin-configured protection
+      # rule. Only meaningful for a real tag push, not the rehearsal path.
+      - name: "Guard: release tag must be an ancestor of origin/main"
+        if: github.event_name == 'push'
+        run: |
+          # NOT --depth=1: security-auditor finding on PR #715 — a shallow
+          # fetch of only main's tip gives `merge-base --is-ancestor` no
+          # parent chain to walk, so it spuriously rejects a perfectly valid
+          # release tagged from a commit main has since moved past (a
+          # routine timing case: merge PR, CI runs, a second PR merges
+          # before the release is tagged). Reproduced locally: this failed
+          # closed (denied a legitimate release) rather than open, but a
+          # false rejection under release-deadline pressure predictably
+          # leads to maintainers disabling the guard entirely — a real
+          # regression. Full history costs more transfer but this job
+          # already fetches full history for the tag ref itself
+          # (`fetch-depth: 0` above), so the marginal cost of an unbounded
+          # fetch here is small in exchange for a guard that actually works.
+          git fetch origin main
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::Tag ${{ github.ref_name }} (commit ${{ github.sha }}) is not part of origin/main's history. Refusing to release from an unmerged or foreign commit."
+            exit 1
+          fi
+          echo "OK: ${{ github.ref_name }} is an ancestor of origin/main."
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Cache Bun install cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Tag maps to source commit + version + CHANGELOG (issue acceptance
+      # criterion) — verified BEFORE any build/SBOM/sign work starts.
+      - name: Verify tag maps to package.json version + CHANGELOG + no pending changesets
+        if: github.event_name == 'push'
+        run: bun run release:verify
+        env:
+          RELEASE_TAG_REF: ${{ github.ref_name }}
+
+      - name: Assemble DATABASE_URL for the integration DB
+        run: echo "DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}" >> "$GITHUB_ENV"
+
+      - name: Apply migrations (integration DB)
+        run: bun run db:migrate
+
+      # Reuses `bun run check` verbatim (lint, docs, contracts, module
+      # graph, i18n, typecheck, test, build) — same command a contributor
+      # runs locally, so this can never independently drift from it the
+      # way a re-listed step-by-step copy could.
+      - name: Full quality gate (bun run check)
+        run: bun run check
+
+      - name: Determine release version and image tag
+        id: version
+        run: |
+          VERSION=$(bun -e 'import pkg from "./package.json" with { type: "json" }; console.log(pkg.version);')
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-12)
+
+          if [ "${{ github.event_name }}" = "push" ]; then
+            IS_DRY_RUN=false
+            IMAGE_TAG="$VERSION"
+          else
+            IS_DRY_RUN=true
+            IMAGE_TAG="dryrun-${SHORT_SHA}"
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "is_dry_run=$IS_DRY_RUN" >> "$GITHUB_OUTPUT"
+          echo "Release version=$VERSION image_tag=$IMAGE_TAG is_dry_run=$IS_DRY_RUN"
+
+  # Split from the signing/attestation/publish job on purpose (security-
+  # auditor High finding on PR #715): `id-token: write` is a JOB-scoped
+  # grant in GitHub Actions — every step in a job that holds it can mint
+  # its own OIDC token, not just the step that's "supposed to" use it. This
+  # job never carries `id-token`/`attestations` permissions, so even a
+  # supply-chain-compromised third-party action running here (`anchore/
+  # sbom-action`) has no OIDC/attestation credential to abuse — it can at
+  # worst push an unsigned, unattested image, which the next job's
+  # digest-pinned signing step would then just sign the (correct,
+  # already-built) digest of, not anything the SBOM step could swap in
+  # after the fact.
+  build:
+    name: Build image + generate SBOMs
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # push the image to ghcr.io — this job's only privilege
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      # GITHUB_TOKEN here is the ephemeral per-run Actions token (OIDC-
+      # backed, expires at job end) — not a maintainer-configured repository
+      # secret. It is never echoed or written to any artifact below.
+      - name: Log in to ghcr.io
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: tags
+        run: |
+          TAGS="${{ env.IMAGE_NAME }}:${{ needs.validate.outputs.image_tag }}
+          ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}"
+
+          if [ "${{ needs.validate.outputs.is_dry_run }}" != "true" ]; then
+            TAGS="$TAGS
+          ${{ env.IMAGE_NAME }}:latest"
+          fi
+
+          {
+            echo "tags<<RELEASE_TAGS_EOF"
+            echo "$TAGS"
+            echo "RELEASE_TAGS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push production image
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: Dockerfile.production
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/ahliweb/awcms-mini
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.validate.outputs.version }}
+
+      - name: SBOM — source dependencies (CycloneDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: sbom-source.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: SBOM — production container image (CycloneDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: ${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          format: cyclonedx-json
+          output-file: sbom-image.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Archive source tarball
+        run: git archive --format=tar.gz --prefix="awcms-mini-${{ needs.validate.outputs.version }}/" -o "awcms-mini-${{ needs.validate.outputs.version }}-source.tar.gz" HEAD
+
+      - name: Generate checksums
+        run: |
+          sha256sum \
+            "sbom-source.cdx.json" \
+            "sbom-image.cdx.json" \
+            "awcms-mini-${{ needs.validate.outputs.version }}-source.tar.gz" \
+            > CHECKSUMS.txt
+          cat CHECKSUMS.txt
+
+      # Handed off to the sign-attest-publish job below via workflow
+      # artifact — that job never checks out third-party actions, so it
+      # can safely hold id-token/attestations without a supply-chain step
+      # ever running alongside those credentials.
+      - name: Upload build artifacts for the sign/attest/publish job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-build-${{ needs.validate.outputs.image_tag }}
+          path: |
+            CHECKSUMS.txt
+            sbom-source.cdx.json
+            sbom-image.cdx.json
+            awcms-mini-${{ needs.validate.outputs.version }}-source.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  sign-attest-publish:
+    name: Sign image, attest provenance, publish
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    # Gated by the "release" GitHub Environment — a repo admin must create
+    # it (Settings → Environments → New environment → name "release") and
+    # add required reviewers for this to actually pause for approval; until
+    # then referencing it here is harmless (GitHub auto-creates an
+    # unprotected environment record on first use). See
+    # docs/awcms-mini/release-process.md §Environment approval for the
+    # exact manual step — deliberately not applied by this workflow itself
+    # (repo-admin, shared-state change, same reasoning as
+    # docs/awcms-mini/branch-protection.md).
+    environment: release
+    permissions:
+      contents: write # gh release create (real releases only; no-op path for rehearsal — see M-4 note below on why this isn't narrowed further)
+      packages: write # push the signature/attestation OCI artifacts to ghcr.io
+      id-token: write # keyless OIDC for cosign + attest-* actions
+      attestations: write # actions/attest-build-provenance, actions/attest-sbom
+    # `contents: write` stays granted on the rehearsal (workflow_dispatch)
+    # path too, even though `gh release create` below is skipped there —
+    # GitHub Actions `permissions:` blocks are static per job (no `${{ }}`
+    # expressions allowed), so shrinking this specifically for the
+    # rehearsal trigger would require duplicating this entire job. Judged
+    # not worth the duplication for an unused-but-unexploitable grant
+    # (security-auditor Low finding on PR #715); the step itself stays
+    # gated below regardless.
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: release-build-${{ needs.validate.outputs.image_tag }}
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+
+      # Keyless OIDC signing (issue scope: "Sign images/artifacts using
+      # keyless OIDC where supported") — the signature, certificate, and
+      # Rekor transparency-log entry are all publicly verifiable; no signing
+      # key is generated, stored, or handled by this workflow at any point.
+      - name: Sign the production image (keyless OIDC)
+        run: cosign sign --yes "${{ env.IMAGE_NAME }}@${{ needs.build.outputs.digest }}"
+
+      # SLSA-compatible build provenance for the image digest (issue scope:
+      # "Generate ... GitHub artifact attestations/SLSA-compatible
+      # provenance"). Also pushed to the registry alongside the image so a
+      # consumer who only has the image reference (no GitHub access) can
+      # still discover and verify it via `cosign verify-attestation` /
+      # `docker buildx imagetools inspect`.
+      - name: Attest build provenance — image
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ needs.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest SBOM — image
+        uses: actions/attest-sbom@bd218ad0dbcb3e146bd073d1d9c6d78e08aa8a0b # v2.4.0
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ needs.build.outputs.digest }}
+          sbom-path: sbom-image.cdx.json
+          push-to-registry: true
+
+      # Provenance for the non-image release artifacts (source SBOM,
+      # checksums file, source tarball) — these aren't registry objects, so
+      # attestation is keyed on file digest instead, discoverable via
+      # `gh attestation verify <file> --owner ahliweb` (see
+      # docs/awcms-mini/release-process.md §Verification for consumers).
+      - name: Attest build provenance — source artifacts
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: |
+            CHECKSUMS.txt
+            sbom-source.cdx.json
+            awcms-mini-${{ needs.validate.outputs.version }}-source.tar.gz
+
+      - name: Upload release artifacts (workflow artifact, always)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-${{ needs.validate.outputs.image_tag }}
+          path: |
+            CHECKSUMS.txt
+            sbom-source.cdx.json
+            sbom-image.cdx.json
+            awcms-mini-${{ needs.validate.outputs.version }}-source.tar.gz
+          retention-days: 90
+          if-no-files-found: error
+
+      # Real release only. The rehearsal path deliberately stops above —
+      # image, SBOMs, signature, and attestations already exist for
+      # inspection as workflow artifacts / in ghcr.io, without a public
+      # GitHub Release ever being created for a non-version dry run.
+      - name: Extract this version's CHANGELOG section
+        if: needs.validate.outputs.is_dry_run != 'true'
+        run: |
+          awk -v ver="${{ needs.validate.outputs.version }}" '
+            BEGIN { printing = 0 }
+            $0 ~ "^## \\[" ver "\\]" { printing = 1; next }
+            printing && /^## \[/ { exit }
+            printing { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          cat RELEASE_NOTES.md
+
+      - name: Create GitHub Release
+        if: needs.validate.outputs.is_dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "awcms-mini ${{ github.ref_name }}" \
+            --notes-file RELEASE_NOTES.md \
+            "CHECKSUMS.txt" \
+            "sbom-source.cdx.json" \
+            "sbom-image.cdx.json" \
+            "awcms-mini-${{ needs.validate.outputs.version }}-source.tar.gz"

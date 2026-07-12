@@ -714,15 +714,23 @@ idempoten/aman dijalankan berulang, no-op aman bila fiturnya nonaktif:
 | `form-drafts:purge`     | form_drafts       | Harian                                                   |
 | `analytics:rollup`      | visitor_analytics | Harian (mis. 00:15, setelah hari UTC sebelumnya selesai) |
 | `analytics:purge`       | visitor_analytics | Harian, setelah `analytics:rollup`                       |
+| `news-media:reconcile`  | news_portal       | Harian (Issue #690)                                      |
 
 Semua bersifat operasi database murni (kecuali `sync:objects:dispatch`
-yang menyentuh R2 bila `STORAGE_DRIVER` bukan `local`) — aman dijadwalkan
-di profil offline/LAN sekalipun, termasuk kedua job visitor analytics: baik
-rollup maupun purge murni membaca/menulis tabel
+yang menyentuh R2 bila `STORAGE_DRIVER` bukan `local`, dan
+`news-media:reconcile` yang menyentuh R2 bila `NEWS_MEDIA_R2_ENABLED`
+adalah `"true"`) — aman dijadwalkan di profil offline/LAN sekalipun,
+termasuk kedua job visitor analytics: baik rollup maupun purge murni
+membaca/menulis tabel
 `awcms_mini_visit_events`/`awcms_mini_visitor_sessions`/
 `awcms_mini_visitor_daily_rollups` lokal, tidak pernah memanggil provider
 eksternal (lihat `docs/awcms-mini/visitor-analytics.md` §Rollup dan §Purge
-untuk detail perilaku dan idempotency).
+untuk detail perilaku dan idempotency). `news-media:reconcile` sendiri
+TIDAK berguna di profil offline/LAN murni (`NEWS_MEDIA_R2_ENABLED` selalu
+`false` di sana) — aman dijadwalkan di mana saja karena no-op sepenuhnya
+saat fiturnya nonaktif, tapi hanya benar-benar melakukan sesuatu di
+deployment full-online dengan R2-only news media aktif
+(`docs/awcms-mini/news-portal/r2-backup-lifecycle.md` §Operator SOP).
 
 `analytics:rollup` (Issue #624) tanpa argumen merangkum "kemarin" (UTC) —
 `--date=YYYY-MM-DD` untuk satu tanggal spesifik atau
@@ -761,6 +769,19 @@ belum dimigrasi (`sync:objects:dispatch`, `email:dispatch`,
 representatif sudah dimigrasi sebagai bukti: `logs:audit:purge` (tenant-
 iterating maintenance job dengan bounded batching) dan `modules:sync`
 (non-tenant-loop job, upsert registry global).
+
+`news-media:reconcile` (Issue #690) adalah job BARU yang dibangun
+langsung di atas runner ini sejak awal (bukan migrasi dari script lama)
+— pola yang sama: advisory lock per nama job, `--dry-run`,
+`--json-output=<path>`, `runJob`'s exit-code contract. Sekaligus contoh
+ketiga penggunaan `iterateTenantsInBatches`-adjacent pattern: satu
+tenant per satu waktu (bukan bounded-pass-per-tenant seperti
+`logs:audit:purge`, karena unit kerjanya adalah "satu listing R2 + satu
+kategorisasi" per tenant, bukan "hapus N baris per pass") tapi tetap
+tidak pernah memproses lebih dari satu tenant sekaligus, dan satu
+tenant yang gagal listing R2 (outage) tidak pernah menghentikan tenant
+lain (lihat `news-media-reconciliation.ts`'s own header dan
+`docs/awcms-mini/news-portal/r2-backup-lifecycle.md` §Operator SOP).
 
 ```mermaid
 flowchart LR

@@ -62,7 +62,18 @@ export const <camelCase>Module: ModuleDescriptor = {
 
 Domain retail/POS contoh (aspirational, belum tentu ada di base generik ini): `tenant-admin`, `identity-access`, `profile-identity`, `catalog-inventory`, `sales-pos`, `shared-stock-routing`, `warehouse-management`, `accounting-tax`, `crm-communication`, `sync-storage`, `ai-analyst`, `localization-ui`, `observability-logging`, `database-connectivity`, `workflow-approval`, `management-reporting`, `ui-experience`, `production-security-readiness`.
 
-Modul base generik yang **sudah nyata terdaftar** di repo ini (`src/modules/index.ts`): `tenant-admin`, `profile-identity`, `identity-access`, `sync-storage`, `reporting`, `logging`, `workflow-approval`, `form-drafts`, `email`, `module-management`.
+Modul base generik yang **sudah nyata terdaftar** di repo ini (`src/modules/index.ts`, 14 modul): `tenant-admin`, `profile-identity`, `identity-access`, `sync-storage`, `reporting`, `logging`, `workflow-approval`, `form-drafts`, `email`, `module-management`, `blog-content`, `tenant-domain`, `visitor-analytics`, `news-portal`.
+
+## Sebelum scaffold modul baru: cek kebijakan admission
+
+Sebelum membuat modul baru di repo base ini (bukan sekadar mengubah modul
+yang sudah ada), baca `docs/awcms-mini/21_module_admission_governance.md`
+(kategori Core/System/Official Optional Module/Derived Application/
+External Integration, pohon keputusan admission, kriteria dependency &
+security review) dan isi
+`docs/awcms-mini/templates/module-proposal-template.md` di issue GitHub
+terkait. Modul spesifik satu domain bisnis (POS, gudang, pajak, CRM, dll.)
+**tidak masuk repo ini** — lihat pohon keputusan di doc 21 §3.
 
 ## Verifikasi
 

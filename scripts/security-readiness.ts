@@ -1987,7 +1987,7 @@ export async function checkNewsMediaR2NoStalePendingObjects(
 
       if (staleCount > 0) {
         parts.push(
-          `${staleCount} object(s) across all tenants are still "pending_upload" past their ${pendingTtlMinutes}-minute TTL — the automatic cleanup job r2-backup-lifecycle.md §2 requires is not running (or not keeping up). These rows/objects should be reviewed and cleaned up manually until that job exists.`
+          `${staleCount} object(s) across all tenants are still "pending_upload" past their ${pendingTtlMinutes}-minute TTL — "bun run news-media:reconcile" (Issue #690, r2-backup-lifecycle.md §2) is not scheduled, not running, or not keeping up. Run "bun run news-media:reconcile --dry-run" to preview the exact cleanup, then schedule it (daily via cron/systemd timer) if it is not already.`
         );
       }
 

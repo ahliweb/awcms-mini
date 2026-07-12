@@ -1339,6 +1339,17 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
     default: "60",
     description:
       "Age threshold for stale pending_upload objects, reported by security:readiness."
+  },
+  {
+    name: "NEWS_MEDIA_R2_ORPHAN_GRACE_DAYS",
+    type: "integer",
+    required: "optional",
+    ownerModule: "news-portal",
+    sensitivity: "non-secret",
+    profiles: ONLINE_PROFILES,
+    default: "30",
+    description:
+      "Grace period (days) before bun run news-media:reconcile (Issue #690) physically deletes a grace-period-expired orphaned media object's R2 object + soft-deletes its metadata row. Minimum 30 days (r2-backup-lifecycle.md §3), enforced by config:validate."
   }
 ];
 

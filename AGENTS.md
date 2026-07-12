@@ -215,7 +215,7 @@ berjalan, bukan target/rencana:
 
 ```bash
 bun install
-bun run check                    # gate lengkap: lint + check:docs + api:spec:check + modules:dag:check + i18n:pot:check + i18n:parity:check + config:docs:check + logging:lint:check + typecheck + test + build
+bun run check                    # gate lengkap: lint + check:docs + api:spec:check + api:docs:check + modules:dag:check + i18n:pot:check + i18n:parity:check + config:docs:check + logging:lint:check + typecheck + test + build
 bun run dev                      # bun --bun astro dev
 bun run build                    # bun --bun astro build
 bun run preview                  # bun --bun astro preview
@@ -223,6 +223,8 @@ bun run start                    # bun ./dist/server/entry.mjs (SSR di atas Bun)
 bun run db:migrate               # Bun.SQL PostgreSQL migration runner
 bun run api:spec:check           # validasi OpenAPI/AsyncAPI baseline (route parity, operationId unik, path parameter, standard error schema, security metadata, bundle freshness)
 bun run openapi:bundle           # generate openapi/awcms-mini-public-api.openapi.yaml dari fragment openapi/awcms-mini-public-api.src.yaml + openapi/modules/*.yaml (Issue #695) — jalankan sebelum commit tiap kali fragment sumber berubah
+bun run api:docs:generate        # generate docs/awcms-mini/api-reference.md (referensi API & event manusiawi) dari kontrak OpenAPI/AsyncAPI ter-bundle (Issue #700) — jalankan sebelum commit tiap kali kontrak ter-bundle berubah
+bun run api:docs:check           # validasi docs/awcms-mini/api-reference.md tidak stale relatif kontrak ter-bundle (read-only, bagian dari `bun run check`, Issue #700)
 bun run lint                     # prettier --check
 bun run format                   # prettier --write
 bun run check:docs               # validasi mermaid, tautan internal, penamaan
