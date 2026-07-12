@@ -518,7 +518,8 @@ describe("database migration runner helpers", () => {
       "051_awcms_mini_blog_content_internal_tag_links_schema.sql",
       "052_awcms_mini_blog_content_internal_tag_links_permissions.sql",
       "053_awcms_mini_social_publishing_schema.sql",
-      "054_awcms_mini_social_publishing_verify_permission.sql"
+      "054_awcms_mini_idn_admin_regions_schema.sql",
+      "055_awcms_mini_social_publishing_verify_permission.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

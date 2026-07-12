@@ -26,7 +26,12 @@ sql/NNN_awcms_mini_<area>_<description>.sql
 5. Index untuk `(tenant_id)`, setiap FK child, dan `(tenant_id, created_at DESC)` untuk transaksi/log.
 6. `CHECK` constraint untuk kolom enum-like (status, type).
 7. **RLS wajib** untuk tabel tenant-scoped (lihat template).
-8. Bungkus dengan `BEGIN; ... COMMIT;`.
+8. **Jangan** membungkus dengan `BEGIN;`/`COMMIT;`/`ROLLBACK;`/`START
+TRANSACTION;` — `scripts/db-migrate.ts` mengelola transaksi migration
+   itu sendiri dan `assertNoTransactionControl` akan MENOLAK (error,
+   bukan warning) migration apa pun yang mengandung statement kontrol
+   transaksi di level top-level (di luar comment/string
+   literal/dollar-quoted body). Tulis DDL langsung tanpa wrapper.
 9. **Tidak** menyimpan password/API key/secret plaintext.
 10. Tabel master/config/draft yang deletable wajib soft delete (`deleted_at`, `deleted_by`, `delete_reason`) + index/partial unique aktif.
 11. Tabel BARU tanpa `tenant_id`/RLS (global, dibaca/ditulis lintas
@@ -45,8 +50,6 @@ sql/NNN_awcms_mini_<area>_<description>.sql
 ## Template
 
 ```sql
-BEGIN;
-
 CREATE TABLE IF NOT EXISTS awcms_mini_<name> (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL,
@@ -76,8 +79,6 @@ ALTER TABLE awcms_mini_<name> ENABLE ROW LEVEL SECURITY;
 ALTER TABLE awcms_mini_<name> FORCE ROW LEVEL SECURITY;
 CREATE POLICY awcms_mini_<name>_tenant_isolation ON awcms_mini_<name>
   USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
-
-COMMIT;
 ```
 
 ## Menggunakan `SECURITY DEFINER` (bootstrap read sebelum tenant context ada)

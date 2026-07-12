@@ -29,7 +29,7 @@
 
 ## Migrations
 
-54 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `054_awcms_mini_social_publishing_verify_permission.sql`).
+55 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `055_awcms_mini_social_publishing_verify_permission.sql`).
 
 | #   | File                                                              |
 | --- | ----------------------------------------------------------------- |
@@ -86,11 +86,12 @@
 | 051 | `051_awcms_mini_blog_content_internal_tag_links_schema.sql`       |
 | 052 | `052_awcms_mini_blog_content_internal_tag_links_permissions.sql`  |
 | 053 | `053_awcms_mini_social_publishing_schema.sql`                     |
-| 054 | `054_awcms_mini_social_publishing_verify_permission.sql`          |
+| 054 | `054_awcms_mini_idn_admin_regions_schema.sql`                     |
+| 055 | `055_awcms_mini_social_publishing_verify_permission.sql`          |
 
 ## Tables & Row-Level Security
 
-84 tables created across all migrations; 76 carry a `tenant_id` column; 75 have an `ENABLE ROW LEVEL SECURITY` statement; 9 are on the reviewed RLS-exempt allow-list.
+86 tables created across all migrations; 76 carry a `tenant_id` column; 75 have an `ENABLE ROW LEVEL SECURITY` statement; 11 are on the reviewed RLS-exempt allow-list.
 
 No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` statement, or is on the reviewed exempt allow-list below.
 
@@ -107,16 +108,18 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 | `awcms_mini_module_navigation`    | Module registry — global catalog (doc 16 §Registry global, RLS-free).                                                                                                                         |
 | `awcms_mini_module_jobs`          | Module registry — global catalog (doc 16 §Registry global, RLS-free).                                                                                                                         |
 | `awcms_mini_module_health_checks` | Module registry — global catalog (doc 16 §Registry global, RLS-free).                                                                                                                         |
+| `awcms_mini_idn_region_datasets`  | Indonesia administrative region dataset metadata (cahyadsn/wilayah) — global reference data, identical for every tenant (doc 04 §Master Data — Indonesia Administrative Regions, Issue #657). |
+| `awcms_mini_idn_admin_regions`    | Indonesia administrative region records (cahyadsn/wilayah) — global reference data, identical for every tenant (doc 04 §Master Data — Indonesia Administrative Regions, Issue #657).          |
 
 ## Tests
 
-241 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+242 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
 | `(root)`      | 46         |
 | `e2e`         | 9          |
-| `integration` | 77         |
+| `integration` | 78         |
 | `modules`     | 5          |
 | `unit`        | 104        |
 

@@ -31,7 +31,7 @@ token — which Telegram's Bot API embeds directly in the request URL path
 Adds a new, provider-neutral `POST
 /api/v1/social-publishing/accounts/{id}/verify` endpoint (permission
 `social_publishing.accounts.verify`, migration
-`054_awcms_mini_social_publishing_verify_permission.sql`) so an admin can
+`055_awcms_mini_social_publishing_verify_permission.sql`) so an admin can
 confirm a bot can post to its target channel before enabling
 auto-posting; a new critical readiness check
 (`checkTelegramProviderReadiness`) flags any auto-publishing

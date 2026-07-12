@@ -393,6 +393,13 @@ export function checkLoginLockoutImplemented(): SecurityCheckResult {
  *   job/command catalog, instance-level health check history), synced from
  *   trusted descriptors, never tenant-writable. Same reasoning as
  *   `awcms_mini_modules` above.
+ * - `awcms_mini_idn_region_datasets`, `awcms_mini_idn_admin_regions`
+ *   (sql/054, Issue #657, epic #654) — Indonesia administrative region
+ *   master data sourced from the third-party `cahyadsn/wilayah` dataset.
+ *   Identical for every tenant (a region hierarchy doesn't vary per
+ *   tenant), so this is global reference data, not tenant-scoped — same
+ *   reasoning as `awcms_mini_permissions` above. See
+ *   `.claude/skills/awcms-mini-idn-admin-regions/SKILL.md`.
  */
 const RLS_FREE_TABLES = new Set([
   "awcms_mini_schema_migrations",
@@ -403,7 +410,9 @@ const RLS_FREE_TABLES = new Set([
   "awcms_mini_module_dependencies",
   "awcms_mini_module_navigation",
   "awcms_mini_module_jobs",
-  "awcms_mini_module_health_checks"
+  "awcms_mini_module_health_checks",
+  "awcms_mini_idn_region_datasets",
+  "awcms_mini_idn_admin_regions"
 ]);
 
 export async function checkRlsEnabled(): Promise<SecurityCheckResult> {
@@ -544,8 +553,10 @@ export async function checkAppDbUserNotSuperuser(): Promise<SecurityCheckResult>
 
 /**
  * Issue #683 (epic #679) — the exact approved grant matrix from
- * `sql/045_awcms_mini_db_role_separation.sql`'s header, restricted to the 9
- * GLOBAL (non-RLS) tables in `RLS_FREE_TABLES` above. Tenant-scoped tables
+ * `sql/045_awcms_mini_db_role_separation.sql`'s header, restricted to the
+ * GLOBAL (non-RLS) tables in `RLS_FREE_TABLES` above (9 as of Issue #683,
+ * plus 2 more added by Issue #657 — see `RLS_FREE_TABLES`'s own doc comment
+ * for the up-to-date membership). Tenant-scoped tables
  * are deliberately out of scope here — RLS/FORCE RLS is the real boundary
  * for those (see `checkRlsEnabled`), and the existing `ALTER DEFAULT
  * PRIVILEGES` convenience is meant to auto-grant `awcms_mini_app` on every
@@ -595,13 +606,22 @@ const ALLOWED_GLOBAL_TABLE_GRANTS: Record<string, Record<string, string[]>> = {
   },
   awcms_mini_module_health_checks: {
     awcms_mini_app: ["SELECT", "INSERT", "UPDATE", "DELETE"]
-  }
+  },
+  // Issue #657 (epic #654) — schema-only, no runtime code path reads or
+  // writes either table yet (import is #660, activate/rollback is #661,
+  // the read-only lookup API is #662). `sql/054` REVOKEs the blanket
+  // default-privileges grant `awcms_mini_app` would otherwise inherit, so
+  // it has zero access here. Future issues each add exactly the grant
+  // their own new code path needs, in their own migration.
+  awcms_mini_idn_region_datasets: {},
+  awcms_mini_idn_admin_regions: {}
 };
 
 /**
  * Reads the REAL grants (`pg_class.relacl` via `aclexplode`, not a static
  * assumption) for `awcms_mini_app`/`awcms_mini_worker`/`awcms_mini_setup` on
- * every `awcms_mini_%` table, keeps only the 9 global (non-RLS) ones, and
+ * every `awcms_mini_%` table, keeps only the global (non-RLS) ones (see
+ * `RLS_FREE_TABLES` above for the current membership), and
  * flags any grant not in `ALLOWED_GLOBAL_TABLE_GRANTS` above. `pg_class` is
  * readable by any role (same reasoning `checkRlsEnabled` already relies on),
  * so this works whichever role `DATABASE_URL` connects as — it does not

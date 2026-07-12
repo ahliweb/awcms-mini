@@ -485,7 +485,7 @@ administrator tapi `can_post_messages: false`.
 
 ### File yang dibuat/diubah (referensi cepat)
 
-- `sql/054_awcms_mini_social_publishing_verify_permission.sql` (satu
+- `sql/055_awcms_mini_social_publishing_verify_permission.sql` (satu
   permission `accounts.verify`).
 - `src/modules/social-publishing/domain/social-provider-adapter.ts`
   (`verifyCredentials` +`providerAccountId`, `SocialProviderCredentialCheck` +`details`).
