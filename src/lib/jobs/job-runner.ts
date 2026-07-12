@@ -36,6 +36,11 @@ import {
   sanitizeErrorForLog,
   type SafeErrorDetail
 } from "../logging/error-sanitizer";
+import {
+  recordCounter,
+  recordGauge,
+  recordHistogram
+} from "../observability/metrics-port";
 
 export type JobStatus =
   "success" | "partial" | "failed" | "skipped" | "timeout" | "terminated";
@@ -113,6 +118,37 @@ function nowIso(date: Date): string {
   return date.toISOString();
 }
 
+/**
+ * Issue #698 (epic #679, "operational proof" wave) — the single choke point
+ * for job run metrics. Every `runJob` return path (lock-acquire failure,
+ * skip-on-contention, success/partial, timeout/terminated, thrown error)
+ * flows through `buildResult`, so hooking metrics HERE instruments every
+ * current and future job uniformly without touching any of the ~5 call
+ * sites inside `runJob` individually, and without any migrated script
+ * needing its own instrumentation. `jobName`/`status`/`itemName` are all
+ * code-defined literals (never tenant/request input, see
+ * `METRIC_DEFINITIONS` in `metrics-port.ts`), so this is safe to call
+ * unconditionally.
+ */
+function emitJobRunMetrics(result: JobResult): void {
+  recordCounter("job_run_total", {
+    jobName: result.jobName,
+    status: result.status
+  });
+  recordHistogram("job_run_duration_ms", result.durationMs, {
+    jobName: result.jobName
+  });
+
+  if (result.itemCounts) {
+    for (const [itemName, value] of Object.entries(result.itemCounts)) {
+      recordGauge("job_run_item_count", value, {
+        jobName: result.jobName,
+        itemName
+      });
+    }
+  }
+}
+
 function buildResult(
   definition: JobDefinition,
   runId: string,
@@ -125,8 +161,7 @@ function buildResult(
   > = {}
 ): JobResult {
   const finishedAt = new Date();
-
-  return {
+  const result: JobResult = {
     jobName: definition.name,
     runId,
     correlationId,
@@ -137,6 +172,10 @@ function buildResult(
     dryRun,
     ...extra
   };
+
+  emitJobRunMetrics(result);
+
+  return result;
 }
 
 /**

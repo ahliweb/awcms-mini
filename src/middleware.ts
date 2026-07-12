@@ -17,6 +17,10 @@ import {
 } from "./lib/security/request-body-limit";
 import { resolvePublicTenantFromRequest } from "./lib/tenant/public-host-tenant-resolver";
 import { log } from "./lib/logging/logger";
+import {
+  recordCounter,
+  recordHistogram
+} from "./lib/observability/metrics-port";
 import { resolveVisitorAnalyticsConfig } from "./modules/visitor-analytics/domain/visitor-analytics-config";
 import { determineArea } from "./modules/visitor-analytics/domain/request-area";
 import { resolveVisitorKey } from "./modules/visitor-analytics/domain/visitor-key";
@@ -255,6 +259,38 @@ function applyResponseHeaders(
 }
 
 /**
+ * `http_requests_total`/`http_request_duration_ms` (Issue #698, epic #679
+ * "operational proof" wave) — called at every one of this middleware's
+ * response-producing branches below. `routePattern` is Astro's own static,
+ * file-based route pattern (`context.routePattern`, e.g.
+ * `"/api/v1/modules/[moduleKey]/health"`) — the literal bracketed
+ * placeholder, never the concrete id from the actual request — so this
+ * label is bounded by the app's fixed route table, not by traffic. Both
+ * `recordCounter`/`recordHistogram` already contain any adapter error
+ * internally (see `metrics-port.ts`), so this never needs its own
+ * try/catch and can never delay or break a response.
+ */
+function recordHttpRequestMetrics(
+  context: APIContext,
+  status: number,
+  startedAt: number
+): void {
+  const durationMs = performance.now() - startedAt;
+  const method = context.request.method;
+  const routePattern = context.routePattern || "unknown";
+
+  recordCounter("http_requests_total", {
+    method,
+    routePattern,
+    statusCode: String(status)
+  });
+  recordHistogram("http_request_duration_ms", durationMs, {
+    method,
+    routePattern
+  });
+}
+
+/**
  * Guards `/admin/*` (Issue 8.1 — Build Admin Layout Shell).
  *
  * Found during live verification: returning `Astro.redirect(...)` from
@@ -269,6 +305,10 @@ function applyResponseHeaders(
  * doesn't need to re-run the session lookup.
  */
 export const onRequest = defineMiddleware(async (context, next) => {
+  // Issue #698 — captured as the very first statement so recorded latency
+  // includes everything below, not just `next()`'s own render time.
+  const requestStartedAt = performance.now();
+
   context.locals.correlationId = resolveCorrelationId(context.request);
   // Cookie-only resolution (no DB call) for every request — good enough for
   // pre-auth pages (`/`, `/login`) where no tenant is known yet. Re-resolved
@@ -295,6 +335,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
       context.locals.correlationId
     );
 
+    recordHttpRequestMetrics(context, response.status, requestStartedAt);
+
     return applyResponseHeaders(response, context.locals.correlationId);
   }
 
@@ -306,6 +348,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     );
 
     await collectRequestAnalytics(context, response, null, false);
+    recordHttpRequestMetrics(context, response.status, requestStartedAt);
 
     return applyResponseHeaders(response, context.locals.correlationId);
   }
@@ -313,6 +356,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const ssrContext = await resolveSsrContext(context.cookies, new Date());
 
   if (!ssrContext) {
+    // Astro's `context.redirect(path)` defaults to a 302 status.
+    recordHttpRequestMetrics(context, 302, requestStartedAt);
+
     return context.redirect("/login");
   }
 
@@ -331,6 +377,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const response = await next();
 
   await collectRequestAnalytics(context, response, ssrContext.identityId, true);
+  recordHttpRequestMetrics(context, response.status, requestStartedAt);
 
   return applyResponseHeaders(response, context.locals.correlationId);
 });
