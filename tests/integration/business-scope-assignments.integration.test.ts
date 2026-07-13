@@ -34,9 +34,11 @@ import {
   POST as createException
 } from "../../src/pages/api/v1/identity/business-scope/exceptions/index";
 import { POST as approveException } from "../../src/pages/api/v1/identity/business-scope/exceptions/[id]/approve";
+import { hashPassword } from "../../src/lib/auth/password";
 
 const OWNER_LOGIN = "owner@example.com";
 const OWNER_PASSWORD = "integration-test-owner-password";
+const SECOND_USER_PASSWORD = "integration-test-second-user-password";
 
 type Bootstrap = {
   tenantId: string;
@@ -109,7 +111,16 @@ function authHeaders(
   };
 }
 
-/** Inserts a second tenant user (same tenant, owner role — full permissions) directly via admin SQL — a distinct subject/approver for self-grant/self-approval tests without extra invite-flow plumbing. */
+/**
+ * Inserts a second tenant user (same tenant, owner role — full
+ * permissions) directly via admin SQL — a distinct subject/approver for
+ * self-grant/self-approval tests without extra invite-flow plumbing. Uses
+ * a REAL `hashPassword` hash (not a placeholder) so
+ * `loginAsSecondTenantUser` below can authenticate this user through the
+ * real `POST /auth/login` endpoint and obtain a genuinely distinct
+ * session — required for any assertion that needs a DIFFERENT acting
+ * user than `owner` (e.g. approving an exception someone else requested).
+ */
 async function createSecondTenantUser(
   tenantId: string,
   loginIdentifier: string
@@ -122,9 +133,10 @@ async function createSecondTenantUser(
     RETURNING id
   `) as { id: string }[];
 
+  const passwordHash = await hashPassword(SECOND_USER_PASSWORD);
   const identityRows = (await admin`
     INSERT INTO awcms_mini_identities (tenant_id, profile_id, login_identifier, password_hash)
-    VALUES (${tenantId}, ${profileRows[0]!.id}, ${loginIdentifier}, 'x')
+    VALUES (${tenantId}, ${profileRows[0]!.id}, ${loginIdentifier}, ${passwordHash})
     RETURNING id
   `) as { id: string }[];
 
@@ -134,9 +146,28 @@ async function createSecondTenantUser(
     RETURNING id
   `) as { id: string }[];
 
-  const roleRows = (await admin`
+  // A tenant seeded directly via admin SQL (e.g. "tenant B" in the
+  // cross-tenant isolation test below) never went through the setup
+  // wizard's `initializeTenant` (`platform-bootstrap.ts`), so it has no
+  // `role_code = 'owner'` row yet — create one (full-permission grant,
+  // same shape `platform-bootstrap.ts` uses for its own owner role)
+  // on demand instead of assuming it already exists.
+  let roleRows = (await admin`
     SELECT id FROM awcms_mini_roles WHERE tenant_id = ${tenantId} AND role_code = 'owner'
   `) as { id: string }[];
+
+  if (roleRows.length === 0) {
+    roleRows = (await admin`
+      INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name, is_system)
+      VALUES (${tenantId}, 'owner', 'Owner', true)
+      RETURNING id
+    `) as { id: string }[];
+
+    await admin`
+      INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
+      SELECT ${tenantId}, ${roleRows[0]!.id}, id FROM awcms_mini_permissions
+    `;
+  }
 
   await admin`
     INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id)
@@ -144,6 +175,25 @@ async function createSecondTenantUser(
   `;
 
   return tenantUserRows[0]!.id;
+}
+
+/** Logs in as a user previously created by `createSecondTenantUser` through the REAL `POST /auth/login` endpoint, returning a genuinely distinct session token/cookie jar for that user. */
+async function loginAsSecondTenantUser(
+  tenantId: string,
+  loginIdentifier: string
+): Promise<{ token: string }> {
+  const login = await invoke<{ data: { token: string } }>(authLogin, {
+    method: "POST",
+    path: "/api/v1/auth/login",
+    headers: {
+      "content-type": "application/json",
+      "x-awcms-mini-tenant-id": tenantId
+    },
+    body: { loginIdentifier, password: SECOND_USER_PASSWORD },
+    cookies: createCookieJar()
+  });
+  expect(login.status).toBe(200);
+  return { token: login.body.data.token };
 }
 
 const suite = integrationEnabled ? describe : describe.skip;
@@ -376,25 +426,33 @@ suite("business-scope assignments API (Issue #746)", () => {
     const admin = getAdminSql();
 
     // Two narrow roles, each granting exactly ONE half of the
-    // identity_access maker/checker pair (business_scope_exceptions
-    // create vs approve).
+    // `data_lifecycle.legal_hold_maker_checker` pair (`legal_hold.create`
+    // vs `.release`) — deliberately NOT the `identity_access.business_
+    // scope_exception_maker_checker` pair (`business_scope_exceptions.
+    // create`/`.approve`): that rule's `exceptionPolicy.allowed` is
+    // `false` BY DESIGN (the control that gates SoD overrides is itself
+    // never override-able — see `identity-access/module.ts`'s own
+    // comment), so it can never reach the "allowed with an approved
+    // exception" half of this test's name. `legal_hold_maker_checker`
+    // is the real `global_within_tenant` rule whose `exceptionPolicy.
+    // allowed` is `true`.
     const createPerm = (await admin`
       SELECT id FROM awcms_mini_permissions
-      WHERE module_key = 'identity_access' AND activity_code = 'business_scope_exceptions' AND action = 'create'
+      WHERE module_key = 'data_lifecycle' AND activity_code = 'legal_hold' AND action = 'create'
     `) as { id: string }[];
     const approvePerm = (await admin`
       SELECT id FROM awcms_mini_permissions
-      WHERE module_key = 'identity_access' AND activity_code = 'business_scope_exceptions' AND action = 'approve'
+      WHERE module_key = 'data_lifecycle' AND activity_code = 'legal_hold' AND action = 'release'
     `) as { id: string }[];
 
     const requesterRole = (await admin`
-      INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name) VALUES (${owner.tenantId}, 'exception_requester', 'Exception Requester') RETURNING id
+      INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name) VALUES (${owner.tenantId}, 'legal_hold_creator', 'Legal Hold Creator') RETURNING id
     `) as { id: string }[];
     await admin`
       INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id) VALUES (${owner.tenantId}, ${requesterRole[0]!.id}, ${createPerm[0]!.id})
     `;
     const approverRole = (await admin`
-      INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name) VALUES (${owner.tenantId}, 'exception_approver', 'Exception Approver') RETURNING id
+      INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name) VALUES (${owner.tenantId}, 'legal_hold_releaser', 'Legal Hold Releaser') RETURNING id
     `) as { id: string }[];
     await admin`
       INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id) VALUES (${owner.tenantId}, ${approverRole[0]!.id}, ${approvePerm[0]!.id})
@@ -446,7 +504,8 @@ suite("business-scope assignments API (Issue #746)", () => {
 
     // But: the rule allows exceptions — request one, have a DIFFERENT
     // tenant user approve it, then the same grant succeeds.
-    const secondApprover = await createSecondTenantUser(
+    await createSecondTenantUser(owner.tenantId, "acme-approver@example.com");
+    const secondApproverSession = await loginAsSecondTenantUser(
       owner.tenantId,
       "acme-approver@example.com"
     );
@@ -457,7 +516,7 @@ suite("business-scope assignments API (Issue #746)", () => {
       path: "/api/v1/identity/business-scope/exceptions",
       headers: authHeaders(owner, "exc-1"),
       body: {
-        ruleKey: "identity_access.business_scope_exception_maker_checker",
+        ruleKey: "data_lifecycle.legal_hold_maker_checker",
         subjectTenantUserId: subjectId,
         justification: "Temporary coverage during staff transition.",
         effectiveTo: new Date(
@@ -474,14 +533,16 @@ suite("business-scope assignments API (Issue #746)", () => {
       path: `/api/v1/identity/business-scope/exceptions/${exceptionRequest.body.data.exception.id}/approve`,
       headers: {
         ...authHeaders(owner, "exc-approve-1"),
-        authorization: `Bearer ${owner.token}`
+        authorization: `Bearer ${secondApproverSession.token}`
       },
       params: { id: exceptionRequest.body.data.exception.id },
       body: {}
     });
-    // Owner approving their OWN request is fine here (owner is the
-    // requester in this call) — the self-approval guard specifically
-    // denies requester === approver, tested separately below.
+    // A genuinely DIFFERENT tenant user (own real session, not `owner`'s
+    // token) approves — `owner` is the requester of this exception, so
+    // `owner` approving it would correctly be denied by the self-approval
+    // guard (tested explicitly below); this happy-path assertion needs a
+    // truly distinct approver to reach `approved.status === 200` at all.
     expect(approved.status).toBe(200);
 
     const nowAllowed = await invoke(createAssignment, {
@@ -496,7 +557,6 @@ suite("business-scope assignments API (Issue #746)", () => {
       }
     });
     expect(nowAllowed.status).toBe(200);
-    void secondApprover;
   });
 
   test("SoD exception approval: self-approval is denied (re-checked from the DB row, not the request body)", async () => {
@@ -509,7 +569,7 @@ suite("business-scope assignments API (Issue #746)", () => {
         path: "/api/v1/identity/business-scope/exceptions",
         headers: authHeaders(owner, "exc-self-1"),
         body: {
-          ruleKey: "identity_access.business_scope_exception_maker_checker",
+          ruleKey: "data_lifecycle.legal_hold_maker_checker",
           subjectTenantUserId: owner.tenantUserId,
           justification: "Attempting to approve my own request.",
           effectiveTo: new Date(

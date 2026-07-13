@@ -100,13 +100,19 @@ suite("module job registry API", () => {
   });
 
   test("returns an empty list for a registered module with no jobs", async () => {
+    // Issue #746 gave `identity_access` its own first job
+    // (`identity-access:business-scope:expiry`) — `tenant_admin` is the
+    // representative "no jobs" example instead (see
+    // `tests/module-management-job-registry.test.ts`'s own comment for why
+    // `profile_identity` was deliberately NOT chosen: sibling epic #748 is
+    // actively adding surface to it and could give it a job first).
     const owner = await bootstrap();
 
     const result = await invoke<{ data: { jobs: unknown[] } }>(getModuleJobs, {
       method: "GET",
-      path: "/api/v1/modules/identity_access/jobs",
+      path: "/api/v1/modules/tenant_admin/jobs",
       headers: authHeaders(owner),
-      params: { moduleKey: "identity_access" }
+      params: { moduleKey: "tenant_admin" }
     });
 
     expect(result.status).toBe(200);
