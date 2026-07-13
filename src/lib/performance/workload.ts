@@ -24,6 +24,7 @@ import {
   saveIdempotencyRecord
 } from "../../modules/_shared/idempotency";
 import { purgeExpiredAuditEvents } from "../../modules/logging/application/audit-purge";
+import { legalHoldGuardPortAdapter } from "../../modules/data-lifecycle/application/legal-hold-guard-port-adapter";
 
 export type WorkloadCallResult = {
   ok: boolean;
@@ -249,15 +250,28 @@ const MAINTENANCE_PROBE_RETENTION_DAYS = 100_000;
  * forwards it as `purgedCount` in its own return shape), so nothing
  * throws — the saturation outcome must be read back out of
  * `result.purgedCount` here, not caught as an exception.
+ *
+ * Passes the REAL `legalHoldGuardPortAdapter` (Issue #745, epic #738 —
+ * `src/modules/data-lifecycle/application/legal-hold-guard-port-adapter.ts`),
+ * the same composition-root wiring `scripts/audit-log-purge.ts` uses, not a
+ * fake/no-op guard — this module lives outside any module's `application`/
+ * `domain` tree (like that script), so importing it directly here does not
+ * create the cross-module cycle `tests/unit/module-boundary-cycles.test.ts`
+ * forbids.
  */
 export async function maintenancePurgeProbe(
   sql: Bun.SQL,
   tenantId: string
 ): Promise<WorkloadCallResult> {
-  const result = await purgeExpiredAuditEvents(sql, tenantId, {
-    retentionDays: MAINTENANCE_PROBE_RETENTION_DAYS,
-    batchLimit: 1
-  });
+  const result = await purgeExpiredAuditEvents(
+    sql,
+    tenantId,
+    legalHoldGuardPortAdapter,
+    {
+      retentionDays: MAINTENANCE_PROBE_RETENTION_DAYS,
+      batchLimit: 1
+    }
+  );
 
   return classifyResult(result.purgedCount);
 }
