@@ -194,6 +194,11 @@ import { isSocialPublishingEnabled } from "../src/modules/social-publishing/doma
 import { isMetaProviderEnabled } from "../src/modules/social-publishing/domain/meta-provider-config";
 import { looksLikeRawSecretToken } from "../src/modules/social-publishing/domain/social-account-validation";
 import {
+  isKnownTelegramParseMode,
+  isTelegramProviderEnabled,
+  resolveTelegramBotTokenSecretReference
+} from "../src/modules/social-publishing/domain/telegram-config";
+import {
   isTurnstileEnabled,
   TURNSTILE_REQUIRED_WHEN_ENABLED
 } from "../src/lib/security/turnstile";
@@ -1299,6 +1304,118 @@ export function checkMetaSocialPublishingProviderConfig(
   };
 }
 
+/**
+ * Telegram channel adapter config (Issue #646, epic `social_publishing`
+ * #643-#647). No-op pass when `TELEGRAM_PROVIDER_ENABLED` is not `"true"` —
+ * mirrors `checkSocialPublishingProfileConfig`'s shape, and is deliberately
+ * INDEPENDENT of the outer `SOCIAL_PUBLISHING_ENABLED` gate (a deployment
+ * could enable social publishing for Meta/LinkedIn only, with Telegram never
+ * turned on). When enabled, validates:
+ *
+ *   - `TELEGRAM_BOT_TOKEN_SECRET_REFERENCE` is set and does not itself look
+ *     like a raw bot token (reuses `looksLikeRawSecretToken` — the SAME
+ *     write-time heuristic `social-account-validation.ts` uses for
+ *     per-account `token_reference` values, per this epic's own established
+ *     "reuse the existing heuristic, don't invent a new one" precedent from
+ *     PR #731's 3-round security-auditor history).
+ *   - `TELEGRAM_DEFAULT_PARSE_MODE`, if set, is one of the two supported
+ *     values (`MarkdownV2`/`HTML`) — anything else (including legacy
+ *     `Markdown`) fails loudly at boot rather than silently falling back to
+ *     plain text without the operator noticing a typo.
+ *   - `TELEGRAM_REQUEST_TIMEOUT_MS`, if set, is a positive integer.
+ */
+export function checkTelegramProviderConfig(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult[] {
+  const tokenName =
+    "TELEGRAM_BOT_TOKEN_SECRET_REFERENCE (conditional on TELEGRAM_PROVIDER_ENABLED)";
+
+  if (!isTelegramProviderEnabled(env)) {
+    return [
+      {
+        name: tokenName,
+        status: "pass",
+        detail:
+          'TELEGRAM_PROVIDER_ENABLED is not "true" — Telegram channel publishing is disabled; no Telegram config required.'
+      }
+    ];
+  }
+
+  const results: EnvCheckResult[] = [];
+  const reference = resolveTelegramBotTokenSecretReference(env);
+
+  if (!reference) {
+    results.push({
+      name: tokenName,
+      status: "fail",
+      detail:
+        "TELEGRAM_PROVIDER_ENABLED=true requires TELEGRAM_BOT_TOKEN_SECRET_REFERENCE to be set."
+    });
+  } else if (looksLikeRawSecretToken(reference)) {
+    results.push({
+      name: tokenName,
+      status: "fail",
+      detail:
+        "TELEGRAM_BOT_TOKEN_SECRET_REFERENCE looks like a raw bot token, not a secret-storage reference. Store the real token in your secret manager/env var and pass only its reference here."
+    });
+  } else {
+    results.push({
+      name: tokenName,
+      status: "pass",
+      detail:
+        "TELEGRAM_BOT_TOKEN_SECRET_REFERENCE is set and does not look like a raw secret."
+    });
+  }
+
+  const parseModeName = "TELEGRAM_DEFAULT_PARSE_MODE (optional)";
+  const rawParseMode = env.TELEGRAM_DEFAULT_PARSE_MODE;
+
+  if (
+    rawParseMode !== undefined &&
+    rawParseMode !== "" &&
+    !isKnownTelegramParseMode(rawParseMode)
+  ) {
+    results.push({
+      name: parseModeName,
+      status: "fail",
+      detail: `TELEGRAM_DEFAULT_PARSE_MODE="${rawParseMode}" is not supported — must be unset (plain text, safe default) or exactly "MarkdownV2"/"HTML". Legacy "Markdown" is deliberately not supported.`
+    });
+  } else {
+    results.push({
+      name: parseModeName,
+      status: "pass",
+      detail: rawParseMode
+        ? `TELEGRAM_DEFAULT_PARSE_MODE=${rawParseMode}.`
+        : "TELEGRAM_DEFAULT_PARSE_MODE is unset — messages send as plain text (safe default, no formatting injection surface)."
+    });
+  }
+
+  const timeoutName = "TELEGRAM_REQUEST_TIMEOUT_MS (optional)";
+  const rawTimeout = env.TELEGRAM_REQUEST_TIMEOUT_MS;
+  const parsedTimeout = Number(rawTimeout);
+
+  if (
+    rawTimeout !== undefined &&
+    rawTimeout !== "" &&
+    (!Number.isFinite(parsedTimeout) || parsedTimeout <= 0)
+  ) {
+    results.push({
+      name: timeoutName,
+      status: "fail",
+      detail: `TELEGRAM_REQUEST_TIMEOUT_MS="${rawTimeout}" must be a positive integer when set.`
+    });
+  } else {
+    results.push({
+      name: timeoutName,
+      status: "pass",
+      detail:
+        "TELEGRAM_REQUEST_TIMEOUT_MS is unset or a valid positive integer."
+    });
+  }
+
+  return results;
+}
+
 /** Issue #641: `BLOG_AUTO_INTERNAL_TAG_LINKS_MAX_PER_POST`/`_MAX_PER_TAG`/`_MIN_TERM_LENGTH` must each be within their documented reasonable bounds (`internal-tag-linking-config.ts`'s ceiling constants) — an out-of-range value would either no-op the feature or risk turning normal prose into a link farm. */
 export function checkBlogAutoInternalTagLinksConfig(
   env: NodeJS.ProcessEnv = process.env
@@ -1347,6 +1464,7 @@ export function runEnvValidation(
     checkNewsMediaR2OrphanGraceLowerBound(env),
     checkSocialPublishingProfileConfig(env),
     checkMetaSocialPublishingProviderConfig(env),
+    ...checkTelegramProviderConfig(env),
     checkBlogAutoInternalTagLinksConfig(env)
   ];
 }

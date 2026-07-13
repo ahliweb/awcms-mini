@@ -200,8 +200,8 @@ describe("createMetaFacebookPageAdapter — publish (Issue #644)", () => {
   });
 });
 
-describe("createMetaFacebookPageAdapter — verifyCredentials (Issue #644)", () => {
-  test("valid when debug_token reports is_valid=true, unexpired, all required scopes present", async () => {
+describe("createMetaFacebookPageAdapter — verifyCredentials (Issue #644, providerAccountId param Issue #646)", () => {
+  test("valid when debug_token reports is_valid=true, unexpired, all required scopes present, AND the token can reach the specific target page", async () => {
     const client = fakeGraphClient([
       {
         httpStatus: 200,
@@ -216,7 +216,8 @@ describe("createMetaFacebookPageAdapter — verifyCredentials (Issue #644)", () 
             ]
           }
         }
-      }
+      },
+      { httpStatus: 200, body: { id: "1234" } }
     ]);
     const adapter = createMetaFacebookPageAdapter({
       graphClientFactory: () => client
@@ -224,10 +225,48 @@ describe("createMetaFacebookPageAdapter — verifyCredentials (Issue #644)", () 
 
     const result = await adapter.verifyCredentials(
       "env:SOCIAL_TOKEN_FB_PAGE_42",
+      "1234",
       [],
       VALID_ENV
     );
-    expect(result).toEqual({ valid: true });
+    expect(result).toEqual({
+      valid: true,
+      details: {
+        permissions: [
+          "pages_manage_posts",
+          "pages_read_engagement",
+          "extra_scope"
+        ]
+      }
+    });
+    expect(client.calls[1]!.path).toBe("/1234");
+  });
+
+  test("invalid — token valid but cannot reach the specific target page (e.g. removed as page admin)", async () => {
+    const client = fakeGraphClient([
+      {
+        httpStatus: 200,
+        body: {
+          data: {
+            is_valid: true,
+            expires_at: Math.floor(Date.now() / 1000) + 3600,
+            scopes: ["pages_manage_posts", "pages_read_engagement"]
+          }
+        }
+      },
+      { httpStatus: 403, body: { error: { message: "no access", code: 10 } } }
+    ]);
+    const adapter = createMetaFacebookPageAdapter({
+      graphClientFactory: () => client
+    });
+
+    const result = await adapter.verifyCredentials(
+      "env:SOCIAL_TOKEN_FB_PAGE_42",
+      "1234",
+      [],
+      VALID_ENV
+    );
+    expect(result).toEqual({ valid: false, reason: "target_not_accessible" });
   });
 
   test("invalid — missing required scopes", async () => {
@@ -249,6 +288,7 @@ describe("createMetaFacebookPageAdapter — verifyCredentials (Issue #644)", () 
 
     const result = await adapter.verifyCredentials(
       "env:SOCIAL_TOKEN_FB_PAGE_42",
+      "1234",
       [],
       VALID_ENV
     );
@@ -275,6 +315,7 @@ describe("createMetaFacebookPageAdapter — verifyCredentials (Issue #644)", () 
 
     const result = await adapter.verifyCredentials(
       "env:SOCIAL_TOKEN_FB_PAGE_42",
+      "1234",
       [],
       VALID_ENV
     );
@@ -291,6 +332,7 @@ describe("createMetaFacebookPageAdapter — verifyCredentials (Issue #644)", () 
 
     const result = await adapter.verifyCredentials(
       "env:SOCIAL_TOKEN_FB_PAGE_42",
+      "1234",
       [],
       VALID_ENV
     );
@@ -309,6 +351,7 @@ describe("createMetaFacebookPageAdapter — verifyCredentials (Issue #644)", () 
 
     const result = await adapter.verifyCredentials(
       "env:SOCIAL_TOKEN_FB_PAGE_42",
+      "1234",
       [],
       VALID_ENV
     );

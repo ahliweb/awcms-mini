@@ -204,6 +204,68 @@ describe("createMetaInstagramAdapter — publish (Issue #644)", () => {
   });
 });
 
+describe("createMetaInstagramAdapter — verifyCredentials (Issue #644, providerAccountId param Issue #646)", () => {
+  test("valid when debug_token reports is_valid=true, unexpired, all required scopes present, AND the token can reach the specific target Instagram Business account", async () => {
+    const client = fakeGraphClient([
+      {
+        httpStatus: 200,
+        body: {
+          data: {
+            is_valid: true,
+            expires_at: Math.floor(Date.now() / 1000) + 3600,
+            scopes: ["instagram_content_publish"]
+          }
+        }
+      },
+      { httpStatus: 200, body: { id: "ig-1234" } }
+    ]);
+    const adapter = createMetaInstagramAdapter({
+      env: VALID_ENV,
+      graphClientFactory: () => client
+    });
+
+    const result = await adapter.verifyCredentials(
+      "env:SOCIAL_TOKEN_IG_42",
+      "ig-1234",
+      [],
+      VALID_ENV
+    );
+    expect(result).toEqual({
+      valid: true,
+      details: { permissions: ["instagram_content_publish"] }
+    });
+    expect(client.calls[1]!.path).toBe("/ig-1234");
+  });
+
+  test("invalid — token valid but cannot reach the specific target Instagram account", async () => {
+    const client = fakeGraphClient([
+      {
+        httpStatus: 200,
+        body: {
+          data: {
+            is_valid: true,
+            expires_at: Math.floor(Date.now() / 1000) + 3600,
+            scopes: ["instagram_content_publish"]
+          }
+        }
+      },
+      { httpStatus: 403, body: { error: { message: "no access", code: 10 } } }
+    ]);
+    const adapter = createMetaInstagramAdapter({
+      env: VALID_ENV,
+      graphClientFactory: () => client
+    });
+
+    const result = await adapter.verifyCredentials(
+      "env:SOCIAL_TOKEN_IG_42",
+      "ig-1234",
+      [],
+      VALID_ENV
+    );
+    expect(result).toEqual({ valid: false, reason: "target_not_accessible" });
+  });
+});
+
 describe("createMetaInstagramAdapter — idempotency (Issue #644)", () => {
   test("calling publish() twice with the same idempotencyKey issues two independent Graph API attempts — duplicate prevention is the dispatcher's job (job status transition), not this adapter's; documents the residual honestly", async () => {
     const client = fakeGraphClient([

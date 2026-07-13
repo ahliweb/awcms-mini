@@ -65,6 +65,14 @@ export type SocialProviderPublishResult =
 export type SocialProviderCredentialCheck = {
   valid: boolean;
   reason?: string;
+  /**
+   * Optional, provider-specific display details discovered during the
+   * check (Issue #646) — e.g. a Telegram bot's own `@username` or the
+   * chat-administrator permission flags it holds on the target channel.
+   * Never a secret/token. Purely informational for an admin "verify
+   * connection" response/UI; no application code branches on its shape.
+   */
+  details?: Record<string, unknown>;
 };
 
 export type SocialProviderAdapter = {
@@ -92,9 +100,24 @@ export type SocialProviderAdapter = {
   publish(
     request: SocialProviderPublishRequest
   ): Promise<SocialProviderPublishResult>;
-  /** Best-effort credential/scope check (e.g. for the readiness gate or a manual "verify connection" admin action) — never throws, returns `{valid:false, reason}` on any failure. */
+  /**
+   * Best-effort credential/scope check (e.g. for the readiness gate or a
+   * manual "verify connection" admin action) — never throws, returns
+   * `{valid:false, reason}` on any failure.
+   *
+   * `providerAccountId` (Issue #646, additive parameter — no adapter
+   * registered it before this issue, so this is not a breaking change to
+   * any shipped call site): the connected account's own
+   * `provider_account_id` (e.g. a Telegram channel id/username, a
+   * Facebook Page id, a LinkedIn organization urn). A bearer credential
+   * can be valid in general yet still lack access to this SPECIFIC target
+   * — checking scopes/token validity alone is not sufficient for any
+   * provider that posts to a named target, so this is a required
+   * parameter rather than folded into `scopesJson`.
+   */
   verifyCredentials(
     tokenReference: string,
+    providerAccountId: string,
     scopesJson: unknown,
     env?: NodeJS.ProcessEnv
   ): Promise<SocialProviderCredentialCheck>;

@@ -1567,6 +1567,56 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
   },
 
   // ---------------------------------------------------------------------
+  // Social publishing — Telegram channel adapter (Issue #646)
+  // ---------------------------------------------------------------------
+  {
+    name: "TELEGRAM_PROVIDER_ENABLED",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "social-publishing",
+    sensitivity: "non-secret",
+    profiles: ONLINE_PROFILES,
+    default: "false",
+    description:
+      "Provider-specific gate for the Telegram channel adapter, layered on top of SOCIAL_PUBLISHING_ENABLED/_PROFILE — src/modules/social-publishing/domain/telegram-config.ts.",
+    validatorGroup: "checkTelegramProviderConfig"
+  },
+  {
+    name: "TELEGRAM_BOT_TOKEN_SECRET_REFERENCE",
+    type: "string",
+    required: "conditional",
+    ownerModule: "social-publishing",
+    sensitivity: "secret",
+    profiles: ONLINE_PROFILES,
+    description:
+      "Opaque reference into secret storage (e.g. env:MY_BOT_TOKEN_VAR) for this deployment's Telegram bot token — required when TELEGRAM_PROVIDER_ENABLED=true. Rejected at boot if it looks like a raw bot token (reuses social-account-validation.ts's looksLikeRawSecretToken). Kept primarily as a deployment-readiness signal; the adapter resolves the real token per-connected-account from that account's own token_reference using the same env: indirection.",
+    validatorGroup: "checkTelegramProviderConfig"
+  },
+  {
+    name: "TELEGRAM_DEFAULT_PARSE_MODE",
+    type: "enum",
+    required: "optional",
+    ownerModule: "social-publishing",
+    sensitivity: "non-secret",
+    profiles: ONLINE_PROFILES,
+    description:
+      'Unset (default, plain text — safe, no formatting injection surface) or exactly "MarkdownV2"/"HTML" to opt into Telegram formatting. Every interpolated field is escaped per the active mode before being sent (telegram-message-formatting.ts). Legacy "Markdown" is deliberately not supported.',
+    validatorGroup: "checkTelegramProviderConfig"
+  },
+  {
+    name: "TELEGRAM_REQUEST_TIMEOUT_MS",
+    type: "integer",
+    required: "optional",
+    ownerModule: "social-publishing",
+    sensitivity: "non-secret",
+    profiles: ONLINE_PROFILES,
+    default: "10000",
+    description:
+      "Timeout (ms) for one Telegram Bot API request (publish or verify).",
+    validatorGroup: "checkTelegramProviderConfig"
+  },
+
+  // ---------------------------------------------------------------------
   // Blog content — automatic internal tag linking (Issue #641)
   // ---------------------------------------------------------------------
   {

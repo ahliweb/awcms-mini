@@ -39,6 +39,9 @@ const CAN_CONNECT = context.permissions.has(
 const CAN_DISCONNECT = context.permissions.has(
   permissionKey("social_publishing", "accounts", "disconnect")
 );
+const CAN_VERIFY = context.permissions.has(
+  permissionKey("social_publishing", "accounts", "verify")
+);
 const CAN_CONFIGURE = context.permissions.has(
   permissionKey("social_publishing", "rules", "configure")
 );
@@ -52,6 +55,9 @@ const clientStrings = {
   ),
   disconnectConfirm: t("admin.social_publishing.accounts.disconnect_confirm"),
   verifySuccess: t("admin.social_publishing.accounts.verify_success"),
+  verifyFailedPrefix: t(
+    "admin.social_publishing.accounts.verify_failed_prefix"
+  ),
   networkError: t("common.network_error"),
   pleaseWait: t("common.please_wait"),
   errorMessages: buildClientErrorMessages(t)
@@ -126,6 +132,25 @@ if (CAN_READ) {
                 {t("admin.social_publishing.accounts.field_status")}:{" "}
                 <strong>{account.connectionStatus}</strong>
               </p>
+              <p class="status-line">
+                {t("admin.social_publishing.accounts.field_last_verified")}:{" "}
+                <strong>
+                  {account.lastVerifiedAt
+                    ? new Date(account.lastVerifiedAt).toLocaleString(
+                        Astro.locals.locale
+                      )
+                    : t("admin.social_publishing.accounts.not_verified")}
+                </strong>
+              </p>
+              {CAN_VERIFY && account.connectionStatus !== "disconnected" && (
+                <button
+                  type="button"
+                  class="verify-button"
+                  data-id={account.id}
+                >
+                  {t("admin.social_publishing.accounts.verify_button")}
+                </button>
+              )}
               {CAN_CONFIGURE && (
                 <form class="auto-publish-form" data-id={account.id}>
                   <label class="checkbox-label">
@@ -140,15 +165,6 @@ if (CAN_READ) {
                     {t("admin.social_publishing.accounts.save_button")}
                   </button>
                 </form>
-              )}
-              {CAN_CONNECT && account.connectionStatus !== "disconnected" && (
-                <button
-                  type="button"
-                  class="verify-button"
-                  data-id={account.id}
-                >
-                  {t("admin.social_publishing.accounts.verify_button")}
-                </button>
               )}
               {CAN_DISCONNECT &&
                 account.connectionStatus !== "disconnected" && (
@@ -391,6 +407,7 @@ if (CAN_READ) {
     disconnectReasonPrompt: string;
     disconnectConfirm: string;
     verifySuccess: string;
+    verifyFailedPrefix: string;
     networkError: string;
     pleaseWait: string;
     errorMessages?: Record<string, string>;
@@ -480,24 +497,43 @@ if (CAN_READ) {
       const unlock = lockElement(el, strings.pleaseWait);
       try {
         const id = el.dataset.id!;
-        const result = await submitJson(
+        const res = await fetch(
           `/api/v1/social-publishing/accounts/${id}/verify`,
-          "POST",
-          {},
-          strings
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Idempotency-Key": newIdempotencyKey()
+            },
+            credentials: "same-origin",
+            body: JSON.stringify({})
+          }
         );
+        const json = await res.json().catch(() => null);
+
+        if (!res.ok) {
+          const code = json?.error?.code as string | undefined;
+          const message =
+            (code && strings.errorMessages?.[code]) ??
+            json?.error?.message ??
+            `Request failed (${res.status}).`;
+          showBanner("action-banner", message, "error");
+          return;
+        }
+
+        const valid = json?.data?.valid === true;
+        const reason = json?.data?.reason as string | null | undefined;
+
         showBanner(
           "action-banner",
-          result.ok ? strings.verifySuccess : result.message,
-          result.ok ? "success" : "error"
+          valid
+            ? strings.verifySuccess
+            : `${strings.verifyFailedPrefix} ${reason ?? ""}`.trim(),
+          valid ? "success" : "error"
         );
-        // Reload on both outcomes — a failed verification may still have
-        // transitioned the account to `needs_reauth` server-side (same as
-        // a dispatcher-discovered failure would), so the list should
-        // reflect that even when `result.ok` is false.
-        if (result.ok || result.code === "SOCIAL_ACCOUNT_NEEDS_REAUTH") {
-          reloadAfterDelay();
-        }
+        if (valid) reloadAfterDelay();
+      } catch {
+        showBanner("action-banner", strings.networkError, "error");
       } finally {
         unlock();
       }

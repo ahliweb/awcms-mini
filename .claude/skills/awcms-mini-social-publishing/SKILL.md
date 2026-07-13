@@ -34,7 +34,7 @@ issue lanjutan.
 | #643  | Fondasi: schema 6 tabel, outbox/dispatcher, approval, retry/backoff, provider-adapter interface (kosong), admin UI, readiness | **Selesai** — lihat §643 di bawah |
 | #644  | Adapter Meta (Facebook Page + Instagram Business)                                                                             | **Selesai** — lihat §644 di bawah |
 | #645  | Adapter LinkedIn (organization page)                                                                                          | Belum dikerjakan                  |
-| #646  | Adapter Telegram (channel, bot token)                                                                                         | Belum dikerjakan                  |
+| #646  | Adapter Telegram (channel, bot token)                                                                                         | **Selesai** — lihat §646 di bawah |
 | #647  | Dokumentasi/SOP lintas provider, butuh #643-#646 semua ada                                                                    | Belum dikerjakan                  |
 
 Urutan dependency (dari objective masing-masing issue): 643 -> {644, 645,
@@ -379,20 +379,46 @@ lihat `SocialProviderAdapter.supportedAccountTypes` di bawah untuk
 alasannya (IG Business tetap dipublish lewat Page access token, tidak
 ada tipe akun IG standalone di real Meta API).
 
-### Keputusan kunci #644-2 — `SocialProviderAdapter.supportedAccountTypes` (field BARU, opsional, additive)
+### Keputusan kunci #644-2 — `SocialProviderAdapter.supportedAccountTypes` (field BARU, opsional, additive) ditegakkan di TIGA titik, bukan cuma satu
 
 Interface `domain/social-provider-adapter.ts` (foundation #643) tidak
 punya cara bagi pemanggil untuk tahu tipe akun apa yang didukung suatu
 adapter. Ditambah field opsional `supportedAccountTypes?:
 readonly SocialAccountType[]` — `undefined` berarti "tidak ada
-pembatasan tipe" (bukan "tidak ada tipe yang didukung"). Field ini
-DIBACA oleh dua tempat: `application/social-account-verification.ts`
-(endpoint verify) dan `scripts/security-readiness.ts`'s
-`checkMetaSocialPublishingAccountReadiness`. **Bila #645/#646 juga
-menambah field yang sama** (kemungkinan besar, karena LinkedIn/Telegram
-punya batasan tipe akun serupa) — ini penambahan ADDITIVE murni di file
-yang sama, seharusnya trivial di-merge (bukan konflik nyata, hanya
-tumpang tindih lokasi insersi).
+pembatasan tipe" (bukan "tidak ada tipe yang didukung").
+
+**Temuan reviewer round 1 (BLOCKING, PR #644 diperbaiki sebelum merge)**:
+versi pertama HANYA memeriksa field ini di endpoint verify (opt-in,
+diagnostik) — jalur nyata connect -> dispatch -> publish yang benar-benar
+memposting ke Meta TIDAK PERNAH memeriksanya. Operator bisa connect
+`providerKey: "meta_facebook_page"` dengan `providerAccountType:
+"profile"` dan itu SUKSES; dispatcher akan tetap memanggil
+`adapter.publish()`. Ini bertentangan langsung dengan acceptance
+criterion issue ("Instagram publishing validates account eligibility ...
+before job execution") dan daftar out-of-scope-nya (tidak ada personal
+profile/personal Instagram posting).
+
+**Diperbaiki di DUA lapis, bukan satu**:
+
+1. `application/social-publish-dispatch.ts` — SETELAH
+   `fetchSocialAccountTokenReferenceForDispatch` (sekarang juga
+   mengembalikan `providerAccountType`) dan SEBELUM `adapter.publish()`
+   dipanggil, cek `adapter.supportedAccountTypes` — job gagal terminal
+   `unsupported_account_type`, `retryable: false` (tipe akun tidak pernah
+   berubah sendiri, harus reconnect manual). Ini satu-satunya titik yang
+   benar-benar menutup celah acceptance criterion di ATAS, karena INI yang
+   dilewati SETIAP job nyata, bukan hanya yang pernah di-verify.
+2. `pages/api/v1/social-publishing/accounts/index.ts`'s `POST` (connect) —
+   defense-in-depth kedua, menolak `422 SOCIAL_ACCOUNT_UNSUPPORTED_TYPE`
+   di titik paling awal (feedback langsung ke operator, bukan menunggu job
+   gagal nanti).
+
+Field ini JUGA dibaca `scripts/security-readiness.ts`'s
+`checkMetaSocialPublishingAccountReadiness` (readiness, bukan enforcement
+runtime). **Bila #645 juga menambah field yang sama** (kemungkinan besar,
+LinkedIn punya batasan tipe akun serupa) — field itu sendiri ADDITIVE
+murni, tapi **wajib tegakkan di dispatcher JUGA**, bukan cuma endpoint
+verify/connect — itulah pelajaran nyata dari temuan round 1 ini.
 
 ### Keputusan kunci #644-3 — resolusi `token_reference` LOKAL per-adapter, skema `env:VAR_NAME` SATU-SATUNYA yang diimplementasikan
 
@@ -413,31 +439,36 @@ Fungsi yang SAMA dipakai untuk `META_APP_SECRET_REFERENCE` (dibutuhkan
 untuk membangun app access token `{appId}|{appSecret}` saat memanggil
 `debug_token`).
 
-### Keputusan kunci #644-4 — `verifyCredentials` dipanggil dari route HTTP, TAPI tetap di luar transaksi DB
+### Keputusan kunci #644-4 — `POST .../accounts/{id}/verify` dibangun di PR #644 lalu DIGANTI oleh desain kanonik #646 (tabrakan paralel, diselesaikan oleh orkestrator)
 
-`domain/social-provider-adapter.ts`'s `verifyCredentials` docstring
-(#643) sudah eksplisit menyebut ini dipanggil dari "readiness gate atau
-manual verify connection admin action" — BEDA dari `publish()` yang
-HANYA boleh dipanggil dispatcher. Endpoint baru `POST
-/api/v1/social-publishing/accounts/{id}/verify`
-(`application/social-account-verification.ts`'s
-`verifySocialAccountConnection`) tetap memakai disiplin 3-fase yang sama
-persis dispatcher (fetch dalam transaksi pendek -> panggil provider DI
-LUAR transaksi manapun -> persist hasil dalam transaksi pendek kedua) —
-BUKAN pola `module-management/application/health-registry.ts`'s
-`providerHealthCheckSignal` (yang memanggil `resolveEmailProvider().healthCheck()`
-DI DALAM `tx` yang sama dengan pemanggilnya). Precedent itu ada dan
-sudah pernah lolos review, tapi epic social-publishing ini sudah
-melewati 3 ronde security-auditor pada isu terkait — pilih disiplin
-yang lebih ketat untuk kode BARU di modul ini, jangan ikuti precedent
-yang lebih longgar dari modul lain.
+PR #644 (Meta) dan PR #646 (Telegram) SAMA-SAMA membangun
+`POST /api/v1/social-publishing/accounts/{id}/verify` secara independen
+dan paralel — keduanya lolos review sendiri-sendiri, tapi begitu #646
+merge duluan ke `main`, orkestrator memutuskan desain #646 sebagai
+KANONIK (permission `accounts.verify` khusus — bukan reuse
+`accounts.connect`; wajib `Idempotency-Key`; `200` informasional yang
+TIDAK PERNAH memaksa transisi state pada kegagalan — bukan `409`
+`needs_reauth` seperti desain awal #644) dan #644's implementasi sendiri
+(`application/social-account-verification.ts`,
+`fetchSocialAccountTokenReferenceForVerification`,
+`recordSocialAccountVerificationSuccess`, route `verify.ts` versi awal)
+**DIHAPUS SELURUHNYA** saat #644 merge `origin/main` yang sudah membawa
+#646. Lihat §646 di bawah untuk desain kanonik yang sebenarnya jalan.
 
-Konsekuensi: `social-account-directory.ts` sekarang punya DUA
-pengecualian pada aturan "`token_reference` tidak pernah di-select" —
-`fetchSocialAccountTokenReferenceForDispatch` (dispatcher, sudah ada) dan
-`fetchSocialAccountTokenReferenceForVerification` (BARU, endpoint verify
-saja). **Wajib untuk #645/#646**: JANGAN menambah pengecualian ketiga
-tanpa alasan setara — reuse salah satu dari dua ini bila memungkinkan.
+**Pelajaran untuk #645 (LinkedIn, masih berjalan paralel)**: JANGAN
+membangun ulang endpoint verify sendiri — route ini SEKARANG generik/
+shared, sudah menangani provider apa pun via `getSocialProviderAdapter`.
+Yang perlu #645 sentuh HANYA: implementasi `verifyCredentials()` di
+adapter LinkedIn sendiri (dipanggil generik oleh route yang sudah ada),
+dan environment/readiness check khusus LinkedIn — bukan route HTTP-nya.
+
+Satu hal yang TETAP relevan dari desain awal #644 dan masih dipertahankan
+di versi kanonik: `verifyCredentials`'s docstring (#643) sudah eksplisit
+bilang ini dipanggil dari "readiness gate atau manual verify connection
+admin action" dan endpoint kanonik tetap memanggil provider strictly DI
+LUAR transaksi DB (3-fase fetch/call/persist) — jadi disiplin desain
+awal #644 ITU SENDIRI bukan yang salah, hanya detail response shape/
+permission/idempotency-nya yang kalah terhadap #646.
 
 ### Keputusan kunci #644-5 — Graph API client injectable, mirror pola `mailketing-provider.ts`
 
@@ -516,46 +547,81 @@ netral tapi baru benar-benar melakukan sesuatu untuk Meta hari ini)
 memanggil `debug_token` secara live untuk memeriksa validitas/scope/
 kedaluwarsa.
 
-### File yang dibuat/diubah (referensi cepat)
+### File yang dibuat/diubah (referensi cepat, status FINAL setelah tabrakan dengan #646)
 
 - `src/modules/social-publishing/domain/`: `meta-provider-config.ts`,
   `meta-publish-content.ts`, `meta-error-normalization.ts`;
-  `social-provider-adapter.ts` (+`supportedAccountTypes` opsional).
+  `social-provider-adapter.ts` (+`supportedAccountTypes` opsional,
+  +param `providerAccountId` di `verifyCredentials` — perubahan
+  TERAKHIR ini datang dari #646, bukan #644, lihat §646).
 - `src/modules/social-publishing/infrastructure/meta/`:
   `meta-graph-client.ts`, `meta-token-reference-resolver.ts`,
-  `meta-credential-verification.ts`, `meta-facebook-page-adapter.ts`,
+  `meta-credential-verification.ts` (`verifyMetaCredentials` sekarang
+  JUGA memanggil `GET /{providerAccountId}?fields=id` pakai token yang
+  diperiksa, mengonfirmasi token benar-benar bisa akses target
+  spesifik — bukan cuma valid secara umum), `meta-facebook-page-adapter.ts`,
   `meta-instagram-adapter.ts`.
 - `src/modules/social-publishing/infrastructure/social-provider-registry.ts`
-  (blok registrasi additive di akhir file — lihat komentar di sana untuk
-  konvensi merge multi-adapter).
+  (blok registrasi additive di akhir file — TIDAK bentrok dengan #646,
+  yang pakai pola registrasi berbeda, lihat §646 Keputusan #x).
 - `src/modules/social-publishing/application/social-account-directory.ts`
-  (+`fetchSocialAccountTokenReferenceForVerification`,
-  `+recordSocialAccountVerificationSuccess`),
-  `social-account-verification.ts` (BARU).
-- `src/pages/api/v1/social-publishing/accounts/[id]/verify.ts` (BARU).
-- `src/pages/admin/social-publishing/accounts.astro` (tombol "Verify
-  connection").
+  (+`providerAccountType` di `fetchSocialAccountTokenReferenceForDispatch`
+  — dipakai `social-publish-dispatch.ts`'s enforcement baru, Keputusan
+  kunci #644-2).
+- `src/modules/social-publishing/application/social-publish-dispatch.ts`
+  (+enforcement `supportedAccountTypes` sebelum `adapter.publish()` —
+  Keputusan kunci #644-2, BLOKING finding reviewer round 1).
+- `src/pages/api/v1/social-publishing/accounts/index.ts`'s `POST`
+  (+enforcement `supportedAccountTypes` di connect time, defense-in-depth
+  kedua, `422 SOCIAL_ACCOUNT_UNSUPPORTED_TYPE`).
+- **DIHAPUS SELURUHNYA** (kalah terhadap desain kanonik #646, lihat
+  Keputusan kunci #644-4): `application/social-account-verification.ts`,
+  route `verify.ts` versi awal #644,
+  `tests/integration/social-publishing-meta-adapter.integration.test.ts`
+  (seluruhnya tentang route verify yang sudah diganti).
+- `src/pages/admin/social-publishing/accounts.astro` — tombol "Verify
+  connection" versi #644 juga DIHAPUS, digantikan tombol/script versi
+  #646 (permission `accounts.verify`, wajib `Idempotency-Key`).
 - `scripts/validate-env.ts` (`checkMetaSocialPublishingProviderConfig`),
   `scripts/security-readiness.ts`
   (`checkMetaSocialPublishingAccountReadiness`),
   `src/lib/config/registry.ts`, `.env.example`,
   `18_configuration_env_reference.md`.
-- `src/lib/i18n/error-messages.ts` (+`SOCIAL_ACCOUNT_NEEDS_REAUTH`,
-  `SOCIAL_ACCOUNT_UNSUPPORTED_TYPE`, `PROVIDER_NOT_REGISTERED`).
-- `openapi/modules/social-publishing.openapi.yaml` (+`.../verify`),
-  `asyncapi/awcms-mini-domain-events.asyncapi.yaml`
-  (+`account.verified`), `module.ts` (+event, deskripsi diperbarui).
-- `i18n/en.po`, `i18n/id.po`, `i18n/messages.pot` (5 key baru).
+- `src/lib/i18n/error-messages.ts` (+`SOCIAL_ACCOUNT_UNSUPPORTED_TYPE`
+  saja — `SOCIAL_ACCOUNT_NEEDS_REAUTH`/`PROVIDER_NOT_REGISTERED` versi
+  awal #644 dihapus lagi bersama route verify awalnya, sudah tidak
+  dipakai di mana pun).
+- `openapi/modules/social-publishing.openapi.yaml` (`.../verify` versi
+  KANONIK #646, bukan versi awal #644; `+422` di `POST .../accounts`
+  untuk connect-time enforcement), `asyncapi/...` (+`account.verified`
+  dari #644, +`account.verification-failed` dari #646), `module.ts`
+  (+2 event, deskripsi diperbarui menyebut kedua adapter).
+- `i18n/en.po`, `i18n/id.po`, `i18n/messages.pot` — hasil akhir gabungan
+  string #644+#646 (versi UI/pesan #646 yang menang untuk key yang
+  sama).
 - Test: `tests/unit/meta-provider-config.test.ts`,
   `tests/unit/meta-publish-content.test.ts`,
   `tests/unit/meta-error-normalization.test.ts`,
   `tests/unit/meta-token-reference-resolver.test.ts`,
-  `tests/unit/meta-facebook-page-adapter.test.ts`,
-  `tests/unit/meta-instagram-adapter.test.ts`,
-  `tests/integration/social-publishing-meta-adapter.integration.test.ts`;
-  diperbarui: `tests/modules/social-publishing-module.test.ts` (16 event).
+  `tests/unit/meta-facebook-page-adapter.test.ts` (+`verifyCredentials`
+  test dengan param `providerAccountId` baru),
+  `tests/unit/meta-instagram-adapter.test.ts` (+`verifyCredentials`
+  describe block baru); diperbarui:
+  `tests/modules/social-publishing-module.test.ts` (17 event, bukan
+  16 — §646 juga menambah `account.verification-failed`),
+  `tests/integration/social-publishing.integration.test.ts` (+2 test
+  Keputusan kunci #644-2: dispatcher menolak tipe tidak didukung SEBELUM
+  publish() dipanggil; connect menolak `422` untuk kombinasi providerKey/
+  providerAccountType yang tidak didukung — plus SATU fix ketidaksengajaan
+  di test #646 yang sudah ada: `resetSocialProviderRegistryForTests()`
+  tidak pernah dipulihkan setelah test-nya sendiri, membocorkan registry
+  KOSONG ke SEMUA test berikutnya dalam file yang sama karena `bun test`
+  menjalankan semua file test dalam satu proses bersama — sekarang
+  dibungkus `try/finally` yang meregistrasi ulang ketiga adapter).
 - Changeset: `.changeset/social-publishing-meta-adapter-issue-644.md`.
-- TIDAK ada migration baru — lihat Keputusan kunci #644-1.
+- TIDAK ada migration baru dari #644 sendiri — lihat Keputusan kunci
+  #644-1 (#646 menambah migration 055 untuk permission `accounts.verify`,
+  independen dari keputusan ini).
 
 ### Belum/di luar cakupan issue ini (untuk #645/#646/#647)
 
@@ -568,3 +634,192 @@ kedaluwarsa.
   moderasi komentar sosial — eksplisit di luar cakupan body issue #644.
 - Auto-requeue job `needs_reauth` setelah reconnect — masih warisan
   #643, belum berubah.
+
+## §646 — Adapter Telegram channel (Selesai)
+
+Adapter provider NYATA pertama di epic ini. `provider_key`
+`telegram_channel`. Registrasi via
+`infrastructure/telegram-provider-registration.ts` (side-effect import,
+composition root — TIDAK mengubah isi `social-provider-registry.ts` sama
+sekali, hanya memanggil `registerSocialProviderAdapter` yang sudah
+diekspor).
+
+### Keputusan kunci #1 — `verifyCredentials` interface diperluas dengan `providerAccountId`
+
+Interface #643 (`domain/social-provider-adapter.ts`) awalnya
+`verifyCredentials(tokenReference, scopesJson, env?)` — tidak cukup untuk
+Telegram (dan kemungkinan besar Meta/LinkedIn juga): sebuah bot token bisa
+VALID tapi tidak punya akses ke CHANNEL SPESIFIK yang mau diverifikasi.
+Diperluas jadi `verifyCredentials(tokenReference, providerAccountId,
+scopesJson, env?)` — perubahan aman/tidak breaking karena TIDAK ADA satu
+pun caller nyata sebelum issue ini (foundation #643 sengaja nol adapter
+nyata). `SocialProviderCredentialCheck` juga ditambah field opsional
+`details?: Record<string, unknown>` (provider-specific display info,
+mis. `botUsername`/`permissions` Telegram) — additive, tidak breaking.
+**Perhatian untuk #644/#645**: bila kalian sudah mulai dari snapshot
+sebelum PR ini merge, rebase dan sesuaikan signature `verifyCredentials`
+kalian sendiri ke bentuk baru ini.
+
+### Keputusan kunci #2 — endpoint `POST /accounts/{id}/verify` BARU, provider-neutral, bukan Telegram-khusus
+
+Foundation #643 sendiri sudah mengantisipasi ini di komentar
+`verifyCredentials` ("a manual 'verify connection' admin action") tapi
+belum ada endpoint HTTP-nya. Ditambahkan di sini
+(`pages/api/v1/social-publishing/accounts/[id]/verify.ts`) sebagai
+kapabilitas GENERIK — memanggil `adapter.verifyCredentials(...)` milik
+provider apa pun yang terdaftar, bukan route Telegram-spesifik. Permission
+baru `social_publishing.accounts.verify` (migration 054) — reuse action
+`verify` yang SUDAH ADA di `AccessAction` union (`identity-access/domain/
+access-control.ts`, dari `tenant_domain.domains.verify` migration 032),
+BUKAN action baru. Tidak masuk `HIGH_RISK_ACTIONS` (sama alasan
+`domains.verify`: hanya mengubah `lastVerifiedAt`/`scopes_json`, tidak
+pernah `tokenReference`) TAPI tetap wajib `Idempotency-Key` (real outbound
+call ke provider, sama kelas risiko `accounts.connect`/`.disconnect`).
+
+Endpoint ini 3-fase (CLAIM-like) meniru persis pola dispatcher
+`social-publish-dispatch.ts`: (1) transaksi — authorize + idempotency
+check + fetch account/credentials; (2) DI LUAR transaksi — panggilan
+provider nyata (`adapter.verifyCredentials`); (3) transaksi — catat hasil
+
+- simpan idempotency record. **Wajib dipertahankan pola ini** bila
+  menambah endpoint lain yang memanggil provider (ADR-0006) — jangan
+  gabungkan fase 2 ke dalam `withTenant` manapun.
+
+Verifikasi GAGAL tetap `200 { valid: false, reason }` — bukan error HTTP,
+dan TIDAK mengubah `connectionStatus`/`autoPublishEnabled` (informational,
+supaya admin bisa perbaiki izin channel lalu coba lagi). Hanya percobaan
+publish NYATA via dispatcher yang bisa memicu `needs_reauth` (mekanisme
+#643 yang sudah ada, terpisah).
+
+**Verifikasi TIDAK di-hardgate** ke endpoint connect/enable auto-publish
+yang sudah ada (`POST /accounts`, `PATCH /accounts/{id}`) — akan
+mengubah perilaku SEMUA provider (bukan cuma Telegram) dan berisiko
+merusak test #643 yang sudah ada (connect-lalu-langsung-enable tanpa
+verify). Sebagai gantinya, "verifies bot can post to channel before
+enabling auto posting" ditegakkan sebagai READINESS SIGNAL
+(`checkTelegramProviderReadiness`, §4 di bawah) — operator harus verify
+manual dulu sebelum go-live, bukan gate runtime yang memblokir API.
+
+### Keputusan kunci #3 — parse-mode sanitization: default plain text, escape single-pass
+
+`domain/telegram-message-formatting.ts`. Default `TELEGRAM_DEFAULT_PARSE_MODE`
+unset → TIDAK PERNAH mengirim `parse_mode` sama sekali → Telegram
+memperlakukan SELURUH teks sebagai literal, nol kemungkinan interpretasi
+formatting apa pun (title/excerpt user-authored boleh berisi tanda bintang
+ganda `**`, garis bawah `_..._`, atau notasi tautan Markdown berkurung
+siku-lalu-kurung — semuanya tetap literal). Bila operator secara eksplisit
+set `MarkdownV2`/`HTML` (legacy `Markdown` SENGAJA tidak didukung), setiap
+field yang diinterpolasi (title, excerpt, canonical URL) di-escape via
+`escapeTelegramMarkdownV2`/`escapeTelegramHtml` — **satu pass regex
+tunggal atas string asli**, BUKAN beberapa `.replace()` berurutan. Ini
+penting: escaper MarkdownV2 memasukkan karakter backslash itu sendiri ke
+dalam character class yang di-escape (bukan cuma `_*[]()~\`>#+-=|{}.!`) —
+kalau tidak, backslash asli dalam input bisa "menguncinya" dengan
+backslash yang BARU kita sisipkan sehingga karakter sesudahnya lolos
+ter-escape (persis pola bug `mdescape-backslash-bug-recurs` yang sudah 3x
+muncul di repo lain — lihat memory pribadi terkait). TIDAK PERNAH
+membangun tautan inline bergaya Markdown dari data pengguna — URL kanonik
+selalu baris teks polos yang di-escape, dibiarkan Telegram auto-link-detect
+sendiri; ini menghilangkan seluruh permukaan "constructed unexpected
+inline link" yang disebut security notes issue.
+
+Hashtag dari tag artikel (`buildTelegramHashtags`) diimplementasikan dan
+diuji standalone TAPI **belum dipakai nyata** — snapshot job outbox
+(`awcms_mini_social_publish_jobs`, migration 053) tidak punya kolom nama
+tag sama sekali; menambahkannya berarti mengubah snapshot generik lintas
+provider, di luar scope atomic issue adapter ini. `publish()` memanggil
+`buildTelegramMessageText(content, [], parseMode)` — array hashtag selalu
+kosong hari ini, didokumentasikan sebagai follow-up.
+
+### Keputusan kunci #4 — bot-token-in-URL: SATU tempat, tidak pernah dibaca `response.url`
+
+Bot API Telegram menaruh token di PATH URL (`.../bot<TOKEN>/<method>`) —
+tidak ada alternatif transport lain dari Telegram sendiri. Mitigasi di
+`infrastructure/telegram-provider-adapter.ts`:
+
+- URL bertoken hanya pernah ada di satu scope lokal (`callTelegramApi`),
+  dipakai untuk SATU panggilan `fetch()`, tidak pernah di-log/dikembalikan.
+- `response.url` (properti bawaan `fetch()`, merefleksikan URL akhir
+  termasuk token) TIDAK PERNAH dibaca di file ini — jebakan nyata yang
+  gampang lolos code review biasa.
+- Parameter dikirim sebagai JSON POST body, bukan query string.
+- Error dari `error.message` hasil `fetch()`/timeout TIDAK PERNAH
+  diinterpolasi mentah ke return value — hanya `description`/`error_code`
+  hasil PARSING JSON respons Telegram sendiri (aman, Telegram tidak pernah
+  echo token di body error) yang dipakai untuk pesan error/audit.
+
+### Keputusan kunci #5 — readiness check baru: `checkTelegramProviderReadiness`
+
+`scripts/security-readiness.ts`, critical, no-op saat
+`TELEGRAM_PROVIDER_ENABLED` bukan `"true"` — **independen** dari
+`SOCIAL_PUBLISHING_ENABLED`/`checkSocialPublishingProviderReadiness`
+(deployment bisa full-online untuk Meta/LinkedIn tanpa pernah menyalakan
+Telegram). Saat enabled, gagal bila ada akun `telegram_channel`
+`connected` dengan `autoPublishEnabled=true` yang `lastVerifiedAt IS
+NULL` — sinyal operasional untuk "Adapter verifies bot can post to
+channel before enabling auto posting" (lihat Keputusan #2 di atas kenapa
+ini bukan hard gate runtime). `checkTelegramProviderConfig`
+(`scripts/validate-env.ts`) memvalidasi
+`TELEGRAM_BOT_TOKEN_SECRET_REFERENCE` (reuse `looksLikeRawSecretToken` —
+**JANGAN buat heuristic baru**, lihat riwayat 3-ronde PR #731),
+`TELEGRAM_DEFAULT_PARSE_MODE`, `TELEGRAM_REQUEST_TIMEOUT_MS`.
+
+### Izin bot/channel Telegram yang dibutuhkan
+
+Bot harus ditambahkan sebagai **administrator** channel target dengan izin
+"Post Messages" (`can_post_messages`). `verifyCredentials` memanggil
+`getMe` (identitas bot) lalu `getChatMember` (status bot di channel
+target) — gagal dengan reason `missing_channel_permission` bila status
+bukan `administrator`/`creator`, atau `missing_post_permission` bila
+administrator tapi `can_post_messages: false`.
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `sql/055_awcms_mini_social_publishing_verify_permission.sql` (satu
+  permission `accounts.verify`).
+- `src/modules/social-publishing/domain/social-provider-adapter.ts`
+  (`verifyCredentials` +`providerAccountId`, `SocialProviderCredentialCheck` +`details`).
+- `src/modules/social-publishing/domain/telegram-config.ts`,
+  `telegram-message-formatting.ts` (baru).
+- `src/modules/social-publishing/infrastructure/telegram-provider-adapter.ts`,
+  `telegram-provider-registration.ts` (baru).
+- `src/modules/social-publishing/application/social-account-directory.ts`
+  (`fetchSocialAccountCredentialsForVerification`,
+  `recordSocialAccountVerification`).
+- `src/pages/api/v1/social-publishing/accounts/[id]/verify.ts` (baru).
+- `src/modules/social-publishing/module.ts` (`accounts.verify` permission +
+  2 event publishes baru).
+- `scripts/social-publish-dispatch.ts`, `scripts/security-readiness.ts`
+  (side-effect import registrasi adapter).
+- `scripts/validate-env.ts` (`checkTelegramProviderConfig`),
+  `scripts/security-readiness.ts` (`checkTelegramProviderReadiness`),
+  `src/lib/config/registry.ts`, `.env.example`,
+  `18_configuration_env_reference.md`.
+- `openapi/modules/social-publishing.openapi.yaml` (`POST
+.../accounts/{id}/verify` + `SocialAccountVerifyResult`).
+- `asyncapi/awcms-mini-domain-events.asyncapi.yaml`
+  (`account.verified`/`account.verification-failed`).
+- `src/pages/admin/social-publishing/accounts.astro` (tombol Verify +
+  tampilan `lastVerifiedAt`).
+- `i18n/en.po`, `i18n/id.po`, `i18n/messages.pot` (key baru
+  `admin.social_publishing.accounts.{field_last_verified,not_verified,
+verify_button,verify_success,verify_failed_prefix}`).
+- Test: `tests/unit/telegram-message-formatting.test.ts`,
+  `tests/unit/telegram-config.test.ts`,
+  `tests/unit/telegram-provider-adapter.test.ts` (Bun.serve() fake
+  `api.telegram.org` — TIDAK PERNAH panggilan jaringan nyata); diperbarui
+  `tests/integration/social-publishing.integration.test.ts` (blok "account
+  verify (Issue #646)", fake adapter ter-registrasi, TIDAK pernah menguji
+  jalur HTTP Telegram nyata di level ini).
+- Changeset: `.changeset/social-publishing-telegram-adapter-issue-646.md`.
+
+### Belum/di luar cakupan issue ini (untuk #647 atau follow-up)
+
+- Hashtag dari tag artikel — fungsi ada (`buildTelegramHashtags`), belum
+  dipakai nyata (snapshot job tidak punya kolom tag).
+- `sendPhoto`/preview gambar R2 — issue sendiri eksplisit izinkan
+  "initial scope can use safe link post through sendMessage".
+- Integrasi secret-manager nyata (`resolveTelegramBotToken` hanya
+  mendukung indirection `env:VAR_NAME`) — residual yang sama dari #643.
+- Auto-requeue/hard-gate verifikasi sebelum enable auto-publish — sengaja
+  readiness signal, bukan runtime gate (lihat Keputusan #2).

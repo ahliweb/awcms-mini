@@ -7227,6 +7227,12 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          description: The registered provider adapter for `providerKey` (Issue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/social-publishing/accounts/{id}:
@@ -7393,8 +7399,8 @@ paths:
     post:
       tags:
         - Social Publishing
-      summary: Verify a connected account's credentials live against its provider
-      description: "Issue #644 — calls the account's registered provider adapter's `verifyCredentials` (e.g. Meta's `debug_token` for `meta_facebook_page`/`meta_instagram`) OUTSIDE any DB transaction. Gated by `accounts.connect` (same permission as connect/reconnect — this touches the same credential, read-only). Not an idempotency-keyed mutation (on-demand diagnostic action, same class as `POST /api/v1/modules/{moduleKey}/health/check`). On success, updates `lastVerifiedAt` only. On a finding that the token/scopes are no longer valid, transitions the account to `needs_reauth` (same transition the outbox dispatcher itself performs) and returns `409 SOCIAL_ACCOUNT_NEEDS_REAUTH`."
+      summary: Verify a connected account can be posted to
+      description: 'Generic, provider-neutral "verify connection" action (Issue #646) — calls the registered provider adapter''s `verifyCredentials` (e.g. the Telegram channel adapter checks the bot is a channel administrator with post permission; the Meta adapter, Issue #644, checks the access token via `debug_token` and that it can reach the connected Page/Instagram Business account). Requires `Idempotency-Key` (real outbound provider call, same external-call class as `accounts.connect`/`.disconnect`), gated by `accounts.verify` (not classified high-risk — only updates `lastVerifiedAt`/`scopes`, never `tokenReference`). A failed check is still a `200` with `valid: false` — informational, never itself a state transition on the account.'
       operationId: socialPublishingAccountsVerify
       security:
         - bearerAuth: []
@@ -7406,11 +7412,12 @@ paths:
           schema:
             type: string
             format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/RequestId"
       responses:
         "200":
-          description: Connection verified — credentials are currently valid.
+          description: Verification check result.
           content:
             application/json:
               schema:
@@ -7421,7 +7428,7 @@ paths:
                       - data
                     properties:
                       data:
-                        $ref: "#/components/schemas/SocialAccountItem"
+                        $ref: "#/components/schemas/SocialAccountVerifyResult"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -7431,25 +7438,15 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Credentials are no longer valid — the account was transitioned to `needs_reauth`. `details.reason` is a safe, fixed diagnostic code (e.g. `token_expired`, `missing_scopes:...`), never a raw provider error body.
+          description: Idempotency-Key reused with a different request, or the account is disconnected.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
-        "422":
-          description: No provider adapter is registered for this account's `providerKey`, or the provider adapter does not support this account's `providerAccountType`.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
         "500":
           $ref: "#/components/responses/InternalError"
-        "503":
-          description: The provider's circuit breaker is currently open.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
   /api/v1/social-publishing/jobs:
     get:
       tags:
@@ -13700,7 +13697,7 @@ components:
           format: uuid
         providerKey:
           type: string
-          description: Provider-neutral by design — not a fixed enum (see migration 050's header). Concrete values are minted by adapter issues (#644/#645/#646).
+          description: Provider-neutral by design — not a fixed enum (see migration 050's header). Concrete values are minted by adapter issues (#644/#645/#646) — `telegram_channel` is the first real one (Issue
         providerAccountId:
           type: string
         providerAccountName:
@@ -13749,6 +13746,30 @@ components:
         updatedAt:
           type: string
           format: date-time
+    SocialAccountVerifyResult:
+      type: object
+      required:
+        - accountId
+        - providerKey
+        - valid
+      additionalProperties: false
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        providerKey:
+          type: string
+        valid:
+          type: boolean
+        reason:
+          type: string
+          nullable: true
+          description: Sanitized, safe-to-display machine reason code (e.g. `missing_channel_permission`, `channel_not_found`) — never a raw provider error body.
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: The moment this check (or the most recent prior successful check) succeeded — `null` if never successfully verified.
     SocialPublishAttemptItem:
       type: object
       required:

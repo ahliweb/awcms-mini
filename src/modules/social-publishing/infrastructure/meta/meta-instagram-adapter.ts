@@ -216,12 +216,14 @@ export function createMetaInstagramAdapter(
 
     async verifyCredentials(
       tokenReference: string,
+      providerAccountId: string,
       scopesJson: unknown,
       env: NodeJS.ProcessEnv = process.env
     ): Promise<SocialProviderCredentialCheck> {
       try {
         return await verifyMetaCredentials(
           tokenReference,
+          providerAccountId,
           scopesJson,
           env,
           graphClientFactory

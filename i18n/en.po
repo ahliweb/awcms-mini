@@ -117,12 +117,6 @@ msgstr "The system is busy. Please try again shortly."
 msgid "error.provider_error"
 msgstr "An external service failed. Please try again."
 
-msgid "error.provider_not_registered"
-msgstr "No provider adapter is registered for this connection."
-
-msgid "error.social_account_needs_reauth"
-msgstr "This account's connection is no longer valid and must be reconnected."
-
 msgid "error.social_account_unsupported_type"
 msgstr "This provider does not support this account type."
 
@@ -2801,6 +2795,9 @@ msgstr "Social account disconnected."
 msgid "admin.social_publishing.accounts.field_auto_publish"
 msgstr "Auto-publish enabled"
 
+msgid "admin.social_publishing.accounts.field_last_verified"
+msgstr "Last verified"
+
 msgid "admin.social_publishing.accounts.field_provider_account_id"
 msgstr "Provider account ID"
 
@@ -2822,6 +2819,9 @@ msgstr "Token reference"
 msgid "admin.social_publishing.accounts.no_accounts"
 msgstr "No social accounts connected yet."
 
+msgid "admin.social_publishing.accounts.not_verified"
+msgstr "Not verified yet"
+
 msgid "admin.social_publishing.accounts.save_button"
 msgstr "Save"
 
@@ -2835,10 +2835,13 @@ msgid "admin.social_publishing.accounts.update_success"
 msgstr "Social account updated."
 
 msgid "admin.social_publishing.accounts.verify_button"
-msgstr "Verify connection"
+msgstr "Verify"
+
+msgid "admin.social_publishing.accounts.verify_failed_prefix"
+msgstr "Verification failed:"
 
 msgid "admin.social_publishing.accounts.verify_success"
-msgstr "Connection verified — credentials are currently valid."
+msgstr "Account verified — the provider confirmed it can post to this target."
 
 msgid "admin.social_publishing.jobs.approve_button"
 msgstr "Approve"

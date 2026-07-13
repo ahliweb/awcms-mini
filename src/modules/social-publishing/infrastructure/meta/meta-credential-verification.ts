@@ -4,7 +4,13 @@
  * Page access token, so both verify it the same way: Meta's `debug_token`
  * endpoint (developers.facebook.com/docs/graph-api/reference/debug_token),
  * called with an APP access token (`{appId}|{appSecret}`), never the
- * inspected token itself as the caller credential.
+ * inspected token itself as the caller credential — followed by a live
+ * `GET /{providerAccountId}?fields=id` call USING the inspected token, to
+ * confirm it can actually reach the SPECIFIC connected Page/Instagram
+ * Business account (Issue #646's shared interface change: a bearer
+ * credential can be generally valid yet still lack access to this named
+ * target — checking scopes/token validity alone is not sufficient, see
+ * `domain/social-provider-adapter.ts`'s `verifyCredentials` docstring).
  *
  * Deliberately does NOT trust the account row's own stored `scopes_json`
  * as the source of truth for "does this token still have the required
@@ -12,7 +18,12 @@
  * view (a scope can be revoked on Meta's side without this repo ever
  * hearing about it). `scopesJson` stays part of the `verifyCredentials`
  * interface for providers that have no live introspection endpoint of
- * their own; Meta simply doesn't need it.
+ * their own; Meta simply doesn't need it. On success, returns
+ * `details.permissions` (the live scope list) — the shared verify route
+ * (`pages/api/v1/social-publishing/accounts/[id]/verify.ts`) uses this to
+ * refresh the account's stored `scopes_json` from the authoritative
+ * source, same as Telegram's own adapter does with its discovered
+ * permission flags.
  */
 import type { SocialProviderCredentialCheck } from "../../domain/social-provider-adapter";
 import { loadMetaProviderConfig } from "../../domain/meta-provider-config";
@@ -51,6 +62,7 @@ function extractDebugTokenData(body: unknown): DebugTokenData | null {
 
 export async function verifyMetaCredentials(
   tokenReference: string,
+  providerAccountId: string,
   _scopesJson: unknown,
   env: NodeJS.ProcessEnv,
   graphClientFactory: (graphApiVersion: string) => MetaGraphClient
@@ -123,5 +135,24 @@ export async function verifyMetaCredentials(
     };
   }
 
-  return { valid: true };
+  let targetResponse: Awaited<ReturnType<MetaGraphClient["call"]>>;
+
+  try {
+    targetResponse = await client.call({
+      path: `/${providerAccountId}`,
+      method: "GET",
+      params: {
+        fields: "id",
+        access_token: credential.value
+      }
+    });
+  } catch {
+    return { valid: false, reason: "target_verification_call_failed" };
+  }
+
+  if (targetResponse.httpStatus < 200 || targetResponse.httpStatus >= 300) {
+    return { valid: false, reason: "target_not_accessible" };
+  }
+
+  return { valid: true, details: { permissions: data.scopes } };
 }

@@ -23,7 +23,7 @@ describe("social_publishing module descriptor (Issue #643)", () => {
     ]);
   });
 
-  test("declares exactly the ten permissions from the issue's suggested list", () => {
+  test("declares the ten permissions from the issue's suggested list plus accounts.verify (Issue #646)", () => {
     const permissions = socialPublishingModule.permissions ?? [];
     const keys = permissions.map((p) => `${p.activityCode}.${p.action}`).sort();
 
@@ -32,6 +32,7 @@ describe("social_publishing module descriptor (Issue #643)", () => {
         "accounts.read",
         "accounts.connect",
         "accounts.disconnect",
+        "accounts.verify",
         "rules.read",
         "rules.configure",
         "jobs.read",
@@ -75,11 +76,16 @@ describe("social_publishing module descriptor (Issue #643)", () => {
     expect(socialPublishingModule.events?.asyncApiPath).toBe(
       "asyncapi/awcms-mini-domain-events.asyncapi.yaml"
     );
-    // 15 from Issue #643 (foundation) + 1 from Issue #644 (Meta adapter's
-    // "verify connection" success outcome, `account.verified`).
-    expect(socialPublishingModule.events?.publishes?.length).toBe(16);
+    // 15 from Issue #643 (foundation) + 2 from the "verify connection"
+    // action's two outcomes: `account.verified` (Issue #644, also used by
+    // Meta's `verifyCredentials`) and `account.verification-failed`
+    // (Issue #646, Telegram).
+    expect(socialPublishingModule.events?.publishes?.length).toBe(17);
     expect(socialPublishingModule.events?.publishes).toContain(
       "awcms-mini.social-publishing.account.verified"
+    );
+    expect(socialPublishingModule.events?.publishes).toContain(
+      "awcms-mini.social-publishing.account.verification-failed"
     );
   });
 
