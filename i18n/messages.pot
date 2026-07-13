@@ -2107,7 +2107,7 @@ msgid "admin.layout.nav_toggle_aria_label"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/visitor-analytics/module.ts:39
+#: src/modules/visitor-analytics/module.ts:48
 msgid "admin.layout.nav_visitor_analytics"
 msgstr ""
 

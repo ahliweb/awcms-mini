@@ -1,5 +1,7 @@
 import { withTenant } from "../../../lib/database/tenant-context";
 import { recordAuditEvent } from "../../logging/application/audit-log";
+import { FORM_DRAFTS_LIFECYCLE_KEY } from "../module";
+import type { LegalHoldGuardPort } from "../../_shared/ports/legal-hold-guard-port";
 
 /**
  * Retention for `awcms_mini_form_drafts` (Issue #484), same bounded-batch +
@@ -18,6 +20,24 @@ import { recordAuditEvent } from "../../logging/application/audit-log";
  * Neither drafts nor the columns they touch have FK children, so a physical
  * DELETE in step 2 can never break a foreign key (same reasoning as audit
  * events, migration 011).
+ *
+ * Legal hold enforcement (security-auditor finding, PR #773): step 2
+ * (`purgeExpiredFormDrafts`) is this module's registered "delegated"
+ * adopter for `form_drafts.form_drafts`
+ * (`src/modules/form-drafts/module.ts`'s `dataLifecycle` descriptor,
+ * `deletion.mode: "status_transition_then_purge"`) — the data_lifecycle
+ * module's own engine never mutates this table, only reports a dry-run
+ * snapshot, so `purgeExpiredFormDrafts` is the real enforcement point for
+ * the actual, irreversible DELETE. Before deleting, it asks the
+ * caller-supplied `legalHoldGuard` (a `LegalHoldGuardPort`, see
+ * `_shared/ports/legal-hold-guard-port.ts`) and skips the whole batch if
+ * `form_drafts.form_drafts` is held. `expireOverdueFormDrafts` (step 1,
+ * the non-destructive `status -> 'expired'` transition) is NOT gated — it
+ * never deletes data, so it carries none of the irreversible-loss risk a
+ * legal hold exists to prevent. Not imported directly from
+ * `data_lifecycle`'s `application`/`domain` code — that would create a
+ * forbidden circular cross-module import (Issue #685/ADR-0011); the port
+ * is the documented way around it.
  */
 export const FORM_DRAFT_DEFAULT_RETENTION_DAYS = 30;
 export const FORM_DRAFT_PURGE_BATCH_LIMIT = 5000;
@@ -101,6 +121,7 @@ export type PurgeFormDraftsResult = {
 export async function purgeExpiredFormDrafts(
   sql: Bun.SQL,
   tenantId: string,
+  legalHoldGuard: LegalHoldGuardPort,
   options: PurgeFormDraftsOptions = {}
 ): Promise<PurgeFormDraftsResult> {
   const retentionDays =
@@ -113,6 +134,15 @@ export async function purgeExpiredFormDrafts(
     sql,
     tenantId,
     async (tx) => {
+      const held = await legalHoldGuard.isDescriptorHeld(
+        tx,
+        tenantId,
+        FORM_DRAFTS_LIFECYCLE_KEY
+      );
+      if (held) {
+        return 0;
+      }
+
       const deleted = (await tx`
         DELETE FROM awcms_mini_form_drafts
         WHERE id IN (

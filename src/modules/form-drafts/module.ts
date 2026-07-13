@@ -1,5 +1,13 @@
 import { defineModule } from "../_shared/module-contract";
 
+/**
+ * Single source of truth for this module's `dataLifecycle` descriptor key,
+ * shared with `application/form-draft-purge.ts` so the actual purge
+ * function and the registry entry a legal hold is created against can never
+ * drift apart (security-auditor finding, PR #773).
+ */
+export const FORM_DRAFTS_LIFECYCLE_KEY = "form_drafts.form_drafts";
+
 export const formDraftsModule = defineModule({
   key: "form_drafts",
   name: "Form Drafts",
@@ -30,7 +38,7 @@ export const formDraftsModule = defineModule({
   // (`bun run form-drafts:purge`), unchanged.
   dataLifecycle: [
     {
-      key: "form_drafts.form_drafts",
+      key: FORM_DRAFTS_LIFECYCLE_KEY,
       tableName: "awcms_mini_form_drafts",
       ownerModuleKey: "form_drafts",
       scope: "tenant",

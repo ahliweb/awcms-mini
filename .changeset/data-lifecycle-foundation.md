@@ -35,11 +35,26 @@ partitioning guidance, archival, legal hold, and bounded purge.
   adapter, SHA-256 checksummed manifests) then purged;
   `"delegated"` descriptors (registered examples: `logging.audit_events`,
   `visitor_analytics.visit_events`, `form_drafts.form_drafts`) are only
-  read for dry-run backlog visibility — their existing purge jobs are
-  unchanged, not duplicated. `data_lifecycle`'s own run-history table
+  read for dry-run backlog visibility here — this engine never mutates
+  them, real purge stays owned by each module's OWN existing job.
+  `data_lifecycle`'s own run-history table
   (`awcms_mini_data_lifecycle_runs`) is the one `"generic"` adopter,
   proving real end-to-end execution without touching another module's
-  schema.
+  schema. A legal hold created mid-invocation is re-checked at the start
+  of EVERY batch pass (not just once per tenant per invocation), so it
+  takes effect on the very next pass.
+- **Legal hold now actually enforced by the 3 registered "delegated"
+  adopters' own existing purge functions**
+  (`purgeExpiredAuditEvents`/`purgeVisitorAnalyticsData`/
+  `purgeExpiredFormDrafts`) — a `LegalHoldGuardPort`
+  (`src/modules/_shared/ports/legal-hold-guard-port.ts`) lets each of
+  these 3 modules ask "is my registered descriptor currently held?"
+  without a forbidden circular cross-module import (Issue #685/ADR-0011);
+  a held descriptor's real DELETE is skipped entirely. Without this, a
+  hold created via the new API gave false confidence — `dry-run` would
+  correctly report `purgeableCount: 0`, but the pre-existing scheduled
+  purge jobs (untouched by the original version of this change) would
+  still hard-delete the "held" rows on their normal schedule.
 - **New API**: `GET /api/v1/data-lifecycle/registry`,
   `POST /api/v1/data-lifecycle/dry-run`,
   `GET /api/v1/data-lifecycle/runs`,
@@ -58,11 +73,19 @@ partitioning guidance, archival, legal hold, and bounded purge.
   lower bound re-select the same boundary row on every subsequent pass
   (looping until the safety-bound pass limit). Both are fixed via a 1ms
   boundary safety margin — see `src/modules/data-lifecycle/README.md`
-  §Timestamp precision.
+  §Timestamp precision. `dry-run-planner.ts`'s informational
+  `archivedCount`/`purgeableCount` query now applies the SAME safety
+  margin (shared via `domain/cursor-boundary.ts`), so the dry-run's
+  reported counts never disagree with what the real purge pass actually
+  deletes at the exact boundary row.
+- CI's `quality` job (`.github/workflows/ci.yml`) now also runs
+  `bun run data-lifecycle:registry:check` explicitly (it was already in
+  `package.json`'s `check` composite, but not in CI's own hand-maintained
+  step list).
 
-Migrations `sql/056_awcms_mini_data_lifecycle_schema.sql` (four
+Migrations `sql/057_awcms_mini_data_lifecycle_schema.sql` (four
 tenant-scoped, RLS FORCE'd tables) and
-`sql/057_awcms_mini_data_lifecycle_permissions.sql` (six permissions).
+`sql/058_awcms_mini_data_lifecycle_permissions.sql` (six permissions).
 Docs: new `docs/awcms-mini/data-lifecycle.md` (operational guide +
 UU PDP/PP PSTE/ISO 27001/27002/27005/27701/22301 compliance mapping,
 without asserting one universal legal retention period),

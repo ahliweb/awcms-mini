@@ -67,9 +67,22 @@
  * artificially spaced sub-millisecond apart), this is vanishingly
  * unlikely — the SAME class of edge case already documented above for
  * "cursor ties", just now also covering "near-ties within 1ms" at a
- * batch boundary specifically.
+ * batch boundary specifically. The constant/helper itself now lives in
+ * `domain/cursor-boundary.ts` — `application/dry-run-planner.ts`'s
+ * informational `archivedCount`/`purgeableCount` query must apply the SAME
+ * margin (reviewer finding, PR #773), so both files import one shared
+ * source instead of each re-deriving it.
+ *
+ * TOCTOU fix (security-auditor finding, PR #773): `activeHolds` used to be
+ * fetched ONCE per tenant, at the top of the tenant loop, and reused
+ * statically across every one of a descriptor's `runBoundedBatches` passes
+ * (up to `maxPasses`, default 50) — a hold created mid-invocation would not
+ * stop an already-in-flight large purge for that tenant/run until the NEXT
+ * scheduled invocation. `activeHolds` is now re-fetched at the START of
+ * EVERY batch pass (inside the `runBoundedBatches` callback for both
+ * archive and purge), so a hold created between passes takes effect on the
+ * very next pass, not just the next invocation.
  */
-const CURSOR_BOUNDARY_SAFETY_MARGIN_MS = 1;
 import { withTenant } from "../../../lib/database/tenant-context";
 import {
   fetchActiveTenants,
@@ -84,6 +97,7 @@ import {
   evaluateLegalHoldForDescriptor,
   type LegalHoldRecord
 } from "../domain/legal-hold";
+import { applyCursorBoundarySafetyMargin } from "../domain/cursor-boundary";
 import { DATA_LIFECYCLE_MODULE_KEY } from "../domain/data-lifecycle-permissions";
 import type { ArchivePort } from "../domain/archive-port";
 import { planLifecycleDryRun } from "./dry-run-planner";
@@ -122,20 +136,30 @@ function computeCutoff(descriptor: HighVolumeTableDescriptor, now: Date): Date {
   );
 }
 
-/** One bounded archive pass: SELECT (in a tenant transaction) -> write (OUTSIDE any DB transaction, ADR-0006-style provider boundary) -> record manifest + advance cursor (in a new tenant transaction). Returns `{ count: 0 }` once nothing is left to archive (or the descriptor is held). */
+/**
+ * One bounded archive pass: SELECT (in a tenant transaction) -> write
+ * (OUTSIDE any DB transaction, ADR-0006-style provider boundary) -> record
+ * manifest + advance cursor (in a new tenant transaction). Returns
+ * `{ count: 0 }` once nothing is left to archive (or the descriptor is
+ * held).
+ *
+ * TOCTOU fix (security-auditor finding, PR #773): holds are re-fetched
+ * FRESH inside this pass's own transaction, every time this function is
+ * called — `runBoundedBatches` calls it once per pass (up to `maxPasses`),
+ * so a hold created between two passes of the SAME invocation now stops
+ * the very next pass, not just the next scheduled invocation. This
+ * replaces the previous design where a single `held` boolean, computed
+ * once per tenant before the batch loop started, was reused unchanged
+ * across every pass.
+ */
 async function runGenericArchivePass(
   sql: Bun.SQL,
   descriptor: HighVolumeTableDescriptor,
   tenantId: string,
   cutoff: Date,
-  held: boolean,
   archivePort: ArchivePort,
   correlationId: string
 ): Promise<{ count: number }> {
-  if (held) {
-    return { count: 0 };
-  }
-
   const tableName = assertSafeIdentifier(descriptor.tableName, "table");
   const tenantColumn = assertSafeIdentifier(
     descriptor.tenantColumn ?? "tenant_id",
@@ -147,6 +171,11 @@ async function runGenericArchivePass(
     sql,
     tenantId,
     async (tx) => {
+      const freshHolds = await fetchActiveLegalHoldsForPlanning(tx, tenantId);
+      if (evaluateLegalHoldForDescriptor(freshHolds, descriptor.key).held) {
+        return { rows: [], resumeAfter: null, held: true as const };
+      }
+
       const cursor = await getCursor(tx, tenantId, descriptor.key, "archive");
       const resumeAfter = cursor?.cursorValue ?? null;
       // CURSOR_BOUNDARY_SAFETY_MARGIN_MS applied to the LOWER bound too
@@ -161,7 +190,7 @@ async function runGenericArchivePass(
       // pass "re-archiving" the identical last row into its own manifest,
       // instead of correctly reporting `count: 0` on the very next pass.
       const resumeAfterBound = resumeAfter
-        ? new Date(resumeAfter.getTime() + CURSOR_BOUNDARY_SAFETY_MARGIN_MS)
+        ? applyCursorBoundarySafetyMargin(resumeAfter)
         : null;
 
       const rows = (
@@ -176,10 +205,14 @@ async function runGenericArchivePass(
             )
       ) as Record<string, unknown>[];
 
-      return { rows, resumeAfter };
+      return { rows, resumeAfter, held: false as const };
     },
     { workClass: "maintenance" }
   );
+
+  if (selection.held) {
+    return { count: 0 };
+  }
 
   if (selection.rows.length === 0) {
     await withTenant(
@@ -237,18 +270,22 @@ async function runGenericArchivePass(
   return { count: selection.rows.length };
 }
 
-/** One bounded purge pass — pure DB operation (no external I/O), so SELECT+DELETE+cursor-advance all happen in ONE transaction, mirroring `purgeExpiredAuditEvents`'s bounded-DELETE-with-RETURNING shape. */
+/**
+ * One bounded purge pass — pure DB operation (no external I/O), so
+ * SELECT+DELETE+cursor-advance all happen in ONE transaction, mirroring
+ * `purgeExpiredAuditEvents`'s bounded-DELETE-with-RETURNING shape.
+ *
+ * TOCTOU fix (security-auditor finding, PR #773): holds are re-fetched
+ * FRESH inside this pass's own transaction on every call — see
+ * `runGenericArchivePass`'s matching comment above for the full rationale.
+ */
 async function runGenericPurgePass(
   sql: Bun.SQL,
   descriptor: HighVolumeTableDescriptor,
   tenantId: string,
   cutoff: Date,
-  held: boolean,
   correlationId: string
 ): Promise<{ count: number }> {
-  if (held) {
-    return { count: 0 };
-  }
   if (descriptor.deletion.mode !== "hard_delete") {
     throw new Error(
       `data-lifecycle archive/purge: descriptor "${descriptor.key}" declares executionMode "generic" with deletion.mode "${descriptor.deletion.mode}" — only "hard_delete" is implemented by this engine today (see module README Limitations). Refusing to execute.`
@@ -266,6 +303,11 @@ async function runGenericPurgePass(
     sql,
     tenantId,
     async (tx) => {
+      const freshHolds = await fetchActiveLegalHoldsForPlanning(tx, tenantId);
+      if (evaluateLegalHoldForDescriptor(freshHolds, descriptor.key).held) {
+        return { count: 0 };
+      }
+
       let archivedThroughBound: Date | null = null;
       if (descriptor.archive.archivable) {
         const archivedThrough = await findArchivedThroughCursor(
@@ -291,9 +333,7 @@ async function runGenericPurgePass(
         // this trades for (a genuinely different row landing within that
         // same 1ms window, astronomically unlikely for real timestamp
         // data).
-        archivedThroughBound = new Date(
-          archivedThrough.getTime() + CURSOR_BOUNDARY_SAFETY_MARGIN_MS
-        );
+        archivedThroughBound = applyCursorBoundarySafetyMargin(archivedThrough);
       }
 
       const deleted = (await tx.unsafe(
@@ -448,11 +488,13 @@ export async function runDataLifecycleArchivePurge(
     for (const descriptor of genericDescriptors) {
       const startedAt = new Date();
       const cutoff = computeCutoff(descriptor, now);
-      const evaluation = evaluateLegalHoldForDescriptor(
-        activeHolds,
-        descriptor.key
-      );
 
+      // `activeHolds` here is used ONLY for this tenant-scoped REPORTING
+      // snapshot (`awcms_mini_data_lifecycle_runs`) — a once-per-tenant
+      // fetch is fine for a compliance-audit record. The REAL archive/purge
+      // execution below re-fetches holds fresh inside every single batch
+      // pass (`runGenericArchivePass`/`runGenericPurgePass` themselves) —
+      // see the TOCTOU fix comment on those functions.
       const snapshot = await withTenant(
         sql,
         tenant.id,
@@ -474,7 +516,6 @@ export async function runDataLifecycleArchivePurge(
                 descriptor,
                 tenant.id,
                 cutoff,
-                evaluation.held,
                 options.archivePort,
                 ctx.correlationId
               ),
@@ -491,7 +532,6 @@ export async function runDataLifecycleArchivePurge(
               descriptor,
               tenant.id,
               cutoff,
-              evaluation.held,
               ctx.correlationId
             ),
           { signal: ctx.signal, maxPasses: options.maxPasses }

@@ -233,7 +233,7 @@ artifact back for reconciliation/testing; it deliberately never writes
 back into the source table itself (that stays a manual, documented
 operator procedure, same "no shared-table write" boundary).
 
-## Schema (migration `056_awcms_mini_data_lifecycle_schema.sql`)
+## Schema (migration `057_awcms_mini_data_lifecycle_schema.sql`)
 
 Four tenant-scoped tables (`ENABLE`+`FORCE ROW LEVEL SECURITY`) — this
 module owns exactly these, never another module's table:
@@ -248,14 +248,14 @@ module owns exactly these, never another module's table:
   history, categorized AGGREGATE counts only (never row contents/PII).
   Also a registered `"generic"` descriptor of its own (see above).
 
-`awcms_mini_worker` grants are narrow and explicit (migration 056's own
+`awcms_mini_worker` grants are narrow and explicit (migration 057's own
 tail): `SELECT` only on legal holds (the worker reads holds, never
 creates/releases them — that stays an admin/API action via
 `awcms_mini_app`), full DML on cursors/manifests/runs. `awcms_mini_app`
 needs no explicit grant — all four tables are RLS-FORCE'd tenant-scoped,
 already covered by migration 013's blanket `ALTER DEFAULT PRIVILEGES`.
 
-## Permission seed (migration `057_awcms_mini_data_lifecycle_permissions.sql`)
+## Permission seed (migration `058_awcms_mini_data_lifecycle_permissions.sql`)
 
 Verbatim match to `domain/data-lifecycle-permissions.ts`'s
 `DATA_LIFECYCLE_PERMISSIONS` (single source of truth reused by

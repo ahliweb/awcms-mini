@@ -1,6 +1,15 @@
 import { defineModule } from "../_shared/module-contract";
 
 /**
+ * Single source of truth for this module's `dataLifecycle` descriptor key,
+ * shared with `application/retention-purge.ts` so the actual purge function
+ * and the registry entry a legal hold is created against can never drift
+ * apart (security-auditor finding, PR #773).
+ */
+export const VISITOR_ANALYTICS_VISIT_EVENTS_LIFECYCLE_KEY =
+  "visitor_analytics.visit_events";
+
+/**
  * `visitor_analytics` (Issue #617, epic: visitor analytics #617-#624 —
  * now fully complete). Issue #617 (this descriptor) registered the
  * module, permission catalog, and env-based configuration gate; the
@@ -92,7 +101,7 @@ export const visitorAnalyticsModule = defineModule({
   // `POST /api/v1/analytics/retention/purge`), unchanged.
   dataLifecycle: [
     {
-      key: "visitor_analytics.visit_events",
+      key: VISITOR_ANALYTICS_VISIT_EVENTS_LIFECYCLE_KEY,
       tableName: "awcms_mini_visit_events",
       ownerModuleKey: "visitor_analytics",
       scope: "tenant",

@@ -253,7 +253,7 @@ suite("runDataLifecycleArchivePurge (Issue #745)", () => {
     const archivePort = createLocalArchiveAdapter(archiveDir);
 
     // createLegalHold is an admin/API action (awcms_mini_app role) — the
-    // worker role only has SELECT on legal holds (migration 056: it reads
+    // worker role only has SELECT on legal holds (migration 057: it reads
     // holds during archive/purge, never creates them), so the FIXTURE is
     // seeded via the app role here, exactly like a real admin request
     // would. `runDataLifecycleArchivePurge` below still correctly runs as

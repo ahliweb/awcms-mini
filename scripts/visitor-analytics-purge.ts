@@ -40,6 +40,7 @@ import {
   resolveVisitorAnalyticsConfig,
   type VisitorAnalyticsConfig
 } from "../src/modules/visitor-analytics/domain/visitor-analytics-config";
+import { legalHoldGuardPortAdapter } from "../src/modules/data-lifecycle/application/legal-hold-guard-port-adapter";
 
 type TenantRow = { id: string };
 
@@ -114,7 +115,8 @@ export async function purgeVisitorAnalyticsForAllTenants(
           tx,
           tenant.id,
           config,
-          now
+          now,
+          legalHoldGuardPortAdapter
         );
 
         if (hasAnyEffect(purgeResult)) {

@@ -30,7 +30,7 @@ import { resolveDataLifecycleConfig } from "../src/modules/data-lifecycle/domain
 import { createLocalArchiveAdapter } from "../src/modules/data-lifecycle/infrastructure/local-archive-adapter";
 
 async function main() {
-  // Issue #683 (epic #679): `awcms_mini_worker` role — see migration 056's
+  // Issue #683 (epic #679): `awcms_mini_worker` role — see migration 057's
   // own grants.
   const sql = getWorkerDatabaseClient();
   const cliOptions = parseJobCliArgs(process.argv.slice(2));

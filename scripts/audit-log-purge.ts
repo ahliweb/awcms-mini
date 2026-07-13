@@ -74,6 +74,7 @@ import {
   AUDIT_EVENT_DEFAULT_RETENTION_DAYS,
   purgeExpiredAuditEvents
 } from "../src/modules/logging/application/audit-purge";
+import { legalHoldGuardPortAdapter } from "../src/modules/data-lifecycle/application/legal-hold-guard-port-adapter";
 
 function resolveRetentionDays(): number {
   const flag = process.argv.find((arg) => arg.startsWith("--retention-days="));
@@ -189,12 +190,17 @@ export async function runAuditLogPurge(
   const { tenants, totalCount, perTenant } = await iterateTenantsInBatches(
     sql,
     async (tenantId) => {
-      const result = await purgeExpiredAuditEvents(sql, tenantId, {
-        retentionDays,
-        now,
-        batchLimit: options.batchLimit,
-        correlationId: ctx.correlationId
-      });
+      const result = await purgeExpiredAuditEvents(
+        sql,
+        tenantId,
+        legalHoldGuardPortAdapter,
+        {
+          retentionDays,
+          now,
+          batchLimit: options.batchLimit,
+          correlationId: ctx.correlationId
+        }
+      );
 
       cutoffIso = result.cutoff.toISOString();
       return { count: result.purgedCount };

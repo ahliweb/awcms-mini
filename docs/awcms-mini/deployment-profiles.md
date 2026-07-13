@@ -977,7 +977,7 @@ lokal, pemetaan kepatuhan).
 - **`awcms_mini_worker`**: grant eksplisit hanya pada empat tabel modul
   ini sendiri (legal holds SELECT-only — worker membaca hold, tidak
   pernah membuat/melepasnya; cursors/manifests/runs DML penuh) —
-  migration `056_awcms_mini_data_lifecycle_schema.sql`.
+  migration `057_awcms_mini_data_lifecycle_schema.sql`.
 - **Backup/arsip berbeda konsep**: archive manifest melengkapi, bukan
   menggantikan, backup database rutin di §Backup lokal di atas — archive
   adalah bukti retensi per-tabel yang bisa dipulihkan independen dari

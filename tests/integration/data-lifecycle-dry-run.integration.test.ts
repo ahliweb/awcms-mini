@@ -31,6 +31,7 @@ import {
   createLegalHold,
   fetchActiveLegalHoldsForPlanning
 } from "../../src/modules/data-lifecycle/application/legal-hold-service";
+import { insertArchiveManifest } from "../../src/modules/data-lifecycle/application/manifest-store";
 
 const TENANT_A = "aaaaaaaa-1111-1111-1111-111111111111";
 const TENANT_B = "aaaaaaaa-2222-2222-2222-222222222222";
@@ -39,6 +40,15 @@ const ACTOR_ID = "bbbbbbbb-1111-1111-1111-111111111111";
 const AUDIT_EVENTS_DESCRIPTOR = collectHighVolumeTableDescriptors(
   listModules()
 ).find((descriptor) => descriptor.key === "logging.audit_events")!;
+
+// `data_lifecycle.data_lifecycle_runs` is the one registered descriptor
+// with `archive.archivable: true` (see module.ts) — needed for the
+// boundary-padding test below, since `logging.audit_events` (archivable:
+// false) never exercises `findArchivedThroughCursor`/`archivedCount` at
+// all.
+const RUNS_DESCRIPTOR = collectHighVolumeTableDescriptors(listModules()).find(
+  (descriptor) => descriptor.key === "data_lifecycle.data_lifecycle_runs"
+)!;
 
 async function seedTenant(id: string, code: string): Promise<void> {
   await getAdminSql()`
@@ -285,5 +295,67 @@ suite("planLifecycleDryRun (Issue #745)", () => {
     );
 
     expect(result.eligibleCount).toBe(0);
+  });
+
+  test("boundary row: archivedCount/purgeableCount include a row already-archived-through its own (JS-Date-truncated) cursor value — matches the SAME CURSOR_BOUNDARY_SAFETY_MARGIN_MS padding the real purge pass applies (reviewer finding, PR #773)", async () => {
+    const sql = getTestSql();
+
+    await withTenant(
+      sql,
+      TENANT_A,
+      (tx) => tx`
+        INSERT INTO awcms_mini_data_lifecycle_runs
+          (tenant_id, descriptor_key, run_type, status, started_at, finished_at, created_at, correlation_id)
+        VALUES (
+          ${TENANT_A}, 'seed.boundary_fixture', 'dry_run', 'completed',
+          now() - interval '800 days', now() - interval '800 days',
+          now() - interval '800 days', 'seed-boundary'
+        )
+      `
+    );
+
+    // Read the row's own `created_at` back exactly the way
+    // `findArchivedThroughCursor` would — as a JS `Date`, which only has
+    // millisecond resolution even though the column itself (`timestamptz`)
+    // stored the true value with microsecond resolution.
+    const truncatedCreatedAt = await withTenant(sql, TENANT_A, async (tx) => {
+      const rows = (await tx`
+        SELECT created_at FROM awcms_mini_data_lifecycle_runs
+        WHERE tenant_id = ${TENANT_A} AND descriptor_key = 'seed.boundary_fixture'
+      `) as { created_at: Date }[];
+      return rows[0]!.created_at;
+    });
+
+    // Fabricate "already archived through this row's own (truncated)
+    // value" — exactly the state `runGenericArchivePass` would leave
+    // behind after really archiving this exact row.
+    await withTenant(sql, TENANT_A, (tx) =>
+      insertArchiveManifest(tx, TENANT_A, {
+        descriptorKey: "data_lifecycle.data_lifecycle_runs",
+        archivePort: "local_offline",
+        artifactLocation: "test://boundary-fixture",
+        rowCount: 1,
+        cursorRangeStart: null,
+        cursorRangeEnd: truncatedCreatedAt,
+        checksumHex: "0".repeat(64),
+        schemaVersion: "1",
+        format: "jsonl",
+        restoreProcedureRef: "test-restore-ref"
+      })
+    );
+
+    const result = await withTenant(sql, TENANT_A, (tx) =>
+      planLifecycleDryRun(tx, RUNS_DESCRIPTOR, TENANT_A, [], new Date())
+    );
+
+    // Without the padding fix, this exact boundary row would be reported
+    // as "blocked" (archivedCount 0, purgeableCount 0) — its TRUE stored
+    // value is >= the truncated cursor, which fails an UN-padded `<=`
+    // comparison against itself — even though the real purge pass (which
+    // DOES pad) would correctly purge it. With the fix, both agree.
+    expect(result.eligibleCount).toBe(1);
+    expect(result.archivedCount).toBe(1);
+    expect(result.purgeableCount).toBe(1);
+    expect(result.blockedCount).toBe(0);
   });
 });

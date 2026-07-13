@@ -27,6 +27,7 @@ import {
   evaluateLegalHoldForDescriptor,
   type LegalHoldRecord
 } from "../domain/legal-hold";
+import { applyCursorBoundarySafetyMargin } from "../domain/cursor-boundary";
 import { findArchivedThroughCursor } from "./manifest-store";
 
 const TABLE_NAME_PATTERN = /^awcms_mini_[a-z][a-z0-9_]*$/;
@@ -162,9 +163,18 @@ export async function planLifecycleDryRun(
     };
   }
 
+  // `applyCursorBoundarySafetyMargin`: MUST match the padding
+  // `archive-purge-job.ts`'s `runGenericPurgePass` applies to the exact
+  // same `archivedThrough` boundary before its real DELETE — otherwise this
+  // informational `archivedCount`/`purgeableCount` can disagree with what
+  // the real purge pass actually deletes at exactly the boundary row
+  // (reviewer finding, PR #773: this query used to compare against the
+  // unpadded value while the real purge already padded it).
+  const archivedThroughBound = applyCursorBoundarySafetyMargin(archivedThrough);
+
   const archivedRows = (await tx.unsafe(
     `SELECT count(*)::int AS count FROM ${tableName} WHERE ${tenantColumn} = $1 AND ${cursorColumn} < $2 AND ${cursorColumn} <= $3`,
-    [tenantId, cutoff, archivedThrough]
+    [tenantId, cutoff, archivedThroughBound]
   )) as { count: number }[];
   const archivedCount = archivedRows[0]?.count ?? 0;
 

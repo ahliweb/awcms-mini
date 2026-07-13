@@ -24,6 +24,7 @@ import {
   expireOverdueFormDrafts,
   purgeExpiredFormDrafts
 } from "../src/modules/form-drafts/application/form-draft-purge";
+import { legalHoldGuardPortAdapter } from "../src/modules/data-lifecycle/application/legal-hold-guard-port-adapter";
 
 const MAX_PASSES_PER_TENANT = 50;
 
@@ -84,11 +85,16 @@ async function main() {
       }
 
       for (let pass = 0; pass < MAX_PASSES_PER_TENANT; pass += 1) {
-        const result = await purgeExpiredFormDrafts(sql, tenant.id, {
-          retentionDays,
-          now,
-          correlationId
-        });
+        const result = await purgeExpiredFormDrafts(
+          sql,
+          tenant.id,
+          legalHoldGuardPortAdapter,
+          {
+            retentionDays,
+            now,
+            correlationId
+          }
+        );
 
         totalPurged += result.purgedCount;
         cutoffIso = result.cutoff.toISOString();

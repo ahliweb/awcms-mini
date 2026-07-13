@@ -1,5 +1,14 @@
 import { defineModule } from "../_shared/module-contract";
 
+/**
+ * Single source of truth for this module's `dataLifecycle` descriptor key,
+ * shared with `application/audit-purge.ts` so the actual purge function and
+ * the registry entry a legal hold is created against can never drift apart
+ * (security-auditor finding, PR #773: a hold created against this key must
+ * be checked by `purgeExpiredAuditEvents` using this SAME literal).
+ */
+export const LOGGING_AUDIT_EVENTS_LIFECYCLE_KEY = "logging.audit_events";
+
 export const loggingModule = defineModule({
   key: "logging",
   name: "Logging & Audit Trail",
@@ -30,7 +39,7 @@ export const loggingModule = defineModule({
   // unchanged. See `.claude/skills/awcms-mini-data-lifecycle/SKILL.md`.
   dataLifecycle: [
     {
-      key: "logging.audit_events",
+      key: LOGGING_AUDIT_EVENTS_LIFECYCLE_KEY,
       tableName: "awcms_mini_audit_events",
       ownerModuleKey: "logging",
       scope: "tenant",
