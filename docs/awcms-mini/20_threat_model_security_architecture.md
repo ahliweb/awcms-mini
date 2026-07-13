@@ -1050,6 +1050,7 @@ default-deny, audit) yang sudah berlaku sama di sini.
   hari ini memakai input UUID scope_id manual dengan hint field scope
   type; picker berbasis hierarki menyusul begitu `organization_structure`
   ada.
+
 ## Standar tambahan dipicu epic platform-evolution (Issue #748, epic #738 Wave 2)
 
 Melengkapi `profile_identity` menjadi siklus hidup party kanonik penuh —

@@ -262,7 +262,6 @@ export const METRIC_DEFINITIONS = {
     approxCardinality: "A handful of registered consumer names (2 today).",
     privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
   },
-<<<<<<< HEAD
   // Issue #746 (epic #738 platform-evolution Wave 2) — business-scope
   // assignments/SoD observability. `scopeType` is a small, code-defined
   // set today (only "office" resolves) but is technically operator/
