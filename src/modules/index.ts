@@ -3,6 +3,7 @@ import { applicationModuleRegistry } from "./application-registry";
 import { mergeModuleRegistries } from "./module-management/domain/module-composition";
 import { blogContentModule } from "./blog-content/module";
 import { dataLifecycleModule } from "./data-lifecycle/module";
+import { domainEventRuntimeModule } from "./domain-event-runtime/module";
 import { emailModule } from "./email/module";
 import { formDraftsModule } from "./form-drafts/module";
 import { identityAccessModule } from "./identity-access/module";
@@ -41,12 +42,13 @@ const baseModules: ModuleDescriptor[] = [
   newsPortalModule,
   idnAdminRegionsModule,
   socialPublishingModule,
-  // Issue #745 (epic #738 platform-evolution Wave 1) — appended at the end
-  // (rather than reordered near its dependencies) so a sibling Wave-1 PR
-  // registering its own new module (e.g. domain_event_runtime, #742) can
-  // add its own entry here independently with a minimal, easily-resolved
-  // merge conflict (keep BOTH new entries, never pick one side).
-  dataLifecycleModule
+  // Issue #745/#742 (epic #738 platform-evolution Wave 1) — both appended
+  // at the end (rather than reordered near their dependencies) so parallel
+  // Wave-1 PRs registering their own new module could each add an entry
+  // independently with a minimal, easily-resolved merge conflict (keep
+  // BOTH new entries, never pick one side — resolved exactly that way).
+  dataLifecycleModule,
+  domainEventRuntimeModule
 ];
 
 /** Base-only registry, regardless of any application registry — Issue #740's composition API. */

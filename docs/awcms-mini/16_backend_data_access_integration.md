@@ -167,6 +167,32 @@ dispatcher bahkan berhenti meng-claim baris sama sekali selagi breaker
 `open` (`email.dispatch.breaker_open` log, Issue #499), object-dispatch
 tetap meng-claim baris yang tak butuh upload sambil breaker terbuka.
 
+### Generic multi-consumer outbox — `domain_event_runtime` (Issue #742)
+
+Pola di atas (`sync_storage`/`email`/`social_publishing`) masing-masing
+adalah antrean single-purpose dengan satu consumer implisit (dispatcher-nya
+sendiri, memanggil satu provider eksternal). `domain_event_runtime`
+(epic `platform-evolution` #738 Wave 1) adalah pelengkap generik,
+provider-neutral, MULTI-consumer: satu event bisa fan-out ke banyak
+consumer terdaftar sekaligus, dengan ordering eksplisit per
+aggregate/order-key (bukan total order global antar aggregate yang tidak
+berkaitan). Lihat `src/modules/domain-event-runtime/README.md` untuk
+desain lengkap. Produsen memanggil `appendDomainEvent(tx, tenantId, ...)`
+di DALAM transaksi bisnisnya sendiri (sama seperti pola outbox di atas);
+static consumer registry (`infrastructure/consumer-registry.ts`) memutuskan
+fan-out saat publish, bukan saat dispatch.
+
+**Beda penting dari CLAIM/SEND/FINALIZE 3-fase di atas**: dua reference
+consumer modul ini adalah handler same-process, DB-only, TANPA panggilan
+eksternal — sehingga claim-check + eksekusi handler + finalize-sukses
+berjalan dalam SATU transaksi (bukan tiga fase terpisah), yang justru
+membuat crash/restart recovery benar secara konstruksi (transaksi yang
+crash mid-handler otomatis rollback seluruhnya, tanpa status "claimed"
+transien yang bisa macet) — lihat README modul §Execution model untuk
+penjelasan lengkap kapan pola lease 3-fase tetap dibutuhkan (consumer
+out-of-transaction/broker-backed masa depan, `infrastructure/broker-
+adapter-port.ts`, belum diimplementasikan di issue ini).
+
 ## Connection pooling dan backpressure
 
 Work class membatasi konkurensi per jenis beban agar transaksi operasional tetap prioritas.

@@ -316,27 +316,42 @@
       "source": "default"
     },
     {
-      "path": "src/pages/api/v1/data-lifecycle/dry-run.ts",
+      "path": "src/pages/api/v1/domain-events/consumers/[name]/pause.ts",
       "workClass": "interactive",
       "source": "default"
     },
     {
-      "path": "src/pages/api/v1/data-lifecycle/legal-holds.ts",
+      "path": "src/pages/api/v1/domain-events/consumers/[name]/resume.ts",
       "workClass": "interactive",
       "source": "default"
     },
     {
-      "path": "src/pages/api/v1/data-lifecycle/legal-holds/[id]/release.ts",
+      "path": "src/pages/api/v1/domain-events/consumers/index.ts",
       "workClass": "interactive",
       "source": "default"
     },
     {
-      "path": "src/pages/api/v1/data-lifecycle/registry.ts",
+      "path": "src/pages/api/v1/domain-events/deliveries/[id].ts",
       "workClass": "interactive",
       "source": "default"
     },
     {
-      "path": "src/pages/api/v1/data-lifecycle/runs.ts",
+      "path": "src/pages/api/v1/domain-events/deliveries/[id]/replay.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/domain-events/deliveries/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/domain-events/events/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/domain-events/events/index.ts",
       "workClass": "interactive",
       "source": "default"
     },
@@ -755,10 +770,10 @@
       "rationale": "Scheduled-publish dispatcher (blog:publish:scheduled) — recurring, not latency-sensitive, but more time-relevant than a maintenance purge."
     },
     {
-      "path": "scripts/data-lifecycle-archive-purge.ts",
-      "workClass": "maintenance",
+      "path": "scripts/domain-events-dispatch.ts",
+      "workClass": "background_sync",
       "source": "registry",
-      "rationale": "Scheduled bounded archive/purge (data-lifecycle:archive-purge, Issue #745) — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/form-draft-purge; every withTenant call inside archive-purge-job.ts already passes workClass: \"maintenance\" explicitly."
+      "rationale": "Outbox dispatcher (domain-events:dispatch, Issue #742), recommended every 30-60 seconds — same recurring dispatcher profile as email/object-sync/social-publish dispatch; its own internal withTenant calls already pass workClass: \"background_sync\" explicitly."
     },
     {
       "path": "scripts/email-dispatch.ts",

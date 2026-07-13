@@ -5354,19 +5354,46 @@ Gated by `rules.read` — templates are configured alongside rules, no separate 
 | 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
-## Data Lifecycle
+## Domain Events
 
-Module-contributed high-volume table registry and lifecycle engine (Issue #745, epic #738 platform-evolution) — read the code-declared descriptor registry, create/release legal holds (which override ordinary retention/purge and cannot be bypassed by tenant policy), trigger an on-demand read-only dry-run plan, and read run history. Real archive/purge execution is an internal scheduled job (`bun run data-lifecycle:archive-purge`), not exposed over HTTP — same administrative-operation posture as `bun run logs:audit:purge`.
+Transactional, versioned domain-event outbox and dispatcher admin API (epic `platform-evolution` #738 Wave 1, Issue #742) — read-only inspection of outbox events and per-consumer deliveries (redacted payload projections only, including dead-letter/DLQ status), permission-gated/reason-required/idempotent/audited replay of a dead-lettered delivery, and per-tenant pause/resume of a registered consumer. The actual claim/execute/finalize dispatch happens entirely outside any HTTP request, via a separate internal worker (`bun run domain-events:dispatch`, built on the shared worker runner), not exposed over HTTP. Consumers themselves are a static, reviewed-source-code registry — not configurable via this API.
 
-### `POST /api/v1/data-lifecycle/dry-run` — Compute an on-demand, read-only dry-run lifecycle plan for one descriptor
+### `GET /api/v1/domain-events/consumers` — List the registered domain event consumers
 
-- **operationId**: `dataLifecycleDryRunCreate`
+- **operationId**: `domainEventsConsumersList`
 - **Security**: bearerAuth + tenantHeader
+
+The static, source-code-defined registry, plus per-tenant pause state and pending/dead-letter backlog counts (consumer lag/checkpoint + DLQ count).
 
 **Parameters**
 
 | Name               | In     | Required | Type   | Description                                 |
 | ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Domain event consumers.                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/domain-events/consumers/{name}/pause` — Pause a domain event consumer for this tenant
+
+- **operationId**: `domainEventsConsumersPause`
+- **Security**: bearerAuth + tenantHeader
+
+Naturally idempotent (no `Idempotency-Key` required, same lighter-weight pattern as module enable/disable) — the dispatcher skips claiming any delivery for a paused (tenant, consumer) pair. Reason required. Audited.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `name`             | path   | yes      | string |                                             |
 | `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
 
@@ -5374,69 +5401,101 @@ Module-contributed high-volume table registry and lifecycle engine (Issue #745, 
 
 **Responses**
 
-| Status | Description                                                                                                                                      | Schema                                                   |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
-| 200    | Deterministic, zero-mutation categorized counts. No Idempotency-Key required -- this endpoint never mutates anything and persists no run record. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
-| 404    | Resource not found or hidden by soft-delete policy.                                                                                              | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Consumer paused.                                                                                                                                                                                                 | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
-### `GET /api/v1/data-lifecycle/legal-holds` — List legal holds for the caller's tenant
+### `POST /api/v1/domain-events/consumers/{name}/resume` — Resume a paused domain event consumer for this tenant
 
-- **operationId**: `dataLifecycleLegalHoldsList`
+- **operationId**: `domainEventsConsumersResume`
 - **Security**: bearerAuth + tenantHeader
 
-**Parameters**
-
-| Name               | In     | Required | Type                       | Description                                 |
-| ------------------ | ------ | -------- | -------------------------- | ------------------------------------------- |
-| `status`           | query  | no       | enum(`active`, `released`) |                                             |
-| `descriptorKey`    | query  | no       | string                     |                                             |
-| `X-Correlation-ID` | header | no       | string                     | Optional server-side trace correlation ID.  |
-| `X-Request-ID`     | header | no       | string                     | Optional client-generated request trace ID. |
-
-**Responses**
-
-| Status | Description                                    | Schema                                                   |
-| ------ | ---------------------------------------------- | -------------------------------------------------------- |
-| 200    | Legal holds (limit 200, newest first).         | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
-
-### `POST /api/v1/data-lifecycle/legal-holds` — Create a legal hold (overrides ordinary retention/purge)
-
-- **operationId**: `dataLifecycleLegalHoldsCreate`
-- **Security**: bearerAuth + tenantHeader
+Naturally idempotent (no `Idempotency-Key` required, same reasoning as `.../pause`). Audited.
 
 **Parameters**
 
 | Name               | In     | Required | Type   | Description                                 |
 | ------------------ | ------ | -------- | ------ | ------------------------------------------- |
-| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `name`             | path   | yes      | string |                                             |
 | `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
 
-**Request body** (required): [`DataLifecycleCreateLegalHoldRequest`](#schema-datalifecyclecreatelegalholdrequest)
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Consumer resumed.                                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/domain-events/deliveries` — List domain event consumer deliveries
+
+- **operationId**: `domainEventsDeliveriesList`
+- **Security**: bearerAuth + tenantHeader
+
+Bounded list (max 200). `status=dead_letter` is the DLQ inspection view. Optional `status`/`consumerName`/`eventType` filters.
+
+**Parameters**
+
+| Name               | In     | Required | Type                                                   | Description                                 |
+| ------------------ | ------ | -------- | ------------------------------------------------------ | ------------------------------------------- |
+| `status`           | query  | no       | enum(`pending`, `delivered`, `dead_letter`, `skipped`) |                                             |
+| `consumerName`     | query  | no       | string                                                 |                                             |
+| `eventType`        | query  | no       | string                                                 |                                             |
+| `X-Correlation-ID` | header | no       | string                                                 | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                                                 | Optional client-generated request trace ID. |
 
 **Responses**
 
-| Status | Description                                      | Schema                                                   |
-| ------ | ------------------------------------------------ | -------------------------------------------------------- |
-| 200    | Legal hold created.                              | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                     | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.              | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.   | [`ApiError`](#standard-error-envelope)                   |
-| 409    | Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.       | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Domain event deliveries.                       | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
 
-### `POST /api/v1/data-lifecycle/legal-holds/{id}/release` — Release (end) an active legal hold
+### `GET /api/v1/domain-events/deliveries/{id}` — Get a domain event delivery by id
 
-- **operationId**: `dataLifecycleLegalHoldsRelease`
+- **operationId**: `domainEventsDeliveriesGet`
 - **Security**: bearerAuth + tenantHeader
+
+Includes the joined event with a redacted payload projection — the DLQ single-record inspection view when `status` is `dead_letter`.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Domain event delivery.                              | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/domain-events/deliveries/{id}/replay` — Replay a dead-lettered domain event delivery
+
+- **operationId**: `domainEventsDeliveriesReplay`
+- **Security**: bearerAuth + tenantHeader
+
+Permission-gated (`deliveries.replay`), reason-required, idempotent (`Idempotency-Key`), and audited. Only valid from a `dead_letter` delivery. Refuses (409) if the registered consumer no longer supports the delivery's `eventVersion` — never replays against an incompatible schema silently.
 
 **Parameters**
 
@@ -5451,61 +5510,69 @@ Module-contributed high-volume table registry and lifecycle engine (Issue #745, 
 
 **Responses**
 
-| Status | Description                                                                      | Schema                                                   |
-| ------ | -------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| 200    | Legal hold released.                                                             | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                                                     | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                                              | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                   | [`ApiError`](#standard-error-envelope)                   |
-| 404    | Resource not found or hidden by soft-delete policy.                              | [`ApiError`](#standard-error-envelope)                   |
-| 409    | Legal hold already released, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.                                       | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Replay delivery created (a NEW delivery row, `replayOfDeliveryId` pointing at the original).                                                                                                                     | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request, delivery is not dead-lettered, or the registered consumer no longer supports the delivery's event version (DOMAIN_EVENT_SCHEMA_INCOMPATIBLE).                   | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
-### `GET /api/v1/data-lifecycle/registry` — List every registered high-volume table lifecycle descriptor
+### `GET /api/v1/domain-events/events` — List domain event outbox entries
 
-- **operationId**: `dataLifecycleRegistryList`
+- **operationId**: `domainEventsEventsList`
 - **Security**: bearerAuth + tenantHeader
+
+Bounded list (max 200), redacted payload projections only. Optional `eventType`/`aggregateType`/`aggregateId` filters.
 
 **Parameters**
 
-| Name               | In     | Required | Type   | Description                                 |
-| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
-| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
-| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `eventType`        | query  | no       | string        |                                             |
+| `aggregateType`    | query  | no       | string        |                                             |
+| `aggregateId`      | query  | no       | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
 
 **Responses**
 
-| Status | Description                                                                   | Schema                                                   |
-| ------ | ----------------------------------------------------------------------------- | -------------------------------------------------------- |
-| 200    | Code-declared descriptor metadata only -- never row contents or a live count. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                                                  | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                                           | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.                                    | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Domain events.                                 | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
 
-### `GET /api/v1/data-lifecycle/runs` — List lifecycle run history (dry-run/archive/purge outcomes)
+### `GET /api/v1/domain-events/events/{id}` — Get a domain event outbox entry by id
 
-- **operationId**: `dataLifecycleRunsList`
+- **operationId**: `domainEventsEventsGet`
 - **Security**: bearerAuth + tenantHeader
+
+Redacted payload projection only.
 
 **Parameters**
 
-| Name               | In     | Required | Type                                | Description                                 |
-| ------------------ | ------ | -------- | ----------------------------------- | ------------------------------------------- |
-| `descriptorKey`    | query  | no       | string                              |                                             |
-| `runType`          | query  | no       | enum(`dry_run`, `archive`, `purge`) |                                             |
-| `X-Correlation-ID` | header | no       | string                              | Optional server-side trace correlation ID.  |
-| `X-Request-ID`     | header | no       | string                              | Optional client-generated request trace ID. |
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
 
 **Responses**
 
-| Status | Description                                                                                            | Schema                                                   |
-| ------ | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
-| 200    | Run history (limit 100, newest first) -- categorized aggregate counts only, never row contents or PII. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                                                                           | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                                                                    | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                         | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.                                                             | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Domain event.                                       | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
 
 ## Schema appendix
 
@@ -7323,28 +7390,6 @@ Issue #743 — this PROCESS's own capacity configuration only (never an aggregat
     "reservedAdminHeadroom": 0
   },
   "generatedAt": "2026-01-01T00:00:00.000Z"
-}
-```
-
-### Schema: DataLifecycleCreateLegalHoldRequest
-
-| Field                | Type               | Required | Nullable | Description                          |
-| -------------------- | ------------------ | -------- | -------- | ------------------------------------ |
-| `descriptorKey`      | string             | no       | yes      | Omit or null for a tenant-wide hold. |
-| `scopeDescription`   | string             | yes      | no       |                                      |
-| `reason`             | string             | yes      | no       |                                      |
-| `authorityReference` | string             | yes      | no       |                                      |
-| `endsAt`             | string (date-time) | no       | yes      |                                      |
-
-**Example**
-
-```json
-{
-  "descriptorKey": "string",
-  "scopeDescription": "string",
-  "reason": "string",
-  "authorityReference": "string",
-  "endsAt": "2026-01-01T00:00:00.000Z"
 }
 ```
 
@@ -10987,7 +11032,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (52)
+### Channels (53)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -11018,6 +11063,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.blog-content.widget.updated` — A widget was updated (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/widgets/[id].ts`'s `PATCH` handler (`blog-content.widget.updated` log line).
 - `awcms-mini.database.pool.rejected` — Emitted when a work-class concurrency gate's bounded FIFO queue is already full and a caller is rejected IMMEDIATELY, without ever waiting (Issue #743, epic #738 platform-evolution — distinct from `database.pool.saturated` above, which is a caller that waited and THEN timed out; doc 16 §Connection pooling dan backpressure, doc 05 "DB Connectivity" category). Documented contract only, same convention as `database.pool.saturated` — the concrete producer is the structured JSON logger (`src/lib/logging/logger.ts`) invoked from `withTenant` (`src/lib/database/tenant-context.ts`) on a `WorkClassQueueFullError`.
 - `awcms-mini.database.pool.saturated` — Emitted when a work-class concurrency gate times out a queued caller (Issue 10.2, doc 16 §Connection pooling dan backpressure, doc 05 "DB Connectivity" category). Documented contract only — this repo has no live pub/sub dispatcher for any domain event yet; the concrete producer is the structured JSON logger (`src/lib/logging/logger.ts`) invoked from `withTenant` (`src/lib/database/tenant-context.ts`), consistent with how AsyncAPI events have been documented since Issue 0.3 without requiring a live producer.
+- `awcms-mini.domain-event-runtime.sample.recorded` — Reference/example event (Issue #742, epic `platform-evolution` #738) used to exercise the domain-event-runtime outbox, dispatcher, ordering, retry/backoff, dead-letter, and replay mechanism end-to-end. Real producer modules publish their OWN event types the same way, via `appendDomainEvent` — this one is intentionally self-contained rather than tied to another module's business logic in this foundation issue (see `src/modules/domain-event-runtime/domain/event-type- registry.ts`'s own doc comment). Producer: any caller of `application/append-domain-event.ts`'s `appendDomainEvent` for this event type (test fixtures in this issue); consumers: `infrastructure/consumer-registry.ts`'s two reference consumers.
 - `awcms-mini.email.message.cancelled` — An operator cancelled a still-queued message (Issue #499, `POST /api/v1/email/messages/{id}/cancel`) — the technical mitigation for the "accidental bulk send" incident scenario. Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/email/messages/[id]/cancel.ts` (`email.message.cancelled` log line).
 - `awcms-mini.email.message.failed` — The email dispatcher exhausted retries (or hit a non-retryable failure) for a queued message. Documented contract only; producer is the structured JSON logger (`email/application/email-dispatch.ts`'s `email.dispatch.failed` log line).
 - `awcms-mini.email.message.queued` — An email message was enqueued into `awcms_mini_email_messages` (Issue #494/#497). Documented contract only, same convention as `database.pool.saturated` above — the concrete producer is the structured JSON logger, invoked from `email/application/announcement-directory.ts`'s `enqueueAnnouncement` (`email.message.queued` log line).

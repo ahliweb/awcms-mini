@@ -60,8 +60,8 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, idn_admin_regions, social_publishing, and data_lifecycle are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655, #643, #745", () => {
-    expect(listModules()).toHaveLength(17);
+  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, idn_admin_regions, social_publishing, data_lifecycle, and domain_event_runtime are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655, #643, #745, #742", () => {
+    expect(listModules()).toHaveLength(18);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "active"
@@ -153,6 +153,12 @@ describe("module registry", () => {
     });
     expect(getModuleByKey("data_lifecycle")).toMatchObject({
       key: "data_lifecycle",
+      status: "active",
+      type: "system",
+      dependencies: ["tenant_admin", "identity_access", "logging"]
+    });
+    expect(getModuleByKey("domain_event_runtime")).toMatchObject({
+      key: "domain_event_runtime",
       status: "active",
       type: "system",
       dependencies: ["tenant_admin", "identity_access", "logging"]
@@ -526,8 +532,9 @@ describe("database migration runner helpers", () => {
       "053_awcms_mini_social_publishing_schema.sql",
       "054_awcms_mini_idn_admin_regions_schema.sql",
       "055_awcms_mini_social_publishing_verify_permission.sql",
-      "056_awcms_mini_data_lifecycle_schema.sql",
-      "057_awcms_mini_data_lifecycle_permissions.sql"
+      "056_awcms_mini_domain_event_runtime_schema.sql",
+      "057_awcms_mini_data_lifecycle_schema.sql",
+      "058_awcms_mini_data_lifecycle_permissions.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

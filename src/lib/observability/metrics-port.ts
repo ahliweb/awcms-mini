@@ -226,6 +226,41 @@ export const METRIC_DEFINITIONS = {
     privacyNote:
       "Same `deriveProviderFamilyLabel` bounding as provider_call_total. " +
       PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  // Issue #742 (epic #738 platform-evolution) — domain-event-runtime
+  // outbox/dispatcher observability. `consumerName` is always one of the
+  // small, fixed, code-defined `DOMAIN_EVENT_CONSUMERS` registry entries
+  // (`src/modules/domain-event-runtime/infrastructure/consumer-registry.ts`)
+  // — never tenant/request input, same bounding rationale as `jobName`
+  // above.
+  domain_event_dispatch_total: {
+    name: "domain_event_dispatch_total",
+    type: "counter",
+    description:
+      "Count of domain-event delivery dispatch attempts, by consumer and outcome (delivered/retried/dead_letter/skipped) — also the source for retry-rate (retried / total).",
+    allowedLabelKeys: ["consumerName", "outcome"],
+    approxCardinality:
+      "A handful of registered consumer names (2 today) x 4 outcome values ≈ low tens of series.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  domain_event_delivery_backlog: {
+    name: "domain_event_delivery_backlog",
+    type: "gauge",
+    description:
+      "Current count of domain-event deliveries per consumer in a non-terminal-success state — status=pending is consumer lag/checkpoint distance, status=dead_letter is the DLQ count.",
+    allowedLabelKeys: ["consumerName", "status"],
+    approxCardinality:
+      "A handful of registered consumer names (2 today) x 2 status values (pending, dead_letter) ≈ low tens of series.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  domain_event_delivery_oldest_pending_seconds: {
+    name: "domain_event_delivery_oldest_pending_seconds",
+    type: "gauge",
+    description:
+      "Age in seconds of the oldest still-pending domain-event delivery per consumer — outbox lag signal.",
+    allowedLabelKeys: ["consumerName"],
+    approxCardinality: "A handful of registered consumer names (2 today).",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
   }
 } as const satisfies Record<string, MetricDefinition>;
 

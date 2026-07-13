@@ -396,7 +396,7 @@ ada issue manapun di epic ini yang menghapus dataset/region (lebih dekat
 ke riwayat versi append-only). Tidak ada data pribadi disimpan di kedua
 tabel.
 
-### Data Lifecycle (Issue #745, epic #738 platform-evolution, `sql/056`–`057`)
+### Data Lifecycle (Issue #745, epic #738 platform-evolution, `sql/057`–`058`)
 
 Registry tabel bervolume tinggi kontribusi-modul dan mesin lifecycle
 aman (retensi/partisi/arsip/legal hold/purge) — lihat
@@ -408,7 +408,7 @@ KODE (`ModuleDescriptor.dataLifecycle`, dideklarasikan oleh modul
 pemilik tabel itu sendiri), bukan disalin ke sini (issue #745: "jangan
 duplikasi fakta descriptor immutable ke settings mutable").
 
-Skema inti (`056_awcms_mini_data_lifecycle_schema.sql`, semua
+Skema inti (`057_awcms_mini_data_lifecycle_schema.sql`, semua
 tenant-scoped `ENABLE`+`FORCE ROW LEVEL SECURITY`):
 
 - **`awcms_mini_data_lifecycle_legal_holds`** — satu-satunya override
@@ -433,9 +433,69 @@ tenant-scoped `ENABLE`+`FORCE ROW LEVEL SECURITY`):
   generic end-to-end tanpa menyentuh skema modul lain).
 
 Permission seed: 6 permission
-(`057_awcms_mini_data_lifecycle_permissions.sql`) — `registry.read`,
+(`058_awcms_mini_data_lifecycle_permissions.sql`) — `registry.read`,
 `legal_hold.{read,create,release}` (create/release SENGAJA terpisah,
 "default-deny release"), `plan.analyze`, `runs.read`.
+
+### Domain Event Runtime (Issue #742, epic `platform-evolution` #738 Wave 1, `sql/056`)
+
+Outbox transaksional generik multi-consumer untuk modul `domain_event_runtime`
+(`type: "system"`) — beda dari tiga precedent outbox single-purpose yang
+sudah ada (`awcms_mini_object_sync_queue`, `..._email_messages`,
+`..._social_publish_jobs`, masing-masing satu consumer implisit) karena
+SATU event bisa fan-out ke BANYAK consumer terdaftar, dengan ordering
+eksplisit per aggregate/order-key (bukan total order global). Lihat
+`src/modules/domain-event-runtime/README.md` untuk rasional desain
+lengkap. Enam tabel, semua tenant-scoped dengan RLS standar:
+
+- **`awcms_mini_domain_events`** — outbox itu sendiri, append-only. Kolom
+  `event_sequence` (`bigint GENERATED ALWAYS AS IDENTITY`) adalah penanda
+  urutan insersi monoton murni — tie-breaker untuk ordering dispatcher
+  ketika dua event punya `recorded_at` identik (event dalam transaksi yang
+  sama), BUKAN identifier bisnis. `order_key` (default
+  `aggregate_type:aggregate_id`, bisa dioverride producer) adalah kunci
+  ordering eksplisit. `payload` jsonb dibatasi 65536 byte (`CHECK`,
+  backstop dari validasi aplikasi `domain/envelope.ts`).
+- **`awcms_mini_domain_event_deliveries`** — satu baris per (event,
+  consumer terdaftar), dibuat di transaksi YANG SAMA dengan insert event
+  (fan-out diputuskan saat publish, dari static consumer registry di
+  kode). `status` HANYA `pending`/`delivered`/`dead_letter`/`skipped` —
+  TIDAK ada status transien `claimed` (beda dari
+  `awcms_mini_object_sync_queue`/`..._email_messages`/
+  `..._social_publish_jobs` yang punya `sending`/`publishing`) karena
+  claim+eksekusi+finalize berjalan dalam SATU transaksi untuk dua
+  reference consumer same-process modul ini — lihat README modul §Execution
+  model untuk alasan lengkap kenapa ini aman (dan kapan pola lease
+  dibutuhkan lagi). Partial unique index
+  `(tenant_id, event_id, consumer_name) WHERE replay_of_delivery_id IS NULL`
+  menjamin maksimal satu delivery ORIGINAL per (event, consumer) — replay
+  membuat baris BARU (`replay_of_delivery_id` terisi), tidak pernah
+  menimpa baris asal.
+- **`awcms_mini_domain_event_consumer_effects`** — marker idempotency
+  generik per (consumer, event) yang bisa dipakai handler consumer mana
+  pun (`applyConsumerEffectOnce`) — mekanisme nyata di balik "duplicate
+  delivery tidak boleh menduplikasi side effect", bukan sekadar dokumentasi.
+  Sengaja TIDAK punya FK ke `awcms_mini_domain_events` (retensi keduanya
+  independen — lihat catatan `data_lifecycle` di bawah).
+- **`awcms_mini_domain_event_consumer_state`** — flag pause/resume per
+  (tenant, consumer terdaftar).
+- **`awcms_mini_domain_event_replays`** — append-only, jejak audit khusus
+  aksi replay (beda dari `awcms_mini_audit_events` yang juga dapat baris
+  per replay — tabel ini menyimpan linkage terstruktur
+  `original_delivery_id`/`replay_delivery_id` untuk rekonstruksi lineage
+  replay, bukan blob `attributes` bebas).
+- **`awcms_mini_domain_event_activity_daily`** — rollup read-model harian
+  (tenant/tanggal/event_type -> count) yang dipelihara reference consumer
+  "reporting/read-model projection" milik modul ini sendiri — TIDAK
+  menyentuh tabel modul `reporting` terpisah (no shared-table write,
+  ADR-0013 §6).
+
+**Retensi/purge**: belum ada mekanisme purge khusus untuk keenam tabel ini
+di issue ini — didesain sebagai titik integrasi masa depan untuk kandidat
+System Foundation `data_lifecycle` (epic #738 Wave 1, issue bersaudara),
+yang diharapkan mendeklarasikan kontrak kebijakan retensi per-tabel;
+pemilik modul ini baru mengimplementasikan terhadap kontrak itu begitu ada
+(bukan membangun purge job bespoke sekarang).
 
 ## Konten multi-bahasa (translatable content)
 
