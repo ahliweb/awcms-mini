@@ -1,6 +1,8 @@
 # Panduan Implementasi Aplikasi Turunan
 
 > **Dokumen base (bukan contoh domain).** Dokumen ini menjelaskan cara membangun aplikasi turunan **di atas** AWCMS-Mini setelah base generik selesai (v0.23.5, seluruh 18 issue backlog doc06 + peningkatan pasca-backlog M9 tuntas — lihat [`README.md`](README.md) §Langkah berikutnya dan [`AGENTS.md`](../../AGENTS.md) §Mulai dari sini). Lima contoh aplikasi di §Contoh aplikasi turunan adalah **ilustrasi**, bukan modul yang ditambahkan ke base ini.
+>
+> **Lapisan ekstensi (epic #738).** Semua aplikasi turunan di dokumen ini hidup di lapisan **Derived Application** — satu dari tiga lapisan "di luar base" (Derived Application generik, SaaS Control Plane, ERP Extension) yang didefinisikan `docs/adr/0013-extension-layers-and-boundary-model.md`. ADR itu juga mendefinisikan batas tenant vs legal entity vs organization unit, dan aturan "no shared-table write" untuk kolaborasi lintas-repo — baca sebelum aplikasi turunan Anda perlu berbagi data dengan repo turunan lain (mis. sebuah SaaS billing control-plane yang menagih tenant yang sama).
 
 ## Base reusable vs domain-specific extension
 
@@ -84,6 +86,15 @@ Wajib dipenuhi modul domain baru sebelum dianggap siap produksi (turunan dari do
   boundary modul, initial issue breakdown) — Issue #465.
 - [`AGENTS.md`](../../AGENTS.md) §Mulai dari sini — entry point kontributor.
 - [`README.md`](README.md) §Langkah berikutnya — ringkasan alur yang sama, versi singkat.
+- [`docs/adr/0013-extension-layers-and-boundary-model.md`](../adr/0013-extension-layers-and-boundary-model.md)
+  — lapisan ekstensi (Derived Application/SaaS Control Plane/ERP
+  Extension), batas tenant vs legal entity vs organization unit,
+  data-ownership matrix, dan kriteria evidence-based ekstraksi layanan
+  yang berlaku untuk seluruh aplikasi turunan.
+- [`21_module_admission_governance.md`](21_module_admission_governance.md)
+  — pohon keputusan admission yang menentukan kategori sebuah kemampuan
+  baru (Core/System/Official Optional Module/Derived Application/External
+  Integration) sebelum kode ditulis.
 - [`docs/adr/`](../adr/README.md) — keputusan arsitektural base (ADR-0001 s.d. 0008).
 - `docs/awcms-mini/01` s.d. `20` — paket dokumen master (§Peta dokumen di README ini).
 - [`deployment-profiles.md`](deployment-profiles.md) — profil deployment (development/staging/production/offline-LAN, LAN-first compose vs registry image).
