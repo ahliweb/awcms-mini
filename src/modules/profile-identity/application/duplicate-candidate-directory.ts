@@ -152,6 +152,15 @@ export async function generateDuplicateCandidatesForProfile(
     return { candidatesConsidered: 0 };
   }
 
+  // PR #777 review follow-up: also require the COUNTERPART profile itself
+  // to be active (`other_profile.deleted_at IS NULL`) — without this, a
+  // profile that is already a dead loser from a PREVIOUS merge (soft-
+  // deleted, `merged_into_profile_id` set) could still surface as a
+  // "duplicate candidate" for a third profile purely because its now-
+  // orphaned identifier row happens to share a value with one from a
+  // still-earlier soft delete. Not exploitable either way (merge
+  // creation/execution both independently reject a non-active profile),
+  // but a real, avoidable source of noisy/misleading candidates.
   const deterministicMatchRows = (await tx`
     SELECT DISTINCT other.profile_id AS other_profile_id, other.identifier_type
     FROM awcms_mini_profile_identifiers AS mine
@@ -160,6 +169,10 @@ export async function generateDuplicateCandidatesForProfile(
       AND other.identifier_type = mine.identifier_type
       AND other.value_hash = mine.value_hash
       AND other.profile_id <> mine.profile_id
+    JOIN awcms_mini_profiles AS other_profile
+      ON other_profile.tenant_id = other.tenant_id
+      AND other_profile.id = other.profile_id
+      AND other_profile.deleted_at IS NULL
     WHERE mine.tenant_id = ${tenantId} AND mine.profile_id = ${profileId}
       AND mine.deleted_at IS NULL
   `) as IdentifierMatchRow[];

@@ -727,6 +727,81 @@ suite(
       expect(listedRequests.status).toBe(200);
     });
 
+    test("PR #777 review follow-up: restoring a merged-away (loser) profile is rejected, not silently resurrected", async () => {
+      const b = await bootstrap();
+      const survivor = await createTestParty(b, "Survivor");
+      const loser = await createTestParty(b, "Loser");
+
+      const created = await invoke<{ data: { id: string } }>(
+        createMergeRequestRoute,
+        {
+          method: "POST",
+          path: "/api/v1/profile-merge-requests",
+          headers: {
+            ...authHeaders(b),
+            "idempotency-key": crypto.randomUUID()
+          },
+          body: {
+            sourceProfileId: loser,
+            targetProfileId: survivor,
+            reason: "duplicate detected"
+          }
+        }
+      );
+      const mergeRequestId = created.body.data.id;
+
+      const secondUser = await createSecondTenantUser(
+        b.tenantId,
+        `${b.tenantCode}-restore-guard@example.com`
+      );
+      await invoke(decideMergeRequestRoute, {
+        method: "POST",
+        path: `/api/v1/profile-merge-requests/${mergeRequestId}/decisions`,
+        headers: {
+          "content-type": "application/json",
+          "x-awcms-mini-tenant-id": b.tenantId,
+          authorization: `Bearer ${secondUser.token}`,
+          "idempotency-key": crypto.randomUUID()
+        },
+        params: { id: mergeRequestId },
+        body: { decision: "approved" }
+      });
+
+      const executed = await invoke(executeMergeRequestRoute, {
+        method: "POST",
+        path: `/api/v1/profile-merge-requests/${mergeRequestId}/execute`,
+        headers: { ...authHeaders(b), "idempotency-key": crypto.randomUUID() },
+        params: { id: mergeRequestId }
+      });
+      expect(executed.status).toBe(200);
+
+      // The loser is now soft-deleted with merged_into_profile_id set —
+      // restoring it through the ordinary lifecycle endpoint must be
+      // rejected, not resurrect a "live" profile with stale merge lineage
+      // and zero references.
+      const restoreAttempt = await invoke(restoreParty, {
+        method: "POST",
+        path: `/api/v1/profiles/${loser}/restore`,
+        headers: authHeaders(b),
+        params: { id: loser }
+      });
+
+      expect(restoreAttempt.status).toBe(409);
+      expect(
+        (restoreAttempt.body as { error: { code: string } }).error.code
+      ).toBe("PROFILE_RESTORE_BLOCKED_BY_MERGE");
+
+      const admin = getAdminSql();
+      const loserRow = (await admin`
+        SELECT deleted_at, merged_into_profile_id FROM awcms_mini_profiles WHERE id = ${loser}
+      `) as {
+        deleted_at: Date | null;
+        merged_into_profile_id: string | null;
+      }[];
+      expect(loserRow[0]!.deleted_at).not.toBeNull();
+      expect(loserRow[0]!.merged_into_profile_id).toBe(survivor);
+    });
+
     test("same Idempotency-Key replays the same response on merge-request create", async () => {
       const b = await bootstrap();
       const survivor = await createTestParty(b, "Survivor");

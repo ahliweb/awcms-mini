@@ -141,7 +141,7 @@ Constraint: unique `(tenant_id, identifier_type, value_hash)`.
 
 ### Profile Identity — party lifecycle completion (Issue #748, epic `platform-evolution` #738 Wave 2, `sql/059`)
 
-Melengkapi `awcms_mini_profiles`/`awcms_mini_profile_identifiers`/`_channels`/`_addresses`/`_merge_requests` di atas menjadi siklus hidup party kanonik penuh — lihat `src/modules/profile-identity/README.md` untuk detail lengkap kolom/endpoint/keputusan desain. Migration `059` juga menutup gap `FORCE ROW LEVEL SECURITY` pada 7 tabel migration 003 yang sebelumnya hanya `ENABLE`.
+Melengkapi `awcms_mini_profiles`/`awcms_mini_profile_identifiers`/`_channels`/`_addresses`/`_merge_requests` di atas menjadi siklus hidup party kanonik penuh — lihat `src/modules/profile-identity/README.md` untuk detail lengkap kolom/endpoint/keputusan desain. Ketujuh tabel migration 003 sudah `FORCE ROW LEVEL SECURITY` sejak migration `013_awcms_mini_enforce_rls_least_privilege.sql`; migration `059` re-issue statement `FORCE` yang sama sebagai no-op aman (PR #777 review correction — draft awal salah mengklaim migration ini menutup gap yang sebenarnya sudah ditutup migration 013).
 
 Kolom baru pada tabel yang sudah ada: `profile_identifiers` mendapat `provenance`/`verified_at`/`verified_by`/`valid_from`/`valid_until`; `profile_channels`/`profile_addresses` mendapat `valid_from`/`valid_until` (channels juga `verified_at`/`verified_by`); `profile_merge_requests` mendapat `requires_approval`/`field_conflict_snapshot`/`reference_impact_snapshot`/`duplicate_candidate_id`/`executed_at`/`executed_by`.
 

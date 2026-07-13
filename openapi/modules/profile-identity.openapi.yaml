@@ -239,6 +239,12 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          description: Profile was merged away (merged_into_profile_id is set) and cannot be restored through this endpoint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/profiles:

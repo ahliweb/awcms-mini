@@ -24,6 +24,20 @@ const GUARD_REQUEST = {
  * added `restore` ABAC action (doc 10 §ABAC guard). Clears
  * `deleted_at`/`deleted_by`/`delete_reason`, sets `restored_at`/`restored_by`.
  * 404 if the profile is not currently soft-deleted.
+ *
+ * PR #777 review follow-up (Issue #748): a profile that is soft-deleted
+ * BECAUSE it was merged away (`merged_into_profile_id IS NOT NULL`,
+ * `status = 'merged'`, set by `executeMergeRequest`) must NOT be
+ * restorable through this ordinary lifecycle endpoint — its
+ * `awcms_mini_profile_entity_links` were already repointed to the
+ * survivor and deleted from this profile, so a naive restore would
+ * resurrect it as "live" while still carrying stale merge lineage and
+ * zero references, and it could never be merged again (`createMergeRequest`
+ * rejects any profile with `merged_into_profile_id !== null`). Rejected
+ * with `409 PROFILE_RESTORE_BLOCKED_BY_MERGE` — clearing merge lineage to
+ * make a merged profile restorable is a deliberately separate, not-yet-built
+ * capability (would need its own explicit, audited "unmerge" decision, not
+ * a side effect of the ordinary restore endpoint).
  */
 export const POST: APIRoute = async ({ request, params, locals }) => {
   const tenantId = request.headers.get("x-awcms-mini-tenant-id");
@@ -79,17 +93,30 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     }
 
     const profileRows = await tx`
-      SELECT id, deleted_at FROM awcms_mini_profiles
+      SELECT id, deleted_at, merged_into_profile_id FROM awcms_mini_profiles
       WHERE tenant_id = ${tenantId} AND id = ${profileId}
     `;
     const profile = profileRows[0] as
-      { id: string; deleted_at: Date | null } | undefined;
+      | {
+          id: string;
+          deleted_at: Date | null;
+          merged_into_profile_id: string | null;
+        }
+      | undefined;
 
     if (!profile || profile.deleted_at === null) {
       return fail(
         404,
         "RESOURCE_NOT_FOUND",
         "Profile not found or not currently soft-deleted."
+      );
+    }
+
+    if (profile.merged_into_profile_id !== null) {
+      return fail(
+        409,
+        "PROFILE_RESTORE_BLOCKED_BY_MERGE",
+        "Profile was merged away and cannot be restored through this endpoint; its references were already repointed to the survivor."
       );
     }
 

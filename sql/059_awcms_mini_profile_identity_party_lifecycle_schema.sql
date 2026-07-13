@@ -8,14 +8,20 @@
 -- Security requirement (issue body, "cross-tenant matching/merge is
 -- strictly prohibited"): every table below is tenant-scoped with
 -- `ENABLE`+`FORCE ROW LEVEL SECURITY` and a tenant-first index, matching
--- the standard this repo has used since migration 045/057 (Issue #683/
--- #745) — the 7 pre-existing profile-identity tables (migration 003)
--- predate that standard and only have `ENABLE` (no `FORCE`); this
--- migration adds `FORCE` to all of them too, closing that gap. RLS is
--- defense in depth here, not the only guard — every application-layer
--- query in this issue's `application/` code additionally filters
--- `tenant_id` explicitly, and merge EXECUTION re-validates both profiles
--- belong to the caller's own tenant before doing anything (see
+-- the standard this repo has used since migration 013/045/057 (Issue
+-- #683/#745). The 7 pre-existing profile-identity tables (migration 003)
+-- already got `FORCE ROW LEVEL SECURITY` back in migration
+-- `013_awcms_mini_enforce_rls_least_privilege.sql` (PR #777 review
+-- correction — an earlier draft of this comment incorrectly claimed they
+-- predated that standard) — section 1 below re-issues the same `ALTER
+-- ... FORCE ROW LEVEL SECURITY` statements as a harmless, idempotent
+-- no-op, purely for this migration's own self-contained readability
+-- (every new/changed table in this file explicitly shows its RLS
+-- posture), not because it closes any real gap. RLS is defense in depth
+-- here, not the only guard — every application-layer query in this
+-- issue's `application/` code additionally filters `tenant_id`
+-- explicitly, and merge EXECUTION re-validates both profiles belong to
+-- the caller's own tenant before doing anything (see
 -- `application/merge-workflow.ts`'s `executeMergeRequest`).
 --
 -- No new `awcms_mini_app` grants needed: every table here is
@@ -27,7 +33,9 @@
 -- not as a scheduled worker job, so it never runs as `awcms_mini_worker`.
 
 -- ---------------------------------------------------------------------
--- 1. Close the FORCE RLS gap on the 7 pre-existing tables (migration 003)
+-- 1. Re-affirm FORCE RLS on the 7 pre-existing tables (migration 003) —
+--    already applied by migration 013; these are harmless no-ops kept
+--    for this migration's own self-contained readability.
 -- ---------------------------------------------------------------------
 
 ALTER TABLE awcms_mini_profiles FORCE ROW LEVEL SECURITY;

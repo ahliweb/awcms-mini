@@ -2659,13 +2659,14 @@ Profile lifecycle (soft delete/restore/purge) demonstrating the audit trail end-
 
 **Responses**
 
-| Status | Description                                         | Schema                                                                                                           |
-| ------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 200    | Profile restored.                                   | [`ApiSuccess`](#standard-success-envelope)&lt;[`ProfileLifecycleResponse`](#schema-profilelifecycleresponse)&gt; |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                                           |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                                           |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                                           |
+| Status | Description                                                                                           | Schema                                                                                                           |
+| ------ | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Profile restored.                                                                                     | [`ApiSuccess`](#standard-success-envelope)&lt;[`ProfileLifecycleResponse`](#schema-profilelifecycleresponse)&gt; |
+| 401    | Authentication required or expired.                                                                   | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                        | [`ApiError`](#standard-error-envelope)                                                                           |
+| 404    | Resource not found or hidden by soft-delete policy.                                                   | [`ApiError`](#standard-error-envelope)                                                                           |
+| 409    | Profile was merged away (merged_into_profile_id is set) and cannot be restored through this endpoint. | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.                                                            | [`ApiError`](#standard-error-envelope)                                                                           |
 
 ## Database Connectivity
 

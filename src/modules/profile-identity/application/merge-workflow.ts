@@ -94,19 +94,40 @@ type PartyRowForMerge = {
   merged_into_profile_id: string | null;
 };
 
-async function fetchPartyForMerge(
+/**
+ * Locks BOTH the source and target profile rows in a single query, sorted
+ * by `id ASC` regardless of which one is source/target — PR #777 review
+ * follow-up: locking source-then-target as two separate statements could
+ * deadlock (Postgres `40P01`) against a second, concurrent merge request
+ * with the source/target roles swapped (e.g. `(source=X,target=Y)` racing
+ * `(source=Y,target=X)`), since Postgres always resolves a lock-order
+ * conflict by aborting one transaction. Locking in a single, id-sorted
+ * statement makes every caller acquire row locks in the SAME global order,
+ * eliminating that hazard entirely (an availability/retry concern, not a
+ * correctness one — the later `assertSameTenant`/status re-checks already
+ * prevent an incorrect double-merge either way).
+ */
+async function fetchPartiesForMergeLocked(
   tx: Bun.SQL,
-  profileId: string
-): Promise<PartyRowForMerge | undefined> {
+  sourceProfileId: string,
+  targetProfileId: string
+): Promise<{
+  source: PartyRowForMerge | undefined;
+  target: PartyRowForMerge | undefined;
+}> {
   const rows = (await tx`
     SELECT id, tenant_id, profile_type, display_name, legal_name, risk_level,
       verification_status, deleted_at, merged_into_profile_id
     FROM awcms_mini_profiles
-    WHERE id = ${profileId}
+    WHERE id = ANY(${tx.array([sourceProfileId, targetProfileId], "uuid")})
+    ORDER BY id ASC
     FOR UPDATE
   `) as PartyRowForMerge[];
 
-  return rows[0];
+  return {
+    source: rows.find((row) => row.id === sourceProfileId),
+    target: rows.find((row) => row.id === targetProfileId)
+  };
 }
 
 function toSnapshot(row: PartyRowForMerge): PartySnapshot {
@@ -167,8 +188,11 @@ export async function createMergeRequest(
     targetProfileId: input.targetProfileId
   });
 
-  const source = await fetchPartyForMerge(tx, input.sourceProfileId);
-  const target = await fetchPartyForMerge(tx, input.targetProfileId);
+  const { source, target } = await fetchPartiesForMergeLocked(
+    tx,
+    input.sourceProfileId,
+    input.targetProfileId
+  );
 
   if (
     !source ||
@@ -394,8 +418,11 @@ export async function executeMergeRequest(
     return { outcome: "not_approved", view: toView(existing) };
   }
 
-  const source = await fetchPartyForMerge(tx, existing.source_profile_id);
-  const target = await fetchPartyForMerge(tx, existing.target_profile_id);
+  const { source, target } = await fetchPartiesForMergeLocked(
+    tx,
+    existing.source_profile_id,
+    existing.target_profile_id
+  );
 
   if (
     !source ||
