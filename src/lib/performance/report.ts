@@ -90,6 +90,22 @@ export function redactReport(report: PerformanceReport): PerformanceReport {
   return redactUuidsDeep(report, redactor) as PerformanceReport;
 }
 
+/**
+ * Escapes a value for safe embedding in one Markdown table cell.
+ * Backslash FIRST, then pipe — a recurring bug class in this repo's own
+ * docs generators (shipped 3 times before this one, always caught by
+ * CodeQL, never by tests/review): escaping `|` alone, without escaping a
+ * pre-existing `\` first, lets a value ending in `\|` (e.g. a Windows-
+ * style path fragment, or any string containing a literal backslash
+ * immediately before a pipe) turn into `\\|` in the output — Markdown
+ * reads that as an escaped backslash (`\\`) followed by an UNESCAPED
+ * pipe (`|`), breaking out of the table cell. Escaping `\` -> `\\` before
+ * `|` -> `\|` makes the two independent, in either order in the input.
+ */
+export function escapeMarkdownTableCell(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
+}
+
 export function buildHumanReport(report: PerformanceReport): string {
   const lines: string[] = [];
 
@@ -138,7 +154,7 @@ export function buildHumanReport(report: PerformanceReport): string {
   for (const scenario of report.scenarios) {
     lines.push(
       `| ${scenario.name} | ${scenario.tier} | ${scenario.status.toUpperCase()} | ` +
-        `${scenario.durationMs.toFixed(0)} | ${scenario.detail.replace(/\|/g, "\\|")} |`
+        `${scenario.durationMs.toFixed(0)} | ${escapeMarkdownTableCell(scenario.detail)} |`
     );
   }
   lines.push("");
@@ -152,7 +168,7 @@ export function buildHumanReport(report: PerformanceReport): string {
       lines.push(
         `| ${check.budgetId} | ${check.ok ? "PASS" : "FAIL"} | ${check.rootTotalCost.toFixed(1)} | ` +
           `${check.executionTimeMs === null ? "n/a" : check.executionTimeMs.toFixed(1)} | ` +
-          `${check.findings.join("; ").replace(/\|/g, "\\|") || "(none)"} |`
+          `${check.findings.length > 0 ? escapeMarkdownTableCell(check.findings.join("; ")) : "(none)"} |`
       );
     }
     lines.push("");
