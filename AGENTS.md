@@ -285,6 +285,7 @@ bun run modules:compose:check    # validasi registry base + application-registry
 bun run modules:composition:inventory:generate # generate docs/awcms-mini/module-composition-inventory.json dari registry terkomposisi (Issue #740) — jalankan sebelum commit tiap kali registry/capability/migration-namespace berubah
 bun run modules:composition:inventory:check    # validasi module-composition-inventory.json tidak stale (read-only, bagian dari `bun run check`, Issue #740)
 bun run extension:check          # validasi extension.manifest.json (bila ada) + komposisi registry — jalan identik di repo base ini & repo turunan (bagian dari `bun run check`, `ci.yml`, dan `production:preflight`, Issue #741/ADR-0015)
+bun run domain-events:dispatch   # job terjadwal: claim/eksekusi/finalize domain event deliveries (outbox generik multi-consumer, Issue #742)
 bun run i18n:extract             # generate ulang i18n/messages.pot dari scan t("...") di src/ (mutasi file, TIDAK di `bun run check` — Issue #694)
 bun run i18n:pot:check           # validasi i18n/messages.pot identik dengan hasil i18n:extract (read-only, bagian dari `bun run check`, Issue #694)
 bun run i18n:parity:check        # validasi key + placeholder en.po/id.po/messages.pot sinkron, plus guard msgid_plural belum didukung (bagian dari `bun run check`, Issue #685/#694)
@@ -337,7 +338,7 @@ awcms-mini/
 
 Modul **base generik** yang terdaftar di registry (`src/modules/index.ts` `listModules()`, lihat juga inventori GENERATED `docs/awcms-mini/repo-inventory.md` §Modules untuk daftar hidup key/versi/status):
 
-`tenant-admin` (`tenant_admin`), `profile-identity` (`profile_identity`), `identity-access` (`identity_access`), `sync-storage` (`sync_storage`), `reporting` (`reporting`), `logging` (`logging`), `workflow-approval` (`workflow`), `form-drafts` (`form_drafts`), `email` (`email`), `module-management` (`module_management`), `idn-admin-regions` (`idn_admin_regions`, `type: base`, `status: experimental` — epic #654 master data wilayah administratif Indonesia, Issue #655-#664, lihat `.claude/skills/awcms-mini-idn-admin-regions/SKILL.md`).
+`tenant-admin` (`tenant_admin`), `profile-identity` (`profile_identity`), `identity-access` (`identity_access`), `sync-storage` (`sync_storage`), `reporting` (`reporting`), `logging` (`logging`), `workflow-approval` (`workflow`), `form-drafts` (`form_drafts`), `email` (`email`), `module-management` (`module_management`), `idn-admin-regions` (`idn_admin_regions`, `type: base`, `status: experimental` — epic #654 master data wilayah administratif Indonesia, Issue #655-#664, lihat `.claude/skills/awcms-mini-idn-admin-regions/SKILL.md`), `domain-event-runtime` (`domain_event_runtime`, `type: system` — epic `platform-evolution` #738 Wave 1, Issue #742, transactional multi-consumer domain-event outbox/dispatcher, lihat `src/modules/domain-event-runtime/README.md`).
 
 `_shared` (`src/modules/_shared`) bukan modul terdaftar — berisi kontrak/tipe bersama (`module-contract.ts`, dsb.) yang dipakai seluruh modul lain.
 

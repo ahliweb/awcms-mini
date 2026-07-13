@@ -89,6 +89,11 @@ export const JOB_WORK_CLASS_REGISTRY: Readonly<
     rationale:
       "Outbox dispatcher (social-publishing:dispatch) — same recurring dispatcher profile."
   },
+  "scripts/domain-events-dispatch.ts": {
+    workClass: "background_sync",
+    rationale:
+      'Outbox dispatcher (domain-events:dispatch, Issue #742), recommended every 30-60 seconds — same recurring dispatcher profile as email/object-sync/social-publish dispatch; its own internal withTenant calls already pass workClass: "background_sync" explicitly.'
+  },
   "scripts/blog-scheduled-publish.ts": {
     workClass: "background_sync",
     rationale:
