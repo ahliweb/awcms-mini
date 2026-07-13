@@ -73,18 +73,25 @@ export function createIdRedactor(prefix: string): IdRedactor {
 }
 
 /**
- * Recursively walks a plain JSON-ish value and replaces every string that
- * looks like a UUID with its pseudonym via `redactor` — the defensive
- * backstop for report sections (e.g. raw `EXPLAIN` plan JSON, which can
- * embed literal query parameter values) that were not built by code that
- * already redacted ids at the source.
+ * Recursively walks a plain JSON-ish value and replaces every UUID-shaped
+ * SUBSTRING (not just a value that IS, in its entirety, a UUID) with its
+ * pseudonym via `redactor` — the defensive backstop for report sections
+ * (e.g. raw `EXPLAIN` plan JSON, or a free-text `detail`/`finding` string
+ * that happens to embed a raw id, such as `` `tenant ${tenantId} rejected`
+ * ``) that were not built by code that already redacted ids at the
+ * source. Reviewer finding on PR #775: the original pattern was anchored
+ * (`^...$`), so it only matched a value that was NOTHING BUT a UUID —
+ * any UUID embedded inside a longer string sailed through untouched,
+ * which contradicted this module's own "defensive backstop" framing.
+ * Global (not anchored), so every UUID occurrence in a string is replaced,
+ * however many there are and wherever they sit.
  */
 const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 
 export function redactUuidsDeep(value: unknown, redactor: IdRedactor): unknown {
   if (typeof value === "string") {
-    return UUID_PATTERN.test(value) ? redactor.redact(value) : value;
+    return value.replace(UUID_PATTERN, (match) => redactor.redact(match));
   }
 
   if (Array.isArray(value)) {
@@ -97,6 +104,44 @@ export function redactUuidsDeep(value: unknown, redactor: IdRedactor): unknown {
 
     for (const key of Object.keys(record)) {
       result[key] = redactUuidsDeep(record[key], redactor);
+    }
+
+    return result;
+  }
+
+  return value;
+}
+
+/**
+ * Matches a DSN-shaped `scheme://userinfo@host[...]` substring anywhere in
+ * free text — security-auditor finding on PR #775: `redactReport`
+ * (`report.ts`) previously only ever redacted the ONE known
+ * `environment.databaseUrl` field via `redactDatabaseUrl`, never scanning
+ * free-text fields (`ScenarioResult.detail`, `QueryPlanCheckResult.
+ * findings`) that could embed a raw thrown `error.message` containing a
+ * real connection string. This is the same kind of defensive backstop
+ * `redactUuidsDeep` already provides for ids — global, not anchored, so a
+ * DSN embedded anywhere inside a longer string is still caught. Reuses
+ * `redactDatabaseUrl`'s own credential-stripping logic on each match
+ * rather than re-implementing it.
+ */
+const DSN_PATTERN = /[a-z][a-z0-9+.-]*:\/\/[^\s'"<>]+@[^\s'"<>]+/gi;
+
+export function redactDsnPatternsDeep(value: unknown): unknown {
+  if (typeof value === "string") {
+    return value.replace(DSN_PATTERN, (match) => redactDatabaseUrl(match));
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => redactDsnPatternsDeep(item));
+  }
+
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const result: Record<string, unknown> = {};
+
+    for (const key of Object.keys(record)) {
+      result[key] = redactDsnPatternsDeep(record[key]);
     }
 
     return result;

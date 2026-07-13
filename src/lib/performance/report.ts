@@ -9,10 +9,14 @@
  * guarantees").
  *
  * Every value that reaches the JSON artifact passes through
- * `redaction.ts` first — DSN credentials are stripped at the source
- * (`redactDatabaseUrl`), and `redactUuidsDeep` is applied as a defensive
- * backstop over the whole report tree in case any nested value (e.g. a
- * future scenario's own metrics) ever embeds a raw tenant/user id.
+ * `redaction.ts` before being written to disk: `redactDatabaseUrl` builds
+ * `environment.databaseUrlRedacted` at the source, and `redactReport`
+ * (below) additionally runs `redactDsnPatternsDeep` + `redactUuidsDeep` as
+ * defensive backstops over the WHOLE report tree — not just that one
+ * known field — in case any nested value (a scenario's `detail`, a
+ * query-plan `finding`, a future scenario's own metrics) ever embeds a raw
+ * connection string or tenant/user id, e.g. via an unsanitized thrown
+ * `error.message`.
  */
 import { cpus, platform, arch, totalmem } from "node:os";
 
@@ -24,6 +28,7 @@ import { totalRowCount } from "./scale-profiles";
 import {
   createIdRedactor,
   redactDatabaseUrl,
+  redactDsnPatternsDeep,
   redactUuidsDeep
 } from "./redaction";
 
@@ -84,10 +89,23 @@ export type PerformanceReport = {
   seedSummary: FixtureSeedSummary | null;
 };
 
-/** Redacts any stray high-cardinality UUID that might appear inside scenario/query-plan detail strings or metrics — defensive backstop, see module header. */
+/**
+ * Redacts the WHOLE report tree — not just the one already-known
+ * `environment.databaseUrl` field — before it is ever written to disk.
+ * Security-auditor finding on PR #775: `environment.databaseUrlRedacted`
+ * was built correctly via `redactDatabaseUrl` at the source, but nothing
+ * previously scanned free-text fields (`ScenarioResult.detail`,
+ * `QueryPlanCheckResult.findings`) for a DSN that could arrive there via a
+ * raw, unsanitized `error.message` from a thrown error — `redactDsnPatternsDeep`
+ * closes that gap. Runs DSN redaction first, then UUID redaction (a
+ * redacted DSN's `<redacted>` placeholder can never itself look like a
+ * UUID, so order only matters for keeping the two passes independent and
+ * easy to reason about individually).
+ */
 export function redactReport(report: PerformanceReport): PerformanceReport {
   const redactor = createIdRedactor("id");
-  return redactUuidsDeep(report, redactor) as PerformanceReport;
+  const dsnRedacted = redactDsnPatternsDeep(report);
+  return redactUuidsDeep(dsnRedacted, redactor) as PerformanceReport;
 }
 
 /**

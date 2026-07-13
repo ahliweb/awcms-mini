@@ -171,10 +171,40 @@ function synthesizeSentence(prng: Prng, wordCount: number): string {
   return words.join(" ");
 }
 
-/** Timestamp spread deterministically over the last `spanDays` days, newest bias toward "now" for realistic keyset-pagination cursors. */
+/** Timestamp spread deterministically over the last `spanDays` days relative to `anchor` (see `deriveDeterministicAnchor` — never real wall-clock time), giving a realistic keyset-pagination-cursor-shaped spread without ever depending on `Date.now()`. */
 function syntheticTimestamp(prng: Prng, spanDays: number, anchor: Date): Date {
   const offsetMs = prng.nextInt(0, spanDays * 24 * 60 * 60 * 1000);
   return new Date(anchor.getTime() - offsetMs);
+}
+
+/**
+ * Fixed reference instant — deliberately NOT `Date.now()`. Reviewer finding
+ * on PR #775: the original implementation computed `anchor = new Date()`
+ * at seed time, so the same `(scaleProfile, seed)` pair produced
+ * DIFFERENT absolute row timestamps depending on which real day the suite
+ * ran — the PRNG-derived offset was deterministic, but the anchor it was
+ * relative to was not, contradicting this module's own "same seed always
+ * produces the same fixture plan" guarantee (which
+ * `performance-suite.md`'s "results can be compared between two releases/
+ * commits" claim, and this file's own header comment, both depend on).
+ */
+const REFERENCE_EPOCH_MS = Date.parse("2026-01-01T00:00:00.000Z");
+/** How far `deriveDeterministicAnchor` may shift the anchor away from `REFERENCE_EPOCH_MS`, in days — purely to give different seeds a visibly different (but each individually reproducible) "current time", never to reintroduce a wall-clock dependency. */
+const ANCHOR_JITTER_DAYS = 60;
+
+/**
+ * The single deterministic "now" every `generate*` row-timestamp
+ * calculation is relative to for one `(seed)` — a pure function of `seed`
+ * alone, never of the real system clock. Exported so
+ * `fixture-seeder.ts`/tests can derive (and assert on) the exact same
+ * anchor a given seed will always produce.
+ */
+export function deriveDeterministicAnchor(seed: string): Date {
+  const prng = createPrng(`${seed}:anchor`);
+  const jitterMs =
+    prng.nextInt(-ANCHOR_JITTER_DAYS, ANCHOR_JITTER_DAYS) * 24 * 60 * 60 * 1000;
+
+  return new Date(REFERENCE_EPOCH_MS + jitterMs);
 }
 
 // ---------------------------------------------------------------------------

@@ -92,7 +92,7 @@ the full safety-interlock flowchart — it applies identically here.
 
 | Profile    | Tenants | Noisy-neighbor multiplier | Soak duration | Used by                                   |
 | ---------- | ------: | ------------------------: | ------------: | ----------------------------------------- |
-| `safe`     |       5 |                        6x |   0 (skipped) | `bun run check`/CI, both scripts' default |
+| `safe`     |       5 |                        6x |   0 (skipped) | CI's `quality` job, both scripts' default |
 | `standard` |      20 |                       10x |           60s | manual investigation                      |
 | `large`    |      50 |                       15x |          600s | `--full` scheduled/manual lane            |
 
@@ -117,6 +117,19 @@ proves this directly). Every string field is drawn from a small fixed
 vocabulary — synthetic data only, never anything resembling a real
 customer identifier, credential, or PII (the issue's own non-negotiable
 requirement).
+
+Row TIMESTAMPS are equally seed-deterministic, not just row counts/ids:
+every `generate*` row generator computes `createdAt` relative to
+`deriveDeterministicAnchor(seed)` — a pure function of the seed alone,
+never `Date.now()`/`new Date()`. An earlier version of this suite
+computed that anchor from the real wall clock at seed time, which meant
+the same `(scaleProfile, seed)` pair produced different absolute row
+timestamps depending on which real day the suite happened to run —
+silently breaking release-to-release comparability. Both
+`tests/unit/performance-fixture-generator.test.ts` and
+`tests/integration/performance-fixture-seeder.integration.test.ts` assert
+byte-identical `createdAt` values across two runs separated by a real
+wall-clock gap.
 
 Fixture seeding writes through `withTenant` (`fixture-seeder.ts`), the SAME
 chokepoint every production mutation goes through — RLS is genuinely
@@ -220,13 +233,19 @@ ILIKE` predicate on top of an indexed `tenant_id` filter — empirically,
 
 Both scripts accept `--json-output=<path>` (machine-readable) and
 `performance-suite.ts` additionally accepts `--report-path=<path>`
-(concise human Markdown). Every report passes through `redaction.ts`
-before being written:
+(concise human Markdown). Every report passes through `redaction.ts`'s
+`redactReport` before being written — which runs THREE passes, in order:
 
-- `redactDatabaseUrl` strips username/password from the DSN, keeping only
-  `scheme://<redacted>@host:port/database`.
-- `redactUuidsDeep` is a defensive backstop that replaces any stray
-  UUID-shaped string anywhere in the report tree with a stable per-run
+- `redactDatabaseUrl` builds `environment.databaseUrlRedacted` at the
+  source, keeping only `scheme://<redacted>@host:port/database`.
+- `redactDsnPatternsDeep` is a defensive backstop over the WHOLE report
+  tree (not just that one known field) that replaces any DSN-shaped
+  substring embedded anywhere else — e.g. a raw `error.message` that
+  leaked into a scenario's `detail` or a query-plan `finding` — the same
+  way, wherever it appears.
+- `redactUuidsDeep` is a second defensive backstop, also over the whole
+  tree, that replaces any UUID-shaped SUBSTRING anywhere in the report
+  (not only a value that is nothing but a UUID) with a stable per-run
   pseudonym (`id#1`, `id#2`, ...) — never the real tenant/user id.
 
 The JSON report's `environment` section documents hardware/container/

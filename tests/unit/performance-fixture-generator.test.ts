@@ -9,12 +9,41 @@ import { describe, expect, test } from "bun:test";
 
 import {
   buildFixturePlan,
+  deriveDeterministicAnchor,
   generateAuditEvents,
   generateBlogPosts,
   generateIdempotencyKeys,
   generateObjectSyncQueue
 } from "../../src/lib/performance/fixture-generator";
 import { SAFE_SCALE_PROFILE } from "../../src/lib/performance/scale-profiles";
+
+describe("deriveDeterministicAnchor", () => {
+  test("is deterministic for the same seed", () => {
+    expect(deriveDeterministicAnchor("seed-x").getTime()).toBe(
+      deriveDeterministicAnchor("seed-x").getTime()
+    );
+  });
+
+  test("never depends on the real wall clock — repeated calls across time do not drift", async () => {
+    const first = deriveDeterministicAnchor("stable-seed");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const second = deriveDeterministicAnchor("stable-seed");
+
+    expect(second.getTime()).toBe(first.getTime());
+  });
+
+  test("can differ for a different seed (still fully reproducible per-seed)", () => {
+    const a = deriveDeterministicAnchor("seed-a").getTime();
+    const b = deriveDeterministicAnchor("seed-b").getTime();
+
+    // Not a strict inequality assertion (a hash COULD coincide) — the
+    // real property under test is per-seed reproducibility, proven above.
+    // This just documents that anchors are seed-sensitive, not a single
+    // global constant.
+    expect(typeof a).toBe("number");
+    expect(typeof b).toBe("number");
+  });
+});
 
 describe("buildFixturePlan", () => {
   test("is deterministic for the same profile and seed", () => {
@@ -105,6 +134,30 @@ describe("row generators", () => {
     expect(new Set(rows.map((row) => row.slug)).size).toBe(rows.length);
     expect(rows.some((row) => row.contentText.includes("synthetic"))).toBe(
       true
+    );
+  });
+});
+
+describe("end-to-end row-content determinism (reviewer finding on PR #775)", () => {
+  test("the SAME seed produces byte-identical row timestamps across two independent runs, even when the anchor is re-derived fresh each time (not passed in as a shared fixed Date)", async () => {
+    function generateForSeed(seed: string) {
+      const plan = buildFixturePlan(SAFE_SCALE_PROFILE, seed);
+      const tenant = plan.tenants[0]!;
+      const runAnchor = deriveDeterministicAnchor(plan.seed);
+      return generateAuditEvents(tenant, plan.seed, runAnchor);
+    }
+
+    const seed = "e2e-determinism-check";
+    const firstRun = generateForSeed(seed);
+    // A real wall-clock gap between the two "runs" — the original bug
+    // (anchor = new Date()) would make this produce DIFFERENT absolute
+    // createdAt values across the gap; the fix must not.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const secondRun = generateForSeed(seed);
+
+    expect(secondRun).toEqual(firstRun);
+    expect(secondRun.map((row) => row.createdAt.getTime())).toEqual(
+      firstRun.map((row) => row.createdAt.getTime())
     );
   });
 });

@@ -16,6 +16,7 @@
  * timing: a query-plan check must never permanently mutate the seeded
  * fixture data other scenarios in the same run depend on.
  */
+import { assertUuid } from "../database/tenant-context";
 import { deterministicUuid, createPrng } from "./prng";
 import {
   findBudget,
@@ -207,17 +208,25 @@ class RollbackSentinel extends Error {
  * Runs `EXPLAIN (FORMAT JSON, ANALYZE, BUFFERS) <query>` for one tenant
  * under RLS, inside a transaction that is unconditionally rolled back —
  * see module header for why. Returns the parsed `ExplainResult`.
+ *
+ * `tenantId` is validated with the same `assertUuid` guard
+ * `tenant-context.ts`'s `withTenant` already applies before its own
+ * identical `SET LOCAL app.current_tenant_id = '...'` interpolation
+ * (security-auditor finding on PR #775) — this function is exported and
+ * reusable, so it must not rely on every future caller happening to only
+ * ever pass an already-validated fixture-generated UUID.
  */
 export async function explainQuery(
   sql: Bun.SQL,
   tenantId: string,
   query: QueryPlanQueryDefinition
 ): Promise<ExplainResult> {
-  const { text, values } = query.build(tenantId);
+  const safeTenantId = assertUuid(tenantId);
+  const { text, values } = query.build(safeTenantId);
 
   try {
     await sql.begin(async (tx) => {
-      await tx.unsafe(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
+      await tx.unsafe(`SET LOCAL app.current_tenant_id = '${safeTenantId}'`);
 
       if (query.forcePlannerSeqScan) {
         await tx.unsafe("SET LOCAL enable_indexscan = off");

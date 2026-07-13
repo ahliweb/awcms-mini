@@ -141,4 +141,41 @@ suite("performance fixture seeder (Issue #744) — real Postgres", () => {
       planFirst.tenants.map((t) => t.tenantId)
     );
   });
+
+  test("reproducibility holds for actual PERSISTED row content (not just counts) across a real wall-clock gap between runs — reviewer finding on PR #775", async () => {
+    async function seedAndFetchCreatedAtValues(
+      seed: string
+    ): Promise<string[]> {
+      const plan = buildFixturePlan(TINY_PROFILE, seed);
+      await seedPerformanceFixtures(getTestSql(), plan);
+      const tenant = plan.tenants[0]!;
+
+      return withTenant(
+        getTestSql(),
+        tenant.tenantId,
+        async (tx) => {
+          const rows = (await tx`
+            SELECT created_at FROM awcms_mini_audit_events
+            WHERE tenant_id = ${tenant.tenantId}
+            ORDER BY created_at DESC, id DESC
+          `) as { created_at: Date }[];
+          return rows.map((row) => row.created_at.toISOString());
+        },
+        { workClass: "interactive" }
+      );
+    }
+
+    const seed = "seeder-it-reproducible-real-timestamps";
+    const firstRunTimestamps = await seedAndFetchCreatedAtValues(seed);
+
+    await resetDatabase();
+    // A genuine wall-clock gap — the original bug (fixture-seeder.ts's
+    // `anchor = new Date()`) would make every generated `created_at` for
+    // the second run land at a different absolute instant than the first.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const secondRunTimestamps = await seedAndFetchCreatedAtValues(seed);
+
+    expect(secondRunTimestamps).toEqual(firstRunTimestamps);
+  });
 });

@@ -41,6 +41,7 @@ import type {
   VisitorSessionFixtureRow
 } from "./fixture-generator";
 import {
+  deriveDeterministicAnchor,
   generateAbacDecisionLogs,
   generateAuditEvents,
   generateBlogPosts,
@@ -474,13 +475,20 @@ async function insertBlogPosts(
  * already-seeded database duplicates rows) — callers that need a clean
  * slate should truncate first (mirrors `tests/integration/harness.ts`'s
  * `resetDatabase()`).
+ *
+ * `anchor` is `deriveDeterministicAnchor(plan.seed)` — a pure function of
+ * the seed, NEVER `new Date()` (reviewer finding on PR #775: the original
+ * wall-clock anchor made every generated row's `createdAt` depend on which
+ * real day the suite happened to run, silently breaking the "same seed
+ * always reproduces the same fixture" guarantee this suite's release-to-
+ * release comparison relies on).
  */
 export async function seedPerformanceFixtures(
   sql: Bun.SQL,
   plan: FixturePlan
 ): Promise<FixtureSeedSummary> {
   const startedAt = performance.now();
-  const anchor = new Date();
+  const anchor = deriveDeterministicAnchor(plan.seed);
 
   const rowCounts: FixtureSeedSummary["rowCounts"] = {
     auditEvents: 0,

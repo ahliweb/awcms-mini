@@ -46,7 +46,8 @@ recovery, dan budget regresi query-plan versioned — gunakan suite yang
 sudah ada di `src/lib/performance/`, jangan bangun tooling ad hoc baru:
 
 ```bash
-# Safe subset (detik, dipakai bun run check/CI juga):
+# Safe subset (detik) — dijalankan di CI job `quality` (.github/workflows/ci.yml),
+# BUKAN bagian dari komposit `bun run check` (sama seperti resilience:dr-drill):
 bun run performance:suite -- --confirm-non-production=<APP_ENV>
 bun run performance:query-plan:check -- --confirm-non-production=<APP_ENV>
 

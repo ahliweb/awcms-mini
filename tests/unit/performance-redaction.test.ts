@@ -8,6 +8,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createIdRedactor,
   redactDatabaseUrl,
+  redactDsnPatternsDeep,
   redactUuidsDeep
 } from "../../src/lib/performance/redaction";
 
@@ -83,5 +84,64 @@ describe("redactUuidsDeep", () => {
     };
 
     expect(redactUuidsDeep(input, redactor)).toEqual(input);
+  });
+
+  test("ADVERSARIAL (reviewer finding on PR #775): redacts a UUID EMBEDDED inside a longer free-text string, not just a value that is nothing but a UUID", () => {
+    const redactor = createIdRedactor("id");
+    const tenantId = "44444444-4444-4444-4444-444444444444";
+    const detail = `tenant ${tenantId} rejected: capacity exceeded`;
+
+    const result = redactUuidsDeep(detail, redactor) as string;
+
+    expect(result).not.toContain(tenantId);
+    expect(result).toBe("tenant id#1 rejected: capacity exceeded");
+  });
+
+  test("redacts multiple distinct embedded UUIDs in the same string, consistently via the same redactor", () => {
+    const redactor = createIdRedactor("id");
+    const first = "11111111-1111-1111-1111-111111111111";
+    const second = "22222222-2222-2222-2222-222222222222";
+    const detail = `moved from ${first} to ${second}, then back to ${first}`;
+
+    const result = redactUuidsDeep(detail, redactor) as string;
+
+    expect(result).toBe("moved from id#1 to id#2, then back to id#1");
+  });
+});
+
+describe("redactDsnPatternsDeep", () => {
+  test("redacts a DSN embedded inside a longer free-text string (security-auditor finding on PR #775)", () => {
+    const detail =
+      "seeding failed: connection error for postgres://awcms_mini_app:s3cr3t@db.internal:5432/awcms-mini";
+
+    const result = redactDsnPatternsDeep(detail) as string;
+
+    expect(result).not.toContain("awcms_mini_app");
+    expect(result).not.toContain("s3cr3t");
+    expect(result).toContain("db.internal");
+    expect(result).toContain("<redacted>");
+    expect(result).toContain("seeding failed: connection error for");
+  });
+
+  test("walks nested objects/arrays, matching redactUuidsDeep's own traversal shape", () => {
+    const input = {
+      scenarios: [
+        {
+          detail:
+            "error: postgres://user:pass@host.example.com:5432/db unreachable"
+        }
+      ]
+    };
+
+    const result = redactDsnPatternsDeep(input) as typeof input;
+
+    expect(result.scenarios[0]!.detail).not.toContain("user:pass");
+    expect(result.scenarios[0]!.detail).toContain("<redacted>");
+  });
+
+  test("leaves strings with no DSN-shaped substring unchanged", () => {
+    expect(redactDsnPatternsDeep("plain detail, no connection string")).toBe(
+      "plain detail, no connection string"
+    );
   });
 });
