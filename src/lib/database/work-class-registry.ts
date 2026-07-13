@@ -98,5 +98,10 @@ export const JOB_WORK_CLASS_REGISTRY: Readonly<
     workClass: "maintenance",
     rationale:
       "Infrequent reconciliation sweep (news-media:reconcile) — tolerant of delay, run far less often than the dispatchers above."
+  },
+  "scripts/data-lifecycle-archive-purge.ts": {
+    workClass: "maintenance",
+    rationale:
+      'Scheduled bounded archive/purge (data-lifecycle:archive-purge, Issue #745) — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/form-draft-purge; every withTenant call inside archive-purge-job.ts already passes workClass: "maintenance" explicitly.'
   }
 };

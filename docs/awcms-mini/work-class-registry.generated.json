@@ -316,6 +316,31 @@
       "source": "default"
     },
     {
+      "path": "src/pages/api/v1/data-lifecycle/dry-run.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/data-lifecycle/legal-holds.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/data-lifecycle/legal-holds/[id]/release.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/data-lifecycle/registry.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/data-lifecycle/runs.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
       "path": "src/pages/api/v1/email/announcements/index.ts",
       "workClass": "interactive",
       "source": "default"
@@ -728,6 +753,12 @@
       "workClass": "background_sync",
       "source": "registry",
       "rationale": "Scheduled-publish dispatcher (blog:publish:scheduled) — recurring, not latency-sensitive, but more time-relevant than a maintenance purge."
+    },
+    {
+      "path": "scripts/data-lifecycle-archive-purge.ts",
+      "workClass": "maintenance",
+      "source": "registry",
+      "rationale": "Scheduled bounded archive/purge (data-lifecycle:archive-purge, Issue #745) — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/form-draft-purge; every withTenant call inside archive-purge-job.ts already passes workClass: \"maintenance\" explicitly."
     },
     {
       "path": "scripts/email-dispatch.ts",
