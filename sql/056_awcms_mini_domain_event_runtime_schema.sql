@@ -319,6 +319,53 @@ CREATE POLICY awcms_mini_domain_event_activity_daily_tenant_isolation
   ON awcms_mini_domain_event_activity_daily
   USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
 
+-- `awcms_mini_worker` least-privilege role (migration 045) — extends its
+-- grant matrix for the 9th unattended cron-style script (`bun run
+-- domain-events:dispatch`, Issue #742). Migration 013's `ALTER DEFAULT
+-- PRIVILEGES` only grants the ordinary runtime `awcms_mini_app` role
+-- automatically (see that migration's own header) — the narrower
+-- `awcms_mini_worker` role always needs an explicit per-table grant here,
+-- exactly the DML `application/dispatch-domain-events.ts`/`consumer-
+-- effect.ts` issue when the dispatcher runs against `WORKER_DATABASE_URL`
+-- (doc 18's hardened deployment path):
+--   - `awcms_mini_domain_events`: SELECT only — the dispatcher JOINs this
+--     table to read event payload/metadata (`processOneDelivery`'s
+--     claim-check query) but never inserts/updates it itself
+--     (`appendDomainEvent` is called from PRODUCER modules' own business
+--     transactions, which run as `awcms_mini_app`, not the worker).
+--   - `awcms_mini_domain_event_deliveries`: SELECT (head-of-line
+--     selection, claim-check) + UPDATE (status transitions to
+--     delivered/dead_letter/skipped, or attempt_count/next_attempt_at on
+--     retry) — never INSERT (new delivery rows are written by
+--     `appendDomainEvent`/`replayDomainEventDelivery`, both `awcms_mini_app`
+--     call sites: the producer's transaction and the replay API route,
+--     respectively).
+--   - `awcms_mini_domain_event_consumer_effects`: SELECT + INSERT —
+--     `applyConsumerEffectOnce`'s `INSERT ... ON CONFLICT DO NOTHING`,
+--     called from consumer handlers running inside the dispatcher's own
+--     transaction. Never UPDATE/DELETE (rows are immutable once written).
+--   - `awcms_mini_domain_event_consumer_state`: SELECT only — the
+--     dispatcher only ever READS the per-(tenant, consumer) pause flag
+--     (`isConsumerPaused`); pause/resume mutations happen exclusively via
+--     the admin API routes, which run as `awcms_mini_app`.
+--   - `awcms_mini_domain_event_activity_daily`: SELECT + INSERT + UPDATE —
+--     the reference activity-rollup consumer's own
+--     `INSERT ... ON CONFLICT (...) DO UPDATE SET event_count = event_count + 1`,
+--     inside the dispatcher's transaction.
+--   - `awcms_mini_domain_event_replays` is deliberately NOT granted here —
+--     the dispatcher never reads or writes it; only the replay API route
+--     (`awcms_mini_app`) touches this table.
+--   - `awcms_mini_audit_events` (INSERT, for the audit-projector reference
+--     consumer's own audit event, and for this dispatcher's dead-letter
+--     audit event) is already granted by migration 045 — not repeated
+--     here. `awcms_mini_tenants` (SELECT, for `fetchActiveTenants`'s
+--     tenant-iteration query) is likewise already granted by migration 045.
+GRANT SELECT ON awcms_mini_domain_events TO awcms_mini_worker;
+GRANT SELECT, UPDATE ON awcms_mini_domain_event_deliveries TO awcms_mini_worker;
+GRANT SELECT, INSERT ON awcms_mini_domain_event_consumer_effects TO awcms_mini_worker;
+GRANT SELECT ON awcms_mini_domain_event_consumer_state TO awcms_mini_worker;
+GRANT SELECT, INSERT, UPDATE ON awcms_mini_domain_event_activity_daily TO awcms_mini_worker;
+
 -- Permission catalog seed.
 INSERT INTO awcms_mini_permissions (module_key, activity_code, action, description)
 VALUES

@@ -28,9 +28,11 @@ import {
   applyMigrations,
   createCookieJar,
   getAdminSql,
+  getWorkerTestSql,
   integrationEnabled,
   invoke,
   provisionAppRole,
+  provisionWorkerRole,
   resetDatabase
 } from "./harness";
 
@@ -286,6 +288,7 @@ suite("domain-event-runtime (Issue #742)", () => {
   beforeAll(async () => {
     await applyMigrations();
     await provisionAppRole();
+    await provisionWorkerRole();
   });
 
   beforeEach(async () => {
@@ -745,6 +748,114 @@ suite("domain-event-runtime (Issue #742)", () => {
 
       await dispatchDomainEventsForTenant(sql, owner.tenantId);
       expect(calls).toBe(1);
+    });
+  });
+
+  describe("least-privilege awcms_mini_worker role (migration 056 grants)", () => {
+    /**
+     * Security-auditor finding (PR #772): every other test in this file
+     * calls `dispatchDomainEventsForTenant` with the ADMIN/superuser
+     * connection (`getAdminSql()`), which bypasses grant enforcement
+     * entirely — a missing GRANT for `awcms_mini_worker` on any of the 6
+     * new tables would have been invisible to the whole suite otherwise.
+     * This test uses the REAL least-privilege worker connection
+     * (`getWorkerTestSql()`, active once `provisionWorkerRole()` has run —
+     * mirrors `tests/integration/db-role-separation.integration.test.ts`'s
+     * own pattern), exactly like `bun run domain-events:dispatch` does in
+     * a hardened deployment with `WORKER_DATABASE_URL` set (doc 18).
+     */
+    test("dispatchDomainEventsForTenant succeeds end-to-end (claim, deliver to both reference consumers, audit) over the real awcms_mini_worker connection, not just the admin connection", async () => {
+      const owner = await bootstrap();
+      const adminSql = getAdminSql();
+      const workerSql = getWorkerTestSql();
+
+      // appendDomainEvent still runs as awcms_mini_app (a producer's own
+      // business transaction) — only the DISPATCH side is under test here.
+      await withTenant(adminSql, owner.tenantId, (tx) =>
+        appendDomainEvent(tx, owner.tenantId, sampleInput())
+      );
+
+      const result = await dispatchDomainEventsForTenant(
+        workerSql,
+        owner.tenantId
+      );
+
+      expect(result.delivered).toBe(2);
+      expect(result.retried).toBe(0);
+      expect(result.deadLettered).toBe(0);
+
+      const rows = await withTenant(
+        adminSql,
+        owner.tenantId,
+        (tx) =>
+          tx`SELECT status FROM awcms_mini_domain_event_deliveries WHERE tenant_id = ${owner.tenantId}`
+      );
+      expect(
+        (rows as { status: string }[]).every(
+          (row) => row.status === "delivered"
+        )
+      ).toBe(true);
+
+      // Both reference consumers' side effects — the audit projector
+      // (INSERT into awcms_mini_audit_events) and the activity rollup
+      // (INSERT/UPDATE into awcms_mini_domain_event_activity_daily) — must
+      // have actually succeeded under the worker role's own grants, not
+      // silently no-opped.
+      const auditRows = await withTenant(
+        adminSql,
+        owner.tenantId,
+        (tx) =>
+          tx`SELECT id FROM awcms_mini_audit_events WHERE tenant_id = ${owner.tenantId} AND action = 'domain_event_runtime.sample.audit_projected'`
+      );
+      expect((auditRows as unknown[]).length).toBe(1);
+
+      const rollupRows = (await withTenant(
+        adminSql,
+        owner.tenantId,
+        (tx) =>
+          tx`SELECT event_count FROM awcms_mini_domain_event_activity_daily WHERE tenant_id = ${owner.tenantId}`
+      )) as { event_count: number }[];
+      expect(rollupRows[0]?.event_count).toBe(1);
+    });
+
+    test("a dead-lettered delivery (worker role) records a redacted-safe error and an audit event, entirely over the worker connection", async () => {
+      const owner = await bootstrap();
+      const adminSql = getAdminSql();
+      const workerSql = getWorkerTestSql();
+
+      const alwaysFails: DomainEventConsumerDefinition = {
+        name: "test.worker_role_dlq_consumer",
+        description:
+          "Always fails, to exercise the worker role's UPDATE grant on deliveries and INSERT grant on audit_events for the dead-letter path.",
+        eventTypes: [SAMPLE_RECORDED_EVENT_TYPE],
+        eventVersions: [SAMPLE_RECORDED_EVENT_VERSION],
+        maxAttempts: 1,
+        handler: async () => {
+          throw new Bun.SQL.PostgresError("check violation", {
+            code: "23514",
+            errno: "23514"
+          });
+        }
+      };
+      registerDomainEventConsumerForTests(alwaysFails);
+
+      await withTenant(adminSql, owner.tenantId, (tx) =>
+        appendDomainEvent(tx, owner.tenantId, sampleInput())
+      );
+
+      const result = await dispatchDomainEventsForTenant(
+        workerSql,
+        owner.tenantId
+      );
+      expect(result.deadLettered).toBe(1);
+
+      const rows = (await withTenant(
+        adminSql,
+        owner.tenantId,
+        (tx) =>
+          tx`SELECT status FROM awcms_mini_domain_event_deliveries WHERE tenant_id = ${owner.tenantId} AND consumer_name = 'test.worker_role_dlq_consumer'`
+      )) as { status: string }[];
+      expect(rows[0]?.status).toBe("dead_letter");
     });
   });
 

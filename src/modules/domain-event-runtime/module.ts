@@ -14,20 +14,13 @@ export const domainEventRuntimeModule = defineModule({
     publishes: ["awcms-mini.domain-event-runtime.sample.recorded"],
     subscribes: ["awcms-mini.domain-event-runtime.sample.recorded"]
   },
-  navigation: [
-    {
-      labelKey: "admin.layout.nav_domain_events_deliveries",
-      path: "/admin/domain-events/deliveries",
-      order: 95,
-      requiredPermission: "domain_event_runtime.deliveries.read"
-    },
-    {
-      labelKey: "admin.layout.nav_domain_events_consumers",
-      path: "/admin/domain-events/consumers",
-      order: 96,
-      requiredPermission: "domain_event_runtime.consumers.read"
-    }
-  ],
+  // No `navigation` entries yet (reviewer finding, PR #772) — an admin UI
+  // for deliveries/consumers (src/pages/admin/domain-events/*.astro) does
+  // not exist in this foundation issue; declaring a nav entry with no
+  // matching page would be a real 404 for any tenant user who clicks it.
+  // Add navigation once that UI ships (follow-up issue), matching the
+  // convention every OTHER module's nav entry already follows (a real
+  // page always exists first).
   permissions: [
     {
       activityCode: "events",

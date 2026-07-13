@@ -53,7 +53,7 @@
       "capabilitiesProvided": [],
       "capabilitiesConsumed": [],
       "permissionCount": 5,
-      "navigationCount": 2,
+      "navigationCount": 0,
       "jobCount": 1,
       "hasHealthCheck": false,
       "hasReadinessCheck": false,
