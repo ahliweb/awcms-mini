@@ -56,5 +56,9 @@ export const CAPABILITY_CONTRACT_VERSIONS: Readonly<Record<string, string>> =
     // social_publishing.
     public_content: "1.0.0",
     // social_publishing provides — consumed by blog_content (optional).
-    social_publishing: "1.0.0"
+    social_publishing: "1.0.0",
+    // profile_identity provides (Issue #748, epic #738 platform-evolution
+    // Wave 2) — no in-repo consumer yet, same "port defined ahead of
+    // consumer wiring" precedent as `legal-hold-guard-port.ts`.
+    party_directory: "1.0.0"
   });

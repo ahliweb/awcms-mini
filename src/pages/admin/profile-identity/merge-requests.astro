@@ -1,0 +1,325 @@
+---
+/**
+ * Profile Identity — merge request review queue (Issue #748). Approve/
+ * reject (self-approval denied server-side) and execute an approved
+ * request. Both mutations require a fresh `Idempotency-Key` per submit.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import { listMergeRequests } from "../../../modules/profile-identity/application/merge-workflow";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/profile-identity/merge-requests.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ = context.permissions.has(
+  permissionKey("profile_identity", "profile_merge", "read")
+);
+const CAN_APPROVE = context.permissions.has(
+  permissionKey("profile_identity", "profile_merge", "approve")
+);
+const CAN_EXECUTE = context.permissions.has(
+  permissionKey("profile_identity", "profile_merge", "merge")
+);
+
+const clientStrings = {
+  decisionSuccess: t("admin.profile_identity.merge_requests.decision_success"),
+  executeSuccess: t("admin.profile_identity.merge_requests.execute_success"),
+  rejectReasonPrompt: t(
+    "admin.profile_identity.merge_requests.reject_reason_prompt"
+  ),
+  executeConfirm: t("admin.profile_identity.merge_requests.execute_confirm"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+let mergeRequests: Awaited<ReturnType<typeof listMergeRequests>> = [];
+let loadError = false;
+
+if (CAN_READ) {
+  try {
+    mergeRequests = await withTenant(
+      getDatabaseClient(),
+      context.tenantId,
+      async (tx) => listMergeRequests(tx, context.tenantId, {})
+    );
+  } catch (error) {
+    logAdminPageError(
+      "admin/profile-identity/merge-requests.astro: failed to load merge requests",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
+    loadError = true;
+  }
+}
+---
+
+<AdminLayout title={t("admin.profile_identity.merge_requests.title")}>
+  {
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.profile_identity.access_denied_title")}
+        body={t("admin.profile_identity.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ && !loadError && (
+      <div class="merge-manager">
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        {mergeRequests.length === 0 ? (
+          <p class="empty-state">
+            {t("admin.profile_identity.merge_requests.no_requests")}
+          </p>
+        ) : (
+          <table class="merge-table">
+            <thead>
+              <tr>
+                <th>
+                  {t("admin.profile_identity.merge_requests.field_source")}
+                </th>
+                <th>
+                  {t("admin.profile_identity.merge_requests.field_target")}
+                </th>
+                <th>
+                  {t("admin.profile_identity.merge_requests.field_status")}
+                </th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {mergeRequests.map((request) => (
+                <tr>
+                  <td>{request.sourceProfileId}</td>
+                  <td>{request.targetProfileId}</td>
+                  <td>{request.status}</td>
+                  <td class="actions-cell">
+                    {CAN_APPROVE && request.status === "pending" && (
+                      <>
+                        <button
+                          type="button"
+                          class="decide-button"
+                          data-id={request.id}
+                          data-decision="approved"
+                        >
+                          {t(
+                            "admin.profile_identity.merge_requests.approve_button"
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          class="decide-button"
+                          data-id={request.id}
+                          data-decision="rejected"
+                        >
+                          {t(
+                            "admin.profile_identity.merge_requests.reject_button"
+                          )}
+                        </button>
+                      </>
+                    )}
+                    {CAN_EXECUTE && request.status === "approved" && (
+                      <button
+                        type="button"
+                        class="execute-button"
+                        data-id={request.id}
+                      >
+                        {t(
+                          "admin.profile_identity.merge_requests.execute_button"
+                        )}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .merge-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+  }
+
+  .action-banner[data-variant="success"] {
+    background: color-mix(
+      in srgb,
+      var(--color-success) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-success);
+  }
+
+  .action-banner[data-variant="error"] {
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-danger);
+  }
+
+  .merge-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .merge-table th,
+  .merge-table td {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .actions-cell {
+    display: flex;
+    gap: var(--sp-2);
+  }
+
+  .empty-state {
+    color: var(--color-text-muted);
+  }
+
+  button {
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-3);
+    min-height: 44px;
+    cursor: pointer;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    newIdempotencyKey,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface MergeRequestStrings {
+    decisionSuccess: string;
+    executeSuccess: string;
+    rejectReasonPrompt: string;
+    executeConfirm: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<MergeRequestStrings>();
+
+  async function runAction(
+    button: HTMLButtonElement,
+    action: () => Promise<{ ok: boolean; message: string }>
+  ) {
+    if (button.disabled) return;
+    const unlock = lockElement(button, strings.pleaseWait);
+    try {
+      const result = await action();
+      showBanner(
+        "action-banner",
+        result.message,
+        result.ok ? "success" : "error"
+      );
+      if (result.ok) reloadAfterDelay();
+    } finally {
+      unlock();
+    }
+  }
+
+  document.querySelectorAll(".decide-button").forEach((el) => {
+    el.addEventListener("click", (event) => {
+      const target = event.currentTarget as HTMLElement;
+      const id = target.dataset.id!;
+      const decision = target.dataset.decision!;
+      let reason: string | null = null;
+
+      if (decision === "rejected") {
+        reason = window.prompt(strings.rejectReasonPrompt);
+        if (!reason) return;
+      }
+
+      runAction(event.currentTarget as HTMLButtonElement, async () => {
+        const result = await submitJson(
+          `/api/v1/profile-merge-requests/${id}/decisions`,
+          "POST",
+          { decision, reason },
+          strings,
+          { "Idempotency-Key": newIdempotencyKey() }
+        );
+        return {
+          ok: result.ok,
+          message: result.ok ? strings.decisionSuccess : result.message
+        };
+      });
+    });
+  });
+
+  document.querySelectorAll(".execute-button").forEach((el) => {
+    el.addEventListener("click", (event) => {
+      if (!window.confirm(strings.executeConfirm)) return;
+      const id = (event.currentTarget as HTMLElement).dataset.id!;
+      runAction(event.currentTarget as HTMLButtonElement, async () => {
+        const result = await submitJson(
+          `/api/v1/profile-merge-requests/${id}/execute`,
+          "POST",
+          {},
+          strings,
+          { "Idempotency-Key": newIdempotencyKey() }
+        );
+        return {
+          ok: result.ok,
+          message: result.ok ? strings.executeSuccess : result.message
+        };
+      });
+    });
+  });
+</script>

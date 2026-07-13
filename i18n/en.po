@@ -2987,3 +2987,226 @@ msgstr "Social Publish Rules"
 msgid "admin.social_publishing.rules.update_success"
 msgstr "Social publish rule updated."
 
+
+#. admin.profile_identity
+msgid "admin.profile_identity.access_denied_body"
+msgstr "You do not have permission to view this page. Contact your administrator if you believe this is an error."
+
+msgid "admin.profile_identity.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.profile_identity.parties.title"
+msgstr "Parties"
+
+msgid "admin.profile_identity.parties.filter_q"
+msgstr "Search name"
+
+msgid "admin.profile_identity.parties.filter_type"
+msgstr "Type"
+
+msgid "admin.profile_identity.parties.filter_all"
+msgstr "All"
+
+msgid "admin.profile_identity.parties.filter_submit"
+msgstr "Filter"
+
+msgid "admin.profile_identity.parties.field_name"
+msgstr "Display name"
+
+msgid "admin.profile_identity.parties.field_type"
+msgstr "Type"
+
+msgid "admin.profile_identity.parties.field_status"
+msgstr "Status"
+
+msgid "admin.profile_identity.parties.field_verification"
+msgstr "Verification"
+
+msgid "admin.profile_identity.parties.field_legal_name"
+msgstr "Legal name"
+
+msgid "admin.profile_identity.parties.field_risk_level"
+msgstr "Risk level"
+
+msgid "admin.profile_identity.parties.manage_link"
+msgstr "Manage"
+
+msgid "admin.profile_identity.parties.no_parties"
+msgstr "No parties found."
+
+msgid "admin.profile_identity.parties.create_summary"
+msgstr "Create a party"
+
+msgid "admin.profile_identity.parties.create_submit"
+msgstr "Create party"
+
+msgid "admin.profile_identity.parties.create_success"
+msgstr "Party created."
+
+msgid "admin.profile_identity.detail.title"
+msgstr "Party detail"
+
+msgid "admin.profile_identity.detail.not_found"
+msgstr "Party not found."
+
+msgid "admin.profile_identity.detail.update_success"
+msgstr "Party updated."
+
+msgid "admin.profile_identity.detail.archive_button"
+msgstr "Archive"
+
+msgid "admin.profile_identity.detail.archive_success"
+msgstr "Party archived."
+
+msgid "admin.profile_identity.detail.archive_reason_prompt"
+msgstr "Reason for archiving this party:"
+
+msgid "admin.profile_identity.detail.restore_button"
+msgstr "Restore"
+
+msgid "admin.profile_identity.detail.restore_success"
+msgstr "Party restored."
+
+msgid "admin.profile_identity.detail.no_records"
+msgstr "No records."
+
+msgid "admin.profile_identity.detail.add_button"
+msgstr "Add"
+
+msgid "admin.profile_identity.detail.delete_button"
+msgstr "Delete"
+
+msgid "admin.profile_identity.detail.delete_reason_prompt"
+msgstr "Reason for deleting this record:"
+
+msgid "admin.profile_identity.detail.identifiers_title"
+msgstr "Identifiers"
+
+msgid "admin.profile_identity.detail.identifier_value_placeholder"
+msgstr "Identifier value"
+
+msgid "admin.profile_identity.detail.identifier_added"
+msgstr "Identifier added."
+
+msgid "admin.profile_identity.detail.identifier_deleted"
+msgstr "Identifier deleted."
+
+msgid "admin.profile_identity.detail.addresses_title"
+msgstr "Addresses"
+
+msgid "admin.profile_identity.detail.address_line_placeholder"
+msgstr "Address line"
+
+msgid "admin.profile_identity.detail.address_added"
+msgstr "Address added."
+
+msgid "admin.profile_identity.detail.address_deleted"
+msgstr "Address deleted."
+
+msgid "admin.profile_identity.detail.channels_title"
+msgstr "Communication channels"
+
+msgid "admin.profile_identity.detail.channel_added"
+msgstr "Channel added."
+
+msgid "admin.profile_identity.detail.channel_deleted"
+msgstr "Channel deleted."
+
+msgid "admin.profile_identity.detail.relationships_title"
+msgstr "Relationships"
+
+msgid "admin.profile_identity.detail.other_profile_id_placeholder"
+msgstr "Other party's profile id"
+
+msgid "admin.profile_identity.detail.field_is_representative"
+msgstr "Authorized representative"
+
+msgid "admin.profile_identity.detail.relationship_added"
+msgstr "Relationship added."
+
+msgid "admin.profile_identity.detail.relationship_ended"
+msgstr "Relationship ended."
+
+msgid "admin.profile_identity.detail.end_relationship_button"
+msgstr "End"
+
+msgid "admin.profile_identity.detail.duplicate_candidates_title"
+msgstr "Duplicate candidates"
+
+msgid "admin.profile_identity.detail.scan_button"
+msgstr "Scan for duplicates"
+
+msgid "admin.profile_identity.detail.scan_success"
+msgstr "Duplicate-candidate scan completed."
+
+msgid "admin.profile_identity.detail.confirm_duplicate_button"
+msgstr "Confirm duplicate"
+
+msgid "admin.profile_identity.detail.not_duplicate_button"
+msgstr "Not a duplicate"
+
+msgid "admin.profile_identity.detail.review_notes_prompt"
+msgstr "Review notes (optional):"
+
+msgid "admin.profile_identity.detail.review_success"
+msgstr "Duplicate candidate reviewed."
+
+msgid "admin.profile_identity.detail.start_merge_title"
+msgstr "Start a merge"
+
+msgid "admin.profile_identity.detail.survivor_profile_id_placeholder"
+msgstr "Survivor profile id"
+
+msgid "admin.profile_identity.detail.merge_reason_placeholder"
+msgstr "Reason for merging"
+
+msgid "admin.profile_identity.detail.start_merge_button"
+msgstr "Create merge request"
+
+msgid "admin.profile_identity.detail.merge_request_created"
+msgstr "Merge request created."
+
+msgid "admin.profile_identity.detail.view_merge_requests_link"
+msgstr "View merge requests"
+
+msgid "admin.profile_identity.merge_requests.title"
+msgstr "Merge Requests"
+
+msgid "admin.profile_identity.merge_requests.no_requests"
+msgstr "No merge requests found."
+
+msgid "admin.profile_identity.merge_requests.field_source"
+msgstr "Source (loser)"
+
+msgid "admin.profile_identity.merge_requests.field_target"
+msgstr "Target (survivor)"
+
+msgid "admin.profile_identity.merge_requests.field_status"
+msgstr "Status"
+
+msgid "admin.profile_identity.merge_requests.approve_button"
+msgstr "Approve"
+
+msgid "admin.profile_identity.merge_requests.reject_button"
+msgstr "Reject"
+
+msgid "admin.profile_identity.merge_requests.reject_reason_prompt"
+msgstr "Reason for rejecting this merge request:"
+
+msgid "admin.profile_identity.merge_requests.execute_button"
+msgstr "Execute merge"
+
+msgid "admin.profile_identity.merge_requests.execute_confirm"
+msgstr "Execute this merge? The source profile will be archived and its references repointed to the target."
+
+msgid "admin.profile_identity.merge_requests.decision_success"
+msgstr "Decision recorded."
+
+msgid "admin.profile_identity.merge_requests.execute_success"
+msgstr "Merge executed."
+
+msgid "admin.layout.nav_profile_identity_parties"
+msgstr "Parties"
+
+msgid "admin.layout.nav_profile_identity_merge_requests"
+msgstr "Merge Requests"

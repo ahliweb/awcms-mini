@@ -10,7 +10,7 @@ import {
   isValidEventType,
   isValidEventVersion
 } from "../../src/modules/domain-event-runtime/domain/envelope";
-import { domainEventRuntimeModule } from "../../src/modules/domain-event-runtime/module";
+import { listModules } from "../../src/modules/index";
 
 /**
  * Bidirectional parity between the runtime's own code-level registries and
@@ -71,11 +71,28 @@ describe("domain-event-runtime registry <-> AsyncAPI parity (Issue #742)", () =>
     }
   });
 
-  test("module.ts's events.publishes includes every DOMAIN_EVENT_TYPE_REGISTRY entry", () => {
-    const publishes = new Set(domainEventRuntimeModule.events?.publishes ?? []);
+  test("every DOMAIN_EVENT_TYPE_REGISTRY entry is published by SOME module's module.ts", () => {
+    // Issue #748 (profile_identity, epic #738 Wave 2) is the first REAL
+    // external producer to add an entry to this shared registry — exactly
+    // what `event-type-registry.ts`'s own doc comment anticipates ("Future
+    // producer modules add their OWN entries here... and their own
+    // module.ts events.publishes entries"). Before that, every entry here
+    // happened to be published by `domain_event_runtime`'s OWN module.ts
+    // (the only producer was its self-contained reference event), so this
+    // test originally only checked that one module — now scoped to ANY
+    // module's `events.publishes`, since the registry is explicitly a
+    // shared, multi-producer catalog, not exclusively this module's own.
+    // The repo-wide `checkModuleEventChannels` (`scripts/api-spec-check.ts`,
+    // part of `bun run check`) already validates each module's own
+    // `events.publishes` against AsyncAPI channels; this test additionally
+    // confirms nothing in THIS registry is orphaned (published by no module
+    // at all).
+    const allPublishedEventTypes = new Set(
+      listModules().flatMap((module) => module.events?.publishes ?? [])
+    );
 
     for (const entry of DOMAIN_EVENT_TYPE_REGISTRY) {
-      expect(publishes.has(entry.eventType)).toBe(true);
+      expect(allPublishedEventTypes.has(entry.eventType)).toBe(true);
     }
   });
 

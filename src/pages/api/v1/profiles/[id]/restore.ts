@@ -11,6 +11,7 @@ import {
 import { recordDecisionLog } from "../../../../../modules/identity-access/application/decision-log";
 import { evaluateAccess } from "../../../../../modules/identity-access/domain/access-control";
 import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
+import { recordCounter } from "../../../../../lib/observability/metrics-port";
 
 const GUARD_REQUEST = {
   moduleKey: "profile_identity",
@@ -109,6 +110,10 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
       severity: "warning",
       message: "Profile restored.",
       correlationId
+    });
+
+    recordCounter("profile_identity_party_lifecycle_total", {
+      action: "restore"
     });
 
     return ok({ id: profileId, status: "restored" });

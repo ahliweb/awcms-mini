@@ -582,6 +582,24 @@ channels:
       `application/append-domain-event.ts`'s `appendDomainEvent` for this
       event type (test fixtures in this issue); consumers:
       `infrastructure/consumer-registry.ts`'s two reference consumers.
+  awcms-mini.profile-identity.profile.merged:
+    address: awcms-mini.profile-identity.profile.merged
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      Published when a profile merge request is executed (Issue #748,
+      epic `platform-evolution` #738 Wave 2): the loser profile is
+      soft-deleted (`merged_into_profile_id` set) and its
+      `awcms_mini_profile_entity_links` rows are repointed to the
+      survivor. Payload: `mergeRequestId`, `survivorProfileId`,
+      `loserProfileId`, `entityLinksRepointedCount`. Lets domain modules
+      react to the merge mapping through the outbox instead of importing
+      `profile_identity` tables directly (see
+      `src/modules/_shared/ports/party-directory-port.ts` for the
+      pull-based equivalent). Producer:
+      `profile-identity/application/merge-workflow.ts`'s
+      `executeMergeRequest`.
 operations:
   publishSyncPushRequested:
     action: send
@@ -907,6 +925,12 @@ operations:
       $ref: "#/channels/awcms-mini.domain-event-runtime.sample.recorded"
     messages:
       - $ref: "#/channels/awcms-mini.domain-event-runtime.sample.recorded/messages/DomainEvent"
+  publishProfileIdentityProfileMerged:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.profile-identity.profile.merged"
+    messages:
+      - $ref: "#/channels/awcms-mini.profile-identity.profile.merged/messages/DomainEvent"
 components:
   securitySchemes:
     syncHmac:

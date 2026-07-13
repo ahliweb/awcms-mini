@@ -541,7 +541,72 @@
       "source": "default"
     },
     {
+      "path": "src/pages/api/v1/profile-duplicate-candidates/[id]/review.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/profile-duplicate-candidates/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/profile-merge-requests/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/profile-merge-requests/[id]/decisions.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/profile-merge-requests/[id]/execute.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/profile-merge-requests/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
       "path": "src/pages/api/v1/profiles/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/profiles/[id]/addresses/[addressId].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/profiles/[id]/addresses/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/profiles/[id]/channels/[channelId].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/profiles/[id]/channels/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/profiles/[id]/duplicate-candidates/scan.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/profiles/[id]/identifiers/[identifierId].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/profiles/[id]/identifiers/index.ts",
       "workClass": "interactive",
       "source": "default"
     },
@@ -551,7 +616,22 @@
       "source": "default"
     },
     {
+      "path": "src/pages/api/v1/profiles/[id]/relationships/[relationshipId].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/profiles/[id]/relationships/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
       "path": "src/pages/api/v1/profiles/[id]/restore.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/profiles/index.ts",
       "workClass": "interactive",
       "source": "default"
     },

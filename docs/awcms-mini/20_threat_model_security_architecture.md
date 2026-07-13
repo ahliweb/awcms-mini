@@ -1004,3 +1004,87 @@ bukan diklaim sudah ditangani. Konsumen/produsen nyata untuk modul lain
 hanya dua reference consumer self-contained yang ada di issue ini; risiko
 keamanan integrasi lintas-modul nyata akan dinilai ulang saat wiring nyata
 itu terjadi di issue lanjutan, bukan diklaim sudah tercakup di sini.
+
+## Standar tambahan dipicu epic platform-evolution (Issue #748, epic #738 Wave 2)
+
+Melengkapi `profile_identity` menjadi siklus hidup party kanonik penuh —
+lihat `src/modules/profile-identity/README.md` untuk detail lengkap.
+
+### Cross-tenant matching/merge (STRIDE — Spoofing/Information Disclosure/Tampering)
+
+Persyaratan eksplisit issue: **cross-tenant matching/merge dilarang
+keras**. Dua lapis pertahanan, bukan satu:
+
+1. `FORCE ROW LEVEL SECURITY` pada seluruh tabel `profile_identity` —
+   koneksi role aplikasi normal tidak pernah melihat baris tenant lain.
+2. `domain/merge.ts`'s `assertSameTenant`/`CrossTenantMergeError` —
+   dipanggil ulang di `application/merge-workflow.ts`'s
+   `createMergeRequest` DAN `executeMergeRequest`, terhadap baris yang
+   di-fetch ulang di DALAM transaksi yang sama, tidak pernah mempercayai
+   `tenant_id` yang dibawa objek/request lama. `fetchPartyForMerge`
+   sengaja tidak memfilter `tenant_id` pada `WHERE`-nya — bukan lubang,
+   melainkan supaya lapis kedua ini genuinely teruji lewat koneksi
+   privileged (bypass RLS) di test, bukan cuma didokumentasikan sebagai
+   defense-in-depth yang tidak pernah benar-benar dieksekusi
+   (`tests/integration/profile-identity.integration.test.ts`'s test
+   "application-layer guard: assertSameTenant/CrossTenantMergeError fires
+   even when RLS is bypassed").
+
+Duplicate-candidate scan (`duplicate-candidate-directory.ts`) juga selalu
+ter-scope `tenant_id` yang sama pada kedua sisi query pencocokan — tidak
+ada jalur yang membandingkan profile lintas tenant.
+
+### Merge sebagai mutasi high-risk (doc 10)
+
+Eksekusi merge mensyaratkan: `Idempotency-Key` (defense terhadap double-
+submit key sama), row lock `SELECT ... FOR UPDATE` pada
+`profile_merge_requests` (defense terhadap eksekusi konkuren dengan key
+BERBEDA — panggilan kedua melihat `status = 'completed'` dan
+mengembalikan hasil yang sudah ada, bukan mengeksekusi ulang), permission
+tersendiri (`profile_merge.merge`, terpisah dari `.approve` — approver
+tidak otomatis bisa eksekusi), approval wajib untuk SETIAP merge (bukan
+hanya yang "high-risk" menurut heuristik — `computeRequiresApproval()`
+selalu `true`, superset ketat yang menghindari heuristik risiko yang bisa
+keliru), guard self-approval generik (requester tidak bisa menyetujui
+request-nya sendiri), audit (`recordAuditEvent` severity `critical` pada
+eksekusi), dan lineage immutable (`awcms_mini_profile_merge_history`,
+append-only, terpisah dari baris status mutable).
+
+### Identifier: masking dan tidak ada endpoint reveal (STRIDE — Information Disclosure)
+
+Setiap identifier yang keluar lewat API/admin UI selalu `masked_value`
+(reuse `domain/identifier.ts`'s `maskIdentifier`, sama dengan foundation
+Issue 2.2) — issue ini TIDAK menambah endpoint "reveal nilai mentah".
+Kapabilitas reveal tetap fitur terpisah untuk masa depan (sama seperti
+`identifier_masked_reveal` audit action yang sudah dideklarasikan sejak
+migration 003 tapi belum pernah diimplementasikan).
+
+### Proyeksi eksplisit allow-list (bukan blocklist)
+
+`domain/projection.ts` mendefinisikan tiga kontrak (`PartyFullDTO`/
+`PartyMaskedAdminDTO`/`PartyPublicSafeDTO`) sebagai ALLOW-LIST eksplisit
+tiap-tiap — field baru yang ditambahkan ke tabel di masa depan TIDAK
+otomatis bocor ke proyeksi yang lebih sempit hanya karena lupa
+di-blocklist. `PartyPublicSafeDTO` (3 field: `id`/`profileType`/
+`displayName`) mengembalikan `null` untuk profile yang soft-deleted/
+merged-away/`inactive` — tidak pernah memproyeksikan profile yang bukan
+`active` secara publik.
+
+### Business role tidak di-hardcode (persyaratan eksplisit issue)
+
+`awcms_mini_profile_relationships.relationship_type` adalah teks bebas
+(bukan `CHECK` enum peran bisnis) — `domain/relationship.ts` bahkan
+menolak secara eksplisit sejumlah kata peran bisnis yang jelas
+(customer/supplier/employee/donor/...) sebagai guard defensif terhadap
+regresi base ini menjadi domain-specific. Perwakilan resmi (authorized
+representative) dimodelkan sebagai relasi biasa dengan
+`is_authorized_representative`, bukan mekanisme/tabel terpisah.
+
+### Batasan yang dicatat, bukan diabaikan (profile-identity party lifecycle)
+
+Un-merge otomatis penuh tidak dibangun (operator menalar/memulihkan
+secara manual lewat `awcms_mini_profile_merge_history` + jejak repoint
+`entity_links` — lihat README modul). Duplicate-candidate scan berjalan
+on-demand per-profile (bukan job terjadwal tenant-wide) — kompleksitas
+scan berskala besar/batch sengaja di luar cakupan issue ini. Endpoint
+reveal identifier mentah belum ada (lihat di atas).
