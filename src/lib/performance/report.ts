@@ -1,0 +1,162 @@
+/**
+ * Performance report builder (Issue #744, epic #738 platform-evolution) —
+ * produces the machine-readable JSON + human-readable Markdown artifacts
+ * the issue's own acceptance criteria require ("Store machine-readable
+ * results and a concise human report as CI/release artifacts", "Results
+ * can be compared between two releases/commits with clear environment
+ * metadata", "Document hardware/container/database configuration so
+ * results are comparable, not presented as universal production
+ * guarantees").
+ *
+ * Every value that reaches the JSON artifact passes through
+ * `redaction.ts` first — DSN credentials are stripped at the source
+ * (`redactDatabaseUrl`), and `redactUuidsDeep` is applied as a defensive
+ * backstop over the whole report tree in case any nested value (e.g. a
+ * future scenario's own metrics) ever embeds a raw tenant/user id.
+ */
+import { cpus, platform, arch, totalmem } from "node:os";
+
+import type { ScenarioResult } from "../resilience/scenario-runner";
+import type { FixtureSeedSummary } from "./fixture-seeder";
+import type { QueryPlanCheckResult } from "./query-plan-runner";
+import type { PerformanceScaleProfile } from "./scale-profiles";
+import { totalRowCount } from "./scale-profiles";
+import {
+  createIdRedactor,
+  redactDatabaseUrl,
+  redactUuidsDeep
+} from "./redaction";
+
+export type PerformanceReportEnvironment = {
+  generatedAt: string;
+  appEnv: string | null;
+  databaseUrlRedacted: string;
+  scaleProfileId: string;
+  scaleProfileLabel: string;
+  tenantCount: number;
+  noisyNeighborMultiplier: number;
+  totalSeededRowsPlanned: number;
+  hardware: {
+    platform: string;
+    arch: string;
+    cpuCount: number;
+    totalMemoryMb: number;
+    bunVersion: string;
+  };
+  disclaimer: string;
+};
+
+export function buildEnvironmentMetadata(options: {
+  appEnv: string | undefined;
+  databaseUrl: string | undefined;
+  scaleProfile: PerformanceScaleProfile;
+}): PerformanceReportEnvironment {
+  return {
+    generatedAt: new Date().toISOString(),
+    appEnv: options.appEnv ?? null,
+    databaseUrlRedacted: redactDatabaseUrl(options.databaseUrl),
+    scaleProfileId: options.scaleProfile.id,
+    scaleProfileLabel: options.scaleProfile.label,
+    tenantCount: options.scaleProfile.tenantCount,
+    noisyNeighborMultiplier: options.scaleProfile.noisyNeighborMultiplier,
+    totalSeededRowsPlanned: totalRowCount(options.scaleProfile),
+    hardware: {
+      platform: platform(),
+      arch: arch(),
+      cpuCount: cpus().length,
+      totalMemoryMb: Math.round(totalmem() / (1024 * 1024)),
+      bunVersion: Bun.version
+    },
+    disclaimer:
+      "Numbers reflect THIS container/hardware/database configuration and " +
+      "the synthetic fixture scale above — comparable release-to-release on " +
+      "the SAME environment, not a universal production capacity guarantee " +
+      "(doc 07 §Performance test awal makes the same disclosure for its own targets)."
+  };
+}
+
+export type PerformanceReport = {
+  environment: PerformanceReportEnvironment;
+  tier: "safe" | "full";
+  overall: "pass" | "incomplete" | "fail";
+  scenarios: ScenarioResult[];
+  queryPlanChecks: QueryPlanCheckResult[];
+  seedSummary: FixtureSeedSummary | null;
+};
+
+/** Redacts any stray high-cardinality UUID that might appear inside scenario/query-plan detail strings or metrics — defensive backstop, see module header. */
+export function redactReport(report: PerformanceReport): PerformanceReport {
+  const redactor = createIdRedactor("id");
+  return redactUuidsDeep(report, redactor) as PerformanceReport;
+}
+
+export function buildHumanReport(report: PerformanceReport): string {
+  const lines: string[] = [];
+
+  lines.push(`# AWCMS-Mini performance suite report`);
+  lines.push("");
+  lines.push(`- Generated: ${report.environment.generatedAt}`);
+  lines.push(`- Tier: ${report.tier}`);
+  lines.push(`- Overall: **${report.overall.toUpperCase()}**`);
+  lines.push(`- APP_ENV: ${report.environment.appEnv ?? "(not set)"}`);
+  lines.push(`- Database: ${report.environment.databaseUrlRedacted}`);
+  lines.push(
+    `- Scale profile: ${report.environment.scaleProfileId} (${report.environment.scaleProfileLabel})`
+  );
+  lines.push(
+    `- Tenants: ${report.environment.tenantCount} (noisy-neighbor multiplier: ${report.environment.noisyNeighborMultiplier}x)`
+  );
+  lines.push(
+    `- Planned total seeded rows: ${report.environment.totalSeededRowsPlanned}`
+  );
+  lines.push(
+    `- Hardware: ${report.environment.hardware.platform}/${report.environment.hardware.arch}, ` +
+      `${report.environment.hardware.cpuCount} CPU(s), ` +
+      `${report.environment.hardware.totalMemoryMb}MB total memory, Bun ${report.environment.hardware.bunVersion}`
+  );
+  lines.push("");
+  lines.push(`> ${report.environment.disclaimer}`);
+  lines.push("");
+
+  if (report.seedSummary) {
+    lines.push(`## Fixture seed summary`);
+    lines.push("");
+    lines.push(`- Tenants seeded: ${report.seedSummary.tenantCount}`);
+    lines.push(
+      `- Seed duration: ${report.seedSummary.durationMs.toFixed(0)}ms`
+    );
+    for (const [table, count] of Object.entries(report.seedSummary.rowCounts)) {
+      lines.push(`- ${table}: ${count} rows`);
+    }
+    lines.push("");
+  }
+
+  lines.push(`## Scenarios`);
+  lines.push("");
+  lines.push(`| Scenario | Tier | Status | Duration (ms) | Detail |`);
+  lines.push(`| --- | --- | --- | ---: | --- |`);
+  for (const scenario of report.scenarios) {
+    lines.push(
+      `| ${scenario.name} | ${scenario.tier} | ${scenario.status.toUpperCase()} | ` +
+        `${scenario.durationMs.toFixed(0)} | ${scenario.detail.replace(/\|/g, "\\|")} |`
+    );
+  }
+  lines.push("");
+
+  if (report.queryPlanChecks.length > 0) {
+    lines.push(`## Query-plan budgets`);
+    lines.push("");
+    lines.push(`| Budget | Status | Root cost | Execution (ms) | Findings |`);
+    lines.push(`| --- | --- | ---: | ---: | --- |`);
+    for (const check of report.queryPlanChecks) {
+      lines.push(
+        `| ${check.budgetId} | ${check.ok ? "PASS" : "FAIL"} | ${check.rootTotalCost.toFixed(1)} | ` +
+          `${check.executionTimeMs === null ? "n/a" : check.executionTimeMs.toFixed(1)} | ` +
+          `${check.findings.join("; ").replace(/\|/g, "\\|") || "(none)"} |`
+      );
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}

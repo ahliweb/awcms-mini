@@ -57,6 +57,7 @@ bun run api:spec:check       # bila mengubah OpenAPI/AsyncAPI
 bun run db:migrate           # bila menambah migration
 bun run build                # Astro foundation build
 bun run production:preflight  # cek gabungan pra-deploy
+bun run performance:query-plan:check  # bila mengubah query kritikal (RLS/pagination/search/outbox-claim/retention-purge/reporting) — lihat docs/awcms-mini/performance-suite.md
 ```
 
 Untuk perubahan docs-only, pastikan minimal format Markdown lolos (`bunx prettier --check`) dan tautan internal tidak rusak.

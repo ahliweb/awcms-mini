@@ -237,6 +237,8 @@ Piramida: banyak unit test di dasar, sedikit end-to-end di puncak; security & pe
 | Pool acquire critical   |           < 500 ms normal |
 | Sync push small batch   |                     < 2 s |
 
+> **Suite performa representatif berbasis base generik (Issue #744, epic #738 `platform-evolution`).** Tabel di atas adalah target ilustratif domain POS/aplikasi turunan — repo base ini sendiri sekarang punya suite performa nyata dan berjalan: `bun run performance:suite`/`bun run performance:query-plan:check` (`src/lib/performance/`, lihat [`performance-suite.md`](performance-suite.md)) — fixture multi-tenant sintetik deterministik (skala `safe`/`standard`/`large`, satu tenant noisy-neighbor), skenario load/soak/mixed-workload/saturasi-dan-recovery per kelas kerja (`interactive`/`critical_transaction`/`reporting`/`background_sync`/`maintenance`, doc 16), dan budget regresi query-plan versioned (RLS/pagination, search, outbox-claim, retention-purge, reporting) yang gagal pada fixture regresi yang sengaja dibuat rusak. Subset aman (`safe`) berjalan di setiap PR (`.github/workflows/ci.yml`); lane penuh (`--full`, skala `large` + skenario soak) berjalan terjadwal/manual — lihat dokumen tersebut §Safe subset vs. full lane.
+
 ## Migration checklist
 
 ### Sebelum migration

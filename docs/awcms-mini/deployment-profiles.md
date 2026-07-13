@@ -984,6 +984,12 @@ health endpoint.
 - [`resilience-dr-verification.md`](resilience-dr-verification.md) —
   failure-injection dan disaster-recovery verification (Issue #699),
   `bun run resilience:dr-drill`, safety interlock, dan RTO/RPO evidence.
+- [`performance-suite.md`](performance-suite.md) — performance suite
+  representatif (Issue #744, epic #738 platform-evolution): fixture
+  sintetik deterministik, skenario load/soak/saturasi-dan-recovery, budget
+  regresi query-plan versioned, `bun run performance:suite`/
+  `performance:query-plan:check`, safe subset (CI) vs full lane
+  (terjadwal/manual).
 - [`visitor-analytics.md`](visitor-analytics.md) — panduan lengkap mode
   offline/LAN vs online, privacy-first default, retensi, dan pemetaan
   kepatuhan modul visitor analytics.

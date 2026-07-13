@@ -147,6 +147,61 @@ jobs:
           APP_ENV: test
         run: bun run resilience:dr-drill -- --confirm-non-production=test
 
+      # Issue #744 (epic #738): the performance suite's scenarios run real
+      # RLS-enforced queries through `withTenant` (never a privileged/
+      # superuser bypass — see src/lib/performance/fixture-seeder.ts's own
+      # header comment on why), so — like the e2e-smoke job further below —
+      # they must run as the least-privilege `awcms_mini_app` role, never
+      # the migration-owner/superuser role this job's `DATABASE_URL`
+      # otherwise points at. Mirrors e2e-smoke's own "Activate the
+      # least-privilege app role's login" step exactly, with its own
+      # dedicated non-secret CI-only password literal rather than depending
+      # on `bun test`'s own `provisionAppRole()` (tests/integration/
+      # harness.ts) having already run first in this same job — that would
+      # make this step's correctness depend on step ORDER.
+      - name: Activate the least-privilege app role's login (performance suite)
+        run: |
+          bun -e '
+            const sql = new Bun.SQL(process.env.DATABASE_URL);
+            await sql.unsafe(
+              `ALTER ROLE awcms_mini_app WITH LOGIN PASSWORD ${"\x27"}${process.env.APP_ROLE_PASSWORD}${"\x27"}`
+            );
+            await sql.end();
+          '
+        env:
+          APP_ROLE_PASSWORD: ci-performance-app-role-password
+
+      # Issue #744: the "safe" tier only — small deterministic synthetic
+      # fixtures (5 tenants, ~1.5k-9k rows/table, one noisy-neighbor
+      # tenant), five fast scenarios covering every work class (interactive/
+      # critical-transaction/reporting/background-sync/saturation-and-
+      # recovery). The heavier `--full` lane (large fixture scale + the
+      # soak-stability scenario) is intentionally NOT run here — see
+      # docs/awcms-mini/performance-suite.md §Safe subset vs. full lane for
+      # the scheduled/on-demand full run. Reuses the SAME non-overridable
+      # target guard as the DR drill above (src/lib/resilience/
+      # target-guard.ts) — this step can never touch anything that looks
+      # like production, by construction.
+      - name: Performance suite (safe tier)
+        env:
+          APP_ENV: test
+          DATABASE_URL: "postgres://awcms_mini_app:ci-performance-app-role-password@localhost:5432/awcms-mini"
+        run: bun run performance:suite -- --confirm-non-production=test
+
+      # Issue #744: query-plan regression budgets (RLS-scoped pagination,
+      # full-text search, outbox claim, retention-purge batch, and a
+      # reporting aggregate) — fails the build if any registered query's
+      # plan shape or cost/time regresses at the `safe` fixture scale. The
+      # adversarial proof that this gate genuinely fires on a deliberately
+      # bad plan lives in a dedicated integration test (never run as part
+      # of this CI step, which only ever evaluates the real, currently-
+      # registered budgets).
+      - name: Performance query-plan budget check
+        env:
+          APP_ENV: test
+          DATABASE_URL: "postgres://awcms_mini_app:ci-performance-app-role-password@localhost:5432/awcms-mini"
+        run: bun run performance:query-plan:check -- --confirm-non-production=test
+
       - name: Build Astro foundation
         run: bun run build
 
