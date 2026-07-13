@@ -184,6 +184,88 @@ async function seedRestrictedSecondTenant(
   return { tenantId, tenantCode, token: login.body.data.token, tenantUserId };
 }
 
+/**
+ * A second, fully-independent tenant that DOES have full
+ * domain_event_runtime access (own role/permissions) — for RLS-invisibility
+ * tests where a bare ABAC-deny (403) would be a false positive. `/setup/
+ * initialize` is a one-time-only singleton wizard (confirmed empirically:
+ * calling it a second time in the same test run returns 403, not a second
+ * tenant), so a second tenant is always seeded via raw SQL + a real login,
+ * same pattern `social-publishing.integration.test.ts`'s own
+ * `seedSecondTenantWithSocialPublishingAccess` uses — never a second
+ * `bootstrap()` call.
+ */
+async function seedSecondTenantWithDomainEventRuntimeAccess(
+  tenantCode: string
+): Promise<Bootstrap> {
+  const tenantId = crypto.randomUUID();
+  const loginIdentifier = `${tenantCode}-${OWNER_LOGIN}`;
+  const password = "integration-test-tenant-b-password";
+  const admin = getAdminSql();
+
+  await admin`
+    INSERT INTO awcms_mini_tenants
+      (id, tenant_code, tenant_name, legal_name, status, default_locale, default_theme)
+    VALUES (${tenantId}, ${tenantCode}, ${tenantCode}, ${tenantCode}, 'active', 'en', 'light')
+  `;
+
+  const passwordHash = await Bun.password.hash(password);
+  let tenantUserId = "";
+
+  await admin.begin(async (tx) => {
+    await tx.unsafe(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
+
+    const profile = (await tx`
+      INSERT INTO awcms_mini_profiles (tenant_id, profile_type, display_name)
+      VALUES (${tenantId}, 'person', 'Tenant B User') RETURNING id
+    `) as { id: string }[];
+    const identity = (await tx`
+      INSERT INTO awcms_mini_identities (tenant_id, profile_id, login_identifier, password_hash)
+      VALUES (${tenantId}, ${profile[0]!.id}, ${loginIdentifier}, ${passwordHash})
+      RETURNING id
+    `) as { id: string }[];
+    const tenantUser = (await tx`
+      INSERT INTO awcms_mini_tenant_users (tenant_id, identity_id)
+      VALUES (${tenantId}, ${identity[0]!.id}) RETURNING id
+    `) as { id: string }[];
+    const role = (await tx`
+      INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name)
+      VALUES (${tenantId}, 'full_access', 'Full Access') RETURNING id
+    `) as { id: string }[];
+    const permissions = (await tx`
+      SELECT id FROM awcms_mini_permissions WHERE module_key = 'domain_event_runtime'
+    `) as { id: string }[];
+
+    for (const permission of permissions) {
+      await tx`
+        INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
+        VALUES (${tenantId}, ${role[0]!.id}, ${permission.id})
+      `;
+    }
+
+    await tx`
+      INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id)
+      VALUES (${tenantId}, ${tenantUser[0]!.id}, ${role[0]!.id})
+    `;
+
+    tenantUserId = tenantUser[0]!.id;
+  });
+
+  const login = await invoke<{ data: { token: string } }>(authLogin, {
+    method: "POST",
+    path: "/api/v1/auth/login",
+    headers: {
+      "content-type": "application/json",
+      "x-awcms-mini-tenant-id": tenantId
+    },
+    body: { loginIdentifier, password },
+    cookies: createCookieJar()
+  });
+  expect(login.status).toBe(200);
+
+  return { tenantId, tenantCode, token: login.body.data.token, tenantUserId };
+}
+
 function sampleInput(
   overrides: Partial<Parameters<typeof appendDomainEvent>[2]> = {}
 ) {
@@ -561,8 +643,18 @@ suite("domain-event-runtime (Issue #742)", () => {
         )
       );
 
+      // Head-of-line selection (`selectHeadOfLineDeliveries`) deliberately
+      // returns only the SINGLE oldest pending delivery per order_key per
+      // pass — that is the whole point of per-key ordering (never let a
+      // later event for the same key jump ahead of an earlier one still
+      // in flight). So "first" and "second" require two separate dispatch
+      // passes, exactly like two separate scheduled `bun run domain-
+      // events:dispatch` ticks would naturally provide — a single pass
+      // only ever advances one order_key by one step.
       await dispatchDomainEventsForTenant(sql, owner.tenantId);
+      expect(processedOrder).toEqual(["first"]);
 
+      await dispatchDomainEventsForTenant(sql, owner.tenantId);
       expect(processedOrder).toEqual(["first", "second"]);
     });
 
@@ -922,7 +1014,8 @@ suite("domain-event-runtime (Issue #742)", () => {
 
     test("tenant B cannot see tenant A's domain events, even with its own domain_event_runtime access", async () => {
       const ownerA = await bootstrap("tenant-a", "Tenant A");
-      const ownerB = await bootstrap("tenant-b", "Tenant B");
+      const ownerB =
+        await seedSecondTenantWithDomainEventRuntimeAccess("tenant-b");
       const sql = getAdminSql();
 
       const appended = await withTenant(sql, ownerA.tenantId, (tx) =>
@@ -951,7 +1044,8 @@ suite("domain-event-runtime (Issue #742)", () => {
 
     test("tenant B cannot replay tenant A's dead-lettered delivery", async () => {
       const ownerA = await bootstrap("tenant-a", "Tenant A");
-      const ownerB = await bootstrap("tenant-b", "Tenant B");
+      const ownerB =
+        await seedSecondTenantWithDomainEventRuntimeAccess("tenant-b");
       const sql = getAdminSql();
 
       const alwaysFails: DomainEventConsumerDefinition = {
