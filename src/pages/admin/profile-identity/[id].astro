@@ -1,0 +1,925 @@
+---
+/**
+ * Profile Identity — party detail (Issue #748): identifiers, addresses,
+ * channels, relationships, duplicate candidates scoped to this party, and
+ * starting a merge request. Same SSR-load + client `submitJson` mutation
+ * convention as `index.astro`/`admin/social-publishing/accounts.astro`.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import { fetchPartyById } from "../../../modules/profile-identity/application/party-directory";
+import { toPartyMaskedAdminDTO } from "../../../modules/profile-identity/domain/projection";
+import { listIdentifiers } from "../../../modules/profile-identity/application/identifier-directory";
+import { listAddresses } from "../../../modules/profile-identity/application/address-directory";
+import { listChannels } from "../../../modules/profile-identity/application/channel-directory";
+import { listRelationshipsForProfile } from "../../../modules/profile-identity/application/relationship-directory";
+import { listDuplicateCandidates } from "../../../modules/profile-identity/application/duplicate-candidate-directory";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/profile-identity/[id].astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+const profileId = Astro.params.id!;
+
+const CAN_READ = context.permissions.has(
+  permissionKey("profile_identity", "profile_management", "read")
+);
+const CAN_UPDATE = context.permissions.has(
+  permissionKey("profile_identity", "profile_management", "update")
+);
+const CAN_DELETE = context.permissions.has(
+  permissionKey("profile_identity", "profile_management", "delete")
+);
+const CAN_RESTORE = context.permissions.has(
+  permissionKey("profile_identity", "profile_management", "restore")
+);
+const CAN_ADD_IDENTIFIER = context.permissions.has(
+  permissionKey("profile_identity", "identifiers", "create")
+);
+const CAN_DELETE_IDENTIFIER = context.permissions.has(
+  permissionKey("profile_identity", "identifiers", "delete")
+);
+const CAN_ADD_ADDRESS = context.permissions.has(
+  permissionKey("profile_identity", "addresses", "create")
+);
+const CAN_ADD_CHANNEL = context.permissions.has(
+  permissionKey("profile_identity", "channels", "create")
+);
+const CAN_ADD_RELATIONSHIP = context.permissions.has(
+  permissionKey("profile_identity", "relationships", "create")
+);
+const CAN_SCAN_DUPLICATES = context.permissions.has(
+  permissionKey("profile_identity", "duplicate_candidates", "analyze")
+);
+const CAN_REVIEW_DUPLICATES = context.permissions.has(
+  permissionKey("profile_identity", "duplicate_candidates", "update")
+);
+const CAN_CREATE_MERGE = context.permissions.has(
+  permissionKey("profile_identity", "profile_merge", "create")
+);
+
+const clientStrings = {
+  updateSuccess: t("admin.profile_identity.detail.update_success"),
+  archiveSuccess: t("admin.profile_identity.detail.archive_success"),
+  restoreSuccess: t("admin.profile_identity.detail.restore_success"),
+  archiveReasonPrompt: t("admin.profile_identity.detail.archive_reason_prompt"),
+  addIdentifierSuccess: t("admin.profile_identity.detail.identifier_added"),
+  deleteIdentifierSuccess: t(
+    "admin.profile_identity.detail.identifier_deleted"
+  ),
+  addAddressSuccess: t("admin.profile_identity.detail.address_added"),
+  deleteAddressSuccess: t("admin.profile_identity.detail.address_deleted"),
+  addChannelSuccess: t("admin.profile_identity.detail.channel_added"),
+  deleteChannelSuccess: t("admin.profile_identity.detail.channel_deleted"),
+  addRelationshipSuccess: t("admin.profile_identity.detail.relationship_added"),
+  endRelationshipSuccess: t("admin.profile_identity.detail.relationship_ended"),
+  scanSuccess: t("admin.profile_identity.detail.scan_success"),
+  reviewSuccess: t("admin.profile_identity.detail.review_success"),
+  mergeRequestSuccess: t("admin.profile_identity.detail.merge_request_created"),
+  deleteReasonPrompt: t("admin.profile_identity.detail.delete_reason_prompt"),
+  reviewNotesPrompt: t("admin.profile_identity.detail.review_notes_prompt"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+let loadError = false;
+let party: ReturnType<typeof toPartyMaskedAdminDTO> | null = null;
+let identifiers: Awaited<ReturnType<typeof listIdentifiers>> = [];
+let addresses: Awaited<ReturnType<typeof listAddresses>> = [];
+let channels: Awaited<ReturnType<typeof listChannels>> = [];
+let relationships: Awaited<ReturnType<typeof listRelationshipsForProfile>> = [];
+let duplicateCandidates: Awaited<ReturnType<typeof listDuplicateCandidates>> =
+  [];
+
+if (CAN_READ) {
+  try {
+    await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
+      const record = await fetchPartyById(tx, context.tenantId, profileId, {
+        includeDeleted: true
+      });
+      party = record ? toPartyMaskedAdminDTO(record) : null;
+
+      if (party) {
+        identifiers = await listIdentifiers(tx, context.tenantId, profileId);
+        addresses = await listAddresses(tx, context.tenantId, profileId);
+        channels = await listChannels(tx, context.tenantId, profileId);
+        relationships = await listRelationshipsForProfile(
+          tx,
+          context.tenantId,
+          profileId
+        );
+        duplicateCandidates = await listDuplicateCandidates(
+          tx,
+          context.tenantId,
+          {
+            profileId
+          }
+        );
+      }
+    });
+  } catch (error) {
+    logAdminPageError(
+      "admin/profile-identity/[id].astro: failed to load party detail",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
+    loadError = true;
+  }
+}
+---
+
+<AdminLayout
+  title={party ? party.displayName : t("admin.profile_identity.detail.title")}
+>
+  {
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.profile_identity.access_denied_title")}
+        body={t("admin.profile_identity.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ && !loadError && !party && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("admin.profile_identity.detail.not_found")}
+      />
+    )
+  }
+  {
+    CAN_READ && !loadError && party && (
+      <div class="party-detail" data-profile-id={profileId}>
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        <section class="section-card">
+          <h2>{party.displayName}</h2>
+          <p>
+            {party.profileType} · {party.status} · {party.verificationStatus}
+          </p>
+          <div class="button-row">
+            {CAN_DELETE && party.deletedAt === null && (
+              <button type="button" id="archive-button">
+                {t("admin.profile_identity.detail.archive_button")}
+              </button>
+            )}
+            {CAN_RESTORE && party.deletedAt !== null && (
+              <button type="button" id="restore-button">
+                {t("admin.profile_identity.detail.restore_button")}
+              </button>
+            )}
+          </div>
+        </section>
+
+        <section class="section-card">
+          <h3>{t("admin.profile_identity.detail.identifiers_title")}</h3>
+          {identifiers.length === 0 ? (
+            <p class="empty-state">
+              {t("admin.profile_identity.detail.no_records")}
+            </p>
+          ) : (
+            <ul class="record-list">
+              {identifiers.map((identifier) => (
+                <li>
+                  {identifier.identifierType}: {identifier.maskedValue} (
+                  {identifier.verificationStatus})
+                  {CAN_DELETE_IDENTIFIER && (
+                    <button
+                      type="button"
+                      class="delete-identifier-button"
+                      data-id={identifier.id}
+                    >
+                      {t("admin.profile_identity.detail.delete_button")}
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {CAN_ADD_IDENTIFIER && (
+            <form id="add-identifier-form" class="inline-form">
+              <select name="identifierType" required>
+                <option value="email">email</option>
+                <option value="phone">phone</option>
+                <option value="whatsapp">whatsapp</option>
+                <option value="national_id">national_id</option>
+                <option value="tax_id">tax_id</option>
+                <option value="external_code">external_code</option>
+                <option value="other">other</option>
+              </select>
+              <input
+                type="text"
+                name="value"
+                required
+                placeholder={t(
+                  "admin.profile_identity.detail.identifier_value_placeholder"
+                )}
+              />
+              <button type="submit">
+                {t("admin.profile_identity.detail.add_button")}
+              </button>
+            </form>
+          )}
+        </section>
+
+        <section class="section-card">
+          <h3>{t("admin.profile_identity.detail.addresses_title")}</h3>
+          {addresses.length === 0 ? (
+            <p class="empty-state">
+              {t("admin.profile_identity.detail.no_records")}
+            </p>
+          ) : (
+            <ul class="record-list">
+              {addresses.map((address) => (
+                <li>
+                  {address.addressType}: {address.addressLine ?? "—"},{" "}
+                  {address.city ?? "—"} ({address.countryCode})
+                  <button
+                    type="button"
+                    class="delete-address-button"
+                    data-id={address.id}
+                  >
+                    {t("admin.profile_identity.detail.delete_button")}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {CAN_ADD_ADDRESS && (
+            <form id="add-address-form" class="inline-form">
+              <input
+                type="text"
+                name="addressLine"
+                placeholder={t(
+                  "admin.profile_identity.detail.address_line_placeholder"
+                )}
+              />
+              <input type="text" name="city" placeholder="City" />
+              <input
+                type="text"
+                name="countryCode"
+                placeholder="ID"
+                maxlength="2"
+              />
+              <button type="submit">
+                {t("admin.profile_identity.detail.add_button")}
+              </button>
+            </form>
+          )}
+        </section>
+
+        <section class="section-card">
+          <h3>{t("admin.profile_identity.detail.channels_title")}</h3>
+          {channels.length === 0 ? (
+            <p class="empty-state">
+              {t("admin.profile_identity.detail.no_records")}
+            </p>
+          ) : (
+            <ul class="record-list">
+              {channels.map((channel) => (
+                <li>
+                  {channel.channelType} (
+                  {channel.isDefault ? "default" : "secondary"})
+                  <button
+                    type="button"
+                    class="delete-channel-button"
+                    data-id={channel.id}
+                  >
+                    {t("admin.profile_identity.detail.delete_button")}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {CAN_ADD_CHANNEL && identifiers.length > 0 && (
+            <form id="add-channel-form" class="inline-form">
+              <select name="profileIdentifierId" required>
+                {identifiers.map((identifier) => (
+                  <option value={identifier.id}>
+                    {identifier.identifierType}: {identifier.maskedValue}
+                  </option>
+                ))}
+              </select>
+              <select name="channelType" required>
+                <option value="email">email</option>
+                <option value="phone">phone</option>
+                <option value="whatsapp">whatsapp</option>
+                <option value="other">other</option>
+              </select>
+              <button type="submit">
+                {t("admin.profile_identity.detail.add_button")}
+              </button>
+            </form>
+          )}
+        </section>
+
+        <section class="section-card">
+          <h3>{t("admin.profile_identity.detail.relationships_title")}</h3>
+          {relationships.length === 0 ? (
+            <p class="empty-state">
+              {t("admin.profile_identity.detail.no_records")}
+            </p>
+          ) : (
+            <ul class="record-list">
+              {relationships.map((relationship) => (
+                <li>
+                  {relationship.fromProfileId === profileId ? "→" : "←"}{" "}
+                  {relationship.relationshipType} (
+                  {relationship.fromProfileId === profileId
+                    ? relationship.toProfileId
+                    : relationship.fromProfileId}
+                  ) — {relationship.status}
+                  {relationship.status === "active" && (
+                    <button
+                      type="button"
+                      class="end-relationship-button"
+                      data-id={relationship.id}
+                    >
+                      {t(
+                        "admin.profile_identity.detail.end_relationship_button"
+                      )}
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {CAN_ADD_RELATIONSHIP && (
+            <form id="add-relationship-form" class="inline-form">
+              <input
+                type="text"
+                name="toProfileId"
+                required
+                placeholder={t(
+                  "admin.profile_identity.detail.other_profile_id_placeholder"
+                )}
+              />
+              <input
+                type="text"
+                name="relationshipType"
+                required
+                placeholder="related_party"
+                pattern="^[a-z][a-z0-9_]{1,63}$"
+              />
+              <label class="checkbox-label">
+                <input type="checkbox" name="isAuthorizedRepresentative" />
+                {t("admin.profile_identity.detail.field_is_representative")}
+              </label>
+              <button type="submit">
+                {t("admin.profile_identity.detail.add_button")}
+              </button>
+            </form>
+          )}
+        </section>
+
+        <section class="section-card">
+          <h3>
+            {t("admin.profile_identity.detail.duplicate_candidates_title")}
+          </h3>
+          {CAN_SCAN_DUPLICATES && (
+            <button type="button" id="scan-duplicates-button">
+              {t("admin.profile_identity.detail.scan_button")}
+            </button>
+          )}
+          {duplicateCandidates.length === 0 ? (
+            <p class="empty-state">
+              {t("admin.profile_identity.detail.no_records")}
+            </p>
+          ) : (
+            <ul class="record-list">
+              {duplicateCandidates.map((candidate) => (
+                <li>
+                  {candidate.profileIdA === profileId
+                    ? candidate.profileIdB
+                    : candidate.profileIdA}{" "}
+                  — {candidate.matchBasis} ({candidate.status})
+                  {CAN_REVIEW_DUPLICATES && candidate.status === "pending" && (
+                    <>
+                      <button
+                        type="button"
+                        class="review-duplicate-button"
+                        data-id={candidate.id}
+                        data-decision="confirmed_duplicate"
+                      >
+                        {t(
+                          "admin.profile_identity.detail.confirm_duplicate_button"
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        class="review-duplicate-button"
+                        data-id={candidate.id}
+                        data-decision="not_duplicate"
+                      >
+                        {t(
+                          "admin.profile_identity.detail.not_duplicate_button"
+                        )}
+                      </button>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {CAN_CREATE_MERGE && (
+          <section class="section-card">
+            <h3>{t("admin.profile_identity.detail.start_merge_title")}</h3>
+            <form id="create-merge-form" class="inline-form">
+              <input
+                type="text"
+                name="targetProfileId"
+                required
+                placeholder={t(
+                  "admin.profile_identity.detail.survivor_profile_id_placeholder"
+                )}
+              />
+              <input
+                type="text"
+                name="reason"
+                required
+                placeholder={t(
+                  "admin.profile_identity.detail.merge_reason_placeholder"
+                )}
+              />
+              <button type="submit">
+                {t("admin.profile_identity.detail.start_merge_button")}
+              </button>
+            </form>
+            <p class="field-hint">
+              <a href="/admin/profile-identity/merge-requests">
+                {t("admin.profile_identity.detail.view_merge_requests_link")}
+              </a>
+            </p>
+          </section>
+        )}
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .party-detail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+  }
+
+  .action-banner[data-variant="success"] {
+    background: color-mix(
+      in srgb,
+      var(--color-success) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-success);
+  }
+
+  .action-banner[data-variant="error"] {
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-danger);
+  }
+
+  .section-card {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+  }
+
+  .record-list {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+  }
+
+  .empty-state {
+    color: var(--color-text-muted);
+  }
+
+  .inline-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    margin-top: var(--sp-2);
+  }
+
+  .inline-form input,
+  .inline-form select {
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+
+  .button-row {
+    display: flex;
+    gap: var(--sp-2);
+  }
+
+  button {
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-3);
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  .field-hint {
+    color: var(--color-text-muted);
+    font-size: var(--fs-xs);
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    newIdempotencyKey,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface DetailStrings {
+    archiveReasonPrompt: string;
+    deleteReasonPrompt: string;
+    reviewNotesPrompt: string;
+    archiveSuccess: string;
+    restoreSuccess: string;
+    addIdentifierSuccess: string;
+    deleteIdentifierSuccess: string;
+    addAddressSuccess: string;
+    deleteAddressSuccess: string;
+    addChannelSuccess: string;
+    deleteChannelSuccess: string;
+    addRelationshipSuccess: string;
+    endRelationshipSuccess: string;
+    scanSuccess: string;
+    reviewSuccess: string;
+    mergeRequestSuccess: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<DetailStrings>();
+  const container = document.querySelector<HTMLElement>(".party-detail");
+  const profileId = container?.dataset.profileId ?? "";
+
+  function submitButtonOf(form: HTMLFormElement): HTMLButtonElement | null {
+    return form.querySelector('button[type="submit"]');
+  }
+
+  async function runAction(
+    button: HTMLButtonElement,
+    action: () => Promise<{ ok: boolean; message: string }>
+  ) {
+    if (button.disabled) return;
+    const unlock = lockElement(button, strings.pleaseWait);
+    try {
+      const result = await action();
+      showBanner(
+        "action-banner",
+        result.message,
+        result.ok ? "success" : "error"
+      );
+      if (result.ok) reloadAfterDelay();
+    } finally {
+      unlock();
+    }
+  }
+
+  document
+    .getElementById("archive-button")
+    ?.addEventListener("click", (event) => {
+      const reason = window.prompt(strings.archiveReasonPrompt);
+      if (!reason) return;
+      runAction(event.currentTarget as HTMLButtonElement, async () => {
+        const result = await submitJson(
+          `/api/v1/profiles/${profileId}`,
+          "DELETE",
+          { reason },
+          strings
+        );
+        return {
+          ok: result.ok,
+          message: result.ok ? strings.archiveSuccess : result.message
+        };
+      });
+    });
+
+  document
+    .getElementById("restore-button")
+    ?.addEventListener("click", (event) => {
+      runAction(event.currentTarget as HTMLButtonElement, async () => {
+        const result = await submitJson(
+          `/api/v1/profiles/${profileId}/restore`,
+          "POST",
+          {},
+          strings
+        );
+        return {
+          ok: result.ok,
+          message: result.ok ? strings.restoreSuccess : result.message
+        };
+      });
+    });
+
+  document
+    .getElementById("add-identifier-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = submitButtonOf(form);
+      if (!button) return;
+      const formData = new FormData(form);
+      await runAction(button, async () => {
+        const result = await submitJson(
+          `/api/v1/profiles/${profileId}/identifiers`,
+          "POST",
+          {
+            identifierType: formData.get("identifierType"),
+            value: formData.get("value")
+          },
+          strings
+        );
+        return {
+          ok: result.ok,
+          message: result.ok ? strings.addIdentifierSuccess : result.message
+        };
+      });
+    });
+
+  document.querySelectorAll(".delete-identifier-button").forEach((el) => {
+    el.addEventListener("click", (event) => {
+      const reason = window.prompt(strings.deleteReasonPrompt);
+      if (!reason) return;
+      const id = (event.currentTarget as HTMLElement).dataset.id!;
+      runAction(event.currentTarget as HTMLButtonElement, async () => {
+        const result = await submitJson(
+          `/api/v1/profiles/${profileId}/identifiers/${id}`,
+          "DELETE",
+          { reason },
+          strings
+        );
+        return {
+          ok: result.ok,
+          message: result.ok ? strings.deleteIdentifierSuccess : result.message
+        };
+      });
+    });
+  });
+
+  document
+    .getElementById("add-address-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = submitButtonOf(form);
+      if (!button) return;
+      const formData = new FormData(form);
+      await runAction(button, async () => {
+        const result = await submitJson(
+          `/api/v1/profiles/${profileId}/addresses`,
+          "POST",
+          {
+            addressLine: formData.get("addressLine") || null,
+            city: formData.get("city") || null,
+            countryCode: formData.get("countryCode") || "ID"
+          },
+          strings
+        );
+        return {
+          ok: result.ok,
+          message: result.ok ? strings.addAddressSuccess : result.message
+        };
+      });
+    });
+
+  document.querySelectorAll(".delete-address-button").forEach((el) => {
+    el.addEventListener("click", (event) => {
+      const reason = window.prompt(strings.deleteReasonPrompt);
+      if (!reason) return;
+      const id = (event.currentTarget as HTMLElement).dataset.id!;
+      runAction(event.currentTarget as HTMLButtonElement, async () => {
+        const result = await submitJson(
+          `/api/v1/profiles/${profileId}/addresses/${id}`,
+          "DELETE",
+          { reason },
+          strings
+        );
+        return {
+          ok: result.ok,
+          message: result.ok ? strings.deleteAddressSuccess : result.message
+        };
+      });
+    });
+  });
+
+  document
+    .getElementById("add-channel-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = submitButtonOf(form);
+      if (!button) return;
+      const formData = new FormData(form);
+      await runAction(button, async () => {
+        const result = await submitJson(
+          `/api/v1/profiles/${profileId}/channels`,
+          "POST",
+          {
+            profileIdentifierId: formData.get("profileIdentifierId"),
+            channelType: formData.get("channelType")
+          },
+          strings
+        );
+        return {
+          ok: result.ok,
+          message: result.ok ? strings.addChannelSuccess : result.message
+        };
+      });
+    });
+
+  document.querySelectorAll(".delete-channel-button").forEach((el) => {
+    el.addEventListener("click", (event) => {
+      const reason = window.prompt(strings.deleteReasonPrompt);
+      if (!reason) return;
+      const id = (event.currentTarget as HTMLElement).dataset.id!;
+      runAction(event.currentTarget as HTMLButtonElement, async () => {
+        const result = await submitJson(
+          `/api/v1/profiles/${profileId}/channels/${id}`,
+          "DELETE",
+          { reason },
+          strings
+        );
+        return {
+          ok: result.ok,
+          message: result.ok ? strings.deleteChannelSuccess : result.message
+        };
+      });
+    });
+  });
+
+  document
+    .getElementById("add-relationship-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = submitButtonOf(form);
+      if (!button) return;
+      const formData = new FormData(form);
+      await runAction(button, async () => {
+        const result = await submitJson(
+          `/api/v1/profiles/${profileId}/relationships`,
+          "POST",
+          {
+            toProfileId: formData.get("toProfileId"),
+            relationshipType: formData.get("relationshipType"),
+            isAuthorizedRepresentative:
+              formData.get("isAuthorizedRepresentative") === "on"
+          },
+          strings
+        );
+        return {
+          ok: result.ok,
+          message: result.ok ? strings.addRelationshipSuccess : result.message
+        };
+      });
+    });
+
+  document.querySelectorAll(".end-relationship-button").forEach((el) => {
+    el.addEventListener("click", (event) => {
+      const id = (event.currentTarget as HTMLElement).dataset.id!;
+      runAction(event.currentTarget as HTMLButtonElement, async () => {
+        const result = await submitJson(
+          `/api/v1/profiles/${profileId}/relationships/${id}`,
+          "DELETE",
+          {},
+          strings
+        );
+        return {
+          ok: result.ok,
+          message: result.ok ? strings.endRelationshipSuccess : result.message
+        };
+      });
+    });
+  });
+
+  document
+    .getElementById("scan-duplicates-button")
+    ?.addEventListener("click", (event) => {
+      runAction(event.currentTarget as HTMLButtonElement, async () => {
+        const result = await submitJson(
+          `/api/v1/profiles/${profileId}/duplicate-candidates/scan`,
+          "POST",
+          {},
+          strings
+        );
+        return {
+          ok: result.ok,
+          message: result.ok ? strings.scanSuccess : result.message
+        };
+      });
+    });
+
+  document.querySelectorAll(".review-duplicate-button").forEach((el) => {
+    el.addEventListener("click", (event) => {
+      const target = event.currentTarget as HTMLElement;
+      const id = target.dataset.id!;
+      const decision = target.dataset.decision!;
+      const notes = window.prompt(strings.reviewNotesPrompt) ?? undefined;
+      runAction(event.currentTarget as HTMLButtonElement, async () => {
+        const result = await submitJson(
+          `/api/v1/profile-duplicate-candidates/${id}/review`,
+          "POST",
+          { decision, notes },
+          strings
+        );
+        return {
+          ok: result.ok,
+          message: result.ok ? strings.reviewSuccess : result.message
+        };
+      });
+    });
+  });
+
+  document
+    .getElementById("create-merge-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = submitButtonOf(form);
+      if (!button) return;
+      const formData = new FormData(form);
+      await runAction(button, async () => {
+        const result = await submitJson(
+          "/api/v1/profile-merge-requests",
+          "POST",
+          {
+            sourceProfileId: profileId,
+            targetProfileId: formData.get("targetProfileId"),
+            reason: formData.get("reason")
+          },
+          strings,
+          { "Idempotency-Key": newIdempotencyKey() }
+        );
+        return {
+          ok: result.ok,
+          message: result.ok ? strings.mergeRequestSuccess : result.message
+        };
+      });
+    });
+</script>

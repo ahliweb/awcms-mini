@@ -535,6 +535,7 @@ describe("database migration runner helpers", () => {
       "056_awcms_mini_domain_event_runtime_schema.sql",
       "057_awcms_mini_data_lifecycle_schema.sql",
       "058_awcms_mini_data_lifecycle_permissions.sql",
+      "059_awcms_mini_profile_identity_party_lifecycle_schema.sql",
       "060_awcms_mini_business_scope_assignments_schema.sql",
       "061_awcms_mini_business_scope_permissions.sql"
     ]);

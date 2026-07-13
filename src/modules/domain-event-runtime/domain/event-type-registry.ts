@@ -47,6 +47,18 @@ export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
       eventVersion: SAMPLE_RECORDED_EVENT_VERSION,
       description:
         "Reference/example event type used to exercise the domain-event-runtime outbox, dispatcher, ordering, retry/backoff, dead-letter, and replay mechanism end-to-end (Issue #742). Real producer modules publish their OWN event types the same way, via appendDomainEvent — this one is intentionally self-contained rather than tied to another module's business logic in this foundation issue."
+    },
+    // Issue #748 (profile_identity, epic #738 platform-evolution Wave 2) —
+    // the first REAL (non-reference) producer registered here. Literal
+    // strings match `profile-identity/domain/merge-event.ts`'s
+    // `PROFILE_MERGED_EVENT_TYPE`/`PROFILE_MERGED_EVENT_VERSION` constants
+    // (kept in sync by convention, not by cross-module import — see that
+    // file's own header comment).
+    {
+      eventType: "awcms-mini.profile-identity.profile.merged",
+      eventVersion: "1.0",
+      description:
+        "Published when a profile merge request is executed: the loser profile is soft-deleted (merged_into_profile_id set) and its awcms_mini_profile_entity_links rows are repointed to the survivor. Lets domain modules react to the merge mapping without importing profile-identity tables directly (see _shared/ports/party-directory-port.ts for the pull-based equivalent)."
     }
   ];
 
