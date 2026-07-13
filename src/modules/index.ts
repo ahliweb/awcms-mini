@@ -2,6 +2,7 @@ import type { ModuleDescriptor } from "./_shared/module-contract";
 import { applicationModuleRegistry } from "./application-registry";
 import { mergeModuleRegistries } from "./module-management/domain/module-composition";
 import { blogContentModule } from "./blog-content/module";
+import { domainEventRuntimeModule } from "./domain-event-runtime/module";
 import { emailModule } from "./email/module";
 import { formDraftsModule } from "./form-drafts/module";
 import { identityAccessModule } from "./identity-access/module";
@@ -39,7 +40,8 @@ const baseModules: ModuleDescriptor[] = [
   visitorAnalyticsModule,
   newsPortalModule,
   idnAdminRegionsModule,
-  socialPublishingModule
+  socialPublishingModule,
+  domainEventRuntimeModule
 ];
 
 /** Base-only registry, regardless of any application registry — Issue #740's composition API. */
