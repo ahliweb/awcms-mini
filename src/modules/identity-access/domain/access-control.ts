@@ -63,6 +63,14 @@ export type AccessAction =
   // endpoint needs it" precedent as `verify`/`set_primary` above. Read-only,
   // not added to `HIGH_RISK_ACTIONS`.
   | "preview"
+  // Issue #745 (data_lifecycle): `legal_hold.release` — ending an active
+  // legal hold. Deliberately its OWN action (not reusing `cancel`/
+  // `restore`/`configure`) so a role can be granted `legal_hold.create`
+  // without implicitly also being able to `release` one — issue #745's
+  // "default-deny release" requirement. Added to `HIGH_RISK_ACTIONS`
+  // below: releasing a hold removes a data-protection safeguard that may
+  // let purge/archive resume against previously-protected rows.
+  | "release"
   // Issue #742 (domain_event_runtime): migration 056 seeds
   // `domain_event_runtime.deliveries.replay`/`.consumers.manage`, first
   // consumers `POST /api/v1/domain-events/deliveries/{id}/replay` and
@@ -104,7 +112,8 @@ const HIGH_RISK_ACTIONS: ReadonlySet<AccessAction> = new Set([
   "restore",
   "purge",
   "connect",
-  "disconnect"
+  "disconnect",
+  "release"
 ]);
 
 export function isHighRiskAction(action: AccessAction): boolean {

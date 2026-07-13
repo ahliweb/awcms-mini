@@ -38,6 +38,9 @@ import {
   expireOverdueFormDrafts,
   purgeExpiredFormDrafts
 } from "../../src/modules/form-drafts/application/form-draft-purge";
+import { withTenant } from "../../src/lib/database/tenant-context";
+import { createLegalHold } from "../../src/modules/data-lifecycle/application/legal-hold-service";
+import { legalHoldGuardPortAdapter } from "../../src/modules/data-lifecycle/application/legal-hold-guard-port-adapter";
 
 const OWNER_LOGIN = "owner@example.com";
 const OWNER_PASSWORD = "integration-test-owner-password";
@@ -437,9 +440,12 @@ suite("Form Drafts API (real Postgres)", () => {
       WHERE id = ${draft.id}
     `;
 
-    const result = await purgeExpiredFormDrafts(admin, b.tenantId, {
-      retentionDays: 30
-    });
+    const result = await purgeExpiredFormDrafts(
+      admin,
+      b.tenantId,
+      legalHoldGuardPortAdapter,
+      { retentionDays: 30 }
+    );
     expect(result.purgedCount).toBe(1);
 
     const rows = (await admin`
@@ -465,9 +471,54 @@ suite("Form Drafts API (real Postgres)", () => {
       WHERE id = ${draft.id}
     `;
 
-    const result = await purgeExpiredFormDrafts(admin, b.tenantId, {
-      retentionDays: 30
-    });
+    const result = await purgeExpiredFormDrafts(
+      admin,
+      b.tenantId,
+      legalHoldGuardPortAdapter,
+      { retentionDays: 30 }
+    );
+    expect(result.purgedCount).toBe(0);
+
+    const rows = (await admin`
+      SELECT id FROM awcms_mini_form_drafts WHERE id = ${draft.id}
+    `) as { id: string }[];
+    expect(rows).toHaveLength(1);
+  });
+
+  test("legal hold on form_drafts.form_drafts blocks purgeExpiredFormDrafts entirely — held rows are never deleted (security-auditor finding, PR #773)", async () => {
+    const b = await bootstrap();
+    const draft = await createTestDraft(b);
+
+    const admin = getAdminSql();
+    await admin`
+      UPDATE awcms_mini_form_drafts
+      SET status = 'expired', updated_at = now() - interval '31 days'
+      WHERE id = ${draft.id}
+    `;
+
+    await withTenant(admin, b.tenantId, (tx) =>
+      createLegalHold(
+        tx,
+        b.tenantId,
+        "dddddddd-1111-1111-1111-111111111111",
+        {
+          descriptorKey: "form_drafts.form_drafts",
+          scopeDescription: "All drafts under litigation hold.",
+          reason:
+            "Ongoing internal investigation, evidence preservation required.",
+          authorityReference: "Internal Legal Ref #101/2026",
+          endsAt: null
+        },
+        "corr-hold"
+      )
+    );
+
+    const result = await purgeExpiredFormDrafts(
+      admin,
+      b.tenantId,
+      legalHoldGuardPortAdapter,
+      { retentionDays: 30 }
+    );
     expect(result.purgedCount).toBe(0);
 
     const rows = (await admin`

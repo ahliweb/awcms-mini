@@ -2,6 +2,7 @@ import type { ModuleDescriptor } from "./_shared/module-contract";
 import { applicationModuleRegistry } from "./application-registry";
 import { mergeModuleRegistries } from "./module-management/domain/module-composition";
 import { blogContentModule } from "./blog-content/module";
+import { dataLifecycleModule } from "./data-lifecycle/module";
 import { domainEventRuntimeModule } from "./domain-event-runtime/module";
 import { emailModule } from "./email/module";
 import { formDraftsModule } from "./form-drafts/module";
@@ -41,6 +42,12 @@ const baseModules: ModuleDescriptor[] = [
   newsPortalModule,
   idnAdminRegionsModule,
   socialPublishingModule,
+  // Issue #745/#742 (epic #738 platform-evolution Wave 1) — both appended
+  // at the end (rather than reordered near their dependencies) so parallel
+  // Wave-1 PRs registering their own new module could each add an entry
+  // independently with a minimal, easily-resolved merge conflict (keep
+  // BOTH new entries, never pick one side — resolved exactly that way).
+  dataLifecycleModule,
   domainEventRuntimeModule
 ];
 

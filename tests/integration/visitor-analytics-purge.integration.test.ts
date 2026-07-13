@@ -32,9 +32,11 @@ import {
 import { withTenant } from "../../src/lib/database/tenant-context";
 import { purgeVisitorAnalyticsForAllTenants } from "../../scripts/visitor-analytics-purge";
 import { VISITOR_ANALYTICS_DEFAULTS } from "../../src/modules/visitor-analytics/domain/visitor-analytics-config";
+import { createLegalHold } from "../../src/modules/data-lifecycle/application/legal-hold-service";
 
 const TENANT_STALE = "88888888-8888-8888-8888-888888888888";
 const TENANT_FRESH = "99999999-9999-9999-9999-999999999999";
+const ACTOR_ID = "88888888-9999-9999-9999-999999999999";
 
 async function seedTenant(id: string, code: string): Promise<void> {
   await getAdminSql()`
@@ -180,6 +182,46 @@ suite("purgeVisitorAnalyticsForAllTenants (Issue #624)", () => {
 
     expect(result.tenantsPurged).toBe(1);
     expect(result.totals.eventsDeleted).toBe(1);
+  });
+
+  test("legal hold on visitor_analytics.visit_events blocks the events DELETE — held rows are never deleted (security-auditor finding, PR #773)", async () => {
+    const now = new Date();
+    const eventRetentionDays = VISITOR_ANALYTICS_DEFAULTS.eventRetentionDays;
+    const staleAt = new Date(
+      now.getTime() - (eventRetentionDays + 5) * 24 * 60 * 60 * 1000
+    );
+
+    const staleSession = await seedSession(TENANT_STALE, staleAt);
+    await seedEvent(TENANT_STALE, staleSession, staleAt);
+
+    const holdResult = await withTenant(getTestSql(), TENANT_STALE, (tx) =>
+      createLegalHold(
+        tx,
+        TENANT_STALE,
+        ACTOR_ID,
+        {
+          descriptorKey: "visitor_analytics.visit_events",
+          scopeDescription: "All visit events under litigation hold.",
+          reason:
+            "Ongoing internal investigation, evidence preservation required.",
+          authorityReference: "Internal Legal Ref #100/2026",
+          endsAt: null
+        },
+        "corr-hold"
+      )
+    );
+    expect(holdResult.ok).toBe(true);
+
+    const result = await purgeVisitorAnalyticsForAllTenants(getTestSql(), {
+      now
+    });
+
+    expect(result.totals.eventsDeleted).toBe(0);
+
+    const staleAudit = await fetchAuditRows(TENANT_STALE);
+    // Nothing was actually purged for this tenant, so no retention_purged
+    // audit event was written for it.
+    expect(staleAudit).toHaveLength(0);
   });
 
   test("runs successfully under the real awcms_mini_worker role, including the raw-detail UPDATE step (Issue #683, epic #679)", async () => {

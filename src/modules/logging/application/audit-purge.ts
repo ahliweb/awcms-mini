@@ -1,5 +1,7 @@
 import { withTenant } from "../../../lib/database/tenant-context";
 import { recordAuditEvent } from "./audit-log";
+import { LOGGING_AUDIT_EVENTS_LIFECYCLE_KEY } from "../module";
+import type { LegalHoldGuardPort } from "../../_shared/ports/legal-hold-guard-port";
 
 /**
  * Retention/purge for `awcms_mini_audit_events` (Issue #447). Doc 04
@@ -60,15 +62,31 @@ type PurgedRow = { id: string };
  *
  * Age-only cutoff, no cascading delete: `awcms_mini_audit_events` (migration
  * 011) has no dependent FK children, so a physical DELETE here can never
- * "memutus FK penting" (doc 04). This is the generic base-system retention
- * policy — a tenant under an active legal hold should simply not be
- * scheduled for this job (or scheduled with a `retentionDays` large enough
- * to never reach held records), the same opt-out doc 04 already expects for
- * "retention/legal hold yang memenuhi syarat".
+ * "memutus FK penting" (doc 04).
+ *
+ * Legal hold enforcement (security-auditor finding, PR #773): this
+ * function is `logging.audit_events`'s registered "delegated" adopter
+ * (`src/modules/logging/module.ts`'s `dataLifecycle` descriptor,
+ * `executionMode: "delegated"`) — the data_lifecycle module's own engine
+ * NEVER mutates this table, it only reports a dry-run snapshot, so THIS
+ * function is the only real enforcement point for "an active legal hold on
+ * `logging.audit_events` overrides ordinary retention and cannot be
+ * silently bypassed" (issue #745 critical requirement). Before deleting,
+ * this asks the caller-supplied `legalHoldGuard` (a `LegalHoldGuardPort`,
+ * see `_shared/ports/legal-hold-guard-port.ts`) whether this exact
+ * descriptor key is held — if so, the whole batch is skipped
+ * (`purgedCount: 0`) rather than deleting anything, exactly mirroring
+ * `data-lifecycle/application/archive-purge-job.ts`'s own
+ * `runGenericPurgePass` short-circuit for its own descriptors. Required
+ * (not optional/defaulted) so no call site can silently skip the check.
+ * Not imported directly from `data_lifecycle`'s `application`/`domain`
+ * code — that would create a forbidden circular cross-module import (Issue
+ * #685/ADR-0011); the port is the documented way around it.
  */
 export async function purgeExpiredAuditEvents(
   sql: Bun.SQL,
   tenantId: string,
+  legalHoldGuard: LegalHoldGuardPort,
   options: PurgeAuditEventsOptions = {}
 ): Promise<PurgeAuditEventsResult> {
   const retentionDays =
@@ -81,6 +99,15 @@ export async function purgeExpiredAuditEvents(
     sql,
     tenantId,
     async (tx) => {
+      const held = await legalHoldGuard.isDescriptorHeld(
+        tx,
+        tenantId,
+        LOGGING_AUDIT_EVENTS_LIFECYCLE_KEY
+      );
+      if (held) {
+        return 0;
+      }
+
       const deleted = (await tx`
         DELETE FROM awcms_mini_audit_events
         WHERE id IN (

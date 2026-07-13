@@ -167,6 +167,7 @@ suite("tenant module preset application service", () => {
       "news_portal",
       "idn_admin_regions",
       "social_publishing",
+      "data_lifecycle",
       "domain_event_runtime"
     ]) {
       expect(changeByKey.get(key)?.outcome).toBe("applied");
@@ -193,6 +194,7 @@ suite("tenant module preset application service", () => {
     expect(state.get("news_portal")).toBe(false);
     expect(state.get("idn_admin_regions")).toBe(false);
     expect(state.get("social_publishing")).toBe(false);
+    expect(state.get("data_lifecycle")).toBe(false);
     expect(state.get("domain_event_runtime")).toBe(false);
 
     const auditRows = await fetchAuditActions(owner.tenantId);
@@ -209,6 +211,7 @@ suite("tenant module preset application service", () => {
         "news_portal",
         "idn_admin_regions",
         "social_publishing",
+        "data_lifecycle",
         "domain_event_runtime"
       ].sort()
     );
@@ -300,6 +303,7 @@ suite("tenant module preset application service", () => {
       "news_portal",
       "idn_admin_regions",
       "social_publishing",
+      "data_lifecycle",
       "domain_event_runtime"
     ]) {
       expect(state.get(key)).toBe(false);

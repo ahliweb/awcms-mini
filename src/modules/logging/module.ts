@@ -1,5 +1,14 @@
 import { defineModule } from "../_shared/module-contract";
 
+/**
+ * Single source of truth for this module's `dataLifecycle` descriptor key,
+ * shared with `application/audit-purge.ts` so the actual purge function and
+ * the registry entry a legal hold is created against can never drift apart
+ * (security-auditor finding, PR #773: a hold created against this key must
+ * be checked by `purgeExpiredAuditEvents` using this SAME literal).
+ */
+export const LOGGING_AUDIT_EVENTS_LIFECYCLE_KEY = "logging.audit_events";
+
 export const loggingModule = defineModule({
   key: "logging",
   name: "Logging & Audit Trail",
@@ -21,6 +30,62 @@ export const loggingModule = defineModule({
       environmentNotes:
         "Pure database operation — no external network dependency.",
       safeInOfflineLan: true
+    }
+  ],
+  // Issue #745 (data_lifecycle, epic #738) — registered as a representative
+  // "delegated" adopter: data_lifecycle's dry-run planner may READ this
+  // table for backlog visibility, but real purge stays owned by
+  // `purgeExpiredAuditEvents` (`bun run logs:audit:purge`) above,
+  // unchanged. See `.claude/skills/awcms-mini-data-lifecycle/SKILL.md`.
+  dataLifecycle: [
+    {
+      key: LOGGING_AUDIT_EVENTS_LIFECYCLE_KEY,
+      tableName: "awcms_mini_audit_events",
+      ownerModuleKey: "logging",
+      scope: "tenant",
+      cursorColumn: "created_at",
+      retentionClass: "audit_security",
+      retentionMinDays: 365,
+      retentionMaxDays: 1825,
+      defaultRetentionDays: 730,
+      partition: {
+        eligible: true,
+        granularity: "monthly",
+        rationale:
+          "High insert volume, append-only, age-based purge only (no updates) — a textbook monthly range-partition candidate. Not automated by this issue (destructive migration of an existing table is explicitly out of scope) — tracked as partitioning runbook guidance for a future issue, see docs/awcms-mini/data-lifecycle.md §Partitioning policy and runbook guidance."
+      },
+      archive: {
+        archivable: false,
+        rationale:
+          "Current reality: purgeExpiredAuditEvents performs a straight age-based DELETE with no archive step. Adding one is a natural follow-up (audit trail is a strong archive candidate for ISO 27001/22301 evidence) but is not implemented by this issue — declaring archivable:true here without a real archive step would be inaccurate, not aspirational."
+      },
+      deletion: {
+        mode: "hard_delete",
+        rationale:
+          "Matches purgeExpiredAuditEvents' existing behavior exactly — age-only cutoff, no cascading FK children (migration 011)."
+      },
+      legalHold: {
+        applicable: true,
+        precedence: "overrides_retention"
+      },
+      requiredIndexes: [
+        {
+          columns: ["tenant_id", "created_at"],
+          purpose:
+            "awcms_mini_audit_events_tenant_created_idx (migration 011) — the same index purgeExpiredAuditEvents' own age-based DELETE already relies on."
+        }
+      ],
+      batchLimit: 5000,
+      backupRestoreNotes:
+        "Included in ordinary full-database backup/restore (docs/awcms-mini/resilience-dr-verification.md); no standalone archive artifact exists yet (archive.archivable is false above).",
+      executionMode: "delegated",
+      existingAdopter: {
+        jobCommand: "bun run logs:audit:purge",
+        purgeFunctionRef:
+          "src/modules/logging/application/audit-purge.ts#purgeExpiredAuditEvents",
+        description:
+          "Deletes rows past AUDIT_LOG_RETENTION_DAYS (default 730d) in bounded batches of AUDIT_EVENT_PURGE_BATCH_LIMIT (5000), auditing the purge itself as a new audit event. Unchanged by Issue #745 — this descriptor documents compatibility, it does not replace or duplicate this logic."
+      }
     }
   ]
 });
