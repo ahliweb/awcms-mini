@@ -1,6 +1,6 @@
 ---
 name: awcms-mini-module-management
-description: Kelola/konsumsi sistem Module Management AWCMS-Mini (registry, tenant lifecycle enable/disable, settings, permission sync/status, navigation, job registry, health/readiness). Gunakan saat menambah field descriptor baru (permissions/navigation/settings/jobs/health) di modul lain, saat menyelidiki kenapa suatu modul terlihat degraded/orphaned, atau saat mengubah perilaku enable/disable/settings/health module_management sendiri. Sesuai src/modules/module-management/README.md, epic #510.
+description: Kelola/konsumsi sistem Module Management AWCMS-Mini (registry, komposisi modul build-time untuk aplikasi turunan, tenant lifecycle enable/disable, settings, permission sync/status, navigation, job registry, health/readiness). Gunakan saat menambah field descriptor baru (permissions/navigation/settings/jobs/health) di modul lain, saat menyelidiki kenapa suatu modul terlihat degraded/orphaned, saat aplikasi turunan perlu menyusun modulnya sendiri lewat `src/modules/application-registry.ts` tanpa mengedit registry base, atau saat mengubah perilaku enable/disable/settings/health module_management sendiri. Sesuai src/modules/module-management/README.md, epic #510, epic #738 (Issue #740, ADR-0014).
 ---
 
 # AWCMS-Mini — Module Management System
@@ -256,3 +256,58 @@ ke kategori tersebut (termasuk catatan remediasi field `type`/`isCore`/
 `maintainers` yang belum konsisten diisi — lihat doc 21 §8). Baca dokumen
 itu sebelum mengusulkan modul baru atau mengubah kategori/status lifecycle
 modul yang sudah ada.
+
+## Komposisi modul build-time untuk aplikasi turunan (Issue #740, ADR-0014)
+
+Pertanyaan BERBEDA dari admission (§ di atas, yang mengatur "modul apa
+boleh masuk registry BASE ini"): bagaimana REPO TURUNAN (di luar repo ini)
+menyusun modul aplikasinya sendiri ke registry final tanpa mengedit
+`src/modules/index.ts`. Jawabannya `src/modules/module-management/domain/
+module-composition.ts` — `mergeModuleRegistries()` (concatenation murni,
+selalu sukses, dipanggil `src/modules/index.ts`) + `composeModuleRegistry()`/
+`validateComposedModuleRegistry()` (mesin validasi, dipanggil eksplisit
+oleh `bun run modules:compose:check`, tidak pernah oleh `index.ts` sendiri
+— pola yang identik dengan `validateModuleDependencyGraph`/`modules:dag:check`
+di atas, sengaja dipakai ulang bukan diduplikasi).
+
+- **Titik ekstensi tunggal**: `src/modules/application-registry.ts`. Repo
+  base ini mengirim `applicationModuleRegistry: undefined`; repo turunan
+  mengganti nilai itu dengan `ApplicationModuleRegistry` miliknya sendiri
+  (`{ id, modules, migrationNamespace? }`). Tidak ada file lain yang perlu
+  diedit — `src/modules/index.ts` dan setiap `module.ts` base tetap
+  utuh.
+- **`listModules()` sekarang compose-aware** — mengembalikan hasil merge
+  base + `applicationModuleRegistry`. Di repo base ini nilainya SELALU
+  sama seperti sebelum Issue #740 (registry base 16 modul, byte-identical)
+  karena `applicationModuleRegistry` selalu `undefined` di sini. Konsumen
+  yang sudah ada (`modules:sync`, `modules:dag:check`,
+  `repo:inventory:generate`, semua service module-management) TIDAK perlu
+  diubah — semuanya sudah memanggil `listModules()`.
+- **11 jenis issue komposisi** (empat dipakai ulang dari
+  `validateModuleDependencyGraph` + tujuh baru: `duplicate_module_key`,
+  `prohibited_base_override`, `invalid_module_type`,
+  `capability_provider_conflict`, `capability_provider_missing`,
+  `migration_namespace_overlap`, `deployment_profile_incompatible`,
+  `navigation_path_conflict`, `invalid_job_descriptor`) — detail lengkap
+  di `module-composition.ts`'s file header dan ADR-0014 §3. Setiap
+  application module yang key-nya bentrok dengan modul BASE mana pun
+  (bukan cuma Core/System — `type` tidak konsisten diisi, doc 21 §8 R1)
+  ditolak (`prohibited_base_override`), tidak pernah "menang" menimpa
+  base.
+- **Namespace migration**: base mereservasi `1-899`
+  (`BASE_MODULE_MIGRATION_NAMESPACE`); `ApplicationModuleRegistry.
+migrationNamespace` (opsional) mendeklarasikan range milik repo turunan
+  sendiri (rekomendasi: mulai `900`) — komposisi menolak bila beririsan.
+  Perbandingan data yang dideklarasikan saja, tidak membaca `sql/*.sql`
+  nyata (fungsi domain tetap tanpa I/O).
+- **`bun run modules:composition:inventory:generate`/`:check`** —
+  snapshot JSON deterministik registry gabungan
+  (`docs/awcms-mini/module-composition-inventory.json`) untuk bukti
+  CI/rilis, wired ke `bun run check`.
+- **Fixture referensi**: `tests/fixtures/derived-application-example/`
+  (dua modul minimal, `bun test tests/unit/module-composition-fixture.test.ts`)
+  — contoh nyata yang bisa dijalankan, bukan sekadar dokumentasi naratif.
+
+Detail keputusan lengkap: `docs/adr/0014-deterministic-build-time-module-
+composition.md`. Panduan penggunaan dari sisi aplikasi turunan:
+`docs/awcms-mini/derived-application-guide.md` §langkah 2.

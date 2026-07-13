@@ -69,6 +69,7 @@ import prettier from "prettier";
 import { parseDocument } from "yaml";
 
 import { listModules } from "../src/modules";
+import type { ModuleDescriptor } from "../src/modules/_shared/module-contract";
 import { bundleOpenApi } from "./openapi-bundle";
 
 export const REPO_INVENTORY_PATH = "docs/awcms-mini/repo-inventory.md";
@@ -232,10 +233,17 @@ export function mdEscape(value: string): string {
  * drift from what `repo-inventory-check.ts` regenerates in memory).
  */
 async function buildRawRepoInventoryMarkdown(
-  rootDir = process.cwd()
+  rootDir = process.cwd(),
+  // Issue #740 (epic #738): defaults to the real, effective registry
+  // (`listModules()` — base, or base+application when a derived
+  // repository has replaced `src/modules/application-registry.ts`).
+  // Callers (e.g. composed-fixture tests) may pass a different composed
+  // list explicitly, without this script's own CLI entry point behavior
+  // changing at all.
+  moduleList: readonly ModuleDescriptor[] = listModules()
 ): Promise<string> {
   // Modules
-  const modules = [...listModules()].sort((a, b) => a.key.localeCompare(b.key));
+  const modules = [...moduleList].sort((a, b) => a.key.localeCompare(b.key));
 
   // Migrations
   const sqlFiles = await listSqlFiles(rootDir);
@@ -422,9 +430,10 @@ async function buildRawRepoInventoryMarkdown(
 }
 
 export async function buildRepoInventoryMarkdown(
-  rootDir = process.cwd()
+  rootDir = process.cwd(),
+  moduleList: readonly ModuleDescriptor[] = listModules()
 ): Promise<string> {
-  const raw = await buildRawRepoInventoryMarkdown(rootDir);
+  const raw = await buildRawRepoInventoryMarkdown(rootDir, moduleList);
   const filepath = path.join(rootDir, REPO_INVENTORY_PATH);
   const config = (await prettier.resolveConfig(filepath)) ?? {};
 
