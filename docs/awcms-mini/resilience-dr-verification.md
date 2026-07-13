@@ -94,6 +94,19 @@ login-route test would need the complete integration-test HTTP harness
 the login routes independently and never depend on an external IdP being
 reachable for the non-SSO paths.
 
+**Also not a dr-drill scenario (Issue #745, epic #738):** the
+`data_lifecycle` module's archive manifest checksum-verify-restore
+cycle. It is a DIFFERENT concern from `backup-restore-drill` above (a
+full-database backup/restore) — it is a PER-TABLE, per-descriptor
+archive artifact independent of the database backup itself, already
+covered end to end by
+`tests/integration/data-lifecycle-archive-purge-job.integration.test.ts`
+("archive manifest has a verifiable checksum and its content restores
+exactly via the archive port's read()") without needing a dedicated
+`ScenarioDefinition` — see
+[`data-lifecycle.md`](data-lifecycle.md) §Archive port dan restore
+procedure for the operator-facing restore procedure.
+
 ## RTO/RPO evidence
 
 Each scenario records at least one latency metric in its `metrics` object

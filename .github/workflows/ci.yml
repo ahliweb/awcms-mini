@@ -132,6 +132,14 @@ jobs:
       - name: Database work-class registry drift check
         run: bun run db:work-class:check
 
+      # Issue #745 (epic #738): added alongside the other registry checks
+      # above — security-auditor review of PR #773 found this was missing
+      # here, reproducing the same "CI silently runs a subset of `bun run
+      # check`" gap Issue #685/#740 already fixed once for the other
+      # checks in this file.
+      - name: Data lifecycle high-volume table registry validation check
+        run: bun run data-lifecycle:registry:check
+
       - name: Typecheck (tsc --noEmit)
         run: bun run typecheck
 

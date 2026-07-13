@@ -1,6 +1,15 @@
 import { defineModule } from "../_shared/module-contract";
 
 /**
+ * Single source of truth for this module's `dataLifecycle` descriptor key,
+ * shared with `application/retention-purge.ts` so the actual purge function
+ * and the registry entry a legal hold is created against can never drift
+ * apart (security-auditor finding, PR #773).
+ */
+export const VISITOR_ANALYTICS_VISIT_EVENTS_LIFECYCLE_KEY =
+  "visitor_analytics.visit_events";
+
+/**
  * `visitor_analytics` (Issue #617, epic: visitor analytics #617-#624 —
  * now fully complete). Issue #617 (this descriptor) registered the
  * module, permission catalog, and env-based configuration gate; the
@@ -83,6 +92,62 @@ export const visitorAnalyticsModule = defineModule({
       activityCode: "retention",
       action: "purge",
       description: "Purge visitor analytics data past its retention window"
+    }
+  ],
+  // Issue #745 (data_lifecycle, epic #738) — registered as a representative
+  // "delegated" adopter: data_lifecycle's dry-run planner may READ this
+  // table for backlog visibility, but real purge stays owned by
+  // `purgeVisitorAnalyticsData` (`bun run analytics:purge`, and
+  // `POST /api/v1/analytics/retention/purge`), unchanged.
+  dataLifecycle: [
+    {
+      key: VISITOR_ANALYTICS_VISIT_EVENTS_LIFECYCLE_KEY,
+      tableName: "awcms_mini_visit_events",
+      ownerModuleKey: "visitor_analytics",
+      scope: "tenant",
+      cursorColumn: "occurred_at",
+      retentionClass: "analytics_telemetry",
+      retentionMinDays: 7,
+      retentionMaxDays: 730,
+      defaultRetentionDays: 90,
+      partition: {
+        eligible: true,
+        granularity: "daily",
+        rationale:
+          "One row per page-view/API call — by far the highest insert rate of any table this module registers. A strong daily range-partition candidate given the short (90d default) retention window, not automated by this issue (destructive migration of an existing table is out of scope) — tracked as partitioning runbook guidance."
+      },
+      archive: {
+        archivable: false,
+        rationale:
+          "Current reality: purgeVisitorAnalyticsData performs straight DELETE/UPDATE-to-null operations with no archive step (privacy-first design — raw/near-raw visitor detail is deliberately NOT retained longer than necessary, so archiving it would work against the module's own privacy posture)."
+      },
+      deletion: {
+        mode: "hard_delete",
+        rationale:
+          "Matches purgeVisitorAnalyticsData's eventsDeleted step exactly (a straight DELETE) — visitor_sessions' separate raw-detail anonymization step is a different table/descriptor, not registered by this issue."
+      },
+      legalHold: {
+        applicable: true,
+        precedence: "overrides_retention"
+      },
+      requiredIndexes: [
+        {
+          columns: ["tenant_id", "occurred_at"],
+          purpose:
+            "awcms_mini_visit_events_tenant_occurred_idx (migration 039) — the same index purgeVisitorAnalyticsData's own age-based DELETE already relies on."
+        }
+      ],
+      batchLimit: 5000,
+      backupRestoreNotes:
+        "Included in ordinary full-database backup/restore (docs/awcms-mini/resilience-dr-verification.md); no standalone archive artifact exists yet (archive.archivable is false above) — by design, given the privacy-first retention posture.",
+      executionMode: "delegated",
+      existingAdopter: {
+        jobCommand: "bun run analytics:purge",
+        purgeFunctionRef:
+          "src/modules/visitor-analytics/application/retention-purge.ts#purgeVisitorAnalyticsData",
+        description:
+          "Deletes/clears four categories of visitor analytics data past their respective retention cutoffs (events, session raw detail, sessions, rollups) — the same function both the scheduled job and the on-demand POST /api/v1/analytics/retention/purge endpoint call. Unchanged by Issue #745."
+      }
     }
   ]
 });

@@ -22,9 +22,12 @@ import {
 
 import { withTenant } from "../../src/lib/database/tenant-context";
 import { purgeExpiredAuditEvents } from "../../src/modules/logging/application/audit-purge";
+import { createLegalHold } from "../../src/modules/data-lifecycle/application/legal-hold-service";
+import { legalHoldGuardPortAdapter } from "../../src/modules/data-lifecycle/application/legal-hold-guard-port-adapter";
 
 const TENANT_ID = "66666666-6666-6666-6666-666666666666";
 const TENANT_B_ID = "77777777-7777-7777-7777-777777777777";
+const ACTOR_ID = "66666666-9999-9999-9999-999999999999";
 
 async function seedTenant(id: string, code: string): Promise<void> {
   await getAdminSql()`
@@ -82,7 +85,11 @@ suite("Audit event retention/purge (real Postgres)", () => {
     await seedAuditEvent(TENANT_ID, 800, "old-event"); // older than 730-day default
     await seedAuditEvent(TENANT_ID, 10, "recent-event"); // well within retention
 
-    const result = await purgeExpiredAuditEvents(getTestSql(), TENANT_ID);
+    const result = await purgeExpiredAuditEvents(
+      getTestSql(),
+      TENANT_ID,
+      legalHoldGuardPortAdapter
+    );
     expect(result.purgedCount).toBe(1);
 
     const actions = await fetchAuditActions(TENANT_ID);
@@ -95,7 +102,11 @@ suite("Audit event retention/purge (real Postgres)", () => {
   test("nothing expired: purges zero and writes no purge audit event (no silent no-op noise)", async () => {
     await seedAuditEvent(TENANT_ID, 5, "recent-only");
 
-    const result = await purgeExpiredAuditEvents(getTestSql(), TENANT_ID);
+    const result = await purgeExpiredAuditEvents(
+      getTestSql(),
+      TENANT_ID,
+      legalHoldGuardPortAdapter
+    );
     expect(result.purgedCount).toBe(0);
 
     const actions = await fetchAuditActions(TENANT_ID);
@@ -105,9 +116,12 @@ suite("Audit event retention/purge (real Postgres)", () => {
   test("a stricter custom retentionDays is honored (1-day policy purges a 2-day-old event)", async () => {
     await seedAuditEvent(TENANT_ID, 2, "should-be-purged");
 
-    const result = await purgeExpiredAuditEvents(getTestSql(), TENANT_ID, {
-      retentionDays: 1
-    });
+    const result = await purgeExpiredAuditEvents(
+      getTestSql(),
+      TENANT_ID,
+      legalHoldGuardPortAdapter,
+      { retentionDays: 1 }
+    );
     expect(result.purgedCount).toBe(1);
   });
 
@@ -120,9 +134,12 @@ suite("Audit event retention/purge (real Postgres)", () => {
     let totalPurged = 0;
 
     for (let pass = 0; pass < 20; pass += 1) {
-      const result = await purgeExpiredAuditEvents(sql, TENANT_ID, {
-        batchLimit: 5
-      });
+      const result = await purgeExpiredAuditEvents(
+        sql,
+        TENANT_ID,
+        legalHoldGuardPortAdapter,
+        { batchLimit: 5 }
+      );
       totalPurged += result.purgedCount;
 
       if (result.purgedCount === 0) {
@@ -137,12 +154,51 @@ suite("Audit event retention/purge (real Postgres)", () => {
     expect(actions.filter((action) => action === "purge")).toHaveLength(3);
   });
 
+  test("legal hold on logging.audit_events blocks the purge entirely — held rows are never deleted (security-auditor finding, PR #773)", async () => {
+    await seedAuditEvent(TENANT_ID, 800, "held-old-event");
+
+    const sql = getTestSql();
+    const holdResult = await withTenant(sql, TENANT_ID, (tx) =>
+      createLegalHold(
+        tx,
+        TENANT_ID,
+        ACTOR_ID,
+        {
+          descriptorKey: "logging.audit_events",
+          scopeDescription: "All audit events under litigation hold.",
+          reason:
+            "Ongoing internal investigation, evidence preservation required.",
+          authorityReference: "Internal Legal Ref #99/2026",
+          endsAt: null
+        },
+        "corr-hold"
+      )
+    );
+    expect(holdResult.ok).toBe(true);
+
+    const result = await purgeExpiredAuditEvents(
+      getTestSql(),
+      TENANT_ID,
+      legalHoldGuardPortAdapter
+    );
+    expect(result.purgedCount).toBe(0);
+
+    const actions = await fetchAuditActions(TENANT_ID);
+    expect(actions).toContain("held-old-event");
+    // No delete happened, so no purge audit event was written either.
+    expect(actions).not.toContain("purge");
+  });
+
   test("RLS tenant isolation: purging tenant A never touches tenant B's audit events", async () => {
     await seedTenant(TENANT_B_ID, "purge-test-tenant-b");
     await seedAuditEvent(TENANT_ID, 800, "tenant-a-old");
     await seedAuditEvent(TENANT_B_ID, 800, "tenant-b-old");
 
-    await purgeExpiredAuditEvents(getTestSql(), TENANT_ID);
+    await purgeExpiredAuditEvents(
+      getTestSql(),
+      TENANT_ID,
+      legalHoldGuardPortAdapter
+    );
 
     const tenantAActions = await fetchAuditActions(TENANT_ID);
     expect(tenantAActions).not.toContain("tenant-a-old");

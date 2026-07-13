@@ -41,8 +41,27 @@
  *      then, since the rollup job didn't exist yet) — now that Issue
  *      #624's `bun run analytics:rollup` populates it, this rule
  *      applies to real rows without needing any change here.
+ *
+ * Legal hold enforcement (security-auditor finding, PR #773): step 1 above
+ * (`awcms_mini_visit_events`) is this module's registered "delegated"
+ * adopter for `visitor_analytics.visit_events`
+ * (`src/modules/visitor-analytics/module.ts`'s `dataLifecycle` descriptor)
+ * — the data_lifecycle module's own engine never mutates this table, only
+ * reports a dry-run snapshot, so THIS function is the real enforcement
+ * point. Before step 1's DELETE, this asks the caller-supplied
+ * `legalHoldGuard` (a `LegalHoldGuardPort`, see
+ * `_shared/ports/legal-hold-guard-port.ts`) and skips ONLY that step if
+ * `visitor_analytics.visit_events` is held — steps 2-4 (session raw-detail
+ * clearing, session deletion, rollup deletion) are not covered by any
+ * registered descriptor today and are unaffected, matching the exact scope
+ * this issue's registry advertises protection for. Not imported directly
+ * from `data_lifecycle`'s `application`/`domain` code — that would create a
+ * forbidden circular cross-module import (Issue #685/ADR-0011); the port
+ * is the documented way around it.
  */
 import type { VisitorAnalyticsConfig } from "../domain/visitor-analytics-config";
+import { VISITOR_ANALYTICS_VISIT_EVENTS_LIFECYCLE_KEY } from "../module";
+import type { LegalHoldGuardPort } from "../../_shared/ports/legal-hold-guard-port";
 
 export type RetentionPurgeResult = {
   eventsDeleted: number;
@@ -59,7 +78,8 @@ export async function purgeVisitorAnalyticsData(
   tx: Bun.SQL,
   tenantId: string,
   config: VisitorAnalyticsConfig,
-  now: Date
+  now: Date,
+  legalHoldGuard: LegalHoldGuardPort
 ): Promise<RetentionPurgeResult> {
   const eventCutoff = daysAgo(now, config.eventRetentionDays);
   const rawDetailCutoff = daysAgo(now, config.rawDetailRetentionDays);
@@ -67,11 +87,19 @@ export async function purgeVisitorAnalyticsData(
     .toISOString()
     .slice(0, 10);
 
-  const deletedEvents = await tx`
-    DELETE FROM awcms_mini_visit_events
-    WHERE tenant_id = ${tenantId} AND occurred_at < ${eventCutoff}
-    RETURNING id
-  `;
+  const visitEventsHeld = await legalHoldGuard.isDescriptorHeld(
+    tx,
+    tenantId,
+    VISITOR_ANALYTICS_VISIT_EVENTS_LIFECYCLE_KEY
+  );
+
+  const deletedEvents = visitEventsHeld
+    ? []
+    : await tx`
+        DELETE FROM awcms_mini_visit_events
+        WHERE tenant_id = ${tenantId} AND occurred_at < ${eventCutoff}
+        RETURNING id
+      `;
 
   const clearedSessions = await tx`
     UPDATE awcms_mini_visitor_sessions
