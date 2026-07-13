@@ -7114,15 +7114,38 @@ One content quality checklist rule's evaluation result (Issue
 }
 ```
 
+### Schema: DatabasePoolCapacitySummary
+
+Issue #743 — this PROCESS's own capacity configuration only (never an aggregate across other instances; a single process cannot know the fleet-wide count). See docs/awcms-mini/database-capacity-runbook.md for the fleet-wide validation this endpoint does not perform.
+
+| Field                   | Type                           | Required | Nullable | Description                                                                    |
+| ----------------------- | ------------------------------ | -------- | -------- | ------------------------------------------------------------------------------ |
+| `processClass`          | enum(`app`, `worker`, `setup`) | yes      | no       | Always "app" for this endpoint (it only ever runs inside the web/SSR process). |
+| `poolMax`               | integer                        | yes      | no       |                                                                                |
+| `approvedConnections`   | integer                        | yes      | no       |                                                                                |
+| `reservedAdminHeadroom` | integer                        | yes      | no       |                                                                                |
+
+**Example**
+
+```json
+{
+  "processClass": "app",
+  "poolMax": 1,
+  "approvedConnections": 1,
+  "reservedAdminHeadroom": 0
+}
+```
+
 ### Schema: DatabasePoolHealthResponse
 
-| Field                 | Type                                                          | Required | Nullable | Description |
-| --------------------- | ------------------------------------------------------------- | -------- | -------- | ----------- |
-| `status`              | enum(`healthy`, `degraded`, `unhealthy`)                      | yes      | no       |             |
-| `databaseReachable`   | boolean                                                       | yes      | no       |             |
-| `circuitBreakerState` | enum(`closed`, `open`, `half_open`)                           | yes      | no       |             |
-| `workClasses`         | array of [`WorkClassSaturation`](#schema-workclasssaturation) | yes      | no       |             |
-| `generatedAt`         | string (date-time)                                            | yes      | no       |             |
+| Field                 | Type                                                                 | Required | Nullable | Description |
+| --------------------- | -------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `status`              | enum(`healthy`, `degraded`, `unhealthy`)                             | yes      | no       |             |
+| `databaseReachable`   | boolean                                                              | yes      | no       |             |
+| `circuitBreakerState` | enum(`closed`, `open`, `half_open`)                                  | yes      | no       |             |
+| `workClasses`         | array of [`WorkClassSaturation`](#schema-workclasssaturation)        | yes      | no       |             |
+| `capacity`            | [`DatabasePoolCapacitySummary`](#schema-databasepoolcapacitysummary) | yes      | no       |             |
+| `generatedAt`         | string (date-time)                                                   | yes      | no       |             |
 
 **Example**
 
@@ -7136,9 +7159,16 @@ One content quality checklist rule's evaluation result (Issue
       "workClass": "critical_transaction",
       "active": 0,
       "max": 0,
-      "queued": 0
+      "queued": 0,
+      "maxQueueDepth": 0
     }
   ],
+  "capacity": {
+    "processClass": "app",
+    "poolMax": 1,
+    "approvedConnections": 1,
+    "reservedAdminHeadroom": 0
+  },
   "generatedAt": "2026-01-01T00:00:00.000Z"
 }
 ```
@@ -10619,12 +10649,13 @@ At least one of displayName or status is required.
 
 ### Schema: WorkClassSaturation
 
-| Field       | Type                                                                                       | Required | Nullable | Description |
-| ----------- | ------------------------------------------------------------------------------------------ | -------- | -------- | ----------- |
-| `workClass` | enum(`critical_transaction`, `interactive`, `reporting`, `background_sync`, `maintenance`) | yes      | no       |             |
-| `active`    | integer                                                                                    | yes      | no       |             |
-| `max`       | integer                                                                                    | yes      | no       |             |
-| `queued`    | integer                                                                                    | yes      | no       |             |
+| Field           | Type                                                                                       | Required | Nullable | Description                                                                                                                                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------ | -------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workClass`     | enum(`critical_transaction`, `interactive`, `reporting`, `background_sync`, `maintenance`) | yes      | no       |                                                                                                                                                                                                                        |
+| `active`        | integer                                                                                    | yes      | no       |                                                                                                                                                                                                                        |
+| `max`           | integer                                                                                    | yes      | no       |                                                                                                                                                                                                                        |
+| `queued`        | integer                                                                                    | yes      | no       |                                                                                                                                                                                                                        |
+| `maxQueueDepth` | integer                                                                                    | yes      | no       | Issue #743 — bounded queue cap for this work class (max concurrency x DATABASE_WORK_CLASS_QUEUE_MULTIPLIER). Once `queued` would reach this number, a new caller is rejected immediately instead of joining the queue. |
 
 **Example**
 
@@ -10633,7 +10664,8 @@ At least one of displayName or status is required.
   "workClass": "critical_transaction",
   "active": 0,
   "max": 0,
-  "queued": 0
+  "queued": 0,
+  "maxQueueDepth": 0
 }
 ```
 

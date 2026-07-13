@@ -11810,6 +11810,32 @@ components:
         profileId:
           type: string
           format: uuid
+    DatabasePoolCapacitySummary:
+      type: object
+      required:
+        - processClass
+        - poolMax
+        - approvedConnections
+        - reservedAdminHeadroom
+      additionalProperties: false
+      description: "Issue #743 — this PROCESS's own capacity configuration only (never an aggregate across other instances; a single process cannot know the fleet-wide count). See docs/awcms-mini/database-capacity-runbook.md for the fleet-wide validation this endpoint does not perform."
+      properties:
+        processClass:
+          type: string
+          enum:
+            - app
+            - worker
+            - setup
+          description: Always "app" for this endpoint (it only ever runs inside the web/SSR process).
+        poolMax:
+          type: integer
+          minimum: 1
+        approvedConnections:
+          type: integer
+          minimum: 1
+        reservedAdminHeadroom:
+          type: integer
+          minimum: 0
     DatabasePoolHealthResponse:
       type: object
       required:
@@ -11817,6 +11843,7 @@ components:
         - databaseReachable
         - circuitBreakerState
         - workClasses
+        - capacity
         - generatedAt
       additionalProperties: false
       properties:
@@ -11838,6 +11865,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/WorkClassSaturation"
+        capacity:
+          $ref: "#/components/schemas/DatabasePoolCapacitySummary"
         generatedAt:
           type: string
           format: date-time
@@ -15472,6 +15501,7 @@ components:
         - active
         - max
         - queued
+        - maxQueueDepth
       additionalProperties: false
       properties:
         workClass:
@@ -15491,6 +15521,10 @@ components:
         queued:
           type: integer
           minimum: 0
+        maxQueueDepth:
+          type: integer
+          minimum: 0
+          description: "Issue #743 — bounded queue cap for this work class (max concurrency x DATABASE_WORK_CLASS_QUEUE_MULTIPLIER). Once `queued` would reach this number, a new caller is rejected immediately instead of joining the queue."
     WorkflowTaskDecisionRequest:
       type: object
       required:

@@ -5,6 +5,7 @@ import { getDatabaseCircuitBreaker } from "./circuit-breaker";
 import {
   acquireWorkClassSlot,
   getWorkClassSaturation,
+  WorkClassQueueFullError,
   WorkClassTimeoutError,
   type WorkClass
 } from "./work-class";
@@ -13,6 +14,22 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const DEFAULT_QUEUE_TIMEOUT_MS = 2000;
+
+/**
+ * Issue #743 — `Retry-After` (seconds) attached to every `503 DATABASE_BUSY`
+ * this function returns, so a well-behaved client backs off instead of
+ * hammering an already-saturated/failing database ("controlled 503 instead
+ * of cascading timeouts", the issue's own graceful-saturation requirement).
+ * Two fixed, conservative constants rather than an exact remaining-time
+ * computation: `circuit-breaker.ts` is a small, generic, shared abstraction
+ * (also used by non-database providers) and deliberately does not expose
+ * "ms until half-open" on its public `CircuitBreaker` interface — adding
+ * that would widen a shared, already-reused contract for one caller's
+ * cosmetic benefit. A fixed value is a normal, well-established pattern for
+ * `Retry-After` on a `503`.
+ */
+const CIRCUIT_OPEN_RETRY_AFTER_SECONDS = 30;
+const WORK_CLASS_BUSY_RETRY_AFTER_SECONDS = 2;
 
 /** Postgres SQLSTATE classes that reflect bad/malformed CALLER INPUT, not a
  * database/infra failure, so they must not count against the shared circuit
@@ -82,7 +99,14 @@ export async function withTenant<T>(
   const now = new Date();
 
   if (!breaker.canAttempt(now)) {
-    return fail(503, "DATABASE_BUSY", "Database circuit breaker is open.") as T;
+    return fail(
+      503,
+      "DATABASE_BUSY",
+      "Database circuit breaker is open.",
+      {},
+      undefined,
+      { "Retry-After": String(CIRCUIT_OPEN_RETRY_AFTER_SECONDS) }
+    ) as T;
   }
 
   let slot;
@@ -90,6 +114,28 @@ export async function withTenant<T>(
   try {
     slot = await acquireWorkClassSlot(workClass, queueTimeoutMs);
   } catch (error) {
+    if (error instanceof WorkClassQueueFullError) {
+      // Issue #743 — rejected immediately (queue was already at its bounded
+      // cap), never actually waited. Distinct log event from the
+      // timeout-after-waiting case below, so operators/dashboards can tell
+      // "instant reject" apart from "waited the full timeout".
+      log("warning", "database.pool.rejected", {
+        moduleKey: "database-connectivity",
+        workClass,
+        queueDepth: error.queueDepth,
+        saturation: getWorkClassSaturation()
+      });
+
+      return fail(
+        503,
+        "DATABASE_BUSY",
+        `Database work-class "${workClass}" queue is full; rejected immediately.`,
+        {},
+        undefined,
+        { "Retry-After": String(WORK_CLASS_BUSY_RETRY_AFTER_SECONDS) }
+      ) as T;
+    }
+
     if (error instanceof WorkClassTimeoutError) {
       log("warning", "database.pool.saturated", {
         moduleKey: "database-connectivity",
@@ -101,7 +147,10 @@ export async function withTenant<T>(
       return fail(
         503,
         "DATABASE_BUSY",
-        `Database work-class "${workClass}" is saturated.`
+        `Database work-class "${workClass}" is saturated.`,
+        {},
+        undefined,
+        { "Retry-After": String(WORK_CLASS_BUSY_RETRY_AFTER_SECONDS) }
       ) as T;
     }
 

@@ -1,7 +1,8 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import {
   authorizeApply,
+  checkDatabaseCapacity,
   computeMigrationPlan,
   computeVerdict,
   parseArgs,
@@ -219,5 +220,70 @@ describe("computeMigrationPlan", () => {
     expect(() =>
       computeMigrationPlan([migrationFile("001_a.sql")], appliedRows)
     ).toThrow("Checksum mismatch");
+  });
+});
+
+describe("checkDatabaseCapacity stage (Issue #743)", () => {
+  const ENV_KEYS = [
+    "DATABASE_CAPACITY_APP_INSTANCES_MIN",
+    "DATABASE_CAPACITY_APP_INSTANCES_EXPECTED",
+    "DATABASE_CAPACITY_APP_INSTANCES_MAX",
+    "DATABASE_CAPACITY_APPROVED_CONNECTIONS",
+    "DATABASE_CAPACITY_RESERVED_ADMIN_CONNECTIONS",
+    "DATABASE_POOL_MAX"
+  ] as const;
+
+  let originalValues: Partial<Record<(typeof ENV_KEYS)[number], string>>;
+
+  beforeEach(() => {
+    originalValues = Object.fromEntries(
+      ENV_KEYS.map((key) => [key, process.env[key]])
+    );
+    for (const key of ENV_KEYS) {
+      delete process.env[key];
+    }
+  });
+
+  afterEach(() => {
+    for (const key of ENV_KEYS) {
+      const original = originalValues[key];
+      if (original === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = original;
+      }
+    }
+  });
+
+  test("this is a pure, read-only, no-database stage: 'database:capacity' is its name and it never touches the network", async () => {
+    const result = await checkDatabaseCapacity();
+    expect(result.name).toBe("database:capacity");
+  });
+
+  test("passes with no DATABASE_CAPACITY_* env vars set (the single-instance offline/LAN default)", async () => {
+    const result = await checkDatabaseCapacity();
+    expect(result.status).toBe("pass");
+    expect(result.detail).toBeUndefined();
+  });
+
+  test("fails when the configured max instance count would exceed the approved connection budget (the issue's own connection-storm example)", async () => {
+    process.env.DATABASE_CAPACITY_APP_INSTANCES_MAX = "10";
+    process.env.DATABASE_POOL_MAX = "20";
+    process.env.DATABASE_CAPACITY_APPROVED_CONNECTIONS = "80";
+    process.env.DATABASE_CAPACITY_RESERVED_ADMIN_CONNECTIONS = "0";
+
+    const result = await checkDatabaseCapacity();
+
+    expect(result.status).toBe("fail");
+    expect(result.detail).toContain("finding");
+  });
+
+  test("fails when instance-count configuration is internally inconsistent (min > max)", async () => {
+    process.env.DATABASE_CAPACITY_APP_INSTANCES_MIN = "5";
+    process.env.DATABASE_CAPACITY_APP_INSTANCES_MAX = "1";
+
+    const result = await checkDatabaseCapacity();
+
+    expect(result.status).toBe("fail");
   });
 });
