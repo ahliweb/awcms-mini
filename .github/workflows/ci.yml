@@ -117,6 +117,15 @@ jobs:
       - name: Module composition inventory freshness check
         run: bun run modules:composition:inventory:check
 
+      # Issue #741 (epic #738): added alongside `modules:compose:check` in
+      # `package.json`'s `check` script, for the exact same reason the
+      # comment above documents for that step (Issue #685/#740's own
+      # history of this gap) — a derived-application compatibility
+      # manifest check that only ran in `bun run check` and never here
+      # would silently never gate a real PR.
+      - name: Extension compatibility manifest check
+        run: bun run extension:check
+
       - name: i18n EN/ID/POT key parity check
         run: bun run i18n:parity:check
 
