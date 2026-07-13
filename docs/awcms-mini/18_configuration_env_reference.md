@@ -777,6 +777,47 @@ punya adapter terdaftar — memberi sinyal jelas begitu operator
 menghubungkan akun sebelum adapter provider sungguhan (#644/#645/#646)
 di-deploy.
 
+### LinkedIn organization-page adapter (Issue #645)
+
+Provider `provider_key: "linkedin_organization"` — adapter NYATA pertama di
+modul `social_publishing` (`src/modules/social-publishing/infrastructure/
+linkedin-provider-adapter.ts`). Independen dari
+`SOCIAL_PUBLISHING_ENABLED`/`_PROFILE` di atas (flag terpisah,
+`LINKEDIN_PROVIDER_ENABLED`) — deployment bisa menjalankan outbox untuk
+provider lain tanpa pernah mengaktifkan LinkedIn.
+
+| Var                                | Wajib        | Default | Sensitif | Fungsi                                                                                                                                                          |
+| ---------------------------------- | ------------ | ------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LINKEDIN_PROVIDER_ENABLED`        | –            | `false` | –        | Mendaftarkan adapter LinkedIn ke `social-provider-registry.ts`                                                                                                  |
+| `LINKEDIN_CLIENT_ID`               | bila enabled | –       | –        | Client ID LinkedIn App (app-review, bukan dipakai untuk redirect OAuth di sini)                                                                                 |
+| `LINKEDIN_CLIENT_SECRET_REFERENCE` | bila enabled | –       | secret   | REFERENSI ke secret storage (mis. `env:LINKEDIN_CLIENT_SECRET_ACTUAL`), bukan raw                                                                               |
+| `LINKEDIN_API_VERSION`             | bila enabled | –       | –        | Format "YYYYMM", dikirim sebagai header `LinkedIn-Version` di setiap request                                                                                    |
+| `LINKEDIN_OAUTH_REDIRECT_URI`      | bila enabled | –       | –        | Redirect URI terdaftar di LinkedIn App (app-review), tidak dipakai untuk redirect nyata di kode ini                                                             |
+| `LINKEDIN_REQUIRED_SCOPES`         | bila enabled | –       | –        | Comma-separated scope wajib (mis. `w_organization_social,r_organization_social,rw_organization_admin`), dicek `verifyCredentials` terhadap scope akun tersimpan |
+
+**Tidak ada alur OAuth authorize/callback interaktif di repo ini untuk
+LinkedIn** — connect/disconnect/reauthorize tetap lewat endpoint generik
+`POST /api/v1/social-publishing/accounts` (upsert) dan
+`POST .../accounts/{id}/disconnect` yang sudah ada sejak #643, sama seperti
+provider lain. `LINKEDIN_CLIENT_ID`/`LINKEDIN_OAUTH_REDIRECT_URI` hanya
+mendeskripsikan LinkedIn App yang didaftarkan operator secara manual di
+LinkedIn Developer portal (persyaratan app-review LinkedIn) —
+`token_reference` yang di-paste ke endpoint connect diperoleh operator DI
+LUAR aplikasi ini (lihat `linkedin-provider-config.ts` untuk alasan penuh:
+menyimpan token OAuth mentah hasil redirect nyata akan melanggar invarian
+"`token_reference` tidak pernah berupa token mentah").
+
+`bun run config:validate` (`checkLinkedInProviderConfig`) menolak boot bila
+`LINKEDIN_PROVIDER_ENABLED=true` tapi salah satu var di atas kosong atau
+`LINKEDIN_API_VERSION` tidak berformat "YYYYMM". `bun run security:readiness`
+(`checkLinkedInProviderReadiness`, critical) mengulang cek yang sama
+(config-only, tanpa panggilan LinkedIn nyata) plus
+`checkSocialPublishingProviderReadiness` yang sudah ada (adapter terdaftar
+atau tidak). Role organisasi LinkedIn ("ADMINISTRATOR"/"CONTENT_ADMIN") dan
+masa berlaku token dicek LIVE per percobaan publish oleh adapter sendiri
+(`publish()`/`verifyCredentials()`), bukan oleh `security:readiness` —
+lihat `linkedin-provider-adapter.ts`'s header comment.
+
 Token OAuth/API key platform sosial TIDAK PERNAH disimpan sebagai teks
 polos di kolom pengaturan apa pun — `awcms_mini_social_accounts.token_reference`
 hanya referensi buram ke secret storage eksternal (lihat

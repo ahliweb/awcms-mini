@@ -13673,6 +13673,17 @@ components:
         autoPublishEnabled:
           type: boolean
           default: false
+      example:
+        providerKey: linkedin_organization
+        providerAccountId: urn:li:organization:12345678
+        providerAccountName: Acme Corp
+        providerAccountType: organization
+        tokenReference: env:LINKEDIN_ACME_ORG_TOKEN
+        scopes:
+          - w_organization_social
+          - r_organization_social
+          - rw_organization_admin
+        autoPublishEnabled: true
     SocialAccountItem:
       type: object
       required:
@@ -13697,7 +13708,7 @@ components:
           format: uuid
         providerKey:
           type: string
-          description: Provider-neutral by design — not a fixed enum (see migration 050's header). Concrete values are minted by adapter issues (#644/#645/#646) — `telegram_channel` is the first real one (Issue
+          description: Provider-neutral by design — not a fixed enum (see migration 050's header). Concrete values are minted by adapter issues (#644/#645/#646) — e.g. `linkedin_organization` (#645, LinkedIn organization pages; `providerAccountId` is the full `urn:li:organization:{id}`, `providerAccountType` is `organization`) and `telegram_channel` (#646).
         providerAccountId:
           type: string
         providerAccountName:

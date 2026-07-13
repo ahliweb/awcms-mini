@@ -7,16 +7,19 @@
  * bounded-passes loop, same `awcms_mini_worker` role via
  * `getWorkerDatabaseClient`). Not exposed over HTTP.
  *
- * This foundation issue ships ZERO real provider adapters
+ * The foundation issue (#643) shipped ZERO real provider adapters
  * (`src/modules/social-publishing/infrastructure/social-provider-registry.ts`
- * starts empty) — every dispatched job today resolves to a terminal
- * `provider_not_registered` failure until #644/#645/#646 register a real
- * adapter from their own composition root (a future import added here or to
- * a small adapter-registration script run before this one).
+ * starts empty) — every job for a provider with no adapter registered
+ * resolves to a terminal `provider_not_registered` failure. Each adapter
+ * issue registers itself here from its own composition root (Issue #645's
+ * `registerLinkedInProviderAdapterIfEnabled` below is the first; #644 Meta
+ * and #646 Telegram add their own equivalent import + call, each
+ * independently, additive to this list).
  */
 import { getWorkerDatabaseClient } from "../src/lib/database/client";
 import { logScriptFailure } from "../src/lib/logging/error-log";
 import { dispatchSocialPublishQueue } from "../src/modules/social-publishing/application/social-publish-dispatch";
+import { registerLinkedInProviderAdapterIfEnabled } from "../src/modules/social-publishing/infrastructure/linkedin-provider-adapter";
 // Issue #646 — side-effect import registers the real Telegram adapter into
 // `social-provider-registry.ts` for this process. See
 // `telegram-provider-registration.ts`'s own header comment for why this is
@@ -28,6 +31,12 @@ const MAX_PASSES_PER_TENANT = 20;
 type TenantRow = { id: string };
 
 async function main() {
+  // Composition-root adapter registration (Issue #645) — a no-op unless
+  // LINKEDIN_PROVIDER_ENABLED=true. Future adapter issues (#644 Meta, #646
+  // Telegram) add their own equivalent registration call here, each
+  // independently — see `social-provider-registry.ts`'s header comment.
+  registerLinkedInProviderAdapterIfEnabled();
+
   // Issue #683 (epic #679): `awcms_mini_worker` role — see migration 045.
   const sql = getWorkerDatabaseClient();
   const correlationId = crypto.randomUUID();
