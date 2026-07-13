@@ -154,8 +154,24 @@ import {
  * must start at `900` or above (or otherwise not overlap this range) to
  * guarantee zero numbering collisions with the base by construction. This
  * is a POLICY constant, not derived from the real `sql/` directory (this
- * file is pure, no filesystem access — the real directory is cross-checked
- * separately by `scripts/repo-inventory-generate.ts`).
+ * file is pure, no filesystem access — no function in this file reads
+ * `sql/*.sql` filenames at all).
+ *
+ * PR #769 security-auditor review (Medium finding): a prior version of
+ * this comment claimed `scripts/repo-inventory-generate.ts` "cross-checks"
+ * the real directory against this range — verified false, that script only
+ * lists/counts migration filenames for the inventory doc, with no
+ * assertion against this constant. `repo-inventory-generate.ts` now
+ * actually performs that cross-check (`findMigrationNamespaceViolations`,
+ * reusing this exact constant) — every `sql/*.sql` file's numeric prefix
+ * is verified to stay within `1..899` in the base repository's own build,
+ * reported as a possible gap in `docs/awcms-mini/repo-inventory.md` if
+ * violated. This is still a BASE-repo-only guarantee: it has no visibility
+ * into a derived repository's own separate `sql/` directory, which must
+ * verify its own files stay inside ITS declared `migrationNamespace`
+ * itself (composition only compares declared RANGES against each other,
+ * §"migration_namespace_overlap" above — no mechanism here reads across
+ * repository boundaries).
  */
 export const BASE_MODULE_MIGRATION_NAMESPACE: ModuleMigrationNamespace = {
   label: "awcms-mini base",
@@ -598,23 +614,27 @@ function toInventoryEntry(
  * two runs against the same input always produce byte-identical JSON,
  * independent of registration order.
  *
- * When the composed registry is INVALID (e.g. a `prohibited_base_override`
- * collision), `source` for the colliding application module is still
- * attributed via `baseKeys.has(...)`, which will misreport it as `"base"`
- * for that one specific collision case — a minor cosmetic inaccuracy in an
- * already-rejected, `valid: false` result (`issueCount` makes the broken
- * state unambiguous); this inventory is diagnostic evidence, never treated
- * as safe-to-ship data when `valid` is `false`.
+ * `source` is attributed by POSITION, not by key membership: `mergeModuleRegistries`
+ * guarantees `result.registry` is exactly `[...base, ...application.modules]`
+ * in that order (`module-composition.ts`'s own file header), so index `<
+ * input.base.length` is `"base"` and everything after is `"application"` —
+ * correct even when the composed registry is INVALID and a
+ * `prohibited_base_override` collision means an application module shares
+ * a base module's key (PR #769 security-auditor Low finding: an earlier
+ * version of this function attributed `source` via `baseKeys.has(m.key)`,
+ * which misreported the colliding APPLICATION module as `"base"` for that
+ * one collision case — fixed here, not merely documented as a known
+ * limitation, since the positional fix costs nothing extra).
  */
 export function buildComposedModuleInventory(
   input: ModuleCompositionInput
 ): ComposedModuleInventory {
   const result = composeModuleRegistry(input);
-  const baseKeys = new Set(input.base.map((m) => m.key));
+  const baseCount = input.base.length;
 
-  const modules = [...result.registry]
-    .map((m) =>
-      toInventoryEntry(m, baseKeys.has(m.key) ? "base" : "application")
+  const modules = result.registry
+    .map((m, index) =>
+      toInventoryEntry(m, index < baseCount ? "base" : "application")
     )
     .sort((a, b) => a.key.localeCompare(b.key));
 

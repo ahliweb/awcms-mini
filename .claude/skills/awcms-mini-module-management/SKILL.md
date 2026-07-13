@@ -283,8 +283,8 @@ di atas, sengaja dipakai ulang bukan diduplikasi).
   yang sudah ada (`modules:sync`, `modules:dag:check`,
   `repo:inventory:generate`, semua service module-management) TIDAK perlu
   diubah — semuanya sudah memanggil `listModules()`.
-- **11 jenis issue komposisi** (empat dipakai ulang dari
-  `validateModuleDependencyGraph` + tujuh baru: `duplicate_module_key`,
+- **13 jenis issue komposisi** (empat dipakai ulang dari
+  `validateModuleDependencyGraph` + sembilan baru: `duplicate_module_key`,
   `prohibited_base_override`, `invalid_module_type`,
   `capability_provider_conflict`, `capability_provider_missing`,
   `migration_namespace_overlap`, `deployment_profile_incompatible`,

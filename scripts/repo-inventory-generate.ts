@@ -70,6 +70,7 @@ import { parseDocument } from "yaml";
 
 import { listModules } from "../src/modules";
 import type { ModuleDescriptor } from "../src/modules/_shared/module-contract";
+import { BASE_MODULE_MIGRATION_NAMESPACE } from "../src/modules/module-management/domain/module-composition";
 import { bundleOpenApi } from "./openapi-bundle";
 
 export const REPO_INVENTORY_PATH = "docs/awcms-mini/repo-inventory.md";
@@ -187,6 +188,36 @@ async function listSqlFiles(rootDir: string): Promise<string[]> {
   return entries.filter((f) => f.endsWith(".sql")).sort();
 }
 
+/**
+ * Issue #740 security follow-up (PR #769 security-auditor Medium finding):
+ * this repository's OWN `sql/` directory must never contain a migration
+ * numbered above `BASE_MODULE_MIGRATION_NAMESPACE.rangeEnd` — that range is
+ * reserved for a derived repository's own separately-numbered migrations
+ * (`module-composition.ts`'s own doc comment). A base migration
+ * accidentally numbered `900` or higher would silently violate that
+ * reservation for every derived repository relying on it, without
+ * `bun run modules:compose:check` (which never reads `sql/*.sql`) ever
+ * catching it. This is the real, filesystem-backed half of that
+ * guarantee — `module-composition.ts` stays pure/I-O-free and only
+ * compares DECLARED ranges against each other.
+ *
+ * Deliberately narrow: only checks THIS repository's own files against
+ * THIS repository's own reserved range — it has no visibility into (and
+ * makes no claim about) a derived repository's separate `sql/` directory,
+ * which must verify its own files against its own declared
+ * `migrationNamespace` using the same reasoning, in its own repo.
+ */
+export function findMigrationNamespaceViolations(
+  sqlFiles: readonly string[]
+): string[] {
+  return sqlFiles.filter((file) => {
+    const num = Number(file.match(/^(\d+)_/)?.[1]);
+    return (
+      Number.isFinite(num) && num > BASE_MODULE_MIGRATION_NAMESPACE.rangeEnd
+    );
+  });
+}
+
 const TEST_FILE_PATTERN = /\.(test\.ts|test\.mjs|e2e\.ts)$/;
 
 async function countTestFiles(
@@ -247,6 +278,8 @@ async function buildRawRepoInventoryMarkdown(
 
   // Migrations
   const sqlFiles = await listSqlFiles(rootDir);
+  const migrationNamespaceViolations =
+    findMigrationNamespaceViolations(sqlFiles);
 
   // Tables & RLS
   const allTables: TableInfo[] = [];
@@ -337,9 +370,19 @@ async function buildRawRepoInventoryMarkdown(
   lines.push("## Migrations");
   lines.push("");
   lines.push(
-    `${sqlFiles.length} migration files in \`sql/\` (\`${sqlFiles[0] ?? "-"}\` .. \`${sqlFiles.at(-1) ?? "-"}\`).`
+    `${sqlFiles.length} migration files in \`sql/\` (\`${sqlFiles[0] ?? "-"}\` .. \`${sqlFiles.at(-1) ?? "-"}\`). Reserved base migration namespace (Issue #740, ADR-0014): \`${BASE_MODULE_MIGRATION_NAMESPACE.rangeStart}-${BASE_MODULE_MIGRATION_NAMESPACE.rangeEnd}\` — a derived repository's own migrations start numbering at \`${BASE_MODULE_MIGRATION_NAMESPACE.rangeEnd + 1}\` or above.`
   );
   lines.push("");
+  if (migrationNamespaceViolations.length > 0) {
+    lines.push(
+      `> **${migrationNamespaceViolations.length} POSSIBLE GAP** — migration file(s) numbered above this repository's own reserved namespace (\`${BASE_MODULE_MIGRATION_NAMESPACE.rangeEnd}\`), encroaching on the range reserved for a derived repository's own migrations:`
+    );
+    lines.push("");
+    for (const file of migrationNamespaceViolations) {
+      lines.push(`- \`${mdEscape(file)}\``);
+    }
+    lines.push("");
+  }
   lines.push("| # | File |");
   lines.push("| --- | --- |");
   for (const file of sqlFiles) {

@@ -29,7 +29,7 @@ ADR-0013 §5 secara eksplisit mencatat celah ini dan sengaja **tidak** mendesain
 
 Empat dipakai ulang apa adanya dari validator DAG registry-wide yang sudah ada (Issue #680), dijalankan atas hasil merge: `self_dependency`, `duplicate_dependency`, `missing_dependency`, `cycle`.
 
-Tujuh baru di issue ini:
+Sembilan baru di issue ini (13 total — dikoreksi dari draft awal PR #769 yang salah hitung "tujuh"/"11"; kode (`ModuleCompositionIssue` di `module-composition.ts`) selalu benar, ini murni koreksi teks):
 
 | Issue type                        | Memvalidasi                                                                                                     | Catatan desain                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

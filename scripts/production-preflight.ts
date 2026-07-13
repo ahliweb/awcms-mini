@@ -92,6 +92,18 @@ type StageDefinition = {
 
 const REMAINING_CHILD_PROCESS_STAGES: StageDefinition[] = [
   { name: "api:spec:check", command: ["bun", "run", "api:spec:check"] },
+  // Issue #740 (epic #738) security follow-up (PR #769 security-auditor
+  // review): a derived repository's own production deployment is exactly
+  // the scenario where build-time module composition could be invalid
+  // (e.g. an application module colliding with a base module's key) — a
+  // production preflight that never checks this would go live without
+  // ever having verified it. Read-only, no I/O beyond the in-memory
+  // registry (same as `modules:dag:check`, which this is a superset of),
+  // fits this stage list's "every stage is read-only" requirement exactly.
+  {
+    name: "modules:compose:check",
+    command: ["bun", "run", "modules:compose:check"]
+  },
   { name: "test", command: ["bun", "test"] },
   { name: "build", command: ["bun", "run", "build"] }
   // db:connectivity, db:pool:health, and migration:plan are handled

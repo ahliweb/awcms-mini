@@ -675,6 +675,40 @@ describe("buildComposedModuleInventory determinism (Issue #740)", () => {
       { ...BASE_MODULE_MIGRATION_NAMESPACE, source: "base" }
     ]);
   });
+
+  // PR #769 security-auditor Low finding: `source` used to be attributed
+  // by key membership (`baseKeys.has(m.key)`), which misreported a
+  // colliding APPLICATION module as `"base"` — fixed to attribute by
+  // position instead (`mergeModuleRegistries` guarantees base entries
+  // come first). This inventory is still diagnostic evidence for an
+  // already-INVALID (`prohibited_base_override`) result, never
+  // safe-to-ship data — but the diagnostic itself must correctly identify
+  // which entry is the real base module and which is the intruder.
+  test("even when composition is INVALID due to a prohibited_base_override collision, the colliding entries are attributed to the correct source by position, not by key", () => {
+    const inventory = buildComposedModuleInventory({
+      base: [base({ key: "identity_access", name: "Real Base Module" })],
+      application: registry({
+        modules: [app({ key: "identity_access", name: "Evil Override" })]
+      })
+    });
+
+    expect(inventory.valid).toBe(false);
+    expect(inventory.issueCount).toBeGreaterThan(0);
+
+    const collidingEntries = inventory.modules.filter(
+      (m) => m.key === "identity_access"
+    );
+    expect(collidingEntries.length).toBe(2);
+
+    const baseEntry = collidingEntries.find(
+      (m) => m.name === "Real Base Module"
+    );
+    const applicationEntry = collidingEntries.find(
+      (m) => m.name === "Evil Override"
+    );
+    expect(baseEntry?.source).toBe("base");
+    expect(applicationEntry?.source).toBe("application");
+  });
 });
 
 describe("the real base registry (Issue #740 acceptance: unchanged default base build)", () => {

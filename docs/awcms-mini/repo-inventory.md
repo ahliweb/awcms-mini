@@ -29,7 +29,7 @@
 
 ## Migrations
 
-55 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `055_awcms_mini_social_publishing_verify_permission.sql`).
+55 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `055_awcms_mini_social_publishing_verify_permission.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
 
 | #   | File                                                              |
 | --- | ----------------------------------------------------------------- |
