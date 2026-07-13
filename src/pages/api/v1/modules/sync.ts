@@ -10,6 +10,12 @@ import {
 } from "../../../../modules/identity-access/application/access-guard";
 import { recordAuditEvent } from "../../../../modules/logging/application/audit-log";
 import { syncModuleDescriptors } from "../../../../modules/module-management/application/descriptor-sync";
+import { listBaseModules } from "../../../../modules";
+import { applicationModuleRegistry } from "../../../../modules/application-registry";
+import {
+  composeModuleRegistry,
+  formatModuleCompositionIssue
+} from "../../../../modules/module-management/domain/module-composition";
 
 const SYNC_GUARD = {
   moduleKey: "module_management",
@@ -51,6 +57,31 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
 
     if (!auth.allowed) {
       return auth.denied;
+    }
+
+    // Issue #740 security follow-up (PR #769 security-auditor BLOCKED
+    // finding): explicit pre-check, mirroring `scripts/modules-sync.ts`'s
+    // own composition gate, so an invalid composed registry (e.g. an
+    // application module colliding with a base module's key) fails with a
+    // clean, structured response here rather than an uncaught
+    // `ModuleCompositionInvalidError` propagating out of `withTenant`
+    // (which would otherwise misrecord this as a database circuit-breaker
+    // failure). `syncModuleDescriptors` itself ALSO refuses to write on
+    // the same condition — this is deliberately redundant defense in
+    // depth, not the only guard.
+    const compositionResult = composeModuleRegistry({
+      base: listBaseModules(),
+      application: applicationModuleRegistry
+    });
+
+    if (!compositionResult.valid) {
+      return fail(
+        500,
+        "MODULE_REGISTRY_COMPOSITION_INVALID",
+        "The composed module registry failed validation — refusing to sync.",
+        {},
+        { issues: compositionResult.issues.map(formatModuleCompositionIssue) }
+      );
     }
 
     const result = await syncModuleDescriptors(tx);

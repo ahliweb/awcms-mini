@@ -13,13 +13,51 @@
  * These tables are global/RLS-free (migration 025's own justification —
  * code-derived registry metadata, not tenant data), so this runs on the
  * plain app connection with no tenant context needed.
+ *
+ * ## Composition validation gate (Issue #740 security follow-up, PR #769
+ * security-auditor BLOCKED finding)
+ *
+ * `syncModuleDescriptors` is the SINGLE choke point every real write path
+ * to `awcms_mini_modules` goes through: `scripts/modules-sync.ts` (CLI),
+ * `src/pages/api/v1/modules/sync.ts` (the live API endpoint), AND
+ * `tenant-module-lifecycle.ts`'s `enableTenantModule`/`disableTenantModule`,
+ * `module-settings.ts`'s `updateModuleSettings`, and `health-registry.ts`'s
+ * `runModuleHealthCheck` — all four call `syncModuleDescriptors(tx)`
+ * themselves as a side effect (`module-management/README.md`'s "sync
+ * first" rule) before writing tenant-scoped rows with an FK to
+ * `awcms_mini_modules`. Build-time composition validation
+ * (`bun run modules:compose:check`,
+ * `module-management/domain/module-composition.ts`) originally existed
+ * ONLY as a standalone CI script — nothing on the actual write path ever
+ * called it, so an invalid composed registry (e.g. an application module
+ * whose `key` collides with a base module, `prohibited_base_override`)
+ * could still reach `upsertModule`'s `INSERT ... ON CONFLICT (module_key)
+ * DO UPDATE SET ...` and silently overwrite the base module's row with the
+ * application module's data — the exact scenario `prohibited_base_override`
+ * exists to prevent, reachable from six real call sites, not caught by any
+ * of the ~120 tests that existed before this fix (all of them exercised
+ * composition validation in isolation, or `syncModuleDescriptors` against
+ * an already-valid registry, never the adversarial combination of both).
+ *
+ * The fix lives HERE, not only in the two most obvious callers
+ * (`scripts/modules-sync.ts`/the API endpoint already gate on this too,
+ * for a fast, clean pre-check before opening a DB transaction) — because
+ * gating only those two would have left the four internal "sync first"
+ * call sites above just as exposed, reproducing the same class of gap one
+ * level removed. See `findDuplicateDescriptorKeys`/`ModuleCompositionInvalidError`
+ * below.
  */
-import { listModules } from "../..";
+import { listBaseModules, listModules } from "../..";
+import { applicationModuleRegistry } from "../../application-registry";
 import type { ModuleDescriptor } from "../../_shared/module-contract";
 import {
   planModuleSync,
   type ExistingModuleRow
 } from "../domain/descriptor-diff";
+import {
+  composeModuleRegistry,
+  formatModuleCompositionIssue
+} from "../domain/module-composition";
 
 export type DescriptorSyncResult = {
   created: string[];
@@ -27,6 +65,53 @@ export type DescriptorSyncResult = {
   unchanged: string[];
   orphaned: string[];
 };
+
+/**
+ * Thrown by `syncModuleDescriptors` when it refuses to write — checked
+ * BEFORE `fetchExistingModules`/any upsert, so a rejected sync never
+ * partially writes. `issues` are pre-formatted, human-readable,
+ * secret-free strings (module keys/capability names/paths are static code
+ * identifiers, same safety guarantee `formatModuleDependencyGraphIssue`
+ * already documents) — safe to log or surface in an API error response
+ * verbatim.
+ */
+export class ModuleCompositionInvalidError extends Error {
+  constructor(public readonly issues: readonly string[]) {
+    super(
+      `Refusing to sync module registry — composition validation failed:\n${issues
+        .map((issue) => `  - ${issue}`)
+        .join("\n")}`
+    );
+    this.name = "ModuleCompositionInvalidError";
+  }
+}
+
+/**
+ * Provenance-agnostic structural check, used when a caller passes an
+ * explicit (possibly synthetic/test) `descriptors` array that
+ * `composeModuleRegistry` can't meaningfully validate (it can't tell which
+ * entries would have been "base" vs "application" for such an array).
+ * `awcms_mini_modules.module_key` is `upsertModule`'s own `ON CONFLICT`
+ * target, so two descriptors sharing a key — regardless of source — would
+ * otherwise let whichever one this function's `Map` construction processes
+ * last silently win, overwriting whichever row already existed. A flat
+ * duplicate is unsafe to write no matter how it got here.
+ */
+function findDuplicateDescriptorKeys(
+  descriptors: readonly ModuleDescriptor[]
+): string[] {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+
+  for (const descriptor of descriptors) {
+    if (seen.has(descriptor.key)) {
+      duplicates.add(descriptor.key);
+    }
+    seen.add(descriptor.key);
+  }
+
+  return [...duplicates];
+}
 
 /**
  * Exported (Issue #697, epic #679) so `scripts/modules-sync.ts`'s
@@ -165,6 +250,42 @@ export async function syncModuleDescriptors(
   sql: Bun.SQL,
   descriptors: readonly ModuleDescriptor[] = listModules()
 ): Promise<DescriptorSyncResult> {
+  // `listModules()` always returns the same stable, module-level array
+  // reference (computed once at import time, `src/modules/index.ts`) — so
+  // this reference check reliably identifies "the caller is syncing the
+  // real, global effective registry" (every real call site: the CLI
+  // script, the API endpoint, and all four internal "sync first" callers)
+  // vs. "the caller passed an explicit/synthetic array" (this repo's own
+  // diff/orphan-detection tests). Only the former can be resolved back to
+  // known base-vs-application provenance, so only it gets the FULL
+  // composition rule set (capability bindings, migration namespace,
+  // deployment profiles, prohibited base override, etc.) with rich
+  // diagnostics; the latter still gets the cheaper, provenance-agnostic
+  // duplicate-key check, which is the one structural invariant that must
+  // hold unconditionally for ANY descriptor list about to be upserted.
+  if (descriptors === listModules()) {
+    const compositionResult = composeModuleRegistry({
+      base: listBaseModules(),
+      application: applicationModuleRegistry
+    });
+
+    if (!compositionResult.valid) {
+      throw new ModuleCompositionInvalidError(
+        compositionResult.issues.map(formatModuleCompositionIssue)
+      );
+    }
+  } else {
+    const duplicateKeys = findDuplicateDescriptorKeys(descriptors);
+
+    if (duplicateKeys.length > 0) {
+      throw new ModuleCompositionInvalidError(
+        duplicateKeys.map(
+          (key) => `Module key "${key}" is declared more than once.`
+        )
+      );
+    }
+  }
+
   const existingRows = await fetchExistingModules(sql);
   const plan = planModuleSync(descriptors, existingRows);
 
