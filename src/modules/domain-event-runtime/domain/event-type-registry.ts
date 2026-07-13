@@ -40,6 +40,36 @@ export const SAMPLE_RECORDED_EVENT_TYPE =
   "awcms-mini.domain-event-runtime.sample.recorded";
 export const SAMPLE_RECORDED_EVENT_VERSION = "1.0";
 
+/**
+ * `workflow-approval`'s FIRST real producer registration (Issue #747,
+ * epic `platform-evolution` #738, Wave 2) — a small, real event set
+ * (instance lifecycle + delegation lifecycle), not an exhaustive
+ * taxonomy: `workflow-approval/application/workflow-instance.ts`,
+ * `workflow-instance-decision.ts`, `workflow-recovery.ts`, and
+ * `workflow-delegation-directory.ts` call `appendDomainEvent` with these
+ * inside the SAME transaction as the state change they describe. All
+ * share one contract version string (`WORKFLOW_EVENT_VERSION`) since they
+ * were introduced together; bump per-event if any one payload shape
+ * changes independently later.
+ */
+export const WORKFLOW_EVENT_VERSION = "1.0";
+export const WORKFLOW_INSTANCE_STARTED_EVENT_TYPE =
+  "awcms-mini.workflow.instance.started";
+export const WORKFLOW_INSTANCE_ADVANCED_EVENT_TYPE =
+  "awcms-mini.workflow.instance.advanced";
+export const WORKFLOW_INSTANCE_APPROVED_EVENT_TYPE =
+  "awcms-mini.workflow.instance.approved";
+export const WORKFLOW_INSTANCE_REJECTED_EVENT_TYPE =
+  "awcms-mini.workflow.instance.rejected";
+export const WORKFLOW_INSTANCE_CANCELLED_EVENT_TYPE =
+  "awcms-mini.workflow.instance.cancelled";
+export const WORKFLOW_TASK_ESCALATED_EVENT_TYPE =
+  "awcms-mini.workflow.task.escalated";
+export const WORKFLOW_DELEGATION_CREATED_EVENT_TYPE =
+  "awcms-mini.workflow.delegation.created";
+export const WORKFLOW_DELEGATION_REVOKED_EVENT_TYPE =
+  "awcms-mini.workflow.delegation.revoked";
+
 export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
   [
     {
@@ -48,8 +78,56 @@ export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
       description:
         "Reference/example event type used to exercise the domain-event-runtime outbox, dispatcher, ordering, retry/backoff, dead-letter, and replay mechanism end-to-end (Issue #742). Real producer modules publish their OWN event types the same way, via appendDomainEvent — this one is intentionally self-contained rather than tied to another module's business logic in this foundation issue."
     },
+    {
+      eventType: WORKFLOW_INSTANCE_STARTED_EVENT_TYPE,
+      eventVersion: WORKFLOW_EVENT_VERSION,
+      description:
+        "A workflow instance was started, pinned to the currently-active workflow definition version (Issue #747)."
+    },
+    {
+      eventType: WORKFLOW_INSTANCE_ADVANCED_EVENT_TYPE,
+      eventVersion: WORKFLOW_EVENT_VERSION,
+      description:
+        "A workflow instance's active task was decided and the instance advanced to its next node(s), without yet reaching a terminal outcome (Issue #747)."
+    },
+    {
+      eventType: WORKFLOW_INSTANCE_APPROVED_EVENT_TYPE,
+      eventVersion: WORKFLOW_EVENT_VERSION,
+      description:
+        "A workflow instance reached an `end` node with outcome `approved` (Issue #747)."
+    },
+    {
+      eventType: WORKFLOW_INSTANCE_REJECTED_EVENT_TYPE,
+      eventVersion: WORKFLOW_EVENT_VERSION,
+      description:
+        "A workflow instance reached an `end` node with outcome `rejected`, or was force-rejected (Issue #747)."
+    },
+    {
+      eventType: WORKFLOW_INSTANCE_CANCELLED_EVENT_TYPE,
+      eventVersion: WORKFLOW_EVENT_VERSION,
+      description:
+        "An administrator cancelled a running workflow instance (Issue #747, `application/workflow-recovery.ts`)."
+    },
+    {
+      eventType: WORKFLOW_TASK_ESCALATED_EVENT_TYPE,
+      eventVersion: WORKFLOW_EVENT_VERSION,
+      description:
+        "A pending workflow task passed its due date and was escalated by the scheduled escalation/timeout job (Issue #747)."
+    },
+    {
+      eventType: WORKFLOW_DELEGATION_CREATED_EVENT_TYPE,
+      eventVersion: WORKFLOW_EVENT_VERSION,
+      description:
+        "A workflow delegation/substitute assignment was created (Issue #747)."
+    },
+    {
+      eventType: WORKFLOW_DELEGATION_REVOKED_EVENT_TYPE,
+      eventVersion: WORKFLOW_EVENT_VERSION,
+      description:
+        "A workflow delegation/substitute assignment was revoked (Issue #747)."
+    },
     // Issue #748 (profile_identity, epic #738 platform-evolution Wave 2) —
-    // the first REAL (non-reference) producer registered here. Literal
+    // another real (non-reference) producer registered here. Literal
     // strings match `profile-identity/domain/merge-event.ts`'s
     // `PROFILE_MERGED_EVENT_TYPE`/`PROFILE_MERGED_EVENT_VERSION` constants
     // (kept in sync by convention, not by cross-module import — see that

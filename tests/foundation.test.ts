@@ -94,7 +94,7 @@ describe("module registry", () => {
     expect(getModuleByKey("workflow")).toMatchObject({
       key: "workflow",
       status: "active",
-      dependencies: ["tenant_admin", "identity_access"]
+      dependencies: ["tenant_admin", "identity_access", "domain_event_runtime"]
     });
     expect(getModuleByKey("form_drafts")).toMatchObject({
       key: "form_drafts",
@@ -535,7 +535,8 @@ describe("database migration runner helpers", () => {
       "056_awcms_mini_domain_event_runtime_schema.sql",
       "057_awcms_mini_data_lifecycle_schema.sql",
       "058_awcms_mini_data_lifecycle_permissions.sql",
-      "059_awcms_mini_profile_identity_party_lifecycle_schema.sql"
+      "059_awcms_mini_profile_identity_party_lifecycle_schema.sql",
+      "060_awcms_mini_workflow_managed_definitions_schema.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

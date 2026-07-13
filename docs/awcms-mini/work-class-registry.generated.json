@@ -851,7 +851,67 @@
       "source": "default"
     },
     {
+      "path": "src/pages/api/v1/workflows/definitions/[id].ts",
+      "workClass": "interactive",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/workflows/definitions/[id]/new-version.ts",
+      "workClass": "interactive",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/workflows/definitions/[id]/publish.ts",
+      "workClass": "interactive",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/workflows/definitions/[id]/retire.ts",
+      "workClass": "interactive",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/workflows/definitions/[id]/validate.ts",
+      "workClass": "interactive",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/workflows/definitions/index.ts",
+      "workClass": "interactive",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/workflows/delegations/[id]/revoke.ts",
+      "workClass": "interactive",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/workflows/delegations/index.ts",
+      "workClass": "interactive",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/workflows/instances/[id].ts",
+      "workClass": "interactive",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/workflows/instances/[id]/cancel.ts",
+      "workClass": "interactive",
+      "source": "explicit"
+    },
+    {
       "path": "src/pages/api/v1/workflows/tasks/[id]/decisions.ts",
+      "workClass": "interactive",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/workflows/tasks/[id]/force-decision.ts",
+      "workClass": "interactive",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/workflows/tasks/[id]/reassign.ts",
       "workClass": "interactive",
       "source": "explicit"
     },
@@ -927,6 +987,12 @@
       "workClass": "background_sync",
       "source": "registry",
       "rationale": "Frequent scheduled aggregation (analytics:rollup, doc recommends every run of the daily rollup) — same low-priority-but-regular profile as sync push/pull, not a one-off maintenance task."
+    },
+    {
+      "path": "scripts/workflow-escalations-dispatch.ts",
+      "workClass": "background_sync",
+      "source": "registry",
+      "rationale": "Escalation/timeout sweep (workflow:escalations:dispatch, Issue #747), recommended every 1-5 minutes — same recurring dispatcher profile as domain-events/social-publish/object-sync dispatch, not a tolerant-of-delay maintenance sweep since it drives due-date/overdue task state operators rely on."
     }
   ]
 }

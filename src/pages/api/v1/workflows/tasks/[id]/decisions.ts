@@ -6,78 +6,59 @@ import {
 } from "../../../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../../../lib/database/client";
 import { withTenant } from "../../../../../../lib/database/tenant-context";
+import {
+  authorizeInTransaction,
+  resolveAuthInputs
+} from "../../../../../../modules/identity-access/application/access-guard";
 import { hashSessionToken } from "../../../../../../lib/auth/session-token";
 import {
   bodyTooLargeResponse,
   readJsonBody
 } from "../../../../../../lib/security/request-body-limit";
-import { extractBearerToken } from "../../../../../../modules/identity-access/application/session-lookup";
-import {
-  fetchGrantedPermissionKeys,
-  resolveTenantContext
-} from "../../../../../../modules/identity-access/application/auth-context";
-import { recordDecisionLog } from "../../../../../../modules/identity-access/application/decision-log";
-import { evaluateAccess } from "../../../../../../modules/identity-access/domain/access-control";
-import { recordAuditEvent } from "../../../../../../modules/logging/application/audit-log";
 import {
   computeRequestHash,
   findIdempotencyRecord,
   saveIdempotencyRecord
 } from "../../../../../../modules/_shared/idempotency";
+import { recordAuditEvent } from "../../../../../../modules/logging/application/audit-log";
+import { recordHistogram } from "../../../../../../lib/observability/metrics-port";
+import { validateWorkflowDecisionRequestBody } from "../../../../../../modules/workflow-approval/domain/workflow-transition";
 import {
-  evaluateDecisionOutcome,
-  validateWorkflowDecisionRequestBody
-} from "../../../../../../modules/workflow-approval/domain/workflow-transition";
+  fetchTaskWithInstanceForDecision,
+  findEligibleAssignment,
+  recordWorkflowTaskDecision
+} from "../../../../../../modules/workflow-approval/application/workflow-instance-decision";
+import { createEmailWorkflowNotificationAdapter } from "../../../../../../modules/email/application/workflow-notification-port-adapter";
 
 const GUARD_ACTIVITY = { moduleKey: "workflow", activityCode: "approval" };
 const IDEMPOTENCY_SCOPE = "workflow_task_decision";
-
-type TaskWithInstanceRow = {
-  id: string;
-  status: string;
-  step_order: number;
-  instance_id: string;
-  instance_status: string;
-  current_step_order: number;
-  requested_by_tenant_user_id: string;
-  steps: unknown;
-};
+const notificationPort = createEmailWorkflowNotificationAdapter();
 
 /**
- * `POST /api/v1/workflows/tasks/{id}/decisions` (Issue 11.1). Bearer-session
- * auth, guarded by `workflow.approval.approve` (same action for both
- * "approve" and "reject" decisions — the permission is the ability to
- * decide, matching the existing `sync_storage.conflict_resolution.approve`
- * precedent used for `POST /sync/conflicts/{id}/resolve`).
+ * `POST /api/v1/workflows/tasks/{id}/decisions` (Issue 11.1, evolved by
+ * Issue #747 for quorum/delegation). Guarded by `workflow.approval.approve`
+ * (same action for both "approve" and "reject" — the permission is the
+ * ability to decide). The task's instance's `requested_by_tenant_user_id`
+ * is looked up BEFORE calling the guard so the EXISTING, unchanged
+ * self-approval denial in `identity-access/domain/access-control.ts`
+ * (Issue 2.4) has the right value to compare against
+ * `context.tenantUserId`. A SEPARATE, narrower check
+ * (`findEligibleAssignment`) then confirms the caller is actually one of
+ * THIS task's eligible deciders (directly assigned, or an active
+ * delegate) — a business rule ABAC has no notion of.
  *
- * The task's instance's `requested_by_tenant_user_id` is looked up BEFORE
- * calling `evaluateAccess` so the existing generic self-approval guard in
- * `src/modules/identity-access/domain/access-control.ts` (added in Issue 2.4,
- * reused here unchanged) has the right value to compare against
- * `context.tenantUserId`.
- *
- * High-risk mutation: requires `Idempotency-Key` (doc 10 §Idempotency wrapper
- * rules explicitly lists "workflow decision"). Same key + same request body
- * hash replays the stored response; same key + different hash ->
- * `409 IDEMPOTENCY_CONFLICT`.
+ * High-risk mutation: requires `Idempotency-Key`. Same key + same request
+ * body hash replays the stored response; same key + different hash ->
+ * `409 IDEMPOTENCY_CONFLICT`; task no longer `pending` -> also `409`.
  */
-export const POST: APIRoute = async ({ request, params, locals }) => {
-  const tenantId = request.headers.get("x-awcms-mini-tenant-id");
+export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
+  const { tenantId, token } = resolveAuthInputs(request, cookies);
   const taskId = params.id;
 
-  if (!tenantId) {
+  if (!tenantId)
     return fail(400, "TENANT_REQUIRED", "Tenant header is required.");
-  }
-
-  if (!taskId) {
-    return fail(400, "VALIDATION_ERROR", "Task id is required.");
-  }
-
-  const token = extractBearerToken(request.headers.get("authorization"));
-
-  if (!token) {
-    return fail(401, "AUTH_REQUIRED", "Authentication required.");
-  }
+  if (!taskId) return fail(400, "VALIDATION_ERROR", "Task id is required.");
+  if (!token) return fail(401, "AUTH_REQUIRED", "Authentication required.");
 
   const idempotencyKey = request.headers.get("idempotency-key");
 
@@ -113,27 +94,15 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
   const tokenHash = hashSessionToken(token);
   const now = new Date();
   const correlationId = locals.correlationId;
+  const decisionStartedAt = Date.now();
 
   return withTenant(
     sql,
     tenantId,
     async (tx) => {
-      const context = await resolveTenantContext(tx, tenantId, tokenHash, now);
-
-      if (!context) {
-        return fail(401, "AUTH_REQUIRED", "Session is invalid or expired.");
-      }
-
-      const taskRows = (await tx`
-        SELECT t.id, t.status, t.step_order,
-               i.id AS instance_id, i.status AS instance_status, i.current_step_order,
-               i.requested_by_tenant_user_id, d.steps
-        FROM awcms_mini_workflow_tasks t
-        JOIN awcms_mini_workflow_instances i ON i.id = t.workflow_instance_id
-        JOIN awcms_mini_workflow_definitions d ON d.id = i.workflow_definition_id
-        WHERE t.tenant_id = ${tenantId} AND t.id = ${taskId}
-      `) as TaskWithInstanceRow[];
-      const task = taskRows[0];
+      // Look up the task/instance BEFORE the real guard so self-approval
+      // resourceAttributes are populated — see doc comment above.
+      const task = await fetchTaskWithInstanceForDecision(tx, tenantId, taskId);
 
       const guardRequest = {
         ...GUARD_ACTIVITY,
@@ -146,22 +115,16 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
         }
       };
 
-      const decisionResult = evaluateAccess(
-        context,
-        guardRequest,
-        await fetchGrantedPermissionKeys(tx, tenantId, context.tenantUserId)
-      );
-
-      await recordDecisionLog(
+      const auth = await authorizeInTransaction(
         tx,
         tenantId,
-        context.tenantUserId,
-        guardRequest,
-        decisionResult
+        tokenHash,
+        now,
+        guardRequest
       );
 
-      if (!decisionResult.allowed) {
-        return fail(403, "ACCESS_DENIED", decisionResult.reason);
+      if (!auth.allowed) {
+        return auth.denied;
       }
 
       const existingIdempotency = await findIdempotencyRecord(
@@ -179,7 +142,6 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
             "Idempotency-Key was already used with a different request."
           );
         }
-
         return jsonResponse(existingIdempotency.responseBody, {
           status: existingIdempotency.responseStatus
         });
@@ -197,63 +159,69 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
         );
       }
 
-      await tx`
-        INSERT INTO awcms_mini_workflow_decisions
-          (tenant_id, workflow_task_id, decision, decided_by_tenant_user_id, reason)
-        VALUES (${tenantId}, ${taskId}, ${decision}, ${context.tenantUserId}, ${reason ?? null})
-      `;
+      const assignment = await findEligibleAssignment(
+        tx,
+        tenantId,
+        taskId,
+        auth.context.tenantUserId,
+        task.workflow_key,
+        task.resource_type,
+        now
+      );
 
-      await tx`
-        UPDATE awcms_mini_workflow_tasks
-        SET status = 'completed'
-        WHERE tenant_id = ${tenantId} AND id = ${taskId}
-      `;
-
-      const totalSteps = Array.isArray(task.steps) ? task.steps.length : 0;
-      const currentStepOrder = Number(task.current_step_order);
-      const outcome = evaluateDecisionOutcome({
-        decision,
-        currentStepOrder,
-        totalSteps
-      });
-
-      await tx`
-        UPDATE awcms_mini_workflow_instances
-        SET status = ${outcome.instanceStatus},
-            current_step_order = ${outcome.nextStepOrder ?? currentStepOrder},
-            updated_at = ${now}
-        WHERE tenant_id = ${tenantId} AND id = ${task.instance_id}
-      `;
-
-      if (outcome.nextStepOrder !== null) {
-        await tx`
-          INSERT INTO awcms_mini_workflow_tasks
-            (tenant_id, workflow_instance_id, step_order, status)
-          VALUES (${tenantId}, ${task.instance_id}, ${outcome.nextStepOrder}, 'pending')
-        `;
+      if (!assignment) {
+        return fail(
+          403,
+          "ACCESS_DENIED",
+          "You are not an eligible decider for this task (not directly assigned, and no active delegation names you)."
+        );
       }
+
+      const result = await recordWorkflowTaskDecision(tx, {
+        tenantId,
+        taskId,
+        task,
+        assignment,
+        decidingTenantUserId: auth.context.tenantUserId,
+        decision,
+        reason,
+        now,
+        correlationId,
+        notificationPort
+      });
 
       await recordAuditEvent(tx, {
         tenantId,
-        actorTenantUserId: context.tenantUserId,
+        actorTenantUserId: auth.context.tenantUserId,
         moduleKey: "workflow",
         action: decision,
         resourceType: "workflow_instance",
-        resourceId: task.instance_id,
+        resourceId: result.instanceId,
         severity: "warning",
         message: `Workflow task decision recorded: ${decision}.`,
-        attributes: { decision, reason },
+        attributes: { decision, reason, taskId },
         correlationId
       });
+
+      recordHistogram(
+        "workflow_task_decision_duration_ms",
+        Date.now() - decisionStartedAt,
+        {
+          outcome:
+            result.instanceStatus ??
+            (decision === "approve" ? "approved" : "rejected")
+        }
+      );
 
       const responseData = {
         taskId,
         decision,
-        instanceId: task.instance_id,
-        instanceStatus: outcome.instanceStatus,
-        nextStepOrder: outcome.nextStepOrder
+        instanceId: result.instanceId,
+        taskCompleted: result.taskCompleted,
+        instanceFinished: result.instanceFinished,
+        instanceStatus: result.instanceStatus ?? "pending"
       };
-      const successResponse = ok(responseData);
+      const successResponse = ok(responseData, { correlationId });
       const successBody = await successResponse.clone().json();
 
       await saveIdempotencyRecord(
