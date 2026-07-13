@@ -817,6 +817,56 @@ izin "Post Messages" (`can_post_messages`) agar `verifyCredentials`/`publish`
 berhasil — lihat `.claude/skills/awcms-mini-social-publishing/SKILL.md` §646
 untuk detail izin lengkap.
 
+#### Adapter Meta — Facebook Page + Instagram Business (opsional, Issue #644)
+
+Adapter provider NYATA pertama di epic ini
+(`src/modules/social-publishing/infrastructure/meta/`), mendaftar sebagai
+`meta_facebook_page`/`meta_instagram` ke `social-provider-registry.ts`.
+Gate ADAPTER-LEVEL (`META_PROVIDER_ENABLED`) terpisah dari
+`SOCIAL_PUBLISHING_ENABLED`/`_PROFILE` di atas — sebuah deployment bisa
+mengaktifkan social publishing dengan provider LAIN saja (mis. hanya
+Telegram) tanpa Meta pernah dikonfigurasi.
+
+| Var                         | Wajib        | Default                                                              | Sensitif | Fungsi                                                                      |
+| --------------------------- | ------------ | -------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------- |
+| `META_PROVIDER_ENABLED`     | –            | `false`                                                              | –        | Switch adapter Meta, independen dari `SOCIAL_PUBLISHING_ENABLED`            |
+| `META_APP_ID`               | bila enabled | –                                                                    | –        | Meta App ID (developers.facebook.com) — bukan kredensial                    |
+| `META_APP_SECRET_REFERENCE` | bila enabled | –                                                                    | ya       | REFERENSI ke App Secret di secret storage eksternal, bukan secret asli      |
+| `META_GRAPH_API_VERSION`    | bila enabled | `v21.0`                                                              | –        | Versi Graph API target (`^v\d{1,2}\.\d{1,2}$`)                              |
+| `META_OAUTH_REDIRECT_URI`   | bila enabled | –                                                                    | –        | Redirect URI OAuth terdaftar di dashboard App Meta (dokumentasi/app review) |
+| `META_REQUIRED_SCOPES`      | bila enabled | `pages_manage_posts,pages_read_engagement,instagram_content_publish` | –        | Daftar scope least-privilege yang wajib dimiliki token akun terhubung       |
+
+`bun run config:validate` (`checkMetaSocialPublishingProviderConfig`)
+menolak boot bila `META_PROVIDER_ENABLED=true` tapi salah satu var di atas
+kosong/salah bentuk — termasuk menolak `META_APP_SECRET_REFERENCE` yang
+berbentuk token/secret asli (reuse `looksLikeRawSecretToken`, BUKAN
+heuristic baru — lihat §643 di atas). `bun run security:readiness`
+(`checkMetaSocialPublishingAccountReadiness`, critical) memeriksa setiap
+akun `meta_facebook_page`/`meta_instagram` yang `connected` di tiap tenant
+aktif: tipe akun tidak didukung (`provider_account_type` selain `page`),
+token kedaluwarsa (`expires_at` sudah lewat), atau scope kurang (`scopes_json`
+tidak mencakup seluruh `META_REQUIRED_SCOPES`).
+
+**Alur koneksi**: issue ini TIDAK mengirim route OAuth authorization-code
+exchange langsung (mis. `GET /auth/meta/callback`) — akun dihubungkan lewat
+form admin generik yang sudah ada (`POST /api/v1/social-publishing/accounts`,
+sama untuk semua provider), operator mengisi `providerAccountId`/`Name`/
+`tokenReference` secara manual setelah menyelesaikan alur OAuth Meta di
+luar aplikasi ini (atau lewat proses operasional lain yang menghasilkan
+Page Access Token jangka panjang). `META_OAUTH_REDIRECT_URI` didokumentasikan
+untuk keperluan pendaftaran app review/dashboard Meta, bukan endpoint yang
+benar-benar ada di repo ini hari ini — dicatat sebagai batasan, bukan bug.
+`POST /api/v1/social-publishing/accounts/{id}/verify` ("verify connection")
+memanggil Graph API `debug_token` secara live untuk memeriksa validitas/
+scope/kedaluwarsa token akun yang sudah terhubung.
+
+**Batasan yang didokumentasikan (bukan tersembunyi)**: hanya link post
+Facebook Page dan image post Instagram (Stories/Reels di luar cakupan);
+tanpa integrasi secret-manager nyata (`META_APP_SECRET_REFERENCE`/
+`token_reference` hanya bisa diresolusi lewat skema referensi `env:VAR_NAME`
+hari ini — lihat `meta-token-reference-resolver.ts`); tidak ada auto-requeue
+job `needs_reauth` (harus retry manual setelah reconnect, warisan #643).
+
 ### Blog content — automatic internal tag linking (opsional, Issue #641, epic `news_portal` #631-#642/#649)
 
 Auto-linking istilah yang cocok dengan tag `blog_content` yang sudah ada

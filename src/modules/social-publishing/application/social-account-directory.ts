@@ -356,19 +356,35 @@ export async function fetchSocialAccountTokenReferenceForDispatch(
   socialAccountId: string
 ): Promise<{
   providerAccountId: string;
+  /**
+   * Issue #644 review follow-up (blocking finding): the dispatcher needs
+   * this to enforce `SocialProviderAdapter.supportedAccountTypes` right
+   * before calling `adapter.publish()` — connect-time validation alone
+   * (`validateCreateSocialAccountInput`) only checks the generic 5-value
+   * enum, it never cross-checks against whichever adapter is registered
+   * for the submitted `providerKey`, so an operator could otherwise
+   * connect e.g. `meta_facebook_page`/`providerAccountType: "profile"`
+   * and have it actually dispatch.
+   */
+  providerAccountType: SocialAccountType;
   tokenReference: string | null;
 } | null> {
   const rows = (await tx`
-    SELECT provider_account_id, token_reference
+    SELECT provider_account_id, provider_account_type, token_reference
     FROM awcms_mini_social_accounts
     WHERE tenant_id = ${tenantId} AND id = ${socialAccountId}
-  `) as { provider_account_id: string; token_reference: string | null }[];
+  `) as {
+    provider_account_id: string;
+    provider_account_type: SocialAccountType;
+    token_reference: string | null;
+  }[];
 
   const row = rows[0];
 
   return row
     ? {
         providerAccountId: row.provider_account_id,
+        providerAccountType: row.provider_account_type,
         tokenReference: row.token_reference
       }
     : null;

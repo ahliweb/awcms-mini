@@ -27,6 +27,7 @@ import {
   listSocialAccounts
 } from "../../../../../modules/social-publishing/application/social-account-directory";
 import { validateCreateSocialAccountInput } from "../../../../../modules/social-publishing/domain/social-account-validation";
+import { getSocialProviderAdapter } from "../../../../../modules/social-publishing/infrastructure/social-provider-registry";
 
 const READ_GUARD = {
   moduleKey: "social_publishing",
@@ -127,6 +128,30 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
   }
 
   const input = validation.value;
+
+  // Issue #644 review follow-up (defense-in-depth, second layer alongside
+  // the dispatcher's own check in `social-publish-dispatch.ts`):
+  // `validateCreateSocialAccountInput` only checks `providerAccountType`
+  // against the generic 5-value enum shared by every provider — it never
+  // cross-checks against whichever adapter is registered for the
+  // submitted `providerKey`. Reject here too, at connect time, so an
+  // operator gets immediate feedback instead of discovering the mismatch
+  // only when a job later fails at dispatch.
+  const adapterForProvider = getSocialProviderAdapter(input.providerKey);
+
+  if (
+    adapterForProvider?.supportedAccountTypes &&
+    !adapterForProvider.supportedAccountTypes.includes(
+      input.providerAccountType
+    )
+  ) {
+    return fail(
+      422,
+      "SOCIAL_ACCOUNT_UNSUPPORTED_TYPE",
+      `Provider "${input.providerKey}" does not support account type "${input.providerAccountType}".`
+    );
+  }
+
   const requestHash = computeRequestHash({
     providerKey: input.providerKey,
     providerAccountId: input.providerAccountId

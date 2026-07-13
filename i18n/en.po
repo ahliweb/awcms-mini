@@ -117,6 +117,9 @@ msgstr "The system is busy. Please try again shortly."
 msgid "error.provider_error"
 msgstr "An external service failed. Please try again."
 
+msgid "error.social_account_unsupported_type"
+msgstr "This provider does not support this account type."
+
 msgid "error.internal_error"
 msgstr "Something went wrong. Please try again."
 

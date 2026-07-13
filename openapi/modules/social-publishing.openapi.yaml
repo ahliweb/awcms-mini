@@ -5,10 +5,15 @@
 # by this tag's operations. Schemas shared with another module/tag live in
 # the root file (openapi/awcms-mini-public-api.src.yaml) instead.
 #
-# This is a FOUNDATION issue — no provider-specific (Meta/LinkedIn/Telegram)
-# endpoint exists; every operation here is provider-neutral (account
+# Issue #643 (foundation) shipped every operation below except
+# .../accounts/{id}/verify — every one of those is provider-neutral (account
 # connect/disconnect, rule/template CRUD, job/attempt read, approve/cancel/
-# retry, per-tenant settings).
+# retry, per-tenant settings), no provider-specific HTTP call existed
+# anywhere. Issue #644 (Meta Facebook Page + Instagram Business adapter)
+# adds the ONE new operation, `.../accounts/{id}/verify` — still
+# provider-neutral in its OWN shape (works against whichever adapter the
+# account's `providerKey` resolves to), even though this issue is the first
+# to make it do something real for Meta accounts specifically.
 #
 # NOT independently valid OpenAPI -- $ref targets pointing at shared
 # components (securitySchemes/parameters/responses, and cross-module
@@ -105,6 +110,12 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          description: The registered provider adapter for `providerKey` (Issue #644) does not support the submitted `providerAccountType` — defense-in-depth alongside the same check the outbox dispatcher performs before ever calling the provider.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/social-publishing/accounts/{id}:
@@ -276,12 +287,15 @@ paths:
         Generic, provider-neutral "verify connection" action (Issue #646) —
         calls the registered provider adapter's `verifyCredentials` (e.g. the
         Telegram channel adapter checks the bot is a channel administrator
-        with post permission). Requires `Idempotency-Key` (real outbound
-        provider call, same external-call class as `accounts.connect`/
-        `.disconnect`), gated by `accounts.verify` (not classified high-risk —
-        only updates `lastVerifiedAt`/`scopes`, never `tokenReference`). A
-        failed check is still a `200` with `valid: false` — informational,
-        never itself a state transition on the account.
+        with post permission; the Meta adapter, Issue #644, checks the
+        access token via `debug_token` and that it can reach the connected
+        Page/Instagram Business account). Requires `Idempotency-Key` (real
+        outbound provider call, same external-call class as
+        `accounts.connect`/`.disconnect`), gated by `accounts.verify` (not
+        classified high-risk — only updates `lastVerifiedAt`/`scopes`,
+        never `tokenReference`). A failed check is still a `200` with
+        `valid: false` — informational, never itself a state transition on
+        the account.
       operationId: socialPublishingAccountsVerify
       security:
         - bearerAuth: []

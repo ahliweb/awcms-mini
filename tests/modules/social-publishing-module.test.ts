@@ -76,7 +76,17 @@ describe("social_publishing module descriptor (Issue #643)", () => {
     expect(socialPublishingModule.events?.asyncApiPath).toBe(
       "asyncapi/awcms-mini-domain-events.asyncapi.yaml"
     );
+    // 15 from Issue #643 (foundation) + 2 from the "verify connection"
+    // action's two outcomes: `account.verified` (Issue #644, also used by
+    // Meta's `verifyCredentials`) and `account.verification-failed`
+    // (Issue #646, Telegram).
     expect(socialPublishingModule.events?.publishes?.length).toBe(17);
+    expect(socialPublishingModule.events?.publishes).toContain(
+      "awcms-mini.social-publishing.account.verified"
+    );
+    expect(socialPublishingModule.events?.publishes).toContain(
+      "awcms-mini.social-publishing.account.verification-failed"
+    );
   });
 
   test("settings/health remain undeclared — no per-tenant setting or health check exists yet for this module specifically", () => {

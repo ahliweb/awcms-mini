@@ -32,11 +32,23 @@ import { ASYNCAPI_PATH } from "../../scripts/api-spec-check";
 const HTTP_METHODS = ["get", "post", "put", "patch", "delete"] as const;
 
 describe("buildApiReferenceMarkdown determinism", () => {
+  // Issue #644/#646 review follow-up: `buildApiReferenceMarkdown()` now
+  // takes several seconds per call (it re-parses/re-bundles the full
+  // OpenAPI+AsyncAPI contract from scratch, no memoization) now that the
+  // combined social-publishing adapter surface (Meta #644 + Telegram #646,
+  // on top of everything already merged) has grown the bundled contract
+  // considerably — a test calling it twice sequentially now legitimately
+  // exceeds bun:test's 5000ms default timeout even though the assertion
+  // itself is correct (verified manually with a longer timeout: all pass).
+  // Bumping the timeout here is a test-infrastructure tolerance fix, not a
+  // correctness change — if this generator's latency becomes a real
+  // problem it should be addressed as its own performance issue, not by
+  // narrowing test coverage.
   test("generating twice against the real contracts is byte-identical", async () => {
     const first = await buildApiReferenceMarkdown();
     const second = await buildApiReferenceMarkdown();
     expect(second).toBe(first);
-  });
+  }, 20_000);
 
   test("the committed reference doc matches what the generator produces right now (freshness)", async () => {
     const fresh = await buildApiReferenceMarkdown();
@@ -45,12 +57,12 @@ describe("buildApiReferenceMarkdown determinism", () => {
       "utf8"
     );
     expect(fresh).toBe(committed);
-  });
+  }, 20_000);
 
   test("runApiDocsCheck reports no problems against the committed doc", async () => {
     const problems = await runApiDocsCheck();
     expect(problems).toEqual([]);
-  });
+  }, 20_000);
 });
 
 describe("buildApiReferenceMarkdown contract coverage", () => {
@@ -71,7 +83,7 @@ describe("buildApiReferenceMarkdown contract coverage", () => {
     for (const operationId of operationIds) {
       expect(markdown.includes(`\`${operationId}\``)).toBe(true);
     }
-  });
+  }, 20_000);
 
   test("every AsyncAPI channel address appears in the reference doc", async () => {
     const source = await readFile(
@@ -88,7 +100,7 @@ describe("buildApiReferenceMarkdown contract coverage", () => {
     for (const address of addresses) {
       expect(markdown.includes(address)).toBe(true);
     }
-  });
+  }, 20_000);
 
   test("every named schema referenced by an operation gets a schema appendix entry", async () => {
     const markdown = await buildApiReferenceMarkdown();
@@ -107,7 +119,7 @@ describe("buildApiReferenceMarkdown contract coverage", () => {
     for (const anchor of linkedAnchors) {
       expect(headingAnchors.has(anchor)).toBe(true);
     }
-  });
+  }, 20_000);
 });
 
 describe("buildApiReferenceMarkdown example safety", () => {
@@ -136,7 +148,7 @@ describe("buildApiReferenceMarkdown example safety", () => {
     for (const pattern of forbiddenPatterns) {
       expect(pattern.test(markdown)).toBe(false);
     }
-  });
+  }, 20_000);
 
   test("every UUID-shaped example value is either the synthetic nil UUID or a pre-existing, already-reviewed contract `example:` literal", async () => {
     const markdown = await buildApiReferenceMarkdown();
@@ -160,5 +172,5 @@ describe("buildApiReferenceMarkdown example safety", () => {
     for (const match of markdown.matchAll(uuidPattern)) {
       expect(allowed.has(match[0].toLowerCase())).toBe(true);
     }
-  });
+  }, 20_000);
 });

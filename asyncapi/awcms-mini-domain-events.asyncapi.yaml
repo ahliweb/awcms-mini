@@ -421,9 +421,11 @@ channels:
     description: >-
       A connected social account was verified — the provider adapter
       confirmed the credential can post to the connected target (Issue
-      #646, the Telegram channel adapter's `verifyCredentials`). Producer:
-      `social-account-directory.ts`'s `recordSocialAccountVerification`,
-      called from `POST /api/v1/social-publishing/accounts/{id}/verify`.
+      #646, the Telegram channel adapter's `verifyCredentials`; also
+      exercised by the Meta adapter's `verifyCredentials`, Issue #644).
+      Producer: `social-account-directory.ts`'s
+      `recordSocialAccountVerification`, called from
+      `POST /api/v1/social-publishing/accounts/{id}/verify`.
   awcms-mini.social-publishing.account.verification-failed:
     address: awcms-mini.social-publishing.account.verification-failed
     messages:
@@ -431,10 +433,10 @@ channels:
         $ref: "#/components/messages/DomainEvent"
     description: >-
       A connected social account's verification check failed (e.g. the bot
-      lacks channel-administrator permission) (Issue #646). Informational —
-      does NOT itself change `connection_status`/`auto_publish_enabled`.
-      Producer: `social-account-directory.ts`'s
-      `recordSocialAccountVerification`.
+      lacks channel-administrator permission, or a Meta token has expired/
+      lost a required scope) (Issue #646). Informational — does NOT itself
+      change `connection_status`/`auto_publish_enabled`. Producer:
+      `social-account-directory.ts`'s `recordSocialAccountVerification`.
   awcms-mini.social-publishing.rule.created:
     address: awcms-mini.social-publishing.rule.created
     messages:

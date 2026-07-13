@@ -64,6 +64,8 @@ import {
   resetSocialProviderRegistryForTests
 } from "../../src/modules/social-publishing/infrastructure/social-provider-registry";
 import { createTelegramChannelProviderAdapter } from "../../src/modules/social-publishing/infrastructure/telegram-provider-adapter";
+import { createMetaFacebookPageAdapter } from "../../src/modules/social-publishing/infrastructure/meta/meta-facebook-page-adapter";
+import { createMetaInstagramAdapter } from "../../src/modules/social-publishing/infrastructure/meta/meta-instagram-adapter";
 
 const OWNER_LOGIN = "owner@example.com";
 const OWNER_PASSWORD = "integration-test-owner-password";
@@ -739,9 +741,10 @@ suite("social_publishing outbox foundation (Issue #643)", () => {
       const accountId = await connectForVerify(owner);
       resetSocialProviderRegistryForTests();
 
-      const result = await invoke<{ data: { valid: boolean; reason: string } }>(
-        verifyAccount,
-        {
+      try {
+        const result = await invoke<{
+          data: { valid: boolean; reason: string };
+        }>(verifyAccount, {
           method: "POST",
           path: `/api/v1/social-publishing/accounts/${accountId}/verify`,
           headers: {
@@ -750,11 +753,25 @@ suite("social_publishing outbox foundation (Issue #643)", () => {
           },
           params: { id: accountId },
           body: {}
-        }
-      );
-      expect(result.status).toBe(200);
-      expect(result.body.data.valid).toBe(false);
-      expect(result.body.data.reason).toBe("provider_not_registered");
+        });
+        expect(result.status).toBe(200);
+        expect(result.body.data.valid).toBe(false);
+        expect(result.body.data.reason).toBe("provider_not_registered");
+      } finally {
+        // `resetSocialProviderRegistryForTests()` clears the shared,
+        // process-wide registry singleton — since `bun test` runs every
+        // test FILE in this suite in the same process, leaving it empty
+        // would silently break every subsequent test (in this file or any
+        // other) that expects a real provider adapter to be registered
+        // (e.g. Issue #644's Meta connect-time `supportedAccountTypes`
+        // check). Restore the exact set this repo registers unconditionally
+        // at import time (`social-provider-registry.ts`'s own trailing
+        // registration block + `telegram-provider-registration.ts`) so this
+        // test's side effect never leaks into any other test.
+        registerSocialProviderAdapter(createMetaFacebookPageAdapter());
+        registerSocialProviderAdapter(createMetaInstagramAdapter());
+        registerSocialProviderAdapter(createTelegramChannelProviderAdapter());
+      }
     });
   });
 
@@ -1347,5 +1364,73 @@ suite("social_publishing outbox foundation (Issue #643)", () => {
     });
     expect(job.body.data.status).toBe("failed");
     expect(job.body.data.lastErrorCode).toBe("provider_not_registered");
+  });
+
+  test("dispatcher: an adapter's supportedAccountTypes is enforced before publish() is ever called (Issue #644 review follow-up — blocking finding)", async () => {
+    const owner = await bootstrap();
+    const jobId = await seedPendingJob(owner, "dispatch-unsupported-type-1");
+
+    let publishCalled = false;
+    // CONNECT_BODY (this file's fixture) connects the account as
+    // providerAccountType "channel" — an adapter that only supports "page"
+    // must reject it before ever attempting a provider call.
+    const fakeAdapter: SocialProviderAdapter = {
+      providerKey: "telegram_channel",
+      requiredEnvVars: [],
+      supportedAccountTypes: ["page"],
+      async publish() {
+        publishCalled = true;
+        return {
+          outcome: "published",
+          externalPostId: "ext-1",
+          externalPostUrl: "https://t.me/testchannel/1"
+        };
+      },
+      async verifyCredentials() {
+        return { valid: true };
+      }
+    };
+
+    const sql = getDatabaseClient();
+    const result = await dispatchSocialPublishQueue(sql, owner.tenantId, {
+      resolveAdapter: () => fakeAdapter
+    });
+    expect(result.failed).toBe(1);
+    expect(publishCalled).toBe(false);
+
+    const job = await invoke<{
+      data: { status: string; lastErrorCode: string };
+    }>(getJob, {
+      method: "GET",
+      path: `/api/v1/social-publishing/jobs/${jobId}`,
+      headers: authHeaders(owner),
+      params: { id: jobId }
+    });
+    expect(job.body.data.status).toBe("failed");
+    expect(job.body.data.lastErrorCode).toBe("unsupported_account_type");
+  });
+
+  test("connect: rejects providerAccountType the registered adapter doesn't support (defense-in-depth, second layer alongside the dispatcher check)", async () => {
+    const owner = await bootstrap();
+    // meta_facebook_page/meta_instagram (real, registered) only support
+    // providerAccountType "page" (see Meta adapters' supportedAccountTypes).
+    const result = await invoke<{ error: { code: string } }>(connectAccount, {
+      method: "POST",
+      path: "/api/v1/social-publishing/accounts",
+      headers: {
+        ...authHeaders(owner),
+        "idempotency-key": "connect-meta-unsupported-type-1"
+      },
+      body: {
+        providerKey: "meta_facebook_page",
+        providerAccountId: "page-1",
+        providerAccountName: "Test Page",
+        providerAccountType: "profile",
+        tokenReference: "env:SOME_TOKEN_VAR",
+        autoPublishEnabled: false
+      }
+    });
+    expect(result.status).toBe(422);
+    expect(result.body.error.code).toBe("SOCIAL_ACCOUNT_UNSUPPORTED_TYPE");
   });
 });

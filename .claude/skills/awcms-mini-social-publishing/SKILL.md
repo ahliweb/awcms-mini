@@ -32,7 +32,7 @@ issue lanjutan.
 | Issue | Scope                                                                                                                         | Status                            |
 | ----- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
 | #643  | Fondasi: schema 6 tabel, outbox/dispatcher, approval, retry/backoff, provider-adapter interface (kosong), admin UI, readiness | **Selesai** — lihat §643 di bawah |
-| #644  | Adapter Meta (Facebook Page + Instagram Business)                                                                             | Belum dikerjakan                  |
+| #644  | Adapter Meta (Facebook Page + Instagram Business)                                                                             | **Selesai** — lihat §644 di bawah |
 | #645  | Adapter LinkedIn (organization page)                                                                                          | Belum dikerjakan                  |
 | #646  | Adapter Telegram (channel, bot token)                                                                                         | **Selesai** — lihat §646 di bawah |
 | #647  | Dokumentasi/SOP lintas provider, butuh #643-#646 semua ada                                                                    | Belum dikerjakan                  |
@@ -344,6 +344,296 @@ publishing/rules`), bukan halaman sendiri (sama pola "cukup di satu
 - Full keyset pagination untuk `GET /api/v1/social-publishing/jobs` —
   hari ini bounded `LIMIT` sederhana (maks 200), didokumentasikan sebagai
   follow-up bila volume job jadi besar.
+
+## §644 — Adapter Meta: Facebook Page + Instagram Business (Selesai)
+
+Adapter provider NYATA pertama di epic ini. Registrasi TIDAK BERSYARAT
+(selalu dipanggil saat `social-provider-registry.ts` di-import — lihat
+Keputusan kunci di bawah), independen dari `META_PROVIDER_ENABLED` (yang
+hanya menggerbang PERILAKU adapter saat dipanggil, bukan apakah ia
+terdaftar).
+
+### Keputusan kunci #644-1 — DUA provider key terpisah, satu row akun = satu tujuan publish
+
+`meta_facebook_page` (Facebook Page, link post ke `/{page-id}/feed`) dan
+`meta_instagram` (Instagram Business, 2-call media container -> publish
+ke `/{ig-user-id}/media` lalu `.../media_publish`) adalah DUA adapter
+terpisah, masing-masing `providerKey` sendiri. TIDAK ada satu row
+`awcms_mini_social_accounts` yang mewakili "koneksi Meta" gabungan —
+tenant menghubungkan SATU row per tujuan publish (satu untuk Page, satu
+lagi untuk IG bila keduanya diinginkan), `providerAccountId` untuk
+`meta_facebook_page` adalah Facebook Page ID, untuk `meta_instagram`
+adalah Instagram Business Account ID. **Sengaja TIDAK menambah migration
+baru** untuk field metadata "account.metadata" yang disebut body issue
+(`facebook_page_id`, `facebook_page_name`, `instagram_business_account_id`,
+`instagram_username`, `permissions_json`, `token_expires_at`,
+`last_verified_at`) — SEMUA field itu sudah punya padanan 1:1 di kolom
+generik #643 (`provider_account_id`/`_name` untuk dua field pertama tiap
+providerKey, `scopes_json` untuk `permissions_json`, `expires_at`/
+`last_verified_at` untuk dua field terakhir). Jangan menambah kolom
+metadata baru untuk ini kecuali benar-benar menemukan kebutuhan yang
+TIDAK bisa dipetakan ke skema #643 yang sudah ada.
+
+`provider_account_type` untuk KEDUA provider key ini selalu `"page"` —
+lihat `SocialProviderAdapter.supportedAccountTypes` di bawah untuk
+alasannya (IG Business tetap dipublish lewat Page access token, tidak
+ada tipe akun IG standalone di real Meta API).
+
+### Keputusan kunci #644-2 — `SocialProviderAdapter.supportedAccountTypes` (field BARU, opsional, additive) ditegakkan di TIGA titik, bukan cuma satu
+
+Interface `domain/social-provider-adapter.ts` (foundation #643) tidak
+punya cara bagi pemanggil untuk tahu tipe akun apa yang didukung suatu
+adapter. Ditambah field opsional `supportedAccountTypes?:
+readonly SocialAccountType[]` — `undefined` berarti "tidak ada
+pembatasan tipe" (bukan "tidak ada tipe yang didukung").
+
+**Temuan reviewer round 1 (BLOCKING, PR #644 diperbaiki sebelum merge)**:
+versi pertama HANYA memeriksa field ini di endpoint verify (opt-in,
+diagnostik) — jalur nyata connect -> dispatch -> publish yang benar-benar
+memposting ke Meta TIDAK PERNAH memeriksanya. Operator bisa connect
+`providerKey: "meta_facebook_page"` dengan `providerAccountType:
+"profile"` dan itu SUKSES; dispatcher akan tetap memanggil
+`adapter.publish()`. Ini bertentangan langsung dengan acceptance
+criterion issue ("Instagram publishing validates account eligibility ...
+before job execution") dan daftar out-of-scope-nya (tidak ada personal
+profile/personal Instagram posting).
+
+**Diperbaiki di DUA lapis, bukan satu**:
+
+1. `application/social-publish-dispatch.ts` — SETELAH
+   `fetchSocialAccountTokenReferenceForDispatch` (sekarang juga
+   mengembalikan `providerAccountType`) dan SEBELUM `adapter.publish()`
+   dipanggil, cek `adapter.supportedAccountTypes` — job gagal terminal
+   `unsupported_account_type`, `retryable: false` (tipe akun tidak pernah
+   berubah sendiri, harus reconnect manual). Ini satu-satunya titik yang
+   benar-benar menutup celah acceptance criterion di ATAS, karena INI yang
+   dilewati SETIAP job nyata, bukan hanya yang pernah di-verify.
+2. `pages/api/v1/social-publishing/accounts/index.ts`'s `POST` (connect) —
+   defense-in-depth kedua, menolak `422 SOCIAL_ACCOUNT_UNSUPPORTED_TYPE`
+   di titik paling awal (feedback langsung ke operator, bukan menunggu job
+   gagal nanti).
+
+Field ini JUGA dibaca `scripts/security-readiness.ts`'s
+`checkMetaSocialPublishingAccountReadiness` (readiness, bukan enforcement
+runtime). **Bila #645 juga menambah field yang sama** (kemungkinan besar,
+LinkedIn punya batasan tipe akun serupa) — field itu sendiri ADDITIVE
+murni, tapi **wajib tegakkan di dispatcher JUGA**, bukan cuma endpoint
+verify/connect — itulah pelajaran nyata dari temuan round 1 ini.
+
+### Keputusan kunci #644-3 — resolusi `token_reference` LOKAL per-adapter, skema `env:VAR_NAME` SATU-SATUNYA yang diimplementasikan
+
+`infrastructure/meta/meta-token-reference-resolver.ts`'s
+`resolveMetaTokenReference` HANYA mendukung skema `env:VAR_NAME` (baca
+`process.env[VAR_NAME]`) — skema lain yang lolos validasi FORMAT di
+`looksLikeRawSecretToken` (`secretsmanager:`, `vault:`, `kms:`, `ssm:`)
+diterima sebagai bentuk REFERENSI yang sah tapi TIDAK bisa diresolusi
+deployment ini (return `null`, fail closed -> `needs_reauth`, bukan
+throw). Ini SENGAJA tidak dipromosikan ke file bersama meskipun logikanya
+generik — Keputusan kunci #3 §643 eksplisit bilang resolusi token adalah
+tanggung jawab MASING-MASING adapter. **Wajib untuk #645/#646**: bila
+kalian butuh resolusi serupa, salin pola ini (fungsi lokal per-modul),
+JANGAN mengimpor fungsi ini dari modul Meta — itu akan membuat
+`social_publishing` bergantung pada implementasi provider tertentu.
+
+Fungsi yang SAMA dipakai untuk `META_APP_SECRET_REFERENCE` (dibutuhkan
+untuk membangun app access token `{appId}|{appSecret}` saat memanggil
+`debug_token`).
+
+### Keputusan kunci #644-4 — `POST .../accounts/{id}/verify` dibangun di PR #644 lalu DIGANTI oleh desain kanonik #646 (tabrakan paralel, diselesaikan oleh orkestrator)
+
+PR #644 (Meta) dan PR #646 (Telegram) SAMA-SAMA membangun
+`POST /api/v1/social-publishing/accounts/{id}/verify` secara independen
+dan paralel — keduanya lolos review sendiri-sendiri, tapi begitu #646
+merge duluan ke `main`, orkestrator memutuskan desain #646 sebagai
+KANONIK (permission `accounts.verify` khusus — bukan reuse
+`accounts.connect`; wajib `Idempotency-Key`; `200` informasional yang
+TIDAK PERNAH memaksa transisi state pada kegagalan — bukan `409`
+`needs_reauth` seperti desain awal #644) dan #644's implementasi sendiri
+(`application/social-account-verification.ts`,
+`fetchSocialAccountTokenReferenceForVerification`,
+`recordSocialAccountVerificationSuccess`, route `verify.ts` versi awal)
+**DIHAPUS SELURUHNYA** saat #644 merge `origin/main` yang sudah membawa
+#646. Lihat §646 di bawah untuk desain kanonik yang sebenarnya jalan.
+
+**Pelajaran untuk #645 (LinkedIn, masih berjalan paralel)**: JANGAN
+membangun ulang endpoint verify sendiri — route ini SEKARANG generik/
+shared, sudah menangani provider apa pun via `getSocialProviderAdapter`.
+Yang perlu #645 sentuh HANYA: implementasi `verifyCredentials()` di
+adapter LinkedIn sendiri (dipanggil generik oleh route yang sudah ada),
+dan environment/readiness check khusus LinkedIn — bukan route HTTP-nya.
+
+Satu hal yang TETAP relevan dari desain awal #644 dan masih dipertahankan
+di versi kanonik: `verifyCredentials`'s docstring (#643) sudah eksplisit
+bilang ini dipanggil dari "readiness gate atau manual verify connection
+admin action" dan endpoint kanonik tetap memanggil provider strictly DI
+LUAR transaksi DB (3-fase fetch/call/persist) — jadi disiplin desain
+awal #644 ITU SENDIRI bukan yang salah, hanya detail response shape/
+permission/idempotency-nya yang kalah terhadap #646.
+
+### Keputusan kunci #644-5 — Graph API client injectable, mirror pola `mailketing-provider.ts`
+
+`infrastructure/meta/meta-graph-client.ts`'s `createMetaGraphClient`
+menerima `fetchImpl`/`baseUrl` opsional (default `fetch` global +
+`https://graph.facebook.com`) — TEPAT pola yang sudah ada
+`email/infrastructure/mailketing-provider.ts`'s `MailketingProviderConfig`
+pakai (bukan pola baru). Kedua adapter (`meta-facebook-page-adapter.ts`,
+`meta-instagram-adapter.ts`) menerima `graphClientFactory` opsional di
+constructor-nya sendiri (`createMetaFacebookPageAdapter(options)`) —
+test mengganti factory ini dengan fake yang mengimplementasikan
+`MetaGraphClient.call()`, TIDAK PERNAH melakukan panggilan `fetch` asli.
+**Wajib untuk #645/#646**: pakai pola yang SAMA (client/provider object
+injectable via constructor option adapter kalian sendiri) — jangan
+memanggil `fetch`/library HTTP langsung dari dalam `publish()`/
+`verifyCredentials()` tanpa lapisan yang bisa diganti saat test.
+
+### Keputusan kunci #644-6 — normalisasi error TIDAK PERNAH meneruskan teks/fbtrace_id asli dari Meta
+
+`domain/meta-error-normalization.ts`'s `normalizeMetaGraphApiError`
+memetakan `error.code`/`error.type` Meta ke katalog TETAP pesan aman
+(`meta_oauth_exception_190`, `meta_permission_error_10`,
+`meta_rate_limited_32`, dst.) — `error.message`/`fbtrace_id` Meta yang
+asli TIDAK PERNAH masuk ke `errorMessage`/log/response manapun, walau
+teks itu biasanya aman (issue security notes eksplisit minta "jangan log
+identifier pengguna/halaman di luar yang dibutuhkan"). **Wajib untuk
+#645/#646**: bila platform kalian juga mengembalikan pesan error
+berformat bebas, JANGAN meneruskannya verbatim — buat katalog pesan
+tetap sendiri seperti ini.
+
+### Keputusan kunci #644-7 — R2 image re-validation di titik penggunaan (defense-in-depth, bukan re-implementasi enforcement #636)
+
+`domain/meta-publish-content.ts`'s `isAcceptableProviderMediaUrl`
+membandingkan `new URL(url).host` PERSIS terhadap
+`new URL(env.NEWS_MEDIA_R2_PUBLIC_BASE_URL).host` — BUKAN
+substring/prefix check (pelajaran Issue #635: trailing-dot FQDN bisa
+membypass prefix check). Ini murni defense-in-depth: `content.imageUrl`
+pada job SUDAH dijamin verified oleh `create-social-publish-jobs.ts`
+(foundation #643) via `NewsMediaPort.resolveMediaReferences` — adapter
+ini TIDAK pernah menerima URL gambar dari sumber lain (caption custom
+editor hanya berupa TEKS, bukan URL). Re-check ini hanya jaring pengaman
+titik-terakhir sebelum panggilan eksternal, bukan mekanisme enforcement
+baru — jangan disalahartikan sebagai pengulangan pola tenant-state Issue
+#636 (itu soal SIAPA yang boleh menulis sinyal keamanan; ini soal
+validasi ulang nilai yang sudah dipercaya sebelum keluar sistem).
+
+### Keputusan kunci #644-8 — idempotensi: tanggung jawab adapter berhenti di meneruskan `idempotencyKey`, dedup NYATA tetap di dispatcher
+
+Meta Graph API TIDAK punya parameter idempotency-key nyata untuk
+`/feed`/`/media`/`/media_publish` — adapter ini TIDAK mengimplementasikan
+dedup sendiri. Dicatat eksplisit di test
+(`tests/unit/meta-instagram-adapter.test.ts`'s "idempotency" describe
+block): memanggil `publish()` dua kali dengan `idempotencyKey` yang sama
+tetap menghasilkan dua panggilan Graph API independen — pencegahan
+duplikat NYATA adalah transisi status job (`pending`/`approved` ->
+`publishing` -> `published`, tidak pernah diklaim ulang) yang SUDAH ada
+di `social-publish-dispatch.ts` (foundation #643, teruji di
+`tests/integration/social-publishing.integration.test.ts` dan
+`tests/unit/social-publish-idempotency.test.ts`). **Wajib untuk
+#645/#646**: jangan berpura-pura mengimplementasikan idempotency-level-
+adapter kalau platform kalian juga tidak punya mekanisme itu — dokumentasikan
+residual ini secara jujur seperti di sini.
+
+### Alur koneksi (tidak ada route OAuth baru)
+
+Endpoint connect/disconnect generik #643 (`POST/POST .../accounts`,
+`.../accounts/{id}/disconnect`) dipakai APA ADANYA untuk Meta — tidak
+ada endpoint/redirect OAuth baru di issue ini. Operator menyelesaikan
+alur OAuth Meta di luar aplikasi (atau proses operasional lain yang
+menghasilkan Page Access Token jangka panjang), lalu mengisi form
+connect manual dengan `providerAccountId`/`Name`/`tokenReference`.
+`META_OAUTH_REDIRECT_URI` didokumentasikan untuk keperluan pendaftaran
+app review/dashboard Meta saja — BUKAN endpoint yang benar-benar ada di
+repo ini. `POST .../accounts/{id}/verify` (BARU, endpoint provider-
+netral tapi baru benar-benar melakukan sesuatu untuk Meta hari ini)
+memanggil `debug_token` secara live untuk memeriksa validitas/scope/
+kedaluwarsa.
+
+### File yang dibuat/diubah (referensi cepat, status FINAL setelah tabrakan dengan #646)
+
+- `src/modules/social-publishing/domain/`: `meta-provider-config.ts`,
+  `meta-publish-content.ts`, `meta-error-normalization.ts`;
+  `social-provider-adapter.ts` (+`supportedAccountTypes` opsional,
+  +param `providerAccountId` di `verifyCredentials` — perubahan
+  TERAKHIR ini datang dari #646, bukan #644, lihat §646).
+- `src/modules/social-publishing/infrastructure/meta/`:
+  `meta-graph-client.ts`, `meta-token-reference-resolver.ts`,
+  `meta-credential-verification.ts` (`verifyMetaCredentials` sekarang
+  JUGA memanggil `GET /{providerAccountId}?fields=id` pakai token yang
+  diperiksa, mengonfirmasi token benar-benar bisa akses target
+  spesifik — bukan cuma valid secara umum), `meta-facebook-page-adapter.ts`,
+  `meta-instagram-adapter.ts`.
+- `src/modules/social-publishing/infrastructure/social-provider-registry.ts`
+  (blok registrasi additive di akhir file — TIDAK bentrok dengan #646,
+  yang pakai pola registrasi berbeda, lihat §646 Keputusan #x).
+- `src/modules/social-publishing/application/social-account-directory.ts`
+  (+`providerAccountType` di `fetchSocialAccountTokenReferenceForDispatch`
+  — dipakai `social-publish-dispatch.ts`'s enforcement baru, Keputusan
+  kunci #644-2).
+- `src/modules/social-publishing/application/social-publish-dispatch.ts`
+  (+enforcement `supportedAccountTypes` sebelum `adapter.publish()` —
+  Keputusan kunci #644-2, BLOKING finding reviewer round 1).
+- `src/pages/api/v1/social-publishing/accounts/index.ts`'s `POST`
+  (+enforcement `supportedAccountTypes` di connect time, defense-in-depth
+  kedua, `422 SOCIAL_ACCOUNT_UNSUPPORTED_TYPE`).
+- **DIHAPUS SELURUHNYA** (kalah terhadap desain kanonik #646, lihat
+  Keputusan kunci #644-4): `application/social-account-verification.ts`,
+  route `verify.ts` versi awal #644,
+  `tests/integration/social-publishing-meta-adapter.integration.test.ts`
+  (seluruhnya tentang route verify yang sudah diganti).
+- `src/pages/admin/social-publishing/accounts.astro` — tombol "Verify
+  connection" versi #644 juga DIHAPUS, digantikan tombol/script versi
+  #646 (permission `accounts.verify`, wajib `Idempotency-Key`).
+- `scripts/validate-env.ts` (`checkMetaSocialPublishingProviderConfig`),
+  `scripts/security-readiness.ts`
+  (`checkMetaSocialPublishingAccountReadiness`),
+  `src/lib/config/registry.ts`, `.env.example`,
+  `18_configuration_env_reference.md`.
+- `src/lib/i18n/error-messages.ts` (+`SOCIAL_ACCOUNT_UNSUPPORTED_TYPE`
+  saja — `SOCIAL_ACCOUNT_NEEDS_REAUTH`/`PROVIDER_NOT_REGISTERED` versi
+  awal #644 dihapus lagi bersama route verify awalnya, sudah tidak
+  dipakai di mana pun).
+- `openapi/modules/social-publishing.openapi.yaml` (`.../verify` versi
+  KANONIK #646, bukan versi awal #644; `+422` di `POST .../accounts`
+  untuk connect-time enforcement), `asyncapi/...` (+`account.verified`
+  dari #644, +`account.verification-failed` dari #646), `module.ts`
+  (+2 event, deskripsi diperbarui menyebut kedua adapter).
+- `i18n/en.po`, `i18n/id.po`, `i18n/messages.pot` — hasil akhir gabungan
+  string #644+#646 (versi UI/pesan #646 yang menang untuk key yang
+  sama).
+- Test: `tests/unit/meta-provider-config.test.ts`,
+  `tests/unit/meta-publish-content.test.ts`,
+  `tests/unit/meta-error-normalization.test.ts`,
+  `tests/unit/meta-token-reference-resolver.test.ts`,
+  `tests/unit/meta-facebook-page-adapter.test.ts` (+`verifyCredentials`
+  test dengan param `providerAccountId` baru),
+  `tests/unit/meta-instagram-adapter.test.ts` (+`verifyCredentials`
+  describe block baru); diperbarui:
+  `tests/modules/social-publishing-module.test.ts` (17 event, bukan
+  16 — §646 juga menambah `account.verification-failed`),
+  `tests/integration/social-publishing.integration.test.ts` (+2 test
+  Keputusan kunci #644-2: dispatcher menolak tipe tidak didukung SEBELUM
+  publish() dipanggil; connect menolak `422` untuk kombinasi providerKey/
+  providerAccountType yang tidak didukung — plus SATU fix ketidaksengajaan
+  di test #646 yang sudah ada: `resetSocialProviderRegistryForTests()`
+  tidak pernah dipulihkan setelah test-nya sendiri, membocorkan registry
+  KOSONG ke SEMUA test berikutnya dalam file yang sama karena `bun test`
+  menjalankan semua file test dalam satu proses bersama — sekarang
+  dibungkus `try/finally` yang meregistrasi ulang ketiga adapter).
+- Changeset: `.changeset/social-publishing-meta-adapter-issue-644.md`.
+- TIDAK ada migration baru dari #644 sendiri — lihat Keputusan kunci
+  #644-1 (#646 menambah migration 055 untuk permission `accounts.verify`,
+  independen dari keputusan ini).
+
+### Belum/di luar cakupan issue ini (untuk #645/#646/#647)
+
+- Route OAuth authorization-code exchange nyata untuk Meta — akun
+  dihubungkan manual lewat form generik #643 hari ini.
+- Integrasi secret-manager nyata — `env:VAR_NAME` tetap satu-satunya
+  skema `token_reference`/`META_APP_SECRET_REFERENCE` yang benar-benar
+  bisa diresolusi.
+- Stories/Reels, WhatsApp auto posting, sinkronisasi metrik sosial,
+  moderasi komentar sosial — eksplisit di luar cakupan body issue #644.
+- Auto-requeue job `needs_reauth` setelah reconnect — masih warisan
+  #643, belum berubah.
 
 ## §646 — Adapter Telegram channel (Selesai)
 
