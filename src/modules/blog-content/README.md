@@ -49,11 +49,13 @@ Delapan penambahan skema, semua tenant-scoped RLS FORCE seperti migration 026, p
 
 Tidak ada tabel baru untuk galeri media — lihat §Presentation extensions §Media/Gallery untuk alasannya.
 
-## Permission seed (migration `027_awcms_mini_blog_content_permissions.sql`, `030_awcms_mini_blog_content_presentation_permissions.sql`)
+## Permission seed (migration `027_awcms_mini_blog_content_permissions.sql`, `030_awcms_mini_blog_content_presentation_permissions.sql`, `052_awcms_mini_blog_content_internal_tag_links_permissions.sql`)
 
 26 permission dari migration 027 persis sesuai doc issue #537 §Permission Seed (`blog_content.posts.*`, `.pages.*`, `.taxonomies.*`, `.revisions.*`, `.settings.*`, `.seo.configure`, `.search.read`). Migration 030 (Issue #542) menambah 10 permission lagi: `templates.{read,configure}`, `menus.{read,configure}`, `widgets.{read,configure}`, `ads.{read,configure}`, `theme.{read,configure}` — satu `read` + satu `configure` per resource, pola granularitas yang sama seperti `taxonomies.{read,configure}` (master/config data admin, bukan konten dengan lifecycle). Tidak ada role grant implisit — hanya assignable lewat Access & Users yang sudah ada.
 
 Sampai Issue #543, ke-36 permission ini ada di database tapi `module.ts`'s `permissions` array kosong — Module Management's permission-sync report (`fetchModulePermissionSyncReport`, dipakai `admin/modules/[moduleKey].astro`'s panel Permissions) karena itu tidak punya apa pun untuk dibandingkan terhadap DB. Issue #543 mendeklarasikan seluruh 36 permission di `module.ts` (persis mencerminkan migration 027+030, bukan menambah permission baru) supaya sync report itu akhirnya berfungsi untuk modul ini, dan menambahkan `navigation: [{ path: "/admin/blog", ... }]` supaya `/admin/blog` muncul di sidebar admin (lihat §Admin UI).
+
+Migration 052 (Issue #641, epic `news_portal`) menambah 3 permission lagi: `internal_links.{read,configure,preview}` — untuk fitur automatic internal tag linking (render-time transform yang me-link nama tag yang cocok di body post published ke halaman archive tag-nya, `domain/internal-tag-linking.ts`). Total permission modul ini sekarang **39** (26 + 10 + 3), seluruhnya dideklarasikan di `module.ts`'s `permissions` array.
 
 ## Domain validation (`domain/`)
 

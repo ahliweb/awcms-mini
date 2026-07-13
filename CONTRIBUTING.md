@@ -49,7 +49,7 @@ Prasyarat: **Bun** (versi terkunci di `package.json` `packageManager`/`engines`)
 Jalankan yang relevan dengan perubahan Anda:
 
 ```bash
-bun run check                # gate CI utama: lint + check:docs + typecheck + test
+bun run check                # gate CI utama: lint + check:docs + api:spec:check + api:docs:check + repo:inventory:check + modules:dag:check + i18n:pot:check + i18n:parity:check + config:docs:check + logging:lint:check + typecheck + test + build
 bun run lint                 # prettier check dokumen
 bun run typecheck            # tsc --noEmit
 bun test                     # unit + integration test (bun:test) di tests/
