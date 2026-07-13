@@ -54,8 +54,13 @@ temukan bisa dieksploitasi untuk flag keamanan-sensitif).
 - **#646** — adapter Telegram: `telegram_channel` (bot token), gated
   `TELEGRAM_PROVIDER_ENABLED`.
 - **#647** — dokumentasi/SOP lintas-provider, butuh #643-#646 semua ada.
-  Belum dikerjakan — README ini adalah referensi modul umum, bukan
-  pengganti SOP formal yang akan dihasilkan issue tersebut.
+  **Selesai** (PR #756, merged) — 5 dokumen di
+  `docs/awcms-mini/news-portal/`: `social-sharing.md`,
+  `social-publishing-architecture.md`, `social-publishing-sop.md`,
+  `social-provider-limitations.md`,
+  `social-publishing-security-checklist.md`. README ini tetap referensi
+  modul umum, bukan pengganti dokumen SOP formal tersebut — lihat
+  dokumen itu untuk SOP operasional lengkap.
 
 ## Tables (migration `053_awcms_mini_social_publishing_schema.sql`)
 
@@ -65,7 +70,9 @@ SECURITY` dan policy `tenant_isolation` standar:
 - **`awcms_mini_social_accounts`** — satu baris per (tenant, provider,
   akun eksternal); `token_reference` adalah pointer opaque ke secret
   storage eksternal, **bukan** OAuth token mentah (tidak pernah di-SELECT
-  balik oleh query manapun, sama seperti `tenant_domain`'s
+  balik ke response — dua fungsi internal saja yang men-SELECT-nya untuk
+  keperluan sempit: dispatcher outbox dan endpoint verify, lihat
+  §Keamanan di bawah — sama seperti `tenant_domain`'s
   `verification_token_hash`). `connection_status`:
   `pending|connected|disconnected|needs_reauth|error`.
   `provider_account_type`: `page|profile|channel|group|organization`.
@@ -300,8 +307,6 @@ seperti event modul lain (bukan message broker sungguhan).
 
 ## Belum tersedia
 
-- Dokumentasi/SOP formal lintas-provider (Issue #647) — README ini adalah
-  referensi modul umum, bukan penggantinya.
 - Halaman admin khusus untuk `settings` (master switch auto-posting) —
   saat ini hanya lewat API.
 - Provider tambahan di luar Meta/LinkedIn/Telegram — registry

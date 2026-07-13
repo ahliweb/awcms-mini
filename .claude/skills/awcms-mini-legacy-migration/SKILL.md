@@ -8,9 +8,10 @@ description: BACAAN SAJA — migrasi data legacy sengaja DIDESKOP dari base repo
 ## Status: sengaja tidak dibangun di sini
 
 Epic "Legacy Migration" (semula Epic 1, Issue 1.1–1.2) ada di backlog awal
-38-issue AWCMS-Mini, tapi **ditutup `not planned`** di GitHub bersama 19
+38-issue AWCMS-Mini, tapi **ditutup `not planned`** di GitHub bersama 18
 issue domain POS/retail lain (POS MVP, Warehouse Management, CRM Receipt
-Delivery, Accounting & Coretax, dst.) karena tidak sesuai konteks
+Delivery, Accounting & Coretax, dst.) — total 20 issue domain ditutup,
+Legacy Migration sendiri 2 di antaranya — karena tidak sesuai konteks
 AWCMS-Mini sebagai **contoh repo pengembangan umum** (generic base, bukan
 aplikasi retail). Kontennya **dipindahkan ke aplikasi turunan contoh**
 (mis. AWPOS), bukan dihapus historisnya — lihat memory proyek
