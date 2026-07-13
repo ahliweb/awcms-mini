@@ -2070,6 +2070,16 @@ msgid "admin.layout.nav_news_portal_homepage_sections"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/profile-identity/module.ts:34
+msgid "admin.layout.nav_profile_identity_merge_requests"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/profile-identity/module.ts:28
+msgid "admin.layout.nav_profile_identity_parties"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
 #: src/modules/identity-access/module.ts:26
 msgid "admin.layout.nav_security"
 msgstr ""
@@ -2618,6 +2628,294 @@ msgstr ""
 
 #: src/pages/admin/news-portal/homepage-sections.astro:43
 msgid "admin.news_portal.homepage_sections.update_success"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:151
+msgid "admin.profile_identity.access_denied_body"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:150
+msgid "admin.profile_identity.access_denied_title"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:249
+msgid "admin.profile_identity.detail.add_button"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:81
+msgid "admin.profile_identity.detail.address_added"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:82
+msgid "admin.profile_identity.detail.address_deleted"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:283
+msgid "admin.profile_identity.detail.address_line_placeholder"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:256
+msgid "admin.profile_identity.detail.addresses_title"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:193
+msgid "admin.profile_identity.detail.archive_button"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:76
+msgid "admin.profile_identity.detail.archive_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:74
+msgid "admin.profile_identity.detail.archive_success"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:83
+msgid "admin.profile_identity.detail.channel_added"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:84
+msgid "admin.profile_identity.detail.channel_deleted"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:302
+msgid "admin.profile_identity.detail.channels_title"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:434
+msgid "admin.profile_identity.detail.confirm_duplicate_button"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:222
+msgid "admin.profile_identity.detail.delete_button"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:90
+msgid "admin.profile_identity.detail.delete_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:407
+msgid "admin.profile_identity.detail.duplicate_candidates_title"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:368
+msgid "admin.profile_identity.detail.end_relationship_button"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:396
+msgid "admin.profile_identity.detail.field_is_representative"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:77
+msgid "admin.profile_identity.detail.identifier_added"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:78
+msgid "admin.profile_identity.detail.identifier_deleted"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:244
+msgid "admin.profile_identity.detail.identifier_value_placeholder"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:205
+msgid "admin.profile_identity.detail.identifiers_title"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:472
+msgid "admin.profile_identity.detail.merge_reason_placeholder"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:89
+msgid "admin.profile_identity.detail.merge_request_created"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:208
+msgid "admin.profile_identity.detail.no_records"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:444
+msgid "admin.profile_identity.detail.not_duplicate_button"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:171
+msgid "admin.profile_identity.detail.not_found"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:383
+msgid "admin.profile_identity.detail.other_profile_id_placeholder"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:85
+msgid "admin.profile_identity.detail.relationship_added"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:86
+msgid "admin.profile_identity.detail.relationship_ended"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:347
+msgid "admin.profile_identity.detail.relationships_title"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:198
+msgid "admin.profile_identity.detail.restore_button"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:75
+msgid "admin.profile_identity.detail.restore_success"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:91
+msgid "admin.profile_identity.detail.review_notes_prompt"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:88
+msgid "admin.profile_identity.detail.review_success"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:411
+msgid "admin.profile_identity.detail.scan_button"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:87
+msgid "admin.profile_identity.detail.scan_success"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:477
+msgid "admin.profile_identity.detail.start_merge_button"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:458
+msgid "admin.profile_identity.detail.start_merge_title"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:464
+msgid "admin.profile_identity.detail.survivor_profile_id_placeholder"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:144
+msgid "admin.profile_identity.detail.title"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:73
+msgid "admin.profile_identity.detail.update_success"
+msgstr ""
+
+#: src/pages/admin/profile-identity/[id].astro:482
+msgid "admin.profile_identity.detail.view_merge_requests_link"
+msgstr ""
+
+#: src/pages/admin/profile-identity/merge-requests.astro:136
+msgid "admin.profile_identity.merge_requests.approve_button"
+msgstr ""
+
+#: src/pages/admin/profile-identity/merge-requests.astro:38
+msgid "admin.profile_identity.merge_requests.decision_success"
+msgstr ""
+
+#: src/pages/admin/profile-identity/merge-requests.astro:158
+msgid "admin.profile_identity.merge_requests.execute_button"
+msgstr ""
+
+#: src/pages/admin/profile-identity/merge-requests.astro:43
+msgid "admin.profile_identity.merge_requests.execute_confirm"
+msgstr ""
+
+#: src/pages/admin/profile-identity/merge-requests.astro:39
+msgid "admin.profile_identity.merge_requests.execute_success"
+msgstr ""
+
+#: src/pages/admin/profile-identity/merge-requests.astro:110
+msgid "admin.profile_identity.merge_requests.field_source"
+msgstr ""
+
+#: src/pages/admin/profile-identity/merge-requests.astro:116
+msgid "admin.profile_identity.merge_requests.field_status"
+msgstr ""
+
+#: src/pages/admin/profile-identity/merge-requests.astro:113
+msgid "admin.profile_identity.merge_requests.field_target"
+msgstr ""
+
+#: src/pages/admin/profile-identity/merge-requests.astro:103
+msgid "admin.profile_identity.merge_requests.no_requests"
+msgstr ""
+
+#: src/pages/admin/profile-identity/merge-requests.astro:146
+msgid "admin.profile_identity.merge_requests.reject_button"
+msgstr ""
+
+#: src/pages/admin/profile-identity/merge-requests.astro:40
+msgid "admin.profile_identity.merge_requests.reject_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/profile-identity/merge-requests.astro:70
+msgid "admin.profile_identity.merge_requests.title"
+msgstr ""
+
+#: src/pages/admin/profile-identity/index.astro:206
+msgid "admin.profile_identity.parties.create_submit"
+msgstr ""
+
+#: src/pages/admin/profile-identity/index.astro:38
+msgid "admin.profile_identity.parties.create_success"
+msgstr ""
+
+#: src/pages/admin/profile-identity/index.astro:172
+msgid "admin.profile_identity.parties.create_summary"
+msgstr ""
+
+#: src/pages/admin/profile-identity/index.astro:192
+msgid "admin.profile_identity.parties.field_legal_name"
+msgstr ""
+
+#: src/pages/admin/profile-identity/index.astro:142
+msgid "admin.profile_identity.parties.field_name"
+msgstr ""
+
+#: src/pages/admin/profile-identity/index.astro:196
+msgid "admin.profile_identity.parties.field_risk_level"
+msgstr ""
+
+#: src/pages/admin/profile-identity/index.astro:144
+msgid "admin.profile_identity.parties.field_status"
+msgstr ""
+
+#: src/pages/admin/profile-identity/index.astro:143
+msgid "admin.profile_identity.parties.field_type"
+msgstr ""
+
+#: src/pages/admin/profile-identity/index.astro:146
+msgid "admin.profile_identity.parties.field_verification"
+msgstr ""
+
+#: src/pages/admin/profile-identity/index.astro:116
+msgid "admin.profile_identity.parties.filter_all"
+msgstr ""
+
+#: src/pages/admin/profile-identity/index.astro:109
+msgid "admin.profile_identity.parties.filter_q"
+msgstr ""
+
+#: src/pages/admin/profile-identity/index.astro:130
+msgid "admin.profile_identity.parties.filter_submit"
+msgstr ""
+
+#: src/pages/admin/profile-identity/index.astro:113
+msgid "admin.profile_identity.parties.filter_type"
+msgstr ""
+
+#: src/pages/admin/profile-identity/index.astro:160
+msgid "admin.profile_identity.parties.manage_link"
+msgstr ""
+
+#: src/pages/admin/profile-identity/index.astro:136
+msgid "admin.profile_identity.parties.no_parties"
+msgstr ""
+
+#: src/pages/admin/profile-identity/index.astro:76
+msgid "admin.profile_identity.parties.title"
 msgstr ""
 
 #: src/pages/admin/security.astro:199

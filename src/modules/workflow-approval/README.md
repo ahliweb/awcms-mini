@@ -16,9 +16,9 @@ Implementation of Issue 11.1 (`docs/awcms-mini/06_github_issues_detail.md` §Iss
 | No administrative recovery                         | Reassign / cancel / force-approve / force-reject, permission-gated + `Idempotency-Key` + audit                |
 | `GET /workflows/tasks` (offset-free, no filters)   | Keyset-paginated, filterable (workflow key/resource type/status/overdue), safe search, action-history view    |
 
-## Schema (migration `012` + `059`)
+## Schema (migration `012` + `060`)
 
-Same 4 core tables (`awcms_mini_workflow_definitions`/`_instances`/`_tasks`/`_decisions`), evolved in place (migration `059`), plus 3 new tables:
+Same 4 core tables (`awcms_mini_workflow_definitions`/`_instances`/`_tasks`/`_decisions`), evolved in place (migration `060`), plus 3 new tables:
 
 - `awcms_mini_workflow_task_assignments` — eligible deciders per task (quorum/any/all counting, delegation resolution, reassignment history — never deleted, only `reassigned`).
 - `awcms_mini_workflow_delegations` — effective-dated substitute assignments.
@@ -52,7 +52,7 @@ A delegation only ever lets the delegate act using the delegator's OWN standing 
 
 ## Escalation/timeout (`application/workflow-escalation.ts`, `scripts/workflow-escalations-dispatch.ts`)
 
-Built on the shared worker runner (`src/lib/jobs/job-runner.ts`) — bounded batch, advisory lock, `--dry-run`. **Idempotency guard**: the escalation `UPDATE` is conditioned on `WHERE status = 'pending' AND escalation_step = <value read this pass>` — a lost race (concurrent run, or a retried pass) affects zero rows and is silently skipped, never double-escalates. Runs as the least-privilege `awcms_mini_worker` role (migration `059` grants).
+Built on the shared worker runner (`src/lib/jobs/job-runner.ts`) — bounded batch, advisory lock, `--dry-run`. **Idempotency guard**: the escalation `UPDATE` is conditioned on `WHERE status = 'pending' AND escalation_step = <value read this pass>` — a lost race (concurrent run, or a retried pass) affects zero rows and is silently skipped, never double-escalates. Runs as the least-privilege `awcms_mini_worker` role (migration `060` grants).
 
 ## Administrative recovery (`application/workflow-recovery.ts`)
 
@@ -91,4 +91,4 @@ Every high-risk mutation here (`decisions`, `reassign`, `force-decision`, `publi
 - **`force-decision` self-approval bypass (High)** — the route authorized via `workflow.recovery.force_decide` without populating `resourceAttributes.requestedByTenantUserId`, and `access-control.ts`'s self-approval-deny check was hardwired to the `"approve"` action only — so a caller who filed their own instance and held `force_decide` could force-approve their own request, bypassing quorum entirely. Fixed by looking up the task/instance before the guard (same pattern `decisions.ts` uses) and extending the self-approval-deny check to also cover `"force_decide"` (blocks both force-approve and force-reject of one's own instance).
 - **Missing audit log entries (High)** — `publish`, `retire`, the definitions `DELETE` handler, and delegation create/revoke did not call `recordAuditEvent` despite being high-risk mutations; all 5 now do. `DELETE .../definitions/{id}` and both delegation endpoints were also missing `Idempotency-Key` enforcement; now added.
 - **Unenforced `workflow.delegation.revoke` permission (Low)** — the revoke route gated on `workflow.delegation.read` and relied solely on the ownership check; the seeded `revoke` permission (doc 17: Owner/Manager `RCV`) was dead. Fixed to gate on `workflow.delegation.revoke`.
-- **Escalation-job worker role over-grant (Low)** — migration `059` granted `SELECT, UPDATE` on `awcms_mini_workflow_instances` to `awcms_mini_worker`, but the escalation job only ever `SELECT`s from that table. Trimmed to `SELECT`-only.
+- **Escalation-job worker role over-grant (Low)** — migration `060` granted `SELECT, UPDATE` on `awcms_mini_workflow_instances` to `awcms_mini_worker`, but the escalation job only ever `SELECT`s from that table. Trimmed to `SELECT`-only.

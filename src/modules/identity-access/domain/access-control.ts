@@ -94,14 +94,25 @@ export type AccessAction =
   // `workflow.recovery.force_decide` (force-approve/force-reject a
   // pending task, bypassing quorum), and `workflow.delegation.revoke`
   // (revoke an effective-dated substitute assignment — security-auditor
-  // finding, PR #778: previously seeded in migration 059/doc 17 but never
+  // finding, PR #778: previously seeded in migration 060/doc 17 but never
   // enforced by any guard). All four added to `HIGH_RISK_ACTIONS` below —
   // each is either an administrative override of a running workflow's
   // normal decision path, or a reduction of a substitute's standing.
   | "retire"
   | "reassign"
   | "force_decide"
-  | "revoke";
+  | "revoke"
+  // Issue #748 (profile_identity): `profile_merge.merge` — executing an
+  // approved profile merge request (survivor absorbs loser, entity links
+  // repointed, immutable merge history written). Deliberately its own
+  // action, distinct from `approve` (the earlier decision step) and
+  // `update`/`delete` — merging is irreversible-by-default (the loser
+  // profile is soft-deleted with `merged_into_profile_id` set, never
+  // hard-deleted) and has broad blast radius across every module that
+  // holds an `awcms_mini_profile_entity_links` reference, so a role
+  // granted `profile_merge.approve` is NOT implicitly allowed to also
+  // execute the merge itself. Added to `HIGH_RISK_ACTIONS` below.
+  | "merge";
 
 export type AccessRequest = {
   moduleKey: string;
@@ -134,7 +145,8 @@ const HIGH_RISK_ACTIONS: ReadonlySet<AccessAction> = new Set([
   "retire",
   "reassign",
   "force_decide",
-  "revoke"
+  "revoke",
+  "merge"
 ]);
 
 export function isHighRiskAction(action: AccessAction): boolean {

@@ -10,7 +10,7 @@
  * JSON telemetry all come from `runJob`, matching
  * `domain-events-dispatch.ts`'s template exactly.
  *
- * Runs as the least-privilege `awcms_mini_worker` role (migration 059's
+ * Runs as the least-privilege `awcms_mini_worker` role (migration 060's
  * grants) — never `DATABASE_URL`'s app/admin role.
  */
 import { getWorkerDatabaseClient } from "../src/lib/database/client";

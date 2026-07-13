@@ -32,7 +32,7 @@ import {
  * `workflow.delegation.read` and relied solely on `revokeWorkflowDelegation`'s
  * ownership check ("only the delegator may revoke their own delegation")
  * — leaving the distinct `workflow.delegation.revoke` permission seeded
- * in migration `059` and doc 17's RBAC matrix (Owner/Manager: `RCV`)
+ * in migration `060` and doc 17's RBAC matrix (Owner/Manager: `RCV`)
  * completely unenforced (dead permission). Fixed to gate on
  * `workflow.delegation.revoke` — the ownership check in
  * `revokeWorkflowDelegation` remains as defense-in-depth on top of the

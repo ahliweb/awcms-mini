@@ -10,6 +10,7 @@ import {
   isValidEventType,
   isValidEventVersion
 } from "../../src/modules/domain-event-runtime/domain/envelope";
+import { listModules } from "../../src/modules/index";
 import { domainEventRuntimeModule } from "../../src/modules/domain-event-runtime/module";
 
 /**
@@ -90,6 +91,29 @@ describe("domain-event-runtime registry <-> AsyncAPI parity (Issue #742)", () =>
 
     for (const entry of ownedEntries) {
       expect(publishes.has(entry.eventType)).toBe(true);
+    }
+  });
+
+  test("every DOMAIN_EVENT_TYPE_REGISTRY entry is published by SOME module's module.ts", () => {
+    // Issue #748 (profile_identity, epic #738 Wave 2) is another REAL
+    // external producer added to this shared registry — exactly what
+    // `event-type-registry.ts`'s own doc comment anticipates ("Future
+    // producer modules add their OWN entries here... and their own
+    // module.ts events.publishes entries"). Scoped to ANY module's
+    // `events.publishes`, since the registry is explicitly a shared,
+    // multi-producer catalog, not exclusively domain_event_runtime's own
+    // (the test above already covers that narrower, domain_event_runtime-
+    // specific invariant). The repo-wide `checkModuleEventChannels`
+    // (`scripts/api-spec-check.ts`, part of `bun run check`) already
+    // validates each module's own `events.publishes` against AsyncAPI
+    // channels; this test additionally confirms nothing in THIS registry
+    // is orphaned (published by no module at all).
+    const allPublishedEventTypes = new Set(
+      listModules().flatMap((module) => module.events?.publishes ?? [])
+    );
+
+    for (const entry of DOMAIN_EVENT_TYPE_REGISTRY) {
+      expect(allPublishedEventTypes.has(entry.eventType)).toBe(true);
     }
   });
 

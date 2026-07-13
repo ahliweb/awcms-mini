@@ -4,7 +4,7 @@
 
 Evolve `workflow-approval` from a linear single-step approval engine (Issue 11.1) into a managed, versioned, graph-based enterprise workflow minimum (Issue #747, epic `platform-evolution` #738 Wave 2).
 
-- Managed workflow-definition lifecycle: `draft -> active -> retired`, full version history, immutable published/retired rows (migration `059`). New endpoints `POST/PUT/DELETE /api/v1/workflows/definitions`, `.../publish`, `.../retire`, `.../new-version`, `.../validate`.
+- Managed workflow-definition lifecycle: `draft -> active -> retired`, full version history, immutable published/retired rows (migration `060`). New endpoints `POST/PUT/DELETE /api/v1/workflows/definitions`, `.../publish`, `.../retire`, `.../new-version`, `.../validate`.
 - Generic node/transition graph (`approval`/`condition`/`parallel`/`join`/`notify`/`end`) replaces the old linear `steps` list — sequential approval, bounded conditional routing over declared facts (never arbitrary expressions/code, doc 21 §3 decision tree), and parallel fan-out/fan-in.
 - Quorum/any/all approval rules per node, tracked via new `awcms_mini_workflow_task_assignments` (eligible deciders, reassignment history).
 - Effective-dated delegation/substitute assignments (`awcms_mini_workflow_delegations`) — scoped, reasoned, audited, revocable; never widens the delegator's own verified authority.

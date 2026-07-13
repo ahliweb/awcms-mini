@@ -3099,3 +3099,226 @@ msgstr "Belum ada riwayat."
 
 msgid "admin.workflows.history_load_error"
 msgstr "Tidak dapat memuat riwayat."
+
+#. admin.profile_identity
+msgid "admin.profile_identity.access_denied_body"
+msgstr "Anda tidak memiliki izin untuk melihat halaman ini. Hubungi administrator Anda bila menurut Anda ini keliru."
+
+msgid "admin.profile_identity.access_denied_title"
+msgstr "Akses ditolak"
+
+msgid "admin.profile_identity.parties.title"
+msgstr "Pihak (Party)"
+
+msgid "admin.profile_identity.parties.filter_q"
+msgstr "Cari nama"
+
+msgid "admin.profile_identity.parties.filter_type"
+msgstr "Tipe"
+
+msgid "admin.profile_identity.parties.filter_all"
+msgstr "Semua"
+
+msgid "admin.profile_identity.parties.filter_submit"
+msgstr "Filter"
+
+msgid "admin.profile_identity.parties.field_name"
+msgstr "Nama tampilan"
+
+msgid "admin.profile_identity.parties.field_type"
+msgstr "Tipe"
+
+msgid "admin.profile_identity.parties.field_status"
+msgstr "Status"
+
+msgid "admin.profile_identity.parties.field_verification"
+msgstr "Verifikasi"
+
+msgid "admin.profile_identity.parties.field_legal_name"
+msgstr "Nama legal"
+
+msgid "admin.profile_identity.parties.field_risk_level"
+msgstr "Tingkat risiko"
+
+msgid "admin.profile_identity.parties.manage_link"
+msgstr "Kelola"
+
+msgid "admin.profile_identity.parties.no_parties"
+msgstr "Tidak ada pihak ditemukan."
+
+msgid "admin.profile_identity.parties.create_summary"
+msgstr "Buat pihak baru"
+
+msgid "admin.profile_identity.parties.create_submit"
+msgstr "Buat pihak"
+
+msgid "admin.profile_identity.parties.create_success"
+msgstr "Pihak berhasil dibuat."
+
+msgid "admin.profile_identity.detail.title"
+msgstr "Detail Pihak"
+
+msgid "admin.profile_identity.detail.not_found"
+msgstr "Pihak tidak ditemukan."
+
+msgid "admin.profile_identity.detail.update_success"
+msgstr "Pihak berhasil diperbarui."
+
+msgid "admin.profile_identity.detail.archive_button"
+msgstr "Arsipkan"
+
+msgid "admin.profile_identity.detail.archive_success"
+msgstr "Pihak berhasil diarsipkan."
+
+msgid "admin.profile_identity.detail.archive_reason_prompt"
+msgstr "Alasan mengarsipkan pihak ini:"
+
+msgid "admin.profile_identity.detail.restore_button"
+msgstr "Pulihkan"
+
+msgid "admin.profile_identity.detail.restore_success"
+msgstr "Pihak berhasil dipulihkan."
+
+msgid "admin.profile_identity.detail.no_records"
+msgstr "Tidak ada data."
+
+msgid "admin.profile_identity.detail.add_button"
+msgstr "Tambah"
+
+msgid "admin.profile_identity.detail.delete_button"
+msgstr "Hapus"
+
+msgid "admin.profile_identity.detail.delete_reason_prompt"
+msgstr "Alasan menghapus data ini:"
+
+msgid "admin.profile_identity.detail.identifiers_title"
+msgstr "Identifier"
+
+msgid "admin.profile_identity.detail.identifier_value_placeholder"
+msgstr "Nilai identifier"
+
+msgid "admin.profile_identity.detail.identifier_added"
+msgstr "Identifier berhasil ditambahkan."
+
+msgid "admin.profile_identity.detail.identifier_deleted"
+msgstr "Identifier berhasil dihapus."
+
+msgid "admin.profile_identity.detail.addresses_title"
+msgstr "Alamat"
+
+msgid "admin.profile_identity.detail.address_line_placeholder"
+msgstr "Baris alamat"
+
+msgid "admin.profile_identity.detail.address_added"
+msgstr "Alamat berhasil ditambahkan."
+
+msgid "admin.profile_identity.detail.address_deleted"
+msgstr "Alamat berhasil dihapus."
+
+msgid "admin.profile_identity.detail.channels_title"
+msgstr "Kanal komunikasi"
+
+msgid "admin.profile_identity.detail.channel_added"
+msgstr "Kanal berhasil ditambahkan."
+
+msgid "admin.profile_identity.detail.channel_deleted"
+msgstr "Kanal berhasil dihapus."
+
+msgid "admin.profile_identity.detail.relationships_title"
+msgstr "Relasi"
+
+msgid "admin.profile_identity.detail.other_profile_id_placeholder"
+msgstr "Profile id pihak lain"
+
+msgid "admin.profile_identity.detail.field_is_representative"
+msgstr "Perwakilan resmi (authorized representative)"
+
+msgid "admin.profile_identity.detail.relationship_added"
+msgstr "Relasi berhasil ditambahkan."
+
+msgid "admin.profile_identity.detail.relationship_ended"
+msgstr "Relasi berhasil diakhiri."
+
+msgid "admin.profile_identity.detail.end_relationship_button"
+msgstr "Akhiri"
+
+msgid "admin.profile_identity.detail.duplicate_candidates_title"
+msgstr "Kandidat duplikat"
+
+msgid "admin.profile_identity.detail.scan_button"
+msgstr "Pindai duplikat"
+
+msgid "admin.profile_identity.detail.scan_success"
+msgstr "Pemindaian kandidat duplikat selesai."
+
+msgid "admin.profile_identity.detail.confirm_duplicate_button"
+msgstr "Konfirmasi duplikat"
+
+msgid "admin.profile_identity.detail.not_duplicate_button"
+msgstr "Bukan duplikat"
+
+msgid "admin.profile_identity.detail.review_notes_prompt"
+msgstr "Catatan review (opsional):"
+
+msgid "admin.profile_identity.detail.review_success"
+msgstr "Kandidat duplikat berhasil direview."
+
+msgid "admin.profile_identity.detail.start_merge_title"
+msgstr "Mulai merge"
+
+msgid "admin.profile_identity.detail.survivor_profile_id_placeholder"
+msgstr "Profile id survivor"
+
+msgid "admin.profile_identity.detail.merge_reason_placeholder"
+msgstr "Alasan merge"
+
+msgid "admin.profile_identity.detail.start_merge_button"
+msgstr "Buat permintaan merge"
+
+msgid "admin.profile_identity.detail.merge_request_created"
+msgstr "Permintaan merge berhasil dibuat."
+
+msgid "admin.profile_identity.detail.view_merge_requests_link"
+msgstr "Lihat permintaan merge"
+
+msgid "admin.profile_identity.merge_requests.title"
+msgstr "Permintaan Merge"
+
+msgid "admin.profile_identity.merge_requests.no_requests"
+msgstr "Tidak ada permintaan merge ditemukan."
+
+msgid "admin.profile_identity.merge_requests.field_source"
+msgstr "Sumber (loser)"
+
+msgid "admin.profile_identity.merge_requests.field_target"
+msgstr "Target (survivor)"
+
+msgid "admin.profile_identity.merge_requests.field_status"
+msgstr "Status"
+
+msgid "admin.profile_identity.merge_requests.approve_button"
+msgstr "Setujui"
+
+msgid "admin.profile_identity.merge_requests.reject_button"
+msgstr "Tolak"
+
+msgid "admin.profile_identity.merge_requests.reject_reason_prompt"
+msgstr "Alasan menolak permintaan merge ini:"
+
+msgid "admin.profile_identity.merge_requests.execute_button"
+msgstr "Eksekusi merge"
+
+msgid "admin.profile_identity.merge_requests.execute_confirm"
+msgstr "Eksekusi merge ini? Profile sumber akan diarsipkan dan referensinya dialihkan ke target."
+
+msgid "admin.profile_identity.merge_requests.decision_success"
+msgstr "Keputusan berhasil dicatat."
+
+msgid "admin.profile_identity.merge_requests.execute_success"
+msgstr "Merge berhasil dieksekusi."
+
+msgid "admin.layout.nav_profile_identity_parties"
+msgstr "Pihak (Party)"
+
+msgid "admin.layout.nav_profile_identity_merge_requests"
+msgstr "Permintaan Merge"

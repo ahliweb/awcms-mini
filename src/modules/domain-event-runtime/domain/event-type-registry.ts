@@ -125,6 +125,18 @@ export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
       eventVersion: WORKFLOW_EVENT_VERSION,
       description:
         "A workflow delegation/substitute assignment was revoked (Issue #747)."
+    },
+    // Issue #748 (profile_identity, epic #738 platform-evolution Wave 2) —
+    // another real (non-reference) producer registered here. Literal
+    // strings match `profile-identity/domain/merge-event.ts`'s
+    // `PROFILE_MERGED_EVENT_TYPE`/`PROFILE_MERGED_EVENT_VERSION` constants
+    // (kept in sync by convention, not by cross-module import — see that
+    // file's own header comment).
+    {
+      eventType: "awcms-mini.profile-identity.profile.merged",
+      eventVersion: "1.0",
+      description:
+        "Published when a profile merge request is executed: the loser profile is soft-deleted (merged_into_profile_id set) and its awcms_mini_profile_entity_links rows are repointed to the survivor. Lets domain modules react to the merge mapping without importing profile-identity tables directly (see _shared/ports/party-directory-port.ts for the pull-based equivalent)."
     }
   ];
 

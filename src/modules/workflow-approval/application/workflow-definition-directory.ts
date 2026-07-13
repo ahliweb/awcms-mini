@@ -214,7 +214,7 @@ export type PublishWorkflowDefinitionParams = {
  * Transitions `draft` -> `active`. Re-validates the graph (defense in
  * depth) and, IN THE SAME TRANSACTION, retires any previously-`active`
  * version of the same `workflow_key` — the mechanism (not just the
- * partial unique index backstop, migration 059) that keeps "at most one
+ * partial unique index backstop, migration 060) that keeps "at most one
  * active version per workflow_key" true.
  */
 export async function publishWorkflowDefinition(
